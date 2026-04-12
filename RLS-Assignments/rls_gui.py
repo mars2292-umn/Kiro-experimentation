@@ -38,6 +38,23 @@ class State:
     LAUNCHED        = "LAUNCHED"         # launch confirmed, rocket fires
 
 
+# ── Communication delay configuration (ms) ───────────────────────────────────
+COMM_DELAYS = {
+    "test_circuit": 600,
+    "ready_ack":    400,
+    "launch_ack":   500,
+}
+
+# ── Valid state transitions ───────────────────────────────────────────────────
+VALID_TRANSITIONS = {
+    State.IDLE:            [State.CIRCUIT_TESTED],
+    State.CIRCUIT_TESTED:  [State.ENABLED, State.IDLE],
+    State.ENABLED:         [State.READY, State.IDLE],
+    State.READY:           [State.LAUNCHED, State.IDLE],
+    State.LAUNCHED:        [State.IDLE],
+}
+
+
 # ── Light widget ──────────────────────────────────────────────────────────────
 class Light(QWidget):
     def __init__(self, color_on: QColor, label: str, parent=None):
@@ -192,22 +209,20 @@ class RocketCanvas(QGraphicsView):
 
     # ── animation ──
     def _animate(self):
-        if self._launched:
-            self._launch_vel += 0.4
-            self._rocket_y -= self._launch_vel
-            self._flame_on = True
-            if self._rocket_y < -150:
-                self._timer.stop()
-                self._flame_on = False
-        else:
-            # idle flicker
-            self._flame_on = not self._flame_on
-
+        if not self._launched:
+            return
+        self._launch_vel += 0.4
+        self._rocket_y -= self._launch_vel
+        self._flame_on = True
         self._draw_rocket()
+        if self._rocket_y < -150:
+            self._timer.stop()
+            self._flame_on = False
 
     def ignite(self):
         self._launched = True
-        self._launch_vel = 1.0
+        self._flame_on = True
+        self._launch_vel = 0.0
         self._timer.start(40)
 
     def reset(self):
@@ -390,51 +405,56 @@ class RLSWindow(QMainWindow):
         if self._state == State.IDLE:
             self._log("TEST button pressed → closing test circuit…")
             # simulate test current detected after short delay
-            QTimer.singleShot(600, self._test_current_detected)
+            QTimer.singleShot(COMM_DELAYS["test_circuit"], self._test_current_detected)
 
     def _test_current_detected(self):
         if self._state == State.IDLE:
-            self._log("✅ Test current detected — circuit OK")
             self._state = State.CIRCUIT_TESTED
-            self.lpu_green.set_on(True)   # Test Light ON
+            self._log("✅ Test current detected — circuit OK")
             self._update_ui()
 
     def _on_enable(self):
         if self._state == State.CIRCUIT_TESTED:
-            self._log("ENABLE button pressed → LP Enable Light ON, comms enabled")
             self._state = State.ENABLED
-            self.lpu_red.set_on(True)     # LP Enable Light ON
+            self._log("ENABLE pressed → LP Enable Light ON, comms enabled")
             self._update_ui()
 
     def _on_ready(self):
         if self._state == State.ENABLED:
             self._log("READY button pressed → notifying launch pad…")
-            QTimer.singleShot(400, self._ready_acknowledged)
+            QTimer.singleShot(COMM_DELAYS["ready_ack"], self._ready_acknowledged)
 
     def _ready_acknowledged(self):
         if self._state == State.ENABLED:
-            self._log("✅ Launch pad acknowledged READY — CU Enable Light ON")
             self._state = State.READY
-            self.cu_red.set_on(True)      # CU Enable Light ON
+            self._log("✅ Launch pad acknowledged READY — CU Ready Light ON")
             self._update_ui()
 
     def _on_launch(self):
         if self._state == State.READY:
             self._log("LAUNCH button pressed → sending launch command…")
-            QTimer.singleShot(500, self._launch_acknowledged)
+            QTimer.singleShot(COMM_DELAYS["launch_ack"], self._launch_acknowledged)
 
     def _launch_acknowledged(self):
         if self._state == State.READY:
-            self._log("🔥 Launch pad acknowledged — closing igniter circuit!")
             self._state = State.LAUNCHED
-            self.cu_green.set_on(True)    # Launch Light ON
+            self._log("🔥 Launch acknowledged — closing igniter circuit!")
             self._update_ui()
             self.rocket.ignite()
             self._log("🚀 ROCKET LAUNCHED!")
 
     def _on_cancel(self):
-        if self._state != State.IDLE:
-            self._log("⛔ CANCEL pressed — system reset to IDLE")
+        sender = self.sender()
+        if sender is self.btn_cu_cancel:
+            # CU cancel only valid in ENABLED or READY
+            if self._state not in (State.ENABLED, State.READY):
+                return
+            self._log("⛔ CU CANCEL pressed — system reset to IDLE")
+        else:
+            # LPU cancel valid in any state except IDLE
+            if self._state == State.IDLE:
+                return
+            self._log("⛔ LPU CANCEL pressed — system reset to IDLE")
         self._reset()
 
     def _reset(self):
@@ -445,24 +465,42 @@ class RLSWindow(QMainWindow):
         self.cu_green.set_on(False)
         self.rocket.reset()
         self._update_ui()
+        self._log("System reset to IDLE")
 
     # ── Enable/disable buttons per state ──
     def _update_ui(self):
         s = self._state
-        self.state_lbl.setText(f"STATE:  {s}")
 
-        # LPU buttons
+        # Button enable/disable matrix
         self.btn_test.setEnabled(s == State.IDLE)
         self.btn_enable.setEnabled(s == State.CIRCUIT_TESTED)
         self.btn_lp_cancel.setEnabled(s != State.IDLE)
-
-        # CU buttons — only available once LP is enabled
         self.btn_ready.setEnabled(s == State.ENABLED)
         self.btn_launch.setEnabled(s == State.READY)
-        self.btn_cu_cancel.setEnabled(s not in (State.IDLE, State.LAUNCHED))
+        self.btn_cu_cancel.setEnabled(
+            s in (State.ENABLED, State.READY)
+        )
+
+        # Light state matrix
+        self.lpu_green.set_on(
+            s in (State.CIRCUIT_TESTED, State.ENABLED,
+                  State.READY, State.LAUNCHED)
+        )
+        self.lpu_red.set_on(
+            s in (State.ENABLED, State.READY, State.LAUNCHED)
+        )
+        self.cu_red.set_on(
+            s in (State.READY, State.LAUNCHED)
+        )
+        self.cu_green.set_on(s == State.LAUNCHED)
+
+        # State label
+        self.state_lbl.setText(f"STATE:  {s}")
 
     def _log(self, msg: str):
-        self.log.append(msg)
+        from datetime import datetime
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.log.append(f"[{ts}] {msg}")
         self.log.verticalScrollBar().setValue(
             self.log.verticalScrollBar().maximum()
         )

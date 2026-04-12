@@ -1,0 +1,4 @@
+# file: /Users/luke/repos/Grad Research/RLS-Assignments/rls_gui.py
+# hypothesis_version: 6.151.12
+
+[0.0, 0.4, 0.5, 1.0, 1.5, -150, 100, 120, 125, 135, 140, 180, 200, 210, 220, 240, 255, 295, 310, 340, 400, 500, 560, 600, 860, '#00dc50', '#6bcbff', '#888', '#ff6b6b', '#ffcc00', 'CANCEL', 'CIRCUIT_TESTED', 'ENABLE', 'ENABLED', 'EVENT LOG', 'Helvetica Neue', 'IDLE', 'LAUNCH', 'LAUNCH 🔥', 'LAUNCHED', 'READY', 'TEST', '__main__', '_is_rocket', 'launch_ack', 'ready_ack', 'test_circuit', '🎮  CONTROL UNIT', '🚀  LAUNCH PAD UNIT', '🚀 ROCKET LAUNCHED!']
