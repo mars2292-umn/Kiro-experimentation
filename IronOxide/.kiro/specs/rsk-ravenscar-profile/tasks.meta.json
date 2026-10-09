@@ -1,0 +1,39 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Create the Cargo workspace with the crates of the design (`rsk-kernel` with `logic`, `hw_model`, `arch`, and `unsafe_module`; `rsk-entry`; `rsk`; `rsk-model`; `rsk-gen`; `rsk-macros`; `rsk-link`; `rsk-confcheck`; `rsk-analyzer`; `rsk-wcet`; `rsk-hil`). Pin the upstream stable rustc on which the planned Ferrocene release is based, vendor all dependencies, and add Build_System checks for `#![forbid(unsafe_code)]` placement, the absence of `#![feature]` and `RUSTC_BOOTSTRAP`, lock-file-only resolution, and offline build scripts and proc-macros.": [
+      {
+        "executionId": "1ab29833-079c-4d6b-b283-f5da2f723c28",
+        "chatSessionId": "sess_fa91bdf9-9b42-40ed-be17-46ec83900e96",
+        "timestamp": 1791434301247
+      },
+      {
+        "executionId": "1ab29833-079c-4d6b-b283-f5da2f723c28",
+        "chatSessionId": "sess_fa91bdf9-9b42-40ed-be17-46ec83900e96",
+        "timestamp": 1791461632669
+      }
+    ],
+    "1.2 Add the Kernel line-count gate (PAR-01) and the gate that requires a linked justification identifier on every `unsafe` block, `unsafe fn`, and `unsafe impl`.": [
+      {
+        "executionId": "1ab29833-079c-4d6b-b283-f5da2f723c28",
+        "chatSessionId": "sess_fa91bdf9-9b42-40ed-be17-46ec83900e96",
+        "timestamp": 1791461938000
+      },
+      {
+        "executionId": "1ab29833-079c-4d6b-b283-f5da2f723c28",
+        "chatSessionId": "sess_fa91bdf9-9b42-40ed-be17-46ec83900e96",
+        "timestamp": 1791479590299
+      },
+      {
+        "executionId": "4516688c-d7a5-40a5-91a9-73e39e6aef9f",
+        "chatSessionId": "sess_eac73fe1-81d5-4a62-91c6-cfafacf2c34e",
+        "timestamp": 1791482796293
+      },
+      {
+        "executionId": "f3b67b4f-b3c3-4884-9b33-7d46086f2a4a",
+        "chatSessionId": "sess_fa91bdf9-9b42-40ed-be17-46ec83900e96",
+        "timestamp": 1791483164305
+      }
+    ]
+  }
+}

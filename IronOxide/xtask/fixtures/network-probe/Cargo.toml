@@ -1,0 +1,12 @@
+# Fixture for R58.4, built by `cargo xtask verify` inside the network sandbox.
+# The build script of probe-build and the proc-macro of probe-macro (expanded
+# in probe-use) each try to connect to 192.0.2.1:9 (TEST-NET-1, never routed)
+# and fail the build unless the attempt is denied.
+[workspace]
+resolver = "2"
+members = ["probe-macro", "probe-build", "probe-use"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false

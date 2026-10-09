@@ -1,0 +1,70 @@
+# Justification register of rsk-entry (part of the Kernel_Unsafe_Module,
+# R6.4). All entries are reviews: the reset path and the vector bindings are
+# link-level constructs that Kani cannot model; the QEMU boot run and the HIL
+# boot-check suite (task 7.2) exercise them.
+
+schema = 1
+
+[[justification]]
+id = "UJ-101"
+summary = "Reset: zero and copy the memory image from the linker tables, then boot"
+kind = "review"
+why_no_machine_check = "The tables and ranges are defined by the generated linker script of the build; their consistency with the MPU layout is what the Config_Checker verifies (R16.7). The QEMU boot run and the HIL boot-check suite execute the path."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-102"
+summary = "rsk_irq_entry_rust: writes the dispatch plan through the stub's out pointer"
+kind = "review"
+why_no_machine_check = "The pointer is produced by the naked stub (UJ-020) immediately before the call; the stub protocol is review-only."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-103"
+summary = "rsk_svc_rust: dereferences the located exception frame"
+kind = "review"
+why_no_machine_check = "As UJ-102 (UJ-022)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-104"
+summary = "rsk_epilogue_rust: writes the restored context through the stub's out pointer"
+kind = "review"
+why_no_machine_check = "As UJ-102 (UJ-024)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-105"
+summary = "rsk_hardfault_entry"
+kind = "review"
+why_no_machine_check = "An `unsafe extern \"C\" fn` only because it is a vector-table entry; it calls safe code that never returns."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-106"
+summary = "rsk_nmi_entry"
+kind = "review"
+why_no_machine_check = "As UJ-105."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-107"
+summary = "rsk_default_entry"
+kind = "review"
+why_no_machine_check = "As UJ-105."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-108"
+summary = "ipsr: MRS IPSR in the panic handler"
+kind = "review"
+why_no_machine_check = "A register read with no memory effect (as UJ-011)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"

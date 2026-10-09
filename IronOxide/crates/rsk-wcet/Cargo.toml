@@ -1,0 +1,9 @@
+[package]
+name = "rsk-wcet"
+description = "rsk WCET_Harness host runner (probe-rs); the Target side is rsk-wcet-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

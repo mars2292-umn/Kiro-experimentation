@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rsk.invalid/schemas/build_manifest.json",
+  "title": "rsk Build_Manifest (rsk-build-manifest/1)",
+  "description": "Written by the Build_System for every verification job (R33.3, R59.2): the source revision, the lock-file hash, the toolchain and proof-tool versions, the Profile, the build configuration, the Generated_Config checksum, and the hash of every Flight_Build binary over its loadable sections.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source", "lock_file", "toolchain", "profile", "build", "generated_config_checksum", "binaries"],
+  "properties": {
+    "schema": { "const": "rsk-build-manifest/1" },
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["revision", "dirty", "tracked"],
+      "properties": { "revision": { "type": "string" }, "dirty": { "type": "boolean" }, "tracked": { "type": "boolean" } }
+    },
+    "lock_file": {
+      "type": "object", "additionalProperties": false, "required": ["hash"],
+      "properties": { "hash": { "type": "string", "pattern": "^sha256:" } }
+    },
+    "toolchain": {
+      "type": "object", "additionalProperties": false, "required": ["rustc", "cargo"],
+      "properties": {
+        "rustc": { "type": "string" },
+        "cargo": { "type": "string" },
+        "verus": {
+          "type": ["object", "null"], "additionalProperties": false, "required": ["version", "toolchain", "z3"],
+          "properties": { "version": { "type": "string" }, "toolchain": { "type": "string" }, "z3": { "type": "string" } }
+        },
+        "kani": {
+          "type": ["object", "null"], "additionalProperties": false, "required": ["version", "cbmc"],
+          "properties": { "version": { "type": "string" }, "cbmc": { "type": "string" } }
+        }
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false, "required": ["version", "variant"],
+      "properties": { "version": { "type": "string" }, "variant": { "type": "string" } }
+    },
+    "build": {
+      "type": "object", "additionalProperties": false, "required": ["target", "cargo_profile", "panic", "icache"],
+      "properties": {
+        "target": { "type": "string" },
+        "cargo_profile": { "type": "string" },
+        "panic": { "const": "abort" },
+        "icache": { "enum": ["off", "on"] }
+      }
+    },
+    "generated_config_checksum": { "type": ["string", "null"], "pattern": "^0x" },
+    "binaries": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["package", "target", "file", "hash", "loadable_bytes", "config_checksum"],
+        "properties": {
+          "package": { "type": "string" },
+          "target": { "type": "string" },
+          "file": { "type": "string" },
+          "hash": { "type": "string", "pattern": "^sha256:" },
+          "loadable_bytes": { "type": "integer", "minimum": 0 },
+          "config_checksum": { "type": ["string", "null"], "pattern": "^0x" }
+        }
+      }
+    }
+  }
+}

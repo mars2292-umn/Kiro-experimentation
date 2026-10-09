@@ -1,0 +1,260 @@
+{
+  "schema": "rsk-task-model/1",
+  "profile": {
+    "version": "0.3",
+    "variant": "Ravenscar"
+  },
+  "generator": "0.0.0",
+  "kernel": "0.0.0",
+  "target": "qemu-mps2-an386",
+  "core_revision": "qemu",
+  "clock": {
+    "cpu_hz": 25000000,
+    "tick_hz": 25000000
+  },
+  "config_checksum": "0xc6a9e312",
+  "operating_duration_ticks": 5000000,
+  "safe_state": "crate::report_and_exit",
+  "kernel_levels": [
+    0
+  ],
+  "priority_map": [
+    {
+      "level": 2,
+      "nvic": 192
+    },
+    {
+      "level": 5,
+      "nvic": 96
+    },
+    {
+      "level": 7,
+      "nvic": 32
+    }
+  ],
+  "capacities": {
+    "lock_stack": 2,
+    "timer_slots": 11,
+    "event_log": 32,
+    "derived": true
+  },
+  "layout": {
+    "kernel_flash": {
+      "base": 0,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "shared_code": {
+      "base": 65536,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "kernel_ram": {
+      "base": 536870912,
+      "size_log2": 15,
+      "srd": 0,
+      "usable_bytes": 32768
+    },
+    "derived": true
+  },
+  "partitions": [
+    {
+      "id": "part0",
+      "crate": "p1_demo_part0",
+      "level": "A",
+      "fault": "RESTART_PARTITION",
+      "overrun": "RECORD_AND_CONTINUE",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [],
+      "mpu": {
+        "code": {
+          "base": 131072,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536903680,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [],
+        "derived": true
+      },
+      "tasks": [
+        "part0.control",
+        "part0.sensor"
+      ],
+      "resources": [
+        "part0.state"
+      ],
+      "signals": []
+    },
+    {
+      "id": "part1",
+      "crate": "p1_demo_part1",
+      "level": "C",
+      "fault": "RESTART_PARTITION",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [],
+      "mpu": {
+        "code": {
+          "base": 163840,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536936448,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [],
+        "derived": true
+      },
+      "tasks": [
+        "part1.log"
+      ],
+      "resources": [],
+      "signals": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "part0.control",
+      "core": 0,
+      "partition": "part0",
+      "priority": 7,
+      "vector": 36,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 250000,
+      "source": null,
+      "deadline_ticks": 250000,
+      "budget_cycles": 25000,
+      "fpu": false,
+      "resources": [
+        "part0.state"
+      ],
+      "raises": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 0,
+        "deadline": 1,
+        "budget": 2
+      },
+      "cs_sites": [
+        "part0.control#cs:state"
+      ],
+      "entry": "::p1_demo_part0::rsk_jobs::control",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "part0.sensor",
+      "core": 0,
+      "partition": "part0",
+      "priority": 5,
+      "vector": 37,
+      "kind": "periodic",
+      "offset_ticks": 125000,
+      "period_ticks": 500000,
+      "source": null,
+      "deadline_ticks": 500000,
+      "budget_cycles": 220000,
+      "fpu": false,
+      "resources": [
+        "part0.state"
+      ],
+      "raises": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 3,
+        "deadline": 4,
+        "budget": 5
+      },
+      "cs_sites": [
+        "part0.sensor#cs:state"
+      ],
+      "entry": "::p1_demo_part0::rsk_jobs::sensor",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "part1.log",
+      "core": 0,
+      "partition": "part1",
+      "priority": 2,
+      "vector": 38,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 1000000,
+      "source": null,
+      "deadline_ticks": 1000000,
+      "budget_cycles": 150000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 6,
+        "deadline": 7,
+        "budget": 8
+      },
+      "cs_sites": [],
+      "entry": "::p1_demo_part1::rsk_jobs::log",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "part0.state",
+      "core": 0,
+      "partition": "part0",
+      "ceiling": 7,
+      "accessors": [
+        "part0.control",
+        "part0.sensor"
+      ],
+      "type": "u32",
+      "derived": [
+        "ceiling"
+      ]
+    }
+  ],
+  "signals": [],
+  "endpoints": [],
+  "conversions": []
+}

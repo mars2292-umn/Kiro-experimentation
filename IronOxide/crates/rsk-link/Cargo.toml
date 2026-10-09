@@ -1,0 +1,9 @@
+[package]
+name = "rsk-link"
+description = "rsk Link_Checker: symbols, call graph, stack bounds, instruction-class scans, dependency and allocator checks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

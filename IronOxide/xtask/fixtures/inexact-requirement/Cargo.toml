@@ -1,0 +1,16 @@
+# Fixture: a crates.io dependency with a caret requirement instead of an exact
+# `=x.y.z` one (R58.1). It resolves offline from the repository's vendor/.
+[workspace]
+resolver = "2"
+members = ["tool"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+tool = { targets = ["host"] }

@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rsk.invalid/schemas/task_model.json",
+  "title": "rsk Task_Model (rsk-task-model/1)",
+  "description": "The analyzable model of one Application (R25). Times are integers with their unit in the key name (ticks of the Kernel time base or CPU cycles). Derived values carry `derived` markers (R23.5). Core fields are required and v1 tools accept core 0 only (R27.1, R27.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "profile", "generator", "kernel", "target", "core_revision", "clock", "config_checksum",
+    "operating_duration_ticks", "safe_state", "kernel_levels", "priority_map", "capacities", "layout",
+    "partitions", "tasks", "resources", "signals", "endpoints", "conversions"
+  ],
+  "properties": {
+    "schema": { "const": "rsk-task-model/1" },
+    "profile": {
+      "type": "object", "additionalProperties": false, "required": ["version", "variant"],
+      "properties": { "version": { "type": "string" }, "variant": { "enum": ["Ravenscar", "Jorvik"] } }
+    },
+    "generator": { "type": "string" },
+    "kernel": { "type": "string" },
+    "target": { "type": "string" },
+    "core_revision": { "type": "string" },
+    "clock": {
+      "type": "object", "additionalProperties": false, "required": ["cpu_hz", "tick_hz"],
+      "properties": { "cpu_hz": { "type": "integer", "minimum": 1 }, "tick_hz": { "type": "integer", "minimum": 1 } }
+    },
+    "config_checksum": { "type": "string", "pattern": "^0x" },
+    "operating_duration_ticks": { "type": "integer", "minimum": 1 },
+    "safe_state": { "type": "string" },
+    "kernel_levels": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 7 } },
+    "priority_map": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["level", "nvic"],
+        "properties": { "level": { "type": "integer", "minimum": 1, "maximum": 7 }, "nvic": { "type": "integer", "minimum": 0, "maximum": 255 } }
+      }
+    },
+    "capacities": {
+      "type": "object", "additionalProperties": false, "required": ["lock_stack", "timer_slots", "event_log", "derived"],
+      "properties": {
+        "lock_stack": { "type": "integer", "minimum": 1 },
+        "timer_slots": { "type": "integer", "minimum": 2 },
+        "event_log": { "type": "integer", "minimum": 1 },
+        "derived": { "const": true }
+      }
+    },
+    "layout": {
+      "type": "object", "additionalProperties": false, "required": ["kernel_flash", "shared_code", "kernel_ram", "derived"],
+      "properties": {
+        "kernel_flash": { "$ref": "#/$defs/region" },
+        "shared_code": { "$ref": "#/$defs/region" },
+        "kernel_ram": { "$ref": "#/$defs/region" },
+        "derived": { "const": true }
+      }
+    },
+    "partitions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/partition" } },
+    "tasks": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/task" } },
+    "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
+    "signals": { "type": "array", "items": { "$ref": "#/$defs/signal" } },
+    "endpoints": { "type": "array", "items": { "$ref": "#/$defs/endpoint" } },
+    "conversions": { "type": "array", "items": { "$ref": "#/$defs/conversion" } }
+  },
+  "$defs": {
+    "region": {
+      "type": "object", "additionalProperties": false, "required": ["base", "size_log2", "srd", "usable_bytes"],
+      "properties": {
+        "base": { "type": "integer", "minimum": 0 },
+        "size_log2": { "type": "integer", "minimum": 5, "maximum": 31 },
+        "srd": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "usable_bytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "window": {
+      "type": "object", "additionalProperties": false, "required": ["base", "size_log2", "srd", "peripherals", "read_only"],
+      "properties": {
+        "base": { "type": "integer", "minimum": 0 },
+        "size_log2": { "type": "integer", "minimum": 5, "maximum": 31 },
+        "srd": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "peripherals": { "type": "array", "items": { "type": "string" } },
+        "read_only": { "type": "boolean" }
+      }
+    },
+    "response": { "enum": ["END_JOB", "RESTART_PARTITION", "STOP_PARTITION", "SAFE_STATE", "RECORD_ONLY", "RECORD_AND_CONTINUE"] },
+    "partition": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "crate", "level", "fault", "overrun", "deadline_miss", "mit_threshold", "regions", "peripherals", "mpu", "tasks", "resources", "signals"],
+      "properties": {
+        "id": { "type": "string" },
+        "crate": { "type": "string" },
+        "level": { "enum": ["A", "B", "C", "D", "E"] },
+        "fault": { "$ref": "#/$defs/response" },
+        "overrun": { "$ref": "#/$defs/response" },
+        "deadline_miss": { "$ref": "#/$defs/response" },
+        "mit_threshold": { "type": "integer", "minimum": 0 },
+        "regions": {
+          "type": "object", "additionalProperties": false, "required": ["code", "ram", "stack", "init_arena"],
+          "properties": {
+            "code": { "type": "integer", "minimum": 1 },
+            "ram": { "type": "integer", "minimum": 1 },
+            "stack": { "type": "integer", "minimum": 1 },
+            "init_arena": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "peripherals": { "type": "array", "items": { "type": "string" } },
+        "mpu": {
+          "type": "object", "additionalProperties": false, "required": ["code", "ram", "windows", "derived"],
+          "properties": {
+            "code": { "$ref": "#/$defs/region" },
+            "ram": { "$ref": "#/$defs/region" },
+            "windows": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/window" } },
+            "derived": { "const": true }
+          }
+        },
+        "tasks": { "type": "array", "items": { "type": "string" } },
+        "resources": { "type": "array", "items": { "type": "string" } },
+        "signals": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "source": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["interrupt", "irq"],
+          "properties": { "interrupt": { "type": "string" }, "irq": { "type": "integer", "minimum": 0 } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["signal"],
+          "properties": { "signal": { "type": "string" } }
+        }
+      ]
+    },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "core", "partition", "priority", "vector", "kind", "source", "deadline_ticks", "budget_cycles", "fpu", "resources", "raises", "nesting_depth", "slots", "cs_sites", "entry", "derived"],
+      "properties": {
+        "id": { "type": "string" },
+        "core": { "type": "integer", "minimum": 0 },
+        "partition": { "type": "string" },
+        "priority": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "vector": { "type": "integer", "minimum": 16 },
+        "kind": { "enum": ["periodic", "sporadic"] },
+        "offset_ticks": { "type": "integer", "minimum": 0 },
+        "period_ticks": { "type": "integer", "minimum": 1 },
+        "mit_ticks": { "type": "integer", "minimum": 1 },
+        "mit_policy": { "enum": ["defer", "discard"] },
+        "source": { "$ref": "#/$defs/source" },
+        "deadline_ticks": { "type": "integer", "minimum": 1 },
+        "budget_cycles": { "type": "integer", "minimum": 1 },
+        "fpu": { "type": "boolean" },
+        "resources": { "type": "array", "items": { "type": "string" } },
+        "raises": { "type": "array", "items": { "type": "string" } },
+        "nesting_depth": { "type": "integer", "minimum": 0 },
+        "slots": {
+          "type": "object", "additionalProperties": false, "required": ["release", "deadline", "budget"],
+          "properties": {
+            "release": { "type": ["integer", "null"], "minimum": 0 },
+            "deadline": { "type": "integer", "minimum": 0 },
+            "budget": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "cs_sites": { "type": "array", "items": { "type": "string" } },
+        "entry": { "type": "string" },
+        "derived": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "resource": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "core", "partition", "ceiling", "accessors", "type", "derived"],
+      "properties": {
+        "id": { "type": "string" },
+        "core": { "type": ["integer", "string"], "minimum": 0 },
+        "partition": { "type": "string" },
+        "ceiling": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "accessors": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "type": { "type": "string" },
+        "derived": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "signal": {
+      "type": "object", "additionalProperties": false, "required": ["id", "partition", "bound_task", "raised_by"],
+      "properties": {
+        "id": { "type": "string" },
+        "partition": { "type": "string" },
+        "bound_task": { "type": "string" },
+        "raised_by": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "endpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "cores", "capacity", "k", "ceiling", "payload_bytes"],
+      "properties": {
+        "id": { "type": "string" },
+        "cores": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "integer", "minimum": 0 } },
+        "capacity": { "type": "integer", "minimum": 1 },
+        "k": { "type": "integer", "minimum": 1 },
+        "ceiling": { "const": "kernel" },
+        "payload_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "conversion": {
+      "type": "object", "additionalProperties": false, "required": ["item", "declared", "converted", "unit"],
+      "properties": {
+        "item": { "type": "string" },
+        "declared": {
+          "type": "object", "additionalProperties": false, "required": ["value", "unit"],
+          "properties": { "value": { "type": "integer", "minimum": 0 }, "unit": { "enum": ["cycles", "ticks", "ns", "us", "ms", "s", "min", "h"] } }
+        },
+        "converted": { "type": "integer", "minimum": 0 },
+        "unit": { "enum": ["cycles", "ticks"] }
+      }
+    }
+  }
+}

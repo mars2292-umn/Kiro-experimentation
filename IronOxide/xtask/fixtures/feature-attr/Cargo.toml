@@ -1,0 +1,15 @@
+# Fixture: #![feature] attributes, plain and inside cfg_attr (PR-36/R55.1).
+[workspace]
+resolver = "2"
+members = ["unstable"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+unstable = { targets = ["host"] }

@@ -1,0 +1,25 @@
+# Fixture for the post-build checks: third-party crates in the Kernel's
+# Target graph and in the Flight_Build graph, resolved offline from the
+# repository's vendor/ (so the pinned versions below must stay vendored).
+#
+# - itoa and memchr (default features off) are `no_std` without `alloc`.
+# - hashbrown (default features off) is `no_std` but declares
+#   `extern crate alloc`. Its Target build succeeds, because `alloc` ships
+#   for thumbv7em-none-eabihf, so only the explicit R6.1 check rejects it.
+# - proc-macro2, a dependency of the proc-macro crate `m`, carries
+#   `cfg_attr(..., feature(...))` gates that the stable build leaves inactive.
+[workspace]
+resolver = "2"
+members = ["k", "m"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+k = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true }
+m = { targets = ["host"], flight = true }

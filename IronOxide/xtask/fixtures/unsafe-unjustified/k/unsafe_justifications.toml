@@ -1,0 +1,14 @@
+schema = 1
+
+[[justification]]
+id = "UJ-002"
+summary = "Sync for Cell"
+kind = "kani"
+link = "uj_002_cell_is_sync"
+
+[[justification]]
+id = "UJ-003"
+summary = "review without statement"
+kind = "review"
+reviewed_by = "someone"
+reviewed_on = "2026-10-08"

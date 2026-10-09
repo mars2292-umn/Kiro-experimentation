@@ -1,0 +1,16 @@
+# Fixture: a Kernel crate that breaks R6.1 and R6.3 in the ways the static
+# checks must catch.
+[workspace]
+resolver = "2"
+members = ["k"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+k = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-module = "src/arch/unsafe_module" }

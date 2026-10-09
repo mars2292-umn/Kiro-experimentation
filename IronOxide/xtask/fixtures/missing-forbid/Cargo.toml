@@ -1,0 +1,15 @@
+# Fixture: a crate root without #![forbid(unsafe_code)] (PR-20/R6.3).
+[workspace]
+resolver = "2"
+members = ["noforbid"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+noforbid = { targets = ["host"] }

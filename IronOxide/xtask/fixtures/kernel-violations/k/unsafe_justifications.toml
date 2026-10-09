@@ -1,0 +1,9 @@
+schema = 1
+
+[[justification]]
+id = "UJ-001"
+summary = "`write`: volatile write through a caller-validated pointer"
+kind = "review"
+why_no_machine_check = "Fixture only: the fixture workspace has no Kani setup."
+reviewed_by = "fixture author"
+reviewed_on = "2026-10-08"

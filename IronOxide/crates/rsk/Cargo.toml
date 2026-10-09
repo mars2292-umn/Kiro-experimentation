@@ -1,0 +1,12 @@
+[package]
+name = "rsk"
+description = "rsk Application API: Context types, Mutex, Signal, now(), Endpoint glue"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+rsk-kernel.workspace = true
+# The `rsk::app!` front end (a host proc-macro; PR-36 applies to it).
+rsk-macros.workspace = true

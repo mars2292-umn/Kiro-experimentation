@@ -1,0 +1,126 @@
+# rsk Cargo workspace (task 1.1). Crate layout: design.md, "Module boundaries".
+#
+# Build_System rules enforced by `cargo xtask verify` (see xtask/src/lib.rs):
+# - PR-20/R6.3: `#![forbid(unsafe_code)]` placement; `unsafe` only in the Kernel_Unsafe_Module.
+# - R6.1: the Kernel crates are `#![no_std]` and their Target graph has no `std`/`alloc`.
+# - PR-36/R55.1: no `#![feature]`, no `RUSTC_BOOTSTRAP`.
+# - R55.5: one edition (toolchain/decision.toml) for every crate.
+# - R58.1: lock-file-only, vendored, exact-version dependencies.
+# - R58.4: build scripts and proc-macros run with the network denied.
+
+[workspace]
+# Edition 2021 implies resolver 2 (R55.5; rationale in toolchain/decision.toml).
+resolver = "2"
+members = [
+    "crates/rsk-kernel",
+    "crates/rsk-entry",
+    "crates/rsk",
+    "crates/rsk-model",
+    "crates/rsk-gen",
+    "crates/rsk-macros",
+    "crates/rsk-link",
+    "crates/rsk-confcheck",
+    "crates/rsk-analyzer",
+    "crates/rsk-wcet",
+    "crates/rsk-wcet-agent",
+    "crates/rsk-hil",
+    "crates/rsk-digest",
+    "crates/rsk-elf",
+    "apps/p1-demo/decl",
+    "apps/p1-demo/system",
+    "apps/p1-demo/part0",
+    "apps/p1-demo/part1",
+    "apps/p1-demo/bin",
+    "xtask",
+]
+# Fixture workspaces carry their own [workspace] tables and lock files.
+exclude = ["xtask/fixtures"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.95.0"
+publish = false
+
+# R14.1: Flight_Builds abort on panic; the single panic handler is rsk-entry's.
+# No link-time optimization: the generated linker script places each crate's
+# sections by archive name (DD-11), which needs per-crate objects; generic
+# and `#[inline]` code is still instantiated in the calling crate, so the
+# code a Job executes lands in its Partition's region.
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = false
+debug = 2
+
+[workspace.dependencies]
+# Workspace crates.
+rsk-kernel = { path = "crates/rsk-kernel", default-features = false }
+rsk-gen = { path = "crates/rsk-gen" }
+rsk-macros = { path = "crates/rsk-macros" }
+rsk-digest = { path = "crates/rsk-digest" }
+rsk-elf = { path = "crates/rsk-elf" }
+# Third-party crates: exact versions only, vendored in vendor/ (R58.1).
+# Used by the Build_System (xtask) only; none is in the Flight_Build graph.
+proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
+# The `rsk::app!` front end (rsk-macros, rsk-gen's `syntax` feature): compiled
+# for the host by every Flight_Build; Trust_Base_Register entries exist for
+# syn, proc-macro2, quote and unicode-ident (they are already in the graph
+# through verus_builtin_macros).
+syn = { version = "=2.0.119", default-features = false, features = ["parsing", "printing", "proc-macro", "clone-impls", "full"] }
+quote = { version = "=1.0.47", default-features = false }
+serde = { version = "=1.0.229", default-features = false, features = ["std", "derive"] }
+serde_json = { version = "=1.0.151", default-features = false, features = ["std"] }
+toml = { version = "=1.1.7", default-features = false, features = ["std", "parse", "serde"] }
+# Verus library crates (task 4.1): the Kernel logic lives inside `verus!`, so
+# the Kernel's Target graph links `vstd` (no_std, no alloc) and `verus_builtin`,
+# and every Flight_Build compiles the `verus_builtin_macros` proc-macro for the
+# host (ghost erasure, ORQ-08). Their `#![feature]` attributes are gated on
+# `cfg(verus_keep_ghost)`, which only the Verus_Toolchain sets, so the PR-36
+# check accepts them as inactive in stable builds. Versions match the pinned
+# Verus release (toolchain/decision.toml, [verus_toolchain]).
+vstd = { version = "=0.0.0-2026-10-04-0306", default-features = false }
+verus_builtin = { version = "=0.0.0-2026-09-16-0054" }
+verus_builtin_macros = { version = "=0.0.0-2026-09-20-0158" }
+
+# Build policy: the single place that says which crate is built for which
+# target, which crates form the Kernel, where the Kernel_Unsafe_Module is, and
+# which crates are Flight_Build roots. Read by xtask through `cargo metadata`.
+#
+# - targets:        "host" and/or the Target triple the verification job builds the crate for.
+# - kernel:         Kernel crate (R6.1 no_std/no-alloc graph check; R6.3 placement rules).
+# - unsafe-module:  Kernel_Unsafe_Module of a kernel crate, as a module path without
+#                   extension (covers `<path>.rs`, `<path>/mod.rs`, and `<path>/**`).
+# - unsafe-crate:   the whole library belongs to the Kernel_Unsafe_Module (rsk-entry).
+# - flight:         Flight_Build root. The verification job compiles the closure of
+#                   these crates for the Target in the release profile (proc-macros
+#                   for the host) and applies the PR-36 checks to every crate in it.
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+rsk-kernel = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-module = "src/arch/cm4/unsafe_module" }
+rsk-entry = { targets = ["thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-crate = true }
+rsk = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+# Generator front end: compiled for the host by every Flight_Build (PR-36).
+rsk-macros = { targets = ["host"], flight = true }
+rsk-gen = { targets = ["host"] }
+rsk-model = { targets = ["host"] }
+rsk-link = { targets = ["host"] }
+rsk-confcheck = { targets = ["host"] }
+rsk-analyzer = { targets = ["host"] }
+rsk-wcet = { targets = ["host"] }
+# WCET_Harness target agent: runs on the Target in measurement builds only.
+rsk-wcet-agent = { targets = ["host", "thumbv7em-none-eabihf"] }
+rsk-hil = { targets = ["host"] }
+# Shared host libraries: hashing and ELF reading for the Build_System and the checkers.
+rsk-digest = { targets = ["host"] }
+rsk-elf = { targets = ["host"] }
+# The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
+# binds, two Partition crates, and the Flight_Build binary (Target only).
+p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true }
+rsk-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+p1-demo-part0 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+p1-demo-part1 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+p1-demo = { targets = ["thumbv7em-none-eabihf"], flight = true, qemu-spike = true }
+xtask = { targets = ["host"] }

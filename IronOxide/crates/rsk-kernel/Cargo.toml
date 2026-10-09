@@ -1,0 +1,36 @@
+[package]
+name = "rsk-kernel"
+description = "rsk Kernel: SRP state machine (logic), Hardware_Model specs (hw_model), and Kernel_Arch (arch, arch::cm4, Kernel_Unsafe_Module)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# R6.1: every dependency added here enters the Kernel's Target graph, which
+# `cargo xtask verify` checks for `std` and `alloc`. The Verus crates are the
+# only ones: `vstd` without default features is `no_std` and links no `alloc`.
+[dependencies]
+vstd.workspace = true
+verus_builtin.workspace = true
+verus_builtin_macros.workspace = true
+
+# The Target board selects the time-base driver of Kernel_Arch (DD-05):
+# the nRF52840 TIMER0 (Phase 1 hardware) or the CMSDK timers of the QEMU
+# mps2-an386 board used by the dispatch spike (task 3.1).
+[features]
+default = ["board-nrf52840"]
+board-nrf52840 = []
+board-qemu-mps2 = []
+# Semihosting trace of every Kernel_Arch entry point (QEMU and HIL debugging
+# only; never a Flight_Build feature).
+trace = []
+
+# Verified by `cargo verus verify` (R44.6; xtask step "Kernel_Proofs").
+[package.metadata.verus]
+verify = true
+
+# The `verus!` macro expands to code gated on these cfgs; stable builds never
+# set them (ghost erasure), so the lint must know they are expected.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(verus_keep_ghost)", "cfg(verus_verify_core)", "cfg(verus_keep_ghost_body)", "cfg(kani)"]

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rsk.invalid/schemas/wcet_record.json",
+  "title": "rsk WCET_Record set (rsk-wcet/1)",
+  "description": "WCET_Records bound to one binary (R33.1): each record names the item (Task entry, Critical_Section site, Endpoint operation, release condition, or Kernel_Timing_Parameter), the WCET in CPU cycles, the method, the tool, the binary hash, the Target and core revision, the clock and cache configuration, and, for measured records, the campaign data. The method `placeholder` marks a value that no measurement or analysis produced (pre-hardware development only): the Analyzer rejects such records unless told to accept them, and its report then says so.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "records"],
+  "properties": {
+    "schema": { "const": "rsk-wcet/1" },
+    "records": { "type": "array", "items": { "$ref": "#/$defs/record" } }
+  },
+  "$defs": {
+    "record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["item", "wcet_cycles", "method", "tool", "binary_hash", "target", "clock_hz", "icache", "conditions"],
+      "properties": {
+        "item": { "type": "string" },
+        "wcet_cycles": { "type": "integer", "minimum": 0 },
+        "method": { "enum": ["measured", "static", "placeholder"] },
+        "tool": { "type": "string" },
+        "binary_hash": { "type": "string", "pattern": "^sha256:" },
+        "target": { "type": "string" },
+        "clock_hz": { "type": "integer", "minimum": 1 },
+        "icache": { "enum": ["off", "on"] },
+        "conditions": { "type": "array", "items": { "type": "string" } },
+        "measured": {
+          "type": "object", "additionalProperties": false,
+          "required": ["runs", "max_observed", "margin_percent", "coverage_branch_percent", "scenarios"],
+          "properties": {
+            "runs": { "type": "integer", "minimum": 1 },
+            "max_observed": { "type": "integer", "minimum": 0 },
+            "margin_percent": { "type": "integer", "minimum": 0 },
+            "coverage_branch_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "scenarios": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

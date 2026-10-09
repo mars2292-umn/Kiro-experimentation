@@ -1,0 +1,118 @@
+# Toolchain decision record (task 1.1; R55.2, R55.5, R56.1).
+#
+# `cargo xtask verify` reads [pin] and fails unless rust-toolchain.toml, the
+# active rustc, and every workspace crate's edition agree with it. The other
+# tables document the decision. Facts were checked on 2026-10-08 and are
+# rephrased from the sources for licensing compliance.
+
+schema = 1
+checked = "2026-10-08"
+
+[pin]
+# R55.2: before Phase P5, the Kernel builds with the upstream stable rustc on
+# which the Qualified_Toolchain is based.
+upstream_rustc = "1.95.0"
+# R55.5: one edition for all rsk crates, supported by both toolchains.
+edition = "2021"
+targets = ["thumbv7em-none-eabihf"]
+
+[qualified_toolchain]
+# Taken as the "planned" release: the newest released Ferrocene that
+# qualifies thumbv7em-none-eabihf (assumption TC-ASM-01).
+release = "Ferrocene 26.05.0"
+based_on = "Rust 1.95.0"
+target = "thumbv7em-none-eabihf"
+qualified_host = "x86_64-unknown-linux-gnu"
+sources = ["FER-INDEX", "FER-2605-NOTES", "FER-2605-BLOG", "FER-TARGETS"]
+
+[verus_toolchain]
+# The Verus release is selected in task 4.1; this is what Verus pins today.
+pinned_rustc = "1.98.1"
+checked_release = "release/rolling/0.2026.10.08.956d529"
+sources = ["VERUS-TOOLCHAIN", "VERUS-RELEASES"]
+
+[edition]
+chosen = "2021"
+sources = ["FLS-SCOPE", "VERUS-VSTD", "VERUS-TEST-EDITIONS"]
+rationale = """
+Both rustc 1.95.0 and 1.98.1 accept editions 2015 to 2024. Edition 2021 is
+chosen because the language specification that accompanies Ferrocene's
+qualified compiler (the FLS) specifies programs of the 2021 Edition, and Verus
+handles 2021 crates (vstd itself is a 2021 crate). Revisit when the FLS
+covers edition 2024 (TC-ASM-03)."""
+
+[gap]
+verus_vs_qualified = """
+Verus pins rustc 1.98.1; the Ferrocene 26.05.0 base is rustc 1.95.0. rsk code
+must compile on both: rust-version = 1.95.0 and the verification job's 1.95.0
+build reject language and library features stabilized after 1.95.0, but code
+that 1.95.0 accepts and 1.98.1 rejects (new lints, future-incompatibility
+errors) is caught only once the Verus build runs (task 4.1). The rustc
+difference itself is ORQ-08 (property preservation, R52.3)."""
+
+[[sources]]
+id = "FER-INDEX"
+url = "https://public-docs.ferrocene.dev/main/release-notes/index.html"
+fact = "The release notes index lists 26.05.0 as the newest release; the 26.08 and 26.11 series are marked upcoming."
+
+[[sources]]
+id = "FER-2605-NOTES"
+url = "https://public-docs.ferrocene.dev/main/release-notes/26.05.0.html"
+fact = "The 26.05.0 notes carry upstream Rust changes through 1.95.0, and state that thumbv7em-none-eabihf with -C target-cpu=cortex-m4 replaces the retired thumbv7em-m4-none-eabihf qualified target."
+
+[[sources]]
+id = "FER-2605-BLOG"
+url = "https://ferrous-systems.com/blog/ferrocene-26-05-0/"
+fact = "Ferrocene 26.05.0 (July 2026) includes Rust 1.93.0 to 1.95.0; qualified for ISO 26262 ASIL D, IEC 61508 SIL 3, IEC 62304 Class C; supports customer efforts toward IEC 61508 SIL 4 and DO-178C DAL C."
+
+[[sources]]
+id = "FER-TARGETS"
+url = "https://public-docs.ferrocene.dev/main/user-manual/targets/index.html"
+fact = "The main-branch User Manual lists thumbv7em-none-eabihf as a qualified target only when cross-compiled from x86-64 Linux (glibc); Apple Silicon macOS is a quality-managed host."
+
+[[sources]]
+id = "FLS-SCOPE"
+url = "https://public-docs.ferrocene.dev/main/specification/general.html"
+fact = "The specification bundled with Ferrocene covers programs written in the 2021 Edition of Rust."
+
+[[sources]]
+id = "VERUS-TOOLCHAIN"
+url = "https://raw.githubusercontent.com/verus-lang/verus/956d529b98140c68a5d6b9e2bdcdc3db215f7320/rust-toolchain.toml"
+fact = "Verus pins channel 1.98.1 at commit 956d529 (the 2026-10-08 rolling release); main pins the same version."
+
+[[sources]]
+id = "VERUS-RELEASES"
+url = "https://github.com/verus-lang/verus/releases/tag/release/rolling/0.2026.10.08.956d529"
+fact = "Latest Verus rolling release at the time of the decision."
+
+[[sources]]
+id = "VERUS-VSTD"
+url = "https://raw.githubusercontent.com/verus-lang/verus/956d529b98140c68a5d6b9e2bdcdc3db215f7320/source/vstd/Cargo.toml"
+fact = "vstd is an edition 2021 crate."
+
+[[sources]]
+id = "VERUS-TEST-EDITIONS"
+url = "https://raw.githubusercontent.com/verus-lang/verus/956d529b98140c68a5d6b9e2bdcdc3db215f7320/source/rust_verify_test/tests/common/mod.rs"
+fact = "The Verus test harness accepts --edition 2018, 2021, and 2024 options."
+
+[[assumptions]]
+id = "TC-ASM-01"
+text = "The spec names no Ferrocene release for Phase P5. The planned release is taken to be the newest released one that qualifies thumbv7em-none-eabihf (26.05.0). Task 23.1 pins the release current at P5, and this pin moves with it."
+
+[[assumptions]]
+id = "TC-ASM-02"
+text = "Rust 1.95.0 is inferred as the base because the 26.05.0 notes and announcement carry upstream changes through 1.95.0. Ferrocene patches the compiler, so upstream 1.95.0 is not identical to Ferrocene 26.05.0."
+
+[[assumptions]]
+id = "TC-ASM-03"
+text = "Edition 2021 is taken to be inside Ferrocene's qualification scope because its specification covers the 2021 Edition. No public statement about edition 2024 was found."
+
+[[assumptions]]
+id = "TC-ASM-04"
+text = "The Verus rustc is what Verus pins today; the Verus release selected in task 4.1 may pin a different rustc, which would change the gap above."
+
+[[unverified]]
+text = "The release-specific 26.05 User Manual (target list and qualified host) is customer-only (docs.ferrocene.dev); the public list above is the main branch."
+
+[[unverified]]
+text = "Whether the upcoming Ferrocene 26.08 changes the base rustc, and whether its Safety Manual adds constraints on editions."

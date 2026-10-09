@@ -1,0 +1,17 @@
+# Fixture: a Kani harness whose unwinding assertion fails (R45.5: the
+# verification job counts such a run as failed even though every other
+# check passes).
+[workspace]
+resolver = "2"
+members = ["k"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+k = { targets = ["host"], kernel = true, flight = false }

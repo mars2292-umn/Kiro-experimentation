@@ -1,0 +1,22 @@
+[package]
+name = "rsk-analyzer"
+description = "rsk Analyzer: response-time analysis with SRP blocking and Kernel overheads (R29), reports (R30), UPPAAL_Exporter (R31)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# R32.1: the fixed-point core lives inside `verus!` and is verified by
+# `cargo verus verify -p rsk-analyzer` in the verification job.
+[package.metadata.verus]
+verify = true
+
+[dependencies]
+rsk-model = { path = "../rsk-model" }
+serde_json = { workspace = true }
+vstd = { workspace = true, features = ["std"] }
+verus_builtin = { workspace = true }
+verus_builtin_macros = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)"] }

@@ -1,0 +1,3 @@
+# Build output of the workspace, the verification job, and the fixtures.
+# vendor/ and Cargo.lock stay tracked (R58.1).
+/target/

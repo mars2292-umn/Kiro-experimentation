@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rsk.invalid/schemas/kernel_timing.json",
+  "title": "rsk Kernel_Timing_Parameters (rsk-kernel-timing/1)",
+  "description": "The Kernel_Timing_Parameters of Table 13-1 and design.md R13.6, each as an upper bound in CPU cycles with the provenance of its WCET_Record (R13.2). The Analyzer rejects an input that lacks any symbol (R13.3, R28.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "binary_hash", "target", "clock_hz", "icache", "parameters"],
+  "properties": {
+    "schema": { "const": "rsk-kernel-timing/1" },
+    "binary_hash": { "type": "string", "pattern": "^sha256:" },
+    "target": { "type": "string" },
+    "clock_hz": { "type": "integer", "minimum": 1 },
+    "icache": { "enum": ["off", "on"] },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["symbol", "cycles", "method", "tool", "conditions"],
+        "properties": {
+          "symbol": {
+            "enum": [
+              "delta_lock_in", "delta_lock_out", "delta_release", "delta_dispatch", "delta_complete",
+              "delta_timer", "delta_irq", "delta_stamp", "l_kernel", "delta_fp_save", "delta_fp_restore",
+              "delta_detect", "delta_enforce", "delta_hm", "delta_wake", "j_rel",
+              "delta_svc", "delta_dma_write", "delta_view", "delta_restart", "delta_stop"
+            ]
+          },
+          "cycles": { "type": "integer", "minimum": 0 },
+          "method": { "enum": ["measured", "static", "placeholder"] },
+          "tool": { "type": "string" },
+          "conditions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

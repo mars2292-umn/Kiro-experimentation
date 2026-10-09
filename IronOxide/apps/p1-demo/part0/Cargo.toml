@@ -1,0 +1,11 @@
+[package]
+name = "p1-demo-part0"
+description = "P1 demo Partition 0 (level A): the control and sensor Tasks sharing one Resource"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+p1-demo-decl = { path = "../decl" }
+rsk = { path = "../../../crates/rsk" }

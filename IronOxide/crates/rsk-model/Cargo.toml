@@ -1,0 +1,11 @@
+[package]
+name = "rsk-model"
+description = "rsk host library: Task_Model, WCET_Record, Kernel_Timing_Parameters and analysis-report schemas, serde types, and the schema validator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

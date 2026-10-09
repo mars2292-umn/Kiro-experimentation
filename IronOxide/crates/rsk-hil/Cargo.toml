@@ -1,0 +1,9 @@
+[package]
+name = "rsk-hil"
+description = "rsk HIL_Rig orchestration: probe-rs control, fault injection, Hardware_Model differential tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

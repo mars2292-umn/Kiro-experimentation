@@ -1,0 +1,14 @@
+[package]
+name = "rsk-system"
+description = "P1 demo system crate: hand-written Generated_Config tables, Partition layout, vector bindings, and the System implementation (what rsk-gen emits from Phase 2 on)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+p1-demo-decl = { path = "../decl" }
+rsk-kernel = { workspace = true, default-features = false, features = ["board-qemu-mps2"] }
+rsk = { path = "../../../crates/rsk" }
+p1-demo-part0 = { path = "../part0" }
+p1-demo-part1 = { path = "../part1" }

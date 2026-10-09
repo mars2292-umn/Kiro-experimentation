@@ -1,0 +1,82 @@
+# Kani stub register (R45.4; task 6.1). Every double that a Kani harness or a
+# host test substitutes for Target hardware, with the Hardware_Model rule it
+# implements and how it is validated. The verification job's Trust_Base_Register
+# entry TBR-07 points here. A stub that has no HIL differential test yet is
+# marked `validated = "pending"` (task 3.3); the Gap_Register carries the gap.
+#
+# All stubs live in `crates/rsk-kernel/src/arch/cm4/unsafe_module/sim.rs`
+# (compiled only under `cfg(any(kani, test, not(target_os = "none")))`) and
+# `stubs_host.rs` (host doubles of the assembly entry points). No Flight_Build
+# compiles either file (the policy's Target build is checked by the Build_System).
+
+version = 1
+
+[[stub]]
+id = "KS-01"
+name = "sim::read / sim::write / sim::write_u8"
+replaces = "hw::mmio_read, hw::mmio_write, hw::mmio_write_u8 (volatile accesses to the PPB and peripherals)"
+behaviour = "A fixed table of (address, value) cells: a read returns the last value written to the address (0 when never written); a byte write merges into the word. No side effect, no read-to-clear, no write-one-to-clear."
+hardware_rule = "None (the harnesses assert on the written values, not on peripheral behaviour); the register semantics the Kernel relies on are HW-01 to HW-04, HW-09, HW-12."
+harnesses = ["uj_001_mmio_addresses_valid", "rasr_encoding_fields", "rbar_encoding_fields", "mpu_load_writes_every_region"]
+validated = "pending"
+validation = "HIL differential tests of task 3.3 for every register the Kernel writes (NVIC IPR/ISER/ICER/ISPR/ICPR, AIRCR, CCR, ACTLR, SHPR, SHCSR, CPACR, FPCCR, MPU RBAR/RASR/CTRL, TIMER)."
+
+[[stub]]
+id = "KS-02"
+name = "sim::set_basepri / sim::basepri"
+replaces = "hw::write_basepri, hw::read_basepri (MSR/MRS BASEPRI)"
+behaviour = "A plain cell: the write stores the value, the read returns it. BASEPRI_MAX semantics (HW-03) are not modelled; the Kernel uses plain BASEPRI writes with values it computes itself."
+hardware_rule = "HW-03 (masking by BASEPRI) is used by the harness only through the value written."
+harnesses = ["uj_010_basepri_never_masks_kernel_level"]
+validated = "pending"
+validation = "HIL: a Ceiling of 7 masks every Task level and never the Kernel level (task 3.1 HIL part, 7.3)."
+
+[[stub]]
+id = "KS-03"
+name = "sim::set_primask / sim::primask"
+replaces = "hw::primask_set, hw::primask_clear (CPSID/CPSIE i)"
+behaviour = "A plain cell."
+hardware_rule = "HW-05 (PRIMASK raises the execution priority above every configurable exception)."
+harnesses = []
+validated = "n/a"
+validation = "No harness depends on PRIMASK; the stubs hold it by construction (review UJ-020, UJ-023)."
+
+[[stub]]
+id = "KS-04"
+name = "sim::record_frame / sim::last_frame"
+replaces = "the raw writes of unsafe_module::build_frame to the Partition stack"
+behaviour = "Records the frame pointer and the eight words of the last frame built."
+hardware_rule = "HW-06 (exception frame layout: R0-R3, R12, LR, PC, xPSR; 8-byte alignment)."
+harnesses = ["uj_007_frame_layout"]
+validated = "spike"
+validation = "The QEMU spike dispatches every Job through frames built by the real code (the exception return unstacks them, so a wrong layout cannot run the Job); the HIL register-pattern test of task 3.1/3.3 remains."
+
+[[stub]]
+id = "KS-05"
+name = "sim::svc_number_at"
+replaces = "unsafe_module::svc_number (the read of the SVC immediate from the instruction before the stacked PC)"
+behaviour = "Returns the number the harness planted for the PC."
+hardware_rule = "HW-06 (the stacked PC is the return address, the SVC instruction is the halfword before it)."
+harnesses = []
+validated = "spike"
+validation = "Every SVC service of the QEMU spike (lock, unlock, now, job end) decodes correctly (review UJ-008); HIL in task 3.3."
+
+[[stub]]
+id = "KS-06"
+name = "sim::console / sim::exit"
+replaces = "hw::semihosting_write, hw::semihosting_exit (BKPT 0xAB semihosting)"
+behaviour = "Console output is discarded; exit records the code and panics the harness only if called twice."
+hardware_rule = "None (debug only, never in a Flight_Build without a debugger; the Link_Checker reports semihosting in Flight_Builds)."
+harnesses = []
+validated = "n/a"
+validation = "Not needed."
+
+[[stub]]
+id = "KS-07"
+name = "stubs_host::{svc_lock, svc_unlock, svc_now, svc_panic, job_end_trampoline}"
+replaces = "the SVC wrappers and the trampoline of stubs.rs (Target assembly)"
+behaviour = "svc_lock/svc_unlock record the Resource id in the simulated register file and return true; svc_now returns 0; svc_panic and the trampoline do nothing."
+hardware_rule = "None: host doubles so that the `rsk` API and the arch planning code compile and test on the host."
+harnesses = []
+validated = "n/a"
+validation = "The real assembly is exercised by the QEMU spike and reviewed (UJ-029 to UJ-034)."

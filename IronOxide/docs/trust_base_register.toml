@@ -1,0 +1,356 @@
+# Trust_Base_Register source (R48). `cargo xtask docs` renders it to
+# docs/trust_base_register.md. The verification job reads the [[crate]]
+# entries to gate the Flight_Build dependency graph (R58.2, R58.5): every
+# third-party crate that a Flight_Build compiles and that contains `unsafe`
+# code, assembly, a build script, or a proc-macro needs an entry for its
+# exact version. The [[entry]] tables cover the other trusted components.
+#
+# Field meaning (R48.2, R48.3): `trusted_for` is what the argument assumes of
+# the component; `evidence` is what reduces that trust; `residual_risk` is
+# what remains; `requirements` and `properties` are what depends on the
+# entry; `links` are the ASM and ORQ identifiers.
+
+schema = 1
+version = "1.0"
+updated = "2026-10-08"
+
+# ---------------------------------------------------------------------------
+# Third-party crates of the Flight_Build graph
+# ---------------------------------------------------------------------------
+
+[[crate]]
+name = "vstd"
+version = "0.0.0-2026-10-04-0306"
+role = "Kernel Target graph (no_std, no alloc); verification build"
+contains = ["unsafe", "build script"]
+trusted_for = "The specifications it gives to `core` items (`assume_specification`), its axioms, and the soundness of its verified lemmas; in a Flight_Build, the executable code of the vstd items the Kernel calls."
+evidence = "Pinned exact version matching the Verus release (toolchain/decision.toml); ghost erasure leaves no vstd symbol in the Kernel Flight_Build, which the Link_Checker checks (R55.4); the build script only sets RUST_MIN_STACK (reviewed); `unsafe` code sits in raw-pointer and atomic wrappers that the Kernel does not use."
+residual_risk = "An unsound vstd axiom or `assume_specification` would make a Kernel proof vacuous; no DO-330 qualification exists."
+requirements = ["R44.5", "R44.6", "R55.4", "R50.2"]
+links = ["ASM-15", "ORQ-07", "ORQ-08"]
+
+[[crate]]
+name = "verus_builtin"
+version = "0.0.0-2026-09-16-0054"
+role = "Kernel Target graph; verification build"
+contains = ["unsafe"]
+trusted_for = "The definitions of Verus's built-in operators and ghost types; in a Flight_Build, that its executable remainder is empty."
+evidence = "Pinned exact version; `#![feature]` attributes gated on verus_keep_ghost (PR-36 check); Link_Checker symbol check (R55.4)."
+residual_risk = "As for vstd: definitions the proofs rely on are not independently checked."
+requirements = ["R44.5", "R55.4"]
+links = ["ASM-15", "ORQ-08"]
+
+[[crate]]
+name = "verus_builtin_macros"
+version = "0.0.0-2026-09-20-0158"
+role = "Flight_Build host proc-macro: the `verus!` ghost-erasure macro"
+contains = ["unsafe", "proc-macro"]
+trusted_for = "That the erased executable code it emits for a `verus!` block is the code Verus verified (ORQ-08); it is a DO-330 criterion 1 tool unless the archived erased source is shown equal (R55.3, design Tool qualification proposal)."
+evidence = "Pinned exact version; runs with the network denied (R58.4); the macro-expanded, ghost-erased Kernel source is archived for comparison (R55.3)."
+residual_risk = "A defect in erasure that changes executable semantics; the two `unsafe` uses are in its own string handling."
+requirements = ["R52.3", "R55.3", "R56.4"]
+links = ["ORQ-08", "ORQ-20"]
+
+[[crate]]
+name = "verus_state_machines_macros"
+version = "0.0.0-2026-09-06-0133"
+role = "Flight_Build host proc-macro (dependency of vstd)"
+contains = ["proc-macro"]
+trusted_for = "Expanding vstd's state-machine macros; the Kernel uses none of them."
+evidence = "Pinned exact version; network denied; no Kernel code invokes it."
+residual_risk = "Low: unused by rsk code."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "verus_syn"
+version = "0.0.0-2026-09-06-0133"
+role = "Flight_Build host (dependency of the Verus macros)"
+contains = ["unsafe"]
+trusted_for = "Parsing Verus syntax inside the ghost-erasure macro."
+evidence = "Pinned exact version; a fork of syn with the same `unsafe` uses (string and span handling)."
+residual_risk = "A mis-parse would surface as a compile error, not as silently changed code, except where it changes erasure (covered by R55.3)."
+requirements = ["R58.2"]
+links = ["ORQ-08"]
+
+[[crate]]
+name = "verus_prettyplease"
+version = "0.0.0-2026-09-06-0133"
+role = "Flight_Build host (dependency of the Verus macros)"
+contains = ["unsafe", "build script"]
+trusted_for = "Pretty-printing tokens inside the Verus macros."
+evidence = "Pinned exact version; build script only probes the compiler version (reviewed); network denied."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "syn"
+version = "2.0.119"
+role = "Flight_Build host (dependency of the Verus macros)"
+contains = ["unsafe"]
+trusted_for = "Parsing Rust syntax for the proc-macros."
+evidence = "Pinned exact version; widely used; `unsafe` confined to its buffer and span handling."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "synstructure"
+version = "0.13.2"
+role = "Flight_Build host (dependency of the Verus macros)"
+contains = ["unsafe"]
+trusted_for = "Derive-macro helper used by verus_builtin_macros."
+evidence = "Pinned exact version; single `unsafe` in a documented helper."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "proc-macro2"
+version = "1.0.107"
+role = "Flight_Build host (every proc-macro); also the Build_System's lexer"
+contains = ["unsafe", "build script"]
+trusted_for = "Token handling for every proc-macro, and the token scans of the Build_System checks."
+evidence = "Pinned exact version; build script probes compiler features only, and its `proc_macro_span` cfg is accepted by the PR-36 check as inactive on stable; network denied."
+residual_risk = "Low; a lexer defect could hide a construct from the Build_System scans, which the compiler's own `unsafe_code` lint backs."
+requirements = ["R58.2", "R6.3"]
+links = []
+
+[[crate]]
+name = "quote"
+version = "1.0.47"
+role = "Flight_Build host (every proc-macro)"
+contains = ["build script"]
+trusted_for = "Token construction in proc-macros."
+evidence = "Pinned exact version; build script probes compiler features only; network denied."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "unicode-ident"
+version = "1.0.26"
+role = "Flight_Build host (dependency of proc-macro2 and syn)"
+contains = ["unsafe"]
+trusted_for = "Identifier classification tables."
+evidence = "Pinned exact version; the single `unsafe` is an unchecked table index with a documented bound."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "indexmap"
+version = "2.14.2"
+role = "Flight_Build host (dependency of verus_state_machines_macros)"
+contains = ["unsafe"]
+trusted_for = "Ordered maps inside an unused proc-macro."
+evidence = "Pinned exact version; unused by rsk code paths."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+[[crate]]
+name = "hashbrown"
+version = "0.17.1"
+role = "Flight_Build host (dependency of indexmap)"
+contains = ["unsafe"]
+trusted_for = "Hash tables inside an unused proc-macro."
+evidence = "Pinned exact version; unused by rsk code paths; never in the Kernel's Target graph (R6.1 check rejects it there, as the third-party-kernel fixture shows)."
+residual_risk = "Low."
+requirements = ["R58.2"]
+links = []
+
+# ---------------------------------------------------------------------------
+# Other trusted components (R48.1), ordered by how much of the argument rests
+# on them. Design source: design.md, "Trust-Base Analysis".
+# ---------------------------------------------------------------------------
+
+[[entry]]
+id = "TBR-01"
+component = "Compiler front end and LLVM back end: upstream rustc 1.95.0 (Phases P1-P4), the Verus_Toolchain rustc 1.98.1, and the Qualified_Toolchain (Ferrocene 26.05.0, Phase P5)"
+trusted_for = "Translating verified source into the Flight_Build faithfully."
+evidence = "Ferrocene qualification (P5); HIL tests on the Flight_Build; source-to-object traceability (R53.2); archived ghost-erased source (R55.3); dual build (R55.2)."
+residual_risk = "DAL A/B compiler assurance beyond Ferrocene's DAL C support; the verified and flight rustc versions differ."
+requirements = ["R52.3", "R55", "R56"]
+links = ["ASM-09", "ORQ-04", "ORQ-08"]
+
+[[entry]]
+id = "TBR-02"
+component = "Hardware_Model (crates/rsk-kernel/src/hw_model.rs), including NONBASETHRDENA exception returns"
+trusted_for = "Agreement between the model and the silicon on every behaviour the Kernel_Proofs use."
+evidence = "Manual citations per rule (R49.2); one HIL differential test per rule (R49.3); the P1 dispatch spike before the Kernel depends on it; QEMU (mps2-an386) runs of the same tests as a pre-hardware check."
+residual_risk = "Behaviours that tests cannot exercise exhaustively (rare late-arrival timings); QEMU is not the Target."
+requirements = ["R44", "R49"]
+links = ["ASM-08", "ORQ-09", "ORQ-19"]
+
+[[entry]]
+id = "TBR-03"
+component = "Silicon errata: Cortex-M4 r0p1 core errata and nRF52840 anomalies"
+trusted_for = "Completeness of the workarounds the Kernel applies."
+evidence = "Errata review recorded in the Hardware_Model (R49.4); DSB before exception return; eager FP stacking."
+residual_risk = "Unpublished errata."
+requirements = ["R11.6", "R49.4"]
+links = ["ASM-01", "ORQ-16"]
+
+[[entry]]
+id = "TBR-04"
+component = "Verus 0.2026.10.04 with Z3 4.16.0, vstd, and every `external_body`, `assume_specification`, `assume`, and `admit` item"
+trusted_for = "Soundness of the Kernel and Analyzer proofs."
+evidence = "Kani cross-check harnesses (R45.3); pinned versions recorded in each proof Evidence_Item (R44.6); assumption gating: the verification job fails on any assumption construct not listed in docs/proof_assumptions.toml (R50.2); a short `external_body` list."
+residual_risk = "SMT or Verus soundness defects; ghost-erasure cfg flags; no DO-330 qualification."
+requirements = ["R44", "R50.2", "R52.1"]
+links = ["ASM-15", "ORQ-06", "ORQ-07"]
+
+[[entry]]
+id = "TBR-05"
+component = "Kernel_Unsafe_Module register-access functions and their trusted specifications"
+trusted_for = "Each register-access function does what its specification says."
+evidence = "Kani harnesses with Hardware_Model stubs; justification identifiers linked to a harness, lemma, or review (R6.4 gate); HIL differential tests."
+residual_risk = "A specification error shared by the proof and the stub."
+requirements = ["R6.4", "R44.5", "R45.4"]
+links = ["ASM-08"]
+
+[[entry]]
+id = "TBR-06"
+component = "Review-only `unsafe` justifications (kind = \"review\" in unsafe_justifications.toml)"
+trusted_for = "Each item for which no proof, lemma, or harness is feasible behaves as its recorded review states."
+evidence = "The review states why no machine check is feasible (R6.4 gate); HIL tests and Link_Checker checks where they apply."
+residual_risk = "Reviewer error."
+requirements = ["R6.4", "R45.1"]
+links = []
+
+[[entry]]
+id = "TBR-07"
+component = "Kani 0.68.0 with CBMC 6.11.0, its SAT solver, and every stub"
+trusted_for = "Bounded checks of unsafe code and HAL glue."
+evidence = "Justified bounds (R45.8); every check including unwinding assertions must pass (R45.5); versions recorded per Evidence_Item (R45.7); stubs listed in docs/kani_stubs.toml and validated by HIL differential tests (R45.4)."
+residual_risk = "Behaviour beyond the bounds; sequential checking only."
+requirements = ["R45"]
+links = ["ASM-15"]
+
+[[entry]]
+id = "TBR-08"
+component = "Creusot (App_Prover) with Why3 and its SMT solvers"
+trusted_for = "Application-level proofs for level A and B Partitions."
+evidence = "Discharge by two solvers where feasible; pinned versions."
+residual_risk = "Soundness of the Why3 translation."
+requirements = ["R46"]
+links = ["ORQ-10"]
+
+[[entry]]
+id = "TBR-09"
+component = "`core` library (Core_Subset, profile/core_subset.toml)"
+trusted_for = "Correct library behaviour of the allowed items."
+evidence = "Ferrocene's certified subset (IEC 61508 SIL 2, ISO 26262 ASIL B); allow-list lint and link check (R57)."
+residual_risk = "Not a DO-178C certification."
+requirements = ["R57"]
+links = ["ORQ-24"]
+
+[[entry]]
+id = "TBR-10"
+component = "Linker (rust-lld) and the generated linker script"
+trusted_for = "Section placement matches the MPU layout."
+evidence = "Config_Checker compares the memory map with the MPU views (R16.7)."
+residual_risk = "Low."
+requirements = ["R16.7", "R26"]
+links = []
+
+[[entry]]
+id = "TBR-11"
+component = "Generator (rsk-macros, rsk-gen)"
+trusted_for = "Correct Generated_Config."
+evidence = "Config_Checker recomputation and mutation suite (R26.7); review of the configuration summary (R24.3)."
+residual_risk = "Outputs the Config_Checker does not cover (listed per R51.3)."
+requirements = ["R26", "R51.3"]
+links = []
+
+[[entry]]
+id = "TBR-12"
+component = "Analyzer, Config_Checker, Link_Checker, WCET_Harness, Profile_Lint, Protocol_Checker"
+trusted_for = "Correct verification verdicts."
+evidence = "Analyzer core proved (R32.1); property-based tests; independence of the Config_Checker (R26.1); LK backing for lints; differential runs."
+residual_risk = "Tool defects in unproved parts."
+requirements = ["R32", "R51"]
+links = []
+
+[[entry]]
+id = "TBR-13"
+component = "HAL and PAC crates in Partitions"
+trusted_for = "Correct peripheral drivers."
+evidence = "MPU confines their effects to the owning Partition; EasyDMA writes are Kernel-mediated (DD-08); a [[crate]] entry per crate (R58.2)."
+residual_risk = "Faults within the owning Partition."
+requirements = ["R17", "R58.3"]
+links = ["ORQ-21"]
+
+[[entry]]
+id = "TBR-14"
+component = "Measurement-based WCET"
+trusted_for = "Upper bounds on execution time."
+evidence = "Margin, coverage thresholds, loop-bound drive, static cross-check (P5)."
+residual_risk = "Not a guaranteed bound before P5."
+requirements = ["R34", "R36"]
+links = ["ASM-11", "ORQ-13"]
+
+[[entry]]
+id = "TBR-15"
+component = "Clock sources and time base"
+trusted_for = "Fixed CPU-to-tick ratio and bounded drift."
+evidence = "Boot clock checks (R12.1)."
+residual_risk = "Crystal tolerance relative to physical time."
+requirements = ["R9", "R12.1", "R29.8"]
+links = ["ASM-05", "ASM-16", "ASM-18"]
+
+[[entry]]
+id = "TBR-16"
+component = "EasyDMA bus contention"
+trusted_for = "Bounded interference with CPU memory accesses."
+evidence = "Measurement under maximum DMA traffic (R34.5)."
+residual_risk = "No formal bound."
+requirements = ["R17.4", "R34.5"]
+links = ["ASM-07"]
+
+[[entry]]
+id = "TBR-17"
+component = "UPPAAL"
+trusted_for = "Cross-check verdicts."
+evidence = "Used as a cross-check only; inconclusive results reported as such (R31.9)."
+residual_risk = "Licence for certification use; over-approximation for stopwatch models."
+requirements = ["R31", "R32.6"]
+links = ["ASM-13", "ORQ-22"]
+
+[[entry]]
+id = "TBR-18"
+component = "HIL_Rig, probe-rs, and the flashing tool"
+trusted_for = "Evidence describes the binary that was tested."
+evidence = "Read-back hash check against the Build_Manifest (R48.4)."
+residual_risk = "Rig wiring and stimulus errors."
+requirements = ["R48.4"]
+links = ["ASM-12"]
+
+[[entry]]
+id = "TBR-19"
+component = "Build_System (xtask): reproducible builds and verdict aggregation"
+trusted_for = "Correct verdicts and bit-identical rebuilds."
+evidence = "Rebuild comparison (R59.3); archived Evidence_Items and logs; the Build_System's own fixture tests."
+residual_risk = "Pipeline scripting errors."
+requirements = ["R50", "R59"]
+links = []
+
+[[entry]]
+id = "TBR-20"
+component = "Single-core execution"
+trusted_for = "Every Kernel proof."
+evidence = "Explicit precondition in the proofs (R27.4)."
+residual_risk = "None in v1."
+requirements = ["R27.4"]
+links = []
+
+[[entry]]
+id = "TBR-21"
+component = "Rust type system: Send/Sync data-race freedom and borrow checking in safe code"
+trusted_for = "Data-race freedom of Application and Kernel code outside the Kernel_Unsafe_Module."
+evidence = "Sound `unsafe` code (TBR-05, TBR-06) and a correct compiler (TBR-01)."
+residual_risk = "A compiler or `unsafe` soundness defect."
+requirements = ["PR-05", "R43.3"]
+links = ["ASM-14"]

@@ -1,0 +1,16 @@
+# Fixture: `app` depends on `helper`, which Cargo.lock does not list (R58.1).
+[workspace]
+resolver = "2"
+members = ["app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+app = { targets = ["host"] }
+helper = { targets = ["host"] }

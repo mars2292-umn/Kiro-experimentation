@@ -1,0 +1,64 @@
+# rsk verification job (tasks 1.1, 4.1, 6.1). CI and local runs share one
+# entry point, `cargo xtask verify`; see xtask/src/verify.rs for its steps.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # The Verus release the Kernel_Proofs run with (toolchain/decision.toml,
+  # [verus_toolchain]); the job records its version in every proof
+  # Evidence_Item (R44.6).
+  VERUS_RELEASE: "0.2026.10.04.426d8b0"
+  KANI_VERSION: "0.68.0"
+
+jobs:
+  verify:
+    # x86-64 Linux (glibc) is the host from which Ferrocene qualifies
+    # thumbv7em-none-eabihf (toolchain/decision.toml, FER-TARGETS).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The only network use of the job: install the pinned toolchain,
+      # Target, and components, the Verus release with its rustc, and Kani
+      # with its CBMC. Dependencies come from vendor/ and Cargo runs offline
+      # from here on.
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+
+      - name: Install the Verus release
+        run: |
+          curl -sSL -o verus.zip "https://github.com/verus-lang/verus/releases/download/release/${VERUS_RELEASE}/verus-${VERUS_RELEASE}-x86-linux.zip"
+          unzip -q verus.zip -d "$HOME/verus"
+          VERUS_DIR="$(dirname "$(find "$HOME/verus" -name cargo-verus -type f | head -1)")"
+          echo "RSK_VERUS_DIR=$VERUS_DIR" >> "$GITHUB_ENV"
+          rustup toolchain install "$(grep -o '"toolchain": "[^" ]*' "$VERUS_DIR/version.json" | cut -d'"' -f4)" --profile minimal
+
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier --version "${KANI_VERSION}"
+          cargo kani setup
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor.
+      # The job's network sandbox (unshare --net --map-root-user) needs them.
+      - name: Allow unprivileged user namespaces for the network sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Verify
+        run: cargo xtask verify --evidence-dir evidence-out
+
+      - name: Archive the Evidence_Items and the Build_Manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: evidence
+          path: evidence-out

@@ -1,0 +1,24 @@
+# Cargo configuration for the rsk workspace (task 1.1).
+# `cargo xtask verify` checks the [source] and [net] settings below.
+
+# R58.1: build only from the committed Cargo.lock and the vendored sources.
+# Refresh the vendor directory only with `cargo vendor --locked --versioned-dirs vendor`.
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
+
+# R58.4: Cargo itself never touches the network. Build scripts and proc-macros
+# are additionally run with the network denied by the verification job.
+[net]
+offline = true
+
+# Prefer dependency versions whose rust-version fits the pinned toolchain when
+# the lock file is regenerated.
+[resolver]
+incompatible-rust-versions = "fallback"
+
+[alias]
+# The verification job's entry point. --frozen = --locked + --offline.
+xtask = "run --frozen --package xtask --"

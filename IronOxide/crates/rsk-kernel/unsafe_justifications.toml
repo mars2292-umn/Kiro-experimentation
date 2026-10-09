@@ -1,0 +1,284 @@
+# Justification register of the Kernel_Unsafe_Module (R6.4, PR-20).
+# Every `unsafe` block, `unsafe fn`, and `unsafe impl` in
+# src/arch/cm4/unsafe_module/ cites one of these identifiers in a comment
+# on or above it. `cargo xtask check` verifies that every identifier is
+# defined, that a `kani` link names a `#[kani::proof]` function, that a
+# `verus` link names a function inside `verus!`, and that a review states
+# why no machine check is feasible.
+#
+# Evidence kinds: "kani" harnesses live in src/arch/cm4/unsafe_module/kani.rs;
+# "review" items are exercised by the QEMU dispatch spike (`cargo xtask qemu`)
+# and the HIL dispatch tests of task 3.1, and are listed in the
+# Trust_Base_Register entries TBR-05 and TBR-06.
+
+schema = 1
+
+[[justification]]
+id = "UJ-001"
+summary = "mmio_read: volatile read of a system-control or peripheral register"
+kind = "kani"
+link = "uj_001_mmio_addresses_valid"
+
+[[justification]]
+id = "UJ-002"
+summary = "mmio_write: volatile write of a system-control or peripheral register"
+kind = "kani"
+link = "uj_001_mmio_addresses_valid"
+
+[[justification]]
+id = "UJ-003"
+summary = "KernelCell: Sync for the Kernel static"
+kind = "review"
+why_no_machine_check = "Soundness rests on the execution model of DD-02 (every access at the Kernel NVIC level or with PRIMASK held, Kernel code non-reentrant) and on Property 12 (Jobs cannot reach Kernel RAM). Neither Kani (sequential, no interrupt model) nor Verus (no notion of the NVIC) can state the absence of concurrent handlers; the HIL preemption-order tests of task 3.1 and the Hardware_Model rule HW-02 are the evidence."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-004"
+summary = "KernelCell::get: the exclusive reference to the Kernel value"
+kind = "review"
+why_no_machine_check = "As UJ-003: the reference is created inside one handler and dropped before it returns; handlers of the Kernel level never nest (DD-02)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-005"
+summary = "ArchCell: Sync for the Kernel_Arch state"
+kind = "review"
+why_no_machine_check = "As UJ-003."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-006"
+summary = "arch_state: the exclusive reference to the Kernel_Arch state"
+kind = "review"
+why_no_machine_check = "As UJ-004."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-007"
+summary = "build_frame: writes the initial exception frame below the Partition stack floor"
+kind = "kani"
+link = "uj_007_frame_layout"
+
+[[justification]]
+id = "UJ-008"
+summary = "svc_number: reads the SVC instruction at the stacked PC minus 2"
+kind = "review"
+why_no_machine_check = "The precondition (PC is the return address stacked by an SVC taken from Thumb code, HW-06) is a hardware fact that no harness can produce; the SVC service tests of the QEMU spike and the HIL dispatch tests exercise every service number."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-009"
+summary = "mmio_write_u8: byte write to NVIC_IPR"
+kind = "kani"
+link = "uj_001_mmio_addresses_valid"
+
+[[justification]]
+id = "UJ-010"
+summary = "write_basepri: MSR BASEPRI"
+kind = "kani"
+link = "uj_010_basepri_never_masks_kernel_level"
+
+[[justification]]
+id = "UJ-011"
+summary = "read_basepri: MRS BASEPRI"
+kind = "review"
+why_no_machine_check = "A register read with no memory effect; Kani does not model inline assembly (R45.4). The HIL BASEPRI test of task 3.1 reads back every ceiling encoding."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-012"
+summary = "primask_set: CPSID I"
+kind = "review"
+why_no_machine_check = "As UJ-011; the instruction only sets PRIMASK (HW-04)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-013"
+summary = "primask_clear: CPSIE I"
+kind = "review"
+why_no_machine_check = "As UJ-012."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-014"
+summary = "barrier: DSB and ISB (erratum 838869 workaround, MPU synchronization)"
+kind = "review"
+why_no_machine_check = "Barriers have no architectural effect on data; the erratum workaround is an HIL-checked fact (task 3.4)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-015"
+summary = "wait_for_interrupt: WFI in the idle activity"
+kind = "review"
+why_no_machine_check = "No memory effect; the instruction sleeps until an interrupt (R7.6)."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-016"
+summary = "semihosting_write: BKPT 0xAB with a NUL-terminated buffer"
+kind = "review"
+why_no_machine_check = "Debug-only path (QEMU spike, HIL console); the buffer is a stack array that outlives the call and is NUL-terminated by construction. Not compiled into Flight_Builds that disable the console."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-017"
+summary = "semihosting_exit: BKPT 0xAB SYS_EXIT_EXTENDED"
+kind = "review"
+why_no_machine_check = "As UJ-016."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-020"
+summary = "rsk_irq_entry: the shared dispatch stub (naked asm)"
+kind = "review"
+why_no_machine_check = "Kani does not model inline assembly or exception entry (R45.4); the frame protocol (push R3-R11/LR and S16-S31, matched by the pops of rsk_unwind in LIFO order, Property 2) is checked by the QEMU dispatch spike and the HIL preemption and register-pattern tests of task 3.1."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-022"
+summary = "rsk_svc_entry: the SVC handler (naked asm)"
+kind = "review"
+why_no_machine_check = "As UJ-020; the frame selection by EXC_RETURN bit 2 is HW-06; the unwind of an ended Job's level (rsk_unwind) is exercised by the spike."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-023"
+summary = "rsk_unwind: pops the level records of ended Jobs and resumes the preempted context"
+kind = "review"
+why_no_machine_check = "As UJ-020; the pops match the pushes of rsk_irq_entry for the levels being unwound (LIFO, Property 2) and the exception return uses the EXC_RETURN the preempted context was entered with (HW-07). Exercised by the spike (nested preemption with a shared Partition stack) and the HIL tests of task 3.1."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-025"
+summary = "rsk_timer_entry: the Kernel-level timer handler"
+kind = "review"
+why_no_machine_check = "As UJ-022."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-026"
+summary = "rsk_memmanage_entry"
+kind = "review"
+why_no_machine_check = "As UJ-022; the in-Kernel attribution uses EXC_RETURN bit 3 and PRIMASK (R14.3), exercised by the HIL fault-injection cases of task 7.5."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-027"
+summary = "rsk_busfault_entry"
+kind = "review"
+why_no_machine_check = "As UJ-026."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-028"
+summary = "rsk_usagefault_entry"
+kind = "review"
+why_no_machine_check = "As UJ-026."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-029"
+summary = "job_end_trampoline: SVC #3 at every Job's return address"
+kind = "review"
+why_no_machine_check = "Two instructions in the shared code region; the SVC never returns to the trampoline (its level is unwound instead), exercised by the spike."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-030"
+summary = "svc_lock: the SVC #1 wrapper of the rsk API"
+kind = "review"
+why_no_machine_check = "An SVC with r0 in and r0 out; the Kernel side is the verified `svc_lock` transition (Property 3). Kani does not model SVC."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-031"
+summary = "svc_unlock: the SVC #2 wrapper"
+kind = "review"
+why_no_machine_check = "As UJ-030."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-032"
+summary = "svc_now: the SVC #4 wrapper"
+kind = "review"
+why_no_machine_check = "As UJ-030."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-050"
+summary = "ResourceCell: Sync for Resource storage"
+kind = "review"
+why_no_machine_check = "Soundness is the mutual-exclusion property of the Kernel (Property 4, proved in Verus) combined with the type-system rules R8.6 and R8.10; no single harness or lemma states the combination."
+reviewed_by = "rsk kernel review (task 5.6)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-051"
+summary = "ResourceCell::with: the exclusive reference inside a Critical_Section"
+kind = "review"
+why_no_machine_check = "As UJ-050."
+reviewed_by = "rsk kernel review (task 5.6)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-052"
+summary = "ResourceCell::peek: Kernel-level read in the safe state"
+kind = "review"
+why_no_machine_check = "As UJ-050; the safe state has ended every Job."
+reviewed_by = "rsk kernel review (task 5.6)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-053"
+summary = "ResourceCell::with_unprivileged: per-Task state without a lock"
+kind = "review"
+why_no_machine_check = "Soundness is PR-25 plus Property 2 (at most one Job of a Task in progress), a Kernel proof; the Generator restricts the call to declared per-Task state."
+reviewed_by = "rsk kernel review (task 5.6)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-054"
+summary = "ResourceCell::peek_unprivileged: word-sized hint read"
+kind = "review"
+why_no_machine_check = "A single word read is atomic on Armv7-M (ARM A3.5.3); the value is advisory."
+reviewed_by = "rsk kernel review (task 5.6)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-034"
+summary = "svc_panic: the SVC #5 wrapper of the panic handler"
+kind = "review"
+why_no_machine_check = "As UJ-030."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-040"
+summary = "sim::Store: Sync for the simulated register file (host and Kani only)"
+kind = "review"
+why_no_machine_check = "Host-test and Kani double, never compiled into a Flight_Build; both environments are single threaded."
+reviewed_by = "rsk kernel review (task 5.1)"
+reviewed_on = "2026-10-08"

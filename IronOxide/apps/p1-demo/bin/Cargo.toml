@@ -1,0 +1,17 @@
+[package]
+name = "p1-demo"
+description = "P1 demo binary: no symbols of its own (DD-11); links rsk-entry and the demo system crate; runs on QEMU mps2-an386"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "p1-demo"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+rsk-entry = { path = "../../../crates/rsk-entry" }

@@ -1,0 +1,861 @@
+# The rsk Profile, machine-readable source (Component A; task 2.1).
+#
+# `cargo xtask profile` checks this file against Requirements 1, 2, 4, and
+# 27.3 and generates docs/profile.md and the `profile_version.rs` modules of
+# rsk-kernel and rsk-gen from it. `cargo xtask profile --check` (run by the
+# verification job) fails if the generated files are stale or the checks
+# fail.
+#
+# Conventions:
+# - Enforcement categories: TS type system, MC macro (Generator), LN lint,
+#   LK linker or binary check, PO proof obligation, RT run-time monitor.
+#   The first listed category is the primary one (R1.2).
+# - `analogue` lists Table 4-1 item names exactly as spelled there, or the
+#   single marker "rsk-specific"; `analogue_note` carries the parenthesized
+#   qualifier of Table 2-1.
+# - `evidence.<CAT>` names at least one Evidence_Item per listed category
+#   (R1.2, R2.3). The naming scheme is: `conf-<PR>-<cat>` for a rejected
+#   program of the Profile_Conformance_Suite (TS, MC, LN, LK), `proof-...`
+#   for a Kernel_Proofs, Kani, or App_Prover artifact (PO), and
+#   `fi-<PR>` for a fault-injection report (RT). `cargo xtask trace` reports
+#   which of these items exist (R50.6).
+# - `rt_assumption` (ASM-nn) or `rt_reason` is required when RT is listed
+#   (R1.3).
+# - `content_hash` of each change-log entry is the SHA-256 of this file with
+#   every `content_hash` value blanked. The entry of the current version must
+#   match the file, and no two versions share a hash (R1.4).
+
+[profile]
+name = "rsk"
+version = "0.3"
+default_variant = "Ravenscar"
+variants = ["Ravenscar", "Jorvik"]
+requirements_draft = "0.2"
+retired = []
+
+# R27.3: identifiers reserved, inactive in v1, for the partitioned
+# multi-core extension.
+[[reserved]]
+id = "PR-37"
+purpose = "Static Task-to-core assignment (every Task, Resource, and Endpoint keeps its build-time core)."
+[[reserved]]
+id = "PR-38"
+purpose = "Per-core SRP: each core runs its own System_Ceiling and dispatches only its own Tasks."
+[[reserved]]
+id = "PR-39"
+purpose = "Cross-core sharing only through Endpoints or a spin-based global resource protocol (MSRP or MrsP)."
+
+[disallowed_crates]
+# PR-35 / R1.5: crates no Application may link. Each entry names the reason.
+std = "general-purpose runtime (NG-05, NG-16)"
+alloc = "heap allocation after Init (PR-15, NG-06)"
+embassy-executor = "async executor as scheduling model (NG-07)"
+embassy-time = "relative delays and timers (PR-10, PR-24)"
+rtic = "second scheduler and BASEPRI writes outside the Kernel (PR-22)"
+rtic-monotonics = "relative-delay API (PR-10)"
+cortex-m = "core-peripheral access and interrupt masking outside the Kernel (PR-22)"
+cortex-m-rt = "second vector table and panic handler (PR-19, PR-22)"
+tokio = "async runtime with std (NG-07)"
+futures = "select and join combinators (PR-11)"
+rumpsteak = "std and async receive (R39.1)"
+ferrite-session = "tokio dependency (R39.1)"
+panic-halt = "second panic handler (PR-19)"
+panic-semihosting = "second panic handler (PR-19)"
+panic-probe = "second panic handler (PR-19)"
+
+# ---------------------------------------------------------------------------
+# Table 2-1: restrictions
+# ---------------------------------------------------------------------------
+
+[[restriction]]
+id = "PR-01"
+rule = "Every Task is declared in the App_Declaration; no Task is created after build time."
+guarantee = "Finite, known task set for RTA (R29); static memory and MPU layout (R24)"
+enforcement = [
+  { category = "MC", mechanism = "Generator: the task table is closed at build time" },
+  { category = "TS", mechanism = "no spawn API; Task handles constructible only by generated code" },
+]
+analogue = ["No_Task_Allocators", "No_Task_Hierarchy"]
+subjects = ["Application"]
+crate_coverage = "Application crates and every third-party crate linked into a Flight_Build (no crate may define a Task)."
+evidence = { MC = ["conf-PR-01-mc"], TS = ["conf-PR-01-ts"] }
+
+[[restriction]]
+id = "PR-02"
+rule = "Every Task exists from the end of Init until reset; a Job ends only by returning to its Release_Point or by a Health_Monitor action (R14, R18)."
+guarantee = "Stable interference set; no Resource left inconsistent by abort"
+enforcement = [
+  { category = "TS", mechanism = "no terminate or abort API" },
+  { category = "PO", mechanism = "R44: the Task set is unchanged after Init, and only a Health_Monitor action ends a Job before its Release_Point" },
+]
+analogue = ["No_Task_Termination", "No_Abort_Statements"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Application crates (no abort API exists); the Kernel crates (proof)."
+evidence = { TS = ["conf-PR-02-ts"], PO = ["proof-kernel-pr02-task-set-stable"] }
+
+[[restriction]]
+id = "PR-03"
+rule = "Each Task has exactly one Priority, fixed at build time."
+guarantee = "Fixed-priority RTA; static Ceilings"
+enforcement = [
+  { category = "MC", mechanism = "Generator: one declared Priority per Task" },
+  { category = "TS", mechanism = "no priority-setting API" },
+]
+analogue = ["No_Dynamic_Priorities"]
+subjects = ["Application"]
+crate_coverage = "Application crates; HAL and PAC crates cannot reach NVIC priority registers (PR-22)."
+evidence = { MC = ["conf-PR-03-mc"], TS = ["conf-PR-03-ts"] }
+
+[[restriction]]
+id = "PR-04"
+rule = "Each Task, Resource, and Endpoint has a build-time core assignment; in v1 the assignment is core 0."
+guarantee = "Single-core SRP guarantees; door kept open for partitioned multi-core (R27)"
+enforcement = [
+  { category = "MC", mechanism = "Generator: core fields required; any core other than 0 rejected citing NG-01" },
+]
+analogue = ["No_Dynamic_CPU_Assignment", "No_Dependence => System.Multiprocessors.Dispatching_Domains"]
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { MC = ["conf-PR-04-mc"] }
+
+[[restriction]]
+id = "PR-05"
+rule = "Tasks share mutable state only through Resources or Endpoints; `static mut` items and `static` items with interior mutability exist only in Kernel code."
+guarantee = "Data-race freedom; analyzable blocking"
+enforcement = [
+  { category = "TS", mechanism = "Send/Sync bounds on Resource and payload types, as RTIC infers [RN-06]" },
+  { category = "LN", mechanism = "Profile_Lint denies `static mut` and interior-mutable statics outside the Kernel" },
+  { category = "PO", mechanism = "lock soundness, R44" },
+]
+analogue = ["Locking_Policy (Ceiling_Locking)"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Application crates and third-party crates linked into a Flight_Build; a HAL or PAC crate with such statics needs a Trust_Base_Register entry (R58.3)."
+evidence = { TS = ["conf-PR-05-ts"], LN = ["conf-PR-05-ln"], PO = ["proof-kernel-mutual-exclusion"] }
+
+[[restriction]]
+id = "PR-06"
+rule = "Every Resource and its set of accessing Tasks is declared in the App_Declaration; Ceilings are computed at build time."
+guarantee = "Static Ceilings for SRP and blocking terms"
+enforcement = [
+  { category = "MC", mechanism = "Generator: Ceiling(r) = max Priority of declared accessors (R23.1)" },
+]
+analogue = ["No_Local_Protected_Objects", "No_Protected_Type_Allocators"]
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { MC = ["conf-PR-06-mc"] }
+
+[[restriction]]
+id = "PR-07"
+rule = "Resources are accessed only through lexically scoped lock operations, so nested Critical_Sections are released in LIFO order; no Job enters a Critical_Section on a Resource it already holds (R8.10), so the maximum nesting depth, derived at build time, does not exceed the number of Resources declared for the Task."
+guarantee = "SRP LIFO requirement; stack discipline"
+enforcement = [
+  { category = "TS", mechanism = "closure-scoped lock API; re-entry does not borrow-check" },
+  { category = "MC", mechanism = "Generator derives nesting depths (R23.3)" },
+  { category = "PO", mechanism = "R44.1" },
+]
+analogue = ["rsk-specific"]
+analogue_note = "counterpart of Ada's protected-action semantics, which no D.13 item states"
+subjects = ["Application"]
+crate_coverage = "Application crates (the only code that holds locks)."
+evidence = { TS = ["conf-PR-07-ts"], MC = ["conf-PR-07-mc"], PO = ["proof-kernel-ceiling-lifo"] }
+
+[[restriction]]
+id = "PR-08"
+rule = "A Job executes no operation that waits, suspends, or reaches a Release_Point inside a Critical_Section."
+guarantee = "Blocking bounded by one Critical_Section; deadlock freedom"
+enforcement = [
+  { category = "TS", mechanism = "the lock closure is synchronous and receives no wait-capable handle" },
+  { category = "LN", mechanism = "Profile_Lint denies blocking calls inside lock closures" },
+]
+analogue = ["Detect_Blocking"]
+analogue_note = "rsk rejects statically instead of detecting at run time"
+subjects = ["Application"]
+crate_coverage = "Application crates."
+evidence = { TS = ["conf-PR-08-ts"], LN = ["conf-PR-08-ln"] }
+
+[[restriction]]
+id = "PR-09"
+rule = "Each Job runs to completion: a Task body has exactly one Release_Point per cycle and no other suspension point; `async` functions, `async` blocks, and `.await` are absent from Task bodies."
+guarantee = "SRP run-to-completion; RTA without self-suspension; Verus and Kani applicability [RN-10, RN-16]"
+enforcement = [
+  { category = "TS", mechanism = "Task body is a synchronous function" },
+  { category = "LN", mechanism = "Profile_Lint rejects async items and await in Task bodies" },
+]
+analogue = ["rsk-specific"]
+analogue_note = "SRP requirement [RN-03]"
+subjects = ["Application"]
+crate_coverage = "Application crates and code reachable from Task bodies in third-party crates."
+evidence = { TS = ["conf-PR-09-ts"], LN = ["conf-PR-09-ln"] }
+
+[[restriction]]
+id = "PR-10"
+rule = "Periodic Releases are absolute instants (offset plus multiples of the period); the Application contains no relative-delay operation."
+guarantee = "No cumulative drift; analyzable release jitter"
+enforcement = [
+  { category = "TS", mechanism = "only absolute-time release API" },
+  { category = "LN", mechanism = "denies relative-delay APIs of third-party crates such as RTIC monotonic `delay` [RN-08]" },
+]
+analogue = ["No_Relative_Delay"]
+subjects = ["Application"]
+crate_coverage = "Application crates and third-party crates linked into a Flight_Build (disallowed-crate list)."
+evidence = { TS = ["conf-PR-10-ts"], LN = ["conf-PR-10-ln"] }
+
+[[restriction]]
+id = "PR-11"
+rule = "Each Task has exactly one Release_Source (its period for a Periodic_Task); no Task waits on alternative events, and no operation has a timeout."
+guarantee = "Single release point for RTA; no select semantics"
+enforcement = [
+  { category = "MC", mechanism = "Generator: exactly one Release_Source per Task (R22.4)" },
+  { category = "LN", mechanism = "denies select and join combinators" },
+]
+analogue = ["No_Select_Statements", "No_Requeue_Statements"]
+analogue_note = "rsk has no requeue"
+subjects = ["Application"]
+crate_coverage = "Application crates and third-party crates linked into a Flight_Build."
+evidence = { MC = ["conf-PR-11-mc"], LN = ["conf-PR-11-ln"] }
+
+[[restriction]]
+id = "PR-12"
+rule = "Each Release_Signal, interrupt Release_Source, and Endpoint receive role releases exactly one Task, and each Task has at most one pending Release (R9.7); a Release that falls due while one is pending counts as an MIT_Violation (R9.8, R10.3)."
+guarantee = "One waiter per release object; bounded release state; no multi-task release"
+enforcement = [
+  { category = "MC", mechanism = "Generator: one bound Task per release object (R22.3)" },
+  { category = "TS", mechanism = "release objects bind one Task type" },
+  { category = "RT", mechanism = "Kernel: pending-Release discard with MIT_Violation" },
+]
+analogue = ["Max_Entry_Queue_Length => 1", "Max_Protected_Entries => 1", "No_Dependence => Ada.Synchronous_Barriers"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Application declaration crate; the Kernel (run-time part)."
+rt_assumption = "ASM-10"
+evidence = { MC = ["conf-PR-12-mc"], TS = ["conf-PR-12-ts"], RT = ["fi-PR-12"] }
+
+[[restriction]]
+id = "PR-13"
+rule = "A release condition is a single Kernel-maintained flag or message availability; the Kernel evaluates no application-supplied predicate."
+guarantee = "Constant-time, bounded release logic"
+enforcement = [
+  { category = "TS", mechanism = "no predicate-taking release API" },
+  { category = "MC", mechanism = "Generator accepts no release condition in the Ravenscar variant" },
+]
+analogue = ["Simple_Barriers", "Max_Protected_Entries => 1"]
+analogue_note = "a Resource carries no release condition; relaxed together with Simple_Barriers in the Jorvik Profile_Variant, R5.7"
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { TS = ["conf-PR-13-ts"], MC = ["conf-PR-13-mc"] }
+
+[[restriction]]
+id = "PR-14"
+rule = "Every queue and buffer (Endpoint buffers, release state, timer queue, event log) has a capacity fixed at build time."
+guarantee = "Bounded memory; bounded queue operation time"
+enforcement = [
+  { category = "TS", mechanism = "const-generic capacities" },
+  { category = "MC", mechanism = "Generator computes every capacity (R23.4)" },
+  { category = "PO", mechanism = "no overflow, R44.2" },
+]
+analogue = ["Max_Entry_Queue_Length => 1"]
+analogue_note = "generalized to a build-time capacity for every queue and buffer"
+subjects = ["Kernel", "Application"]
+crate_coverage = "The Kernel crates and the Endpoint_Library."
+evidence = { TS = ["conf-PR-14-ts"], MC = ["conf-PR-14-mc"], PO = ["proof-kernel-queues-refine"] }
+
+[[restriction]]
+id = "PR-15"
+rule = "The Kernel performs no dynamic allocation; the Application obtains storage statically, on the stack, or, WHERE the Init_Arena option is enabled, from the Init_Arena during Init only."
+guarantee = "Bounded memory; no allocation failure after Init"
+enforcement = [
+  { category = "LK", mechanism = "no global allocator symbols in Flight_Builds without Init_Arena" },
+  { category = "MC", mechanism = "Generator: Init_Arena declared and sized up front" },
+  { category = "RT", mechanism = "Init_Arena sealed at the end of Init" },
+]
+analogue = ["No_Implicit_Heap_Allocations", "No_Task_Allocators", "No_Protected_Type_Allocators"]
+subjects = ["Kernel", "Application"]
+crate_coverage = "Every crate linked into a Flight_Build (allocator symbols are a link-level property)."
+rt_reason = "Whether code shared by Init and Task bodies allocates after Init depends on run-time control flow, which no static category can exclude without a whole-program proof."
+evidence = { LK = ["conf-PR-15-lk"], MC = ["conf-PR-15-mc"], RT = ["fi-PR-15"] }
+
+[[restriction]]
+id = "PR-16"
+rule = "Every loop in Task bodies and in the Kernel has a Loop_Bound_Annotation or an iteration count derivable from compile-time constants, and every annotated bound is verified."
+guarantee = "Job termination; finite WCET"
+enforcement = [
+  { category = "LN", mechanism = "missing bound, R35.1" },
+  { category = "PO", mechanism = "R35.2" },
+  { category = "LK", mechanism = "from P5, the Static_WCET_Analyzer's report of a Loop_Bound_Annotation that matches no loop in the binary, R36.3" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Application crates and the Kernel crates; third-party loops reachable from Task bodies are covered by the LK check from P5."
+evidence = { LN = ["conf-PR-16-ln"], PO = ["proof-kernel-loop-bounds"], LK = ["conf-PR-16-lk"] }
+
+[[restriction]]
+id = "PR-17"
+rule = "No function in the Kernel or reachable from a Task body is directly or indirectly recursive."
+guarantee = "Bounded stack; finite WCET"
+enforcement = [
+  { category = "LK", mechanism = "call-graph cycle check on the linked binary" },
+  { category = "LN", mechanism = "Profile_Lint rejects direct recursion at source level" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Kernel", "Application"]
+crate_coverage = "Every function in a Flight_Build reachable from a Task entry or Kernel entry point, whatever crate defines it."
+evidence = { LK = ["conf-PR-17-lk"], LN = ["conf-PR-17-ln"] }
+
+[[restriction]]
+id = "PR-18"
+rule = "Every indirect call reachable from a Task body or the Kernel has a finite target set resolved by the Link_Checker."
+guarantee = "Computable worst-case stack and WCET"
+enforcement = [
+  { category = "LK", mechanism = "Link_Checker indirect-call resolution" },
+  { category = "LN", mechanism = "Profile_Lint rejects function pointers and `dyn` outside generated tables" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Kernel", "Application"]
+crate_coverage = "Every function in a Flight_Build reachable from a Task entry or Kernel entry point."
+evidence = { LK = ["conf-PR-18-lk"], LN = ["conf-PR-18-ln"] }
+
+[[restriction]]
+id = "PR-19"
+rule = "Panics abort without unwinding; the Kernel and the code of Criticality_Level A and B Partitions are proven panic-free; every panic that occurs is delivered to the Health_Monitor as a fault of the running Partition or, for a panic in Kernel code, of the Kernel (R14.2, R14.4)."
+guarantee = "Defined fault behaviour; no unwinding through Critical_Sections"
+enforcement = [
+  { category = "LK", mechanism = "abort strategy; single rsk panic handler, R14.1" },
+  { category = "PO", mechanism = "R44, R45, R46" },
+  { category = "RT", mechanism = "panic handler reports to the Health_Monitor" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Kernel", "Application"]
+crate_coverage = "Every crate linked into a Flight_Build (panic strategy and handler are link-level properties); proofs cover the Kernel and level A and B Partition code."
+rt_assumption = "ASM-09"
+rt_reason = "ASM-09 and ASM-15: a panic in code proven panic-free means that a tool's semantics or soundness assumption failed."
+evidence = { LK = ["conf-PR-19-lk"], PO = ["proof-kernel-panic-freedom"], RT = ["fi-PR-19"] }
+
+[[restriction]]
+id = "PR-20"
+rule = "Every rsk and Application crate applies `#![forbid(unsafe_code)]`, except that the Kernel's crates apply it to every module outside the Kernel_Unsafe_Module (R6.3); every `unsafe` block, `unsafe fn`, and `unsafe impl` in the Kernel_Unsafe_Module carries a justification identifier linked to a Kernel_Proofs proof or lemma or a Kani_Harnesses harness where one is feasible, and otherwise to a recorded review that states why none is feasible (R6.4, R45.1)."
+guarantee = "Memory safety rests on a small, audited unsafe base"
+enforcement = [
+  { category = "LN", mechanism = "attribute presence (Build_System token scan and the compiler's unsafe_code lint)" },
+  { category = "LK", mechanism = "Build_System check of justification links, R6.4" },
+  { category = "PO", mechanism = "R44, R45" },
+]
+analogue = ["rsk-specific"]
+subjects = ["rsk crates", "Application"]
+crate_coverage = "Every rsk crate and every Application crate; third-party crates are reported instead (R58.2) and need Trust_Base_Register entries."
+evidence = { LN = ["conf-PR-20-ln"], LK = ["conf-PR-20-lk"], PO = ["proof-kernel-unsafe-justifications"] }
+
+[[restriction]]
+id = "PR-21"
+rule = "The Kernel and the Application use only `core` items in the Core_Subset."
+guarantee = "Trust in `core` limited to a documented subset (R57)"
+enforcement = [
+  { category = "LN", mechanism = "allow-list (profile/core_subset.toml)" },
+  { category = "LK", mechanism = "R57.3 symbol mapping in the Flight_Build" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Kernel", "Application"]
+crate_coverage = "The Kernel crates, the Endpoint_Library, Generator output, and Application crates; third-party crates through the LK symbol check."
+evidence = { LN = ["conf-PR-21-ln"], LK = ["conf-PR-21-lk"] }
+
+[[restriction]]
+id = "PR-22"
+rule = "Only the Kernel accesses interrupt-masking state (PRIMASK, FAULTMASK, BASEPRI), NVIC configuration, MPU registers, SCB priority and fault registers, and FPU context-control registers; Application code contains no inline or global assembly."
+guarantee = "The Kernel alone controls the System_Ceiling and isolation; blocking bounds hold"
+enforcement = [
+  { category = "TS", mechanism = "core peripherals owned by the Kernel" },
+  { category = "LN", mechanism = "denies assembly macros and core-peripheral crates outside the Kernel" },
+  { category = "LK", mechanism = "instruction scan outside the Kernel" },
+  { category = "RT", mechanism = "MPU and privilege, per ORQ-01 (DD-01)" },
+]
+analogue = ["rsk-specific"]
+analogue_note = "supports Ceiling_Locking"
+subjects = ["Application"]
+crate_coverage = "Application crates and every third-party crate linked into a Flight_Build (instruction scan)."
+rt_assumption = "ASM-14"
+evidence = { TS = ["conf-PR-22-ts"], LN = ["conf-PR-22-ln"], LK = ["conf-PR-22-lk"], RT = ["fi-PR-22"] }
+
+[[restriction]]
+id = "PR-23"
+rule = "Interrupt-to-Task bindings and interrupt priorities are fixed at build time; the Kernel changes no interrupt priority after Init."
+guarantee = "Static interference set; static Ceilings"
+enforcement = [
+  { category = "MC", mechanism = "Generator: bindings and priorities in Generated_Config" },
+  { category = "PO", mechanism = "R44" },
+]
+analogue = ["No_Dynamic_Attachment"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Application declaration crate; the Kernel crates (proof)."
+evidence = { MC = ["conf-PR-23-mc"], PO = ["proof-kernel-static-priorities"] }
+
+[[restriction]]
+id = "PR-24"
+rule = "The Application creates no timers or timing events; timed behaviour is expressed only as declared Periodic_Task Releases."
+guarantee = "Bounded timer queue; analyzable timer interrupts"
+enforcement = [
+  { category = "TS", mechanism = "no timer API" },
+  { category = "MC", mechanism = "Generator: timed events derived only from declarations (R9.4)" },
+]
+analogue = ["No_Local_Timing_Events", "No_Dependence => Ada.Execution_Time.Timers"]
+subjects = ["Application"]
+crate_coverage = "Application crates; timer peripherals are Kernel-owned (PR-29)."
+evidence = { TS = ["conf-PR-24-ts"], MC = ["conf-PR-24-mc"] }
+
+[[restriction]]
+id = "PR-25"
+rule = "Per-Task state is declared statically in the App_Declaration; no dynamic per-Task attribute storage exists."
+guarantee = "Bounded memory"
+enforcement = [
+  { category = "MC", mechanism = "Generator: per-Task state declared up front" },
+  { category = "TS", mechanism = "no per-Task attribute API" },
+]
+analogue = ["No_Dependence => Ada.Task_Attributes"]
+subjects = ["Application"]
+crate_coverage = "Application crates."
+evidence = { MC = ["conf-PR-25-mc"], TS = ["conf-PR-25-ts"] }
+
+[[restriction]]
+id = "PR-26"
+rule = "The Application reads time only from the monotonic Kernel time base; no wall-clock source influences scheduling."
+guarantee = "Monotonic, drift-free release computation"
+enforcement = [
+  { category = "TS", mechanism = "`rsk::now()` is the only time API" },
+]
+analogue = ["No_Dependence => Ada.Calendar"]
+subjects = ["Application"]
+crate_coverage = "Application crates; RTC peripherals are Kernel-owned (PR-29)."
+evidence = { TS = ["conf-PR-26-ts"] }
+
+[[restriction]]
+id = "PR-27"
+rule = "Every Task declares its release kind, period or MIT, offset (Periodic_Task), relative deadline D with D at most the period or MIT, Budget, MIT policy (Sporadic_Task), FPU use, and Partition."
+guarantee = "Complete Task_Model; constrained-deadline RTA"
+enforcement = [
+  { category = "MC", mechanism = "Generator: required attributes (R21.3, R22.1)" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { MC = ["conf-PR-27-mc"] }
+
+[[restriction]]
+id = "PR-28"
+rule = "Every Task, Resource, and Endpoint role, and every peripheral and memory region not owned by the Kernel (PR-29), belongs to exactly one Partition, and every Partition declares a Criticality_Level."
+guarantee = "Static isolation domains"
+enforcement = [
+  { category = "MC", mechanism = "Generator: R15.2" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { MC = ["conf-PR-28-mc"] }
+
+[[restriction]]
+id = "PR-29"
+rule = "Each peripheral, including each EasyDMA-capable peripheral, is owned by exactly one Partition or by the Kernel."
+guarantee = "No cross-Partition peripheral interference"
+enforcement = [
+  { category = "MC", mechanism = "Generator: ownership table (R15.6)" },
+  { category = "TS", mechanism = "peripheral singletons" },
+  { category = "RT", mechanism = "MPU peripheral windows" },
+  { category = "PO", mechanism = "MPU layout, R44.4" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application"]
+crate_coverage = "Application crates and HAL and PAC crates in Partitions (confined by the MPU; ORQ-21)."
+rt_assumption = "ASM-14"
+evidence = { MC = ["conf-PR-29-mc"], TS = ["conf-PR-29-ts"], RT = ["fi-PR-29"], PO = ["proof-kernel-mpu-views-disjoint"] }
+
+[[restriction]]
+id = "PR-30"
+rule = "A Resource is accessed only by Tasks of one Partition, except that an Endpoint buffer is a Kernel-owned Resource shared only through Endpoint_Library operations (R40.1); data exchange between Partitions uses Endpoints only."
+guarantee = "Spatial isolation; Budget enforcement cannot leave another Partition's Resource inconsistent"
+enforcement = [
+  { category = "MC", mechanism = "Generator: R15.3" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { MC = ["conf-PR-30-mc"] }
+
+[[restriction]]
+id = "PR-31"
+rule = "Each Task declares whether its Jobs use the FPU; code of FPU-free Tasks executes no floating-point instructions, and Kernel code executes none other than the floating-point context-preservation instructions of the R11 policy, in the Kernel_Unsafe_Module."
+guarantee = "Correct FP context handling; FP costs included in WCET and stack bounds"
+enforcement = [
+  { category = "MC", mechanism = "Generator: FPU flag per Task" },
+  { category = "LK", mechanism = "instruction-class scan of code reachable from FPU-free Tasks and the Kernel" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Every function in a Flight_Build reachable from an FPU-free Task or from the Kernel."
+evidence = { MC = ["conf-PR-31-mc"], LK = ["conf-PR-31-lk"] }
+
+[[restriction]]
+id = "PR-32"
+rule = "Messages between Tasks travel only over declared Endpoints, each governed by a declared Protocol."
+guarantee = "Protocol compliance; communication deadlock freedom (R41)"
+enforcement = [
+  { category = "MC", mechanism = "Generator: Endpoints and Protocols declared (R38.1)" },
+  { category = "TS", mechanism = "typestate role APIs" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application"]
+crate_coverage = "Application crates."
+evidence = { MC = ["conf-PR-32-mc"], TS = ["conf-PR-32-ts"] }
+
+[[restriction]]
+id = "PR-33"
+rule = "The number of distinct Task Priorities plus Kernel-reserved levels does not exceed the Target's preemption levels (PAR-06)."
+guarantee = "Every Priority and Ceiling is representable in hardware"
+enforcement = [
+  { category = "MC", mechanism = "Generator: R22.2 (7 Task levels plus 1 Kernel level on the nRF52840, DD-02)" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application"]
+crate_coverage = "Application declaration crate."
+evidence = { MC = ["conf-PR-33-mc"] }
+
+[[restriction]]
+id = "PR-34"
+rule = "Every Resource and Endpoint is initialized during Init, and no Release occurs before Init completes."
+guarantee = "No access to uninitialized shared state; defined start-up"
+enforcement = [
+  { category = "TS", mechanism = "Resources handed to Tasks only after Init returns" },
+  { category = "PO", mechanism = "R44" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Application", "Kernel"]
+crate_coverage = "Application crates; the Kernel crates (proof)."
+evidence = { TS = ["conf-PR-34-ts"], PO = ["proof-kernel-no-release-before-init"] }
+
+[[restriction]]
+id = "PR-35"
+rule = "The Kernel and Task bodies depend on neither `std` nor any async executor, and the Application links no crate on the Profile's disallowed-crate list (R1.5)."
+guarantee = "No unanalyzable scheduling or OS dependency"
+enforcement = [
+  { category = "LK", mechanism = "dependency-graph check (Build_System R6.1 check and Link_Checker)" },
+  { category = "LN", mechanism = "Profile_Lint denies disallowed crates" },
+]
+analogue = ["rsk-specific"]
+subjects = ["Kernel", "Application"]
+crate_coverage = "Every crate in a Flight_Build dependency graph."
+evidence = { LK = ["conf-PR-35-lk"], LN = ["conf-PR-35-ln"] }
+
+[[restriction]]
+id = "PR-36"
+rule = "Every crate that a Flight_Build compiles, including proc-macro crates such as the Generator but excluding the libraries shipped with the Qualified_Toolchain, compiles without `#![feature]` attributes and without `RUSTC_BOOTSTRAP`."
+guarantee = "Compatibility with the Qualified_Toolchain and the Verus_Toolchain"
+enforcement = [
+  { category = "LK", mechanism = "Build_System check (xtask features and configuration checks)" },
+]
+analogue = ["rsk-specific"]
+subjects = ["rsk crates", "Application"]
+crate_coverage = "Every crate that a Flight_Build compiles, including vendored proc-macros and build scripts."
+evidence = { LK = ["conf-PR-36-lk"] }
+
+# ---------------------------------------------------------------------------
+# Table 4-1: Ada RM D.13 correspondence (R4)
+# ---------------------------------------------------------------------------
+# classification: "Enforced" | "Not applicable by construction" | "Deviation"
+# jorvik: "Same" | "Relaxed" | "Kept (deviation)"
+
+[[d13]]
+item = "Task_Dispatching_Policy (FIFO_Within_Priorities)"
+kind = "pragma"
+classification = "Deviation"
+cites = ["R7.1", "R7.2", "R7.3", "R29.1"]
+treatment = "Fixed-priority preemptive SRP dispatch (Requirement 7)."
+difference = "Eligible equal-priority Jobs start in the NVIC's fixed exception-number order, which the Generator assigns in declaration order (DD-03, the resolution of ORQ-17), not in FIFO order of release."
+rationale = "The dispatch mechanism of DD-01 lets the interrupt controller arbitrate; emulating FIFO_Within_Priorities would add Kernel work to every Release. The order depends only on Generated_Config and on the release instants (R7.3)."
+constrained_by = ["R29.1"]
+constraint_note = "R29.1's hep(i) includes every equal-priority Task, so the Analyzer accounts for interference whatever the order."
+jorvik = "Same"
+
+[[d13]]
+item = "Locking_Policy (Ceiling_Locking)"
+kind = "pragma"
+classification = "Deviation"
+cites = ["PR-05", "PR-06", "PR-22", "R8.7"]
+treatment = "PR-05, PR-06, PR-22, Requirement 8 (SRP). Ceilings are computed at build time from the declared accessors (PR-06, R8.7), so no Job locks a Resource whose Ceiling is below the Job's Priority."
+difference = "A Job may enter a nested Critical_Section on a Resource whose Ceiling is below that of an enclosing Critical_Section, which Ceiling_Locking treats as a ceiling violation that raises Program_Error [RN-42]."
+rationale = "On one core R8.1 keeps the System_Ceiling at the maximum held Ceiling, as RTIC's BASEPRI_MAX lock does [RN-07]."
+constrained_by = ["R8.3", "R8.4", "R8.5"]
+jorvik = "Same"
+
+[[d13]]
+item = "Detect_Blocking"
+kind = "pragma"
+classification = "Enforced"
+cites = ["PR-08"]
+treatment = "PR-08 (static rejection at build time instead of run-time detection)."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Abort_Statements"
+kind = "restriction"
+classification = "Deviation"
+cites = ["PR-02", "R14.5", "R14.9", "R18.4"]
+treatment = "PR-02: the Application has no operation that aborts a Task."
+difference = "A Health_Monitor action can end a Job before it reaches its Release_Point (R4.7): END_JOB ends the running Job; RESTART_PARTITION and STOP_PARTITION end every Job of the Partition; SAFE_STATE stops every Release."
+rationale = "Fault containment and temporal partitioning between Partitions (Requirements 14 and 18)."
+constrained_by = ["R14.9", "R18.4"]
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dynamic_Attachment"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-23"]
+treatment = "PR-23."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dynamic_CPU_Assignment"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-04"]
+treatment = "PR-04."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dynamic_Priorities"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-03"]
+treatment = "PR-03."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Implicit_Heap_Allocations"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-15"]
+treatment = "PR-15."
+jorvik = "Kept (deviation)"
+jorvik_cites = ["PR-15", "R5.4"]
+jorvik_rationale = "Jorvik removes it; rsk keeps PR-15 in every Partition: bounded memory and no allocation failure after Init (PR-15's guarantee), required for DAL A/B (R5.4, NG-06)."
+
+[[d13]]
+item = "No_Local_Protected_Objects"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-06"]
+treatment = "PR-06."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Local_Timing_Events"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-24"]
+treatment = "PR-24."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Protected_Type_Allocators"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-06", "PR-15"]
+treatment = "PR-06, PR-15."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Relative_Delay"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-10"]
+treatment = "PR-10."
+jorvik = "Relaxed"
+jorvik_cites = ["R5.3", "PR-10"]
+jorvik_rationale = "Relative delays are permitted at the Release_Point only, and the Kernel converts each to an absolute release instant (R5.3); periodic Releases stay absolute."
+
+[[d13]]
+item = "No_Requeue_Statements"
+kind = "restriction"
+classification = "Not applicable by construction"
+cites = ["PR-09", "PR-11"]
+construct = "entries and the requeue operation"
+treatment = "rsk provides no entry and no requeue operation, and no Task waits other than at its Release_Point (PR-09, PR-11)."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Select_Statements"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-11"]
+treatment = "PR-11."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Specific_Termination_Handlers"
+kind = "restriction"
+classification = "Not applicable by construction"
+cites = ["PR-02", "PR-19", "R14.1"]
+construct = "per-Task termination handlers"
+treatment = "rsk provides no operation that installs a per-Task termination handler: Tasks do not terminate (PR-02), the Kernel's panic handler is the only panic handler (PR-19, R14.1), and faults go to the Health_Monitor, which applies only declared responses (Requirement 14)."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Task_Allocators"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-01", "PR-15"]
+treatment = "PR-01, PR-15."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Task_Hierarchy"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-01"]
+treatment = "PR-01."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Task_Termination"
+kind = "restriction"
+classification = "Deviation"
+cites = ["PR-02", "R14.5", "R14.9", "R18.4"]
+treatment = "PR-02: every Task exists from the end of Init until reset, and the Application has no operation that terminates a Task."
+difference = "A Health_Monitor action can stop or restart a Partition, including its Tasks (R4.7): RESTART_PARTITION re-initializes the Partition and resumes its Releases at the next nominal instants; STOP_PARTITION suppresses its Releases until reset; SAFE_STATE stops every Release."
+rationale = "Fault containment and temporal partitioning between Partitions (Requirements 14 and 18)."
+constrained_by = ["R14.9", "R18.4"]
+jorvik = "Same"
+
+[[d13]]
+item = "Simple_Barriers"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-13"]
+treatment = "PR-13."
+jorvik = "Relaxed"
+jorvik_cites = ["R5.5", "PR-13"]
+jorvik_rationale = "Pure_Barriers analogue: a release condition may be a side-effect-free Boolean function of one Resource's state with a proven termination bound (R5.5)."
+
+[[d13]]
+item = "Max_Entry_Queue_Length => 1"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-12", "PR-14"]
+treatment = "PR-12, PR-14."
+jorvik = "Relaxed"
+jorvik_cites = ["R5.2", "PR-12"]
+jorvik_rationale = "A Release_Signal may have several waiting Tasks up to its declared maximum waiter count (R5.2); PR-14 stays in force."
+
+[[d13]]
+item = "Max_Protected_Entries => 1"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-12", "PR-13"]
+treatment = "PR-12, PR-13."
+jorvik = "Relaxed"
+jorvik_cites = ["R5.7", "PR-13"]
+jorvik_rationale = "Several Release_Signals whose release conditions read one Resource, up to a declared maximum (R5.7)."
+
+[[d13]]
+item = "Max_Task_Entries => 0"
+kind = "restriction"
+classification = "Not applicable by construction"
+cites = ["PR-09"]
+construct = "task entries and rendezvous"
+treatment = "Tasks have no entries and rsk provides no rendezvous; PR-09 permits no suspension point other than the Release_Point."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dependence => Ada.Asynchronous_Task_Control"
+kind = "restriction"
+classification = "Not applicable by construction"
+cites = ["PR-22"]
+construct = "hold and continue operations on a Task"
+treatment = "The Kernel provides no operation that holds or continues a Task, and PR-22 reserves to the Kernel the NVIC configuration through which a Task's interrupt Release_Source could be disabled."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dependence => Ada.Calendar"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-26"]
+treatment = "PR-26."
+jorvik = "Kept (deviation)"
+jorvik_cites = ["PR-26"]
+jorvik_rationale = "Jorvik removes it; rsk keeps monotonic time only: monotonic, drift-free release computation (PR-26's guarantee)."
+
+[[d13]]
+item = "No_Dependence => Ada.Execution_Time.Group_Budgets"
+kind = "restriction"
+classification = "Deviation"
+cites = ["PR-24", "PR-27", "R18", "R29.3", "R29.4"]
+treatment = "rsk gives the Application no operation to create or arm a group budget; Budgets are fixed in the App_Declaration (PR-27)."
+difference = "The Kernel nevertheless monitors every Job against its Budget for temporal partitioning (Requirement 18), with costs bounded by Delta_timer, Delta_detect, and Delta_enforce (Table 13-1) and included in every WCRT (R29.3, R29.4)."
+rationale = "Temporal partitioning (Requirement 18)."
+constrained_by = ["R29.3", "R29.4"]
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dependence => Ada.Execution_Time.Timers"
+kind = "restriction"
+classification = "Deviation"
+cites = ["PR-24", "PR-27", "R18", "R29.3", "R29.4"]
+treatment = "PR-24: the Application creates no timers and has no operation to arm an execution-time timer; Budgets are fixed in the App_Declaration (PR-27)."
+difference = "The Kernel uses Budget timers internally and monitors every Job against its Budget (Requirement 18), with costs bounded by Delta_timer, Delta_detect, and Delta_enforce (Table 13-1) and included in every WCRT (R29.3, R29.4)."
+rationale = "Temporal partitioning (Requirement 18)."
+constrained_by = ["R29.3", "R29.4"]
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dependence => Ada.Synchronous_Barriers"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-12"]
+treatment = "PR-12."
+jorvik = "Kept (deviation)"
+jorvik_cites = ["PR-12"]
+jorvik_rationale = "Jorvik removes it; rsk provides no construct that releases a group of Tasks together once a declared number of them are waiting: bounded release state with no multi-task release (PR-12's guarantee)."
+
+[[d13]]
+item = "No_Dependence => Ada.Task_Attributes"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-25"]
+treatment = "PR-25."
+jorvik = "Same"
+
+[[d13]]
+item = "No_Dependence => System.Multiprocessors.Dispatching_Domains"
+kind = "restriction"
+classification = "Enforced"
+cites = ["PR-04"]
+treatment = "PR-04, NG-02: static core assignment, matching D.13's advice of fully partitioned multiprocessor dispatching [RN-01]."
+jorvik = "Same"
+
+# ---------------------------------------------------------------------------
+# Change log (R1.6), cumulative, newest first
+# ---------------------------------------------------------------------------
+
+[[change]]
+version = "0.3"
+date = "2026-10-08"
+content_hash = "sha256:eb3e65422996d44833a51aa5e5039ecd68a535158073fba8227d6217027f4e05"
+changes = [
+  { subject = "Table 4-1 row Task_Dispatching_Policy", change = "Restated per R4.6 with the resolved equal-priority start order of DD-03 (NVIC exception-number order assigned in declaration order); the row stays classified Deviation because the order is not FIFO_Within_Priorities.", rationale = "design.md records the resolution of ORQ-17 (DD-03).", requirements = ["R4.3", "R4.6", "R7.3"] },
+  { subject = "Reserved identifiers PR-37 to PR-39", change = "Added as inactive identifiers for static Task-to-core assignment, per-core SRP, and cross-core sharing only through Endpoints or MSRP/MrsP.", rationale = "R27.3 requires the reservation in v1.", requirements = ["R27.3"] },
+  { subject = "Disallowed-crate list", change = "Made explicit as the [disallowed_crates] table, one reason per crate.", rationale = "R1.5 and PR-35 require the list to be part of the Profile.", requirements = ["R1.5", "PR-35"] },
+  { subject = "Every restriction", change = "Added subjects, crate coverage, Evidence_Item names per enforcement category, and the RT assumption or reason.", rationale = "R1.2, R1.3, R2.2, and R2.3 require them.", requirements = ["R1.2", "R1.3", "R2.2", "R2.3"] },
+]
+
+[[change]]
+version = "0.2"
+date = "2026-10-07"
+content_hash = "unavailable (the version predates the machine-readable source)"
+changes = [
+  { subject = "PR-20", change = "Each justification identifier links to a proof, lemma, or harness where one is feasible, and otherwise to a recorded review that states why; `unsafe fn` named explicitly.", rationale = "design.md Requirements Impact item 5 (decided during task 1.2).", requirements = ["R6.4", "R45.1"] },
+  { subject = "PR-20, Kernel_Unsafe_Module", change = "The Kernel consists of rsk-kernel and rsk-entry; the Kernel_Unsafe_Module includes the entry crate (vector table and reset entry only).", rationale = "design.md Requirements Impact item 2 (DD-11).", requirements = ["R6.1", "R6.3"] },
+  { subject = "Ceiling of Endpoint buffers", change = "The Kernel-reserved level at which Endpoint operations execute is recorded as the buffer's Ceiling.", rationale = "design.md Requirements Impact item 1 (DD-09).", requirements = ["R40.1"] },
+]
+
+[[change]]
+version = "0.1"
+date = "2026-10-06"
+content_hash = "unavailable (the version predates the machine-readable source)"
+changes = [
+  { subject = "Catalogue", change = "Initial catalogue PR-01 to PR-36 and Table 4-1 as in requirements.md Draft 0.1.", rationale = "Initial version.", requirements = ["R2.1", "R4.1"] },
+]

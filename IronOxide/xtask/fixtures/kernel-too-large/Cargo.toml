@@ -1,0 +1,16 @@
+# Fixture: a Kernel whose executable line count exceeds the (lowered) PAR-01 limit (R6.2).
+[workspace]
+resolver = "2"
+members = ["k"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+kernel-max-exec-lines = 3
+
+[workspace.metadata.rsk.crates]
+k = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true }

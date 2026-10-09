@@ -1,0 +1,24 @@
+rsk Generated_Config summary (R24.3)
+Target: qemu_mps2_an386 (qemu), CPU 25000000 Hz, time base 25000000 Hz, 8 priority bits, 8 MPU regions
+Profile: 0.3 Ravenscar
+Operating duration: 5000000 ticks
+Safe state: crate::report_and_exit
+Config checksum (CRC-32): 0xc6a9e312
+Capacities: lock stack 2, timer slots 11, event log 32
+Kernel levels: [0]; Task levels (level -> NVIC byte): 2 -> 0xc0, 5 -> 0x60, 7 -> 0x20
+Kernel-owned peripherals: CMSDK_TIMER0, CMSDK_TIMER1
+Timer: IRQ 9 (vector 25)
+
+Partitions:
+  part0 (crate p1_demo_part0, level A): fault RESTART_PARTITION, overrun RECORD_AND_CONTINUE, deadline miss RECORD_ONLY, MIT threshold 10
+    code 32768 bytes at 0x00020000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+  part1 (crate p1_demo_part1, level C): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
+    code 32768 bytes at 0x00028000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20010000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+
+Tasks:
+  part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 250000 ticks, deadline 250000 ticks, Budget 25000 cycles, fpu false, Resources [state], nesting depth 1, slots release 0 deadline 1 budget 2
+  part0.sensor (#1, Partition part0, Priority 5, vector 37): periodic, offset 125000 ticks, period 500000 ticks, deadline 500000 ticks, Budget 220000 cycles, fpu false, Resources [state], nesting depth 1, slots release 3 deadline 4 budget 5
+  part1.log (#2, Partition part1, Priority 2, vector 38): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], nesting depth 0, slots release 6 deadline 7 budget 8
+
+Resources:
+  part0.state (#0, Partition part0, type u32): Ceiling 7, accessors [control, sensor]

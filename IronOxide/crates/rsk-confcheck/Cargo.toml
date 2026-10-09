@@ -1,0 +1,12 @@
+[package]
+name = "rsk-confcheck"
+description = "rsk Config_Checker: independent recomputation of derived configuration values against the Task_Model and the linked binary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# R26.1: the Config_Checker shares no derivation code, parsing code, or data
+# structures with the Generator. Its only dependencies will be a JSON parser
+# and an ELF reader; it must never depend on rsk-model or rsk-gen.
+[dependencies]

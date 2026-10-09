@@ -1,0 +1,16 @@
+[package]
+name = "rsk-macros"
+description = "rsk::app! proc-macro front end; delegates to rsk-gen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+rsk-gen = { workspace = true, features = ["syntax"] }
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true

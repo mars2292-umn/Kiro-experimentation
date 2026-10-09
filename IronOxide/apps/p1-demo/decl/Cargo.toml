@@ -1,0 +1,10 @@
+[package]
+name = "p1-demo-decl"
+description = "P1 demo App_Declaration: the single `rsk::app!` source of the system crate's tables, the Partition manifests, the Task_Model and the linker script"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+rsk = { path = "../../../crates/rsk" }

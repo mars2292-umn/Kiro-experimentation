@@ -1,0 +1,22 @@
+# Justification register of the fixture's Kernel_Unsafe_Module (PR-20/R6.4).
+schema = 1
+
+[[justification]]
+id = "UJ-001"
+summary = "`read`: volatile read through a caller-validated pointer"
+kind = "kani"
+link = "uj_001_read_valid"
+
+[[justification]]
+id = "UJ-002"
+summary = "the `read_volatile` call inside `read`"
+kind = "verus"
+link = "uj_002_lemma_read_volatile"
+
+[[justification]]
+id = "UJ-003"
+summary = "`nop` inline assembly"
+kind = "review"
+why_no_machine_check = "Kani does not support inline assembly and Verus has no model of a no-operation instruction; the instruction has no operands and no architectural effect."
+reviewed_by = "fixture author"
+reviewed_on = "2026-10-08"

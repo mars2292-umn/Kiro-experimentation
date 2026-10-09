@@ -1,0 +1,10 @@
+# Pinned toolchain (R55.2 before Phase P5): the upstream stable rustc on which
+# the planned Qualified_Toolchain release, Ferrocene 26.05.0, is based.
+# Decision, sources, and assumptions: toolchain/decision.toml.
+# `cargo xtask verify` fails if this file, the decision record, and the active
+# rustc disagree.
+[toolchain]
+channel = "1.95.0"
+profile = "minimal"
+components = ["clippy", "rustfmt"]
+targets = ["thumbv7em-none-eabihf"]

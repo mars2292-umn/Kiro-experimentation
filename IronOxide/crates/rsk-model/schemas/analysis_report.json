@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rsk.invalid/schemas/analysis_report.json",
+  "title": "rsk analysis report (rsk-analysis-report/1)",
+  "description": "The Analyzer's report (R30): the overall result, the single-core statement (R27.5) and the Overrun statement (R18.9), the input hashes and tool version (R30.2), and per Task the terms of the response-time analysis (R30.1) with the provenance of each WCET used (R30.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "result", "statements", "inputs", "analyzer", "profile", "tasks", "utilization_percent", "cross_check", "omitted_terms", "rejections"],
+  "properties": {
+    "schema": { "const": "rsk-analysis-report/1" },
+    "result": { "enum": ["PASS", "FAIL", "REJECTED"] },
+    "statements": { "type": "array", "items": { "type": "string" } },
+    "inputs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_model", "wcet_records", "kernel_timing", "build_manifest"],
+      "properties": {
+        "task_model": { "type": "string" },
+        "wcet_records": { "type": "string" },
+        "kernel_timing": { "type": "string" },
+        "build_manifest": { "type": "string" }
+      }
+    },
+    "analyzer": { "type": "string" },
+    "profile": {
+      "type": "object", "additionalProperties": false, "required": ["version", "variant"],
+      "properties": { "version": { "type": "string" }, "variant": { "type": "string" } }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "partition", "level", "priority", "period_cycles", "deadline_cycles", "c_cycles", "b_cycles", "b_source", "o_cycles", "j_cycles", "interference", "r_cycles", "schedulable", "slack_cycles", "wcet_provenance"],
+        "properties": {
+          "id": { "type": "string" },
+          "partition": { "type": "string" },
+          "level": { "type": "string" },
+          "priority": { "type": "integer" },
+          "period_cycles": { "type": "integer" },
+          "deadline_cycles": { "type": "integer" },
+          "c_cycles": { "type": "integer" },
+          "b_cycles": { "type": "integer" },
+          "b_source": { "type": "string" },
+          "o_cycles": { "type": "integer" },
+          "j_cycles": { "type": "integer" },
+          "interference": {
+            "type": "array",
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["task", "e_cycles", "jobs", "cycles"],
+              "properties": {
+                "task": { "type": "string" },
+                "e_cycles": { "type": "integer" },
+                "jobs": { "type": "integer" },
+                "cycles": { "type": "integer" }
+              }
+            }
+          },
+          "r_cycles": { "type": "integer" },
+          "schedulable": { "type": "boolean" },
+          "slack_cycles": { "type": "integer" },
+          "wcet_provenance": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "utilization_percent": { "type": "integer" },
+    "cross_check": {
+      "type": "object", "additionalProperties": false, "required": ["status", "detail"],
+      "properties": {
+        "status": { "enum": ["not_run", "agree", "pessimism", "discrepancy", "inconclusive"] },
+        "detail": { "type": "string" }
+      }
+    },
+    "omitted_terms": { "type": "array", "items": { "type": "string" } },
+    "rejections": { "type": "array", "items": { "type": "string" } }
+  }
+}

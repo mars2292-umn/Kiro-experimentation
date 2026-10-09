@@ -1,0 +1,9 @@
+[package]
+name = "rsk-elf"
+description = "rsk host library: minimal ELF32 little-endian reader (sections, segments, symbols) for the Build_System, the Link_Checker, and the Config_Checker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

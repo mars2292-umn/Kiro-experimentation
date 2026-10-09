@@ -1,0 +1,9 @@
+[package]
+name = "rsk-wcet-agent"
+description = "rsk WCET_Harness target agent, linked into measurement builds only (not into Flight_Builds)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

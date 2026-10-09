@@ -1,0 +1,21 @@
+# Proof assumption register (R50.2): every assumption construct in the
+# Kernel crates (Verus `assume`, `admit`, `#[verifier::external_body]`,
+# `#[verifier::external_fn_specification]`, `assume_specification`,
+# `#[verifier::external]`; Kani `#[kani::stub]`) must have an entry here
+# with its justification, or the verification job fails naming the
+# construct. The Trust_Base_Register entry TBR-04 covers the assumptions
+# inside vstd itself.
+#
+# Fields: file (relative to the repository root), construct (as the
+# verification job prints it), item (the enclosing function, or "" for any),
+# why (why the construct is needed), evidence (what reduces the trust: a
+# Kani harness, an HIL differential test, or a review record).
+
+schema = 1
+
+# No assumption construct exists in the Kernel crates at this revision: the
+# logic, the Hardware_Model lemmas, and the MPU view are proved without
+# `assume`, `admit`, or `external_body`. Entries are added by task 5.1 for
+# the register-access functions of the Kernel_Unsafe_Module (each with its
+# UJ identifier and Kani harness), and by task 6.1 for the Kani stubs that
+# replace inline assembly (listed in docs/kani_stubs.toml).

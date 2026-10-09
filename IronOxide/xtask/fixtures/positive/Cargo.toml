@@ -1,0 +1,18 @@
+# Fixture: a workspace that every static check accepts.
+[workspace]
+resolver = "2"
+members = ["k", "e", "app", "tool"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+k = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-module = "src/arch/unsafe_module" }
+e = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-crate = true }
+app = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+tool = { targets = ["host"] }

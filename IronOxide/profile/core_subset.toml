@@ -1,0 +1,170 @@
+# Core_Subset (PR-21, Requirement 57; task 2.2): the allow-list of `core`
+# items that the Kernel and Applications may use.
+#
+# R57.1: the list starts from the subset of `core` that Ferrocene certifies
+# (IEC 61508 SIL 2; ISO 26262 ASIL B since 26.02) and adds only items
+# justified in the Verification_Plan. Ferrocene's public announcements name
+# the certification but not the item list; the per-item list is in the
+# customer-only Safety Manual (ASM-17, ORQ-24). Every `certification` value
+# below therefore records what is assumed and what is confirmed:
+#
+#   "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual,
+#    ORQ-24)"  -- the item is part of core's basic language-support surface
+#                 that a libcore certification cannot omit; unconfirmed
+#   "none"     -- no certification evidence is claimed; `substitute` names
+#                 the rsk evidence (R57.5)
+#
+# Scope values: "kernel" (rsk-kernel and rsk-entry outside the
+# Kernel_Unsafe_Module), "kernel-unsafe" (Kernel_Unsafe_Module only),
+# "application" (Partition crates and generated code).
+#
+# Gap_Register entry GAP-07 records that Ferrocene's core certification is
+# not a DO-178C certification (R57.4).
+
+schema = 1
+source_release = "Ferrocene 26.05.0 (core subset certified to IEC 61508 SIL 2 and ISO 26262 ASIL B)"
+
+# --- Language support: types, traits, and operators -------------------------
+
+[[item]]
+path = "core::primitive"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "bool, u8, u16, u32, u64, usize, i32, i64, f32 (FPU-using Tasks only, PR-31), arrays, slices, references, tuples, unit."
+
+[[item]]
+path = "core::marker::{Copy, Sized, Send, Sync, PhantomData}"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Send and Sync carry the data-race-freedom argument of PR-05 (R43.3)."
+
+[[item]]
+path = "core::clone::Clone"
+scope = ["kernel", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+
+[[item]]
+path = "core::default::Default"
+scope = ["kernel", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+
+[[item]]
+path = "core::cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering, min, max}"
+scope = ["kernel", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+
+[[item]]
+path = "core::ops::{Add, Sub, Mul, Div, Rem, BitAnd, BitOr, BitXor, Shl, Shr, Not, Index, IndexMut, Range, RangeInclusive, Deref, DerefMut, FnOnce, FnMut, Fn}"
+scope = ["kernel", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Integer operators on the primitive types; overflow is excluded by proof in the Kernel (R44.1) and by the App_Prover in level A and B Partitions (R46.3)."
+
+[[item]]
+path = "core::convert::{From, Into, TryFrom, TryInto, AsRef, AsMut}"
+scope = ["kernel", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+
+[[item]]
+path = "core::option::Option"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Including is_some, is_none, map, unwrap_or, and pattern matching; `unwrap` and `expect` are excluded in the Kernel (PR-19)."
+
+[[item]]
+path = "core::result::Result"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "`unwrap` and `expect` are excluded in the Kernel (PR-19)."
+
+# --- Integer arithmetic ------------------------------------------------------
+
+[[item]]
+path = "core::num::{checked_add, checked_sub, checked_mul, checked_div, wrapping_add, wrapping_sub, wrapping_mul, saturating_add, saturating_sub, MAX, MIN, BITS, to_le_bytes, from_le_bytes, leading_zeros, trailing_zeros, count_ones}"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Inherent integer methods used by the time base, the ceiling map, and the Config_Checker-visible tables."
+
+[[item]]
+path = "core::num::NonZeroU8"
+scope = ["kernel", "application"]
+certification = "none"
+substitute = "rsk Verus proofs of every construction site (R44.1); used for Task and Partition identifiers that are never zero."
+
+# --- Slices, arrays, iteration -------------------------------------------
+
+[[item]]
+path = "core::slice::{len, is_empty, get, get_mut, iter, iter_mut, split_at, copy_from_slice, fill}"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Indexing with `[i]` is permitted only where the index is proven in range (Kernel) or checked (Application); the Link_Checker reports panic paths from Kernel entry points (R14.1)."
+
+[[item]]
+path = "core::array::{from_fn, map}"
+scope = ["kernel", "application"]
+certification = "none"
+substitute = "Kani harnesses over the generated tables (R45.2); Verus specifications of `vstd::array` cover `[T; N]` indexing in the Kernel logic."
+
+[[item]]
+path = "core::iter::{Iterator, IntoIterator, Enumerate, Take, Rev, Zip}"
+scope = ["kernel", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Only over slices, arrays, and integer ranges, so that every loop has a bound derivable from compile-time constants or a Loop_Bound_Annotation (PR-16)."
+
+# --- Memory and pointers (Kernel_Unsafe_Module only) --------------------------
+
+[[item]]
+path = "core::mem::{size_of, align_of, replace, take, swap}"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+
+[[item]]
+path = "core::ptr::{read_volatile, write_volatile, addr_of, addr_of_mut, null, null_mut, NonNull}"
+scope = ["kernel-unsafe"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Memory-mapped register access; every use carries a justification identifier (R6.4) linked to a Kani harness with a Hardware_Model stub (R45.4)."
+
+[[item]]
+path = "core::cell::{Cell, UnsafeCell}"
+scope = ["kernel-unsafe"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "`ResourceCell<T>` wraps `UnsafeCell`; its `unsafe impl Sync` cites the mutual-exclusion proof (R8.3)."
+
+[[item]]
+path = "core::sync::atomic::{AtomicU32, AtomicBool, Ordering, compiler_fence}"
+scope = ["kernel-unsafe"]
+certification = "none"
+substitute = "Kani harnesses (sequential checking only; R45.6) and the single-core precondition of every Kernel proof (R27.4); used only for the event-log overflow counter and the Init completion flag."
+
+[[item]]
+path = "core::arch::asm"
+scope = ["kernel-unsafe"]
+certification = "none"
+substitute = "Each inline-assembly sequence is replaced by a Hardware_Model stub under Kani (R45.4) and validated by an HIL differential test (R49.3); its justification identifier links to the stub's harness or to a recorded review (R6.4)."
+
+[[item]]
+path = "core::hint::spin_loop"
+scope = ["kernel-unsafe"]
+certification = "none"
+substitute = "Recorded review: a hint with no architectural effect on Armv7-M (`yield`), used only in the idle activity."
+
+# --- Panic plumbing (Kernel only) ---------------------------------------
+
+[[item]]
+path = "core::panic::PanicInfo"
+scope = ["kernel-unsafe"]
+certification = "none"
+substitute = "The single `#[panic_handler]` of rsk-entry (R14.1) uses only `location()`; formatting machinery is excluded (no `core::fmt` in the Core_Subset), which the Link_Checker's symbol check enforces (R57.3)."
+
+# --- Attributes and macros --------------------------------------------------
+
+[[item]]
+path = "core::prelude::v1::{derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default), cfg, inline, must_use, repr}"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "`derive(Debug)` and `core::fmt` are excluded from Flight_Builds: no formatting machinery reaches the binary (R57.3)."
+
+[[item]]
+path = "core::{assert!, debug_assert!, unreachable!}"
+scope = ["application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Excluded from the Kernel: Kernel code reaches no panic path (R14.1, Property 21); in level A and B Partitions the App_Prover shows every assertion holds (R46.3)."

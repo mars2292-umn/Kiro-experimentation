@@ -1,0 +1,9 @@
+[package]
+name = "rsk-digest"
+description = "rsk host library: SHA-256 for Build_Manifest binary hashes, Evidence_Item identities, and report provenance (R33.3, R50.3, R30.2)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
