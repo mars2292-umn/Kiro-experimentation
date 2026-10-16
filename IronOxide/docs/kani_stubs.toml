@@ -2,7 +2,8 @@
 # host test substitutes for Target hardware, with the Hardware_Model rule it
 # implements and how it is validated. The verification job's Trust_Base_Register
 # entry TBR-07 points here. A stub that has no HIL differential test yet is
-# marked `validated = "pending"` (task 3.3); the Gap_Register carries the gap.
+# marked `validated = "pending"` (task 3.3); Gap_Register entry GAP-09
+# (hardware-in-the-loop evidence pending) carries the gap.
 #
 # All stubs live in `crates/rsk-kernel/src/arch/cm4/unsafe_module/sim.rs`
 # (compiled only under `cfg(any(kani, test, not(target_os = "none")))`) and
@@ -36,7 +37,7 @@ id = "KS-03"
 name = "sim::set_primask / sim::primask"
 replaces = "hw::primask_set, hw::primask_clear (CPSID/CPSIE i)"
 behaviour = "A plain cell."
-hardware_rule = "HW-05 (PRIMASK raises the execution priority above every configurable exception)."
+hardware_rule = "HW-04 (PRIMASK raises the execution priority above every configurable exception)."
 harnesses = []
 validated = "n/a"
 validation = "No harness depends on PRIMASK; the stubs hold it by construction (review UJ-020, UJ-023)."

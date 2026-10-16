@@ -7,9 +7,17 @@
 //!
 //! Dispatch (DD-01, as revised by the P1 spike of 2026-10-08). Each Task
 //! owns an interrupt vector whose NVIC priority encodes the Task's
-//! Priority (HW-01); the NVIC pending bits are the ready queue and NVIC
-//! arbitration picks the highest eligible level (HW-05,
-//! `hw_model::lemma_nvic_takes_iff_eligible`). The vector's handler is the
+//! Priority (HW-01). After every Kernel transition, `apply` writes
+//! BASEPRI and pends the vector of the Job that the verified
+//! `Kernel::select` chooses; NVIC arbitration then takes exactly that
+//! vector, whatever other dispatch vectors are pending (HW-05;
+//! `hw_model::lemma_dispatch_takes_iff_eligible`,
+//! `lemma_dispatch_selects_srp_choice`,
+//! `lemma_dispatch_idle_when_none_eligible`). Those lemmas assume what
+//! this module does: BASEPRI is [`basepri_for`] of the executing Job's
+//! Priority and the System_Ceiling, PRIMASK is clear in Thread mode,
+//! [`boot`] programs each vector's priority with [`encode_level`], and a
+//! stale pending bit is rejected at entry (below). The vector's handler is the
 //! shared dispatch stub (`unsafe_module::stubs::rsk_irq_entry`): it holds
 //! PRIMASK, pushes R3-R11 and LR (and S16-S31 of a floating-point
 //! context) on the MSP, and calls [`irq_entry`], which charges the
@@ -23,7 +31,9 @@
 //! Kernel keeps BASEPRI at the level of the executing Job or the
 //! System_Ceiling, whichever is higher (HW-03), which masks every dispatch
 //! vector that the SRP start condition excludes and never the Kernel level
-//! (`unsafe_module::kani::uj_010_basepri_never_masks_kernel_level`). A
+//! (`hw_model::lemma_kernel_level_taken_in_every_state` for the model,
+//! `unsafe_module::kani::uj_010_basepri_never_masks_kernel_level` for the
+//! values this module computes). A
 //! stale pending bit (a Job suppressed after it was pended) is rejected at
 //! entry by `eligible`.
 //!

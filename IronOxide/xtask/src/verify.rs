@@ -4,8 +4,9 @@
 //! Steps:
 //!
 //! 1. Static checks (all rules; see the crate documentation), including
-//!    the Profile check (`cargo xtask profile --check`) and the proof
-//!    assumption gate (R50.2).
+//!    the Profile check (`cargo xtask profile --check`), the proof
+//!    assumption gate (R50.2), and the Trust_Base_Register and Gap_Register
+//!    checks (R48, R54).
 //! 2. Network sandbox (R58.4): establish it and prove it denies a
 //!    connection.
 //! 3. Target build: every crate whose policy lists the Target or marks it a
@@ -34,8 +35,9 @@
 //!     `qemu-system-arm -M mps2-an386`; the run passes when the binary
 //!     exits through semihosting with code 0 (it prints `RSK-OK`). Skipped
 //!     with a warning when QEMU is not installed.
-//! 11. Evidence_Items (R50.3): one item per step above, written to the
-//!     evidence directory, plus the proof items written by steps 9 and 10.
+//! 11. Evidence_Items (R50.3): one item per step, this one included
+//!     (written last, once its own outcome is recorded), plus the proof items
+//!     written by steps 9 and 10.
 //!
 //! All builds use a fresh target directory (`target/xtask-verify`, removed at
 //! the start unless `--keep-target` is given), so every build script and
@@ -104,10 +106,9 @@ impl Job {
         println!("\n== [{}/{}] {title}", self.steps, self.total_steps);
     }
 
-    /// Prints and records the contents of `report`, and records the step
-    /// outcome: the step passed if it added no diagnostic.
-    fn flush(&mut self, report: &mut Report, id: &'static str, name: &str, covers: &[&'static str], commands: Vec<String>) {
-        let before = self.all.len();
+    /// Prints the contents of `report` and records its diagnostics in the
+    /// job; returns the notes.
+    fn drain(&mut self, report: &mut Report) -> Vec<String> {
         let notes: Vec<String> = report.notes.clone();
         for note in report.notes.drain(..) {
             println!("   {note}");
@@ -119,6 +120,14 @@ impl Job {
             println!("   {diagnostic}");
             self.all.push(diagnostic);
         }
+        notes
+    }
+
+    /// Prints and records the contents of `report`, and records the step
+    /// outcome: the step passed if it added no diagnostic.
+    fn flush(&mut self, report: &mut Report, id: &'static str, name: &str, covers: &[&'static str], commands: Vec<String>) {
+        let before = self.all.len();
+        let notes = self.drain(report);
         self.outcomes.push(StepOutcome {
             id,
             name: name.to_string(),
@@ -245,12 +254,11 @@ pub fn run(root: &Path, options: Options) -> bool {
 
     // ---------------------------------------------------------- 1. static
     job.heading("static checks");
+    // The repository checks include the assumption gate (R50.2) and the
+    // Trust_Base_Register and Gap_Register checks (R48, R54).
     let ws = checks::repository(root, &mut report);
     crate::profile_gen::generate(root, true, &mut report);
-    let own_lines = ws.as_ref().map(|ws| {
-        proofs::check_assumptions(ws, &mut report);
-        kernel_line_total(ws)
-    });
+    let own_lines = ws.as_ref().map(kernel_line_total);
     for name in overridden_incoming_env() {
         report.warn(format!("{name} is set in the environment; the job overrides it for every command"));
     }
@@ -263,7 +271,8 @@ pub fn run(root: &Path, options: Options) -> bool {
         &[
             "R1.1", "R1.2", "R1.3", "R1.4", "R1.5", "R1.6", "R2.1", "R2.2", "R2.3", "R4.1", "R4.2", "R4.3", "R4.4",
             "R4.5", "R4.6", "R4.7", "R27.3", "R57.1", "R57.5", "R6.1", "R6.2", "R6.3", "R6.4", "PR-20", "PR-36",
-            "R50.2", "R55.1", "R55.2", "R55.5", "R58.1", "R58.4", "R24.4", "R23.6",
+            "R50.2", "R55.1", "R55.2", "R55.5", "R58.1", "R58.4", "R24.4", "R23.6", "R48.1", "R48.2", "R48.3",
+            "R54.1", "R54.2", "R54.3", "R54.4",
         ],
         vec!["cargo xtask check".to_string(), "cargo xtask profile --check".to_string(), "cargo xtask gen --check".to_string()],
     );
@@ -530,6 +539,20 @@ pub fn run(root: &Path, options: Options) -> bool {
     job.heading("Evidence_Items (R50.3)");
     write_step_evidence(&ws, &mut store, &manifest_id, &job.outcomes, manifest.as_ref(), &mut report);
     job.flush(&mut report, "check-evidence", "Evidence_Items", &["R50.3"], vec![]);
+    // This step's own item exists only once its outcome is recorded, so it is
+    // written last, after the items of the steps above.
+    if let Some(step) = job.outcomes.last() {
+        match store.write(&step_item(step, &manifest_id, manifest.as_ref())) {
+            Ok(_) => report.note(format!(
+                "`{}` written; {} Evidence_Items in {}",
+                step.id,
+                store.written.len(),
+                ws.rel(&store.dir)
+            )),
+            Err(e) => report.error(Rule::Evidence, None, e),
+        }
+    }
+    job.drain(&mut report);
 
     job.finish()
 }
@@ -643,6 +666,28 @@ fn build_manifest(
     Some(manifest)
 }
 
+/// The Evidence_Item of one job step.
+fn step_item(step: &StepOutcome, manifest_id: &str, manifest: Option<&Manifest>) -> Item {
+    let xtask_version = env!("CARGO_PKG_VERSION").to_string();
+    let rustc = manifest.map(|m| m.rustc.clone()).unwrap_or_default();
+    let mut item = Item::new(
+        step.id,
+        if step.id.starts_with("test-") { Kind::Test } else { Kind::Check },
+        &step.name,
+        Tool {
+            name: "cargo xtask verify".to_string(),
+            version: format!("{xtask_version} ({rustc})"),
+            solvers: Vec::new(),
+        },
+        step.verdict,
+    )
+    .covers(&step.covers);
+    item.command_lines = step.commands.clone();
+    item.build_manifest = Some(manifest_id.to_string());
+    item.notes = step.notes.clone();
+    item
+}
+
 /// Writes one Evidence_Item per job step.
 fn write_step_evidence(
     ws: &Workspace,
@@ -652,25 +697,8 @@ fn write_step_evidence(
     manifest: Option<&Manifest>,
     report: &mut Report,
 ) {
-    let xtask_version = env!("CARGO_PKG_VERSION").to_string();
-    let rustc = manifest.map(|m| m.rustc.clone()).unwrap_or_default();
     for step in outcomes {
-        let mut item = Item::new(
-            step.id,
-            if step.id.starts_with("test-") { Kind::Test } else { Kind::Check },
-            &step.name,
-            Tool {
-                name: "cargo xtask verify".to_string(),
-                version: format!("{xtask_version} ({rustc})"),
-                solvers: Vec::new(),
-            },
-            step.verdict,
-        )
-        .covers(&step.covers);
-        item.command_lines = step.commands.clone();
-        item.build_manifest = Some(manifest_id.to_string());
-        item.notes = step.notes.clone();
-        if let Err(e) = store.write(&item) {
+        if let Err(e) = store.write(&step_item(step, manifest_id, manifest)) {
             report.error(Rule::Evidence, None, e);
         }
     }

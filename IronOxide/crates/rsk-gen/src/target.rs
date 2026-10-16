@@ -43,6 +43,8 @@ pub struct Target {
     /// The Kernel time-base interrupt line.
     pub timer_irq: u16,
     /// Interrupt lines free for dispatch vectors, in assignment order.
+    /// Strictly ascending, so that Task order is exception-number order
+    /// (DD-03; `hw_model::dispatch_vectors_ok` assumes it).
     pub dispatch_irqs: &'static [u16],
     pub peripherals: &'static [Peripheral],
     pub flash: MemoryRegion,
@@ -142,6 +144,26 @@ impl Target {
         match self.name {
             "qemu_mps2_an386" => "board-qemu-mps2",
             _ => "board-nrf52840",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// DD-03 and `hw_model::dispatch_vectors_ok`: the Generator assigns
+    /// dispatch vectors from `dispatch_irqs` in Task order, so the list must
+    /// be strictly ascending for equal-Priority Tasks to start in
+    /// declaration order.
+    #[test]
+    fn dispatch_irqs_ascend_for_dd03() {
+        for t in TARGETS {
+            assert!(
+                t.dispatch_irqs.windows(2).all(|w| w[0] < w[1]),
+                "{}: dispatch_irqs is not strictly ascending",
+                t.name
+            );
         }
     }
 }

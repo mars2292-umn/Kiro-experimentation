@@ -1,0 +1,413 @@
+# rsk Verification_Plan v1 (draft)
+
+| | |
+|---|---|
+| Version | 1, draft, 2026-10-14 |
+| Implements | requirements.md component G; tasks 8.1 and 6.3; R43, R45.4, R45.6, R45.8, R46.1, R46.2, R51, R52, R58.3; the HIL frequency of R50.1 (section 11, task 8.2) |
+| Certification basis | DO-178C DAL A/B, DO-330 tool qualification, DO-333 formal-methods credit (fixed input, confirmed 2026-10-14). rsk is a research prototype that keeps this path open; it produces no applicant plans (NG-12), and activities only an applicant can perform are marked as such (R54.4). |
+| Review status | Not reviewed (section 13). |
+| Hardware status | No nRF52840-DK is available. Every HIL item stays open and required; section 11 tracks them. |
+
+Requirement identifiers (Rn.m, PR-nn, ASM-nn, ORQ-nn, RN-nn) point into requirements.md. TBR-nn, GAP-nn, and KS-nn point into the Trust_Base_Register `docs/trust_base_register.toml`, the Gap_Register `docs/gap_register.toml`, and `docs/kani_stubs.toml`. Both registers cite the P-nn rows of section 3, and `cargo xtask check` fails when a cited row, requirement, ASM, ORQ, or gap does not exist (R48, R54). "Proof" means Verus (all reachable states) or Kani (all inputs within stated bounds); "test" means testing evidence (R43.4); "argument" means a pen-and-paper argument recorded in section 5, which is review evidence and earns no DO-333 credit until mechanized.
+
+## 1. Evidence at this revision
+
+From the local `cargo xtask verify` run of 2026-10-14 (evidence store `target/evidence-out`, 15 Evidence_Items, verdict pass):
+
+| Evidence_Item | Result |
+|---|---|
+| `proof-kernel-verus` | rsk-kernel 230 items verified, 0 errors; rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
+| `check-static-checks` | 0 assumption constructs in the verified crates rsk-entry, rsk-kernel, and rsk-analyzer (R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,510 executable Kernel lines (PAR-01); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
+| `proof-kernel-kani` | 11 harnesses, every check passed; Kani 0.68.0, CBMC 6.11.0 |
+| `test-qemu-spike-p1-demo` | `RSK-OK` on QEMU mps2-an386 (not the Target) |
+| `test-workspace-tests`, builds, sandbox, `check-evidence` | pass |
+
+CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item.
+
+## 2. What the type system gives (R43.3)
+
+Relied on, given sound `unsafe` code and a correct compiler (ASM-14, TBR-21):
+
+- data-race freedom in safe code through `Send` and `Sync`;
+- closure-scoped LIFO locking with no escaping references (R8.6), no re-entry (R8.10), and Resource access only by declared Tasks (R8.7), through the `rsk` API shape;
+- synchronous Task bodies (PR-09) and, from Phase 4, Endpoint protocol states within a Job (R38.4).
+
+Not given, and allocated in section 3: deadlock freedom, bounded blocking, timing, schedulability, panic freedom, stack bounds, and freedom from leaks.
+
+## 3. Property allocation (R43.1, R43.2, R43.4)
+
+Status is as of 2026-10-14. "By inspection" points to the Kernel_Arch facts of section 4, which the proofs assume and no tool checks.
+
+| # | Property | Criteria | Tool (kind) | Evidence_Item | Phase | Status | Depends on |
+|---|---|---|---|---|---|---|---|
+| P-01 | Data-race freedom | PR-05, R8.6, R8.10 | Type system; Verus for mutual exclusion (P-02) | builds; `proof-kernel-verus`; `conf-PR-05-*` (planned) | P1, P2 | Type rules in force; PR-05 lint and trybuild cases not built | ASM-14, TBR-21, TBR-06 (UJ-050..054) |
+| P-02 | Mutual exclusion | R8.3 | Verus (proof): `lemma_no_other_holder`, `Sched::lock`, `Kernel::svc_lock` | `proof-kernel-verus` | P1 | Proven for the state model; BASEPRI realisation by inspection | ASM-08, ASM-15, TBR-02, TBR-04 |
+| P-03 | Ceiling raise and restore | R8.1, R8.2, R8.6 | Verus (proof per step); argument 5.3 across preemptions; trybuild (test, planned) | `proof-kernel-verus`; `conf-PR-07-ts` (planned) | P1, P2 | Each lock and unlock proven; restore across preemptions is argument 5.3 | ASM-15, TBR-04 |
+| P-04 | SRP start condition | R7.1, R7.2, R7.3, R20.3 | Verus over the Hardware_Model (proof): `Sched::select`, `lemma_dispatch_takes_iff_eligible`, `lemma_dispatch_selects_srp_choice`, `lemma_dispatch_idle_when_none_eligible` | `proof-kernel-verus`; `test-qemu-spike-p1-demo`; `hil-dt-hw-05` (planned) | P1 | Proven; arch facts A1 to A4 by inspection; hardware-pending | ASM-03, ASM-08, TBR-02, TBR-04, TBR-05 |
+| P-05 | Bounded blocking | R8.4, R29.2 | Verus (state part): `lemma_blocked_by_one_holder`; argument 5.1; PBT against the SRP simulator (test, P2) | `proof-kernel-verus` | P1, P2 | State part proven; one section per Release is argument 5.1 | ASM-15, TBR-04 |
+| P-06 | Deadlock freedom | R8.5 | Verus (a lock never waits for another holder); argument 5.5 | `proof-kernel-verus` | P1 | Partial: no-wait proven, freedom from wait cycles argued | ASM-15 |
+| P-07 | Drift-free periodic release, release jitter | R9.1, R9.3, R9.5, R9.10, R44.8 | Verus (proof): `Timing::inv`, `advance_periodic`, `Kernel::start`; HIL release timing (test) | `proof-kernel-verus`; `hil-release-timing` (planned) | P1 | O + k·T proven; the link from armed slots to the Releases `timer_event` makes is not stated; jitter J_rel hardware-pending | ASM-16, ASM-18, ASM-19, TBR-15 |
+| P-08 | MIT enforcement | R9.7, R9.8, R10.1 to R10.4, R10.7, R10.9, R19.1, R19.2 | Verus (state parts): `Kernel::inv` deferral clause, `Kernel::intake`, `violation_applied`, `mit_spaced`; argument 5.4; HIL storm (test) | `proof-kernel-verus`; `hil-storm` (planned) | P1 | State parts proven; spacing over a run is argument 5.4; the interrupt-source time bound (Property 9) is not proven; the Kani `intake` harness does not exist | ASM-10 |
+| P-09 | Kernel queue and Endpoint buffer correctness | R9.4, R14.6, R14.7, R39.4, R44.2 | Verus (refinement proof): `Slots`, `Log::push` | `proof-kernel-verus` | P1, P4 | Slots and log proven; Endpoints are Phase 4 | ASM-15 |
+| P-10 | LIFO preemption invariants | R7.5, R7.6 | Verus (stack, ceiling): `Sched::inv`, `complete`, `end_job`, `Kernel::job_return`; review and QEMU for the per-level register record | `proof-kernel-verus`; `test-qemu-spike-p1-demo`; `hil-register-pattern` (planned) | P1 | Stack and ceiling proven; register restore by the assembly stubs is review-only (UJ-020, UJ-022, UJ-023) | TBR-05, TBR-06 |
+| P-11 | Floating-point context preservation | R11.1 to R11.3, R6.6 | Test (QEMU, HIL) and review | `test-qemu-spike-p1-demo`; `hil-register-pattern` (planned) | P1 | Testing evidence only (3.1); Kernel VFP data moves recorded in 5.7 | ASM-08, TBR-02, TBR-03 |
+| P-12 | Absence of runtime errors in the Kernel | R44.1, R44.7, PR-19 | Verus (logic, proof); Link_Checker no-panic-path check (P2); review (arch) | `proof-kernel-verus`; `conf-PR-19-lk` (planned) | P1, P2 | Logic proven free of overflow, bounds errors, and panics; `arch` and `rsk-entry` are not proven (5.6) | ASM-09, TBR-01, TBR-04 |
+| P-13 | Absence of UB in the Kernel_Unsafe_Module | R6.4, R45.1, R45.2 | Kani (bounded proof) for 5 identifiers; review for 38 | `proof-kernel-kani`; `check-static-checks` (R6.4 gate) | P1 | Kani covers address arithmetic, frame layout, and encoders, not the volatile and assembly paths (6.1) | TBR-05, TBR-06, TBR-07 |
+| P-14 | Boot-time configuration validation | R12.1 to R12.3, R12.6 | Verus: `Config::validate` (ok == wf), `Layout::validate` (ok ⟹ wf); HIL boot suite (test) | `proof-kernel-verus`; `hil-boot-checks` (planned) | P1 | Table validation proven; hardware checks implemented; clock and checksum checks open (task 5.2); hardware-pending | ASM-01, ASM-02, ASM-03, ASM-05, ASM-06 |
+| P-15 | Configuration consistency | R24.4, R25, R26 | Generator drift check (check); Config_Checker (check, P2); mutation suite (test) | `check-static-checks` (`gen --check`); `conf-config-*` (planned) | P2 | Drift check only; Config_Checker not built | TBR-11, TBR-12 |
+| P-16 | Spatial isolation: MPU and DMA | R16.1 to R16.6, R16.8, R17, R20.4, R44.4 | Verus over the Hardware_Model: `lemma_hw_partition_isolation`, `lemma_hw_write_isolation`; Kani field encoding; Config_Checker; HIL access matrix | `proof-kernel-verus`; `proof-kernel-kani`; `hil-mpu-matrix`, `hil-dma` (planned) | P1, P2 | MPU decision proven for every validated layout; RBAR and RASR encoding at field level only; EasyDMA mediation not started (task 5.5) | ASM-02, ASM-12, TBR-02, TBR-05, TBR-10 |
+| P-17 | Temporal isolation: Budget monitor, interrupt sources | R18.1 to R18.3, R18.7, R18.8, R19.1 to R19.3 | Verus: attribution in `Kernel::dispatch` and `job_return`, `lemma_kernel_level_*`; HIL Overrun and storm (test) | `proof-kernel-verus`; `hil-overrun`, `hil-storm` (planned) | P1, P3 | Attribution and the never-masked level proven; Δ_detect, Δ_enforce, and the interrupt bound hardware-pending | ASM-06, ASM-10, TBR-02 |
+| P-18 | Health_Monitor responses | R14.3 to R14.5, R14.9 to R14.11, R18.4 | Verus: `response_applied`, `others_unchanged`, `lemma_others_ceilings_in_force`; HIL response suite (test) | `proof-kernel-verus`; `hil-response` (planned) | P1, P3 | Effect on the faulting Partition and R14.9 proven per response; fault attribution (R14.3) by inspection; R14.10 bound measured in P3 | ASM-08 |
+| P-19 | Schedulability | R29, R32 | Analyzer: Verus fixed-point core (proof), PBT and reference implementation (test), UPPAAL (cross-check) | `proof-kernel-verus` (rsk-analyzer, 17 items) | P2 | Core proven; term derivation unproven; PBT, simulator, and published task sets not built; UPPAAL ceiling not modelled | ASM-11, ASM-13, TBR-12, TBR-17 |
+| P-20 | WCET | R34 to R36 | Measurement (test), static analysis (P5) | `wcet-*` (planned) | P3, P5 | Not started; testing evidence only before P5 | ASM-11, TBR-14 |
+| P-21 | Stack bounds | R37, R16.5 | Link_Checker (static analysis); MPU overflow backstop (Verus) | `proof-kernel-verus` (`lemma_stack_overflow_faults`, hardware form in P-16); `conf-PR-17-lk` (planned) | P1, P2 | Backstop proven; Link_Checker is a stub | TBR-12 |
+| P-22 | Protocol compliance and communication deadlock freedom | R38 to R41 | Type system; Protocol_Checker; proof of R41.3 | (planned) | P4 | Not started | TBR-12 |
+| P-23 | Application absence of runtime errors | R46.3, R46.4, PR-19 | Creusot (proof) | `proof-app-creusot` (planned) | P2 | Not started | TBR-08 |
+| P-24 | Host-side concurrency | R47 | Loom, Shuttle (test) | (planned) | P2 | Not started | none |
+| P-25 | Hardware_Model fidelity | R49.1 to R49.6 | Citations (review); HIL differential tests (test) | `hil-dt-hw-01` to `-14` (planned) | P1 | Rules cited; differential tests hardware-pending | ASM-08, TBR-02, TBR-03 |
+
+### Testing-only evidence (R43.4)
+
+| Row | Why no proof tool applies |
+|---|---|
+| P-11 | Preservation is done by hardware stacking (HW-10) and assembly stubs. Verus has no assembly and Kani does not model it (RN-16). |
+| P-07 (jitter), P-17 (Δ_detect, Δ_enforce), P-14 (hardware boot checks) | Physical timing and silicon behaviour, which a source-level proof cannot observe. |
+| P-20 | No static WCET tool before P5 (ORQ-12); measurement is not a bound (ASM-11). |
+| P-24 | Loom and Shuttle are explicitly not sound (RN-37). |
+| P-25 | A model cannot validate itself against silicon. |
+
+## 4. What holds by inspection (the Kernel_Arch boundary)
+
+`arch/mod.rs`, `arch/cm4/mod.rs`, the `unsafe_module`, and `rsk-entry` are outside `verus!`. Verus therefore never checks that the Kernel_Arch calls satisfy the logic's `requires` clauses, and the Hardware_Model lemmas take the facts below as preconditions. Each was checked by reading the code on 2026-10-11 to 2026-10-14.
+
+| # | Fact | Assumed by | Where it holds |
+|---|---|---|---|
+| A1 | BASEPRI = `basepri_for(top, ceiling)` after every transition | P-04, P-17 | `apply`, `irq_entry`, SVC lock, `epilogue` |
+| A2 | PRIMASK is set only by Kernel stubs and `start` and is clear on every return to Thread mode | P-04, P-17 | `stubs.rs`, `arch::cm4::start` |
+| A3 | Every dispatch vector has NVIC priority `encode_level(priority)`; every Kernel exception has priority 0 | P-04, P-17 | `boot`, `set_kernel_exception_priorities` |
+| A4 | Only the vector `Kernel::select` returns is pended; a stale pending bit is rejected at entry (argument 5.8) | P-04 | `apply`, `irq_entry` |
+| A5 | FAULTMASK is never set; Jobs run with CONTROL = 0b001 | P-17 | `irq_entry` |
+| A6 | The views are `Layout::view` of a layout that passed `validate`, loaded at dispatch and resume, with the MPU enabled from boot | P-16 | `arch/mod.rs` `init`, `mpu_enable_background` |
+| A7 | RBAR and RASR words encode the view (Kani checks field placement only) | P-16 | `hw::rasr_encode`, `rbar_encode`, `mpu_load` |
+| A8 | The time-base TIMER, dispatch vectors, and system handlers are never disabled after boot | P-17 | `nvic_disable` call sites |
+| A9 | The runtime guards in `Bound` mirror the `requires` clauses of the logic entry points | every Kernel proof | `arch/mod.rs` |
+| A10 | The Kernel cell is never entered reentrantly (DD-02) | every Kernel proof | UJ-003 to UJ-006 (review) |
+| A11 | `placeholder_kernel` is replaced by `init` before the first transition | `inv` at the first call | `arch/mod.rs` |
+
+A12, the ascending dispatch-vector order (DD-03, `dispatch_vectors_ok`), is checked by the rsk-gen test `dispatch_irqs_ascend_for_dd03` for every built-in Target, not by inspection.
+
+Mitigation: move the safe Kernel_Arch planning code into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model (design.md, "Kernel logic and Kernel_Arch"), which would turn A1 to A9 and A11 into proof obligations; the HIL tests of section 11 test them on the Target. Neither is done. Trust_Base_Register entry TBR-24 lists these facts as trusted, and Gap_Register entry GAP-10 records the gap; until it closes, this code is a deviation from R44.5.
+
+## 5. Arguments recorded here
+
+These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take.
+
+### 5.1 Bounded blocking: one Critical_Section per Release (R8.4)
+
+Let J be a Job of Priority p released at r, pending but not eligible only because p ≤ System_Ceiling.
+
+1. While J is pending, no Job of Priority below p starts. `Sched::select` takes the highest-Priority pending Release, and if that one is not eligible no pending Release is (proven); a lower-Priority Job is not eligible while p ≤ ceiling.
+2. By `lemma_blocked_by_one_holder`, some lock entry with Ceiling ≥ p is held by a Job L of Priority below p, and by step 1 L started before r.
+3. At most one such L exists. If L₁ below L₂ on the stack both held Resources with Ceiling ≥ p, then L₂ started above the ceiling of that instant (invariant 1), which is at least the Ceiling of L₁'s Resource (invariant 4), so Priority(L₂) > p, a contradiction.
+4. When L's outermost unlock drops the ceiling below p, `apply` pends J's vector at once (A4, P-04) and J preempts L before L executes again, so L cannot lock a second Resource with Ceiling ≥ p in J's way.
+
+So J waits for at most one outermost Critical_Section (with its nested sections) of one lower-Priority Job, plus Kernel overhead. Mechanizing it needs a ghost release history; the PBT against the SRP simulator (task 15.4) is the planned test.
+
+### 5.2 Lazy release of killed Jobs delays nothing (R8.9, R14.5)
+
+`Sched::kill` marks a preempted Job K but leaves its lock entries until Kernel_Arch unwinds to it, when `finish_top` releases them. Every Job above K started above the ceiling of its start instant (invariant 1), which covers the Ceilings of K's Resources (invariant 4). A Job X blocked only by K's retained Resources has Priority at most their Ceiling, so below the executing Job's Priority, and is not eligible while any Job above K is in progress. When the last Job above K ends, the unwind reaches K and releases its entries in the same Kernel entry (`epilogue`). The retained entries therefore never delay a Job that the Jobs above K would not delay anyway. Assumes A1 and the unwind order of the stubs (UJ-023, review).
+
+### 5.3 Ceiling restore across preemptions (R8.2)
+
+`Sched::unlock` proves that after an unlock the ceiling is the maximum over the remaining entries. The remaining entries are exactly those present before the matching lock:
+
+- `lock` pushes at the top and leaves the entries below untouched (proven);
+- entries are ordered by holder (invariant 3), so a Job that preempts and later ends removes only its own entries (`complete` and `end_job` leave `lock_res` and `lock_depth` unchanged and shrink `lock_len` only by the top's entries, proven);
+- an unlock succeeds only on the top entry owned by the executing Job (proven).
+
+Hence the ceiling after the unlock equals its value before the matching lock. Mechanizing it needs a ghost lock history.
+
+### 5.4 MIT spacing over a run (R10.1, R10.2)
+
+Every accepted Release of a Sporadic_Task sets `last_due` to its own due instant (`accepted`, `deferred_release`, proven). Acceptance requires `now ≥ last_due + MIT` and a deferred Release becomes due at exactly `last_due + MIT` (proven, `Kernel::inv`). Every entry point ensures `mit_spaced`: `last_due` is never forgotten and moves only by at least one MIT (proven per entry point; restarts keep it, R14.5). By induction over the sequence of entry points, consecutive accepted Releases become due at least one MIT apart. `lemma_mit_spaced_trans` is the inductive step for one composition.
+
+### 5.5 Deadlock freedom (R8.5)
+
+A lock never waits: its outcome depends only on the accessor check, re-entry, and capacity, never on another holder (`lemma_no_other_holder`, proven). No Job suspends inside a Critical_Section (PR-08, PR-09). There is therefore no wait-for edge between Jobs; a pending Job waits only for higher-Priority Jobs to end, which Budget enforcement bounds (P-17).
+
+### 5.6 Panic freedom under abort (ORQ-07)
+
+- `logic` and `hw_model`: Verus checks every arithmetic operation and index of executable code in range, with no assumption construct. RN-13 notes that Verus has no general mechanism for specifying aborts; the claim is panic freedom, not abort behaviour.
+- `arch`, `arch/cm4`, and `rsk-entry`: safe Rust outside `verus!`, with ordinary indexing and arithmetic. It is not proven panic-free. A panic there reaches the single panic handler and the system safe state (R14.4), so it is a detected Kernel fault, not undefined behaviour.
+- Planned: the Link_Checker's no-panic-path check from Kernel entry points (task 12.3), or moving that code into `verus!` (section 4).
+
+ORQ-07 stays partly resolved.
+
+### 5.7 Kernel VFP data moves and R6.6
+
+The DD-01 spike found that LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves in Kernel code on `thumbv7em-none-eabihf`, so the coprocessor stays enabled (hw.rs, ORQ-16 finding). R6.6 as written allows only the context-preservation instructions. These moves do not change a Job's FP context: with eager stacking, entry from a context with an active FP state pushes S0 to S15 and FPSCR before Kernel code runs; S16 to S31 are callee-saved under the AAPCS and are also pushed by the stubs; data moves do not write FPSCR. This is a recorded deviation from the wording of R6.6, pending either an amendment ("no floating-point arithmetic and no FPSCR write") or a code-generation change. Evidence to add: the Link_Checker instruction scan confirming that Kernel object code contains only VFP data-movement instructions (task 12.3), and the HIL register-pattern test.
+
+### 5.8 Stale pending dispatch bits (A4)
+
+When a Release is suppressed after its vector was pended, the NVIC may still take that vector. Taking it clears the pending bit; `irq_entry` finds the Task not eligible and returns unchanged, and the NVIC arbitrates again among the remaining pending vectors, where P-04 applies. Each stale bit is consumed once, so a suppression event causes at most NT stale entries, each costing one stub entry. Whether the Analyzer's Kernel overhead terms include that cost is to be confirmed (task 15.2).
+
+### 5.9 Core_Subset items without Ferrocene certification
+
+`profile/core_subset.toml` lists six items with `certification = "none"`. Only `core::arch::asm` (stubs, evidence section 6) and `core::panic::PanicInfo` (the panic handler, `location()` only) are used. `NonZeroU8`, `core::array::{from_fn, map}`, the atomics, and `core::hint::spin_loop` are not used by the Kernel crates, and some recorded substitutes do not match the code (for example, the event-log overflow counter is a plain saturating `u32`, not an atomic). Proposed for the next Profile version: remove the unused items, or record their evidence when first used.
+
+## 6. Kani (R45.4, R45.6, R45.8; task 6.3)
+
+### 6.1 Limitations and mitigations (R45.6)
+
+| Limitation [RN-16, RN-17, RN-18] | Effect on rsk | Mitigation or TBR |
+|---|---|---|
+| Sequential code only; data races not detected | Kernel concurrency is preemption between levels | Single-core, non-reentrant precondition (A10, TBR-20); Loom model (P2, R47); review UJ-003 to UJ-006 |
+| Inline assembly unsupported; global assembly ignored | All of `stubs.rs` and the asm in `hw.rs` | Stubs KS-01 to KS-07; review identifiers; HIL differential tests (6.2) |
+| Harnesses build for the host, so every `cfg(all(target_arch = "arm", target_os = "none"))` branch holding the volatile access, raw write, or `asm!` is compiled out | Harnesses check address tables, frame words, and encoders, not the unsafe operation | Kani credit is limited to those pure computations; the operations rest on review (TBR-06). Open: restructure so the flight path calls the checked function with no cfg split. |
+| Aliasing-model violations, mutation of immutable data, and invalid values not detected unless enabled | `KernelCell`, `ResourceCell`, frame writes through raw pointers | Review (UJ-003 to UJ-006, UJ-050 to UJ-054, UJ-102 to UJ-104); evaluate Kani's optional invalid-value checks |
+| Bounded verification | Logic harnesses at NT = 3, NR = 2 | Verus covers every size; 6.3 |
+| Results hold only if every unwinding assertion passes | none | R45.5 verdict rule; fixture `xtask/fixtures/kani-unwind` |
+| Stubbing is unstable (`-Z stubbing`) | Not used: no `#[kani::stub]`; the `sim` double is selected by cfg | TBR-07; revisit if stubs are adopted |
+| `--restrict-vtable` soundness issue | Not used; the Kernel has no trait objects | Note only; the job does not pass the flag |
+| Harnesses restate the Verus postconditions, written by the same author | Not an independent specification | Independence gap (8.5, GAP-08) |
+
+### 6.2 Stubs and the differential tests that validate them (R45.4)
+
+| Stub | Hardware_Model rules | Differential test | Status |
+|---|---|---|---|
+| KS-01 MMIO read and write | HW-01 (priority read-back), HW-09, HW-12, HW-13 | `hil-dt-hw-01`, `-09`, `-12`, `-13` | pending (hardware) |
+| KS-02 BASEPRI | HW-03 | `hil-dt-hw-03` | pending (hardware) |
+| KS-03 PRIMASK | HW-04 | `hil-dt-hw-04` | no harness depends on it |
+| KS-04 frame record | HW-06 | `hil-dt-hw-06` | QEMU spike only |
+| KS-05 SVC number | HW-06 | `hil-dt-hw-06` | QEMU spike only |
+| KS-06 console and exit | none | none | debug I/O; no claim depends on it |
+| KS-07 host SVC wrappers | HW-07 | `hil-dt-hw-07` | QEMU spike only |
+
+### 6.3 Bounds (R45.8)
+
+| Harnesses | Bounds | Covers |
+|---|---|---|
+| `logic/kani_harness.rs` (5) | NT = 3, NR = 2, NP = 2, NL = 4, 11 slots, unwind 6 | The p1-demo configuration (NT = 3, NR = 1, NP = 2, NL = 2, NS = 11) |
+| `uj_001_mmio_addresses_valid` | symbolic IRQ < 240, unwind 64 | Every NVIC line of the nRF52840 (48). The callers' bound is not checked: `nvic_*` take an exception number and subtract 16, so an out-of-range argument is excluded only by the binding tables (review) |
+| `mpu_load_writes_every_region` | 8 regions, unwind 10 | The 8 regions of the Target (ASM-02) |
+| other arch harnesses | symbolic scalar inputs, no loops | All inputs |
+
+The Profile_Conformance_Suite Application does not exist yet (task 14.1); design.md proposes 16 Tasks, 16 Resources, 48 slots, and lock depth 8, which the logic harnesses do not reach. The residual risk is recorded in TBR-07. It is small because the Verus proofs cover every size and Kani is used here as a cross-check of the erased code. Raise the bounds when the conformance Application is defined.
+
+## 7. Application prover (R46.1, R46.2)
+
+| Criterion | Prusti | Creusot | Aeneas |
+|---|---|---|---|
+| Maintenance, release recency | Latest release 2024-02-28 on nightly-2023-09-15; describes itself as a prototype (RN-19) | Releases v0.7.0 (November 2025) to v0.13.0 (30 July 2026) (RN-20) | Active; a September 2026 report verifies 16.7 KLOC of Rust (RN-21) |
+| Rust subset | Not re-evaluated (inactive) | Mutable borrows through prophecies, loops with invariants, closures, traits (RN-20); interior mutability and `unsafe` stay behind the `rsk` API with contracts | Safe subset; no `unsafe` or concurrency; some loop forms unsupported (RN-21) |
+| `no_std` | to confirm | to confirm at pinning (task 17.1) | to confirm |
+| Soundness argument, trusted base | Viper and its SMT back end | Translation to Coma and Why3, then SMT solvers (TBR-08) | Translation through Charon's LLBC, then the Lean or HOL4 kernel |
+| Toolchain compatibility | Its 2023 nightly predates rustc 1.95.0, so rsk crates may not compile | Each prover drives its own pinned rustc; the version and its gap to 1.95.0 and 1.98.1 are to be recorded at pinning (ORQ-08 applies, 9.3) | as Creusot |
+| Panic and overflow freedom | yes | yes (overflow behaviour to confirm at pinning) | yes, through the translation |
+| Loop bounds (R35.2) | limited | termination checking with variants (RN-20) | termination in Lean |
+| Release conditions (R5.5), validation totality (R42.4) | not evaluated | pure functions with contracts and termination | possible for small pure functions |
+| DO-330 and DO-333 prospects | none known | none known (ORQ-10); several Why3 solvers allow cross-solver confirmation | none known; kernel-checked proofs give the strongest soundness argument |
+
+Designation: Creusot (ORQ-10, design.md). It is the only active candidate that covers the constructs Task bodies use, closures in particular. Aeneas stays an option for small pure computations such as control laws (task 17.3). Pinning Creusot, Why3, and the solvers in the Build_System and recording them in each `proof-app-creusot` Evidence_Item (R46.2) is open, task 17.1. No Task body is proven yet, so R46.5 has no entries.
+
+## 8. Tool qualification (R51)
+
+### 8.1 Classification (R51.1, R51.2)
+
+DO-178C Table 12-1 (RN-38): criterion 1 gives TQL-1 at DAL A and TQL-2 at DAL B; criterion 2 gives TQL-4 at both; criterion 3 gives TQL-5 at both.
+
+| Tool | Criterion | TQL at DAL A / DAL B | Justification | State |
+|---|---|---|---|---|
+| Qualified_Toolchain (Ferrocene, LLVM, linker) | 1 | TQL-1 / TQL-2 | Its output is the airborne code | Upstream rustc 1.95.0 until P5; Ferrocene supports up to DAL C (RN-39), ORQ-04, GAP-01 |
+| Generator (rsk-macros, rsk-gen) | none, if its output is verified (8.2); otherwise 1 | none (otherwise TQL-1 / TQL-2) | Config_Checker, Kernel boot validation, and review verify its output | Config_Checker not built, so the argument is not yet supported |
+| Verus ghost-erasure macro (verus_builtin_macros) | 1, unless the erased source is shown equal to the verified code (R55.3) | TQL-1 / TQL-2 | It produces the source that becomes airborne code | No comparison yet (task 23.1) |
+| Config_Checker | 2 | TQL-4 / TQL-4 | Its verdict removes the need to qualify the Generator (R26.6) | Stub |
+| Link_Checker | 2 for stack bounds; 3 for the defence-in-depth scans | TQL-4 / TQL-4 (stack bounds); TQL-5 / TQL-5 (scans) | Stack bounds replace stack-usage testing | Stub |
+| Profile_Lint | 3 | TQL-5 / TQL-5 | Backed by LK checks and compile errors | Not built |
+| Protocol_Checker | 2 if its k-MC result replaces protocol testing, else 3 | TQL-4 / TQL-4, else TQL-5 / TQL-5 | | P4 |
+| Analyzer | 3 in v1; 2 if it replaces timing tests (R51.5) | TQL-5 / TQL-5 in v1 | v1 keeps the HIL response-time tests (task 19.4) | Core proven, terms not |
+| UPPAAL | 3 | TQL-5 / TQL-5 | Cross-check only; no credit claimed; licence ASM-13 | Exporter exists, ceiling not modelled |
+| WCET_Harness | 3 | TQL-5 / TQL-5 | Measurements are checked against observed executions and the static cross-check (P5) | P3 |
+| Static_WCET_Analyzer | 2 if it replaces measurement | TQL-4 / TQL-4 | | P5 |
+| Verus | 2 where proofs replace tests | TQL-4 / TQL-4 | 8.3 | In use, unqualified |
+| Kani | 2 where credit is claimed | TQL-4 / TQL-4 | 8.3 | In use, unqualified |
+| App_Prover (Creusot) | 2 | TQL-4 / TQL-4 | Replaces robustness and requirements-based testing of Task bodies | P2 |
+| Coverage tool | 3 | TQL-5 / TQL-5 | | P3, ORQ-05 |
+| HIL_Rig test automation | 3 | TQL-5 / TQL-5 | | Not built (section 11) |
+| Flashing tool (probe-rs) | none: output verified | none | Read-back hash check (R48.4) | Not built |
+| Build_System (xtask) | 3 | TQL-5 / TQL-5 | It aggregates verdicts and could fail to detect a failure; rebuild comparison (R59.3) and archived logs back it | In use |
+
+Qualification is per project; rsk tools can at most be qualifiable, and qualification itself is an applicant activity (R51.6, R54.4).
+
+### 8.2 The Generator needs no TQL-1 or TQL-2 (R51.3)
+
+The argument: every Generator output that reaches the Flight_Build is either recomputed and compared by the Config_Checker from the Task_Model and the linked binary (R26.2, R26.4), checked at boot by the proven `Config::validate` and `Layout::validate` (well-formedness, not equality to the declaration), or covered by review. The mutation suite of R26.7 (task 13.2) is the planned evidence of the Config_Checker's detection ability. Neither the Config_Checker nor the mutation suite exists, so today the argument is a plan.
+
+Generator outputs that R26.2 as written does not cover, which need an extended Config_Checker or review:
+
+- the dispatch-vector assignment and its order (DD-03; the ascending order of the built-in Target tables is only unit-tested);
+- the intake IRQ table and the `binding` function from exception numbers to Tasks;
+- the `task_entry` table from Task index to Job entry function (a wrong entry runs the wrong code);
+- periods, offsets, and deadlines (R26.2 names the Budget and MIT tables only);
+- `System` constants: `TIMER_VECTOR`, `IRQ_COUNT`, `PRIORITY_BITS` (the last is also boot-checked), stack bounds and the safe-state path;
+- linker-script archive placement, beyond what the memory-map comparison of R16.7 checks;
+- the Partition Context types (type-level; wrong types fail compilation or show in review);
+- `summary.txt` (informational, no verification needed).
+
+### 8.3 Verus and Kani (R51.4)
+
+- Verus: credit claimed for the Kernel logic properties of section 3 (compliance of the logic source with its formalized low-level requirements, freedom from overflow, bounds errors, and panics) and for the Analyzer fixed-point core. That credit replaces verification activities, so Verus is criterion 2, TQL-4. No DO-330 qualification of Verus is known (ORQ-06). The Vermilion Lean 4 back end (RN-15) is followed as a route to independent proof checking.
+- Kani: credit claimed only for bounded absence of UB in the pure computations of the Kernel_Unsafe_Module (6.1) and as a cross-check of the Verus postconditions on erased code. Criterion 2, TQL-4 where that credit removes review; no qualification known.
+
+### 8.4 Analyzer (R51.5)
+
+Criterion 3, TQL-5, while its result serves only schedulability verification and the HIL response-time tests stay. If those tests are dropped on the strength of its result, criterion 2, TQL-4.
+
+### 8.5 Independence (R51.7)
+
+| Verifying tool | Verified item | Tool independence | People independence |
+|---|---|---|---|
+| Config_Checker | Generator | Required by R26.1: no shared derivation, parsing, or data structures except the Task_Model schema; the crate manifest forbids depending on rsk-gen and rsk-model | Not achieved: one author. Applicant activity |
+| Kani cross-checks | Verus proofs | Different technique (bounded model checking on erased code) | Same author writes the specification and the harness |
+| HIL differential tests | Hardware_Model | Silicon against model | Not yet built |
+| Analyzer reference implementation, simulator | Analyzer | Planned independent implementation (task 15.4) | Not achieved |
+| Link_Checker | Stack and call graph | Differential run against `cargo-call-stack` (task 12.1) | Not achieved |
+
+Every DAL A and DAL B verification objective that requires independence needs a reviewer other than the author. The prototype cannot supply that; Gap_Register entry GAP-08 records it as an applicant activity (R54.4). Which Annex A objectives require independence at each level is to be confirmed against the standard (Gap_Register OPEN-01).
+
+## 9. Formal-methods credit (R52)
+
+### 9.1 Soundness justification (R52.1)
+
+| Method | Semantics and trusted base | Known issues and how rsk handles them |
+|---|---|---|
+| Verus (Kernel, Hardware_Model, Analyzer core) | SMT encoding of a Rust subset; trusts Verus, Z3 4.16.0, and `vstd` with its `assume_specification` items (TBR-04) | No assumption construct in the Kernel crates or rsk-analyzer (R50.2 gate); ghost-erasure cfg flags can introduce unsoundness (RN-12): rsk never sets `verus_keep_ghost` itself (only the Verus toolchain does), and Flight_Builds compile the erased code; no abort specification (RN-13, 5.6) |
+| Kani | CBMC bounded model checking of MIR for the host; trusts Kani, CBMC 6.11.0, the SAT solver, and the `sim` double (TBR-07) | RN-17 issues in 6.1; `--restrict-vtable` unused; the host build compiles out the flight branches |
+| Creusot | Translation to Coma and Why3, SMT solvers (TBR-08) | Not in use yet; soundness of the Why3 translation is the residual risk; discharge by two solvers where feasible |
+| Protocol_Checker | k-multiparty compatibility (RN-22) | P4 |
+| UPPAAL | Timed automata model checking | No credit claimed; the exported model does not yet model the SRP ceiling |
+| Static_WCET_Analyzer | Binary-level analysis | P5 |
+
+### 9.2 Validating models and formal specifications (R52.2)
+
+- **Hardware_Model.** Every rule cites its manual section (R49.2); the not-formalized list states why no proof depends on each omission (R49.6); the HIL differential test per rule (R49.3) is hardware-pending (section 11). QEMU runs are pre-hardware checks only.
+- **Specifications against requirements.** Every Verus specification names the criteria it formalizes in its doc comment. A review of each specification against the natural-language criterion is open (section 13).
+- **Vacuity checks.** During 2026-10-11 to 2026-10-14 each new specification was checked by breaking the code or model and confirming that Verus fails:
+
+| Change | Failed specification |
+|---|---|
+| Reverse the dispatch-vector order | `lemma_dispatch_selects_srp_choice` (tie step) |
+| `encode_level(0)` = 256 | `lemma_encoding_order`, `lemma_kernel_level_never_masked` |
+| Count the shared code as Partition-owned | `lemma_hw_partition_isolation` |
+| Let the MPU grant every write | `lemma_mpu_grant_covered` |
+| Kill only one Job of a restarted Partition; drop a deadline disarm | `end_partition_jobs`, `job_return` postconditions |
+| Kill other Partitions' Jobs; reset a neighbouring Budget | `others_unchanged` (R14.9) |
+| Clear a pending Release on discard; make a deferred Release due now; defer a periodic Release | `intake`, `deferred_release`, `Kernel::inv` |
+
+These were manual runs and are not reproducible evidence yet. Open: keep them as mutation fixtures in xtask, as `kani-unwind` is.
+
+### 9.3 Property preservation to object code (R52.3, ORQ-08)
+
+1. Verus checks the `verus!` source, ghost code included, on rustc 1.98.1.
+2. Ghost erasure removes spec and proof code; the same source files then build for the Target with upstream rustc 1.95.0 in every verification job (Ferrocene 26.05 in P5). Equality of the erased executable code to the verified code rests on `verus_builtin_macros` (criterion 1, 8.1). Mitigations: the Kani cross-check harnesses run the erased code against restated postconditions (bounded); archiving and comparing the erased source (R55.3) is planned for task 23.1.
+3. rustc 1.98.1 and 1.95.0 differ. The Kernel uses no feature stabilized after 1.95.0, which the 1.95.0 build enforces; the remaining assumption is that both compile the subset with the same semantics (ASM-09, TBR-01).
+4. LLVM optimization: no translation validation (ORQ-08 open). Mitigations: requirements-based HIL tests on the Flight_Build binary (hardware-pending) and source-to-object traceability (R53.2, P3).
+5. The Build_Manifest binary hash (R33.3) ties every Evidence_Item to the binary tested.
+
+### 9.4 Objectives claimed and testing that remains (R52.4)
+
+The project does not hold the DO-178C or DO-333 texts. The Gap_Register (`docs/gap_register.toml`) lists every DO-178C Annex A objective by table and number, as public summaries give them, with its applicability, status, owner, and gaps; the DO-333 items are described, not numbered. Both are to be confirmed against the standards' texts (Gap_Register OPEN-01, OPEN-02). The Annex A column below uses the Gap_Register's numbering.
+
+| Objective (description) | Annex A | Formal credit claimed | Testing or review that remains |
+|---|---|---|---|
+| Source code complies with the low-level requirements | A-5.1 | Kernel logic and Analyzer core: the Verus specifications are the formalized low-level requirements | Kernel_Arch, unsafe module, and `rsk-entry`: review and HIL (GAP-10) |
+| Source code is accurate and consistent (overflow, exception handling, stack, timing) | A-5.6 | Overflow, bounds, and panic freedom of the logic | Stack (Link_Checker), timing (WCET), Kernel_Arch panics (5.6; GAP-12, GAP-13, GAP-04) |
+| Partitioning integrity is confirmed | A-4.13 | MPU decision (P-16), R14.9 (P-18), Kernel never masked (P-17) | HIL access matrix, DMA, fault injection (GAP-05, GAP-06, GAP-09) |
+| Low-level requirements are accurate and consistent | A-4.2 | Verus checks that specifications are well formed | Review against natural-language criteria; vacuity fixtures (GAP-18) |
+| Executable object code complies with the low-level requirements, including robustness | A-6.3, A-6.4 | Logic properties carried to object code through 9.3 | HIL requirements-based and robustness tests on the Target (GAP-09, GAP-11) |
+| Executable object code is compatible with the target computer | A-6.5 | none | HIL testing in full (GAP-09) |
+| Verification coverage of requirements and of structure | A-7.3 to A-7.8 | Formal coverage of criteria (9.5) | Structural coverage: no objective replaced in v1 (R53.4); MC/DC tooling open (ORQ-05, GAP-02) |
+
+### 9.5 Criteria covered by each formal analysis (R52.5)
+
+"Complete" means the criterion is stated as a proven specification with no gap at the logic level; the hardware realisation still rests on TBR-02, TBR-05, and section 4.
+
+| Analysis | Complete | Partial, with the remainder |
+|---|---|---|
+| Verus, Kernel | R7.1, R7.2, R7.3, R20.3; R8.1 (per step), R8.3, R8.10; R9.3, R9.4; R10.1, R10.2, R10.3 (within the threshold), R10.7 (attribution to the given Partition); R12.3 (tables); R14.5 (effects), R14.6, R14.7, R14.9 (no Endpoints yet); R16.1, R16.3, R16.5, R16.6 (validated layouts); R18.1; R18.2 (level part); R44.1 and R44.7 (logic) | R7.5 (registers: review, HIL); R8.2, R8.4, R8.5 (arguments 5.3, 5.1, 5.5); R8.9 (lazy release 5.2; one event with a count instead of one per Resource); R9.1, R9.5 (slot-to-Release link open); R9.6 to R9.8; R10.4 (counting proven, the windowed form is ORQ-26); R10.9, R19.1, R19.2 (local masking only; the bound is open); R16.2 (Kernel-owned peripherals: Generator, Config_Checker); R44.8 |
+| Verus, Analyzer core | R32.1 (least fixed point, termination, overflow) | R29 (term derivation unproven: tests, task 15.4) |
+| Kani | none on its own | R45.1, R45.2, R45.3 within the bounds of 6.3 |
+
+## 10. HAL and PAC strategy for Partitions (R58.3, ORQ-21)
+
+- Partition crates keep `#![forbid(unsafe_code)]` (PR-20); the Build_System checks every crate root.
+- Peripheral access goes through rsk drivers over the PAC. Third-party crates with `unsafe` (PAC, HAL) are allowed as dependencies of a Partition only with a Trust_Base_Register entry per crate and version (R58.2, R58.5, TBR-13); the dependency gate enforces the entries.
+- The MPU confines their effects to the Partition's own peripheral windows (P-16). The Generator places only declared, Partition-owned peripherals in windows and rejects Kernel-owned ones (PR-29); the PPB is not a peripheral of any Target table. The Config_Checker is to confirm both on the linked binary (R16.7).
+- EasyDMA pointer and length registers are written only through the Kernel's mediation service (DD-08, task 5.5, not started), because a DMA master bypasses the MPU (ORQ-03).
+- The p1-demo uses no peripherals, so no HAL or PAC crate is in the Flight_Build graph yet.
+
+## 11. Hardware-pending evidence
+
+No nRF52840-DK is available as of 2026-10-14. These items are deferred, not dropped: they stay open, keep their tasks, and are required for the Phase 1 checkpoint (task 9). QEMU results are recorded as pre-hardware evidence and never as their substitute; QEMU mps2-an386 differs from the Target in its timer (CMSDK, not the nRF TIMER), priority bits (8, not 3), cycle counting (none), EasyDMA (absent), and errata (not modelled). What QEMU is trusted for is Trust_Base_Register entry TBR-23; the open gap is Gap_Register entry GAP-09.
+
+| ID | Evidence (criteria) | Establishes | Claims waiting on it | Before hardware | Task |
+|---|---|---|---|---|---|
+| `hil-dt-hw-01` to `-14` | Hardware_Model differential tests (R49.3) | Each HW rule matches the silicon | Every Hardware_Model lemma (P-04, P-16, P-17, P-25); TBR-02; stubs KS-01, KS-02 (R45.4) | Citations; QEMU exercises HW-02, HW-03, HW-05 to HW-07, HW-09 on a model | 3.3 |
+| `hil-errata` | Errata tests (R49.4, R11.6) | Erratum 838869 applicability on r0p1 and its DSB workaround | TBR-03 | Review in the `hw_model.rs` header | 3.4 |
+| `hil-spike` | Hardware part of the DD-01 spike (R7.7, R11.1, R16.4) | Register patterns preserved across preemption; unprivileged PPB access faults; a ceiling masks only Task levels | P-04, P-10, P-11 | QEMU spike (`RSK-OK`) | 3.1 |
+| `hil-rig` | Rig self-test (R34.8, R48.4) | Two-board rig, probe-rs, read-back hash | Every HIL item; TBR-18 | none | 7.1 |
+| `hil-boot-checks` | Boot-check suite (R12.6) | Mismatched values and corrupted tables reach the safe state | P-14 | Verus `validate` proofs; QEMU boot | 7.2, 5.2 |
+| `hil-release-timing` | Release timing over PAR-05 (R9.10) | Jitter, counter wraps, coinciding releases, late Jobs | P-07; HW-12; ASM-19 | none | 7.3 |
+| `hil-mpu-matrix` | MPU access matrix (R16.8) | Every protected class faults as R16.4 requires | P-16 | `lemma_hw_partition_isolation`; QEMU view switching | 7.4 |
+| `hil-dma` | DMA isolation (R17.7) | Kernel-mediated EasyDMA | P-16; ORQ-03 | none (mediation not built) | 7.4, 5.5 |
+| `hil-overrun`, `hil-storm`, `hil-response` | Fault injection (R18.8, R19.3, R14.11) | Δ_detect, Δ_enforce, the interrupt-source bound, responses on silicon | P-08 (Property 9), P-17, P-18 | Verus response and attribution proofs | 7.5 |
+| `hil-watchdog` | Kernel-owned watchdog (ORQ-31) | A hung Kernel resets into the safe state | R14.4 path | none (watchdog not implemented; no QEMU model) | 5.3 |
+| `hil-cycles` | Budget accounting with DWT (R18.1, ASM-06) | Cycle attribution on the Target | P-17 | none (QEMU has no cycle counter) | 7.5 |
+
+Work that can proceed without boards, so these items stay ready:
+
+- write each test's procedure and the outcome the Hardware_Model predicts, so the tests are defined before the rig exists;
+- implement the `rsk-hil` orchestration and dry-run it against QEMU where QEMU models the behaviour;
+- record here the date boards become available, and re-run section 1 on the Target.
+
+### HIL frequency (R50.1)
+
+Once the HIL_Rig exists (task 7.1), the verification job runs the HIL suites of the table above at this frequency, each run starting with the read-back hash check (R48.4):
+
+| When | Suites |
+|---|---|
+| Every change to the main branch that touches a Kernel crate, the Generator, a Target table, the linker script, or a toolchain pin | `hil-rig`, `hil-spike`, `hil-boot-checks`, `hil-mpu-matrix` |
+| Nightly, on the head of the main branch | Every suite |
+| Before each Phase checkpoint and each release-candidate Flight_Build | Every suite, on the exact binary whose Build_Manifest the checkpoint cites |
+
+Until boards are available no HIL suite runs, the verification job produces no HIL Evidence_Item, and R50.1 is met only in part (GAP-09, GAP-13).
+
+## 12. Criteria outside the allocation table (R43.5)
+
+At requirement level, the criteria that no row of section 3 covers fall into four groups. The per-criterion list is produced by the traceability matrix (task 8.4, `cargo xtask trace`), which does not exist yet.
+
+| Group | Requirements | Evidence |
+|---|---|---|
+| Documents, whose evidence is the document and its review | R1, R2, R4 (Profile; checked by `cargo xtask profile --check`); R43, R46.1, R46.2, R51, R52 (this plan); R49.2, R49.4, R49.6 (Hardware_Model text); R54 (Gap_Register); R61 (reuse record) | `check-static-checks`; review records |
+| Build_System checks | R6.1 to R6.4, R33.3, R50, R55, R58, R59 | `check-*` items and the xtask fixtures |
+| Phase P2 tools | R3, R15, R21 to R28, R30, R31, R33.1, R33.2 | Phase P2 |
+| Later phases | R34 to R36, R53 (P3); R38 to R42 (P4); R5, R56, R60 (P5) | Their phases |
+
+## 13. Review record and open items
+
+Review status: not reviewed. For DAL A/B the review must be done by someone other than the author, which is an applicant activity (R54.4). The review covers:
+
+1. each Verus specification against its natural-language criterion (R52.2);
+2. each argument of section 5;
+3. the inspection facts of section 4 against the Kernel_Arch code;
+4. the tool classifications of section 8.
+
+Open items for v2:
+
+- R43.5 per-criterion list (task 8.4);
+- App_Prover pinning and the facts marked "to confirm" in section 7 (task 17.1);
+- vacuity checks as reproducible fixtures (9.2);
+- the Kani flight-path restructuring (6.1) and an `intake` cross-check harness (P-08);
+- the R6.6 deviation decision (5.7) and the Core_Subset clean-up (5.9);
+- confirmation of the Gap_Register's Annex A applicability, independence, and DO-333 and DO-330 items against the standards' texts (OPEN-01, OPEN-02);
+- every hardware-pending item of section 11.

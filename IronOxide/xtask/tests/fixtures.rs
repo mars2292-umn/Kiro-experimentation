@@ -21,6 +21,7 @@
 //! | `unsafe-unjustified` | an `unsafe` block without an identifier, an identifier absent from the register, a link to a missing Kani harness, a review without its statement | PR-20/R6.4 |
 //! | `kernel-too-large` | a Kernel with four executable lines against `kernel-max-exec-lines = 3` | R6.2/PAR-01 |
 //! | `kani-unwind` | a Kani harness whose unwinding assertion fails; its captured output (`expected.log`) is checked by a unit test of `proofs::kani_verdict`, and the fixture is run live when `cargo kani` is installed | R45.5 |
+//! | `assumption-unlisted` | a listed `assume`, an unlisted `#[verifier::external_body]` in the Kernel crate, and an unlisted `admit` in a host crate that opts into Verus | R50.2 |
 //!
 //! The `network-probe` fixture is not tested here: `cargo xtask verify`
 //! builds it inside the network sandbox, where its build script and
@@ -295,4 +296,30 @@ fn kani_run_with_a_failed_unwinding_assertion_is_rejected() {
     let verdict = xtask::proofs::kani_verdict(out.status.success(), &text);
     assert!(verdict.unwinding_failed, "no unwinding failure reported:\n{text}");
     assert!(!verdict.ok);
+}
+
+/// R50.2: an assumption construct that the register does not list fails the
+/// static checks and is named, in a Kernel crate and in any other crate that
+/// opts into Verus; a listed construct is accepted.
+#[test]
+fn unlisted_assumption_constructs_are_rejected_naming_r50_2() {
+    let found = diagnostics("assumption-unlisted");
+    assert_eq!(found.len(), 2, "{}", render(&found));
+    assert_diagnostics(
+        &found,
+        &[Rule::Proof],
+        &[
+            &[
+                "error[R44.6/R50.2] k/src/lib.rs:14",
+                "`#[verifier::external_body]` in `unlisted_register_read`",
+                "is not listed in docs/proof_assumptions.toml (R50.2)",
+            ],
+            &[
+                "error[R44.6/R50.2] tool/src/lib.rs:9",
+                "`admit(...)` in `helper`",
+                "is not listed",
+            ],
+        ],
+    );
+    assert!(!render(&found).contains("k/src/lib.rs:10"), "the listed `assume` must be accepted:\n{}", render(&found));
 }

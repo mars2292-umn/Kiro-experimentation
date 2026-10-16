@@ -1,0 +1,9 @@
+# Fixture register: lists one of the three assumption constructs.
+schema = 1
+
+[[assumption]]
+file = "k/src/lib.rs"
+construct = "assume(...)"
+item = "listed_lemma"
+why = "Fixture: a listed assumption is accepted."
+evidence = "none (fixture)"

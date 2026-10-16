@@ -198,6 +198,18 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
         }
     }
 
+    /// The maximum over a prefix of the lock stack is at most the maximum
+    /// over a longer prefix: removing entries never raises the mirror.
+    pub proof fn lemma_max_ceiling_mono<const NP: usize>(cfg: &Config<NT, NR, NP>, lock_res: [u8; NL], a: int, b: int)
+        requires 0 <= a <= b,
+        ensures max_ceiling(cfg, lock_res, a) <= max_ceiling(cfg, lock_res, b),
+        decreases b - a,
+    {
+        if a < b {
+            Self::lemma_max_ceiling_mono(cfg, lock_res, a, b - 1);
+        }
+    }
+
     /// The mirror never exceeds MAX_PRIORITY when every entry is a valid Resource.
     pub proof fn lemma_max_ceiling_bound<const NP: usize>(cfg: &Config<NT, NR, NP>, lock_res: [u8; NL], n: int)
         requires 0 <= n, cfg.wf(), forall|e: int| 0 <= e < n ==> (lock_res[e] as int) < NR,
@@ -354,6 +366,8 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
             forall|u: int| 0 <= u < NT && u != t ==> final(self).release[u] == old(self).release[u],
             final(self).job == old(self).job, final(self).stack == old(self).stack, final(self).depth == old(self).depth,
             final(self).ceiling == old(self).ceiling, final(self).lock_len == old(self).lock_len,
+            final(self).lock_res == old(self).lock_res, final(self).lock_depth == old(self).lock_depth,
+            final(self).start_ceiling == old(self).start_ceiling,
     {
         self.release[t as usize] = REL_DEFERRED;
         proof {
@@ -369,6 +383,8 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
             forall|u: int| 0 <= u < NT && u != t ==> final(self).release[u] == old(self).release[u],
             final(self).job == old(self).job, final(self).stack == old(self).stack, final(self).depth == old(self).depth,
             final(self).ceiling == old(self).ceiling, final(self).lock_len == old(self).lock_len,
+            final(self).lock_res == old(self).lock_res, final(self).lock_depth == old(self).lock_depth,
+            final(self).start_ceiling == old(self).start_ceiling,
     {
         self.release[t as usize] = REL_NONE;
         proof {
@@ -513,6 +529,7 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
             final(self).ceiling == old(self).ceiling,
             final(self).lock_len == old(self).lock_len,
             final(self).lock_res == old(self).lock_res,
+            final(self).lock_depth == old(self).lock_depth,
             forall|i: int| 0 <= i < final(self).depth ==> final(self).stack[i] == old(self).stack[i],
     {
         let d = self.depth - 1;
@@ -546,7 +563,11 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
                 && final(self).lock_res[old(self).lock_len as int] == r
                 && final(self).entry_of_top(old(self).lock_len as int)
                 && final(self).ceiling == (if cfg.ceiling(r as int) > old(self).ceiling { cfg.ceiling(r as int) } else { old(self).ceiling }),
-            !ok ==> final(self).ceiling == old(self).ceiling && final(self).lock_len == old(self).lock_len,
+            // The entries below the new one are untouched (one push, R8.6).
+            ok ==> forall|e: int| 0 <= e < old(self).lock_len
+                ==> final(self).lock_res[e] == old(self).lock_res[e] && final(self).lock_depth[e] == old(self).lock_depth[e],
+            !ok ==> final(self).ceiling == old(self).ceiling && final(self).lock_len == old(self).lock_len
+                && final(self).lock_res == old(self).lock_res && final(self).lock_depth == old(self).lock_depth,
             // R8.3: a declared accessor that does not hold r finds it free of every other Job.
             cfg.may_access(old(self).top(), r as int) ==> forall|e: int| 0 <= e < old(self).lock_len && old(self).lock_res[e] == r ==> old(self).entry_of_top(e),
             final(self).depth == old(self).depth,
@@ -689,6 +710,7 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
             released <= old(self).lock_len,
             final(self).lock_len == old(self).lock_len - released,
             final(self).lock_res == old(self).lock_res,
+            final(self).lock_depth == old(self).lock_depth,
             forall|e: int| 0 <= e < final(self).lock_len ==> !old(self).entry_of_top(e),
             forall|e: int| final(self).lock_len <= e < old(self).lock_len ==> old(self).entry_of_top(e),
             final(self).ceiling == max_ceiling(cfg, old(self).lock_res, final(self).lock_len as int),
@@ -729,7 +751,7 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
     /// Marks the preempted Job at stack position `i` (not the top) as ended
     /// by a Health_Monitor action; it completes, releasing its Resources,
     /// when Kernel_Arch unwinds to it (`finish_top`). Jobs above keep
-    /// running (R14.9).
+    /// running, and only the killed Job's state changes (R14.9).
     pub fn kill<const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, i: usize)
         requires old(self).inv(cfg), i < old(self).depth,
         ensures final(self).inv(cfg),
@@ -738,6 +760,8 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
             final(self).release == old(self).release,
             final(self).depth == old(self).depth, final(self).stack == old(self).stack,
             final(self).ceiling == old(self).ceiling, final(self).lock_len == old(self).lock_len,
+            final(self).lock_res == old(self).lock_res, final(self).lock_depth == old(self).lock_depth,
+            final(self).start_ceiling == old(self).start_ceiling,
     {
         let t = self.stack[i];
         self.job[t as usize] = JOB_KILLED;
@@ -760,15 +784,26 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
     /// unwinds to a killed Job: its remaining lock entries (none for a
     /// well-behaved return, PR-07) are released and it completes. Returns
     /// the number of Resources released (non-zero only for a killed Job, or
-    /// for a Job whose API use the type system failed to reject, which the
-    /// Health_Monitor records as a Kernel fault).
+    /// for a Job whose API use the type system failed to reject, which
+    /// `Kernel::job_return` logs as API misuse rather than as a forced
+    /// release).
     pub fn finish_top<const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>) -> (released: usize)
         requires old(self).inv(cfg), old(self).depth > 0,
         ensures final(self).inv(cfg),
             final(self).depth == old(self).depth - 1,
             final(self).job[old(self).top()] == JOB_NONE,
+            forall|u: int| 0 <= u < NT && u != old(self).top() ==> final(self).job[u] == old(self).job[u],
             final(self).release == old(self).release,
             old(self).top_holds_nothing() ==> released == 0 && final(self).ceiling == old(self).ceiling,
+            // The postcondition of `end_job`, which it is.
+            released <= old(self).lock_len,
+            final(self).lock_len == old(self).lock_len - released,
+            final(self).lock_res == old(self).lock_res,
+            final(self).lock_depth == old(self).lock_depth,
+            forall|e: int| 0 <= e < final(self).lock_len ==> !old(self).entry_of_top(e),
+            forall|e: int| final(self).lock_len <= e < old(self).lock_len ==> old(self).entry_of_top(e),
+            final(self).ceiling == max_ceiling(cfg, old(self).lock_res, final(self).lock_len as int),
+            forall|i: int| 0 <= i < final(self).depth ==> final(self).stack[i] == old(self).stack[i],
     {
         let released = self.end_job(cfg);
         proof {

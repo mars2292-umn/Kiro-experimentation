@@ -33,7 +33,7 @@ reviewed_on = "2026-10-08"
 id = "UJ-104"
 summary = "rsk_epilogue_rust: writes the restored context through the stub's out pointer"
 kind = "review"
-why_no_machine_check = "As UJ-102 (UJ-024)."
+why_no_machine_check = "As UJ-102 (UJ-023, the unwind stub `rsk_unwind` that calls it)."
 reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
 

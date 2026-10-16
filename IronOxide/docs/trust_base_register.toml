@@ -1,18 +1,31 @@
-# Trust_Base_Register source (R48). `cargo xtask docs` renders it to
-# docs/trust_base_register.md. The verification job reads the [[crate]]
-# entries to gate the Flight_Build dependency graph (R58.2, R58.5): every
-# third-party crate that a Flight_Build compiles and that contains `unsafe`
-# code, assembly, a build script, or a proc-macro needs an entry for its
-# exact version. The [[entry]] tables cover the other trusted components.
+# Trust_Base_Register v1 (R48). This file is the register: there is no
+# rendered copy. Design source: design.md, "Trust-Base Analysis".
+#
+# Two parts are checked by the Build_System:
+# - the [[crate]] entries gate the Flight_Build dependency graph (R58.2,
+#   R58.5, `checks::deps`): every third-party crate that a Flight_Build
+#   compiles and that contains `unsafe` code, assembly, a build script, or a
+#   proc-macro needs an entry for its exact version;
+# - the [[entry]] tables cover the other trusted components, and the
+#   [[r48_1]] table maps every item that R48.1 lists to the entries that
+#   cover it (`checks::registers`, R48).
 #
 # Field meaning (R48.2, R48.3): `trusted_for` is what the argument assumes of
-# the component; `evidence` is what reduces that trust; `residual_risk` is
-# what remains; `requirements` and `properties` are what depends on the
-# entry; `links` are the ASM and ORQ identifiers.
+# the component; `why` is why the argument has to trust it; `evidence` is
+# what reduces that trust; `residual_risk` is what remains; `requirements`
+# and `properties` are what depends on the entry (properties are the P-nn
+# rows of docs/verification_plan.md section 3, or "all"); `links` are the
+# ASM and ORQ identifiers. GAP-nn identifiers point into
+# docs/gap_register.toml. The assumption annex of TBR-04 is
+# docs/proof_assumptions.toml (R50.2).
+#
+# `cargo xtask check` fails when a field is missing, when an identifier does
+# not resolve against requirements.md, design.md, the Verification_Plan, or
+# the Gap_Register, or when an R48.1 item is not mapped.
 
 schema = 1
-version = "1.0"
-updated = "2026-10-08"
+version = "1.1"
+updated = "2026-10-14"
 
 # ---------------------------------------------------------------------------
 # Third-party crates of the Flight_Build graph
@@ -163,194 +176,358 @@ links = []
 
 # ---------------------------------------------------------------------------
 # Other trusted components (R48.1), ordered by how much of the argument rests
-# on them. Design source: design.md, "Trust-Base Analysis".
+# on them.
 # ---------------------------------------------------------------------------
 
 [[entry]]
 id = "TBR-01"
-component = "Compiler front end and LLVM back end: upstream rustc 1.95.0 (Phases P1-P4), the Verus_Toolchain rustc 1.98.1, and the Qualified_Toolchain (Ferrocene 26.05.0, Phase P5)"
-trusted_for = "Translating verified source into the Flight_Build faithfully."
-evidence = "Ferrocene qualification (P5); HIL tests on the Flight_Build; source-to-object traceability (R53.2); archived ghost-erased source (R55.3); dual build (R55.2)."
-residual_risk = "DAL A/B compiler assurance beyond Ferrocene's DAL C support; the verified and flight rustc versions differ."
-requirements = ["R52.3", "R55", "R56"]
-links = ["ASM-09", "ORQ-04", "ORQ-08"]
+component = "Compiler front end, LLVM back end, and LLVM integrated assembler: upstream rustc 1.95.0 (Phases P1-P4), the Verus_Toolchain rustc 1.98.1, and the Qualified_Toolchain (Ferrocene 26.05.0, Phase P5)"
+trusted_for = "Translating verified source, and the naked-stub assembly of the Kernel_Unsafe_Module, into the Flight_Build faithfully."
+why = "Every proof and source-level check is about source code; only the compiler and assembler connect it to the object code that runs, and no rsk tool checks that translation (ASM-09). The P1 spike found one silent assembler defect class: a `cbz`/`cbnz` to a symbol in another section assembles to a `nop` without a diagnostic (ORQ-32)."
+evidence = "Ferrocene qualification (P5); HIL tests on the Flight_Build (hardware-pending, GAP-09); source-to-object traceability (R53.2); archived ghost-erased source (R55.3); dual build (R55.2); for the assembler, the ORQ-32 rule that naked stubs branch to each other with `b`/`b.w` only, and the planned Link_Checker disassembly of every naked stub (task 12.3); QEMU runs of the Flight_Build as pre-hardware evidence (TBR-23)."
+residual_risk = "DAL A/B compiler assurance beyond Ferrocene's DAL C support (GAP-01); the verified and flight rustc versions differ; until the Link_Checker stub scan exists, the ORQ-32 rule is kept by review only."
+requirements = ["R52.3", "R53.2", "R55", "R56"]
+properties = ["all"]
+links = ["ASM-09", "ORQ-04", "ORQ-08", "ORQ-32"]
 
 [[entry]]
 id = "TBR-02"
-component = "Hardware_Model (crates/rsk-kernel/src/hw_model.rs), including NONBASETHRDENA exception returns"
+component = "Hardware_Model (crates/rsk-kernel/src/hw_model.rs, rules HW-01 to HW-14): the interrupt-controller, MPU, FPU, and DWT semantics the Kernel_Proofs use under the revised DD-01, namely NVIC priority encoding and arbitration (HW-01, HW-05), execution priority, BASEPRI, PRIMASK, and FAULTMASK (HW-02 to HW-04), exception entry, return, tail-chaining, and late arrival (HW-06, HW-07, HW-14), privilege (HW-08), the MPU region decision for unprivileged accesses (HW-09), eager FP stacking (HW-10), precise BusFaults (HW-11), TIMER compare (HW-12), and DWT CYCCNT (HW-13)"
 trusted_for = "Agreement between the model and the silicon on every behaviour the Kernel_Proofs use."
-evidence = "Manual citations per rule (R49.2); one HIL differential test per rule (R49.3); the P1 dispatch spike before the Kernel depends on it; QEMU (mps2-an386) runs of the same tests as a pre-hardware check."
-residual_risk = "Behaviours that tests cannot exercise exhaustively (rare late-arrival timings); QEMU is not the Target."
+why = "The Kernel_Proofs reach the hardware only through these rules, and a model cannot validate itself against silicon (R52.2), so each rule is an assumption until its differential test passes on the Target."
+evidence = "Manual citations per rule (R49.2); the list of behaviours not formalized, each with the reason no proof depends on it (R49.6); one HIL differential test per rule (R49.3; hardware-pending, GAP-09); the P1 dispatch spike, run on QEMU mps2-an386 (TBR-23)."
+residual_risk = "Until boards are available no rule is validated on the Target, and QEMU differs from it (TBR-23); behaviours that tests cannot exercise exhaustively (rare late-arrival timings)."
 requirements = ["R44", "R49"]
-links = ["ASM-08", "ORQ-09", "ORQ-19"]
+properties = ["P-02", "P-04", "P-07", "P-11", "P-16", "P-17", "P-18", "P-21", "P-25"]
+links = ["ASM-03", "ASM-06", "ASM-08", "ASM-19", "ORQ-09", "ORQ-17", "ORQ-19"]
 
 [[entry]]
 id = "TBR-03"
 component = "Silicon errata: Cortex-M4 r0p1 core errata and nRF52840 anomalies"
 trusted_for = "Completeness of the workarounds the Kernel applies."
-evidence = "Errata review recorded in the Hardware_Model (R49.4); DSB before exception return; eager FP stacking."
-residual_risk = "Unpublished errata."
+why = "The Hardware_Model describes the documented behaviour; an erratum the model omits would break a proof premise without any tool noticing (ASM-01)."
+evidence = "Errata review recorded in the Hardware_Model (R49.4): erratum 838869 worked around by a DSB before every exception return, 752770 excluded by eager FP stacking (DD-04), nRF52840 anomalies 219, 223, and 230 confined to Partition-owned peripherals; the core revision and the 838869 applicability are confirmed on hardware by the boot check and the spike (hardware-pending, GAP-09)."
+residual_risk = "Unpublished errata; the core revision is assumed, not yet read on a Target."
 requirements = ["R11.6", "R49.4"]
+properties = ["P-04", "P-11", "P-25"]
 links = ["ASM-01", "ORQ-16"]
 
 [[entry]]
 id = "TBR-04"
-component = "Verus 0.2026.10.04 with Z3 4.16.0, vstd, and every `external_body`, `assume_specification`, `assume`, and `admit` item"
+component = "Verus 0.2026.10.04 (426d8b0) with Z3 4.16.0, vstd, and every `external_body`, `assume_specification`, `assume`, and `admit` item"
 trusted_for = "Soundness of the Kernel and Analyzer proofs."
-evidence = "Kani cross-check harnesses (R45.3); pinned versions recorded in each proof Evidence_Item (R44.6); assumption gating: the verification job fails on any assumption construct not listed in docs/proof_assumptions.toml (R50.2); a short `external_body` list."
-residual_risk = "SMT or Verus soundness defects; ghost-erasure cfg flags; no DO-330 qualification."
-requirements = ["R44", "R50.2", "R52.1"]
+why = "Verus is the tool that claims DO-333 credit for the Kernel logic and the Analyzer's fixed-point core (verification_plan.md 8.3); an unsound solver answer, axiom, or assumption would make a proof vacuous, and no DO-330 qualification of Verus exists (ORQ-06)."
+evidence = "Kani cross-check harnesses on the erased code (R45.3); pinned versions in toolchain/decision.toml, recorded in each proof Evidence_Item (R44.6); the assumption annex docs/proof_assumptions.toml and its gate: the static checks fail, naming the construct, on any assumption construct in a Kernel crate or a crate that opts into Verus (rsk-analyzer) that the annex does not list (R50.2; Build_System fixture `assumption-unlisted`); at this revision the annex is empty because no such construct exists; manual vacuity checks (verification_plan.md 9.2)."
+residual_risk = "SMT or Verus soundness defects; vstd axioms and its `assume_specification` items for `core` (crate entry vstd, TBR-09); ghost-erasure cfg flags (GAP-11); no DO-330 qualification (GAP-03); proof re-runs from archived inputs are not automated (GAP-16, R50.4)."
+requirements = ["R44", "R50.2", "R50.4", "R52.1"]
+properties = ["P-02", "P-03", "P-04", "P-05", "P-06", "P-07", "P-08", "P-09", "P-10", "P-12", "P-14", "P-16", "P-17", "P-18", "P-19", "P-21"]
 links = ["ASM-15", "ORQ-06", "ORQ-07"]
 
 [[entry]]
 id = "TBR-05"
 component = "Kernel_Unsafe_Module register-access functions and their trusted specifications"
 trusted_for = "Each register-access function does what its specification says."
-evidence = "Kani harnesses with Hardware_Model stubs; justification identifiers linked to a harness, lemma, or review (R6.4 gate); HIL differential tests."
-residual_risk = "A specification error shared by the proof and the stub."
+why = "These functions are where the Kernel's decisions reach the hardware. They use volatile accesses and assembly, which Verus cannot check (R44.5), so what each does is a trusted specification."
+evidence = "Kani harnesses with Hardware_Model stubs for the pure computations (address arithmetic, frame layout, encoders); justification identifiers linked to a harness, lemma, or review (R6.4 gate); HIL differential tests (hardware-pending, GAP-09)."
+residual_risk = "A specification error shared by the proof and the stub; the harnesses build for the host, so the flight-only volatile and assembly paths are not checked (GAP-10)."
 requirements = ["R6.4", "R44.5", "R45.4"]
+properties = ["P-04", "P-10", "P-13", "P-16", "P-17"]
 links = ["ASM-08"]
 
 [[entry]]
 id = "TBR-06"
 component = "Review-only `unsafe` justifications (kind = \"review\" in unsafe_justifications.toml)"
 trusted_for = "Each item for which no proof, lemma, or harness is feasible behaves as its recorded review states."
+why = "Assembly stubs, the Kernel cell, and some volatile register writes have no applicable proof tool: Verus has no assembly and Kani does not model it."
 evidence = "The review states why no machine check is feasible (R6.4 gate); HIL tests and Link_Checker checks where they apply."
-residual_risk = "Reviewer error."
+residual_risk = "Reviewer error; 38 of the 43 constructs rest on review alone (verification_plan.md P-13), and the reviews are by the author, not independent (GAP-08)."
 requirements = ["R6.4", "R45.1"]
+properties = ["P-01", "P-05", "P-10", "P-13"]
 links = []
 
 [[entry]]
 id = "TBR-07"
 component = "Kani 0.68.0 with CBMC 6.11.0, its SAT solver, and every stub"
 trusted_for = "Bounded checks of unsafe code and HAL glue."
-evidence = "Justified bounds (R45.8); every check including unwinding assertions must pass (R45.5); versions recorded per Evidence_Item (R45.7); stubs listed in docs/kani_stubs.toml and validated by HIL differential tests (R45.4)."
-residual_risk = "Behaviour beyond the bounds; sequential checking only."
+why = "Kani gives the bounded absence-of-UB evidence for the pure computations of the Kernel_Unsafe_Module and cross-checks the Verus postconditions on erased code; a CBMC or SAT defect, or a stub that differs from the hardware, would give a false pass."
+evidence = "Justified bounds (R45.8); every check including unwinding assertions must pass (R45.5); versions recorded per Evidence_Item (R45.7); stubs listed in docs/kani_stubs.toml and validated by HIL differential tests (R45.4; hardware-pending, GAP-09)."
+residual_risk = "Behaviour beyond the bounds: the logic harnesses run at NT = 3, NR = 2, NP = 2, NL = 4 with 11 slots, which covers the p1-demo but not the sizes proposed for the Profile_Conformance_Suite Application (16 Tasks, 16 Resources, 48 slots, lock depth 8); the Verus proofs cover every size (docs/verification_plan.md 6.3, R45.8). Sequential checking only. Harnesses build for the host, so the flight-only volatile and assembly paths are not checked (verification_plan.md 6.1). No DO-330 qualification (GAP-03)."
 requirements = ["R45"]
-links = ["ASM-15"]
+properties = ["P-13", "P-16"]
+links = ["ASM-15", "ORQ-06"]
 
 [[entry]]
 id = "TBR-08"
 component = "Creusot (App_Prover) with Why3 and its SMT solvers"
 trusted_for = "Application-level proofs for level A and B Partitions."
-evidence = "Discharge by two solvers where feasible; pinned versions."
-residual_risk = "Soundness of the Why3 translation."
+why = "Absence of runtime errors and the functional properties of level A and B Task bodies (R46) would rest on Creusot's translation to Why3 and on the solvers' verdicts."
+evidence = "Discharge by two solvers where feasible; pinned versions (task 17.1). No Task body is proven yet."
+residual_risk = "Soundness of the Why3 translation; no DO-330 qualification (GAP-03)."
 requirements = ["R46"]
-links = ["ORQ-10"]
+properties = ["P-23"]
+links = ["ASM-15", "ORQ-10"]
 
 [[entry]]
 id = "TBR-09"
 component = "`core` library (Core_Subset, profile/core_subset.toml)"
 trusted_for = "Correct library behaviour of the allowed items."
-evidence = "Ferrocene's certified subset (IEC 61508 SIL 2, ISO 26262 ASIL B); allow-list lint and link check (R57)."
-residual_risk = "Not a DO-178C certification."
+why = "Kernel and Application code call `core` items whose implementations no rsk proof covers; Verus uses vstd's specifications of them."
+evidence = "Ferrocene's certified subset (IEC 61508 SIL 2, ISO 26262 ASIL B); per-item certification or substitute rsk evidence in profile/core_subset.toml (R57.5); allow-list lint and link check (R57)."
+residual_risk = "Not a DO-178C certification (GAP-07); Ferrocene's per-item list is customer-only, so the mapping is unconfirmed (ORQ-24); six allowed items have no certification (verification_plan.md 5.9)."
 requirements = ["R57"]
-links = ["ORQ-24"]
+properties = ["all"]
+links = ["ASM-17", "ORQ-24"]
 
 [[entry]]
 id = "TBR-10"
 component = "Linker (rust-lld) and the generated linker script"
 trusted_for = "Section placement matches the MPU layout."
-evidence = "Config_Checker compares the memory map with the MPU views (R16.7)."
-residual_risk = "Low."
+why = "The MPU isolation proofs hold for the layout the Generator emits; the linker places the sections, and a misplacement would put code or data outside the region the proof assumes."
+evidence = "Config_Checker compares the memory map with the MPU views (R16.7; not built, GAP-13); the generated linker script is drift-checked against the Generator (`gen --check`)."
+residual_risk = "Low once the Config_Checker exists; until then the placement rests on review of the generated script."
 requirements = ["R16.7", "R26"]
+properties = ["P-15", "P-16", "P-21"]
 links = []
 
 [[entry]]
 id = "TBR-11"
 component = "Generator (rsk-macros, rsk-gen)"
 trusted_for = "Correct Generated_Config."
-evidence = "Config_Checker recomputation and mutation suite (R26.7); review of the configuration summary (R24.3)."
-residual_risk = "Outputs the Config_Checker does not cover (listed per R51.3)."
-requirements = ["R26", "R51.3"]
+why = "The Generated_Config (Task_Model, MPU layout, dispatch-vector assignment, CONFIG) is the input of the boot checks, the Analyzer, and the MPU proofs, and the Generator itself is not proven."
+evidence = "Config_Checker recomputation and mutation suite (R26.7; not built, GAP-13); review of the configuration summary (R24.3); boot-time validation of the tables (`Config::validate`, `Layout::validate`, proven); the rsk-gen test `dispatch_irqs_ascend_for_dd03`; drift check (`gen --check`)."
+residual_risk = "Outputs the Config_Checker does not cover (listed per R51.3, verification_plan.md 8.2)."
+requirements = ["R24.3", "R26", "R51.3"]
+properties = ["P-04", "P-14", "P-15", "P-16", "P-19"]
 links = []
 
 [[entry]]
 id = "TBR-12"
-component = "Analyzer, Config_Checker, Link_Checker, WCET_Harness, Profile_Lint, Protocol_Checker"
+component = "Analyzer, Config_Checker, Link_Checker (including any static check used as partitioning evidence, R16.10, and the naked-stub disassembly of ORQ-32), WCET_Harness, Profile_Lint, Protocol_Checker"
 trusted_for = "Correct verification verdicts."
-evidence = "Analyzer core proved (R32.1); property-based tests; independence of the Config_Checker (R26.1); LK backing for lints; differential runs."
-residual_risk = "Tool defects in unproved parts."
-requirements = ["R32", "R51"]
-links = []
+why = "Their verdicts replace or reduce review and testing: schedulability, configuration consistency, link-level absence of panic paths (ORQ-07) and of forbidden instructions, stack bounds, WCET measurements, Profile conformance, and protocol compliance. A false pass would hide a defect."
+evidence = "Analyzer fixed-point core proved in Verus (R32.1); property-based tests; independence of the Config_Checker from the Generator (R26.1); LK backing for lints; differential runs. Under DD-01 every access class of every Partition is hardware-enforced (ORQ-28), so R16.10 has no instance in v1 and the Link_Checker's partitioning scans are defence in depth, not partitioning evidence."
+residual_risk = "Tool defects in unproved parts, including the Analyzer's term derivation; at this revision only the Analyzer exists: the Config_Checker, Link_Checker, WCET_Harness, Profile_Lint, and Protocol_Checker are stubs or absent (GAP-13), so none of their verdicts is evidence yet."
+requirements = ["R16.10", "R26.1", "R32", "R51"]
+properties = ["P-01", "P-12", "P-15", "P-16", "P-19", "P-20", "P-21", "P-22"]
+links = ["ORQ-07", "ORQ-11", "ORQ-28", "ORQ-32"]
 
 [[entry]]
 id = "TBR-13"
 component = "HAL and PAC crates in Partitions"
 trusted_for = "Correct peripheral drivers."
-evidence = "MPU confines their effects to the owning Partition; EasyDMA writes are Kernel-mediated (DD-08); a [[crate]] entry per crate (R58.2)."
-residual_risk = "Faults within the owning Partition."
-requirements = ["R17", "R58.3"]
-links = ["ORQ-21"]
+why = "Partitions may use third-party HAL and PAC crates whose `unsafe` code rsk does not verify (ORQ-21)."
+evidence = "MPU confines their effects to the owning Partition; EasyDMA writes are Kernel-mediated (DD-08); a [[crate]] entry per crate (R58.2). The p1-demo uses no HAL or PAC crate, so none is in the Flight_Build graph yet (verification_plan.md 10)."
+residual_risk = "Faults within the owning Partition; DMA isolation without an IOMMU rests on Kernel mediation (GAP-06)."
+requirements = ["R17", "R58.2", "R58.3"]
+properties = ["P-16"]
+links = ["ORQ-03", "ORQ-21"]
 
 [[entry]]
 id = "TBR-14"
 component = "Measurement-based WCET"
 trusted_for = "Upper bounds on execution time."
-evidence = "Margin, coverage thresholds, loop-bound drive, static cross-check (P5)."
-residual_risk = "Not a guaranteed bound before P5."
+why = "Budgets (R18) and the Analyzer's response times use WCET values; measurement gives observed maxima, not bounds (ASM-11)."
+evidence = "Margin, coverage thresholds, loop-bound drive, static cross-check (P5, TBR-22)."
+residual_risk = "Not a guaranteed bound before P5 (GAP-04); nothing is measured yet, because the WCET_Harness is not built and needs the HIL_Rig (GAP-09)."
 requirements = ["R34", "R36"]
-links = ["ASM-11", "ORQ-13"]
+properties = ["P-17", "P-19", "P-20"]
+links = ["ASM-04", "ASM-11", "ORQ-13"]
 
 [[entry]]
 id = "TBR-15"
 component = "Clock sources and time base"
 trusted_for = "Fixed CPU-to-tick ratio and bounded drift."
-evidence = "Boot clock checks (R12.1)."
+why = "Releases, MIT windows, and Budgets are counted in time-base ticks, and the proofs are relative to the time base (ASM-18), so its ratio to the CPU clock and its drift from physical time are assumed."
+evidence = "Boot clock checks (R12.1; open, task 5.2, hardware-pending, GAP-09)."
 residual_risk = "Crystal tolerance relative to physical time."
 requirements = ["R9", "R12.1", "R29.8"]
-links = ["ASM-05", "ASM-16", "ASM-18"]
+properties = ["P-07", "P-08", "P-14", "P-17"]
+links = ["ASM-05", "ASM-16", "ASM-18", "ASM-19"]
 
 [[entry]]
 id = "TBR-16"
 component = "EasyDMA bus contention"
 trusted_for = "Bounded interference with CPU memory accesses."
-evidence = "Measurement under maximum DMA traffic (R34.5)."
+why = "EasyDMA masters share the AHB with the CPU, and their interference with Kernel and Job execution times has no formal bound (ASM-07)."
+evidence = "Measurement under maximum DMA traffic (R34.5, task 19.2)."
 residual_risk = "No formal bound."
 requirements = ["R17.4", "R34.5"]
+properties = ["P-19", "P-20"]
 links = ["ASM-07"]
 
 [[entry]]
 id = "TBR-17"
 component = "UPPAAL"
 trusted_for = "Cross-check verdicts."
+why = "UPPAAL verdicts cross-check the Analyzer; a wrong verdict could hide an Analyzer defect, but cannot by itself pass a task set."
 evidence = "Used as a cross-check only; inconclusive results reported as such (R31.9)."
-residual_risk = "Licence for certification use; over-approximation for stopwatch models."
+residual_risk = "Licence for certification use; over-approximation for stopwatch models; the exported model does not yet model the SRP ceiling (GAP-19)."
 requirements = ["R31", "R32.6"]
+properties = ["P-19"]
 links = ["ASM-13", "ORQ-22"]
 
 [[entry]]
 id = "TBR-18"
 component = "HIL_Rig, probe-rs, and the flashing tool"
 trusted_for = "Evidence describes the binary that was tested."
-evidence = "Read-back hash check against the Build_Manifest (R48.4)."
+why = "Every hardware test and measurement depends on the rig loading the binary under test, driving the stimulus, and recording what the Target did."
+evidence = "Read-back hash check against the Build_Manifest (R48.4; task 7.1, hardware-pending, GAP-09)."
 residual_risk = "Rig wiring and stimulus errors."
 requirements = ["R48.4"]
+properties = ["P-04", "P-07", "P-08", "P-11", "P-14", "P-16", "P-17", "P-18", "P-20", "P-25"]
 links = ["ASM-12"]
 
 [[entry]]
 id = "TBR-19"
-component = "Build_System (xtask): reproducible builds and verdict aggregation"
+component = "Build_System (xtask): reproducible builds, gates, and verdict aggregation"
 trusted_for = "Correct verdicts and bit-identical rebuilds."
-evidence = "Rebuild comparison (R59.3); archived Evidence_Items and logs; the Build_System's own fixture tests."
-residual_risk = "Pipeline scripting errors."
+why = "The verification job runs every tool, applies the assumption, dependency, and register gates, aggregates the verdicts, and writes the Evidence_Items; a scripting error could report a pass that no tool gave."
+evidence = "Rebuild comparison (R59.3); archived Evidence_Items and logs; the Build_System's own fixture tests (xtask/tests/fixtures.rs), with a failing fixture per gate; the registers checked against requirements.md, design.md, and the Verification_Plan (R48, R54)."
+residual_risk = "Pipeline scripting errors; proof re-runs from archived inputs are not automated (GAP-16)."
 requirements = ["R50", "R59"]
+properties = ["all"]
 links = []
 
 [[entry]]
 id = "TBR-20"
 component = "Single-core execution"
 trusted_for = "Every Kernel proof."
-evidence = "Explicit precondition in the proofs (R27.4)."
+why = "v1 targets one Cortex-M4F core (NG-01); the proofs model one execution context at a time and would not hold with a second core."
+evidence = "Explicit precondition in the proofs (R27.4); rejection of more than one core by the Generator, the Analyzer, and the Config_Checker is planned (task 10.7)."
 residual_risk = "None in v1."
 requirements = ["R27.4"]
+properties = ["all"]
 links = []
 
 [[entry]]
 id = "TBR-21"
 component = "Rust type system: Send/Sync data-race freedom and borrow checking in safe code"
 trusted_for = "Data-race freedom of Application and Kernel code outside the Kernel_Unsafe_Module."
+why = "Data-race freedom of safe code and the lock scoping of the `rsk` API come from the type checker, not from a proof (R43.3)."
 evidence = "Sound `unsafe` code (TBR-05, TBR-06) and a correct compiler (TBR-01)."
 residual_risk = "A compiler or `unsafe` soundness defect."
 requirements = ["PR-05", "R43.3"]
+properties = ["P-01", "P-03", "P-22"]
 links = ["ASM-14"]
+
+[[entry]]
+id = "TBR-22"
+component = "Static_WCET_Analyzer (not selected; Phase P5)"
+trusted_for = "Safe upper bounds on the execution time of Jobs and Kernel paths, as the cross-check that makes measured WCETs adequate (ORQ-13)."
+why = "Measurement-based WCET is not a bound (ASM-11); guaranteed timing in P5 rests on a static analysis whose processor, memory, and bus model of the Target is trusted."
+evidence = "None yet: no tool is selected (ORQ-12, task 24.1). Selection requires acceptance of exported loop bounds and indirect-call targets, and its bounds are cross-checked against the measurements (R36)."
+residual_risk = "Until P5 no static bound exists (GAP-04); after selection, the tool's model of the Target and its qualification (verification_plan.md 8.1)."
+requirements = ["R36"]
+properties = ["P-20"]
+links = ["ASM-04", "ASM-07", "ORQ-12", "ORQ-13"]
+
+[[entry]]
+id = "TBR-23"
+component = "QEMU (qemu-system-arm, machine mps2-an386; 9.2.3 on the local run of 2026-10-14) running Flight_Build binaries in `cargo xtask qemu` and step 10b of the verification job"
+trusted_for = "That a pass shows the dispatch, lock, view-switching, FP-stacking, and Job-end paths of the Flight_Build execute as designed before hardware exists; never that the Target behaves the same."
+why = "No nRF52840-DK is available (2026-10-14), so QEMU runs are the only execution evidence of the Flight_Build. QEMU differs from the Target in its timer (CMSDK, not the nRF TIMER), priority bits (8, not 3), cycle counting (none), EasyDMA (absent), and errata (not modelled)."
+evidence = "Evidence_Item `test-qemu-spike-p1-demo` records the QEMU version and the command line; the run passes only on semihosting exit code 0 with `RSK-OK`, after the demo has checked its Job counts, faults, and misses; every claim it supports also names its hardware test (verification_plan.md section 11)."
+residual_risk = "A QEMU modelling defect or a Target difference listed above could make a pass meaningless for the Target, which is why QEMU results never replace HIL evidence (GAP-09). The QEMU version is recorded but not pinned, and CI does not install QEMU, so a CI run carries no QEMU item."
+requirements = ["R49.3", "R50.1"]
+properties = ["P-04", "P-10", "P-11"]
+links = ["ASM-08", "ORQ-01", "ORQ-09"]
+
+[[entry]]
+id = "TBR-24"
+component = "Kernel_Arch planning code outside `verus!` (crates/rsk-kernel/src/arch/mod.rs, arch/cm4/mod.rs) and rsk-entry, with the facts A1 to A11 that the Kernel_Proofs assume of it (verification_plan.md section 4)"
+trusted_for = "That Kernel_Arch calls the logic entry points only when their `requires` clauses hold, applies their outcomes to BASEPRI, PRIMASK, the NVIC, and the MPU as the Hardware_Model lemmas assume, and never enters the Kernel cell reentrantly."
+why = "Kernel_Arch is safe Rust outside `verus!`, so Verus checks neither that its calls satisfy the logic's preconditions nor that it realises the proven decisions on the hardware; the hardware-level properties are proven only given A1 to A11. This is a deviation from R44.5, which allows unproven Kernel code only for functions with trusted specifications."
+evidence = "Inspection of each fact against the code, recorded with its location (verification_plan.md section 4, 2026-10-11 to 2026-10-14); runtime guards in `Bound` that mirror the `requires` clauses (A9); review records UJ-003 to UJ-006 for reentrancy (A10); the rsk-gen test `dispatch_irqs_ascend_for_dd03` for the vector order (A12); the QEMU spike (TBR-23)."
+residual_risk = "An inspection error, or a later change that breaks a fact without re-inspection, would leave the hardware-level proofs without their premises; the inspection is by the author (GAP-08). Mitigation: move the planning code into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model (GAP-10)."
+requirements = ["R44.1", "R44.4", "R44.5"]
+properties = ["P-02", "P-03", "P-04", "P-05", "P-07", "P-08", "P-09", "P-10", "P-12", "P-14", "P-16", "P-17", "P-18", "P-21"]
+links = ["ASM-08", "ORQ-01", "ORQ-07"]
+
+# ---------------------------------------------------------------------------
+# R48.1: each item the requirement lists, and the entries that cover it.
+# `crate:<name>` names a [[crate]] entry above.
+# ---------------------------------------------------------------------------
+
+[[r48_1]]
+item = "toolchain-front-end-and-llvm"
+entries = ["TBR-01"]
+
+[[r48_1]]
+item = "linker"
+entries = ["TBR-10"]
+
+[[r48_1]]
+item = "core-and-core-subset"
+entries = ["TBR-09"]
+
+[[r48_1]]
+item = "flight-proc-macros"
+entries = ["TBR-11", "crate:verus_builtin_macros"]
+
+[[r48_1]]
+item = "hal-and-pac"
+entries = ["TBR-13"]
+
+[[r48_1]]
+item = "hardware-model"
+entries = ["TBR-02"]
+
+[[r48_1]]
+item = "nvic-mpu-fpu-dwt-semantics"
+entries = ["TBR-02"]
+
+[[r48_1]]
+item = "silicon-errata"
+entries = ["TBR-03"]
+
+[[r48_1]]
+item = "verus-smt-vstd-assumptions"
+entries = ["TBR-04", "crate:vstd", "crate:verus_builtin"]
+
+[[r48_1]]
+item = "kani-cbmc-sat-stubs"
+entries = ["TBR-07"]
+
+[[r48_1]]
+item = "app-prover"
+entries = ["TBR-08"]
+
+[[r48_1]]
+item = "uppaal"
+entries = ["TBR-17"]
+
+[[r48_1]]
+item = "analyzer"
+entries = ["TBR-12"]
+
+[[r48_1]]
+item = "wcet-harness"
+entries = ["TBR-12", "TBR-14"]
+
+[[r48_1]]
+item = "static-wcet-analyzer"
+entries = ["TBR-22"]
+
+[[r48_1]]
+item = "config-checker"
+entries = ["TBR-12"]
+
+[[r48_1]]
+item = "link-checker"
+entries = ["TBR-12"]
+
+[[r48_1]]
+item = "profile-lint"
+entries = ["TBR-12"]
+
+[[r48_1]]
+item = "protocol-checker"
+entries = ["TBR-12"]
+
+[[r48_1]]
+item = "hil-rig-probe-flashing"
+entries = ["TBR-18"]
+
+[[r48_1]]
+item = "build-system"
+entries = ["TBR-19"]

@@ -22,6 +22,9 @@
 //! (`layout.wf()` makes the intervals disjoint); and the word below a
 //! Partition's stack is granted to no writable region, so an overflow
 //! faults before any memory outside the stack region changes (R16.5).
+//! `hw_model::lemma_hw_partition_isolation` and `lemma_hw_write_isolation`
+//! compose these lemmas with the hardware decision, so Property 12 is also
+//! stated for what the MPU itself grants.
 #![forbid(unsafe_code)]
 
 use vstd::prelude::*;

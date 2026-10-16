@@ -1,0 +1,6 @@
+{
+  "artifacts": {},
+  "bundle_id": "default",
+  "description": "The empty default Model_Bundle shipped with jsinfer. It holds no Learned_Thresholds, Decision_Models, label models, Semantic_Type_Classifier, or Corpus_Index, so every enabled Technique that needs one applies its Fallback_Behavior and the run records the substitution.",
+  "format": 1
+}

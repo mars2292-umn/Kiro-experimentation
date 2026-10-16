@@ -1,0 +1,621 @@
+{
+  "pbtResults": {
+    "2.7 Write property test for seeded sampling": {
+      "status": "passed",
+      "lastRunTimestamp": 1792086117413
+    },
+    "3.5 Write property test for configuration round trip and precedence": {
+      "status": "passed",
+      "lastRunTimestamp": 1792093491692
+    },
+    "4.4 Write property test for parsing fidelity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792107905103
+    },
+    "4.3 Write property test for ingestion": {
+      "status": "passed",
+      "lastRunTimestamp": 1792108440565
+    },
+    "6.4 Write property test for schema emit/load round trip": {
+      "status": "passed",
+      "lastRunTimestamp": 1792116118989
+    },
+    "6.5 Write property test for emitted schema well-formedness": {
+      "status": "passed",
+      "lastRunTimestamp": 1792116915668
+    },
+    "6.7 Write property test for loader accounting": {
+      "status": "passed",
+      "lastRunTimestamp": 1792117148387
+    },
+    "10.4 Write property test for the MDL_Scorer": {
+      "status": "passed",
+      "lastRunTimestamp": 1792165541272
+    },
+    "11.2 Write property test for the DecisionEngine": {
+      "status": "passed",
+      "lastRunTimestamp": 1792169199800
+    }
+  },
+  "executionHistory": {
+    "1.1 Create the project scaffolding": [
+      {
+        "executionId": "fba00c7e-4446-4ea9-a663-166925cf30db",
+        "chatSessionId": "sess_df4f55fd-096f-4fcb-8775-b24f8e3800ac",
+        "timestamp": 1792040565553
+      },
+      {
+        "executionId": "fba00c7e-4446-4ea9-a663-166925cf30db",
+        "chatSessionId": "sess_df4f55fd-096f-4fcb-8775-b24f8e3800ac",
+        "timestamp": 1792041060638
+      }
+    ],
+    "1.2 Implement determinism and sampling utilities": [
+      {
+        "executionId": "fba00c7e-4446-4ea9-a663-166925cf30db",
+        "chatSessionId": "sess_df4f55fd-096f-4fcb-8775-b24f8e3800ac",
+        "timestamp": 1792041063149
+      },
+      {
+        "executionId": "fba00c7e-4446-4ea9-a663-166925cf30db",
+        "chatSessionId": "sess_df4f55fd-096f-4fcb-8775-b24f8e3800ac",
+        "timestamp": 1792041626364
+      }
+    ],
+    "1. Set up the project and determinism utilities": [
+      {
+        "executionId": "fba00c7e-4446-4ea9-a663-166925cf30db",
+        "chatSessionId": "sess_df4f55fd-096f-4fcb-8775-b24f8e3800ac",
+        "timestamp": 1792041626406
+      }
+    ],
+    "2.1 Implement Path and Step (`core/paths.py`)": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792041677602
+      },
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792042302848
+      }
+    ],
+    "2.2 Implement the JSON value model and interning (`core/jsonvalue.py`)": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792042315175
+      },
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792042796623
+      }
+    ],
+    "2.3 Implement the ObservationStore, views, and stats (`core/observations.py`, `core/views.py`, `core/stats.py`)": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792042799663
+      },
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792044072326
+      }
+    ],
+    "2.4 Implement the Schema_Model (`core/schema_model.py`)": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792044080285
+      },
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792044982335
+      }
+    ],
+    "2.5 Implement the provenance data model (`core/provenance.py`)": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792044986718
+      },
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792083199265
+      }
+    ],
+    "2.6 Implement the Inference_Report builder (`core/report.py`)": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792083202445
+      },
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792084732425
+      }
+    ],
+    "2. Implement the core data models": [
+      {
+        "executionId": "71b53bfe-8e18-49f2-bda9-6fcc8d048f51",
+        "chatSessionId": "sess_6bcac0c2-9edc-4dd1-9fd6-ee7832046bfa",
+        "timestamp": 1792084740818
+      }
+    ],
+    "1.3 Write smoke and lint tests": [
+      {
+        "executionId": "482f2261-1fc0-41e0-846c-6ed3fa27d26f",
+        "chatSessionId": "sess_36155854-4134-43f6-b5e5-f0ebe0379ee3",
+        "timestamp": 1792084768898
+      },
+      {
+        "executionId": "482f2261-1fc0-41e0-846c-6ed3fa27d26f",
+        "chatSessionId": "sess_36155854-4134-43f6-b5e5-f0ebe0379ee3",
+        "timestamp": 1792085782229
+      }
+    ],
+    "2.7 Write property test for seeded sampling": [
+      {
+        "executionId": "dbf11b65-fb83-48fb-8426-807cba91b55c",
+        "chatSessionId": "sess_85d1c0e3-4da2-439b-a82c-47a30694ad41",
+        "timestamp": 1792085838062
+      },
+      {
+        "executionId": "dbf11b65-fb83-48fb-8426-807cba91b55c",
+        "chatSessionId": "sess_85d1c0e3-4da2-439b-a82c-47a30694ad41",
+        "timestamp": 1792086131780
+      }
+    ],
+    "3.1 Implement the Technique registry (`config/registry.py`)": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792086647827
+      },
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792088017059
+      }
+    ],
+    "3.2 Implement Learned_Threshold and Resource_Parameter specs (`config/thresholds.py`, `config/resources.py`)": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792086647857
+      },
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792088017853
+      }
+    ],
+    "3.3 Implement the Run_Configuration (`config/run_config.py`)": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792088029769
+      },
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792091982401
+      }
+    ],
+    "3.4 Implement the Model_Bundle reader (`learn/bundle.py`)": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792091990004
+      },
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792092973969
+      }
+    ],
+    "3.5 Write property test for configuration round trip and precedence": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792092982486
+      },
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792093507896
+      }
+    ],
+    "3.6 Write unit tests for registry completeness": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792092982892
+      },
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792093508565
+      }
+    ],
+    "3. Implement configuration, the Technique registry, and the bundle reader": [
+      {
+        "executionId": "0c02c27d-0175-418f-9ea0-58af118e0a2c",
+        "chatSessionId": "sess_0bb0cf67-d83d-448d-a319-fb6469010a2d",
+        "timestamp": 1792093508603
+      }
+    ],
+    "4.1 Implement `parse_document` (`io/ingest.py`)": [
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792105053622
+      },
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792106259490
+      }
+    ],
+    "4.2 Implement enumeration, line splitting, and the DocumentStore (`io/ingest.py`)": [
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792106267557
+      },
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792107435587
+      }
+    ],
+    "4.3 Write property test for ingestion": [
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792107444477
+      },
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792108541866
+      }
+    ],
+    "4.4 Write property test for parsing fidelity": [
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792107444577
+      },
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792108542739
+      }
+    ],
+    "4. Implement the Ingestor": [
+      {
+        "executionId": "c256bbbd-b647-4783-b9e8-25f7ebc37163",
+        "chatSessionId": "sess_05acbd5e-e891-4308-8f27-21fa60c95160",
+        "timestamp": 1792108542783
+      }
+    ],
+    "5.1 Implement `Validator` (`io/validator.py`)": [
+      {
+        "executionId": "d967a190-e33f-4edf-9f92-1247efb368c3",
+        "chatSessionId": "sess_a113b5fb-f0cd-4cd4-9d58-eed8ac40201d",
+        "timestamp": 1792108786231
+      },
+      {
+        "executionId": "d967a190-e33f-4edf-9f92-1247efb368c3",
+        "chatSessionId": "sess_a113b5fb-f0cd-4cd4-9d58-eed8ac40201d",
+        "timestamp": 1792110255075
+      }
+    ],
+    "5.2 Verify jsonschema-rs edge cases (open decision, M1)": [
+      {
+        "executionId": "d967a190-e33f-4edf-9f92-1247efb368c3",
+        "chatSessionId": "sess_a113b5fb-f0cd-4cd4-9d58-eed8ac40201d",
+        "timestamp": 1792110268160
+      },
+      {
+        "executionId": "d967a190-e33f-4edf-9f92-1247efb368c3",
+        "chatSessionId": "sess_a113b5fb-f0cd-4cd4-9d58-eed8ac40201d",
+        "timestamp": 1792111747723
+      }
+    ],
+    "5. Implement the Validator wrapper": [
+      {
+        "executionId": "d967a190-e33f-4edf-9f92-1247efb368c3",
+        "chatSessionId": "sess_a113b5fb-f0cd-4cd4-9d58-eed8ac40201d",
+        "timestamp": 1792111747793
+      }
+    ],
+    "6.1 Implement the Schema_Emitter (`io/emit.py`)": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792111804109
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792113527688
+      }
+    ],
+    "6.2 Implement the Schema_Loader (`io/load.py`)": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792111804969
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792113527723
+      }
+    ],
+    "6.3 Implement draft translation (`io/load.py`)": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792113541073
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792115541906
+      }
+    ],
+    "6.4 Write property test for schema emit/load round trip": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792115551728
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792116140358
+      }
+    ],
+    "6.8 Write unit tests for loader errors": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792115551779
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792116140443
+      }
+    ],
+    "6.5 Write property test for emitted schema well-formedness": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792116144047
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792118405739
+      }
+    ],
+    "6.6 Write property test for draft translation": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792116144863
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792118405799
+      }
+    ],
+    "6.7 Write property test for loader accounting": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792116148524
+      },
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792118406747
+      }
+    ],
+    "6. Implement the Schema_Emitter and Schema_Loader": [
+      {
+        "executionId": "ab0d4557-616d-4ae9-8007-a599907bb36f",
+        "chatSessionId": "sess_b3fad92c-34d3-431a-85ee-380cf5b11f73",
+        "timestamp": 1792118406792
+      }
+    ],
+    "7.1 Implement `pipeline/naive_merge.py`": [
+      {
+        "executionId": "17704b19-4e45-4014-b47b-351fddc83b72",
+        "chatSessionId": "sess_3b61efae-61d3-4791-8c7a-0ec162e4ce00",
+        "timestamp": 1792118595448
+      },
+      {
+        "executionId": "17704b19-4e45-4014-b47b-351fddc83b72",
+        "chatSessionId": "sess_3b61efae-61d3-4791-8c7a-0ec162e4ce00",
+        "timestamp": 1792119041053
+      }
+    ],
+    "7.2 Write unit tests for Naive_Merge": [
+      {
+        "executionId": "17704b19-4e45-4014-b47b-351fddc83b72",
+        "chatSessionId": "sess_3b61efae-61d3-4791-8c7a-0ec162e4ce00",
+        "timestamp": 1792119043894
+      },
+      {
+        "executionId": "17704b19-4e45-4014-b47b-351fddc83b72",
+        "chatSessionId": "sess_3b61efae-61d3-4791-8c7a-0ec162e4ce00",
+        "timestamp": 1792119603027
+      }
+    ],
+    "7. Implement Naive_Merge": [
+      {
+        "executionId": "17704b19-4e45-4014-b47b-351fddc83b72",
+        "chatSessionId": "sess_3b61efae-61d3-4791-8c7a-0ec162e4ce00",
+        "timestamp": 1792119603103
+      }
+    ],
+    "8. Checkpoint (M1): ensure all tests pass, ask the user if questions arise.": [
+      {
+        "executionId": "11c9e50c-fa68-459d-a9fd-c5945b2c3e2d",
+        "chatSessionId": "sess_97e9f6ce-e49f-45c7-94ee-e1c6b1a19baa",
+        "timestamp": 1792119732303
+      },
+      {
+        "executionId": "11c9e50c-fa68-459d-a9fd-c5945b2c3e2d",
+        "chatSessionId": "sess_97e9f6ce-e49f-45c7-94ee-e1c6b1a19baa",
+        "timestamp": 1792120842369
+      }
+    ],
+    "9.1 Implement the AST, printer, and matcher (`values/patterns.py`)": [
+      {
+        "executionId": "a7495f67-bcb5-4f92-889a-9a5e0c857900",
+        "chatSessionId": "sess_1d3ef61f-2583-426c-9916-dab3e083d2f3",
+        "timestamp": 1792120955059
+      },
+      {
+        "executionId": "a7495f67-bcb5-4f92-889a-9a5e0c857900",
+        "chatSessionId": "sess_1d3ef61f-2583-426c-9916-dab3e083d2f3",
+        "timestamp": 1792121613320
+      }
+    ],
+    "9.2 Write property test for pattern anchoring and dialect agreement": [
+      {
+        "executionId": "a7495f67-bcb5-4f92-889a-9a5e0c857900",
+        "chatSessionId": "sess_1d3ef61f-2583-426c-9916-dab3e083d2f3",
+        "timestamp": 1792121616234
+      },
+      {
+        "executionId": "a7495f67-bcb5-4f92-889a-9a5e0c857900",
+        "chatSessionId": "sess_1d3ef61f-2583-426c-9916-dab3e083d2f3",
+        "timestamp": 1792122022562
+      }
+    ],
+    "9. Implement the safe regex AST": [
+      {
+        "executionId": "a7495f67-bcb5-4f92-889a-9a5e0c857900",
+        "chatSessionId": "sess_1d3ef61f-2583-426c-9916-dab3e083d2f3",
+        "timestamp": 1792122022615
+      }
+    ],
+    "10.1 Implement the primitive codes (`mdl/codes.py`)": [
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792154806080
+      },
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792155581853
+      }
+    ],
+    "10.2 Implement model bits (`mdl/scorer.py`)": [
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792155582689
+      },
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792156464874
+      }
+    ],
+    "10.3 Implement data bits and local scoring (`mdl/scorer.py`)": [
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792156465912
+      },
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792158674121
+      }
+    ],
+    "10.4 Write property test for the MDL_Scorer": [
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792158676999
+      },
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792165694280
+      }
+    ],
+    "10. Implement the MDL_Scorer": [
+      {
+        "executionId": "f6984034-6e65-4bd0-953f-06d962cfbe7d",
+        "chatSessionId": "sess_abf23f0f-39c5-46e4-a55c-6484742c219f",
+        "timestamp": 1792165694332
+      }
+    ],
+    "11.1 Implement `DecisionEngine.resolve` (`decide/engine.py`)": [
+      {
+        "executionId": "d2fbb0d7-0ff7-48a7-92c5-6d286f484113",
+        "chatSessionId": "sess_e7b92153-bb49-4013-88a5-f17bc3c69dbf",
+        "timestamp": 1792166113976
+      },
+      {
+        "executionId": "d2fbb0d7-0ff7-48a7-92c5-6d286f484113",
+        "chatSessionId": "sess_e7b92153-bb49-4013-88a5-f17bc3c69dbf",
+        "timestamp": 1792167884170
+      }
+    ],
+    "11.2 Write property test for the DecisionEngine": [
+      {
+        "executionId": "d2fbb0d7-0ff7-48a7-92c5-6d286f484113",
+        "chatSessionId": "sess_e7b92153-bb49-4013-88a5-f17bc3c69dbf",
+        "timestamp": 1792167887078
+      },
+      {
+        "executionId": "d2fbb0d7-0ff7-48a7-92c5-6d286f484113",
+        "chatSessionId": "sess_e7b92153-bb49-4013-88a5-f17bc3c69dbf",
+        "timestamp": 1792169238076
+      }
+    ],
+    "11. Implement the DecisionEngine": [
+      {
+        "executionId": "d2fbb0d7-0ff7-48a7-92c5-6d286f484113",
+        "chatSessionId": "sess_e7b92153-bb49-4013-88a5-f17bc3c69dbf",
+        "timestamp": 1792169238120
+      },
+      {
+        "executionId": "abbebfaa-26aa-4ce4-930e-a0863a8dada9",
+        "chatSessionId": "sess_0d9c23f7-9357-4d05-ba5a-a3de079e92f4",
+        "timestamp": 1792172303369
+      }
+    ],
+    "11.3 Add the exception check and the Decision_Model comparison cut-off (`decide/engine.py`)": [
+      {
+        "executionId": "abbebfaa-26aa-4ce4-930e-a0863a8dada9",
+        "chatSessionId": "sess_0d9c23f7-9357-4d05-ba5a-a3de079e92f4",
+        "timestamp": 1792170768617
+      },
+      {
+        "executionId": "abbebfaa-26aa-4ce4-930e-a0863a8dada9",
+        "chatSessionId": "sess_0d9c23f7-9357-4d05-ba5a-a3de079e92f4",
+        "timestamp": 1792172303306
+      }
+    ]
+  }
+}

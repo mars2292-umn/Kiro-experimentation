@@ -1,0 +1,19 @@
+# Fixture: assumption constructs in the verified crates (R50.2). One is listed
+# in docs/proof_assumptions.toml and accepted; an unlisted `external_body` in
+# the Kernel crate and an unlisted `admit` in a host crate that opts into
+# Verus are rejected.
+[workspace]
+resolver = "2"
+members = ["k", "tool"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.metadata.rsk]
+target = "thumbv7em-none-eabihf"
+
+[workspace.metadata.rsk.crates]
+k = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true }
+tool = { targets = ["host"] }

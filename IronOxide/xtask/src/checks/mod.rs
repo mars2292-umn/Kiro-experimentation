@@ -8,6 +8,7 @@ pub mod justifications;
 pub mod kernel_size;
 pub mod kernel_std;
 pub mod lockfile;
+pub mod registers;
 pub mod toolchain;
 pub mod unsafe_code;
 
@@ -26,6 +27,8 @@ pub fn workspace(root: &Path, report: &mut Report) -> Option<Workspace> {
     lockfile::check(&ws, report);
     unsafe_code::check(&ws, report);
     justifications::check(&ws, report);
+    // R50.2: the assumption gate over every verified crate.
+    crate::proofs::check_assumptions(&ws, report);
     kernel_size::check(&ws, report);
     kernel_std::check(&ws, report);
     features::check_sources(&ws, report);
@@ -38,6 +41,8 @@ pub fn repository(root: &Path, report: &mut Report) -> Option<Workspace> {
     toolchain::check(root, ws.as_ref(), report);
     ci::check(root, report);
     config::check_alias(root, report);
+    // R48, R54: the Trust_Base_Register and the Gap_Register.
+    registers::check(root, report);
     ws
 }
 

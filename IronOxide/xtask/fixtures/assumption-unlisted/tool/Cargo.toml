@@ -1,0 +1,10 @@
+[package]
+name = "tool"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+# Opts into Verus verification, like rsk-analyzer: the assumption gate scans
+# it as well as the Kernel crates.
+[package.metadata.verus]
+verify = true

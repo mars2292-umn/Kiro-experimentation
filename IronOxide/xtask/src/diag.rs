@@ -46,6 +46,12 @@ pub enum Rule {
     /// R21 to R25: the Generator rejected a declaration, or the generated
     /// files are not current (R24.4).
     Generator,
+    /// R48: the Trust_Base_Register's entries are complete and their links
+    /// resolve.
+    TrustBaseRegister,
+    /// R54: the Gap_Register covers the DO-178C Annex A objectives, the
+    /// gaps of R54.2, and the current ORQ statuses.
+    GapRegister,
 }
 
 impl Rule {
@@ -69,6 +75,8 @@ impl Rule {
             Rule::Policy => "BUILD-POLICY",
             Rule::Step => "BUILD-STEP",
             Rule::Generator => "GENERATOR",
+            Rule::TrustBaseRegister => "R48",
+            Rule::GapRegister => "R54",
         }
     }
 }

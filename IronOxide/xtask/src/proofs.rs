@@ -5,15 +5,24 @@
 //! Verus. `cargo-verus verify -p rsk-kernel` runs with the Verus release's
 //! pinned rustc and Z3 (located by `tools::Verus`). The step passes only
 //! when the verifier reports zero errors; its Evidence_Item records the
-//! Verus version, the toolchain, and the Z3 version.
+//! Verus version, the toolchain, and the Z3 version. cargo-verus prints one
+//! results line per crate it verifies, dependencies such as vstd first; the
+//! count recorded for a package is the sum over its library and binary
+//! targets (`package_verus_results`).
 //!
-//! Assumption gate. Every assumption construct in the Kernel crates
-//! (`assume`, `admit`, `#[verifier::external_body]`,
+//! Assumption gate. Every assumption construct in a verified crate (the
+//! Kernel crates and every workspace crate that opts into Verus with a
+//! `[package.metadata.verus]` table, such as the Analyzer): `assume`,
+//! `admit`, `#[verifier::external_body]`,
 //! `#[verifier::external_fn_specification]`, `assume_specification`,
-//! `#[verifier::external]`, and the Kani stubs `#[kani::stub]`) must be
-//! listed in `docs/proof_assumptions.toml` with its justification, or the
-//! job fails naming the construct (R50.2). Assumptions in vstd itself are
-//! covered by the Trust_Base_Register entry for vstd (TBR-04).
+//! `#[verifier::external]`, and the Kani stubs `#[kani::stub]`, must be
+//! listed in `docs/proof_assumptions.toml` (the Trust_Base_Register's
+//! assumption annex, TBR-04) with its justification, or the static checks
+//! fail naming the construct (R50.2). The gate runs with the workspace
+//! checks, so `cargo xtask check` and step 1 of the verification job both
+//! apply it. A workspace without the register file has an empty register.
+//! Assumptions in vstd itself are covered by the Trust_Base_Register entry
+//! for vstd (TBR-04).
 //!
 //! Kani. `cargo kani -p rsk-kernel` runs every `#[kani::proof]` harness with
 //! the pinned Kani and CBMC. A run passes only when Kani reports success
@@ -27,9 +36,9 @@ use crate::cmd::{stdout_of, Cmd};
 use crate::diag::{Report, Rule};
 use crate::evidence::{Item, Kind, Store, Tool, Verdict};
 use crate::sandbox::Sandbox;
-use crate::tokens::{for_each_level, is_ident, lex_file, metas, split_items};
+use crate::tokens::{is_ident, lex_file, metas, split_items};
 use crate::tools::{Kani, Verus};
-use crate::workspace::Workspace;
+use crate::workspace::{Package, Workspace};
 
 pub const ASSUMPTIONS: &str = "docs/proof_assumptions.toml";
 
@@ -55,59 +64,91 @@ pub struct Assumption {
     pub item: Option<String>,
 }
 
-/// Scans the Kernel crates for assumption constructs.
+/// Whether a package opts into Verus verification.
+fn opts_into_verus(pkg: &Package) -> bool {
+    std::fs::read_to_string(pkg.dir.join("Cargo.toml"))
+        .map(|t| t.contains("[package.metadata.verus]"))
+        .unwrap_or(false)
+}
+
+/// The crates whose proofs the verification job relies on: every Kernel
+/// crate, plus every other workspace crate that opts into verification with
+/// a `[package.metadata.verus]` table (the Analyzer's fixed-point core,
+/// R32.1).
+pub fn verified_crates(ws: &Workspace) -> Vec<String> {
+    let mut names: Vec<String> = ws.policy.kernel_crates().map(str::to_string).collect();
+    for pkg in ws.packages.values().filter(|p| ws.members.contains(&p.id)) {
+        if opts_into_verus(pkg) && !names.contains(&pkg.name) {
+            names.push(pkg.name.clone());
+        }
+    }
+    names
+}
+
+/// Scans the verified crates for assumption constructs.
 pub fn find_assumptions(ws: &Workspace) -> Vec<Assumption> {
     let mut out = Vec::new();
-    for name in ws.policy.kernel_crates() {
-        let Some(pkg) = ws.package_named(name) else { continue };
+    for name in verified_crates(ws) {
+        let Some(pkg) = ws.package_named(&name) else { continue };
         for file in pkg.lib_files() {
             let Ok(tokens) = lex_file(&file) else { continue };
             let rel = ws.rel(&file);
-            for_each_level(&tokens, &mut |level| {
-                for item in split_items(level) {
-                    let fn_name = item.fn_name();
-                    for attr in item.attrs.iter().filter(|a| !a.inner) {
-                        for meta in metas(attr) {
-                            if ASSUMPTION_ATTRS.contains(&meta.name.as_str()) {
-                                out.push(Assumption {
-                                    file: rel.clone(),
-                                    line: meta.line,
-                                    construct: format!("#[{}]", meta.name),
-                                    item: fn_name.clone(),
-                                });
-                            }
-                        }
-                    }
-                    for (i, tt) in item.tokens.iter().enumerate() {
-                        let proc_macro2::TokenTree::Ident(id) = tt else { continue };
-                        let name = id.to_string();
-                        // `kani::assume(...)` constrains a harness input; it is not a Verus assumption.
-                        let kani_qualified = i >= 3
-                            && is_ident(&item.tokens[i - 3], "kani")
-                            && matches!(&item.tokens[i - 2], proc_macro2::TokenTree::Punct(p) if p.as_char() == ':')
-                            && matches!(&item.tokens[i - 1], proc_macro2::TokenTree::Punct(p) if p.as_char() == ':');
-                        if ASSUMPTION_CALLS.contains(&name.as_str()) && !kani_qualified {
-                            // `assume(...)`, `admit()`, or `assume_specification<...>[...]`.
-                            let next = item.tokens.get(i + 1);
-                            let is_call = matches!(next, Some(proc_macro2::TokenTree::Group(_)))
-                                || matches!(next, Some(proc_macro2::TokenTree::Punct(p)) if p.as_char() == '<');
-                            if is_call && !is_ident(tt, "assume_specification") || name == "assume_specification" {
-                                out.push(Assumption {
-                                    file: rel.clone(),
-                                    line: crate::tokens::line(tt),
-                                    construct: format!("{name}(...)"),
-                                    item: fn_name.clone(),
-                                });
-                            }
-                        }
-                    }
-                }
-            });
+            scan_level(&tokens, None, &rel, &mut out);
         }
     }
     out.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
     out.dedup();
     out
+}
+
+/// Scans one token level and the groups inside it. `enclosing` is the
+/// function whose body the level belongs to, so that a construct inside a
+/// body (`assume(...)` in a lemma) is attributed to that function: at the
+/// body level no `fn` keyword is visible.
+fn scan_level(tokens: &[proc_macro2::TokenTree], enclosing: Option<&str>, rel: &str, out: &mut Vec<Assumption>) {
+    for item in split_items(tokens) {
+        let fn_name = item.fn_name().or_else(|| enclosing.map(str::to_string));
+        for attr in item.attrs.iter().filter(|a| !a.inner) {
+            for meta in metas(attr) {
+                if ASSUMPTION_ATTRS.contains(&meta.name.as_str()) {
+                    out.push(Assumption {
+                        file: rel.to_string(),
+                        line: meta.line,
+                        construct: format!("#[{}]", meta.name),
+                        item: fn_name.clone(),
+                    });
+                }
+            }
+        }
+        for (i, tt) in item.tokens.iter().enumerate() {
+            if let proc_macro2::TokenTree::Group(g) = tt {
+                let inner: Vec<proc_macro2::TokenTree> = g.stream().into_iter().collect();
+                scan_level(&inner, fn_name.as_deref(), rel, out);
+                continue;
+            }
+            let proc_macro2::TokenTree::Ident(id) = tt else { continue };
+            let name = id.to_string();
+            // `kani::assume(...)` constrains a harness input; it is not a Verus assumption.
+            let kani_qualified = i >= 3
+                && is_ident(&item.tokens[i - 3], "kani")
+                && matches!(&item.tokens[i - 2], proc_macro2::TokenTree::Punct(p) if p.as_char() == ':')
+                && matches!(&item.tokens[i - 1], proc_macro2::TokenTree::Punct(p) if p.as_char() == ':');
+            if ASSUMPTION_CALLS.contains(&name.as_str()) && !kani_qualified {
+                // `assume(...)`, `admit()`, or `assume_specification<...>[...]`.
+                let next = item.tokens.get(i + 1);
+                let is_call = matches!(next, Some(proc_macro2::TokenTree::Group(_)))
+                    || matches!(next, Some(proc_macro2::TokenTree::Punct(p)) if p.as_char() == '<');
+                if is_call && !is_ident(tt, "assume_specification") || name == "assume_specification" {
+                    out.push(Assumption {
+                        file: rel.to_string(),
+                        line: crate::tokens::line(tt),
+                        construct: format!("{name}(...)"),
+                        item: fn_name.clone(),
+                    });
+                }
+            }
+        }
+    }
 }
 
 /// R50.2: every assumption construct is listed with a justification.
@@ -131,6 +172,9 @@ pub fn check_assumptions(ws: &Workspace, report: &mut Report) -> Vec<Assumption>
                 Vec::new()
             }
         },
+        // No register file: no assumption is listed, so every construct found
+        // is reported below.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(e) => {
             report.error(Rule::Proof, Some(ASSUMPTIONS.to_string()), format!("cannot read: {e}"));
             Vec::new()
@@ -159,21 +203,56 @@ pub fn check_assumptions(ws: &Workspace, report: &mut Report) -> Vec<Assumption>
         }
     }
     report.note(format!(
-        "R50.2: {} assumption constructs in the Kernel crates, {} listed in {ASSUMPTIONS}",
+        "R50.2: {} assumption constructs in the verified crates ({}), {} listed in {ASSUMPTIONS}",
         found.len(),
+        verified_crates(ws).join(", "),
         listed.len()
     ));
     found
 }
 
-/// Parses "verification results:: N verified, M errors".
-pub fn parse_verus_results(output: &str) -> Option<(u64, u64)> {
-    let line = output.lines().rev().find(|l| l.contains("verification results::"))?;
+/// Every "verification results:: N verified, M errors" line of a
+/// cargo-verus run, in output order: one per crate the Verus driver
+/// verified (dependencies such as vstd, then the package's own targets).
+pub fn parse_verus_result_lines(output: &str) -> Vec<(u64, u64)> {
+    output.lines().filter_map(parse_verus_line).collect()
+}
+
+fn parse_verus_line(line: &str) -> Option<(u64, u64)> {
     let rest = line.split("verification results::").nth(1)?.trim();
     let mut parts = rest.split(',');
     let verified = parts.next()?.trim().split_whitespace().next()?.parse().ok()?;
     let errors = parts.next()?.trim().split_whitespace().next()?.parse().ok()?;
     Some((verified, errors))
+}
+
+/// The results of a package's own targets, summed over its `targets`
+/// library and binary targets. Every dependency of a package is a
+/// dependency of its library (Cargo dependencies are per package, and
+/// dev-dependencies are not built), so each dependency's line comes before
+/// the library's; the binaries depend on the library, so their lines come
+/// after it. The package's lines are therefore the last `targets` lines.
+/// `None` when the run printed fewer lines than that, for example because
+/// a failed crate stopped Cargo before the targets that depend on it.
+pub fn package_verus_results(lines: &[(u64, u64)], targets: usize) -> Option<(u64, u64)> {
+    if targets == 0 || lines.len() < targets {
+        return None;
+    }
+    Some(
+        lines[lines.len() - targets..]
+            .iter()
+            .fold((0, 0), |(v, e), &(lv, le)| (v + lv, e + le)),
+    )
+}
+
+/// The targets of `pkg` that `cargo verus verify` checks: Cargo's default
+/// targets, the library and every binary (tests, examples, and benches are
+/// not built).
+fn verus_target_count(pkg: &Package) -> usize {
+    pkg.targets
+        .iter()
+        .filter(|t| t.is_lib() || t.kinds.iter().any(|k| k == "bin"))
+        .count()
 }
 
 /// Runs the Kernel_Proofs. Returns whether they passed and writes the
@@ -190,27 +269,13 @@ pub fn run_verus(
     let mut all_ok = true;
     let mut commands = Vec::new();
     let mut notes = Vec::new();
-    // Every Kernel crate, plus every other workspace crate that opts into
-    // verification with a `[package.metadata.verus]` table (the Analyzer's
-    // fixed-point core, R32.1).
-    let mut names: Vec<String> = ws.policy.kernel_crates().map(str::to_string).collect();
-    for pkg in ws.packages.values().filter(|p| ws.members.contains(&p.id)) {
-        let opted = std::fs::read_to_string(pkg.dir.join("Cargo.toml"))
-            .map(|t| t.contains("[package.metadata.verus]"))
-            .unwrap_or(false);
-        if opted && !names.contains(&pkg.name) {
-            names.push(pkg.name.clone());
-        }
-    }
+    let names = verified_crates(ws);
     for name in names.iter().map(String::as_str) {
         let Some(pkg) = ws.package_named(name) else { continue };
         if !pkg.dir.join("Cargo.toml").exists() {
             continue;
         }
-        let verifies = std::fs::read_to_string(pkg.dir.join("Cargo.toml"))
-            .map(|t| t.contains("[package.metadata.verus]"))
-            .unwrap_or(false);
-        if !verifies {
+        if !opts_into_verus(pkg) {
             notes.push(format!("{name}: no [package.metadata.verus] table; not verified"));
             continue;
         }
@@ -235,29 +300,52 @@ pub fn run_verus(
         );
         let log_name = format!("verus-{name}.log");
         let _ = store.write_artifact(&log_name, &text);
-        match parse_verus_results(&text) {
-            Some((verified, errors)) if out.status.success() && errors == 0 => {
-                notes.push(format!("{name}: {verified} verified, 0 errors"));
-                let rule = if ws.policy.kernel_crates().any(|k| k == name) { "R44.6" } else { "R32.1" };
-                report.note(format!("{rule}: {name}: {verified} items verified by Verus {} (Z3 {})", verus.version, verus.z3_version));
-            }
-            Some((verified, errors)) => {
-                all_ok = false;
-                report.error(
-                    Rule::Proof,
-                    None,
-                    format!("Kernel_Proofs of `{name}` failed: {verified} verified, {errors} errors (see {log_name})"),
-                );
-            }
-            None => {
-                all_ok = false;
-                let first_error = text.lines().find(|l| l.starts_with("error")).unwrap_or("no verification results line");
-                report.error(
-                    Rule::Proof,
-                    None,
-                    format!("cargo-verus did not report results for `{name}`: {first_error} (see {log_name})"),
-                );
-            }
+        let lines = parse_verus_result_lines(&text);
+        let targets = verus_target_count(pkg);
+        // Errors in any verified crate, dependencies included, fail the step.
+        let total_errors: u64 = lines.iter().map(|&(_, e)| e).sum();
+        let package = package_verus_results(&lines, targets);
+        if lines.is_empty() {
+            all_ok = false;
+            let first_error = text.lines().find(|l| l.starts_with("error")).unwrap_or("no verification results line");
+            report.error(
+                Rule::Proof,
+                None,
+                format!("cargo-verus did not report results for `{name}`: {first_error} (see {log_name})"),
+            );
+        } else if !out.status.success() || total_errors > 0 {
+            // A failed crate stops Cargo before the crates that depend on
+            // it, so the lines need not map to this package's targets:
+            // report the totals of the run.
+            all_ok = false;
+            report.error(
+                Rule::Proof,
+                None,
+                format!(
+                    "Kernel_Proofs of `{name}` failed: {total_errors} errors over {} verified crates, exit {} (see {log_name})",
+                    lines.len(),
+                    out.status
+                ),
+            );
+        } else if let Some((verified, _)) = package {
+            notes.push(if targets > 1 {
+                format!("{name}: {verified} verified, 0 errors (sum over {targets} library and binary targets)")
+            } else {
+                format!("{name}: {verified} verified, 0 errors")
+            });
+            let rule = if ws.policy.kernel_crates().any(|k| k == name) { "R44.6" } else { "R32.1" };
+            report.note(format!("{rule}: {name}: {verified} items verified by Verus {} (Z3 {})", verus.version, verus.z3_version));
+        } else {
+            all_ok = false;
+            report.error(
+                Rule::Proof,
+                None,
+                format!(
+                    "cargo-verus printed {} results lines for `{name}`, fewer than its {targets} library and binary \
+                     targets, so its results cannot be attributed (see {log_name})",
+                    lines.len()
+                ),
+            );
         }
     }
     let mut item = Item::new(
@@ -273,8 +361,8 @@ pub fn run_verus(
     )
     .covers(&[
         "R7.1", "R7.2", "R7.3", "R7.5", "R7.6", "R8.1", "R8.2", "R8.3", "R8.4", "R8.5", "R8.9", "R8.10", "R9.1", "R9.3",
-        "R9.4", "R9.5", "R9.7", "R9.8", "R10.1", "R10.2", "R10.3", "R10.7", "R14.6", "R14.7", "R16.5", "R16.6", "R18.1",
-        "R19.1", "R20.3", "R44.1", "R44.2", "R44.3", "R44.4", "R44.6", "R44.8", "R49.1", "R49.5", "PR-02", "PR-07",
+        "R9.4", "R9.5", "R9.7", "R9.8", "R10.1", "R10.2", "R10.3", "R10.4", "R10.7", "R14.4", "R14.5", "R14.6", "R14.7", "R14.9", "R16.1", "R16.3", "R16.5", "R16.6", "R18.1",
+        "R18.2", "R19.1", "R20.3", "R44.1", "R44.2", "R44.3", "R44.4", "R44.6", "R44.8", "R49.1", "R49.5", "PR-02", "PR-07",
         "PR-14", "PR-16", "PR-23", "PR-34",
     ]);
     item.command_lines = commands;
@@ -469,14 +557,37 @@ mod tests {
     #[test]
     fn parses_verus_summary() {
         assert_eq!(
-            parse_verus_results("x\nverification results:: 198 verified, 0 errors\n"),
-            Some((198, 0))
+            parse_verus_result_lines("x\nverification results:: 198 verified, 0 errors\n"),
+            vec![(198, 0)]
         );
         assert_eq!(
-            parse_verus_results("verification results:: 3 verified, 1 errors\nerror: could not compile"),
-            Some((3, 1))
+            parse_verus_result_lines("verification results:: 3 verified, 1 errors\nerror: could not compile"),
+            vec![(3, 1)]
         );
-        assert_eq!(parse_verus_results("nothing"), None);
+        assert_eq!(parse_verus_result_lines("nothing"), vec![]);
+        assert_eq!(parse_verus_result_lines("verification results:: garbled"), vec![]);
+    }
+
+    #[test]
+    fn package_results_exclude_dependencies_and_sum_the_targets() {
+        // rsk-kernel: vstd, then the library.
+        let kernel = parse_verus_result_lines(
+            "verification results:: 1876 verified, 0 errors\nverification results:: 218 verified, 0 errors\n",
+        );
+        assert_eq!(package_verus_results(&kernel, 1), Some((218, 0)));
+        // rsk-analyzer: vstd, then the library, then the binary. The last
+        // line alone (the binary's 0) was the value reported before.
+        let analyzer = parse_verus_result_lines(
+            "verification results:: 2060 verified, 0 errors\n\
+             verification results:: 17 verified, 0 errors\n\
+             verification results:: 0 verified, 0 errors\n",
+        );
+        assert_eq!(package_verus_results(&analyzer, 2), Some((17, 0)));
+        // A binary with proofs of its own is counted too.
+        assert_eq!(package_verus_results(&[(2060, 0), (17, 0), (4, 0)], 2), Some((21, 0)));
+        // Fewer lines than targets cannot be attributed.
+        assert_eq!(package_verus_results(&[(17, 1)], 2), None);
+        assert_eq!(package_verus_results(&[(17, 0)], 0), None);
     }
 
     #[test]
@@ -486,29 +597,23 @@ mod tests {
              pub fn ok() { let assume_me = 1; } }",
         )
         .unwrap();
-        let mut found = Vec::new();
-        for_each_level(&tokens, &mut |level| {
-            for item in split_items(level) {
-                for attr in item.attrs.iter().filter(|a| !a.inner) {
-                    for meta in metas(attr) {
-                        if ASSUMPTION_ATTRS.contains(&meta.name.as_str()) {
-                            found.push(format!("#[{}]", meta.name));
-                        }
-                    }
-                }
-                for (i, tt) in item.tokens.iter().enumerate() {
-                    if let proc_macro2::TokenTree::Ident(id) = tt {
-                        let name = id.to_string();
-                        if ASSUMPTION_CALLS.contains(&name.as_str())
-                            && matches!(item.tokens.get(i + 1), Some(proc_macro2::TokenTree::Group(_)))
-                        {
-                            found.push(format!("{name}(...)"));
-                        }
-                    }
-                }
-            }
-        });
-        assert_eq!(found, vec!["#[verifier::external_body]", "assume(...)", "admit(...)"]);
+        let mut out = Vec::new();
+        scan_level(&tokens, None, "f.rs", &mut out);
+        let found: Vec<(String, Option<String>)> = out.into_iter().map(|a| (a.construct, a.item)).collect();
+        // Constructs inside a body are attributed to the enclosing function,
+        // including a `proof fn`; `kani::assume` and an identifier that only
+        // contains `assume` are not constructs.
+        assert_eq!(
+            found,
+            vec![
+                ("#[verifier::external_body]".to_string(), Some("read".to_string())),
+                ("assume(...)".to_string(), Some("l".to_string())),
+                ("admit(...)".to_string(), Some("l".to_string())),
+            ]
+        );
+        let mut harness = Vec::new();
+        scan_level(&crate::tokens::lex_str("fn h() { kani::assume(x < 3); }").unwrap(), None, "f.rs", &mut harness);
+        assert!(harness.is_empty(), "{harness:?}");
     }
 
     #[test]

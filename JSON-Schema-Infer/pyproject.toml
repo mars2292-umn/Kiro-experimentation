@@ -1,0 +1,50 @@
+[project]
+name = "jsinfer"
+version = "0.1.0"
+description = "Infer draft 2020-12 JSON Schemas from JSON document collections with MDL selection and learned judgment calls."
+# Upper bound: ruptures 1.1.10 (latest release) declares requires-python <3.14.
+requires-python = ">=3.11,<3.14"
+# Every direct dependency is pinned to one exact version; uv.lock pins the
+# transitive closure (Requirement 29.5).
+dependencies = [
+    "datasketch==2.0.0",
+    "joblib==1.6.0",
+    "jsonschema-rs==0.58.6",
+    # numpy 2.4.x and scipy 1.17.x are the last lines that support Python 3.11.
+    "numpy==2.4.6",
+    "orjson==3.13.0",
+    "psutil==7.2.2",
+    "ruptures==1.1.10",
+    "scikit-learn==1.9.1",
+    "scipy==1.17.1",
+    "threadpoolctl==3.7.0",
+    "tomli-w==1.2.0",
+]
+
+[project.scripts]
+jsinfer = "jsinfer.cli:main"
+
+[dependency-groups]
+dev = [
+    "hypothesis==6.169.3",
+    "pytest==9.1.1",
+    "regress==2026.9.1",
+]
+
+[build-system]
+requires = ["uv_build==0.13.1"]
+build-backend = "uv_build"
+
+# uv_build packages every file under the module directory, so package data
+# lives there. That includes the shipped Model_Bundles in
+# src/jsinfer/bundles/<name>/ (manifest.json, thresholds.json), which the
+# default Run_Configuration names as "bundles/default" (Requirement 27.2).
+[tool.uv.build-backend]
+module-name = "jsinfer"
+module-root = "src"
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true

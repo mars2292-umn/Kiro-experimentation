@@ -19,8 +19,10 @@
 //! | R59.1/R59.3 | the clean-checkout rebuild comparison (`cargo xtask rebuild-check`, task 1.3) |
 //! | R33.3, R50.3 | the Build_Manifest and the Evidence_Items the job writes (task 1.3) |
 //! | R1, R2, R4, R27.3, R57 | the Profile source, its generated document and version modules (`cargo xtask profile`, task 2.1) |
-//! | R44.6, R50.2, R3.10 | the Kernel_Proofs with Verus, the assumption gate, and the PAR-01 cross-check (task 4.1) |
+//! | R44.6, R3.10 | the Kernel_Proofs with Verus and the PAR-01 cross-check (task 4.1) |
+//! | R50.2 | the assumption gate over the Kernel crates and every crate that opts into Verus (tasks 4.1, 8.2) |
 //! | R45.5, R45.7 | the Kani_Harnesses with the pinned Kani and CBMC (task 6.1) |
+//! | R48, R54 | the Trust_Base_Register and Gap_Register sources: R48.2 fields, the R48.1 item mapping, Annex A completeness and level tallies, the R54.2 gaps, the ORQ statuses of design.md, and identifier resolution (task 8.2) |
 //!
 //! The crate is a host tool outside the Flight_Build graph. It forbids unsafe
 //! code like every rsk crate.

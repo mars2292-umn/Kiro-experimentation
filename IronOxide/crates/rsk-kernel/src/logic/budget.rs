@@ -8,7 +8,10 @@
 //! is never charged to a Job (R18.1). An Overrun is `used > budget`
 //! (R18.2); detection "whatever the System_Ceiling" is the DD-02 level
 //! argument of the Hardware_Model (the Budget compare interrupt runs at
-//! the Kernel level, above every Ceiling), not a property of this module.
+//! the Kernel level, which no BASEPRI value masks and a Job cannot mask:
+//! `hw_model::lemma_kernel_level_never_masked`,
+//! `lemma_kernel_level_taken_in_every_state`, `lemma_job_cannot_set_mask`,
+//! `lemma_kernel_level_wins_arbitration`), not a property of this module.
 #![forbid(unsafe_code)]
 
 use vstd::prelude::*;
@@ -16,6 +19,11 @@ use vstd::prelude::*;
 use super::Config;
 
 verus! {
+
+/// `used + cycles`, saturating at `u32::MAX`.
+pub open spec fn charged(used: u32, cycles: u32) -> u32 {
+    if used as int + cycles as int > u32::MAX as int { u32::MAX } else { (used + cycles) as u32 }
+}
 
 pub struct Budget<const NT: usize> {
     /// Cycles consumed by the current Job of each Task.
@@ -42,7 +50,7 @@ impl<const NT: usize> Budget<NT> {
     /// saturating so that an Overrun can never wrap into compliance.
     pub fn charge(&mut self, t: u8, cycles: u32)
         requires (t as int) < NT,
-        ensures final(self).used[t as int] == (if old(self).used[t as int] as int + cycles as int > u32::MAX as int { u32::MAX } else { (old(self).used[t as int] + cycles) as u32 }),
+        ensures final(self).used[t as int] == charged(old(self).used[t as int], cycles),
             final(self).used[t as int] >= old(self).used[t as int],
             forall|u: int| 0 <= u < NT && u != t ==> final(self).used[u] == old(self).used[u],
     {

@@ -1,0 +1,1317 @@
+# Gap_Register v1 source (R54; task 8.2): DO-178C, DO-330, and DO-333
+# objectives with their rsk status, the open certification gaps, and the
+# certification relevance of every open research question.
+#
+# Basis: DO-178C DAL A/B with DO-330 and DO-333 (confirmed 2026-10-14). rsk
+# is a research prototype that keeps this path open and produces no
+# applicant plans (NG-12). `owner` separates rsk deliverables (`prototype`)
+# from activities only a certification applicant can perform (`applicant`),
+# with `shared` where rsk supplies inputs to an applicant activity (R54.4).
+#
+# Checked by `cargo xtask check` and step 1 of `cargo xtask verify`
+# (xtask/src/checks/registers.rs): every Annex A objective appears once; the
+# Level A and B tallies match the published counts; every partial or
+# not-addressed item names a gap; the gaps of R54.2 exist; every ORQ of
+# design.md appears with the status design.md gives it, so changing an ORQ
+# there fails the check until this file changes with it (R54.3); every
+# identifier resolves. Status changes of acceptance criteria and ASMs are
+# kept in step by review until the traceability matrix exists (task 8.4).
+#
+# Sources and limits. The project does not hold the texts of DO-178C,
+# DO-330, or DO-333. Objective identifiers follow the published Annex A
+# structure (tables A-1 to A-10, 71 objectives); titles are rephrased from
+# public summaries, not quoted. Published counts: 71 objectives at Level A
+# (30 with independence), 69 at B (18), 62 at C (5), 26 at D (2); objective
+# A-7.9 applies at Level A only (Wikipedia, "DO-178C", citing RTCA). Level C
+# applicability per objective and independence per objective are open items
+# (OPEN-01). Content was rephrased for compliance with licensing restrictions.
+#
+# Fields
+#   [[objective]]  id, title, applies (levels among A, B, C; C is the lowest
+#                  level of the Profile_Conformance_Suite Application,
+#                  R54.1), confirm (levels whose applicability is
+#                  unconfirmed), status (addressed | partial | not-addressed |
+#                  not-applicable), owner, evidence (Evidence_Item ids or
+#                  documents), refs (GAP, ORQ, ASM, TBR, P, R, PR, NG
+#                  identifiers), note.
+#   [[supplement]] DO-333 and DO-330 items: the objective fields without
+#                  `applies`, plus `standard`.
+#   [[gap]]        id, title, status (open | mitigated | closed), owner,
+#                  links, description, plan.
+#   [[orq]]        id, status mirrored from design.md (resolved |
+#                  partly-resolved | deferred), certification (whether it
+#                  affects certification evidence), gaps, note.
+
+schema = 1
+version = "1.0"
+updated = "2026-10-14"
+
+[[open]]
+id = "OPEN-01"
+text = "Confirm per-objective applicability at Level C, and independence per objective at Levels A, B, and C, against DO-178C Annex A. This register marks 63 objectives applicable at Level C against the published 62: five Level C exclusions (A-4.3, A-4.4, A-4.10, A-4.11, A-5.3) are unconfirmed and one exclusion is not identified."
+
+[[open]]
+id = "OPEN-02"
+text = "Confirm the DO-333 and DO-330 items below against the supplements' texts; they are described, not numbered."
+
+# ---------------------------------------------------------------------------
+# DO-178C Annex A, Table A-1: software planning process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-1.1"
+title = "The activities of the software life cycle processes are defined."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["tasks.md", "docs/verification_plan.md"]
+refs = ["GAP-15"]
+note = "The phase plan and the Verification_Plan define rsk's activities; no DO-178C plans (PSAC, SDP, SVP, SCMP, SQAP) exist (NG-12)."
+
+[[objective]]
+id = "A-1.2"
+title = "The life cycles, their inter-relationships, sequencing, feedback, and transition criteria are defined."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["tasks.md"]
+refs = ["GAP-15"]
+note = "Task waves and phase checkpoints give the sequencing; transition criteria are informal."
+
+[[objective]]
+id = "A-1.3"
+title = "The software life cycle environment is selected and defined."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["toolchain/decision.toml", "check-build-manifest"]
+refs = ["GAP-01", "GAP-03", "TBR-01", "TBR-19"]
+note = "Pinned rustc, Verus, Kani, and CBMC; vendored dependencies; versions recorded per Evidence_Item. The environment is not qualified."
+
+[[objective]]
+id = "A-1.4"
+title = "Additional considerations (tool qualification, previously developed software, and similar) are addressed."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["docs/verification_plan.md", "docs/trust_base_register.toml"]
+refs = ["GAP-03", "GAP-07"]
+note = "Tool classifications and TQLs (verification_plan.md section 8); third-party code in the Trust_Base_Register; the reuse record is task 8.3."
+
+[[objective]]
+id = "A-1.5"
+title = "Software development standards are defined."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["profile/profile.toml", "check-static-checks"]
+refs = ["GAP-18"]
+note = "The Profile and the Build_System checks act as coding standards; no requirements or design standards exist."
+
+[[objective]]
+id = "A-1.6"
+title = "The software plans comply with DO-178C."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "No applicant plans (NG-12)."
+
+[[objective]]
+id = "A-1.7"
+title = "Development and revision of the software plans are coordinated."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "No applicant plans (NG-12)."
+
+# ---------------------------------------------------------------------------
+# Table A-2: software development processes
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-2.1"
+title = "High-level requirements are developed."
+applies = ["A", "B", "C"]
+status = "addressed"
+owner = "prototype"
+evidence = ["requirements.md"]
+refs = []
+note = "The acceptance criteria of requirements.md serve as the platform's high-level requirements. System requirements, which they would trace to, are an applicant's (A-3.1, A-3.6)."
+
+[[objective]]
+id = "A-2.2"
+title = "Derived high-level requirements are defined and provided to the system processes, including the system safety assessment."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["requirements.md"]
+refs = ["GAP-15"]
+note = "Assumptions and open questions are recorded; requirements are not classified as derived and no safety assessment receives them."
+
+[[objective]]
+id = "A-2.3"
+title = "The software architecture is developed."
+applies = ["A", "B", "C"]
+status = "addressed"
+owner = "prototype"
+evidence = ["design.md"]
+refs = []
+note = "design.md, with its design decisions DD-01 to DD-12."
+
+[[objective]]
+id = "A-2.4"
+title = "Low-level requirements are developed."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus", "design.md"]
+refs = ["GAP-10"]
+note = "The Verus specifications are the low-level requirements of the Kernel logic and the Analyzer core; Kernel_Arch and the unsafe module have doc comments only."
+
+[[objective]]
+id = "A-2.5"
+title = "Derived low-level requirements are defined and provided to the system processes."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "shared"
+evidence = []
+refs = ["GAP-15", "GAP-18"]
+note = "Low-level requirements are not classified as derived."
+
+[[objective]]
+id = "A-2.6"
+title = "Source code is developed."
+applies = ["A", "B", "C"]
+status = "addressed"
+owner = "prototype"
+evidence = ["test-target-build", "test-host-build"]
+refs = []
+note = "The rsk crates."
+
+[[objective]]
+id = "A-2.7"
+title = "Executable object code and any parameter data item files are produced and loaded in the target computer."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["test-target-build", "check-build-manifest", "test-qemu-spike-p1-demo"]
+refs = ["GAP-09"]
+note = "Built and hashed (Build_Manifest); loaded only on QEMU. rsk has no parameter data item files (A-5.8)."
+
+# ---------------------------------------------------------------------------
+# Table A-3: verification of the outputs of the requirements process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-3.1"
+title = "High-level requirements comply with the system requirements."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "A platform prototype has no system requirements."
+
+[[objective]]
+id = "A-3.2"
+title = "High-level requirements are accurate and consistent."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["check-static-checks"]
+refs = ["GAP-08", "GAP-18"]
+note = "The Profile's restriction catalogue and its two-way consistency with Table 4-1 are checked mechanically (R1, R2, R4); the requirements as a whole have not been reviewed."
+
+[[objective]]
+id = "A-3.3"
+title = "High-level requirements are compatible with the target computer."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["test-qemu-spike-p1-demo"]
+refs = ["GAP-09"]
+note = "The QEMU spike exposed and resolved the DD-01 incompatibility; confirmation on the nRF52840 is hardware-pending."
+
+[[objective]]
+id = "A-3.4"
+title = "High-level requirements are verifiable."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-18"]
+note = "Every requirement group has a verification allocation (verification_plan.md section 3); the per-criterion list awaits task 8.4."
+
+[[objective]]
+id = "A-3.5"
+title = "High-level requirements conform to the standards."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-18"]
+note = "No requirements standard beyond the EARS-style form."
+
+[[objective]]
+id = "A-3.6"
+title = "High-level requirements are traceable to the system requirements."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "No system requirements."
+
+[[objective]]
+id = "A-3.7"
+title = "Algorithms are accurate (requirements level)."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-14"]
+note = "SRP selection, MIT enforcement, and the response-time fixed point are proven; sequence-level properties are argued (verification_plan.md section 5)."
+
+# ---------------------------------------------------------------------------
+# Table A-4: verification of the outputs of the design process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-4.1"
+title = "Low-level requirements comply with the high-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus", "docs/verification_plan.md"]
+refs = ["GAP-08", "GAP-18", "P-04"]
+note = "Each specification names the criteria it formalizes (verification_plan.md 9.5); the review of each specification against its criterion is open (9.2)."
+
+[[objective]]
+id = "A-4.2"
+title = "Low-level requirements are accurate and consistent."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-08"]
+note = "Verus checks that the specifications are well formed and met by the code; vacuity was checked by manual mutation (verification_plan.md 9.2)."
+
+[[objective]]
+id = "A-4.3"
+title = "Low-level requirements are compatible with the target computer."
+applies = ["A", "B"]
+confirm = ["C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-09", "TBR-02"]
+note = "The Hardware_Model cites the manuals; its differential tests are hardware-pending."
+
+[[objective]]
+id = "A-4.4"
+title = "Low-level requirements are verifiable."
+applies = ["A", "B"]
+confirm = ["C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-10"]
+note = "Formal specifications are verified by construction; Kernel_Arch has no stated low-level requirements."
+
+[[objective]]
+id = "A-4.5"
+title = "Low-level requirements conform to the standards."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-18"]
+note = "No design standard."
+
+[[objective]]
+id = "A-4.6"
+title = "Low-level requirements are traceable to the high-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-18"]
+note = "Specification doc comments cite R identifiers; the traceability matrix is task 8.4."
+
+[[objective]]
+id = "A-4.7"
+title = "Algorithms are accurate (design level)."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-14"]
+note = "As A-3.7."
+
+[[objective]]
+id = "A-4.8"
+title = "The software architecture is compatible with the high-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["design.md"]
+refs = ["GAP-08"]
+note = "design.md names the requirements each component implements; not reviewed."
+
+[[objective]]
+id = "A-4.9"
+title = "The software architecture is consistent."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus", "design.md"]
+refs = ["GAP-08"]
+note = "The Kernel invariant is proven preserved by every transition; the architecture is not reviewed."
+
+[[objective]]
+id = "A-4.10"
+title = "The software architecture is compatible with the target computer."
+applies = ["A", "B"]
+confirm = ["C"]
+status = "partial"
+owner = "prototype"
+evidence = ["test-qemu-spike-p1-demo"]
+refs = ["GAP-09"]
+note = "Exercised on QEMU only."
+
+[[objective]]
+id = "A-4.11"
+title = "The software architecture is verifiable."
+applies = ["A", "B"]
+confirm = ["C"]
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-10"]
+note = "The logic is designed for Verus; Kernel_Arch sits outside the proof boundary (verification_plan.md section 4)."
+
+[[objective]]
+id = "A-4.12"
+title = "The software architecture conforms to the standards."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-18"]
+note = "No design standard."
+
+[[objective]]
+id = "A-4.13"
+title = "Software partitioning integrity is confirmed."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-05", "GAP-06", "GAP-09", "P-16", "P-17", "P-18"]
+note = "Proven over the Hardware_Model: the MPU decision, the never-masked Kernel level, and R14.9 per response; Kernel_Arch realisation by inspection; DMA mediation not built; HIL access matrix pending."
+
+# ---------------------------------------------------------------------------
+# Table A-5: verification of the outputs of coding and integration
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-5.1"
+title = "Source code complies with the low-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-10"]
+note = "Formal for the Kernel logic and the Analyzer core; Kernel_Arch by inspection."
+
+[[objective]]
+id = "A-5.2"
+title = "Source code complies with the software architecture."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["check-static-checks"]
+refs = ["GAP-08"]
+note = "Unsafe confinement, the Kernel's no_std graph, and the crate structure are checked; no review."
+
+[[objective]]
+id = "A-5.3"
+title = "Source code is verifiable."
+applies = ["A", "B"]
+confirm = ["C"]
+status = "partial"
+owner = "prototype"
+evidence = ["check-static-checks", "proof-kernel-verus"]
+refs = ["GAP-10"]
+note = "The logic stays within the Verus subset (R44.5) and the PAR-01 size limit; Kernel_Arch is outside it."
+
+[[objective]]
+id = "A-5.4"
+title = "Source code conforms to the standards."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["check-static-checks"]
+refs = ["GAP-13"]
+note = "PR-20, PR-36, and R6.1 to R6.4 are checked; Profile_Lint and Link_Checker are not built."
+
+[[objective]]
+id = "A-5.5"
+title = "Source code is traceable to the low-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = []
+refs = ["GAP-18"]
+note = "Doc comments cite R identifiers; no matrix (task 8.4)."
+
+[[objective]]
+id = "A-5.6"
+title = "Source code is accurate and consistent."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus", "proof-kernel-kani"]
+refs = ["GAP-04", "GAP-12", "GAP-13"]
+note = "Overflow, bounds, and panic freedom of the logic proven; stack bounds (Link_Checker) and timing (WCET) open; Kernel_Arch panics not proven."
+
+[[objective]]
+id = "A-5.7"
+title = "The output of the software integration process is complete and correct."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["test-target-build", "check-post-build"]
+refs = ["GAP-13"]
+note = "The Target link and the dependency checks run; the Config_Checker and Link_Checker are not built."
+
+[[objective]]
+id = "A-5.8"
+title = "The parameter data item file is correct and complete."
+applies = ["A", "B", "C"]
+status = "not-applicable"
+owner = "prototype"
+evidence = []
+refs = ["R24.6"]
+note = "rsk has no parameter data item files: Generated_Config is constant data linked into the executable object code (R24.6) and verified with it."
+
+[[objective]]
+id = "A-5.9"
+title = "Verification of the parameter data item file is achieved."
+applies = ["A", "B", "C"]
+status = "not-applicable"
+owner = "prototype"
+evidence = []
+refs = ["R24.6"]
+note = "As A-5.8."
+
+# ---------------------------------------------------------------------------
+# Table A-6: testing of the outputs of the integration process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-6.1"
+title = "Executable object code complies with the high-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["test-qemu-spike-p1-demo"]
+refs = ["GAP-09"]
+note = "One QEMU scenario; requirements-based tests on the Target are hardware-pending."
+
+[[objective]]
+id = "A-6.2"
+title = "Executable object code is robust with respect to the high-level requirements."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-09"]
+note = "Fault-injection and robustness suites are hardware-pending (tasks 7.2 to 7.5)."
+
+[[objective]]
+id = "A-6.3"
+title = "Executable object code complies with the low-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-kani", "test-workspace-tests"]
+refs = ["GAP-09", "GAP-11"]
+note = "Kani runs the ghost-erased logic against restated postconditions, on the host and within bounds."
+
+[[objective]]
+id = "A-6.4"
+title = "Executable object code is robust with respect to the low-level requirements."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-09", "GAP-11"]
+note = "Verus covers every input that meets the preconditions, at source level; object-code robustness needs Target tests."
+
+[[objective]]
+id = "A-6.5"
+title = "Executable object code is compatible with the target computer."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-09"]
+note = "No nRF52840-DK available."
+
+# ---------------------------------------------------------------------------
+# Table A-7: verification of the verification process results
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-7.1"
+title = "Test procedures are correct."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-08", "GAP-09"]
+note = "HIL test procedures are not written (verification_plan.md section 11)."
+
+[[objective]]
+id = "A-7.2"
+title = "Test results are correct and discrepancies are explained."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["check-evidence"]
+refs = ["GAP-08"]
+note = "Every step writes an Evidence_Item with its verdict; no review of results."
+
+[[objective]]
+id = "A-7.3"
+title = "Test coverage of the high-level requirements is achieved."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-09", "GAP-13"]
+note = "Allocated by requirement group; per-criterion coverage awaits task 8.4."
+
+[[objective]]
+id = "A-7.4"
+title = "Test coverage of the low-level requirements is achieved."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus"]
+refs = ["GAP-09"]
+note = "Formal coverage of the logic specifications (DO-333); Kernel_Arch untested on the Target."
+
+[[objective]]
+id = "A-7.5"
+title = "Structural coverage: modified condition/decision coverage is achieved."
+applies = ["A"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-02"]
+note = "No MC/DC tool for Rust selected (ORQ-05)."
+
+[[objective]]
+id = "A-7.6"
+title = "Structural coverage: decision coverage is achieved."
+applies = ["A", "B"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-02"]
+note = "Phase P3 (R53)."
+
+[[objective]]
+id = "A-7.7"
+title = "Structural coverage: statement coverage is achieved."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-02"]
+note = "Phase P3 (R53)."
+
+[[objective]]
+id = "A-7.8"
+title = "Structural coverage: data coupling and control coupling coverage is achieved."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-02"]
+note = "Phase P3 (R53)."
+
+[[objective]]
+id = "A-7.9"
+title = "Additional code that cannot be traced to source code is verified."
+applies = ["A"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-01", "GAP-02"]
+note = "Source-to-object traceability (R53.2) is Phase P3."
+
+# ---------------------------------------------------------------------------
+# Table A-8: software configuration management process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-8.1"
+title = "Configuration items are identified."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["check-build-manifest"]
+refs = ["GAP-15"]
+note = "Git, the lock file, and vendored sources identify the items; no configuration index."
+
+[[objective]]
+id = "A-8.2"
+title = "Baselines and traceability are established."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["check-build-manifest", "check-evidence"]
+refs = ["GAP-15", "GAP-16"]
+note = "Every Evidence_Item names its Build_Manifest; runs may come from a dirty tree."
+
+[[objective]]
+id = "A-8.3"
+title = "Problem reporting, change control, change review, and configuration status accounting are established."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "Git history only."
+
+[[objective]]
+id = "A-8.4"
+title = "Archive, retrieval, and release are established."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "shared"
+evidence = ["check-evidence"]
+refs = ["GAP-16"]
+note = "Evidence store and the rebuild comparison (R59.3); no release process."
+
+[[objective]]
+id = "A-8.5"
+title = "Software load control is established."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-09"]
+note = "The HIL read-back hash check (R48.4) is hardware-pending."
+
+[[objective]]
+id = "A-8.6"
+title = "Software life cycle environment control is established."
+applies = ["A", "B", "C"]
+status = "partial"
+owner = "prototype"
+evidence = ["toolchain/decision.toml", "check-network-sandbox", "check-static-checks"]
+refs = ["GAP-03"]
+note = "Pinned and recorded tools, offline builds in a network sandbox (R58); tools unqualified."
+
+# ---------------------------------------------------------------------------
+# Table A-9: software quality assurance process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-9.1"
+title = "Assurance that the plans and standards are developed and reviewed for compliance and consistency."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-08", "GAP-15"]
+note = "Software quality assurance is an applicant activity performed with independence."
+
+[[objective]]
+id = "A-9.2"
+title = "Assurance that the life cycle processes comply with the approved plans."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-08", "GAP-15"]
+note = "As A-9.1."
+
+[[objective]]
+id = "A-9.3"
+title = "Assurance that the life cycle processes comply with the approved standards."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-08", "GAP-15"]
+note = "As A-9.1."
+
+[[objective]]
+id = "A-9.4"
+title = "Assurance that the transition criteria are satisfied."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-08", "GAP-15"]
+note = "As A-9.1."
+
+[[objective]]
+id = "A-9.5"
+title = "Assurance that a software conformity review is conducted."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-08", "GAP-15"]
+note = "As A-9.1."
+
+# ---------------------------------------------------------------------------
+# Table A-10: certification liaison process
+# ---------------------------------------------------------------------------
+
+[[objective]]
+id = "A-10.1"
+title = "Communication and understanding between the applicant and the certification authority are established."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "Certification liaison is outside the prototype (NG-12)."
+
+[[objective]]
+id = "A-10.2"
+title = "The means of compliance is proposed and agreed in the plan for software aspects of certification."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "As A-10.1."
+
+[[objective]]
+id = "A-10.3"
+title = "Compliance substantiation is provided."
+applies = ["A", "B", "C"]
+status = "not-addressed"
+owner = "applicant"
+evidence = []
+refs = ["GAP-15"]
+note = "As A-10.1; rsk's Evidence_Items are inputs to it."
+
+# ---------------------------------------------------------------------------
+# DO-333 and DO-330 (described, not numbered: OPEN-02)
+# ---------------------------------------------------------------------------
+
+[[supplement]]
+id = "FM-1"
+standard = "DO-333"
+title = "Each formal method used is correctly defined, justified, and appropriate (soundness)."
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-03", "GAP-08"]
+note = "Soundness justification per method (verification_plan.md 9.1); not reviewed."
+
+[[supplement]]
+id = "FM-2"
+standard = "DO-333"
+title = "The formalization of each requirement is correct."
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-08", "GAP-18"]
+note = "Mutation checks against vacuity (9.2); the review against natural-language criteria is open."
+
+[[supplement]]
+id = "FM-3"
+standard = "DO-333"
+title = "Formal analysis cases and procedures are correct."
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus", "check-static-checks"]
+refs = ["GAP-08"]
+note = "Fixed commands and pinned tools; every assumption construct gated (R50.2); not reviewed."
+
+[[supplement]]
+id = "FM-4"
+standard = "DO-333"
+title = "Formal analysis results are correct and discrepancies are explained."
+status = "partial"
+owner = "prototype"
+evidence = ["proof-kernel-verus", "proof-kernel-kani"]
+refs = ["GAP-08", "GAP-16"]
+note = "Verdicts recorded with tool versions; no automated re-run comparison (R50.4)."
+
+[[supplement]]
+id = "FM-5"
+standard = "DO-333"
+title = "Coverage of the requirements by formal analysis is achieved."
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-14"]
+note = "Complete and partial coverage per criterion (verification_plan.md 9.5)."
+
+[[supplement]]
+id = "FM-6"
+standard = "DO-333"
+title = "Properties proven on source code are preserved in the executable object code."
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-01", "GAP-11"]
+note = "Property-preservation argument (verification_plan.md 9.3); no translation validation."
+
+[[supplement]]
+id = "FM-7"
+standard = "DO-333"
+title = "Structural coverage objectives replaced by formal analysis are justified."
+status = "not-applicable"
+owner = "prototype"
+evidence = []
+refs = ["R53.4"]
+note = "No structural coverage objective is replaced in v1 (R53.4)."
+
+[[supplement]]
+id = "TQ-1"
+standard = "DO-330"
+title = "Each tool that needs qualification is qualified at its TQL."
+status = "not-addressed"
+owner = "shared"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-01", "GAP-03"]
+note = "Classifications and TQLs in verification_plan.md 8.1; qualification is per project and an applicant activity (R51.6)."
+
+[[supplement]]
+id = "TQ-2"
+standard = "DO-330"
+title = "The Generator needs no qualification because its output is verified."
+status = "partial"
+owner = "prototype"
+evidence = ["docs/verification_plan.md"]
+refs = ["GAP-13"]
+note = "The argument and the outputs it does not cover are in verification_plan.md 8.2; the Config_Checker it rests on is not built."
+
+[[supplement]]
+id = "TQ-3"
+standard = "DO-330"
+title = "The Verus ghost-erasure macro is qualified, or its output is shown equal to the verified code."
+status = "not-addressed"
+owner = "prototype"
+evidence = []
+refs = ["GAP-11"]
+note = "Criterion 1 until the archived erased source is compared (R55.3)."
+
+# ---------------------------------------------------------------------------
+# Gaps (GAP-01 to GAP-07 are the gaps R54.2 requires)
+# ---------------------------------------------------------------------------
+
+[[gap]]
+id = "GAP-01"
+title = "Compiler assurance at DAL A/B beyond Ferrocene's DAL C support"
+status = "open"
+owner = "shared"
+links = ["ORQ-04", "ORQ-08", "ORQ-20", "ASM-09", "TBR-01", "R53.2", "R56"]
+description = "Ferrocene supports DO-178C up to DAL C (RN-39). Phases P1 to P4 build with upstream rustc 1.95.0, while the proofs run on rustc 1.98.1. No translation validation exists, and the integrated assembler once emitted a nop for a branch without a diagnostic (ORQ-32)."
+plan = "Ferrocene Flight_Builds with a Known Problems assessment (task 23.1); source-to-object traceability and object-code verification of DAL A code (R53.2, Phase P3). Choosing between object-code verification and compiler qualification is the applicant's."
+
+[[gap]]
+id = "GAP-02"
+title = "Structural coverage tooling for Rust: MC/DC, decision, statement, and data and control coupling"
+status = "open"
+owner = "prototype"
+links = ["ORQ-05", "R53"]
+description = "Upstream rustc MC/DC instrumentation was removed in late 2025; GNATcoverage documents Rust MC/DC (RN-40). No coverage tool is selected and no coverage is measured."
+plan = "Evaluate and select in task 19.5; measure on the Target at object level if no tool reaches the Kernel's no_std code."
+
+[[gap]]
+id = "GAP-03"
+title = "DO-330 qualification of Verus, Kani, Creusot, and the other verification tools"
+status = "open"
+owner = "shared"
+links = ["ORQ-06", "ORQ-10", "R51", "TBR-04", "TBR-07", "TBR-08", "TBR-12"]
+description = "No DO-330 qualification of Verus, Kani, or Creusot is known. Where their results replace tests they are criterion 2 tools at TQL-4 (verification_plan.md 8.1). Qualification applies per project; rsk tools can at most be qualifiable (R51.6)."
+plan = "rsk: tool operational requirements and qualification test suites for the tools it builds, and pinned, recorded versions. Track independent proof checking through the Verus Lean back end (RN-15). Qualification itself is the applicant's."
+
+[[gap]]
+id = "GAP-04"
+title = "Measurement-based WCET is not a guaranteed bound"
+status = "open"
+owner = "prototype"
+links = ["ORQ-13", "ORQ-12", "ASM-11", "TBR-14", "R34", "R36"]
+description = "Schedulability rests on measured execution times with a margin until a static WCET tool is selected in Phase P5; no measurement has been made yet."
+plan = "Measurement campaigns with coverage thresholds and loop-bound drive (tasks 19.1 to 19.4); static WCET cross-check (task 24.1)."
+
+[[gap]]
+id = "GAP-05"
+title = "Robust partitioning evidence under the selected privilege model"
+status = "open"
+owner = "prototype"
+links = ["ORQ-01", "ORQ-28", "R16.10", "R16.8", "R14.11", "P-16", "P-17", "P-18", "TBR-24"]
+description = "DD-01 runs every Job unprivileged with hardware-enforced access classes (ORQ-28), so static checks are defence in depth only. Proven over the Hardware_Model: the MPU decision for validated layouts, the never-masked Kernel level, and R14.9 per response. The Kernel_Arch facts these proofs assume hold by inspection (verification_plan.md section 4), the Link_Checker's static checks are not built, and the HIL access matrix is hardware-pending."
+plan = "HIL access matrix and fault injection (tasks 7.4, 7.5); Link_Checker scans (task 12.3); bring Kernel_Arch into the proof boundary (GAP-10)."
+
+[[gap]]
+id = "GAP-06"
+title = "DMA isolation without an IOMMU"
+status = "open"
+owner = "prototype"
+links = ["ORQ-03", "R17", "ASM-07", "TBR-16"]
+description = "EasyDMA is a bus master the MPU does not restrict. DD-08 mediates every DMA pointer and length write through the Kernel, but the mediation service is not built (task 5.5) and the DMA isolation cases need hardware."
+plan = "Implement and prove the validation of the mediation service (task 5.5); HIL DMA cases (task 7.4)."
+
+[[gap]]
+id = "GAP-07"
+title = "`core` is certified outside DO-178C"
+status = "open"
+owner = "shared"
+links = ["R57.4", "ORQ-24", "TBR-09", "ASM-17"]
+description = "Ferrocene certifies its core subset to IEC 61508 SIL 2 and ISO 26262 ASIL B, not to DO-178C, and the per-item list is customer-only. Two Core_Subset items without that certification are used (`core::arch::asm`, `core::panic::PanicInfo`); four are listed but unused (verification_plan.md 5.9)."
+plan = "Confirm the subset against the Safety Manual (ASM-17); remove the unused items in the next Profile version; record substitute evidence for each item used."
+
+[[gap]]
+id = "GAP-08"
+title = "Verification independence"
+status = "open"
+owner = "applicant"
+links = ["R51.7", "R52.2"]
+description = "DO-178C requires independence for 30 objectives at Level A, 18 at B, and 5 at C (published counts). rsk has one author: the specifications, the code, the Kani harnesses that restate the specifications, and the reviews come from the same person."
+plan = "Independent review of the Verification_Plan, the specifications against their criteria, the section 5 arguments, and the section 4 inspection facts; tool independence where R26.1 requires it. Staffing independence is the applicant's."
+
+[[gap]]
+id = "GAP-09"
+title = "Hardware-in-the-loop evidence is pending"
+status = "open"
+owner = "prototype"
+links = ["ORQ-09", "ASM-08", "TBR-02", "TBR-18", "TBR-23", "R49.3", "R48.4", "P-25"]
+description = "No nRF52840-DK is available (2026-10-14). Pending: the Hardware_Model differential tests, the validation of Kani stubs KS-01 and KS-02, the boot, release-timing, MPU, DMA, and fault-injection suites, cycle counting, the watchdog, and load control. QEMU results are pre-hardware evidence only (verification_plan.md section 11)."
+plan = "Deferred, not dropped: the Phase 1 checkpoint (task 9) requires these items. Before boards: write each test's procedure and predicted outcome, and dry-run the orchestration on QEMU."
+
+[[gap]]
+id = "GAP-10"
+title = "Kernel_Arch and the unsafe module are outside the proof boundary"
+status = "open"
+owner = "prototype"
+links = ["TBR-05", "TBR-06", "TBR-24", "R44.5", "R45.1", "P-13"]
+description = "The logic proofs assume facts about Kernel_Arch (verification_plan.md section 4, A1 to A11) that hold by inspection only. 38 of 43 unsafe constructs are justified by review; the Kani harnesses build for the host, so the flight-only volatile and assembly paths are compiled out."
+plan = "Move the safe planning code into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model; restructure the unsafe module so that harnesses reach the flight code; HIL tests on the Target."
+
+[[gap]]
+id = "GAP-11"
+title = "Ghost erasure: the flight source is not shown equal to the verified source"
+status = "open"
+owner = "prototype"
+links = ["ORQ-08", "ORQ-20", "R52.3", "R55.3", "TBR-01"]
+description = "The `verus!` macro (verus_builtin_macros) produces the source that becomes airborne code, which makes it a criterion 1 tool unless the erased source is compared with the verified code. The comparison is not done."
+plan = "Archive and compare the ghost-erased Kernel source (task 23.1); the Kani cross-checks on erased code are a bounded partial mitigation."
+
+[[gap]]
+id = "GAP-12"
+title = "Panic freedom outside the verified logic"
+status = "open"
+owner = "prototype"
+links = ["ORQ-07", "PR-19", "R44.7", "R14.4"]
+description = "Kernel_Arch and rsk-entry are safe Rust outside `verus!` and are not proven panic-free. A panic there reaches the safe state, so it is a detected Kernel fault, not undefined behaviour (verification_plan.md 5.6)."
+plan = "Link_Checker no-panic-path check from Kernel entry points (task 12.3), or move the code into `verus!` (GAP-10)."
+
+[[gap]]
+id = "GAP-13"
+title = "The Phase 2 checkers are not built"
+status = "open"
+owner = "prototype"
+links = ["R50.1", "R26", "R37", "R3.5", "R51.3", "TBR-11", "TBR-12"]
+description = "The verification job runs Verus, Kani, the tests, and the QEMU spike, but the Config_Checker, Link_Checker, Profile_Lint, and Profile_Conformance_Suite are stubs or absent (R50.1). The argument that the Generator needs no qualification rests on the Config_Checker (verification_plan.md 8.2); the ORQ-32 rule waits for the Link_Checker."
+plan = "Tasks 11 to 14."
+
+[[gap]]
+id = "GAP-14"
+title = "Properties over sequences of transitions are argued, not mechanized"
+status = "open"
+owner = "prototype"
+links = ["R8.2", "R8.4", "R8.5", "R8.9", "R10.1", "R10.2"]
+description = "Bounded blocking, ceiling restore across preemptions, deadlock freedom, the lazy release of killed Jobs, and MIT spacing over a run are pen-and-paper arguments over proven per-transition facts (verification_plan.md section 5). They are review evidence and earn no DO-333 credit."
+plan = "A ghost history or trace model in Verus; property-based tests against the SRP simulator (task 15.4)."
+
+[[gap]]
+id = "GAP-15"
+title = "Activities only a certification applicant can perform"
+status = "open"
+owner = "applicant"
+links = ["NG-12", "R54.4"]
+description = "Plans (PSAC, SDP, SVP, SCMP, SQAP) and their coordination, approval of standards, system requirements and the system safety assessment, problem reporting and change control, software quality assurance and the conformity review, and certification liaison."
+plan = "Out of scope for the prototype (NG-12). rsk keeps the inputs these need: requirements, design, Verification_Plan, registers, and Evidence_Items."
+
+[[gap]]
+id = "GAP-16"
+title = "Proof re-runs from archived inputs are not automated"
+status = "open"
+owner = "prototype"
+links = ["R50.4", "R59.3", "TBR-19"]
+description = "Evidence_Items record the source revision and the tool versions, but a run may come from a dirty tree, and no command re-runs an archived proof Evidence_Item and compares its verdict (R50.4). The rebuild comparison (R59.3) covers binaries only."
+plan = "Refuse proof Evidence_Items from a dirty tree or archive the diff; add a re-run command that compares verdicts."
+
+[[gap]]
+id = "GAP-17"
+title = "Kernel code executes VFP data-movement instructions, which R6.6 does not allow"
+status = "open"
+owner = "prototype"
+links = ["ORQ-16", "PR-31", "R6.6"]
+description = "LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves in Kernel code, so the coprocessor stays enabled. The moves do not alter a Job's floating-point context (verification_plan.md 5.7), but R6.6 as written allows only context-preservation instructions."
+plan = "Amend R6.6 or change code generation; confirm with the Link_Checker instruction scan (task 12.3) and the HIL register-pattern test."
+
+[[gap]]
+id = "GAP-18"
+title = "Standards and reviews of requirements, design, and specifications"
+status = "open"
+owner = "shared"
+links = ["R52.2", "R43.5"]
+description = "No requirements, design, or coding standards exist beyond the Profile and the Build_System checks. Neither the requirements nor the Verus specifications have been reviewed against each other, and traceability is by citation without a matrix."
+plan = "Write requirements and design standards; review each specification against its criterion (verification_plan.md 9.2); traceability matrix (task 8.4). Independent review is GAP-08."
+
+[[gap]]
+id = "GAP-19"
+title = "UPPAAL licence and model fidelity"
+status = "mitigated"
+owner = "prototype"
+links = ["ASM-13", "ORQ-22", "TBR-17"]
+description = "UPPAAL is used under its academic licence and only as a cross-check; no credit is claimed. The exported model does not yet model the SRP ceiling."
+plan = "Model the ceiling in the exporter (task 16.1); a commercial licence is needed for certification use (ASM-13)."
+
+# ---------------------------------------------------------------------------
+# Open research questions (status mirrored from design.md, R54.3)
+# ---------------------------------------------------------------------------
+
+[[orq]]
+id = "ORQ-01"
+status = "resolved"
+certification = true
+gaps = ["GAP-05"]
+note = "Privilege model resolved by the revised DD-01; its partitioning evidence is GAP-05."
+
+[[orq]]
+id = "ORQ-02"
+status = "resolved"
+certification = true
+gaps = []
+note = "MPU layout validated at boot and proven (P-16)."
+
+[[orq]]
+id = "ORQ-03"
+status = "resolved"
+certification = true
+gaps = ["GAP-06"]
+note = "Resolved for v1 by Kernel-mediated EasyDMA; the mediation service is not built."
+
+[[orq]]
+id = "ORQ-04"
+status = "deferred"
+certification = true
+gaps = ["GAP-01"]
+note = "Compiler assurance for DAL A/B."
+
+[[orq]]
+id = "ORQ-05"
+status = "deferred"
+certification = true
+gaps = ["GAP-02"]
+note = "Rust MC/DC tooling."
+
+[[orq]]
+id = "ORQ-06"
+status = "deferred"
+certification = true
+gaps = ["GAP-03"]
+note = "DO-330 qualification of Verus and Kani."
+
+[[orq]]
+id = "ORQ-07"
+status = "partly-resolved"
+certification = true
+gaps = ["GAP-12"]
+note = "Panic freedom proven for the logic only."
+
+[[orq]]
+id = "ORQ-08"
+status = "partly-resolved"
+certification = true
+gaps = ["GAP-01", "GAP-11"]
+note = "Property preservation to object code."
+
+[[orq]]
+id = "ORQ-09"
+status = "resolved"
+certification = true
+gaps = ["GAP-09"]
+note = "Scope resolved; the differential tests are hardware-pending."
+
+[[orq]]
+id = "ORQ-10"
+status = "resolved"
+certification = true
+gaps = ["GAP-03"]
+note = "Creusot designated; unqualified and not yet pinned."
+
+[[orq]]
+id = "ORQ-11"
+status = "partly-resolved"
+certification = false
+gaps = []
+note = "Endpoint session-type design for Phase P4; no certification evidence depends on it in v1 Phase 1 (P-22 is Phase P4)."
+
+[[orq]]
+id = "ORQ-12"
+status = "deferred"
+certification = true
+gaps = ["GAP-04"]
+note = "Static WCET tool, Phase P5."
+
+[[orq]]
+id = "ORQ-13"
+status = "partly-resolved"
+certification = true
+gaps = ["GAP-04"]
+note = "Adequacy of measurement-based WCET."
+
+[[orq]]
+id = "ORQ-14"
+status = "resolved"
+certification = true
+gaps = []
+note = "Temporal partitioning by Budget enforcement (P-17)."
+
+[[orq]]
+id = "ORQ-15"
+status = "deferred"
+certification = false
+gaps = []
+note = "Mixed-criticality mode changes are post-v1 (NG-09)."
+
+[[orq]]
+id = "ORQ-16"
+status = "resolved"
+certification = true
+gaps = ["GAP-17"]
+note = "Eager FP stacking; the Kernel VFP data moves are GAP-17."
+
+[[orq]]
+id = "ORQ-17"
+status = "resolved"
+certification = true
+gaps = []
+note = "Equal-priority order proven over the Hardware_Model (P-04)."
+
+[[orq]]
+id = "ORQ-18"
+status = "deferred"
+certification = false
+gaps = []
+note = "Jorvik-style suspension points, Phase P5."
+
+[[orq]]
+id = "ORQ-19"
+status = "deferred"
+certification = false
+gaps = []
+note = "Later targets, Phase P5; v1 certification evidence concerns the nRF52840 only."
+
+[[orq]]
+id = "ORQ-20"
+status = "deferred"
+certification = true
+gaps = ["GAP-01", "GAP-11"]
+note = "Ferrocene's scope for proc-macro expansion and Cargo."
+
+[[orq]]
+id = "ORQ-21"
+status = "resolved"
+certification = true
+gaps = []
+note = "HAL and PAC strategy (verification_plan.md section 10); no HAL or PAC crate is in the Flight_Build graph yet."
+
+[[orq]]
+id = "ORQ-22"
+status = "partly-resolved"
+certification = true
+gaps = ["GAP-19"]
+note = "UPPAAL fidelity; no credit claimed."
+
+[[orq]]
+id = "ORQ-23"
+status = "resolved"
+certification = true
+gaps = []
+note = "Source masking during MIT windows (P-08)."
+
+[[orq]]
+id = "ORQ-24"
+status = "partly-resolved"
+certification = true
+gaps = ["GAP-07"]
+note = "Core_Subset derived from public statements (task 2.2); the per-item list is customer-only."
+
+[[orq]]
+id = "ORQ-25"
+status = "resolved"
+certification = true
+gaps = []
+note = "Kernel-only idle activity."
+
+[[orq]]
+id = "ORQ-26"
+status = "deferred"
+certification = true
+gaps = ["GAP-09"]
+note = "Windowed MIT_Violation counting needs HIL data; v1 counts as R10.4 states."
+
+[[orq]]
+id = "ORQ-27"
+status = "resolved"
+certification = true
+gaps = []
+note = "Precise BusFaults (DD-12)."
+
+[[orq]]
+id = "ORQ-28"
+status = "resolved"
+certification = true
+gaps = ["GAP-05"]
+note = "Every access class is hardware-enforced; static checks are defence in depth."
+
+[[orq]]
+id = "ORQ-29"
+status = "deferred"
+certification = false
+gaps = []
+note = "Jorvik Release_Signals, Phase P5."
+
+[[orq]]
+id = "ORQ-30"
+status = "resolved"
+certification = true
+gaps = []
+note = "Design resolved; the DHCSR logging is open in task 5.2."
+
+[[orq]]
+id = "ORQ-31"
+status = "resolved"
+certification = true
+gaps = ["GAP-09"]
+note = "Design resolved; the watchdog is not implemented and has no QEMU model."
+
+[[orq]]
+id = "ORQ-32"
+status = "resolved"
+certification = true
+gaps = ["GAP-13"]
+note = "The branch rule is followed by review; the Link_Checker check that enforces it is not built."
