@@ -12,6 +12,8 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+import sysconfig
 import tomllib
 from collections import Counter
 from pathlib import Path
@@ -136,10 +138,53 @@ def test_installed_distributions_match_the_lock() -> None:
     assert not problems, "\n".join(problems)
 
 
+def _find_uv() -> str | None:
+    """The uv executable: ``$UV``, then PATH, then the usual install locations that are often not on PATH.
+
+    pip's ``--user`` install puts the binary in the user scripts directory of
+    the interpreter that ran pip (``~/Library/Python/3.x/bin`` for macOS
+    framework builds), and uv's standalone installer uses ``~/.local/bin`` or
+    ``~/.cargo/bin``. The test environment's interpreter may be a different
+    Python, so a pip-installed uv package is also located by asking each
+    Python on PATH (``uv.find_uv_bin()``).
+    """
+    explicit = os.environ.get("UV")
+    if explicit:
+        return explicit
+    found = shutil.which("uv")
+    if found:
+        return found
+    home = Path.home()
+    directories = [
+        home / ".local" / "bin",
+        home / ".cargo" / "bin",
+        Path(sys.executable).parent,
+        Path(sysconfig.get_path("scripts", sysconfig.get_preferred_scheme("user"))),
+    ]
+    found = shutil.which("uv", path=os.pathsep.join(str(directory) for directory in directories))
+    if found:
+        return found
+    for name in ("python3", "python"):
+        interpreter = shutil.which(name)
+        if not interpreter:
+            continue
+        result = subprocess.run(
+            [interpreter, "-c", "import uv; print(uv.find_uv_bin())"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        candidate = result.stdout.strip()
+        if result.returncode == 0 and candidate and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
 def test_lock_is_current_with_pyproject() -> None:
-    uv = os.environ.get("UV") or shutil.which("uv")
+    uv = _find_uv()
     if not uv:
-        pytest.skip("uv is not available")
+        pytest.skip("uv is not available (install it, or set UV to its path)")
     result = subprocess.run(
         [uv, "lock", "--check", "--offline"],
         cwd=ROOT,

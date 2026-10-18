@@ -168,7 +168,10 @@ Data bits (Requirements 19.1, 19.2)
       over the objects that hold none of the unit's antecedents outside it
       (the antecedents imply its presence). The other keys are extras: a
       closed Record (``additionalProperties: false``) rejects objects with
-      an extra that no ``patternProperties`` pattern matches; otherwise
+      an extra that no ``patternProperties`` pattern matches, and without
+      ``patternProperties`` it codes no extras flag, since no accepted
+      object can hold an extra (the design's closed candidate pays no
+      ``CAT(n, 0)``); otherwise
       ``CAT(no extras, extras)`` over the objects, ``LN0(#extras)`` per
       object with extras, each extra key as ``STR(k)`` (or under
       ``propertyNames``), and each extra value under the first matching
@@ -227,6 +230,11 @@ Local scoring and candidate encoding (Requirement 19.3)
     - Variants and Merge-or-Split: an ``anyOf`` (or ``oneOf``) of the
       branch subschemas, with ``branch_views={node.nid: views}`` giving the
       rows of each branch.
+    - Co_Occurrence_Rules: the Variant's Record plus one
+      ``dependentRequired`` entry. A rule that every object satisfies
+      changes only the model bits and the Record's own presence terms
+      (:meth:`MDLScorer.presence_bits`), so many rules are scored against
+      one full scoring of the Record.
 
 Observations scored, flags, and determinism
     ``n_scored`` is the number of non-flagged Observations in the view and
@@ -1926,6 +1934,8 @@ class _DataCoder:
                 bits = _count_bits(size, spec.min_properties, spec.max_properties)
                 if bits:
                     terms.append(bits * count)
+        elif spec.additional_false and not spec.pattern_properties:
+            pass  # a closed Record admits no extras (objects with one were rejected), so no extras flag is coded
         else:
             owners = stats.key_objects[np.repeat(extra, np.diff(stats.key_indptr))]
             per_object = np.bincount(owners, minlength=n_objects)
@@ -2133,6 +2143,61 @@ class MDLScorer:
         model = self.model_bits(node)
         data, exceptions, n_rejected = self.data_bits(node, view, branch_views=branch_views)
         return Score(model, data, exceptions, n_rejected, _subtree_size(view.live()))
+
+    def presence_bits(self, node: SchemaNode, view: View) -> float:
+        """The Record presence bits that :meth:`data_bits` charges at ``node`` itself, over the rows it accepts.
+
+        These are the ``CAT(present, absent)`` terms of the node's optional
+        ``properties``, one per presence unit (see the module docstring:
+        Records), over the non-flagged object rows of ``view`` that the
+        node's own keywords accept. They depend only on the node's
+        ``properties`` names, ``required``, and ``dependentRequired``, and on
+        which keys those objects hold. So a candidate that differs from
+        ``node`` only in ``required`` or ``dependentRequired`` entries that
+        every non-flagged object of ``view`` satisfies has exactly the data
+        terms of ``node`` with these presence terms replaced by its own, and
+        a Decision_Point can score many such candidates with one full
+        scoring (Co_Occurrence_Rule inclusion, ``deps.cooccurrence``).
+
+        0 when the node codes no presence: no ``properties``, ``const`` or
+        ``enum`` (the member codes the whole value), the ``false`` schema, or
+        no accepted object. Raises ``ValueError`` for an ``anyOf``/``oneOf``
+        node or a ``$ref``-only node, whose rows other nodes code.
+        """
+        if not isinstance(node, SchemaNode):
+            raise TypeError(f"the scored node must be a SchemaNode, got {type(node).__name__}")
+        if not isinstance(view, View):
+            raise TypeError(f"the scored view must be a View, got {type(view).__name__}")
+        rows = view.live()
+        coder = _DataCoder(rows.store, self._root or node, self._validator or _default_validator(), {})
+        spec = coder.spec(node)
+        if spec.target is not None or spec.any_of is not None or spec.one_of is not None:
+            raise ValueError("presence_bits codes a Record node itself, not an anyOf/oneOf or $ref-only node")
+        if not len(rows) or spec.false or spec.const or spec.members is not None or not spec.properties:
+            return 0.0
+        rejected = coder.local_reject(spec, rows, None)
+        accepted = rows.subset(~rejected) if rejected.any() else rows
+        stats = accepted.stats()
+        if not stats.n_objects:
+            return 0.0
+        coder._presence_terms(spec, stats)
+        return math.fsum(coder.data_terms)
+
+    def universal_bits(self, view: View) -> float:
+        """``Σ U(v)`` over the non-flagged rows of ``view``: their exception cost beyond ``CAT(|A|, |R|)`` (19.2).
+
+        Each row's whole non-flagged subtree is coded with the universal
+        value code, exactly as an exception codes a rejected row, so expected
+        exception costs (such as the Good–Turing charges of 15.6 and of the
+        Closed-or-Open-Record comparison) use the same bits as real ones.
+        """
+        if not isinstance(view, View):
+            raise TypeError(f"universal_bits takes a View, got {type(view).__name__}")
+        view = view.live()
+        coder = _DataCoder(view.store, self._root or _TRUE_NODE, self._validator or _default_validator(), {})
+        terms: list[float] = []
+        coder._universal_terms(view, terms)
+        return math.fsum(terms)
 
     def _code(
         self, node: SchemaNode, view: View, branch_views: Mapping[int, Sequence[View]] | None

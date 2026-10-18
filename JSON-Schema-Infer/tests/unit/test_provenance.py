@@ -16,6 +16,7 @@ from hypothesis import given
 
 from jsinfer.core.determinism import dumps_canonical
 from jsinfer.core.provenance import (
+    BASELINE_RULES,
     DECISION_MODEL_COMPARISON,
     FALLBACK_REASONS,
     MDL_COMPARISON,
@@ -29,6 +30,7 @@ from jsinfer.core.provenance import (
     Resolution,
     SampleInfo,
     Support,
+    baseline_technique,
     fallback_technique,
     laplace_confidence,
 )
@@ -206,6 +208,17 @@ def test_fallback_technique() -> None:
         fallback_technique("")
 
 
+def test_baseline_technique() -> None:
+    assert BASELINE_RULES == ("required", "type")
+    assert [baseline_technique(rule) for rule in BASELINE_RULES] == ["baseline:required", "baseline:type"]
+    with pytest.raises(ValueError, match="Baseline_Rule"):
+        baseline_technique("enum")
+    with pytest.raises(ValueError):
+        baseline_technique("")
+    with pytest.raises(TypeError):
+        baseline_technique(None)  # type: ignore[arg-type]
+
+
 # ---------------------------------------------------------------------------
 # CandidateScore and Resolution
 # ---------------------------------------------------------------------------
@@ -237,6 +250,7 @@ def test_candidate_score_normalizes_numbers() -> None:
         ({"n_rejected": 5, "n_scored": 4}, ValueError),
         ({"technique": ""}, ValueError),
         ({"technique": "fallback:bound"}, ValueError),
+        ({"technique": "baseline:type"}, ValueError),
         ({"technique": 3}, TypeError),
         ({"outcome": 1}, TypeError),
     ],
@@ -309,6 +323,7 @@ def test_fallback_info_reasons(reason: str) -> None:
         ("values.bounds", None, ValueError),
         ("", "disabled", ValueError),
         ("fallback:bound", "disabled", ValueError),
+        ("baseline:type", "disabled", ValueError),
         (None, "disabled", TypeError),
     ],
 )
@@ -473,6 +488,26 @@ def test_fallback_produced_constraints_record_fallback_information() -> None:
     priority = Resolution("priority", 0, (bound("a", None), bound("b", None)))
     mdl_off = FallbackInfo("decide.mdl", "disabled")
     ProvenanceRecord("values.bounds", support, 0.5, fallback=mdl_off, resolution=priority)
+
+
+def test_baseline_rule_records_resolve_no_decision_point() -> None:
+    support = Support(4, 5)
+    record = ProvenanceRecord.baseline("type", support)
+    assert record.technique == "baseline:type"
+    assert record.confidence == laplace_confidence(support)
+    assert record.fallback is None and record.resolution is None
+    assert ProvenanceRecord.from_json(json.loads(written(record))) == record
+    # Soundness relaxations of a baseline Constraint are still recorded (3.6).
+    change = RelaxationRecord({"type": ["integer"]}, {"type": ["integer", "string"]}, [3])
+    assert ProvenanceRecord.baseline("type", support, changes=(change,)).changes == (change,)
+    for marker in ("baseline:enum", "baseline:"):
+        with pytest.raises(ValueError, match="must name one of"):
+            ProvenanceRecord(marker, support, 0.5)
+    with pytest.raises(ValueError, match="no fallback information and no resolution"):
+        ProvenanceRecord("baseline:required", support, 0.5, fallback=FallbackInfo("values.bounds", "disabled"))
+    priority = Resolution("priority", 0, (bound("a", None), bound("b", None)))
+    with pytest.raises(ValueError, match="no fallback information and no resolution"):
+        ProvenanceRecord("baseline:type", support, 0.5, resolution=priority)
 
 
 @pytest.mark.parametrize(

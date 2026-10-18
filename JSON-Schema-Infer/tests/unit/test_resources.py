@@ -32,6 +32,8 @@ DESIGN_DEFAULTS: dict[str, int | float] = {
     "minhash.perm": 128,
     "lsh.bands": 32,
     "variants.max_components": 10,
+    "variants.em_max_iter": 100,
+    "variants.em_tol": 1e-6,
     "fpgrowth.min_support": 2,
     "patterns.max_alternatives": 4,
     "patterns.attempt_budget": 200,
@@ -248,3 +250,58 @@ def test_a_factory_returning_an_invalid_value_is_an_error() -> None:
     spec = SettingSpec("x", int, Interval(1), default_factory=lambda: 0)
     with pytest.raises(ValueError, match="default factory"):
         spec.default_value()
+
+
+# ---------------------------------------------------------------------------
+# ResourceReader (task 19.1; Requirement 20.5)
+# ---------------------------------------------------------------------------
+
+
+def test_reader_lists_each_read_with_its_origin_and_nothing_else() -> None:
+    from jsinfer.config.resources import ResourceReader
+    from jsinfer.config.run_config import RunConfiguration
+    from jsinfer.core.report import InferenceReport
+
+    config = RunConfiguration.resolve({"minhash.perm": 64}, {"resources": {"sample.dbscan": 7}})
+    report = InferenceReport()
+    reader = ResourceReader.for_run(config, report)
+    assert reader.report is report
+    assert reader.value("minhash.perm") == 64 and report.resources == {}  # value() records nothing
+    assert reader.read("minhash.perm") == 64
+    assert reader.read("sample.dbscan") == 7
+    assert reader.read("lsh.bands") == RESOURCE_PARAMETERS["lsh.bands"].default
+    assert reader.read("minhash.perm") == 64  # a second equal read is one entry
+    listed = {name: (use.value, use.origin) for name, use in report.resources.items()}
+    assert listed == {"lsh.bands": (32, "default"), "minhash.perm": (64, "flag"), "sample.dbscan": (7, "file")}
+
+
+def test_reader_of_a_mapping_records_nothing_and_fills_defaults() -> None:
+    from jsinfer.config.resources import ResourceReader
+
+    reader = ResourceReader.of({"sample.dbscan": 3})
+    assert ResourceReader.of(reader) is reader and reader.report is None
+    assert reader.read("sample.dbscan") == 3 and reader.origin("sample.dbscan") == "default"
+    assert reader.value("variants.em_tol") == 1e-6 and type(ResourceReader({"ds.tol": 0}).value("ds.tol")) is float
+    with pytest.raises(KeyError, match="unknown Resource_Parameter"):
+        reader.value("not.a.setting")
+    with pytest.raises(KeyError, match="unknown Resource_Parameter"):
+        reader.origin("not.a.setting")
+
+
+@pytest.mark.parametrize(
+    ("values", "origins", "match"),
+    [
+        ({"sample.dbscan": 0}, None, "invalid Resource_Parameters"),
+        ({"not.a.setting": 1}, None, "invalid Resource_Parameters"),
+        ({"lsh.bands": 256}, None, "invalid Resource_Parameters"),
+        ({}, {"sample.dbscan": "flag"}, "no supplied value"),
+        ({"sample.dbscan": 3}, {"sample.dbscan": "cli"}, "origin of Resource_Parameter"),
+        ({"sample.dbscan": 3}, {}, "origin of every supplied value"),
+    ],
+)
+def test_reader_rejects_invalid_values_and_origins(values: dict[str, Any], origins: Any, match: str) -> None:
+    from jsinfer.config.resources import ResourceReader
+    from jsinfer.core.report import InferenceReport
+
+    with pytest.raises(ValueError, match=match):
+        ResourceReader(values, origins=origins, report=InferenceReport())

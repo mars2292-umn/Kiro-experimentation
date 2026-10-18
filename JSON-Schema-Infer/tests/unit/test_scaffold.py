@@ -43,9 +43,8 @@ def test_version_is_installed_metadata() -> None:
 
 
 def test_cli_version_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as exc:
-        cli.main(["--version"])
-    assert exc.value.code == 0
+    # main returns the exit status instead of exiting (task 18.2); the console script exits with it.
+    assert cli.main(["--version"]) == cli.EXIT_OK
     assert "jsinfer 0.1.0" in capsys.readouterr().out
 
 

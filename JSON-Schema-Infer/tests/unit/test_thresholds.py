@@ -149,6 +149,7 @@ def spec_kwargs(**changes: Any) -> dict[str, Any]:
         {"techniques": ("b.two", "a.one")},
         {"techniques": ("a.one", "a.one")},
         {"techniques": ("fallback:bound",)},
+        {"techniques": ("baseline:type",)},
         {"techniques": "a.one"},
         {"decision_point": ""},
         {"objective": "accuracy"},

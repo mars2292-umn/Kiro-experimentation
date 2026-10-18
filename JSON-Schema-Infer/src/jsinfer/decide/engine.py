@@ -247,7 +247,8 @@ class ArtifactSource(Protocol):
     ``model`` returns a loaded artifact or None, ``threshold`` a usable
     Learned_Threshold value or None. A source may also expose
     ``substitutions`` (the bundle stage's Substitutions), which the engine
-    records verbatim for missing Decision_Models.
+    records verbatim for missing Decision_Models, and ``bundle_id``, which
+    :meth:`DecisionEngine.threshold` reports with every value read (20.5).
     """
 
     def model(self, name: str) -> Any | None: ...
@@ -599,6 +600,28 @@ class DecisionEngine:
             return self._states[tid]
         except KeyError:
             raise KeyError(f"unregistered Technique {tid!r}") from None
+
+    @property
+    def bundle(self) -> ArtifactSource | None:
+        """The Model_Bundle the engine reads (None reads as an empty bundle)."""
+        return self._bundle
+
+    def threshold(self, name: str) -> int | float | None:
+        """The value of Learned_Threshold ``name`` in the Model_Bundle, or None when it holds no usable one.
+
+        Techniques read their Learned_Thresholds here, so each value read is
+        listed in the report with the bundle's ``bundle_id`` (20.5) when the
+        bundle names one. None means the reading Technique applies its
+        Fallback_Behavior (20.6), as the engine's eligibility check does.
+        """
+        if name not in THRESHOLDS:
+            raise KeyError(f"unregistered Learned_Threshold {name!r}")
+        value = None if self._bundle is None else self._bundle.threshold(name)
+        if value is not None and self._report is not None:
+            bundle_id = getattr(self._bundle, "bundle_id", None)
+            if isinstance(bundle_id, str) and bundle_id:
+                self._report.record_threshold(name, value, bundle_id)
+        return value
 
     # -- resolution ---------------------------------------------------------
 

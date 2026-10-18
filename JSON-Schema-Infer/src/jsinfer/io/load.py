@@ -1,4 +1,7 @@
-"""Schema_Loader: parse a JSON Schema document into a Schema_Model (Requirements 2.4–2.6, 2.10–2.12).
+"""Schema_Loader: parse a JSON Schema document into a Schema_Model (Requirements 2.4–2.6, 2.10–2.12, 26.8).
+
+It also reads explanation files back (:func:`load_explanation`; see
+Explanation files at the end).
 
 :meth:`SchemaLoader.load` turns a schema document into a
 :class:`~jsinfer.core.schema_model.SchemaModel` in draft 2020-12 form. It
@@ -117,7 +120,13 @@ Keyword loading
     only for keywords the rewrite renamed, and records name it.
 
     1. ``x-`` keywords and the annotations of :data:`ANNOTATION_KEYWORDS` are
-       kept as JSON values at every node under every draft (2.10).
+       kept as JSON values at every node under every draft (2.10). This
+       includes the inline ``x-provenance`` of the Schema_Emitter (26.6): it
+       is kept, never recorded as ignored or unsupported, and 2.7 equality
+       and the Schema_Emitter leave it out, so a schema emitted with inline
+       provenance loads to a model equal to the one emitted without it
+       (26.11). Its records are not read back into ``SchemaModel.provenance``;
+       the explanation file is the source of records (below).
     2. ``$schema`` at the root selects the dialect and is not kept: the
        model is draft 2020-12 whatever the source declared, and the
        Schema_Emitter writes ``$schema``. An unrecognized ``$schema`` URI is
@@ -188,6 +197,15 @@ Records
     the document and not on its member order. A model with an unsupported
     record is partially supported (``SchemaModel.fully_supported`` is
     false, 2.6).
+
+Explanation files
+    :func:`load_explanation` reads the explanation file of
+    ``io.emit.ExplanationFile`` (``{"format": 1, "records": {...}}``) back
+    into an ``ExplanationFile``. It parses like the Schema_Loader, checks the
+    format version first, then the members, the pointer keys, and every
+    record, and raises :class:`ExplanationLoadError` with the check that
+    failed and the JSON Pointer of the offending member. Writing a loaded
+    file again gives the bytes it was read from (26.8).
 """
 
 from __future__ import annotations
@@ -201,18 +219,24 @@ from typing import Any, Final, Literal, TypeAlias
 from urllib.parse import quote, unquote
 
 from jsinfer.core.determinism import codepoint_key
+from jsinfer.core.provenance import ProvenanceFormatError, ProvenanceRecord
 from jsinfer.core.schema_model import SUBSCHEMA_KEYWORDS, SchemaModel, SchemaNode, join_pointer, split_pointer
+from jsinfer.io.emit import EXPLANATION_FORMAT, ExplanationFile
 from jsinfer.io.ingest import DocumentParseError, parse_document
 from jsinfer.io.validator import Draft, Validator, dialect_of
 
 __all__ = [
     "ANNOTATION_KEYWORDS",
+    "EXPLANATION_LOAD_CHECKS",
     "SCHEMA_LOAD_CHECKS",
     "SUPPORTED_KEYWORDS",
     "VOCABULARIES",
+    "ExplanationLoadCheck",
+    "ExplanationLoadError",
     "SchemaLoadCheck",
     "SchemaLoadError",
     "SchemaLoader",
+    "load_explanation",
 ]
 
 # ---------------------------------------------------------------------------
@@ -516,7 +540,7 @@ def _parse_bytes(data: bytes) -> Any:
     return value
 
 
-def _check_json_value(value: Any) -> None:
+def _check_json_value(value: Any, what: str = "the schema") -> None:
     """Raise a ``json`` SchemaLoadError unless ``value`` is a JSON value (see the module docstring)."""
     pending: list[tuple[Any, str]] = [(value, "")]  # an explicit stack, so deep nesting cannot overflow
     while pending:
@@ -548,17 +572,17 @@ def _check_json_value(value: Any) -> None:
                 continue
         else:
             problem = f"{type(item).__name__} is not a JSON type"
-        raise SchemaLoadError("json", f"the schema is not a JSON value: {problem} at {pointer or '(root)'}")
+        raise SchemaLoadError("json", f"{what} is not a JSON value: {problem} at {pointer or '(root)'}")
 
 
-def _parse(source: Any) -> Any:
+def _parse(source: Any, what: str = "the schema") -> Any:
     """Step 1: the parsed JSON value of ``source``."""
     if isinstance(source, str):
         return _parse_text(source)
     if isinstance(source, bytes):
         return _parse_bytes(bytes(source))
     if source is None or isinstance(source, (bool, int, float, list, dict)):
-        _check_json_value(source)
+        _check_json_value(source, what)
         return source
     raise TypeError(f"a schema source must be bytes, str, or a parsed JSON value, got {type(source).__name__}")
 
@@ -1054,3 +1078,157 @@ class SchemaLoader:
                 errors=errors,
             )
         return _Builder(_translate(schema, draft), draft, assumed).build()
+
+
+# ---------------------------------------------------------------------------
+# Explanation files (Requirements 26.5, 26.8)
+# ---------------------------------------------------------------------------
+
+ExplanationLoadCheck: TypeAlias = Literal["json", "format", "structure"]
+# The checks of load_explanation, in the order they run:
+#   json       the file is not valid JSON (or a parsed source is not a JSON value)
+#   format     the "format" member is missing or is not the supported version
+#   structure  anything else: the root is not an object, a member is unknown or
+#              missing, "records" is not an object, a key is not a non-empty
+#              JSON Pointer, or a record is malformed
+EXPLANATION_LOAD_CHECKS: Final[tuple[ExplanationLoadCheck, ...]] = ("json", "format", "structure")
+
+_EXPLANATION: Final = "the explanation file"
+_EXPLANATION_MEMBERS: Final = ("format", "records")
+
+
+class ExplanationLoadError(ValueError):
+    """An explanation file that :func:`load_explanation` cannot read.
+
+    ``check`` names the failed check (:data:`EXPLANATION_LOAD_CHECKS`) and
+    ``reason`` the cause. ``line`` and ``col`` are the 1-based location of a
+    JSON syntax error (``None`` otherwise). ``location`` is the JSON Pointer,
+    within the explanation document, of the offending member (``""`` for
+    the top level), for example ``/records/~1type/confidence``. The message
+    does not name the file; a caller that read it from a path adds that.
+    """
+
+    def __init__(
+        self,
+        check: ExplanationLoadCheck,
+        reason: str,
+        line: int | None = None,
+        col: int | None = None,
+        location: str = "",
+    ) -> None:
+        if check not in EXPLANATION_LOAD_CHECKS:
+            raise ValueError(
+                f"ExplanationLoadError check must be one of {list(EXPLANATION_LOAD_CHECKS)}, got {check!r}"
+            )
+        if not isinstance(reason, str) or not reason:
+            raise ValueError("ExplanationLoadError reason must be a non-empty str")
+        for name, number in (("line", line), ("col", col)):
+            if number is not None and (type(number) is not int or number < 1):
+                raise ValueError(f"ExplanationLoadError {name} must be None or an int >= 1, got {number!r}")
+        if not isinstance(location, str):
+            raise TypeError(f"ExplanationLoadError location must be a str, got {type(location).__name__}")
+        super().__init__(check, reason, line, col, location)  # args survive pickling
+        self.check: ExplanationLoadCheck = check
+        self.reason = reason
+        self.line = line
+        self.col = col
+        self.location = location
+
+    def __str__(self) -> str:
+        if self.line is not None:
+            if self.col is None:
+                return f"{self.reason} (line {self.line})"
+            return f"{self.reason} (line {self.line}, column {self.col})"
+        where = repr(self.location) if self.location else "the top level"
+        return f"invalid explanation file at {where}: {self.reason}"
+
+
+def _explanation_kind(value: Any) -> str:
+    if isinstance(value, bool):
+        return "a boolean"
+    if isinstance(value, dict):
+        return "an object"
+    return _kind(value)
+
+
+def load_explanation(source: bytes | str | dict[str, Any]) -> ExplanationFile:
+    """Read an explanation file written by the Schema_Emitter (26.5, 26.8).
+
+    ``source`` is the file's bytes, its text, or its parsed value. Bytes are
+    parsed with :func:`~jsinfer.io.ingest.parse_document`, as for schemas.
+    The document must be ``{"format": 1, "records": {...}}`` with exactly
+    those members (``io.emit.EXPLANATION_FORMAT``); each key of ``records``
+    must be a non-empty JSON Pointer and each value a record in the form of
+    ``ProvenanceRecord.to_json`` (``ProvenanceRecord.from_json``, which
+    accepts any spelling of numbers and any member order). Whether the
+    pointers resolve to Constraints of a schema is not checked here; the
+    ``explain`` command resolves them against its schema.
+
+    For every file ``data`` written by ``ExplanationFile.dumps``,
+    ``load_explanation(data).dumps() == data``. Raises
+    :class:`ExplanationLoadError` for a file that fails a check (in the order
+    of :data:`EXPLANATION_LOAD_CHECKS`, so a file of another format version
+    reports the version), and ``TypeError`` when ``source`` is of another
+    Python type.
+    """
+    if not (source is None or isinstance(source, (bytes, str, bool, int, float, list, dict))):
+        raise TypeError(
+            f"an explanation file source must be bytes, str, or a parsed JSON value, got {type(source).__name__}"
+        )
+    try:
+        value = _parse(source, _EXPLANATION)
+    except SchemaLoadError as exc:
+        raise ExplanationLoadError("json", exc.reason, exc.line, exc.col) from None
+    if not isinstance(value, dict):
+        raise ExplanationLoadError(
+            "structure",
+            f"expected an object with the members {list(_EXPLANATION_MEMBERS)}, got {_explanation_kind(value)}",
+        )
+
+    if "format" not in value:
+        raise ExplanationLoadError("format", "missing member 'format' (the explanation file format version)")
+    version = value["format"]
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise ExplanationLoadError(
+            "format",
+            f"expected the integer {EXPLANATION_FORMAT}, got {_explanation_kind(version)}",
+            location="/format",
+        )
+    if version != EXPLANATION_FORMAT:
+        raise ExplanationLoadError(
+            "format",
+            f"unsupported explanation file format {version}; the supported format is {EXPLANATION_FORMAT}",
+            location="/format",
+        )
+
+    for member in value:
+        if member not in _EXPLANATION_MEMBERS:
+            raise ExplanationLoadError(
+                "structure", f"unknown member {member!r}; the members are {list(_EXPLANATION_MEMBERS)}"
+            )
+    if "records" not in value:
+        raise ExplanationLoadError("structure", "missing member 'records'")
+    entries = value["records"]
+    if not isinstance(entries, dict):
+        raise ExplanationLoadError(
+            "structure", f"expected an object, got {_explanation_kind(entries)}", location="/records"
+        )
+
+    records: dict[str, ProvenanceRecord] = {}
+    for pointer, entry in entries.items():
+        location = join_pointer("/records", pointer)
+        try:
+            split_pointer(pointer)
+        except ValueError as exc:
+            raise ExplanationLoadError("structure", f"the key is not a JSON Pointer: {exc}", location=location) from None
+        if not pointer:
+            raise ExplanationLoadError(
+                "structure",
+                "the empty JSON Pointer names the root schema object, which is not a Constraint",
+                location=location,
+            )
+        try:
+            records[pointer] = ProvenanceRecord.from_json(entry, location=location)
+        except ProvenanceFormatError as exc:
+            raise ExplanationLoadError("structure", exc.reason, location=exc.location) from None
+    return ExplanationFile(records)

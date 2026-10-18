@@ -46,8 +46,8 @@ Conventions used by every task:
     - Equality per 2.7: `required`, `enum`, `type`, and `dependentRequired` compared as sets; `$schema`, provenance, `x-provenance`, and loader records excluded
     - _Requirements: 2.7_
   - [x] 2.5 Implement the provenance data model (`core/provenance.py`)
-    - `Support`, `CandidateScore`, `ProvenanceRecord`, `FallbackInfo` (disabled, missing-threshold, missing-model), `Cutoff`, `SampleInfo`, `RelaxationRecord`; Laplace default Confidence; JSON serialization and deserialization
-    - _Requirements: 26.2, 26.3, 26.4, 26.10_
+    - `Support`, `CandidateScore`, `ProvenanceRecord`, `FallbackInfo` (disabled, missing-threshold, missing-model), `Cutoff`, `SampleInfo`, `RelaxationRecord`; Laplace default Confidence; fallback and Baseline_Rule markers (`baseline:type`, `baseline:required`); JSON serialization and deserialization
+    - _Requirements: 26.2, 26.3, 26.4, 26.10, 26.13_
   - [x] 2.6 Implement the Inference_Report builder (`core/report.py`)
     - Sections from the design's report table; per-stage timer keyed by component name; `status` of ok, or failed with the stage and error; canonical serialization
     - _Requirements: 20.5, 27.8, 27.10_
@@ -190,200 +190,248 @@ Conventions used by every task:
   - [x] 11.3 Add the exception check and the Decision_Model comparison cut-off (`decide/engine.py`)
     - After a Decision_Model or priority step picks the widening winner, compare it in bits against eligible exception-bearing candidates while `robust.mdl_exceptions` is on; the best one replaces it only on a strictly smaller DL. Record per the design (method `mdl`, MDL posterior, "MDL comparison" cut-off, Flagged_Items, kept fallback indicator if it wins; compared DLs in details if not). No check at the constant Fallback_Behavior step
     - A Decision_Model argmax records a "Decision_Model comparison" cut-off with the calibrated probabilities and the Decision_Model artifact; equal probabilities keep the "MDL comparison" cut-off; no-cut-off resolutions keep `cutoff=None`
-    - Update the engine docstring, the unit tests, and the Property 30 reference model. `decide.mdl` stays `implemented=False`
+    - Update the engine docstring, the unit tests, and the Property 30 reference model. `decide.mdl` stays `implemented=False` here; task 13.1, whose Judgment_Calls are the first Decision_Points it serves, sets it to `implemented=True`
     - _Requirements: 17.2, 17.3, 20.1, 20.7, 22.12_
 
-- [ ] 12. Implement the core of the Value_Inferrer
-  - [ ] 12.1 Implement types and latent types (`values/types.py`, `values/latent.py`)
+- [x] 12. Implement the core of the Value_Inferrer
+  - [x] 12.1 Implement types and latent types (`values/types.py`, `values/latent.py`)
     - `type` lists exactly the observed types, with `integer` replacing `number` when every number has zero fraction
     - Latent_Type classifier (mixed integer and decimal strings count as decimal); `x-latent-type`; a `date`/`date-time`/`time` Format candidate when satisfied, otherwise a safe-AST Pattern candidate
     - _Requirements: 13.1, 13.2, 13.3, 13.9_
-  - [ ] 12.2 Implement Format detection (`values/formats.py`)
+  - [x] 12.2 Implement Format detection (`values/formats.py`)
     - One Validator check per distinct value for each of the ten Formats; candidates for Formats that at least one string satisfies
     - _Requirements: 13.4, 13.9_
-  - [ ] 12.3 Implement enum estimation (`values/enums.py`)
+  - [x] 12.3 Implement enum estimation (`values/enums.py`)
     - n, S_obs, f1, f2, Good–Turing, and Chao1 under `enum` equality
     - Closed-or-Open-Enum through the DecisionEngine: the Decision_Model only while `values.enum_estimation` is on; MDL with the Good–Turing exception charge and ties to open; f1 = S_obs forces open; fallback open
     - Emit `const` or `enum`. Record the statistics in provenance (closed) or the report (open)
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8_
-  - [ ] 12.4 Implement bound selection (`values/bounds.py`)
+  - [x] 12.4 Implement bound selection (`values/bounds.py`)
     - Candidate ladder: omit, observed extreme, 0, 1- and 2-significant-digit outward roundings, and integer type limits. Drop violated candidates, and negative candidates for lengths and counts
     - Decide the minimum first, then the maximum given the minimum; ties go to the candidate nearest the extreme; fallback omit
     - `decide_bound` serves numbers, code-point string lengths (skipped with a selected Format or a Closed_Enum), item counts, and key counts
     - _Requirements: 16.1, 16.2, 16.3, 16.6, 16.7, 16.8_
-  - [ ] 12.5 Implement `ValueInferrer` orchestration (`values/inferrer.py`)
+  - [x] 12.5 Implement `ValueInferrer` orchestration (`values/inferrer.py`)
     - `infer_scalar` in design order: type, enum, string candidates, withholding of rejecting candidates (reported with counts), MDL selection with alternatives in provenance, then bounds. Steps for unimplemented Techniques are skipped by registry state
     - `key_constraint` emits a Map-key Format under `propertyNames`
-    - _Requirements: 4.4, 13.6, 13.8, 13.9_
-  - [ ] 12.6 Write property test for scalar typing
+    - `type` records name the Baseline_Rule marker `baseline:type`, with the Laplace Confidence and no resolution
+    - _Requirements: 4.4, 13.6, 13.8, 13.9, 26.13_
+  - [x] 12.6 Write property test for scalar typing
     - **Property 22: Scalar typing**
     - **Validates: Requirements 13.1, 13.2, 13.3, 13.4**
-  - [ ] 12.7 Write property test for enum statistics
+  - [x] 12.7 Write property test for enum statistics
     - **Property 25: Enum statistics and closure rules**
     - **Validates: Requirements 15.1, 15.3, 15.5**
-  - [ ] 12.8 Write property test for bounds
+  - [x] 12.8 Write property test for bounds
     - **Property 26: Bounds come from the candidate ladder**
     - **Validates: Requirements 16.2, 16.3, 16.4, 16.5, 16.7**
-  - [ ] 12.9 Write property test for value Constraint soundness
+  - [x] 12.9 Write property test for value Constraint soundness
     - **Property 23: Value Constraints are sound** (scalar and key views under random `run_configs()`)
     - **Validates: Requirements 13.6, 13.8, 14.1, 14.3, 14.7, 15.3, 16.6, 24.5**
 
-- [ ] 13. Implement the Structure_Analyzer components
-  - [ ] 13.1 Implement Record-or-Map and Closed-or-Open-Record (`structure/record_map.py`)
+- [x] 13. Implement the Structure_Analyzer components
+  - [x] 13.1 Implement Record-or-Map and Closed-or-Open-Record (`structure/record_map.py`)
     - MDL Record and Map candidates with ties to Record; fallback Record. A view with no keys becomes a Record with no `properties`, and provenance records that no keys were available
     - A Map emits one `additionalProperties` value schema, `propertyNames` from `key_constraint`, and `minProperties`/`maxProperties` from `decide_bound`
     - Closed-or-Open: MDL with the Good–Turing unseen-key charge; fallback open; closed emits `additionalProperties: false`
+    - Set `decide.mdl` to `implemented=True` (enabled by default), so validated runs resolve Judgment_Calls by MDL instead of only by their Fallback_Behaviors
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.7, 4.8, 4.9, 4.10, 4.11, 16.5_
-  - [ ] 13.2 Implement Variant grouping (`structure/variants.py`)
+  - [x] 13.2 Implement Variant grouping (`structure/variants.py`)
     - Weighted, canonically sorted Object_Signatures
-    - `minhash_lsh`: datasketch seeded from the rng, edges at τ = `lsh.keyset_jaccard`, connected components, then greedy merging while DL decreases
-    - `dbscan` and `hdbscan` on the precomputed Jaccard matrix with `sample_weight`, sampled when superlinear; noise grouped by signature into the lowest-DL group
+    - `minhash_lsh`: datasketch seeded from the rng, edges at τ = `lsh.keyset_jaccard`, connected components, then greedy merging while DL decreases along the links of the maximum spanning forest of the LSH-retrieved pairs, strongest first, in passes until one merges nothing. With `lsh.bands` = 1, pairs with equal sketches are the candidates
+    - `dbscan` on the precomputed Jaccard matrix with `sample_weight` = signature counts, so `dbscan.min_samples` counts objects; `dbscan.eps` is the recorded cut-off and `min_samples` goes in the grouping details
+    - `hdbscan` on the same matrix without weights (scikit-learn's `HDBSCAN.fit` takes no `sample_weight`), so `hdbscan.min_cluster_size` counts signatures
+    - Both sample distinct signatures when superlinear (`sample.dbscan`, `sample.hdbscan`); each unsampled signature takes the label of its nearest sampled signature. Noise is grouped by signature into the lowest-DL group
     - `bernoulli_mixture`: weighted EM with BIC over k = 1…min(#signatures, `variants.max_components`)
     - Select by MDL or by priority; fallback one Variant
     - _Requirements: 5.1, 5.2, 5.7, 5.8, 5.9, 5.10, 29.8_
-  - [ ] 13.3 Implement Merge-or-Split and branch emission (`structure/variants.py`)
+  - [x] 13.3 Implement Merge-or-Split and branch emission (`structure/variants.py`)
     - Merge-or-Split through the DecisionEngine. With both the Decision_Model and MDL disabled, keep the priority-selected grouping split
+    - Merge-or-Split is binary: all candidate Variants merge into one, or all stay split. Partial merges are left to the grouping step
     - One `anyOf` branch per Variant listing only observed fields; `oneOf` when every pair of branches is disjoint per 5.5. A merged Variant gets the union of fields, the intersection as `required`, and the union of types
+    - Disjointness reads only the branches' own keywords (design, Open Decisions); anything it cannot read counts as overlapping, so the branches stay under `anyOf`
     - _Requirements: 5.3, 5.4, 5.5, 5.6, 5.11_
-  - [ ] 13.4 Implement Tuple-or-List and array nodes (`structure/arrays.py`)
-    - MDL Tuple vs List; fallback List. A List emits `items` over all elements. A Tuple emits `prefixItems` from position-filtered views, plus `items: false` when no array is longer
+  - [x] 13.4 Implement Tuple-or-List and array nodes (`structure/arrays.py`)
+    - MDL Tuple vs List with ties to List (mandated tie rule, 7.10); fallback List. A List emits `items` over all elements. A Tuple emits `prefixItems` from position-filtered views, plus `items: false` when no array is longer
     - Empty-only Paths emit neither keyword and say so in provenance; `minItems`/`maxItems` come from `decide_bound`; the outcome and its Confidence go in provenance
+    - Array lengths count flagged elements, so the prefix spans the longest array; a position whose elements are all flagged gets the subschema of an empty view. Arrays holding only flagged elements count as empty-only
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.9, 7.10, 16.4_
-  - [ ] 13.5 Write property test for Variant partitions
+  - [x] 13.5 Write property test for Variant partitions
     - **Property 11: Variant partition invariant**
     - **Validates: Requirements 5.1, 5.2, 5.9**
 
-- [ ] 14. Implement the Dependency_Miner core
-  - [ ] 14.1 Implement presence and required fields (`deps/presence.py`)
-    - Packed presence bitsets per field. Base_Fields per Variant and per family. `required` = fields present in every non-flagged object (including `null` values)
-    - _Requirements: 6.1, 6.5, 9.1, 9.2, 9.7_
-  - [ ] 14.2 Implement co-occurrence mining (`deps/cooccurrence.py`)
+- [x] 14. Implement the Dependency_Miner core
+  - [x] 14.1 Implement presence and required fields (`deps/presence.py`)
+    - Packed presence bitsets per field. Base_Fields per Variant and per family. `required` = fields present in every non-flagged object (including `null` values). Each `required` entry records the Baseline_Rule marker `baseline:required` with the Laplace Confidence, with Support counted over the Variant's own non-flagged objects
+    - _Requirements: 6.1, 6.5, 9.1, 9.2, 9.7, 26.13_
+  - [x] 14.2 Implement co-occurrence mining (`deps/cooccurrence.py`)
     - Candidates from antecedent ⊆ consequent bitset tests. Discard and report candidates whose support is below `cooccur.min_support`
     - Select by MDL, or by `cooccur.min_confidence` when MDL is off. Canonical transitive reduction with SCCs collapsed to code-point cycles
     - Emit `dependentRequired`; fallback no rules
+    - Each candidate is its own `cooccurrence_rule` Decision_Point, compared against the Variant subschema without it. Score candidates by exchanging the Record's presence terms (`MDLScorer.presence_bits`) instead of rescoring the subschema
+    - A candidate's Confidence is `(count(a) + 1) / (count(a) + 2)`. Both `cooccur.min_support` and `cooccur.min_confidence` must be in the Model_Bundle for the Technique to be in effect, even under MDL. Set `rules.cooccurrence` to `implemented=True`
     - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.8, 9.9_
-  - [ ] 14.3 Write property test for mining primitives
+  - [x] 14.3 Write property test for mining primitives
     - **Property 17: Mining primitives equal brute-force references** (LSH groups and Co_Occurrence_Rule candidates now; extended in 33.3, 35.3, 44.2)
     - **Validates: Requirements 5.7, 9.3**
 
-- [ ] 15. Implement the soundness check and relaxation
-  - [ ] 15.1 Implement the relaxation table (`decide/relax.py`)
+- [x] 15. Implement the soundness check and relaxation
+  - [x] 15.1 Implement the relaxation table (`decide/relax.py`)
     - Widening candidates per failing keyword, following the design table; Naive_Merge subschemas for new properties and extra elements
     - `not` contents are never edited (only the whole `not` can be removed). Any edit inside a `oneOf` branch converts that `oneOf` to `anyOf`. `$defs` edits apply at every referencing site
+    - `if` contents are treated like `not` contents (the `if` is removed with its `then` and `else`). An edit that would reach inside a `not` or an `if` removes that keyword as part of the candidate. Removal is offered last for every failing keyword, whole `anyOf`/`oneOf` included; `properties`, `patternProperties`, and `prefixItems` are never removed
+    - A `oneOf` converted beside an existing `anyOf` goes into a new `allOf` entry, and its Change lists the owner's `allOf` Constraint in `after_ids` (and in `before_ids` when the `allOf` already existed)
     - _Requirements: 3.3, 3.5_
-  - [ ] 15.2 Write property test for relaxation monotonicity
+  - [x] 15.2 Write property test for relaxation monotonicity
     - **Property 8: Relaxation monotonicity**
     - **Validates: Requirements 3.5**
-  - [ ] 15.3 Implement the soundness loop (`pipeline/soundness.py`)
+  - [x] 15.3 Implement the soundness loop (`pipeline/soundness.py`)
     - Compile the covering schema; validate every non-flagged document in parallel chunks, including documents left out of samples; map errors to ConstraintIds
     - Process failures in document-index and ConstraintId order. Resolve through the `relaxation` Decision_Point (MDL over the Path's Observations plus the failing values, otherwise candidate order). Record RelaxationRecords and recompute Support
     - Stop at `soundness.max_passes`, then run the removal loop. Write the report counts
+    - Passes 1 to `max_passes − 1` are followed by relaxation; if pass `max_passes` still fails, run the removal loop, so `max_passes = 1` only removes. `passes` counts every validation, the removal loop's included
+    - Count per change record: `relaxations` includes the removal loop's `oneOf`-conversion guard records, so change records number `relaxations + removals`. Removing a whole `anyOf`/`oneOf` is one removal, and replacing a `false` subschema with `true` is a removal
+    - Score candidates on the instances the failing node is evaluated on (a walk of the validated documents along the schema, plus the failing values). Recompute the Support of changed Constraints once, at the end of the stage, and leave Confidence to 17.1
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.6, 3.7_
 
-- [ ] 16. Wire the Structure_Analyzer walk and the inference pipeline
-  - [ ] 16.1 Implement the analyzer walk (`structure/analyzer.py`)
+- [x] 16. Wire the Structure_Analyzer walk and the inference pipeline
+  - [x] 16.1 Implement the analyzer walk (`structure/analyzer.py`)
     - `StructureAnalyzer.analyze(view)` dispatches scalars, objects (record_map → closed/open → variants → merge/split → per-branch recursion → presence and co-occurrence), and arrays
     - Mixed types: one object branch coexists in a single schema object; two or more object branches become an `anyOf` plus a branch for the remaining types
-    - _Requirements: 4.2, 4.3, 5.4, 7.2, 7.3, 9.7_
-  - [ ] 16.2 Implement pipeline orchestration (`pipeline/infer.py`)
+    - `type` on object, array, and mixed nodes records the Baseline_Rule marker `baseline:type`
+    - A closed Record with two or more Variant branches puts `additionalProperties: false` inside each branch, never beside the `anyOf`/`oneOf`
+    - A Closed_Enum beside arrays or objects is its own `anyOf` branch; mixed nodes are always `anyOf`. Added branches take the Merge-or-Split or Closed-or-Open-Enum decision's record (design, Open Decisions). The key Format inside `propertyNames` shares the `propertyNames` record
+    - _Requirements: 4.2, 4.3, 5.4, 7.2, 7.3, 9.7, 26.13_
+  - [x] 16.2 Implement pipeline orchestration (`pipeline/infer.py`)
     - `InferenceContext`; stages config → bundle → ingest → flatten → analyze → soundness → emit layout, each timed under its component name
     - With the outlier and change-point Techniques unimplemented or disabled, record zero Flagged_Items and "change-point detection not applied"
     - Errors become `InferenceError(stage, partial_report)`. `NoDocumentsError` for empty input
+    - In-memory documents are ingested as the lines of a virtual `.jsonl` file (design, Open Decisions); `infer_documents(documents, config)` returns a `PipelineResult` for full-run tests
     - _Requirements: 1.8, 3.2, 17.6, 18.10, 27.7, 27.8, 27.10, 27.13_
-  - [ ] 16.3 Write property test for object nodes
+  - [x] 16.3 Write property test for object nodes
     - **Property 10: Object nodes match their classification** (hybrid clause gated on `structure.hybrid_record_map`, active after 37.1)
     - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 4.9**
-  - [ ] 16.4 Write property test for Variant branches
+  - [x] 16.4 Write property test for Variant branches
     - **Property 12: Variant branch emission**
+    - Judge disjointness by the 5.5 reading in the design's Open Decisions (`pairwise_disjoint`), so the `oneOf` "iff" matches the emitter
     - **Validates: Requirements 5.4, 5.5, 5.6**
-  - [ ] 16.5 Write property test for array nodes
+  - [x] 16.5 Write property test for array nodes
     - **Property 14: Array nodes match their classification**
     - **Validates: Requirements 7.2, 7.3, 7.4, 7.9**
-  - [ ] 16.6 Write property test for required fields
+  - [x] 16.6 Write property test for required fields
     - **Property 18: Required means always present**
     - **Validates: Requirements 6.1, 9.1, 9.2, 9.7**
-  - [ ] 16.7 Write property test for emitted rules
+  - [x] 16.7 Write property test for emitted rules
     - **Property 19: Emitted rules hold and are irredundant** (checks are generic over emitted rule keywords and annotations, so later Techniques are covered automatically)
     - **Validates: Requirements 9.5, 9.6, 11.5, 11.6, 12.6, 12.7, 12.8**
-  - [ ] 16.8 Write property test for soundness
+  - [x] 16.8 Write property test for soundness
     - **Property 7: Soundness on non-flagged documents**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.7, 8.3**
-  - [ ] 16.9 Write property test for soundness bookkeeping
+  - [x] 16.9 Write property test for soundness bookkeeping
     - **Property 9: Soundness bookkeeping** (with injected over-tight Constraints)
     - **Validates: Requirements 3.4, 3.6**
-  - [ ] 16.10 Extend the round-trip property test to Inferrer outputs
+  - [x] 16.10 Extend the round-trip property test to Inferrer outputs
     - **Property 3: Schema emit/load round trip** (Schema_Models produced by `pipeline.infer`)
     - **Validates: Requirements 2.7**
 
-- [ ] 17. Implement provenance finalization and the explanation file
-  - [ ] 17.1 Implement provenance finalization (`core/provenance.py`, `pipeline/infer.py`)
+- [x] 17. Implement provenance finalization and the explanation file
+  - [x] 17.1 Implement provenance finalization (`core/provenance.py`, `pipeline/infer.py`)
     - After soundness, compute Support for every Constraint over non-flagged Observations. Totals for Constraints inside `$defs` cover every referencing Path
-    - Apply the default Confidence where no alternative exists. Ensure exactly one record per Constraint, including fallback-produced ones
-    - _Requirements: 26.1, 26.2, 26.4, 26.10_
-  - [ ] 17.2 Implement the explanation file and inline provenance (`io/emit.py`, `io/load.py`)
+    - Apply the default Confidence where no alternative exists. Ensure exactly one record per Constraint, including fallback- and Baseline_Rule-produced ones
+    - Refresh Laplace default Confidences from the recomputed Support, since the soundness loop (15.3) updates Support but not Confidence
+    - Reuse the soundness check's walk (`pipeline.soundness.count_instances`) for Support, run finalization inside the `Soundness` stage, and treat a missing or orphaned record as an internal error (`ProvenanceError`). Give Constraints inside subschemas a 3.3 relaxation creates the relaxation decision's record. Default and kept Confidences per the design's Open Decisions (`KIND_SPECIFIC_CONFIDENCE`)
+    - _Requirements: 26.1, 26.2, 26.4, 26.10, 26.13_
+  - [x] 17.2 Implement the explanation file and inline provenance (`io/emit.py`, `io/load.py`)
     - `explanation.json` = `{"format": 1, "records": {pointer: record}}`, sorted and written with the canonical encoder; `load_explanation` reads it back
     - Optional `x-provenance` per schema object, matching the explanation entries
+    - `x-provenance` maps pointers relative to its schema object to records; the setting is `output.inline_provenance`. Records and emitted Constraints must correspond one to one, or `EmitError`
     - _Requirements: 26.5, 26.6, 26.7, 26.8_
-  - [ ] 17.3 Implement explain rendering (`core/provenance.py`)
+  - [x] 17.3 Implement explain rendering (`core/provenance.py`)
     - `explain(schema, explanation, pointer)` resolves the pointer and prints every record field as plain text. Typed errors cover unreadable or unparseable inputs, invalid pointers, unresolved pointers, and missing entries
+    - `explain` lives in `io/explain.py` and is re-exported from `core.provenance`; it returns the text. Paths are files, `bytes`/`str` are content. A pointer to a schema object is an error that lists its Constraints
     - _Requirements: 26.9, 26.12_
-  - [ ] 17.4 Write property test for provenance completeness
+  - [x] 17.4 Write property test for provenance completeness
     - **Property 41: Provenance completeness**
-    - **Validates: Requirements 4.1, 4.7, 7.1, 15.8, 26.1, 26.2**
-  - [ ] 17.5 Write property test for explanation file integrity
+    - **Validates: Requirements 4.1, 4.7, 7.1, 15.8, 26.1, 26.2, 26.13**
+  - [x] 17.5 Write property test for explanation file integrity
     - **Property 42: Explanation file integrity**
     - **Validates: Requirements 26.5, 26.7, 26.8**
-  - [ ] 17.6 Write property test for annotation and report neutrality
+  - [x] 17.6 Write property test for annotation and report neutrality
     - **Property 43: Annotation and report neutrality** (nearest-schema clause gated on `corpus.nearest_schema`, active after 40.4)
     - **Validates: Requirements 25.5, 26.6, 26.11**
 
-- [ ] 18. Implement the public API and the CLI
-  - [ ] 18.1 Implement the public API (`src/jsinfer/__init__.py`)
+- [x] 18. Implement the public API and the CLI
+  - [x] 18.1 Implement the public API (`src/jsinfer/__init__.py`)
     - `infer`, `infer_files`, `load_schema`, `emit_schema`, `InferenceResult`, and the exception types. `infer()` canonically serializes documents into the DocumentStore, so later stages are shared with the CLI
+    - `InferenceResult` carries the explanation file (`SchemaEmitter().explanation(model, pointers)`) and the schema bytes honoring `output.inline_provenance`
+    - Decided: non-JSON Python values raise `TypeError` (`ValueError` for a container that contains itself) and are never converted; NaN, infinities, and unpaired surrogates are skipped and recorded as in a `.jsonl` file (design Open Decisions, In-memory documents)
+    - Also exports `explain`, `load_explanation`, and `RunConfiguration`, lazily (PEP 562). The schema file is `schema.json`; `versions`, `combined`, and `diffs` stay empty until 48.2 (design Open Decisions, Public API surface)
     - _Requirements: 27.9, 27.13_
-  - [ ] 18.2 Implement the CLI (`cli.py`)
+  - [x] 18.2 Implement the CLI (`cli.py`)
     - `infer INPUT... [-c] [--set] [--technique] [--out]`: writes the schema, `explanation.json`, `report.json`, and `effective-config.toml` atomically to a temp directory under `--out`, overwriting without prompts and deleting the temp directory on failure. Exit codes 0, 1, 2, and 3
     - `explain`, `list-techniques` (reads no data), and `list-thresholds [--bundle]`
+    - `infer` runs `jsinfer.infer_files` and writes `InferenceResult.files()` (`schema.json` with `x-provenance` when `output.inline_provenance` is on, `explanation.json`, `report.json`, `effective-config.toml`; the pipeline's `Schema_Emitter` stage produces them since 18.1) inside `core.determinism.atomic_outputs`
+    - `explain` wraps its file arguments in `pathlib.Path` (a `str` is content to `io.explain.explain`), prints the returned text to stdout, and on `ExplainError` prints its message to stderr and exits 2
+    - Exits 1 and 3 replace only `report.json` (the partial report) and keep an earlier run's other files; exit 2 writes nothing. `--set` values are TOML except the string settings, `--technique` is its shorthand, and the last value wins (design Open Decisions, CLI failed runs and CLI settings flags)
     - _Requirements: 1.8, 1.10, 20.2, 26.9, 26.12, 27.1, 27.3, 27.7, 27.10, 27.11, 28.10_
-  - [ ] 18.3 Write property test for invalid configurations
+  - [x] 18.3 Write property test for invalid configurations
     - **Property 45: Invalid configurations stop before ingestion**
+    - For the API, "exits non-zero" is `RunConfiguration.resolve` raising `ConfigError` before `infer`/`infer_files` reads a document. Found and fixed: `--technique` with an unregistered id and a switch other than on/off reported only the switch (design Open Decisions, Invalid configurations)
     - **Validates: Requirements 27.11, 28.9, 29.11**
-  - [ ] 18.4 Write CLI integration tests
+  - [x] 18.4 Write CLI integration tests
     - End-to-end run, API/CLI equality, closed stdin, explain error paths, `list-techniques` and `list-thresholds` output
+    - Closed stdin means no descriptor 0 at all, besides a terminal, `/dev/null`, and an open pipe. Found and fixed: loky workers died with descriptor 0 closed, so `cli.main` now reserves it (design Open Decisions, Standard input)
     - _Requirements: 26.9, 26.12, 27.1, 27.9, 28.10_
 
-- [ ] 19. Implement reproducibility plumbing and the Subschema_Checker
-  - [ ] 19.1 Implement run metadata and worker determinism (`core/report.py`, `pipeline/infer.py`)
+- [x] 19. Implement reproducibility plumbing and the Subschema_Checker
+  - [x] 19.1 Implement run metadata and worker determinism (`core/report.py`, `pipeline/infer.py`)
     - Report `run` section: effective config, seed, bundle id, jsinfer and CPython versions, and locked package versions via `importlib.metadata`
+    - Fill what 16.2 left out: `RunInfo.packages` (empty now) and the run timestamps. Record in the report every Resource_Parameter the components read, with its origin (20.5): `minhash.perm`, `lsh.bands`, `sample.*`, and `variants.*` in the VariantAnalyzer, among others; 16.2 records only the pipeline's own reads (`workers`, `ingest.chunk_size`, `soundness.max_passes`)
     - Work units defined by data, not worker count; `threadpoolctl` limits workers to one OpenMP thread; timings and timestamps only in exempt sections
+    - Decided: the API copes with descriptor 0 closed too, through a reservation scoped to multi-worker runs (`core.workers.reserved_stdin`; design Open Decisions, Standard input)
+    - Packages are the runtime closure of `uv.lock`, a static tuple checked against the lock file by a test; tasks run with OpenMP and BLAS limited to one thread; a component lists a Resource_Parameter only when its Technique runs (design Open Decisions, Run metadata and Resource_Parameter and Learned_Threshold reads; Determinism and reproducibility)
     - _Requirements: 27.5, 27.8, 27.12, 29.4_
-  - [ ] 19.2 Implement the Subschema_Checker (`io/subschema.py`)
+  - [x] 19.2 Implement the Subschema_Checker (`io/subschema.py`)
     - Strip annotations and `x-` keywords; 2020-12→draft-04 shim; initial unsupported list from Open Decisions (`format`, `contains`, `propertyNames`, `if`/`then`/`else`, non-scalar `uniqueItems`, recursive `$ref`)
     - Run `isSubschema` in a child process with `subschema.timeout_s`, inside an isolated uv tool environment if pins conflict. Map outcomes to equivalent, subset, superset, incomparable, or `Unsupported` with its cause
+    - Decided: jsonsubschema 0.0.8 is pinned in the project environment (no isolated environment). `dependentRequired`/`dependentSchemas` are unsupported rather than shimmed to `dependencies`, which jsonsubschema ignores; unknown and earlier-draft keywords are unsupported; `unavailable` is a fourth cause (design Open Decisions, jsonsubschema keyword coverage)
     - _Requirements: 28.5, 31.7, 31.8_
-  - [ ] 19.3 Write property test for inclusion relation mapping
+  - [x] 19.3 Write property test for inclusion relation mapping
     - **Property 54: Inclusion relation mapping** (stubbed checker)
     - **Validates: Requirements 31.7, 31.8**
-  - [ ] 19.4 Write property test for byte-identical reproducibility
+  - [x] 19.4 Write property test for byte-identical reproducibility
     - **Property 46: Byte-identical reproducibility** (subprocesses with workers ∈ {1, 2, 4} and varied `PYTHONHASHSEED`)
+    - Each example runs in three long-lived driver subprocesses (hash seed 0, 1, and `random` with 1, 2, and 4 workers and different output directories), not a 3×3 grid (design, Determinism and reproducibility). Added `src/jsinfer/__main__.py`, so `python -m jsinfer` runs the CLI
     - **Validates: Requirements 27.5, 27.12**
-  - [ ] 19.5 Write property test for order-insensitivity
+  - [x] 19.5 Write property test for order-insensitivity
     - **Property 47: Order-insensitivity**
+    - The explanation files and reports are compared after mapping the document indices of relaxation and removal records (3.6), which name documents by position, to one order; everything else must be equal as it is
     - **Validates: Requirements 27.6**
-  - [ ] 19.6 Write property test for Technique isolation
+  - [x] 19.6 Write property test for Technique isolation
     - **Property 48: Technique isolation**
+    - Enabled Techniques that are not in effect get the same checks, with reason `missing-threshold` or `missing-model`; fallback indicators may name disabled Techniques; Decision_Points are observed through the report's decision entries (design Open Decisions, Techniques not in effect and fallback indicators)
     - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
-  - [ ] 19.7 Write property test for all-off equals Naive_Merge
+  - [x] 19.7 Write property test for all-off equals Naive_Merge
     - **Property 49: All Techniques off equals Naive_Merge**
+    - Uses the real jsonsubschema; an `Unsupported` result fails the example whatever its cause
     - **Validates: Requirements 28.5, 34.4**
-  - [ ] 19.8 Write property test for cut-off provenance
+  - [x] 19.8 Write property test for cut-off provenance
     - **Property 31: Cut-off provenance**
+    - Check that the report lists every Resource_Parameter a run read, components' reads included (20.5)
+    - Reads are observed independently of the report, through tagged values from every value source. Checking that a Learned_Threshold is present is not a read; BIC is the only model-selection criterion; the Decision_Model cut-off checks apply once 22.4 makes them reachable (design Open Decisions, Resource_Parameter and Learned_Threshold reads)
     - **Validates: Requirements 20.1, 20.5, 20.7**
-  - [ ] 19.9 Write unit tests for configuration-specific fallbacks
+  - [x] 19.9 Write unit tests for configuration-specific fallbacks
     - 4.10, 5.10, 5.11, 7.10, 9.9, 15.7, 16.8, plus missing-threshold substitution (20.6)
+    - The Decision_Model branches of 4.10, 5.11, 7.10, and 15.7 are covered at the engine and component level only, until 22.4; the 9.9 test asserts no `dependentRequired` at all, until 33.1
     - _Requirements: 4.10, 5.10, 5.11, 7.10, 9.9, 15.7, 16.8, 20.6_
+  - [x] 19.10 Make the soundness processing order independent of document order (`pipeline/soundness.py`, `decide/relax.py`)
+    - Order each pass's failure groups, and the removal loop's, by target only (node id, keyword, item in code-point order) instead of first document index then target. Keep scoring each relaxation against the model as relaxed so far (design Open Decisions, Soundness processing order)
+    - Confirm that node ids depend only on the model, not on document order; otherwise order by the target's emitted JSON Pointer, then keyword and item
+    - Update the `pipeline/soundness.py` and `decide/relax.py` docstrings and the order assertion in `tests/unit/test_soundness.py`. Add a regression test with the 19.5 counterexample (23 lists, `maxItems: 0` and `minItems: 2` injected at the root) that gives the same model in both document orders
+    - Lift Property 47's one-Constraint limit: inject several over-tight Constraints, and update its docstring
+    - _Requirements: 3.3, 3.7, 27.6_
 
-- [ ] 20. Checkpoint (M2): ensure all tests pass, ask the user if questions arise.
+- [x] 20. Checkpoint (M2): ensure all tests pass, ask the user if questions arise.
 
 ### M3: Learning
 
@@ -399,6 +447,7 @@ Conventions used by every task:
     - Per-document streams from `SeedSequence([seed, blake2b(schema_id), k, doc_index])`; sampled collection parameters recorded per collection
     - Value sources in 22.3 order: generators for the ten Formats; `examples`/`default`/`enum` from the field or from same-name corpus fields; then type-based values. Pattern sampler over `re._parser` after ECMA translation, with rejection fallback
     - `$ref` depth cap `synth.max_depth`; rejection sampling for `allOf`, `oneOf`, `not`, and `if`; every document validated; attempt budget `synth.doc_attempts`; uncompilable schemas excluded with a reason
+    - For source (b) of 22.3, index `examples`, `default`, and `enum` values by normalized field name across the training-split and validation-split schemas the generator is given, never held-out ones; the train-only Corpus_Index cannot serve this (design, Generator)
     - _Requirements: 22.1, 22.2, 22.3, 22.7, 22.8, 22.9_
   - [ ] 21.4 Write property test for the generator
     - **Property 33: Generator correctness and determinism**
@@ -416,6 +465,7 @@ Conventions used by every task:
   - [ ] 22.1 Implement the featurizers and wire them in (`learn/features.py`, `structure/record_map.py`, `structure/arrays.py`, `structure/variants.py`, `values/enums.py`)
     - Per-kind feature tables from the design, the normalized MDL difference, hashed name and parent tokens, and a versioned feature spec
     - Pass a `features` callable to the DecisionEngine at every Judgment_Call site
+    - Make the Substitution for a missing grouping threshold name what actually resolves `variant_grouping`: the grouping Techniques still in effect, or the one-Variant Fallback_Behavior when none is (design Open Decisions, Techniques not in effect and fallback indicators)
     - _Requirements: 15.2, 22.10_
   - [ ] 22.2 Implement oracle-resolver featurization (`learn/trainer.py`)
     - Run the real pipeline with an oracle resolver: upstream Judgment_Calls take the ground-truth label when known and MDL otherwise. Record features and labels per Judgment_Call, aligned with `align()`
@@ -426,28 +476,40 @@ Conventions used by every task:
     - **Validates: Requirements 22.10**
   - [ ] 22.4 Implement Decision_Models (`learn/decision_models.py`)
     - `HistGradientBoostingClassifier(random_state=…, early_stopping=False)`, calibrated with `CalibratedClassifierCV(FrozenEstimator(m), method="sigmoid")` on validation examples
+    - Confirm the closed Closed-or-Open-Record clauses of Properties 10 and 41 run once a Decision_Model can select a closed Record; MDL does not close Records on their inputs (even at 1,000 documents)
+    - Report whether the normalized MDL-difference feature carries signal for Closed-or-Open-Record (its spread and importance on validation examples). Revisit the Good–Turing unseen-key charge only if it does not and the Decision_Model cannot close Records either (design Open Decisions, Closed-or-Open-Record Judgment_Call)
     - Omit a kind with only one class and record the per-class counts. Validation metrics: n, accuracy, macro-F1, and ECE before and after calibration with `ece.bins`
+    - When the `decide.dm_*` Techniques become `implemented=True`, add pipeline-level tests of the Decision_Model branches of 4.10, 5.11, 7.10, and 15.7 (an enabled model, a missing model, `decide.dm_closed_enum` on with `values.enum_estimation` off) to `tests/unit/test_config_fallbacks.py`, and check that Properties 31 and 48 reach Decision_Model cut-offs and fallbacks
     - _Requirements: 21.3, 21.4, 21.5, 22.11_
   - [ ] 22.5 Implement Learned_Threshold fitting (`learn/trainer.py`, `config/thresholds.py`)
     - Deterministic grid search on validation examples, ties to the smallest value. Store the fitted value, objective value, example count, and Training_Data id. Omit thresholds with no validation examples and record why
-    - Objectives for the M2 thresholds: ARI for `lsh.keyset_jaccard`, `dbscan.eps`, `dbscan.min_samples`, and `hdbscan.min_cluster_size`; `dependentRequired` F1 for `cooccur.min_support` and `cooccur.min_confidence`
+    - Objectives for the M2 thresholds: ARI for `lsh.keyset_jaccard`, `dbscan.eps`, `dbscan.min_samples`, and `hdbscan.min_cluster_size`; `dependentRequired` F1 for `cooccur.min_support` and `cooccur.min_confidence`. Fit `dbscan.min_samples` in objects and `hdbscan.min_cluster_size` in distinct signatures, the units task 13.2 uses. Fit `cooccur.min_confidence` on the Confidence `(count(a) + 1) / (count(a) + 2)` of task 14.2, which makes it a minimum Support count
     - _Requirements: 20.3, 20.4, 20.8_
 
 - [ ] 23. Implement the Model_Bundle writer and the Trainer
   - [ ] 23.1 Implement the bundle writer (`learn/bundle.py`)
     - Bundle layout, manifest fields, `thresholds.json`, `feature_spec.json`, and models, written atomically (temp directory, then rename)
     - The reader treats a feature-spec mismatch as a missing model
+    - Record `artifacts {name: {path, sha256}}` in the manifest. The reader verifies the digest before unpickling or reading an artifact and treats a missing file or a mismatch as a missing artifact (substitution cause `checksum`). Document that only trusted bundles should be loaded, since the digest does not make an untrusted pickle safe
     - _Requirements: 21.1, 21.2, 21.10, 22.10_
   - [ ] 23.2 Implement `Trainer.run` and `jsinfer train` (`learn/trainer.py`, `cli.py`, `bench/splits.py`)
-    - Define the `SchemaSplit` file model (load and save) in `bench/splits.py`. Read train and validation schemas by id from the corpus manifest named in the training config
+    - Define the `SchemaSplit` file model (load and save) and a minimal corpus manifest file model (schema id, source, schema file path relative to the manifest) in `bench/splits.py`; 25.1 later writes the same model. Read train and validation schemas by id from the corpus manifest named in the training config (design Open Decisions, Corpus manifest and training fixtures)
+    - Register the Resource_Parameter `train.max_schemas` (default 2,000, provisional until 29.9): above it, sample each split's sorted schema ids in proportion to its size with `rng("train.subset", split)`, and list the schemas used per split in the manifest
     - Run the design's training order. Reject held-out or unknown schemas with a non-zero exit and no bundle
     - Omit artifacts of disabled or unimplemented Techniques (label model, Semantic_Type_Classifier, Corpus_Index) and record the reasons. Stage errors remove the temp directory
     - _Requirements: 21.1, 21.2, 21.3, 21.7, 21.8, 21.9, 22.1, 22.6_
   - [ ] 23.3 Write property test for missing artifacts
     - **Property 32: Missing artifacts degrade to fallbacks**
+    - Include artifacts whose SHA-256 does not match the manifest
     - **Validates: Requirements 20.6, 21.10, 22.14, 24.9**
-  - [ ] 23.4 Write Trainer integration tests and fixtures
-    - 30 fixture schemas and a fixture split; session-scoped `tiny_bundle` cached by content hash; `empty_bundle`; two-run reproducibility; held-out schema rejection
+  - [ ] 23.4 Hand-write the fixture schema corpus (`tests/fixtures/corpus/`)
+    - 30 draft 2020-12 schemas written for the tests, with no SchemaStore or JSONSchemaBench content (design Open Decisions, Corpus manifest and training fixtures)
+    - Cover every Judgment_Call label of 22.4 in both classes (Record and Map, closed and open Record, Tuple and List, Closed_Enum and open enum, Split and Merge) in both the training and the validation split, so `tiny_bundle` trains a Decision_Model per kind. Also cover the ten Formats, `examples`/`default`/`enum` values, normalized field names shared across schemas (22.3(b)), `$ref` with recursion, `allOf`/`oneOf`/`not`/`if`, and Patterns
+    - Add a corpus manifest in the 23.2 file model and a fixture Schema_Split with training, validation, and held-out schemas, so 23.5 can test held-out rejection (21.8)
+    - A unit test checks that every schema passes the meta-schema check and compiles with the Validator, that the manifest and split agree, and that `derive_labels` (21.5) finds both classes of every kind in the training and validation splits
+    - _Requirements: 21.8, 21.9, 22.3, 22.4_
+  - [ ] 23.5 Write Trainer integration tests and fixtures
+    - The fixture corpus and split of 23.4; session-scoped `tiny_bundle` cached by content hash; `empty_bundle`; two-run reproducibility; held-out schema rejection
     - _Requirements: 21.7, 21.8, 21.9_
 
 - [ ] 24. Checkpoint (M3): ensure all tests pass, ask the user if questions arise.
@@ -457,7 +519,7 @@ Conventions used by every task:
 - [ ] 25. Implement corpus loading, splits, and leakage checks
   - [ ] 25.1 Implement the corpus loader (`bench/corpus_loader.py`)
     - Read a SchemaStore checkout at a pinned commit (schemas, positive and negative tests, catalog versions) and a JSONSchemaBench checkout at a pinned revision from configured local paths
-    - Assign unique ids with source and snapshot, and link test files. Omit unreadable or invalid files with reasons. Write the corpus manifest the Trainer reads
+    - Assign unique ids with source and snapshot, and link test files. Omit unreadable or invalid files with reasons. Write the corpus manifest the Trainer reads, in the file model of 23.2, extended with test-file paths and catalog versions
     - _Requirements: 30.1, 30.9_
   - [ ] 25.2 Implement the split builder and `jsinfer split` (`bench/splits.py`, `cli.py`)
     - MinHash/LSH over normalized Path sets with exact Jaccard on candidate pairs; cut-off from a 1–3 component GMM on logit similarities selected by BIC; union-find over catalog versions and pairs above the cut-off
@@ -475,6 +537,7 @@ Conventions used by every task:
   - [ ] 25.6 Probe jsonsubschema keyword coverage (open decision, M4)
     - Integration test (`tests/integration/test_subschema_probe.py`) with known inclusion pairs per keyword
     - Update the supported-keyword list in `io/subschema.py` from the results, and record them in the test module docstring
+    - Map jsonsubschema's own unsupported cases (an `enum` of objects, a negated object or array schema), which now surface as `error`, to `keywords` where the probe identifies them. Recheck `dependencies` (ignored by 0.0.8, so `dependentRequired` is unsupported), `multipleOf`, number negation, and integer/number `enum` handling
     - _Requirements: 31.7, 31.8_
   - [ ] 25.7 Add corpus-parametrized cases to the round-trip and translation tests
     - **Property 3: Schema emit/load round trip** and **Property 5: Draft translation preserves verdicts** over fully supported corpus schemas and SchemaStore tests (fixed subset in CI, full corpus nightly)
@@ -521,6 +584,7 @@ Conventions used by every task:
   - [ ] 29.1 Implement the synthetic benchmark (`bench/synthetic.py`)
     - For each eligible Held_Out_Schema: training collections at each configured size; held-out positives distinct from training documents; mutation negatives; `corpus.exclude_ids` set to the held-out group
     - Run every available system, then compute recall, negative rejection, harmonic mean, inclusion relation, judgment accuracy, and Constraint precision and recall with `format` asserted. Record exclusions, failures, and timeouts as missing
+    - Load and re-emit each truth schema as draft 2020-12 before the Subschema_Checker, which rejects earlier-draft and unknown keywords. Inferred schemas with `dependentRequired` get `Unsupported` until 25.6 (design Open Decisions, jsonsubschema keyword coverage)
     - _Requirements: 30.6, 31.1, 31.2, 31.6, 31.7, 31.8, 31.11, 31.12, 31.13_
   - [ ] 29.2 Implement the real-data benchmark (`bench/real.py`)
     - Manifest parsing with exclusions; SchemaStore schemas with positive tests as Real_Datasets; cleaning per 33.5
@@ -569,7 +633,10 @@ Conventions used by every task:
   - [ ] 33.1 Implement field groups (`structure/field_groups.py`, `structure/analyzer.py`, `config/registry.py`)
     - In-house FP-growth over distinct non-base key sets with counts at `fpgrowth.min_support`, sampled at `sample.fpgrowth`; Krimp-style code-table acceptance when total DL drops
     - All-or-none filter (violations reported) and greedy disjointness filter by DL gain; MDL selection among ∅ and the FP set
+    - Loosen `test_disabled_cooccurrence_mining_emits_no_rules_and_keeps_required` in `tests/unit/test_config_fallbacks.py`, which asserts no `dependentRequired` at all: with co-occurrence mining off, Field_Groups may still emit it (9.9)
     - Emit `dependentRequired` cliques, with presence coded once in the MDL_Scorer; fallback none
+    - Pass the selected groups to `CooccurrenceMiner.rules(groups=...)` so their cliques are given rules. When an antecedent has both a clique entry and a Co_Occurrence_Rule entry, merge them into one `dependentRequired` entry (one Constraint) and combine the two Provenance_Records
+    - Property 19 then treats Field_Group pairs as given rules, and its check that a rule decision without a record is derivable in some Variant at its Path becomes live; confirm it passes
     - _Requirements: 6.2, 6.3, 6.6, 6.7, 6.8, 6.9_
   - [ ] 33.2 Write property test for Field_Groups
     - **Property 13: Field_Groups are well-formed and hold**
@@ -583,6 +650,7 @@ Conventions used by every task:
     - In-house categorical tree with splits `P == v`: grown while DL decreases, post-pruned, limited by `trees.max_depth` and `trees.max_values`, sampled at `sample.trees`. Trees per field-presence target and per Variant target
     - Discriminator candidates are present everywhere and are strings, integers, or booleans. Select by DL with `tagged.branch_support` eligibility and ties by name; report non-selected candidates
     - Branches: dedicated `const`/`enum` branches with `required`, and a fallback branch per 10.5 and 10.8; exactly-one validation; value groups replace Variant branches
+    - Extend the branch routing of Properties 12, 18, and 19 (which follow the Variant branches) to Discriminator value groups
     - Register the `tagged.branch_support` objective (branch F1)
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
   - [ ] 34.2 Write property test for Tagged_Unions
@@ -594,6 +662,8 @@ Conventions used by every task:
     - Members are fields or Field_Groups. Maximal cliques of the never-co-occur graph via Bron–Kerbosch with pivoting in canonical order; Confidence `1 − exp(−E)` with E reported
     - "Already enforced" check with Validator witnesses (kept when no witness exists); MDL or `exclusion.min_confidence`; `oneOf` vs `not` emission; rejections reported; fallback none
     - Register the `exclusion.min_confidence` objective
+    - Settle the Support of Constraints inside `not` (now (0, 0), as `not` contents are not walked) and inside `if` (now always consistent); keep `rules.exclusion` in `KIND_SPECIFIC_CONFIDENCE` so its `1 − exp(−E)` Confidence survives finalization
+    - Property 19's Exclusion clauses activate automatically. If an Exclusion `oneOf` sits on a node without `type` (beside Variant branches), extend that test's routing walk
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
   - [ ] 35.2 Write property test for Confidence monotonicity
     - **Property 21: Confidence functions are monotone** (exclusion clause now; key, reference, and FD clause added in 44.3)
@@ -617,6 +687,7 @@ Conventions used by every task:
   - [ ] 37.1 Implement the hybrid partition (`structure/record_map.py`, `config/registry.py`)
     - Top-j partitions by key frequency, plus the induced-Pattern partition; replaces the outcome only if strictly below both pure encodings
     - `patternProperties` when the Pattern matches every Map key and no Record field, otherwise `additionalProperties`; Closed-or-Open applies to the partitioned Record
+    - Property 10's hybrid clause reads the partition DL from the report's `record_map_partition` entry at the Path; adjust that lookup if the entry differs
     - _Requirements: 4.5, 4.6, 4.7_
 
 - [ ] 38. Implement outlier detection and MDL exception encoding
@@ -660,6 +731,7 @@ Conventions used by every task:
     - Conditional frequencies, using the parent context when it matches, ranked deterministically
     - Acceptance checks: `corpus.suggest_min_confidence`, non-flagged values present, keyword applicability, and Validator acceptance. Failures are reported with counts. A shared keyword becomes one Decision_Point
     - Fallback and missing-index substitution; register the suggestion-acceptance objective
+    - Keep `corpus.name_suggest` in `KIND_SPECIFIC_CONFIDENCE` so suggestion scores survive finalization
     - _Requirements: 24.3, 24.5, 24.6, 24.7, 24.8, 24.9_
   - [ ] 40.3 Write property test for suggestions
     - **Property 39: Suggestions are ranked and accounted for** (name-based clauses now; CF clauses added in 46.2)
@@ -711,6 +783,8 @@ Conventions used by every task:
   - [ ] 44.1 Implement the global pass (`deps/keys.py`, `pipeline/infer.py`, `config/registry.py`, `learn/trainer.py`)
     - Keys with collection and array scope, inclusion into selected keys, and FDs within one object scope (sampled at `sample.fd`). Confidences `n!/nⁿ`, `2^−(n−d)`, and `2^−d_A`
     - Discard and report below-threshold candidates. `uniqueItems` for scalar Lists; `x-key`, `x-references`, and `x-functional-dependency`; fallbacks per 12.9 and 12.10
+    - Keep `rules.keys` and `rules.fd_ind` in `KIND_SPECIFIC_CONFIDENCE` so their Confidences survive finalization
+    - Emit `x-key`, `x-references`, and `x-functional-dependency` in the payload shapes Property 19 reads (design, Open Decisions), or update its readers (`key_scope`, `referenced_path`, `dependency_paths`)
     - Register the half-split objectives for `keys.min_confidence`, `ind.min_confidence`, and `fd.min_confidence`
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 12.10_
   - [ ] 44.2 Extend the mining-primitives test with keys, references, and FDs
@@ -724,6 +798,7 @@ Conventions used by every task:
   - [ ] 45.1 Implement the classifier (`values/semantic.py`, `values/inferrer.py`, `learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)
     - Sherlock-style aggregate features of a seeded value sample, plus hashed name and parent tokens; multiclass HGB with the documented classes and semantic-type → Format or Pattern mapping
     - Trained per 21.6 and calibrated on validation data, with manifest metrics. Inference candidate gated by `semantic.min_probability`; predictions with no mapping are reported. Register the objective
+    - Keep `values.semantic_type` in `KIND_SPECIFIC_CONFIDENCE` so the calibrated probability survives finalization
     - _Requirements: 13.5, 13.7, 21.4, 21.5, 21.6_
   - [ ] 45.2 Write unit tests for the classifier
     - Threshold gating, unmapped types, and missing-model fallback
@@ -732,6 +807,7 @@ Conventions used by every task:
 - [ ] 46. Implement collaborative-filtering suggestions
   - [ ] 46.1 Implement CF suggestions (`corpus/advisor.py`, `corpus/index.py`, `config/registry.py`)
     - Noisy-OR over `P(constraint | sibling name)` from training-split counts, giving scores in [0, 1]; a duplicate of a name-based suggestion keeps the higher Confidence
+    - Keep `corpus.cf_suggest` in `KIND_SPECIFIC_CONFIDENCE` so CF scores survive finalization
     - _Requirements: 24.4, 24.8_
   - [ ] 46.2 Extend the suggestions test with CF clauses
     - **Property 39: Suggestions are ranked and accounted for** (CF scores and duplicate handling)
@@ -754,6 +830,8 @@ Conventions used by every task:
   - [ ] 48.2 Implement version outputs and wiring (`pipeline/versions_out.py`, `pipeline/infer.py`, `pipeline/soundness.py`)
     - Per-segment inference and soundness; segment labels; combined `anyOf` with hoisted `v<i>-` `$defs` and rewritten refs; diffs over (Path, keyword) → value maps
     - Explanation keys follow the combined schema. With no change point, emit a single schema
+    - Keep `PipelineResult.schema` the combined schema and expose the per-Version Schema_Models on the result, so the gated per-Version checks of Properties 3 and 7 run
+    - Fill `InferenceResult.versions`, `combined`, and `diffs`, which 18.1 leaves empty
     - _Requirements: 3.1, 18.6, 18.7, 18.8, 18.9, 18.10, 26.5_
   - [ ] 48.3 Write property test for ordering and segmentation
     - **Property 28: Ordering and segmentation**
@@ -765,9 +843,15 @@ Conventions used by every task:
 - [ ] 49. Add the nightly performance test
   - [ ] 49.1 Write the performance test (`tests/perf/`)
     - Generate the 100k-document reference collection; check the median of 3 runs against the time target and the summed peak RSS from psutil
+    - Include a Variant-heavy case. Noise assignment (5.9) costs one MDL scoring per noise signature and existing group: with thresholds that label nearly every signature as noise, 20k documents with 960 signatures took about 50 s in task 13.2, mostly in the MDL_Scorer's per-distinct-value loop. Profile it if the time target is at risk
+    - Include a deeply nested case. `View.digest` (through `core.canonical_bytes`) does work proportional to the Path length for every view, so the walk is roughly cubic in depth: about 4.4 s at depth 100 and 13.5 s at depth 150 with every Technique off (task 16.1). Cache digests if the time target is at risk
     - _Requirements: 29.6, 29.7_
 
 - [ ] 50. Final checkpoint: ensure all tests pass, ask the user if questions arise.
+  - Raise property coverage that the event statistics show is thin: the removal loop in Property 7 (about 2% of `ci` examples, 7% under `nightly`) and a soundness removal of a `dependentRequired` entry in Property 19 (never observed), for example by weighting `soundness.max_passes = 1` and injecting rule-breaking values
+  - Investigate why whether tagged Variants split depends on field names (in Property 42, a tag named `type` beside fields `~` and `/` stayed merged, while `kind`, `$ref`, or `""` tags split), likely in the MinHash/LSH grouping's DL merge
+  - Watch Property 42 under `nightly`: one early randomized probe timed out at 300 s and could not be reproduced
+  - Hypothesis favors the first `sampled_from` choice and small integers; Property 42 offsets its draws by the documents' size, while Property 3's sum-of-two-draws spread still leans toward index 0. Apply the same correction where coverage events show the skew
 
 ## Notes
 
@@ -802,38 +886,39 @@ Conventions used by every task:
     { "id": 18, "tasks": ["17.4", "17.5", "17.6", "18.2"] },
     { "id": 19, "tasks": ["18.3", "18.4", "19.1"] },
     { "id": 20, "tasks": ["19.4", "19.5", "19.6", "19.7", "19.8", "19.9"] },
-    { "id": 21, "tasks": ["21.1", "21.5", "22.4"] },
+    { "id": 21, "tasks": ["19.10", "21.1", "21.5", "22.4"] },
     { "id": 22, "tasks": ["21.2", "21.3", "21.6", "22.1"] },
     { "id": 23, "tasks": ["21.4", "22.2"] },
     { "id": 24, "tasks": ["22.3", "22.5", "23.1"] },
     { "id": 25, "tasks": ["23.2"] },
     { "id": 26, "tasks": ["23.3", "23.4"] },
-    { "id": 27, "tasks": ["25.1", "25.4", "25.6", "26.1", "27.1", "27.3", "28.1"] },
-    { "id": 28, "tasks": ["25.2", "25.5", "26.2", "27.2", "27.4", "28.2"] },
-    { "id": 29, "tasks": ["25.3", "25.7", "28.3", "29.1", "29.2"] },
-    { "id": 30, "tasks": ["29.3", "30.1", "30.3"] },
-    { "id": 31, "tasks": ["30.2", "30.4", "30.5"] },
-    { "id": 32, "tasks": ["30.6"] },
-    { "id": 33, "tasks": ["32.1", "39.1", "39.2", "40.1", "41.1", "41.2", "41.5"] },
-    { "id": 34, "tasks": ["32.2", "33.1", "39.3", "41.3", "41.4", "41.6"] },
-    { "id": 35, "tasks": ["33.2", "33.3", "34.1", "41.7"] },
-    { "id": 36, "tasks": ["34.2", "35.1"] },
-    { "id": 37, "tasks": ["35.2", "35.3", "36.1"] },
-    { "id": 38, "tasks": ["36.2", "37.1"] },
-    { "id": 39, "tasks": ["38.1"] },
-    { "id": 40, "tasks": ["38.2"] },
-    { "id": 41, "tasks": ["38.3", "39.4"] },
-    { "id": 42, "tasks": ["39.5", "40.2"] },
-    { "id": 43, "tasks": ["40.3", "40.4"] },
-    { "id": 44, "tasks": ["40.5"] },
-    { "id": 45, "tasks": ["43.1"] },
-    { "id": 46, "tasks": ["43.2", "44.1"] },
-    { "id": 47, "tasks": ["44.2", "44.3", "45.1"] },
-    { "id": 48, "tasks": ["45.2", "46.1"] },
-    { "id": 49, "tasks": ["46.2", "47.1"] },
-    { "id": 50, "tasks": ["47.2", "48.1"] },
-    { "id": 51, "tasks": ["48.2"] },
-    { "id": 52, "tasks": ["48.3", "48.4", "49.1"] }
+    { "id": 27, "tasks": ["23.5"] },
+    { "id": 28, "tasks": ["25.1", "25.4", "25.6", "26.1", "27.1", "27.3", "28.1"] },
+    { "id": 29, "tasks": ["25.2", "25.5", "26.2", "27.2", "27.4", "28.2"] },
+    { "id": 30, "tasks": ["25.3", "25.7", "28.3", "29.1", "29.2"] },
+    { "id": 31, "tasks": ["29.3", "30.1", "30.3"] },
+    { "id": 32, "tasks": ["30.2", "30.4", "30.5"] },
+    { "id": 33, "tasks": ["30.6"] },
+    { "id": 34, "tasks": ["32.1", "39.1", "39.2", "40.1", "41.1", "41.2", "41.5"] },
+    { "id": 35, "tasks": ["32.2", "33.1", "39.3", "41.3", "41.4", "41.6"] },
+    { "id": 36, "tasks": ["33.2", "33.3", "34.1", "41.7"] },
+    { "id": 37, "tasks": ["34.2", "35.1"] },
+    { "id": 38, "tasks": ["35.2", "35.3", "36.1"] },
+    { "id": 39, "tasks": ["36.2", "37.1"] },
+    { "id": 40, "tasks": ["38.1"] },
+    { "id": 41, "tasks": ["38.2"] },
+    { "id": 42, "tasks": ["38.3", "39.4"] },
+    { "id": 43, "tasks": ["39.5", "40.2"] },
+    { "id": 44, "tasks": ["40.3", "40.4"] },
+    { "id": 45, "tasks": ["40.5"] },
+    { "id": 46, "tasks": ["43.1"] },
+    { "id": 47, "tasks": ["43.2", "44.1"] },
+    { "id": 48, "tasks": ["44.2", "44.3", "45.1"] },
+    { "id": 49, "tasks": ["45.2", "46.1"] },
+    { "id": 50, "tasks": ["46.2", "47.1"] },
+    { "id": 51, "tasks": ["47.2", "48.1"] },
+    { "id": 52, "tasks": ["48.2"] },
+    { "id": 53, "tasks": ["48.3", "48.4", "49.1"] }
   ]
 }
 ```

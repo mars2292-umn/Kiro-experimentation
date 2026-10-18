@@ -14,7 +14,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from jsinfer.config.run_config import DEFAULT_MODEL_BUNDLE, RunConfiguration
+from jsinfer.config.registry import REGISTRY
+from jsinfer.config.run_config import DEFAULT_MODEL_BUNDLE, RunConfiguration, technique_setting
 from jsinfer.core.determinism import canonical_bytes
 from jsinfer.core.observations import build_store
 from jsinfer.core.provenance import (
@@ -77,7 +78,8 @@ class StubModel:
 
 
 def engine(*enabled: str, bundle: Any = None, report: InferenceReport | None = None) -> DecisionEngine:
-    return DecisionEngine(dict.fromkeys(enabled, True), bundle=bundle, report=report)
+    """An engine with exactly the ``enabled`` Techniques on; the others are off, whatever their default."""
+    return DecisionEngine({tid: tid in enabled for tid in REGISTRY.ids()}, bundle=bundle, report=report)
 
 
 def score(model_bits: float, data_bits: float, *, exception_bits: float = 0.0, n_rejected: int = 0) -> Score:
@@ -464,7 +466,8 @@ def test_the_priority_winner_survives_a_tie_and_keeps_its_cutoff() -> None:
 def test_the_fallback_step_runs_no_exception_check() -> None:
     rejects, candidates = exception_case(widen_bits=30, flag_bits=1)
     for enabled in ((EXCEPTIONS,), (EXCEPTIONS, MDL)):  # 28.4: values.bounds is disabled, so nothing can act
-        decision = engine(*enabled).resolve(DecisionPoint("bound"), candidates)
+        states = {**dict.fromkeys(enabled, True), "values.bounds": False}
+        decision = DecisionEngine(states).resolve(DecisionPoint("bound"), candidates)
         assert (decision.method, decision.outcome, decision.candidate) == ("fallback", "none", None)
         assert decision.cutoff is None and decision.details == {"fallback_behavior": "omit"}
     assert rejects.store.flags.is_empty
@@ -515,7 +518,8 @@ def test_a_gated_decision_model_names_its_disabled_gate() -> None:
         Candidate(technique="values.enum_estimation", outcome="closed", order_key=(0,), score=score(1, 1)),
         Candidate(technique="values.enum_estimation", outcome="open", order_key=(1,), score=score(2, 2)),
     ]
-    decision = engine("decide.dm_closed_enum").resolve(DecisionPoint("closed_or_open_enum"), candidates)
+    gated = DecisionEngine({"decide.dm_closed_enum": True, "values.enum_estimation": False})
+    decision = gated.resolve(DecisionPoint("closed_or_open_enum"), candidates)
     assert (decision.method, decision.label) == ("fallback", "open")
     assert decision.fallback == FallbackInfo("values.enum_estimation", "disabled")
     # With enum estimation on and its Decision_Model off, enum estimation selects by MDL (15.6).
@@ -541,10 +545,16 @@ def test_a_usable_technique_without_candidates_is_an_error() -> None:
         engine("values.bounds").resolve(DecisionPoint("bound"), [])
 
 
-def test_the_default_run_configuration_resolves_by_fallback() -> None:
+def test_the_default_run_configuration_resolves_judgment_calls_by_mdl() -> None:
+    # decide.mdl is implemented, so it is on by default; the Decision_Models are not built yet.
     config = RunConfiguration.resolve()
     on = DecisionEngine.for_run(config, load_bundle(DEFAULT_MODEL_BUNDLE).resolve(config.techniques), InferenceReport())
     decision = on.resolve(DecisionPoint("tuple_or_list"), judgment("tuple_or_list", (score(1, 1), score(2, 2))))
+    assert (decision.method, decision.label, decision.technique) == ("mdl", "tuple", MDL)
+    assert decision.fallback == FallbackInfo("decide.dm_tuple_list", "disabled")  # the Decision_Model's fallback (22.13)
+    # With decide.mdl off as well, the Fallback_Behavior applies.
+    off = DecisionEngine.for_run(RunConfiguration.resolve({technique_setting(MDL): False}), None, None)
+    decision = off.resolve(DecisionPoint("tuple_or_list"), judgment("tuple_or_list", (score(1, 1), score(2, 2))))
     assert (decision.method, decision.label) == ("fallback", "list")
 
 

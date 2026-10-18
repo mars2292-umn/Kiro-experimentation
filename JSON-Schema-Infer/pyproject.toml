@@ -10,6 +10,11 @@ dependencies = [
     "datasketch==2.0.0",
     "joblib==1.6.0",
     "jsonschema-rs==0.58.6",
+    # The Subschema_Checker (io/subschema.py) runs jsonsubschema in a child
+    # process of this environment; its requirements (jsonschema, jsonref,
+    # portion, greenery) resolve with these pins, so no isolated environment
+    # is needed. jsinfer never imports it (tests/lint.py).
+    "jsonsubschema==0.0.8",
     # numpy 2.4.x and scipy 1.17.x are the last lines that support Python 3.11.
     "numpy==2.4.6",
     "orjson==3.13.0",

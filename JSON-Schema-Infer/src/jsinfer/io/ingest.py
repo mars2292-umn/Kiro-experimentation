@@ -46,6 +46,45 @@ Records (1.1, 1.3, 1.9)
     depend on the call stack, which differs between the main process and the
     workers.
 
+In-memory documents (27.9, 27.13)
+    :meth:`Ingestor.ingest_bytes` reads bytes as the content of one ``.jsonl``
+    file named by its ``source`` (default :data:`BYTES_SOURCE`).
+    :meth:`Ingestor.ingest_values` reads parsed documents (Python values) as
+    the lines of such a file named :data:`VALUES_SOURCE` (default):
+    :func:`documents_to_jsonl` writes value ``k`` of the iterable (from 0)
+    as line ``k + 1``, and the bytes are ingested as above. The
+    DocumentStore, origins, and failures are therefore those of a ``.jsonl``
+    file holding the same documents, one per line.
+
+    The documents must be JSON values, and nothing is converted:
+
+    - Each value, at any depth, is an instance of ``dict``, ``list``,
+      ``str``, ``int``, ``float``, or ``bool``, or is ``None`` (the types
+      27.9 lists; subclasses such as ``OrderedDict`` or ``IntEnum`` are
+      written as their base type, as :mod:`json` writes them), and every
+      ``dict`` key is a ``str``. Anything else (a tuple, a set, bytes, a
+      ``Decimal``, a numpy scalar other than ``float64``, an ``int`` or
+      ``None`` key, ...) raises ``TypeError`` naming the document's position
+      in the iterable and the JSON Pointer of the value or object. A
+      ``dict`` or ``list`` that contains itself raises ``ValueError``.
+      ``json.dumps`` would instead write a tuple as an array and turn
+      ``int``, ``float``, ``bool``, and ``None`` keys into strings, which
+      can merge two keys into one (``{1: "a", "1": "b"}``) and silently
+      change the document.
+    - A value inside that domain is always written, as the line
+      ``json.dumps(value, ensure_ascii=True, separators=(",", ":"))``
+      writes (an explicit stack replaces the encoder's recursion, and
+      integers are written in full even past the integer string conversion
+      limit). A line holds no raw line terminator, so line ``k + 1`` is
+      document ``k``. A document that a ``.jsonl`` file cannot carry as
+      RFC 8259 JSON jsinfer accepts then fails exactly as it would in such
+      a file, and is skipped and recorded at its line (1.7, 1.11): NaN and
+      the infinities are written as Python's ``json`` spells them (``NaN``,
+      ``Infinity``, ``-Infinity``) and fail as constants; a string with an
+      unpaired surrogate is written as an escape and fails as a surrogate;
+      an integer longer than the conversion limit and nesting deeper than
+      :data:`MAX_NESTING_DEPTH` fail as they do in a file.
+
 Skipped documents and files (1.7, 1.8)
     A record that fails to parse is recorded as an IngestError with its
     source, the 1-based line at which the error was detected (the
@@ -138,8 +177,9 @@ import re
 import stat
 import sys
 from collections import deque
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from json.encoder import encode_basestring_ascii
 from typing import Any, Final, Literal, TypeAlias
 
 import numpy as np
@@ -153,14 +193,18 @@ from jsinfer.core.determinism import codepoint_key, encode_canonical
 from jsinfer.core.errors import NoDocumentsError
 from jsinfer.core.jsonvalue import JSON
 from jsinfer.core.report import IngestError
+from jsinfer.core.schema_model import join_pointer
+from jsinfer.core.workers import single_threaded
 
 __all__ = [
+    "BYTES_SOURCE",
     "CHUNK_SIZE",
     "LINE_EXTENSIONS",
     "MAX_NESTING_DEPTH",
     "PARSE_FAILURE_KINDS",
     "SUPPORTED_EXTENSIONS",
     "UTF8_BOM",
+    "VALUES_SOURCE",
     "DocOrigin",
     "DocumentParseError",
     "DocumentStore",
@@ -168,6 +212,7 @@ __all__ = [
     "Ingestor",
     "ParseFailureKind",
     "Parser",
+    "documents_to_jsonl",
     "parse_document",
 ]
 
@@ -452,6 +497,10 @@ LINE_EXTENSIONS: Final[tuple[str, ...]] = (".jsonl", ".ndjson")
 # The deepest container nesting a record may have (see the module docstring, Records).
 MAX_NESTING_DEPTH: Final = 512
 
+# The source names of in-memory documents (see the module docstring, In-memory documents).
+VALUES_SOURCE: Final = "<documents>"
+BYTES_SOURCE: Final = "<jsonl>"
+
 _EXPECTED_EXTENSIONS: Final = ".json, .jsonl, or .ndjson"
 
 # A string (matched whole, so brackets inside it are skipped) or one bracket.
@@ -623,6 +672,13 @@ def _extension(name: str) -> str:
     return os.path.splitext(name)[1].casefold()
 
 
+def _source_name(source: Any) -> str:
+    """The name of an in-memory source, as valid Unicode; a non-empty str is required."""
+    if not isinstance(source, str) or not source:
+        raise ValueError(f"source must be a non-empty str, got {source!r}")
+    return _display(source)
+
+
 def _os_reason(error: OSError) -> str:
     """The OS's description of ``error``, without the file name (which may be absolute)."""
     return _display(error.strerror or str(error) or type(error).__name__)
@@ -713,6 +769,163 @@ def _walk(root: str) -> list[tuple[str, str, str | None]]:
                 found.append((prefix + name, path, None))
     found.sort(key=lambda entry: codepoint_key(entry[0]))
     return found
+
+
+def _line_records(data: bytes, source: str) -> Iterator[_Record]:
+    """The records of the content of a ``.jsonl`` or ``.ndjson`` file (1.1): its non-blank lines, numbered from 1."""
+    for number, line in enumerate(data.split(b"\n"), start=1):
+        if line.endswith(b"\r"):
+            line = line[:-1]
+        if line.strip(b" \t"):  # blank lines consume no index
+            yield _Record(source, number, line, False)
+
+
+# ---------------------------------------------------------------------------
+# In-memory documents as JSONL (see the module docstring, In-memory documents)
+# ---------------------------------------------------------------------------
+
+# Digits per piece when an integer is longer than the integer string
+# conversion limit: below 640, the smallest limit sys.set_int_max_str_digits accepts.
+_INT_PIECE_DIGITS: Final = 600
+_INT_PIECE: Final = 10**_INT_PIECE_DIGITS
+
+# Where a value sits in its document: None for the root, else (parent, token).
+_Where: TypeAlias = "tuple[_Where, str | int] | None"
+
+
+@dataclass(frozen=True, slots=True)
+class _Close:
+    """A closing bracket on the writer's stack; writing it ends the container's turn on the current path."""
+
+    text: str
+    ident: int
+
+
+def _float_literal(value: float) -> str:
+    """``value`` as :mod:`json` writes it, NaN and the infinities included (they fail at parsing)."""
+    if value != value:
+        return "NaN"
+    if value == math.inf:
+        return "Infinity"
+    if value == -math.inf:
+        return "-Infinity"
+    return float.__repr__(value)
+
+
+def _int_literal(value: int) -> str:
+    """The decimal digits of ``value``, even past the integer string conversion limit."""
+    try:
+        return int.__repr__(value)
+    except ValueError:  # longer than sys.get_int_max_str_digits() allows
+        pass
+    magnitude = int.__abs__(value)
+    pieces: list[str] = []
+    while magnitude >= _INT_PIECE:
+        magnitude, low = divmod(magnitude, _INT_PIECE)
+        pieces.append(f"{low:0{_INT_PIECE_DIGITS}d}")
+    pieces.append(int.__repr__(magnitude))
+    pieces.reverse()
+    return ("-" if value < 0 else "") + "".join(pieces)
+
+
+def _pointer(where: _Where) -> str:
+    """The JSON Pointer of ``where``, as valid Unicode, or ``(root)``."""
+    tokens: list[str | int] = []
+    while where is not None:
+        where, token = where
+        tokens.append(token)
+    tokens.reverse()
+    return _display(join_pointer("", *tokens)) or "(root)"
+
+
+def _not_json(index: int, problem: str) -> str:
+    return f"document {index} of the iterable (counting from 0) is not a JSON value: {problem}"
+
+
+def _document_line(value: Any, index: int) -> str:
+    """Document ``index`` as one compact, ASCII-only JSONL line (see the module docstring).
+
+    Raises ``TypeError`` for a value or key outside the JSON domain and
+    ``ValueError`` for a container that contains itself.
+    """
+    parts: list[str] = []
+    active: set[int] = set()  # ids of the containers on the path to the value being written
+    pending: list[Any] = [(value, None)]  # (value, where) to write, literal text, or a _Close
+    while pending:
+        item = pending.pop()
+        kind = type(item)
+        if kind is str:
+            parts.append(item)
+            continue
+        if kind is _Close:
+            active.discard(item.ident)
+            parts.append(item.text)
+            continue
+        value, where = item
+        if value is None:
+            parts.append("null")
+        elif value is True:
+            parts.append("true")
+        elif value is False:
+            parts.append("false")
+        elif isinstance(value, str):
+            parts.append(encode_basestring_ascii(value))
+        elif isinstance(value, int):
+            parts.append(_int_literal(value))
+        elif isinstance(value, float):
+            parts.append(_float_literal(value))
+        elif isinstance(value, (list, dict)):
+            is_array = isinstance(value, list)
+            ident = id(value)
+            if ident in active:
+                container = "array" if is_array else "object"
+                raise ValueError(_not_json(index, f"the {container} at {_pointer(where)} contains itself"))
+            entries: list[tuple[Any, Any]] = list(enumerate(value)) if is_array else list(value.items())
+            if not is_array:
+                for key, _member in entries:
+                    if not isinstance(key, str):
+                        problem = f"the object at {_pointer(where)} has a key of type {type(key).__name__}"
+                        raise TypeError(_not_json(index, f"{problem}; object keys must be str"))
+            active.add(ident)
+            parts.append("[" if is_array else "{")
+            pending.append(_Close("]" if is_array else "}", ident))
+            # Pushed last to first, so they are written first to last: separator, name, member.
+            for position in range(len(entries) - 1, -1, -1):
+                token, member = entries[position]
+                pending.append((member, (where, token)))
+                separator = "," if position else ""
+                literal = separator if is_array else f"{separator}{encode_basestring_ascii(token)}:"
+                if literal:
+                    pending.append(literal)
+        else:
+            raise TypeError(
+                _not_json(
+                    index,
+                    f"{type(value).__name__} at {_pointer(where)} is not a JSON type; expected dict, list, str, "
+                    "int, float, bool, or None",
+                )
+            )
+    return "".join(parts)
+
+
+def documents_to_jsonl(documents: Iterable[JSON]) -> bytes:
+    """The content of a ``.jsonl`` file holding ``documents``, one per line, in iteration order.
+
+    Line ``k + 1`` is value ``k`` of the iterable, as
+    ``json.dumps(value, ensure_ascii=True, separators=(",", ":"))`` writes it,
+    and every line ends with LF; see the module docstring (In-memory
+    documents). Reads the iterable once. Raises ``TypeError`` when
+    ``documents`` is not an iterable of documents (a ``str``, bytes, or a
+    mapping) or a value or key is outside the JSON domain, and
+    ``ValueError`` when a container contains itself; nothing is converted.
+    """
+    if isinstance(documents, (str, bytes, bytearray, memoryview, Mapping)) or not isinstance(documents, Iterable):
+        raise TypeError(f"documents must be an iterable of JSON values, got {type(documents).__name__}")
+    out = bytearray()
+    for index, value in enumerate(documents):
+        out += _document_line(value, index).encode("ascii")
+        out += b"\n"
+    return bytes(out)
 
 
 def _chunks(items: Iterable[_Record | IngestError], size: int) -> Iterator[tuple[list[_Meta], list[tuple[bytes, bool]]]]:
@@ -837,11 +1050,38 @@ class Ingestor:
         parses (1.8).
         """
         accepted = _check_inputs(inputs)
+        return self._collect(self._items(accepted))
+
+    def ingest_bytes(self, data: bytes | bytearray | memoryview, source: str = BYTES_SOURCE) -> IngestResult:
+        """Ingest ``data`` as the content of one ``.jsonl`` file named ``source`` (see the module docstring).
+
+        Raises :class:`~jsinfer.core.errors.NoDocumentsError` when no line parses (1.8).
+        """
+        if not isinstance(data, (bytes, bytearray, memoryview)):
+            raise TypeError(f"data must be bytes, got {type(data).__name__}")
+        return self._collect(_line_records(bytes(data), _source_name(source)))
+
+    def ingest_values(self, documents: Iterable[JSON], source: str = VALUES_SOURCE) -> IngestResult:
+        """Ingest parsed documents in iteration order, as the lines of a ``.jsonl`` file named ``source``.
+
+        ``ingest_bytes(documents_to_jsonl(documents), source)``; see the
+        module docstring (In-memory documents). Every document is written
+        before any is parsed, so a value outside the JSON domain raises
+        ``TypeError`` (``ValueError`` for a circular reference) before
+        anything is ingested. Raises
+        :class:`~jsinfer.core.errors.NoDocumentsError` when no document is
+        supplied or none can be ingested (1.8, 27.13).
+        """
+        name = _source_name(source)
+        return self.ingest_bytes(documents_to_jsonl(documents), name)
+
+    def _collect(self, items: Iterable[_Record | IngestError]) -> IngestResult:
+        """Parse the records of ``items`` in chunks and assign document indices in order (1.5, 1.7, 1.8)."""
         buffers: list[bytes] = []
         sizes: list[np.ndarray] = []
         origins: list[DocOrigin] = []
         errors: list[IngestError] = []
-        for meta, (data, chunk_sizes, outcomes) in self._parse(_chunks(self._items(accepted), self._chunk_size)):
+        for meta, (data, chunk_sizes, outcomes) in self._parse(_chunks(items, self._chunk_size)):
             buffers.append(data)
             sizes.append(chunk_sizes)
             results = iter(outcomes)
@@ -885,11 +1125,7 @@ class Ingestor:
         if _extension(path) not in LINE_EXTENSIONS:
             yield _Record(source, None, data, self._opts.unwrap_arrays)
             return
-        for number, line in enumerate(data.split(b"\n"), start=1):
-            if line.endswith(b"\r"):
-                line = line[:-1]
-            if line.strip(b" \t"):  # blank lines consume no index
-                yield _Record(source, number, line, False)
+        yield from _line_records(data, source)
 
     def _parse(
         self, chunks: Iterator[tuple[list[_Meta], list[tuple[bytes, bool]]]]
@@ -900,10 +1136,12 @@ class Ingestor:
         # submission order, so the oldest queued metadata belongs to each result.
         pending: deque[list[_Meta]] = deque()
 
+        task = delayed(single_threaded(_parse_chunk))
+
         def tasks() -> Iterator[Any]:
             for meta, payload in chunks:
                 pending.append(meta)
-                yield delayed(_parse_chunk)(payload)
+                yield task(payload)
 
         results = Parallel(n_jobs=self._workers, return_as="generator")(tasks())
         try:

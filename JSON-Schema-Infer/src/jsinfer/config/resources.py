@@ -39,6 +39,19 @@ The Resource_Parameter table
     supplied values: unknown names, each value, then this relation over the
     effective values (supplied, else default), reported under the supplied
     setting.
+
+Reading Resource_Parameters during a run (20.5)
+    A :class:`ResourceReader` holds the Resource_Parameter values of one run
+    and lists every value read through :meth:`ResourceReader.read` in the
+    run's Inference_Report, with its origin: ``"default"``, or ``"file"`` or
+    ``"flag"`` for a value the user supplied. The pipeline's stages and the
+    components that read Resource_Parameters (the VariantAnalyzer's
+    ``minhash.perm``, ``lsh.bands``, ``sample.dbscan``, ``sample.hdbscan``,
+    and ``variants.*``) read through one built by
+    :meth:`ResourceReader.for_run`, at the point of use, so the report lists
+    exactly the Resource_Parameters the run read: a Technique that does not
+    run reads none. :meth:`ResourceReader.value` returns a value without
+    listing it, for checks and inspection.
 """
 
 from __future__ import annotations
@@ -47,19 +60,23 @@ import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Final, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Final, Literal, TypeAlias
 
 import numpy as np
 
 from jsinfer.config.intervals import Interval, is_number
 from jsinfer.core.determinism import codepoint_key
-from jsinfer.core.report import WORKERS
+from jsinfer.core.report import RESOURCE_ORIGINS, WORKERS, InferenceReport, ResourceOrigin
+
+if TYPE_CHECKING:
+    from jsinfer.config.run_config import RunConfiguration
 
 __all__ = [
     "BOUNDED_BY",
     "RESOURCE_PARAMETERS",
     "SAMPLE_SIZES",
     "WORKERS",
+    "ResourceReader",
     "SettingProblem",
     "SettingProblemReason",
     "SettingSpec",
@@ -233,6 +250,14 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
     _count("minhash.perm", 128, "MinHash permutations for Variant candidate grouping and the Corpus_Index (5.7, 25.1)"),
     _count("lsh.bands", 32, "LSH bands, at most minhash.perm; rows per band = minhash.perm // lsh.bands (5.7, 25.1)"),
     _count("variants.max_components", 10, "maximum Bernoulli-mixture component count (5.2)"),
+    _count("variants.em_max_iter", 100, "Bernoulli-mixture EM iteration cap per component count (5.2)"),
+    SettingSpec(
+        "variants.em_tol",
+        float,
+        Interval(0),
+        1e-6,
+        "Bernoulli-mixture EM convergence tolerance: mean log-likelihood gain per object, in nats (5.2)",
+    ),
     _count("fpgrowth.min_support", 2, "FP-growth minimum support in objects (6.3)"),
     _count("patterns.max_alternatives", 4, "maximum sub-patterns per induced Pattern (14.1)"),
     _count("patterns.attempt_budget", 200, "candidate Patterns evaluated per Path before induction stops (14.8)"),
@@ -334,3 +359,89 @@ def _effective(values: Mapping[str, Any], name: str) -> SettingValue:
 def _given(values: Mapping[str, Any], name: str) -> str:
     value = _effective(values, name)
     return _got(value) if name in values else f"{_got(value)}, the default"
+
+
+class ResourceReader:
+    """The Resource_Parameter values of one run; each read is listed in the run's report (see the module docstring).
+
+    ``values`` maps Resource_Parameter names to values; they are checked
+    with :func:`check_resources` (``ValueError`` naming every problem) and
+    stored as their settings' types, and absent names take their defaults.
+    ``origins`` gives the origin of each supplied value (``"default"``,
+    ``"file"``, or ``"flag"``); absent names are ``"default"``. ``report``
+    receives every :meth:`read`; with None, reads are not recorded, and
+    ``origins`` may be omitted.
+    """
+
+    __slots__ = ("_origins", "_report", "_values")
+
+    def __init__(
+        self,
+        values: Mapping[str, Any] | None = None,
+        *,
+        origins: Mapping[str, ResourceOrigin] | None = None,
+        report: InferenceReport | None = None,
+    ) -> None:
+        supplied = {} if values is None else dict(values)
+        problems = check_resources(supplied)
+        if problems:
+            raise ValueError("invalid Resource_Parameters: " + "; ".join(problem.message for problem in problems))
+        if report is not None and not isinstance(report, InferenceReport):
+            raise TypeError(f"report must be an InferenceReport or None, got {type(report).__name__}")
+        given = {} if origins is None else dict(origins)
+        for name in sorted(given, key=codepoint_key):
+            if name not in supplied:
+                raise ValueError(f"origin given for Resource_Parameter {name!r}, which has no supplied value")
+            if given[name] not in RESOURCE_ORIGINS:
+                raise ValueError(
+                    f"origin of Resource_Parameter {name!r} must be one of {RESOURCE_ORIGINS}, got {given[name]!r}"
+                )
+        if report is not None:
+            unknown = [name for name in sorted(supplied, key=codepoint_key) if name not in given]
+            if unknown:
+                raise ValueError(f"a recording ResourceReader needs the origin of every supplied value: {unknown}")
+        self._values = {name: RESOURCE_PARAMETERS[name].normalize(supplied[name]) for name in supplied}
+        self._origins = given
+        self._report = report
+
+    @classmethod
+    def for_run(cls, config: RunConfiguration, report: InferenceReport | None) -> ResourceReader:
+        """The reader of a run: ``config``'s values and their origins (``provenance_of``), listing reads in ``report``."""
+        values = config.resources
+        return cls(values, origins={name: config.provenance_of[name] for name in values}, report=report)
+
+    @classmethod
+    def of(cls, resources: ResourceReader | Mapping[str, Any] | None) -> ResourceReader:
+        """``resources`` itself when it is a reader, else a reader of the mapping that records nothing."""
+        return resources if isinstance(resources, ResourceReader) else cls(resources)
+
+    @property
+    def report(self) -> InferenceReport | None:
+        """The report that lists the reads, or None."""
+        return self._report
+
+    def value(self, name: str) -> SettingValue:
+        """The value of Resource_Parameter ``name``, without listing it in the report."""
+        if name in self._values:
+            return self._values[name]
+        spec = RESOURCE_PARAMETERS.get(name)
+        if spec is None:
+            raise KeyError(f"unknown Resource_Parameter {name!r}")
+        return spec.default_value()
+
+    def origin(self, name: str) -> ResourceOrigin:
+        """Where the value of ``name`` came from: ``"default"``, ``"file"``, or ``"flag"``."""
+        if name not in RESOURCE_PARAMETERS:
+            raise KeyError(f"unknown Resource_Parameter {name!r}")
+        return self._origins.get(name, "default")
+
+    def read(self, name: str) -> SettingValue:
+        """The value of Resource_Parameter ``name``, listed in the report with its origin (20.5)."""
+        value = self.value(name)
+        if self._report is not None:
+            assert isinstance(value, (int, float)) and not isinstance(value, bool)
+            self._report.record_resource(name, value, self.origin(name))
+        return value
+
+    def __repr__(self) -> str:
+        return f"<ResourceReader of {len(self._values)} supplied values{'' if self._report is None else ', recording'}>"

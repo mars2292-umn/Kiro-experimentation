@@ -5,8 +5,8 @@
 report carried by ``InferenceResult.report`` and, after an unrecoverable
 error, by ``InferenceError.partial_report`` (27.13). ``report.json`` holds
 its canonical JSON form (:meth:`InferenceReport.to_bytes`). Run metadata
-gathering (task 19.1), pipeline orchestration (16.2), and file writing
-(18.2) live elsewhere; this module holds the data model, the builder, and
+gathering and pipeline orchestration (``pipeline.infer``) and file writing
+(``cli``) live elsewhere; this module holds the data model, the builder, and
 the stage timer.
 
 Sections
@@ -137,7 +137,7 @@ import math
 import re
 import time
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import TracebackType
 from typing import Any, Final, Literal, NoReturn, TypeAlias, TypeVar
 
@@ -147,6 +147,7 @@ from jsinfer.core.determinism import canonical_bytes, codepoint_key, encode_cano
 from jsinfer.core.jsonvalue import JSON, canonical_value
 from jsinfer.core.paths import Step, parse_path, path_sort_key, render_path
 from jsinfer.core.provenance import (
+    BASELINE_PREFIX,
     FALLBACK_PREFIX,
     Cutoff,
     FallbackInfo,
@@ -289,6 +290,8 @@ def _technique_id(value: Any, what: str) -> str:
     name = _text(value, what)
     if name.startswith(FALLBACK_PREFIX):
         raise ValueError(f"{what} must be a Technique id, not the fallback marker {name!r}")
+    if name.startswith(BASELINE_PREFIX):
+        raise ValueError(f"{what} must be a Technique id, not the Baseline_Rule marker {name!r}")
     return name
 
 
@@ -623,9 +626,12 @@ class RunInfo(_JsonEquality):
 
     ``config`` is the effective Run_Configuration as a JSON object (the
     content of ``effective-config.toml``). ``packages`` maps each locked
-    package name to its exact version. ``started`` and ``finished`` are
-    optional run timestamps; they and the worker count inside ``config`` are
-    exempt from the reproducibility comparison (27.12).
+    package name to its exact version; a run records the installed version
+    of each runtime package of the lock file (``pipeline.infer.LOCKED_PACKAGES``).
+    ``started`` and ``finished`` are optional run timestamps (a run records
+    both, in UTC, RFC 3339; ``finished`` is added by
+    :meth:`InferenceReport.finish_run`); they and the worker count inside
+    ``config`` are exempt from the reproducibility comparison (27.12).
     """
 
     config: Mapping[str, JSON]
@@ -1691,6 +1697,18 @@ class InferenceReport:
         if self._run is not None:
             raise ValueError("the run metadata is already recorded")
         self._run = run
+
+    def finish_run(self, finished: str) -> None:
+        """Record the run's end timestamp in the recorded run metadata (``run.finished``). Recorded once.
+
+        The run metadata is recorded when the run starts its work, before its
+        end is known; this completes it.
+        """
+        if self._run is None:
+            raise ValueError("the run metadata is not recorded")
+        if self._run.finished is not None:
+            raise ValueError("the run end timestamp is already recorded")
+        self._run = replace(self._run, finished=_text(finished, "RunInfo finished"))
 
     @property
     def run(self) -> RunInfo | None:

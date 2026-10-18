@@ -609,6 +609,7 @@ def test_flagged_item_rejects_invalid_fields(args: tuple[Any, ...], error: type[
     ("args", "error"),
     [
         (("fallback:bound", 1.0, 0.0), ValueError),
+        (("baseline:type", 1.0, 0.0), ValueError),
         (("robust.lof", float("nan"), 0.0), ValueError),
         (("robust.lof", 1.0, True), TypeError),
     ],
@@ -751,6 +752,7 @@ def test_rejected_candidates_group_by_category() -> None:
         (("misc", "$", 1), ValueError),
         (("enums", "$", {1, 2}), TypeError),
         (("enums", "$", 1, "fallback:enum"), ValueError),
+        (("enums", "$", 1, "baseline:type"), ValueError),
         (("enums", "$", 1, None, {"x": float("nan")}), ValueError),
         (("enums", "$", "\udc80"), ValueError),
     ],

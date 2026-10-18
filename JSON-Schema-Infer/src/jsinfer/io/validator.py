@@ -91,6 +91,28 @@ Error locations
     jsonschema-rs's ``schema_path``. That location is exact for documents
     without embedded resources.
 
+    Empty names. jsonschema-rs 0.58 drops every empty-string token from the
+    paths it reports (``instance_path``, ``schema_path``, and
+    ``evaluation_path``), so a member named ``""`` vanishes from both the
+    keyword location and the instance location: ``{"": "abc"}`` failing
+    ``properties/""/maxLength`` comes back as ``/properties/maxLength`` at
+    ``""`` (the root). When the schema document or the instance holds an
+    empty key, :meth:`Validator.errors` restores the dropped tokens by walking
+    the document and the instance together along the evaluation path: a
+    ``properties``, ``patternProperties``, ``dependentSchemas``, or
+    ``dependencies`` token is followed by a member name, which is ``""``
+    when the reported next token names no member; ``properties``,
+    ``patternProperties``, and ``additionalProperties`` move the instance to
+    an object member, which is ``""`` when the reported instance token names
+    none (except a ``false`` ``additionalProperties``, which jsonschema-rs
+    reports at the object); ``items``, ``additionalItems``, and
+    ``prefixItems`` move it to an element; every other keyword leaves it in
+    place. The first restoration
+    (reported tokens before inserted ones) that uses up both paths and ends
+    where the error kind says (a ``false`` subschema for ``falseSchema``, a
+    keyword otherwise) is taken, else the first that uses up both paths;
+    when none does, the reported paths are kept.
+
 Format and Pattern checks
     :meth:`Validator.satisfies_format` is the verdict of the compiled schema
     ``{"format": fmt}`` for one string, and :meth:`Validator.matches_pattern`
@@ -117,8 +139,8 @@ import hashlib
 import json
 import re
 from collections import OrderedDict
-from collections.abc import Hashable, Sequence
-from dataclasses import dataclass
+from collections.abc import Hashable, Iterator, Sequence
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Final
 from urllib.parse import unquote, urldefrag, urljoin
@@ -340,12 +362,25 @@ class ErrorInfo:
     jsonschema-rs's error kind, which usually names the failing keyword but
     not always (``falseSchema``; ``required`` for ``dependentRequired``).
     ``message`` is jsonschema-rs's message.
+
+    The remaining fields are filled only by ``Validator.errors(...,
+    details=True)`` and take no part in equality or order:
+    ``evaluation_path`` is jsonschema-rs's evaluation path (keywords and
+    entries from the root, one ``$ref`` token per reference followed);
+    ``property`` is the missing property of a ``required`` error (also for
+    ``dependentRequired``); ``context`` holds, for an ``anyOf`` or ``oneOf``
+    error, one tuple per branch of that branch's errors (sorted, with their
+    own details; empty for a branch that accepted the instance). Their
+    locations are absolute, like the error's own.
     """
 
     keyword_location: str
     instance_location: str
     keyword: str
     message: str
+    evaluation_path: tuple[str | int, ...] = field(default=(), compare=False)
+    property: str | None = field(default=None, compare=False)
+    context: tuple[tuple[ErrorInfo, ...], ...] = field(default=(), compare=False)
 
 
 class Compiled:
@@ -415,6 +450,14 @@ _SUBSCHEMA_MAP_KEYWORDS: Final = frozenset(
     {"$defs", "definitions", "dependencies", "dependentSchemas", "patternProperties", "properties"}
 )
 
+# Restoring the empty names jsonschema-rs drops (see "Empty names" in the module docstring): the keywords
+# whose next evaluation-path token names a member, those that move the instance to an object member or to
+# an array element, and the error kind that ends at a boolean ``false`` subschema.
+_NAMED_MEMBER_KEYWORDS: Final = frozenset({"dependencies", "dependentSchemas", "patternProperties", "properties"})
+_MEMBER_MOVES: Final = frozenset({"additionalProperties", "patternProperties", "properties"})
+_ELEMENT_MOVES: Final = frozenset({"additionalItems", "items"})
+_FALSE_SCHEMA_KIND: Final = "falseSchema"
+
 # The base URI of a document without a root $id. The .invalid TLD is
 # reserved, so no real schema identifies itself with it.
 _DEFAULT_BASE: Final = "https://json-schema.invalid/root"
@@ -422,6 +465,33 @@ _DEFAULT_BASE: Final = "https://json-schema.invalid/root"
 _Token = str | int
 _Hop = tuple[Any, list[_Token], str, list[_Token]]  # (node, pointer, base URI, resource root pointer)
 _Index = tuple[dict[str, list[_Token]], dict[tuple[str, str], list[_Token]]]  # (resources, anchors)
+
+
+def _key(token: _Token) -> str:
+    """A path token as an object member name (jsonschema-rs reports a name like ``"0"`` as the int 0)."""
+    return token if isinstance(token, str) else str(token)
+
+
+def _has_empty_key(value: Any) -> bool:
+    """Whether some object in ``value`` may have a member named ``""``; False only when none has.
+
+    Checked on the orjson bytes when possible: an empty name is written ``"":``, which no other JSON
+    text holds except after an escaped quote at the end of a string, a harmless false positive.
+    """
+    try:
+        return b'"":' in orjson.dumps(value)
+    except TypeError:  # integers beyond 64 bits, nesting deeper than orjson allows
+        pass
+    pending: list[Any] = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            if "" in item:
+                return True
+            pending.extend(item.values())
+        elif isinstance(item, (list, tuple)):
+            pending.extend(item)
+    return False
 
 
 def _step(node: Any, token: _Token) -> tuple[Any, _Token] | None:
@@ -443,7 +513,7 @@ def _step(node: Any, token: _Token) -> tuple[Any, _Token] | None:
 class _Locator:
     """Maps jsonschema-rs evaluation paths to absolute keyword locations in one document."""
 
-    __slots__ = ("_doc", "_draft", "_id_keyword", "_index_cache", "_root_base")
+    __slots__ = ("_doc", "_draft", "_empty_names", "_id_keyword", "_index_cache", "_root_base")
 
     def __init__(self, doc: dict[str, Any] | bool, draft: Draft) -> None:
         self._doc = doc
@@ -451,6 +521,13 @@ class _Locator:
         self._id_keyword = "id" if draft is Draft.DRAFT4 else "$id"
         self._root_base = self._new_base(_DEFAULT_BASE, doc) or _DEFAULT_BASE
         self._index_cache: _Index | None = None
+        self._empty_names: bool | None = None
+
+    def has_empty_names(self) -> bool:
+        """Whether the document may hold a member named ``""`` (computed once; see "Empty names")."""
+        if self._empty_names is None:
+            self._empty_names = _has_empty_key(self._doc)
+        return self._empty_names
 
     def locate(self, evaluation_path: Sequence[_Token]) -> str | None:
         """Return the absolute keyword location, or None when the path cannot be followed."""
@@ -466,6 +543,122 @@ class _Locator:
                 return None
         assert hop is not None
         return join_pointer("", *hop[1])
+
+    # -- empty names -------------------------------------------------------
+
+    def restore(
+        self, evaluation_path: Sequence[_Token], instance_path: Sequence[_Token], instance: Any, kind: str
+    ) -> tuple[list[_Token], list[_Token]] | None:
+        """The evaluation and instance paths with the dropped empty names put back, or None.
+
+        See "Empty names" in the module docstring. ``instance`` is the
+        validated instance and ``kind`` the error kind's name.
+        """
+        fallback: tuple[list[_Token], list[_Token]] | None = None
+        walks = self._walks(list(evaluation_path), list(instance_path), instance, kind == _FALSE_SCHEMA_KIND)
+        for restored_ev, restored_inst, ends_right in walks:
+            if ends_right:
+                return restored_ev, restored_inst
+            if fallback is None:
+                fallback = (restored_ev, restored_inst)
+        return fallback
+
+    def _walks(
+        self, ev: list[_Token], inst: list[_Token], instance: Any, false_schema: bool
+    ) -> Iterator[tuple[list[_Token], list[_Token], bool]]:
+        """Every restoration of ``(ev, inst)`` that the document and the instance can follow, in preference order."""
+
+        def member_names(names: dict[str, Any], k: int) -> list[tuple[str, int]]:
+            # The member named by the reported token ev[k], then the empty name if it was dropped there.
+            found = []
+            if k < len(ev) and _key(ev[k]) in names:
+                found.append((_key(ev[k]), k + 1))
+            if "" in names and not (found and found[0][0] == ""):
+                found.append(("", k))
+            return found
+
+        def member_moves(value: Any, j: int, name: str | None) -> list[tuple[Any, int, list[_Token]]]:
+            # Moves of the instance to member ``name`` (any member when None): reported token first, then "".
+            if not isinstance(value, dict):
+                return []
+            moves = []
+            if j < len(inst) and _key(inst[j]) in value and (name is None or _key(inst[j]) == name):
+                moves.append((value[_key(inst[j])], j + 1, [_key(inst[j])]))
+            if "" in value and name in (None, "") and not (moves and moves[0][2] == [""]):
+                moves.append((value[""], j, [""]))
+            return moves
+
+        def element_move(value: Any, j: int, index: int | None) -> list[tuple[Any, int, list[_Token]]]:
+            # The move of the instance to element ``index`` (the reported one when None).
+            if not isinstance(value, list) or j >= len(inst) or not isinstance(inst[j], int):
+                return []
+            at = inst[j]
+            if not 0 <= at < len(value) or (index is not None and at != index):
+                return []
+            return [(value[at], j + 1, [at])]
+
+        def go(i: int, hop: _Hop, value: Any, j: int, out_ev: list[_Token], out_inst: list[_Token], at_keyword: bool):
+            node, pointer, base, resource = hop
+            if i == len(ev):
+                if j == len(inst):
+                    yield out_ev, out_inst, (node is False) if false_schema else at_keyword
+                return
+            token = ev[i]
+            if token == "$ref" and isinstance(node, dict) and isinstance(node.get("$ref"), str):
+                target = self._follow(node["$ref"], base, resource)
+                if target is not None:
+                    yield from go(i + 1, target, value, j, [*out_ev, token], out_inst, False)
+                return
+            if isinstance(node, list):  # an index into allOf, anyOf, or oneOf: the instance stays
+                stepped = self._descend(node, pointer, base, resource, (token,))
+                if stepped is not None:
+                    yield from go(i + 1, stepped, value, j, [*out_ev, stepped[1][-1]], out_inst, False)
+                return
+            if not isinstance(node, dict) or not isinstance(token, str):
+                return
+            inner = self._descend(node, pointer, base, resource, (token,))
+            if inner is None:
+                return
+            child = inner[0]
+            here = [*out_ev, token]
+            last = i + 1 == len(ev)
+            if token in _NAMED_MEMBER_KEYWORDS and isinstance(child, dict):
+                if last:  # an error of the keyword itself (dependencies holding a list)
+                    yield from go(i + 1, inner, value, j, here, out_inst, True)
+                for name, k in member_names(child, i + 1):
+                    member = self._descend(*inner, (name,))
+                    if member is None:
+                        continue
+                    if token in _MEMBER_MOVES:
+                        moves = member_moves(value, j, name if token == "properties" else None)
+                    else:
+                        moves = [(value, j, [])]
+                    for moved, j2, steps in moves:
+                        yield from go(k, member, moved, j2, [*here, name], [*out_inst, *steps], False)
+                return
+            # A keyword's own error leaves the instance in place, and so does a false additionalProperties,
+            # which jsonschema-rs reports at the object rather than at the rejected member.
+            stays = last and (not false_schema or token == "additionalProperties")
+            if (token in _MEMBER_MOVES or token in _ELEMENT_MOVES or token == "prefixItems") and not stays:
+                if isinstance(child, list):  # prefixItems, or array-form items before 2020-12
+                    if i + 1 < len(ev):
+                        element = self._descend(*inner, (ev[i + 1],))
+                        if element is not None:
+                            index = element[1][-1]
+                            assert isinstance(index, int)
+                            for moved, j2, steps in element_move(value, j, index):
+                                yield from go(i + 2, element, moved, j2, [*here, index], [*out_inst, *steps], False)
+                    return
+                if token in _MEMBER_MOVES:
+                    moves = member_moves(value, j, None)
+                else:
+                    moves = element_move(value, j, None)
+                for moved, j2, steps in moves:
+                    yield from go(i + 1, inner, moved, j2, here, [*out_inst, *steps], False)
+                return
+            yield from go(i + 1, inner, value, j, here, out_inst, True)
+
+        yield from go(0, (self._doc, [], self._root_base, []), instance, 0, [], [], False)
 
     # -- resources and base URIs ------------------------------------------
 
@@ -709,20 +902,31 @@ class Validator:
         compiled = _require_compiled(compiled)
         return bool(compiled._rs.is_valid(_rs_instance(instance, compiled.draft)))
 
-    def errors(self, compiled: Compiled, instance: JSON) -> list[ErrorInfo]:
+    def errors(self, compiled: Compiled, instance: JSON, *, details: bool = False) -> list[ErrorInfo]:
         """Return every validation error, sorted; empty exactly when ``instance`` is valid.
 
-        Keyword locations are absolute (see the module docstring).
+        Keyword locations are absolute (see the module docstring). With
+        ``details``, each error also carries its evaluation path, the missing
+        property of a ``required`` error, and the per-branch errors of an
+        ``anyOf``/``oneOf`` error (:class:`ErrorInfo`); the verdict and the
+        four main fields are the same either way.
         """
         locator = _require_compiled(compiled)._location_map()
-        found: list[ErrorInfo] = []
-        for error in compiled._rs.iter_errors(_rs_instance(instance, compiled.draft)):
-            location = locator.locate(error.evaluation_path)
-            if location is None:
-                location = _pointer(error.schema_path)
-            found.append(ErrorInfo(location, _pointer(error.instance_path), error.kind.name, error.message))
+        errors = list(compiled._rs.iter_errors(_rs_instance(instance, compiled.draft)))
+        # Restore the empty names jsonschema-rs drops from its paths ("Empty names" in the module docstring).
+        restore = bool(errors) and (locator.has_empty_names() or _has_empty_key(instance))
+        found = [_error_info(locator, error, details, instance if restore else _NO_RESTORE) for error in errors]
         found.sort()
         return found
+
+    def locate(self, compiled: Compiled, evaluation_path: Sequence[str | int]) -> str | None:
+        """The absolute keyword location of an evaluation path in ``compiled``, or None when it cannot be followed.
+
+        This is the conversion :meth:`errors` applies to every error (see
+        "Error locations" in the module docstring), for prefixes of an
+        error's ``evaluation_path``.
+        """
+        return _require_compiled(compiled)._location_map().locate(list(evaluation_path))
 
     # -- meta-schema checks ------------------------------------------------
 
@@ -777,6 +981,47 @@ class Validator:
         result = self.is_valid(compiled, s)
         self._values.put(key, result)
         return result
+
+
+# Passed as the instance when no empty name can have been dropped, so the paths are taken as reported.
+_NO_RESTORE: Final = object()
+
+
+def _error_info(locator: _Locator, error: Any, details: bool, instance: Any = _NO_RESTORE) -> ErrorInfo:
+    """One jsonschema-rs error as an ErrorInfo; with ``details``, its context recursively.
+
+    Unless ``instance`` is ``_NO_RESTORE``, the paths get back the empty names jsonschema-rs dropped,
+    found by walking the document and ``instance`` (the validated instance) together.
+    """
+    kind = error.kind
+    evaluation_path: Sequence[_Token] = error.evaluation_path
+    instance_path: Sequence[_Token] = error.instance_path
+    if instance is not _NO_RESTORE:
+        restored = locator.restore(evaluation_path, instance_path, instance, kind.name)
+        if restored is not None:
+            evaluation_path, instance_path = restored
+    location = locator.locate(evaluation_path)
+    if location is None:
+        location = _pointer(error.schema_path)
+    info = ErrorInfo(location, _pointer(instance_path), kind.name, error.message)
+    if not details:
+        return info
+    missing = getattr(kind, "property", None) if kind.name == "required" else None
+    branches = getattr(kind, "context", None)
+    context: tuple[tuple[ErrorInfo, ...], ...] = ()
+    if branches is not None:
+        context = tuple(
+            tuple(sorted(_error_info(locator, inner, True, instance) for inner in branch)) for branch in branches
+        )
+    return ErrorInfo(
+        info.keyword_location,
+        info.instance_location,
+        info.keyword,
+        info.message,
+        tuple(evaluation_path),
+        missing if isinstance(missing, str) else None,
+        context,
+    )
 
 
 def _require_compiled(compiled: Any) -> Compiled:

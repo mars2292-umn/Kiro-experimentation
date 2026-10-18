@@ -35,6 +35,94 @@
     "11.2 Write property test for the DecisionEngine": {
       "status": "passed",
       "lastRunTimestamp": 1792169199800
+    },
+    "12.7 Write property test for enum statistics": {
+      "status": "passed",
+      "lastRunTimestamp": 1792186406575
+    },
+    "12.8 Write property test for bounds": {
+      "status": "passed",
+      "lastRunTimestamp": 1792186792978
+    },
+    "12.9 Write property test for value Constraint soundness": {
+      "status": "passed",
+      "lastRunTimestamp": 1792186873793
+    },
+    "12.6 Write property test for scalar typing": {
+      "status": "passed",
+      "lastRunTimestamp": 1792187112411
+    },
+    "13.5 Write property test for Variant partitions": {
+      "status": "passed",
+      "lastRunTimestamp": 1792209610093
+    },
+    "14.3 Write property test for mining primitives": {
+      "status": "passed",
+      "lastRunTimestamp": 1792248635054
+    },
+    "15.2 Write property test for relaxation monotonicity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792254701909
+    },
+    "16.4 Write property test for Variant branches": {
+      "status": "passed",
+      "lastRunTimestamp": 1792268250045
+    },
+    "16.5 Write property test for array nodes": {
+      "status": "passed",
+      "lastRunTimestamp": 1792268566084
+    },
+    "16.3 Write property test for object nodes": {
+      "status": "passed",
+      "lastRunTimestamp": 1792268623732
+    },
+    "16.8 Write property test for soundness": {
+      "status": "passed",
+      "lastRunTimestamp": 1792271265202
+    },
+    "16.7 Write property test for emitted rules": {
+      "status": "passed",
+      "lastRunTimestamp": 1792271296323
+    },
+    "16.10 Extend the round-trip property test to Inferrer outputs": {
+      "status": "passed",
+      "lastRunTimestamp": 1792271595662
+    },
+    "17.6 Write property test for annotation and report neutrality": {
+      "status": "passed",
+      "lastRunTimestamp": 1792277305463
+    },
+    "17.5 Write property test for explanation file integrity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792278176335
+    },
+    "17.4 Write property test for provenance completeness": {
+      "status": "passed",
+      "lastRunTimestamp": 1792278668888
+    },
+    "18.3 Write property test for invalid configurations": {
+      "status": "passed",
+      "lastRunTimestamp": 1792285190300
+    },
+    "19.3 Write property test for inclusion relation mapping": {
+      "status": "passed",
+      "lastRunTimestamp": 1792292089064
+    },
+    "19.7 Write property test for all-off equals Naive_Merge": {
+      "status": "passed",
+      "lastRunTimestamp": 1792292531568
+    },
+    "19.6 Write property test for Technique isolation": {
+      "status": "passed",
+      "lastRunTimestamp": 1792293178179
+    },
+    "19.5 Write property test for order-insensitivity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792295287266
+    },
+    "19.8 Write property test for cut-off provenance": {
+      "status": "passed",
+      "lastRunTimestamp": 1792298773052
     }
   },
   "executionHistory": {
@@ -615,6 +703,1595 @@
         "executionId": "abbebfaa-26aa-4ce4-930e-a0863a8dada9",
         "chatSessionId": "sess_0d9c23f7-9357-4d05-ba5a-a3de079e92f4",
         "timestamp": 1792172303306
+      }
+    ],
+    "12.1 Implement types and latent types (`values/types.py`, `values/latent.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182955831
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792183019887
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792184734057
+      }
+    ],
+    "12.2 Implement Format detection (`values/formats.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956250
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792183019928
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792184734745
+      }
+    ],
+    "12.3 Implement enum estimation (`values/enums.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956308
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792183020773
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792184735880
+      }
+    ],
+    "12.4 Implement bound selection (`values/bounds.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956344
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792183021537
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792184736931
+      }
+    ],
+    "12.5 Implement `ValueInferrer` orchestration (`values/inferrer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956374
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792184753607
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792185973841
+      }
+    ],
+    "12.6 Write property test for scalar typing": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956407
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792185977383
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792187249268
+      }
+    ],
+    "12.7 Write property test for enum statistics": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956444
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792185978497
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792187249319
+      }
+    ],
+    "12.8 Write property test for bounds": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956474
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792185979307
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792187250122
+      }
+    ],
+    "12.9 Write property test for value Constraint soundness": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956515
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792185980486
+      },
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792187251253
+      }
+    ],
+    "13.1 Implement Record-or-Map and Closed-or-Open-Record (`structure/record_map.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956547
+      },
+      {
+        "executionId": "fc0eb56c-bced-4299-af04-5eaf515cce76",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792194341948
+      },
+      {
+        "executionId": "fc0eb56c-bced-4299-af04-5eaf515cce76",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792195997867
+      }
+    ],
+    "13.2 Implement Variant grouping (`structure/variants.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956582
+      },
+      {
+        "executionId": "fc0eb56c-bced-4299-af04-5eaf515cce76",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792196000962
+      },
+      {
+        "executionId": "691d766b-f614-4ce2-9f9c-f77d7a8aed79",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792199101385
+      },
+      {
+        "executionId": "691d766b-f614-4ce2-9f9c-f77d7a8aed79",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792204802016
+      }
+    ],
+    "13.3 Implement Merge-or-Split and branch emission (`structure/variants.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956613
+      },
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792205017785
+      },
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792208662634
+      }
+    ],
+    "13.4 Implement Tuple-or-List and array nodes (`structure/arrays.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956647
+      },
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792205018224
+      },
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792208662673
+      }
+    ],
+    "13.5 Write property test for Variant partitions": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956680
+      },
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792208666741
+      },
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792209726916
+      }
+    ],
+    "14.1 Implement presence and required fields (`deps/presence.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956716
+      },
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792242188552
+      },
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792242995809
+      }
+    ],
+    "14.2 Implement co-occurrence mining (`deps/cooccurrence.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956749
+      },
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792243001005
+      },
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792247459328
+      }
+    ],
+    "14.3 Write property test for mining primitives": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956782
+      },
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792247465919
+      },
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792248657537
+      }
+    ],
+    "15.1 Implement the relaxation table (`decide/relax.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956815
+      },
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792249153125
+      },
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792250862721
+      },
+      {
+        "executionId": "77e237d0-26f1-4941-b622-532b09dabeaf",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792254391980
+      },
+      {
+        "executionId": "77e237d0-26f1-4941-b622-532b09dabeaf",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792254807291
+      }
+    ],
+    "15.2 Write property test for relaxation monotonicity": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956848
+      },
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792250871417
+      },
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792253823005
+      }
+    ],
+    "15.3 Implement the soundness loop (`pipeline/soundness.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956883
+      },
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792250872225
+      },
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792253823330
+      }
+    ],
+    "16.1 Implement the analyzer walk (`structure/analyzer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956916
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792263359543
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792265875569
+      }
+    ],
+    "16.2 Implement pipeline orchestration (`pipeline/infer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956948
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792265886196
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268672970
+      }
+    ],
+    "16.3 Write property test for object nodes": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182956982
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792265886716
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268673598
+      }
+    ],
+    "16.4 Write property test for Variant branches": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957018
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792265887937
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268674732
+      }
+    ],
+    "16.5 Write property test for array nodes": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957056
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792265889136
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268676074
+      }
+    ],
+    "16.6 Write property test for required fields": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957094
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792265890909
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268676824
+      }
+    ],
+    "16.7 Write property test for emitted rules": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957123
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268686507
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272340099
+      }
+    ],
+    "16.8 Write property test for soundness": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957158
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268687615
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272340049
+      }
+    ],
+    "16.9 Write property test for soundness bookkeeping": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957195
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268689213
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272340312
+      }
+    ],
+    "16.10 Extend the round-trip property test to Inferrer outputs": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957228
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792268690200
+      },
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272341427
+      }
+    ],
+    "17.1 Implement provenance finalization (`core/provenance.py`, `pipeline/infer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957256
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272896686
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792276166983
+      }
+    ],
+    "17.2 Implement the explanation file and inline provenance (`io/emit.py`, `io/load.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957294
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272897055
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792276167033
+      }
+    ],
+    "17.3 Implement explain rendering (`core/provenance.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957323
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792276175296
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792279055714
+      }
+    ],
+    "17.4 Write property test for provenance completeness": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957361
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792276176491
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792279056736
+      }
+    ],
+    "17.5 Write property test for explanation file integrity": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957396
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792276177701
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792279057952
+      }
+    ],
+    "17.6 Write property test for annotation and report neutrality": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957433
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792276178844
+      },
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792279059079
+      }
+    ],
+    "18.1 Implement the public API (`src/jsinfer/__init__.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957465
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792279587924
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792281318012
+      }
+    ],
+    "18.2 Implement the CLI (`cli.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957502
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792281318065
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792284279424
+      }
+    ],
+    "18.3 Write property test for invalid configurations": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957533
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792284387369
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792285653867
+      }
+    ],
+    "18.4 Write CLI integration tests": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957570
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792284387747
+      },
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792285654383
+      }
+    ],
+    "19.1 Implement run metadata and worker determinism (`core/report.py`, `pipeline/infer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957599
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792289053131
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291300168
+      }
+    ],
+    "19.2 Implement the Subschema_Checker (`io/subschema.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957636
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792289053827
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291301206
+      }
+    ],
+    "19.3 Write property test for inclusion relation mapping": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957666
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291317772
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295312996
+      }
+    ],
+    "19.4 Write property test for byte-identical reproducibility": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957703
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291318959
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295314137
+      }
+    ],
+    "19.5 Write property test for order-insensitivity": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957741
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291320173
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295315361
+      }
+    ],
+    "19.6 Write property test for Technique isolation": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957777
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291321373
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295316538
+      }
+    ],
+    "19.7 Write property test for all-off equals Naive_Merge": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957812
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792291322349
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295317571
+      }
+    ],
+    "19.8 Write property test for cut-off provenance": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957849
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295322627
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792299194947
+      }
+    ],
+    "19.9 Write unit tests for configuration-specific fallbacks": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957881
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792295323595
+      },
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792296893060
+      }
+    ],
+    "20. Checkpoint (M2): ensure all tests pass, ask the user if questions arise.": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957919
+      },
+      {
+        "executionId": "9a0c20e7-7383-4b18-b246-1847079f5926",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792332444110
+      },
+      {
+        "executionId": "9a0c20e7-7383-4b18-b246-1847079f5926",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792333688961
+      }
+    ],
+    "21.1 Implement field-name normalization and Path sets (`corpus/normalize.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957948
+      }
+    ],
+    "21.2 Write property test for field-name normalization": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182957985
+      }
+    ],
+    "21.3 Implement the Synthetic_Generator (`learn/synth.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958021
+      }
+    ],
+    "21.4 Write property test for the generator": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958057
+      }
+    ],
+    "21.5 Implement label derivation and Path alignment (`learn/labels.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958089
+      }
+    ],
+    "21.6 Write property test for label derivation": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958125
+      }
+    ],
+    "22.1 Implement the featurizers and wire them in (`learn/features.py`, `structure/record_map.py`, `structure/arrays.py`, `structure/variants.py`, `values/enums.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958157
+      }
+    ],
+    "22.2 Implement oracle-resolver featurization (`learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958191
+      }
+    ],
+    "22.3 Write property test for feature parity": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958223
+      }
+    ],
+    "22.4 Implement Decision_Models (`learn/decision_models.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958257
+      }
+    ],
+    "22.5 Implement Learned_Threshold fitting (`learn/trainer.py`, `config/thresholds.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958290
+      }
+    ],
+    "23.1 Implement the bundle writer (`learn/bundle.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958446
+      }
+    ],
+    "23.2 Implement `Trainer.run` and `jsinfer train` (`learn/trainer.py`, `cli.py`, `bench/splits.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958481
+      }
+    ],
+    "23.3 Write property test for missing artifacts": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958517
+      }
+    ],
+    "23.4 Write Trainer integration tests and fixtures": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958557
+      }
+    ],
+    "24. Checkpoint (M3): ensure all tests pass, ask the user if questions arise.": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958589
+      }
+    ],
+    "25.1 Implement the corpus loader (`bench/corpus_loader.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958622
+      }
+    ],
+    "25.2 Implement the split builder and `jsinfer split` (`bench/splits.py`, `cli.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958657
+      }
+    ],
+    "25.3 Write property test for split integrity": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958690
+      }
+    ],
+    "25.4 Implement leakage checks (`bench/leakage.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958723
+      }
+    ],
+    "25.5 Write unit tests for leakage aborts": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958757
+      }
+    ],
+    "25.6 Probe jsonsubschema keyword coverage (open decision, M4)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958790
+      }
+    ],
+    "25.7 Add corpus-parametrized cases to the round-trip and translation tests": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958821
+      }
+    ],
+    "26.1 Implement mutations and negatives (`learn/mutations.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958854
+      }
+    ],
+    "26.2 Write property test for mutations": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958888
+      }
+    ],
+    "27.1 Implement metrics (`bench/metrics.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958922
+      }
+    ],
+    "27.2 Write property test for metric definitions": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958957
+      }
+    ],
+    "27.3 Implement the bootstrap (`bench/bootstrap.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182958990
+      }
+    ],
+    "27.4 Write property test for statistical summaries": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959023
+      }
+    ],
+    "28.1 Implement the adapter protocol and runner (`bench/baselines/base.py`, `bench/runner.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959057
+      }
+    ],
+    "28.2 Implement the Naive_Merge and JSONoid adapters (`bench/baselines/naive.py`, `bench/baselines/jsonoid.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959091
+      }
+    ],
+    "28.3 Write adapter tests": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959123
+      }
+    ],
+    "29.1 Implement the synthetic benchmark (`bench/synthetic.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959157
+      }
+    ],
+    "29.2 Implement the real-data benchmark (`bench/real.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959187
+      }
+    ],
+    "29.3 Write property test for evaluation data preparation": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959223
+      }
+    ],
+    "30.1 Implement the ablation study (`bench/studies.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959256
+      }
+    ],
+    "30.2 Write property test for study construction": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959289
+      }
+    ],
+    "30.3 Implement reporting (`bench/reporting.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959331
+      }
+    ],
+    "30.4 Write property test for results serialization": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959366
+      }
+    ],
+    "30.5 Implement the Harness facade and `jsinfer bench` (`bench/runner.py`, `cli.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959403
+      }
+    ],
+    "30.6 Write benchmark smoke tests (`tests/bench_smoke/`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959432
+      }
+    ],
+    "31. Checkpoint (M4): ensure all tests pass, ask the user if questions arise.": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959465
+      }
+    ],
+    "32.1 Implement induction (`values/patterns.py`, `values/inferrer.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959496
+      }
+    ],
+    "32.2 Write unit tests for induction limits": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959530
+      }
+    ],
+    "33.1 Implement field groups (`structure/field_groups.py`, `structure/analyzer.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959564
+      }
+    ],
+    "33.2 Write property test for Field_Groups": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959596
+      }
+    ],
+    "33.3 Extend the mining-primitives test with FP-growth": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959630
+      }
+    ],
+    "34.1 Implement trees and Discriminators (`deps/tagged_unions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959663
+      }
+    ],
+    "34.2 Write property test for Tagged_Unions": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959698
+      }
+    ],
+    "35.1 Implement exclusions (`deps/exclusions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959730
+      }
+    ],
+    "35.2 Write property test for Confidence monotonicity": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959758
+      }
+    ],
+    "35.3 Extend the mining-primitives test with exclusions": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959790
+      }
+    ],
+    "36.1 Implement the shared-definition pass (`structure/shared_defs.py`, `structure/analyzer.py`, `pipeline/infer.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959824
+      }
+    ],
+    "36.2 Write property test for Shared_Definitions": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959857
+      }
+    ],
+    "37.1 Implement the hybrid partition (`structure/record_map.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959890
+      }
+    ],
+    "38.1 Implement IF and LOF document flagging (`robust/outliers.py`, `pipeline/infer.py`, `config/registry.py`, `learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959921
+      }
+    ],
+    "38.2 Implement MDL exception encoding (`robust/outliers.py`, `structure/analyzer.py`, `values/inferrer.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959954
+      }
+    ],
+    "38.3 Write property test for outlier bookkeeping": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182959987
+      }
+    ],
+    "39.1 Implement the Labeling_Functions (`learn/labeling_functions.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960022
+      }
+    ],
+    "39.2 Implement Dawid–Skene (`learn/label_model.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960054
+      }
+    ],
+    "39.3 Write property test for the label model and LF statistics": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960093
+      }
+    ],
+    "39.4 Integrate weak supervision into the Trainer (`learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960136
+      }
+    ],
+    "39.5 Write property test for leakage guards": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960172
+      }
+    ],
+    "40.1 Build the Corpus_Index in the Trainer (`corpus/index.py`, `learn/trainer.py`, `learn/bundle.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960208
+      }
+    ],
+    "40.2 Implement name-based suggestions (`corpus/advisor.py`, `values/inferrer.py`, `config/registry.py`, `learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960241
+      }
+    ],
+    "40.3 Write property test for suggestions": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960277
+      }
+    ],
+    "40.4 Implement nearest-known-schema lookup (`corpus/advisor.py`, `pipeline/infer.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960316
+      }
+    ],
+    "40.5 Write property test for the nearest known schema": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960349
+      }
+    ],
+    "41.1 Implement the ReCG adapter (`bench/baselines/recg.py`, open decision)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960382
+      }
+    ],
+    "41.2 Implement the robustness study (`bench/studies.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960421
+      }
+    ],
+    "41.3 Extend the study-construction test with contamination": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960462
+      }
+    ],
+    "41.4 Implement the calibration study (`bench/studies.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960496
+      }
+    ],
+    "41.5 Implement benchmark resume (`bench/resume.py`, `bench/runner.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960529
+      }
+    ],
+    "41.6 Write property test for benchmark resume": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960566
+      }
+    ],
+    "41.7 Add the `robustness` and `calibration` bench subcommands (`cli.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960599
+      }
+    ],
+    "42. Checkpoint (M5): ensure all tests pass, ask the user if questions arise.": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960633
+      }
+    ],
+    "43.1 Implement the array grammar (`structure/arrays.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960670
+      }
+    ],
+    "43.2 Write property test for Array_Patterns": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960702
+      }
+    ],
+    "44.1 Implement the global pass (`deps/keys.py`, `pipeline/infer.py`, `config/registry.py`, `learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960740
+      }
+    ],
+    "44.2 Extend the mining-primitives test with keys, references, and FDs": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960774
+      }
+    ],
+    "44.3 Extend the Confidence monotonicity test with keys, references, and FDs": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960812
+      }
+    ],
+    "45.1 Implement the classifier (`values/semantic.py`, `values/inferrer.py`, `learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960849
+      }
+    ],
+    "45.2 Write unit tests for the classifier": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960895
+      }
+    ],
+    "46.1 Implement CF suggestions (`corpus/advisor.py`, `corpus/index.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960923
+      }
+    ],
+    "46.2 Extend the suggestions test with CF clauses": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960961
+      }
+    ],
+    "47.1 Implement BMF (`structure/field_groups.py`, `config/registry.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182960991
+      }
+    ],
+    "47.2 Write unit tests for BMF": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961032
+      }
+    ],
+    "48.1 Implement the Version_Detector (`robust/versions.py`, `config/registry.py`, `learn/trainer.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961066
+      }
+    ],
+    "48.2 Implement version outputs and wiring (`pipeline/versions_out.py`, `pipeline/infer.py`, `pipeline/soundness.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961103
+      }
+    ],
+    "48.3 Write property test for ordering and segmentation": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961211
+      }
+    ],
+    "48.4 Implement the versioning study and `bench versioning` (`bench/studies.py`, `cli.py`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961250
+      }
+    ],
+    "49.1 Write the performance test (`tests/perf/`)": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961287
+      }
+    ],
+    "50. Final checkpoint: ensure all tests pass, ask the user if questions arise.": [
+      {
+        "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
+        "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",
+        "timestamp": 1792182961321
+      }
+    ],
+    "12. Implement the core of the Value_Inferrer": [
+      {
+        "executionId": "224767d1-da5c-4732-8995-3d4c421b6778",
+        "chatSessionId": "sess_b5bcc7e0-d564-45ec-858c-081f4de6ac38",
+        "timestamp": 1792187251289
+      }
+    ],
+    "13. Implement the Structure_Analyzer components": [
+      {
+        "executionId": "e297238e-4033-4cfa-ab0d-f7a98c91504d",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792209726963
+      }
+    ],
+    "14. Implement the Dependency_Miner core": [
+      {
+        "executionId": "f48beda9-258e-44f0-9b9e-d7a921727db8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792248657590
+      }
+    ],
+    "15. Implement the soundness check and relaxation": [
+      {
+        "executionId": "81f9436a-0f20-4955-b65e-dc4f7845bf19",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792253823372
+      }
+    ],
+    "16. Wire the Structure_Analyzer walk and the inference pipeline": [
+      {
+        "executionId": "b3797283-0743-4cc2-a4b8-acf24327e87b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792272341469
+      }
+    ],
+    "17. Implement provenance finalization and the explanation file": [
+      {
+        "executionId": "e04bc5e4-bbf2-4733-8bde-a4ac9973d0ba",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792279059119
+      }
+    ],
+    "18. Implement the public API and the CLI": [
+      {
+        "executionId": "046b60f6-b769-48e9-85c2-4ebccc67c67b",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792285654427
+      }
+    ],
+    "19. Implement reproducibility plumbing and the Subschema_Checker": [
+      {
+        "executionId": "d55aad65-5539-4472-8b06-93f38df769d4",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792299195010
+      },
+      {
+        "executionId": "d60402d4-8a0c-4e17-9a44-12667c4ae7f8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792332334048
+      }
+    ],
+    "19.10 Make the soundness processing order independent of document order (`pipeline/soundness.py`, `decide/relax.py`)": [
+      {
+        "executionId": "d60402d4-8a0c-4e17-9a44-12667c4ae7f8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792330316352
+      },
+      {
+        "executionId": "d60402d4-8a0c-4e17-9a44-12667c4ae7f8",
+        "chatSessionId": "sess_3347069e-664e-472a-b2cb-fb0d18dc5d12",
+        "timestamp": 1792332333984
       }
     ]
   }

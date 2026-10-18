@@ -355,6 +355,120 @@ def test_validate_rejects_non_compiled(v: Validator) -> None:
         v.is_valid({"type": "integer"}, 1)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         v.errors({"type": "integer"}, 1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        v.locate({"type": "integer"}, ["type"])  # type: ignore[arg-type]
+
+
+def test_detailed_errors_add_branch_context_and_missing_properties(v: Validator) -> None:
+    schema = {
+        "$defs": {"D": {"anyOf": [{"type": "string"}, {"properties": {"z": {"oneOf": [{"type": "integer"}, {"minimum": 0}]}}}]}},
+        "properties": {"a": {"$ref": "#/$defs/D"}, "b": {"dependentRequired": {"p": ["q"]}}},
+    }
+    compiled = v.compile(schema)
+    instance = {"a": {"z": 5}, "b": {"p": 1}}
+    plain = v.errors(compiled, instance)
+    detailed = v.errors(compiled, instance, details=True)
+    # The verdict and the four main fields do not change; the details take no part in equality.
+    assert detailed == plain
+    assert all(e.context == () and e.property is None and e.evaluation_path == () for e in plain)
+    any_of, required = detailed
+    assert any_of.keyword_location == "/$defs/D/anyOf"
+    assert any_of.evaluation_path == ("properties", "a", "$ref", "anyOf")
+    branch0, branch1 = any_of.context
+    assert [(e.keyword_location, e.instance_location) for e in branch0] == [("/$defs/D/anyOf/0/type", "/a")]
+    (one_of,) = branch1
+    assert (one_of.keyword_location, one_of.instance_location) == ("/$defs/D/anyOf/1/properties/z/oneOf", "/a/z")
+    assert one_of.context == ((), ())  # both oneOf branches accepted the instance
+    assert (required.keyword, required.keyword_location, required.property) == (
+        "required",
+        "/properties/b/dependentRequired",
+        "q",
+    )
+
+
+def test_locate_converts_evaluation_path_prefixes(v: Validator) -> None:
+    compiled = v.compile({"$defs": {"R": {"propertyNames": {"maxLength": 1}}}, "properties": {"r": {"$ref": "#/$defs/R"}}})
+    (error,) = v.errors(compiled, {"r": {"ab": 1}}, details=True)
+    assert error.evaluation_path == ("properties", "r", "$ref", "propertyNames", "maxLength")
+    assert v.locate(compiled, error.evaluation_path[:4]) == "/$defs/R/propertyNames"
+    assert v.locate(compiled, ["properties", "missing"]) is None
+
+
+# jsonschema-rs 0.58 drops empty-string tokens from instance_path, schema_path, and evaluation_path; the
+# Validator restores them (module docstring, "Empty names"). Found by Property 7 (task 16.8): the soundness
+# stage raised SoundnessError ("does not end at a keyword") or KeyError when a document with an empty key failed.
+@pytest.mark.parametrize(
+    ("schema", "instance", "expected"),
+    [
+        ({"properties": {"": {"maxLength": 0}}}, {"": "abc"}, [("/properties//maxLength", "/")]),
+        ({"properties": {"": False}}, {"": 1}, [("/properties/", "/")]),
+        ({"properties": {"": {"properties": {"": {"type": "string"}}}}}, {"": {"": 1}}, [("/properties//properties//type", "//")]),
+        (
+            {"items": {"properties": {"": {"properties": {"x": {"maxLength": 0}}}}}},
+            [{"": {"x": "abc"}}],
+            [("/items/properties//properties/x/maxLength", "/0//x")],
+        ),
+        (
+            {"additionalProperties": {"maxLength": 0}},
+            {"": "abc", "k": "x"},
+            [("/additionalProperties/maxLength", "/"), ("/additionalProperties/maxLength", "/k")],
+        ),
+        (  # the instance decides between the empty key and "k"
+            {"additionalProperties": {"properties": {"k": {"type": "string"}}}},
+            {"": {"k": 1}, "k": {"k": 2}},
+            [("/additionalProperties/properties/k/type", "//k"), ("/additionalProperties/properties/k/type", "/k/k")],
+        ),
+        # A false additionalProperties is reported at the object, not at the rejected member (as for "x"
+        # below). Found by Property 9 (task 16.9): a non-empty member under an empty key was not restored.
+        *(
+            ({"properties": {name: {"additionalProperties": False}}}, {name: {key: 1}}, [(location, at)])
+            for name, key, location, at in (
+                ("", "", "/properties//additionalProperties", "/"),
+                ("", "u0", "/properties//additionalProperties", "/"),
+                ("x", "u0", "/properties/x/additionalProperties", "/x"),
+            )
+        ),
+        (  # a property named like the failing keyword
+            {"properties": {"": {"type": "string"}, "type": False}},
+            {"": 1},
+            [("/properties//type", "/")],
+        ),
+        (
+            {"properties": {"a": {"$ref": "#/$defs/"}}, "$defs": {"": {"properties": {"": {"type": "string"}}}}},
+            {"a": {"": 1}},
+            [("/$defs//properties//type", "/a/")],
+        ),
+        ({"patternProperties": {"": {"type": "string"}}}, {"": 1}, [("/patternProperties//type", "/")]),
+        (
+            {"prefixItems": [{"properties": {"": {"type": "string"}}}], "items": False},
+            [{"": 1}, 2],
+            [("/items", "/1"), ("/prefixItems/0/properties//type", "/0/")],
+        ),
+        (
+            {"$schema": Draft.DRAFT7.uri, "items": [{"properties": {"": {"type": "string"}}}]},
+            [{"": 1}],
+            [("/items/0/properties//type", "/0/")],
+        ),
+        ({"required": [""], "dependentRequired": {"": ["b"]}}, {"": 1}, [("/dependentRequired", "")]),
+    ],
+)
+def test_errors_restore_empty_names_that_jsonschema_rs_drops(
+    v: Validator, schema: dict[str, Any], instance: Any, expected: list[tuple[str, str]]
+) -> None:
+    assert sorted(locations(v, schema, instance)) == sorted(expected)
+
+
+def test_detailed_errors_restore_empty_names_in_paths_and_branches(v: Validator) -> None:
+    compiled = v.compile({"anyOf": [{"properties": {"": {"type": "string"}}}, {"type": "string"}], "required": ["", "a"]})
+    any_of, required = v.errors(compiled, {"": 1}, details=True)
+    (inner,), (other,) = any_of.context
+    assert (inner.keyword_location, inner.instance_location, inner.evaluation_path) == (
+        "/anyOf/0/properties//type",
+        "/",
+        ("anyOf", 0, "properties", "", "type"),
+    )
+    assert (other.keyword_location, other.instance_location) == ("/anyOf/1/type", "")
+    assert (required.keyword_location, required.property) == ("/required", "a")
 
 
 # ---------------------------------------------------------------------------

@@ -589,6 +589,8 @@ _DECISION_POINTS: Final[tuple[DecisionPointSpec, ...]] = (
         fallback_doc="List",
         fallback=ConstantOutcome(OUTCOME_LIST),
         requirements=("7.10",),
+        # 7.10: Tuple only with a strictly lower description length.
+        tie_rule=TieRule((OUTCOME_LIST,), "List", ("7.10",)),
     ),
     DecisionPointSpec(
         kind="array_pattern",
@@ -804,15 +806,15 @@ def _technique(
 
 
 _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
-    # Variant discovery
+    # Variant discovery (task 13.2, structure/variants.py)
     _technique("variants.minhash_lsh", "MinHash/LSH candidate grouping", "must",
-               implemented=False, thresholds=("lsh.keyset_jaccard",)),
+               implemented=True, thresholds=("lsh.keyset_jaccard",)),
     _technique("variants.dbscan", "DBSCAN", "must",
-               implemented=False, sample_param="sample.dbscan", thresholds=("dbscan.eps", "dbscan.min_samples")),
+               implemented=True, sample_param="sample.dbscan", thresholds=("dbscan.eps", "dbscan.min_samples")),
     _technique("variants.hdbscan", "HDBSCAN", "must",
-               implemented=False, sample_param="sample.hdbscan", thresholds=("hdbscan.min_cluster_size",)),
+               implemented=True, sample_param="sample.hdbscan", thresholds=("hdbscan.min_cluster_size",)),
     _technique("variants.bernoulli_mixture", "Bernoulli mixture with BIC", "must",
-               implemented=False),
+               implemented=True),
     # Field groups
     _technique("groups.fpgrowth_slim", "FP-growth with SLIM/Krimp-style MDL selection", "should",
                implemented=False, sample_param="sample.fpgrowth"),
@@ -827,9 +829,9 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
                implemented=False),
     _technique("structure.array_grammar", "array grammar inference", "could",
                implemented=False),
-    # Inter-field rules
+    # Inter-field rules (co-occurrence: task 14.2, deps/cooccurrence.py)
     _technique("rules.cooccurrence", "Co-occurrence mining", "must",
-               implemented=False, thresholds=("cooccur.min_confidence", "cooccur.min_support")),
+               implemented=True, thresholds=("cooccur.min_confidence", "cooccur.min_support")),
     _technique("rules.decision_trees", "per-field decision trees for Tagged_Unions", "should",
                implemented=False, sample_param="sample.trees", thresholds=("tagged.branch_support",)),
     _technique("rules.exclusion", "exclusion mining", "should",
@@ -840,17 +842,17 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
                implemented=False, sample_param="sample.fd", thresholds=("fd.min_confidence", "ind.min_confidence")),
     # Values
     _technique("values.latent_type", "Latent-type detection", "must",
-               implemented=False),
+               implemented=True),
     _technique("values.format", "Format detection", "must",
-               implemented=False),
+               implemented=True),
     _technique("values.semantic_type", "Semantic_Type_Classifier", "could",
                implemented=False, thresholds=("semantic.min_probability",)),
     _technique("values.pattern", "FlashProfile-style pattern induction", "should",
                implemented=False, sample_param="sample.patterns"),
     _technique("values.enum_estimation", "Good–Turing/Chao1 enum estimation", "must",
-               implemented=False),
+               implemented=True),
     _technique("values.bounds", "bound generalization", "must",
-               implemented=False),
+               implemented=True),
     # Robustness
     _technique("robust.isolation_forest", "Isolation Forest", "should",
                implemented=False, thresholds=("iforest.score",)),
@@ -862,8 +864,10 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
                implemented=False, sample_param="sample.changepoint",
                thresholds=("changepoint.min_segment", "changepoint.penalty")),
     # Decisions
+    # Generic MDL selection lives in the DecisionEngine (task 11); Record-or-Map and
+    # Closed-or-Open-Record (task 13.1) are its first Decision_Points.
     _technique("decide.mdl", "MDL selection", "must",
-               implemented=False),
+               implemented=True),
     _technique("decide.dm_record_map", "Record-or-Map Decision_Model", "must",
                implemented=False),
     _technique("decide.dm_closed_record", "Closed-or-Open-Record Decision_Model", "must",

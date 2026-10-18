@@ -1,16 +1,18 @@
 """Provenance_Records: how each Constraint was derived (Requirement 26).
 
-This module holds the record types and their JSON form (task 2.5).
-Provenance finalization (task 17.1) and ``explain`` rendering (task 17.3)
-are added here later.
+This module holds the record types and their JSON form (task 2.5), the
+record-level rules of provenance finalization (task 17.1, below), and the
+plain-text rendering of the ``explain`` command (task 17.3, at the end).
 
 Record types
     :class:`ProvenanceRecord` is attached to one Constraint
     (``SchemaModel.provenance`` maps ConstraintIds to records). It holds:
 
-    - ``technique``: the producing Technique id (Requirement 28.1), or
+    - ``technique``: the producing Technique id (Requirement 28.1),
       ``"fallback:<Decision_Point kind>"`` when a Fallback_Behavior produced
-      the Constraint (28.12; see :func:`fallback_technique`);
+      the Constraint (28.12; see :func:`fallback_technique`), or
+      ``"baseline:<rule>"`` when a Baseline_Rule produced it (26.13; see
+      :func:`baseline_technique`);
     - ``support``: a :class:`Support` (26.2);
     - ``confidence``: a number in [0, 1] (26.2);
     - ``fallback``: a :class:`FallbackInfo` naming the Technique whose
@@ -34,6 +36,14 @@ Record types
     Fallback_Behavior of 19.7 keeps the producing Technique of the selected
     candidate.
 
+    A record whose technique is a baseline marker names one of
+    :data:`BASELINE_RULES` (``type``, ``required``) and carries neither
+    ``fallback`` nor ``resolution``: a Baseline_Rule applies in every run,
+    whatever the Technique states, and resolves no Decision_Point (26.13).
+    Soundness relaxations of its Constraint still go in ``changes``. Neither
+    marker is a Technique id, so neither is accepted where a Technique id is
+    expected (:class:`FallbackInfo`, :class:`CandidateScore`).
+
 Support and Confidence
     ``Support.ratio`` is ``consistent / total``, and 1.0 when ``total`` is 0
     (no Observation contradicts the Constraint); ``consistent <= total``
@@ -43,6 +53,32 @@ Support and Confidence
     lies strictly inside (0, 1) and is 0.5 with no Observations. Otherwise
     the caller supplies the MDL posterior, the calibrated Decision_Model
     probability, the corpus conditional frequency, or a kind-specific value.
+
+Finalization (26.1, 26.2, 26.13; task 17.1)
+    After the soundness check, ``pipeline.infer.finalize_provenance``
+    recomputes every Support and applies the rules here:
+
+    - :func:`check_records`: the emitted Constraints (an emitted layout's
+      pointer map) and the records correspond one to one. A Constraint
+      without a record, or a record of no emitted Constraint, raises
+      :class:`ProvenanceError`, an internal error: no emitted Constraint may
+      lack one, Fallback_Behavior and Baseline_Rule Constraints included.
+    - :func:`finalize_record` installs the final Support and, where the
+      Confidence is the Laplace default (:func:`has_default_confidence`),
+      recomputes it from that Support, since the soundness loop updates
+      Supports but not Confidences. Defaults are the Confidences nothing
+      else supplied: records that resolve no Decision_Point (Baseline_Rule
+      records, ``x-latent-type``) and records resolved by Technique priority
+      order or a Fallback_Behavior, unless the Technique has a kind-specific
+      Confidence (:data:`KIND_SPECIFIC_CONFIDENCE`, for example the
+      Co_Occurrence_Rule Confidence of 9.8). The MDL posterior and the
+      calibrated Decision_Model probability are decision Confidences and
+      stay as they are, on relaxed records too.
+
+    Every other field (technique, fallback indicator, resolution, cut-off,
+    sample counts, changes, details) is kept. A ``sample`` keeps the
+    Technique's sampled and total counts (26.4); the Support always counts
+    every non-flagged Observation, never the sample.
 
 Scores
     The score of a candidate depends on the resolution method (26.3):
@@ -87,13 +123,25 @@ Equality
     ``RelaxationRecord`` hold JSON payloads, where Python's ``==`` would
     equate ``true`` with ``1``, so they compare by the canonical bytes of
     their JSON form instead and are unhashable.
+
+Explain rendering (26.9, 26.12; task 17.3)
+    :func:`render_record` returns the plain text that ``jsinfer explain``
+    prints for one record: every field the record holds, one per line, in
+    a fixed order and under the names of its JSON form (see the function).
+    :func:`explain` resolves a JSON Pointer against a schema and its
+    explanation file and renders the record it finds. It reads and loads
+    files, so it lives in ``io.explain`` (which imports this module) and is
+    re-exported here lazily. Its failures raise :class:`ExplainError`,
+    which names the failed input and the cause.
 """
 
 from __future__ import annotations
 
+import json
 import math
+import re
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Final, Literal, NoReturn, TypeAlias, TypeVar
 
@@ -101,19 +149,28 @@ import numpy as np
 
 from jsinfer.core.determinism import canonical_bytes, codepoint_key
 from jsinfer.core.jsonvalue import JSON, canonical_value
-from jsinfer.core.schema_model import join_pointer
+from jsinfer.core.schema_model import ConstraintId, join_pointer
 
 __all__ = [
+    "BASELINE_PREFIX",
+    "BASELINE_RULES",
     "DECISION_MODEL_COMPARISON",
+    "EXPLAIN_CHECKS",
+    "EXPLAIN_INPUTS",
     "FALLBACK_PREFIX",
     "FALLBACK_REASONS",
+    "KIND_SPECIFIC_CONFIDENCE",
     "MDL_COMPARISON",
     "REMOVED",
     "RESOLUTION_METHODS",
     "CandidateScore",
     "Cutoff",
+    "ExplainCheck",
+    "ExplainError",
+    "ExplainInput",
     "FallbackInfo",
     "FallbackReason",
+    "ProvenanceError",
     "ProvenanceFormatError",
     "ProvenanceRecord",
     "RelaxationRecord",
@@ -122,8 +179,14 @@ __all__ = [
     "ResolutionMethod",
     "SampleInfo",
     "Support",
+    "baseline_technique",
+    "check_records",
+    "explain",
     "fallback_technique",
+    "finalize_record",
+    "has_default_confidence",
     "laplace_confidence",
+    "render_record",
 ]
 
 T = TypeVar("T")
@@ -143,6 +206,15 @@ RESOLUTION_METHODS: Final[tuple[ResolutionMethod, ...]] = ("mdl", "decision-mode
 
 # Prefix of the technique marker of fallback-produced Constraints (28.12).
 FALLBACK_PREFIX: Final = "fallback:"
+
+# Prefix of the technique marker of Constraints produced by a Baseline_Rule (26.13).
+BASELINE_PREFIX: Final = "baseline:"
+
+# The Baseline_Rules: the two Naive_Merge rules that every run applies, whatever
+# the Technique states, and that resolve no Decision_Point (26.13). ``type``
+# lists the JSON types observed at a Path (13.1, 13.2); ``required`` marks the
+# fields present in every non-flagged object of a Variant (9.1, 9.2).
+BASELINE_RULES: Final[tuple[str, ...]] = ("required", "type")
 
 # Cut-off sources of an MDL comparison and of a Decision_Model comparison
 # (20.1, 20.7). The other sources are the name of a model-selection criterion
@@ -208,6 +280,8 @@ def _technique_id(value: Any, what: str) -> str:
     name = _name(value, what)
     if name.startswith(FALLBACK_PREFIX):
         raise ValueError(f"{what} must be a Technique id, not the fallback marker {name!r}")
+    if name.startswith(BASELINE_PREFIX):
+        raise ValueError(f"{what} must be a Technique id, not the Baseline_Rule marker {name!r}")
     return name
 
 
@@ -417,6 +491,17 @@ def laplace_confidence(support: Support) -> float:
 def fallback_technique(kind: str) -> str:
     """The technique marker ``"fallback:<kind>"`` of a Constraint produced by a Fallback_Behavior (28.12)."""
     return FALLBACK_PREFIX + _name(kind, "Decision_Point kind")
+
+
+def baseline_technique(rule: str) -> str:
+    """The technique marker ``"baseline:<rule>"`` of a Constraint produced by a Baseline_Rule (26.13).
+
+    ``rule`` is one of :data:`BASELINE_RULES`.
+    """
+    name = _name(rule, "Baseline_Rule")
+    if name not in BASELINE_RULES:
+        raise ValueError(f"unknown Baseline_Rule {name!r}; expected one of {list(BASELINE_RULES)}")
+    return BASELINE_PREFIX + name
 
 
 # ---------------------------------------------------------------------------
@@ -824,7 +909,8 @@ class ProvenanceRecord:
 
     ``details`` is stored as a new dict of canonical JSON representatives in
     code-point key order; treat it as read-only. Use :meth:`laplace` for a
-    record with the default Confidence.
+    record with the default Confidence, and :meth:`baseline` for the record
+    of a Baseline_Rule's Constraint.
     """
 
     technique: str
@@ -852,6 +938,14 @@ class ProvenanceRecord:
                 raise ValueError(f"fallback marker {technique!r} must name a Decision_Point kind")
             if self.fallback is None:
                 raise ValueError(f"a Constraint produced by {technique!r} must record fallback information")
+        if technique.startswith(BASELINE_PREFIX):
+            if technique[len(BASELINE_PREFIX) :] not in BASELINE_RULES:
+                raise ValueError(f"Baseline_Rule marker {technique!r} must name one of {list(BASELINE_RULES)}")
+            if self.fallback is not None or self.resolution is not None:
+                raise ValueError(
+                    f"a Constraint produced by {technique!r} resolves no Decision_Point, "
+                    "so its record holds no fallback information and no resolution"
+                )
         if self.resolution is not None and self.resolution.method == "fallback" and self.fallback is None:
             raise ValueError("a Constraint from a fallback resolution must record fallback information")
 
@@ -871,6 +965,11 @@ class ProvenanceRecord:
     def laplace(cls, technique: str, support: Support, **fields: Any) -> ProvenanceRecord:
         """A record whose Confidence is the default :func:`laplace_confidence` of ``support``."""
         return cls(technique, support, laplace_confidence(support), **fields)
+
+    @classmethod
+    def baseline(cls, rule: str, support: Support, **fields: Any) -> ProvenanceRecord:
+        """The record of a Constraint produced by the Baseline_Rule ``rule``, with the default Confidence (26.13)."""
+        return cls.laplace(baseline_technique(rule), support, **fields)
 
     def to_json(self) -> dict[str, JSON]:
         members: dict[str, JSON] = {
@@ -920,3 +1019,349 @@ class ProvenanceRecord:
         return self is other or canonical_bytes(self.to_json()) == canonical_bytes(other.to_json())
 
     __hash__ = None  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# Finalization (task 17.1)
+# ---------------------------------------------------------------------------
+
+# Techniques whose Constraints carry a kind-specific Confidence even when Technique priority order (or no
+# Decision_Point) produced them, so that finalization never replaces it with the Laplace default: the
+# Co_Occurrence_Rule Confidence (9.8), the Exclusion_Rule Confidence (11.2), the Key, Reference, and
+# Functional_Dependency Confidences (12.5), the Semantic_Type_Classifier's calibrated probability (13.5),
+# and the corpus suggestion scores (24.3, 24.4). A Technique that adds such a Confidence joins this list.
+KIND_SPECIFIC_CONFIDENCE: Final[tuple[str, ...]] = (
+    "corpus.cf_suggest",
+    "corpus.name_suggest",
+    "rules.cooccurrence",
+    "rules.exclusion",
+    "rules.fd_ind",
+    "rules.keys",
+    "values.semantic_type",
+)
+
+# The resolution methods that supply no Confidence (None: the record resolves no Decision_Point).
+_NO_CONFIDENCE_METHODS: Final = (None, "priority", "fallback")
+
+
+def has_default_confidence(record: ProvenanceRecord) -> bool:
+    """Whether ``record``'s Confidence is the Laplace default, which finalization refreshes (26.2).
+
+    The default applies where nothing else supplies a Confidence: the
+    record resolves no Decision_Point (a Baseline_Rule's record, an
+    annotation such as ``x-latent-type``) or its Decision_Point was
+    resolved by Technique priority order or a Fallback_Behavior, which give
+    none (``DecisionEngine``; ``Decision.provenance`` then uses the Laplace
+    default), and its Technique has no kind-specific Confidence
+    (:data:`KIND_SPECIFIC_CONFIDENCE`). As a guard against a kind-specific
+    value from elsewhere, a record that no soundness change touched must
+    also hold exactly the Laplace value of its Support; a changed record's
+    Support was recomputed by the soundness loop, which leaves Confidences
+    alone, so it cannot be compared.
+
+    Decision Confidences are never defaults: the MDL posterior (method
+    ``mdl``, including an exception check that replaced an earlier step)
+    and the calibrated Decision_Model probability (``decision-model``).
+    """
+    _instance(record, ProvenanceRecord, "record")
+    method = None if record.resolution is None else record.resolution.method
+    if method not in _NO_CONFIDENCE_METHODS or record.technique in KIND_SPECIFIC_CONFIDENCE:
+        return False
+    return bool(record.changes) or record.confidence == laplace_confidence(record.support)
+
+
+def finalize_record(record: ProvenanceRecord, support: Support) -> ProvenanceRecord:
+    """``record`` with its final ``support``, and its Laplace default Confidence refreshed from it.
+
+    Every other field, a decision Confidence included, is kept (see
+    :func:`has_default_confidence`).
+    """
+    _instance(support, Support, "support")
+    confidence = laplace_confidence(support) if has_default_confidence(record) else record.confidence
+    return replace(record, support=support, confidence=confidence)
+
+
+def _cid_key(cid: ConstraintId) -> tuple[int, str, str, str]:
+    """An order on ConstraintIds whose items may differ in type."""
+    item = cid.item
+    return (cid.nid, codepoint_key(cid.keyword), type(item).__name__, codepoint_key(str(item)))
+
+
+class ProvenanceError(RuntimeError):
+    """The Provenance_Records of a model do not match its emitted Constraints one to one (26.1).
+
+    An internal inconsistency: every component gives each Constraint it
+    emits a record, and the soundness loop keeps them in step with its
+    changes. ``missing`` lists ``(ConstraintId, pointer)`` for each emitted
+    Constraint without a record, in emitted order; ``orphaned`` lists the
+    ConstraintIds of records that belong to no emitted Constraint, in
+    ConstraintId order.
+    """
+
+    def __init__(
+        self, missing: tuple[tuple[ConstraintId, str], ...], orphaned: tuple[ConstraintId, ...]
+    ) -> None:
+        super().__init__(missing, orphaned)
+        self.missing = missing
+        self.orphaned = orphaned
+
+    def __str__(self) -> str:
+        parts = []
+        if self.missing:
+            listed = ", ".join(f"{pointer or '(root)'} {cid}" for cid, pointer in self.missing)
+            parts.append(f"{len(self.missing)} emitted Constraint(s) without a Provenance_Record: {listed}")
+        if self.orphaned:
+            listed = ", ".join(str(cid) for cid in self.orphaned)
+            parts.append(f"{len(self.orphaned)} Provenance_Record(s) of no emitted Constraint: {listed}")
+        return "; ".join(parts) or "Provenance_Records do not match the emitted Constraints"
+
+
+def check_records(pointers: Mapping[ConstraintId, str], provenance: Mapping[ConstraintId, ProvenanceRecord]) -> None:
+    """Check that the emitted Constraints (``pointers``) and the records correspond one to one (26.1).
+
+    ``pointers`` is an emitted layout's ConstraintId → JSON Pointer map
+    (``SchemaEmitter.layout``). Raises :class:`ProvenanceError` naming every
+    Constraint without a record and every record without a Constraint.
+    """
+    missing = tuple((cid, pointer) for cid, pointer in pointers.items() if cid not in provenance)
+    orphaned = tuple(sorted((cid for cid in provenance if cid not in pointers), key=_cid_key))
+    if missing or orphaned:
+        raise ProvenanceError(missing, orphaned)
+
+
+# ---------------------------------------------------------------------------
+# Explain rendering (task 17.3)
+# ---------------------------------------------------------------------------
+
+ExplainInput: TypeAlias = Literal["schema", "explanation", "pointer"]
+ExplainCheck: TypeAlias = Literal["read", "parse", "syntax", "resolve", "entry"]
+
+# The inputs of the explain command, in argument order (26.9).
+EXPLAIN_INPUTS: Final[tuple[ExplainInput, ...]] = ("schema", "explanation", "pointer")
+
+# The checks of the explain command, in the order they run (26.12):
+#   read     the schema or explanation file cannot be read
+#   parse    the schema cannot be loaded (not JSON, a bad root, or meta-schema
+#            invalid) or the explanation file cannot be loaded
+#   syntax   the JSON Pointer is not a syntactically valid JSON Pointer
+#   resolve  the JSON Pointer names no location in the schema, or a location
+#            that is not a Constraint
+#   entry    the explanation file has no record keyed by the JSON Pointer
+EXPLAIN_CHECKS: Final[tuple[ExplainCheck, ...]] = ("read", "parse", "syntax", "resolve", "entry")
+
+_EXPLAIN_CHECKS_OF: Final[Mapping[str, tuple[str, ...]]] = {
+    "schema": ("read", "parse"),
+    "explanation": ("read", "parse"),
+    "pointer": ("syntax", "resolve", "entry"),
+}
+
+
+class ExplainError(ValueError):
+    """An explain request that prints no Provenance_Record (26.12).
+
+    ``input`` is the failed input (:data:`EXPLAIN_INPUTS`) and ``check`` the
+    failed check (:data:`EXPLAIN_CHECKS`): ``read`` and ``parse`` fail the
+    schema or the explanation file, and ``syntax``, ``resolve``, and
+    ``entry`` fail the JSON Pointer. ``name`` names the input as the
+    message does (``"the schema file 'out/schema.json'"`` when it was read
+    from a path, ``"the schema"`` or ``"the explanation file"`` for
+    in-memory data, ``"the JSON Pointer '/type'"``), and ``reason`` states
+    the cause; a pointer's reason names the schema or explanation file it
+    was looked up in. The message is ``"<name>: <reason>"``. The CLI prints
+    it and exits with status 2.
+    """
+
+    def __init__(self, input: ExplainInput, check: ExplainCheck, name: str, reason: str) -> None:
+        if input not in EXPLAIN_INPUTS:
+            raise ValueError(f"ExplainError input must be one of {list(EXPLAIN_INPUTS)}, got {input!r}")
+        if check not in _EXPLAIN_CHECKS_OF[input]:
+            raise ValueError(
+                f"ExplainError check of the {input} must be one of {list(_EXPLAIN_CHECKS_OF[input])}, got {check!r}"
+            )
+        for what, text in (("name", name), ("reason", reason)):
+            if not isinstance(text, str) or not text:
+                raise ValueError(f"ExplainError {what} must be a non-empty str")
+        super().__init__(input, check, name, reason)  # args survive pickling
+        self.input: ExplainInput = input
+        self.check: ExplainCheck = check
+        self.name = name
+        self.reason = reason
+
+    def __str__(self) -> str:
+        return f"{self.name}: {self.reason}"
+
+
+_INDENT: Final = "  "
+
+# The numeric members of a CandidateScore, in field order.
+_CANDIDATE_NUMBERS: Final = ("score", "model_bits", "data_bits", "exception_bits", "n_rejected", "n_scored")
+
+# Characters that str.splitlines() treats as line breaks but json.dumps(ensure_ascii=False) leaves
+# unescaped, and lone surrogates, which strict UTF-8 cannot write. Rendered values escape them, so each
+# field stays on its own line and the text always encodes.
+_UNSAFE_IN_TEXT: Final = re.compile("[\x85\u2028\u2029\ud800-\udfff]")
+
+
+def _json_text(value: JSON) -> str:
+    """One-line JSON for a value: non-ASCII kept as is, line breaks and lone surrogates escaped."""
+    text = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(", ", ": "))
+    return _UNSAFE_IN_TEXT.sub(lambda match: f"\\u{ord(match.group()):04x}", text)
+
+
+def _plain_text(value: str, *, key: bool = False) -> str:
+    """A text field as is, or as a JSON string literal when as-is text would be ambiguous.
+
+    Text is quoted when it is empty, has leading or trailing whitespace,
+    starts with ``"``, or holds a character that is not printable (control
+    and format characters, line and paragraph separators, non-ASCII spaces,
+    surrogates). A ``details`` key is also quoted when it holds ``:``, which
+    separates it from its value.
+    """
+    plain = (
+        bool(value)
+        and value.isprintable()
+        and value == value.strip()
+        and not value.startswith('"')
+        and not (key and ":" in value)
+    )
+    return value if plain else _json_text(value)
+
+
+def _number_text(value: int | float) -> str:
+    """A count exactly (big ints included); a float in its shortest round-trip form, as JSON writes it."""
+    if isinstance(value, int):
+        return str(value)
+    return repr(value + 0.0)  # -0.0 is stored as 0.0 already; the addition keeps it so
+
+
+def _field(out: list[str], depth: int, label: str, value: str | None = None) -> None:
+    out.append(f"{_INDENT * depth}{label}:" if value is None else f"{_INDENT * depth}{label}: {value}")
+
+
+def _candidate_fields(out: list[str], depth: int, candidate: CandidateScore) -> None:
+    if candidate.technique is not None:
+        _field(out, depth, "technique", _plain_text(candidate.technique))
+    _field(out, depth, "outcome", _plain_text(candidate.outcome))
+    for name in _CANDIDATE_NUMBERS:
+        number = getattr(candidate, name)
+        if number is not None:
+            _field(out, depth, name, _number_text(number))
+
+
+def _candidate_list(
+    out: list[str], depth: int, label: str, candidates: tuple[CandidateScore, ...], selected: int | None = None
+) -> None:
+    _field(out, depth, label)
+    for index, candidate in enumerate(candidates):
+        mark = " (selected)" if index == selected else ""
+        out.append(f"{_INDENT * (depth + 1)}[{index}]{mark}")
+        _candidate_fields(out, depth + 2, candidate)
+
+
+def _resolution_fields(out: list[str], depth: int, resolution: Resolution) -> None:
+    _field(out, depth, "resolution")
+    _field(out, depth + 1, "method", _plain_text(resolution.method))
+    _field(out, depth + 1, "selected", str(resolution.selected))
+    _candidate_list(out, depth + 1, "candidates", resolution.candidates, resolution.selected)
+
+
+def render_record(record: ProvenanceRecord, pointer: str | None = None) -> str:
+    """The plain text of every field of ``record``, as ``jsinfer explain`` prints it (26.9).
+
+    One field per line, ``<name>: <value>``, with the names of the record's
+    JSON form and nested parts indented by two spaces per level. With
+    ``pointer``, a first line ``constraint: <pointer>`` names the
+    Constraint. Then, in this order:
+
+    - ``technique``: the producer, a Technique id, a ``fallback:`` marker,
+      or a ``baseline:`` marker;
+    - ``support`` with ``consistent``, ``total``, and ``ratio``;
+    - ``confidence``;
+    - ``fallback`` (the fallback indicator) with ``technique`` and
+      ``reason``;
+    - ``resolution`` with ``method``, ``selected`` (the index), and
+      ``candidates``: each as ``[i]`` (``[i] (selected)`` for the selected
+      one) followed by its ``technique``, ``outcome``, ``score``,
+      ``model_bits``, ``data_bits``, ``exception_bits``, ``n_rejected``,
+      and ``n_scored``;
+    - ``cutoff`` with ``source``, ``value``, ``scores`` (listed like
+      candidates), and ``artifact``;
+    - ``sample`` with ``sampled`` and ``total``;
+    - ``changes``: each as ``[i]`` followed by ``before``, ``after`` (or
+      ``removed: true``), ``documents`` (comma-separated indices), and its
+      ``resolution`` (as above);
+    - ``details``: one line per member, in code-point order of the keys.
+
+    Optional parts and members appear exactly when the record holds them,
+    as in its JSON form (an absent fallback indicator or score prints no
+    line). Counts print exactly, big integers included; floats print in
+    the shortest form that round-trips, as the explanation file writes
+    them (``-0.0`` is stored as ``0.0``). JSON payloads (``before``,
+    ``after``, ``details`` values) print as one-line JSON of their
+    canonical representatives (``2.0`` as ``2``, object keys in code-point
+    order). Text fields print as they are unless that would be ambiguous,
+    and then as JSON string literals (see ``_plain_text``). Non-ASCII
+    characters print as they are; only characters that would break a line
+    (U+0085, U+2028, U+2029) and lone surrogates are escaped. The text ends
+    with a newline and depends only on the record and the pointer.
+    """
+    _instance(record, ProvenanceRecord, "record")
+    out: list[str] = []
+    if pointer is not None:
+        if not isinstance(pointer, str):
+            raise TypeError(f"pointer must be a str or None, got {type(pointer).__name__}")
+        _field(out, 0, "constraint", _plain_text(pointer))
+    _field(out, 0, "technique", _plain_text(record.technique))
+    support = record.support
+    _field(out, 0, "support")
+    _field(out, 1, "consistent", _number_text(support.consistent))
+    _field(out, 1, "total", _number_text(support.total))
+    _field(out, 1, "ratio", _number_text(support.ratio))
+    _field(out, 0, "confidence", _number_text(record.confidence))
+    if record.fallback is not None:
+        _field(out, 0, "fallback")
+        _field(out, 1, "technique", _plain_text(record.fallback.technique))
+        _field(out, 1, "reason", _plain_text(record.fallback.reason))
+    if record.resolution is not None:
+        _resolution_fields(out, 0, record.resolution)
+    cutoff = record.cutoff
+    if cutoff is not None:
+        _field(out, 0, "cutoff")
+        _field(out, 1, "source", _plain_text(cutoff.source))
+        if cutoff.value is not None:
+            _field(out, 1, "value", _number_text(cutoff.value))
+        if cutoff.scores:
+            _candidate_list(out, 1, "scores", cutoff.scores)
+        if cutoff.artifact is not None:
+            _field(out, 1, "artifact", _plain_text(cutoff.artifact))
+    if record.sample is not None:
+        _field(out, 0, "sample")
+        _field(out, 1, "sampled", _number_text(record.sample.sampled))
+        _field(out, 1, "total", _number_text(record.sample.total))
+    if record.changes:
+        _field(out, 0, "changes")
+        for index, change in enumerate(record.changes):
+            out.append(f"{_INDENT}[{index}]")
+            _field(out, 2, "before", _json_text(canonical_value(change.before)))
+            if change.removed:
+                _field(out, 2, "removed", "true")
+            else:
+                _field(out, 2, "after", _json_text(canonical_value(change.after)))
+            _field(out, 2, "documents", ", ".join(str(document) for document in change.documents))
+            if change.resolution is not None:
+                _resolution_fields(out, 2, change.resolution)
+    if record.details:
+        _field(out, 0, "details")
+        for key, value in record.details.items():  # stored in code-point order of the keys
+            _field(out, 1, _plain_text(key, key=True), _json_text(canonical_value(value)))
+    return "\n".join(out) + "\n"
+
+
+def __getattr__(name: str) -> Any:
+    # explain lives in io.explain, which imports this module (and the Schema_Loader and Schema_Emitter, which
+    # import it too), so it is re-exported on first use: ``from jsinfer.core.provenance import explain``.
+    if name == "explain":
+        from jsinfer.io.explain import explain
+
+        return explain
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

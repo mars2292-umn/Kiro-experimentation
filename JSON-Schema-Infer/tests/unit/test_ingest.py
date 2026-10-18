@@ -9,9 +9,12 @@ reference model) is task 4.3.
 
 from __future__ import annotations
 
+import enum
 import json
 import os
 import pickle
+import sys
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +33,7 @@ from jsinfer.io.ingest import (
     DocumentStore,
     IngestResult,
     Ingestor,
+    documents_to_jsonl,
 )
 
 POSIX_PERMISSIONS = hasattr(os, "geteuid") and os.geteuid() != 0  # root can read anything
@@ -56,6 +60,14 @@ def docs(result: IngestResult) -> list[tuple[DocOrigin, str]]:
 
 def sources(result: IngestResult) -> list[str]:
     return [origin.source for origin in result.origins]
+
+
+class Level(enum.IntEnum):
+    HIGH = 3
+
+
+class Name(str):
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -403,3 +415,113 @@ def test_ingestor_validates_its_arguments(tmp_path: Path) -> None:
         Ingestor({"unwrap_arrays": True}, 1, 10)  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="single path"):
         Ingestor(InputOptions(), 1, 10).ingest(str(tmp_path))  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# In-memory documents (Ingestor.ingest_bytes, Ingestor.ingest_values; task 16.2)
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_bytes_reads_a_jsonl_file_content(tmp_path: Path) -> None:
+    data = b'{"a": 1}\r\n\n \t\n[1, 2]\n{bad\n"\\ud800"\n7'
+    ingestor = Ingestor(InputOptions(), 1, 2)
+    from_bytes = ingestor.ingest_bytes(data, "data.jsonl")
+    path = write(tmp_path / "data.jsonl", data)
+    from_file = ingest(path, chunk_size=2)
+    assert from_bytes.origins == tuple(DocOrigin("data.jsonl", origin.line) for origin in from_file.origins)
+    assert from_bytes.errors == tuple(IngestError("data.jsonl", e.reason, e.line) for e in from_file.errors)
+    assert from_bytes.store == from_file.store
+    assert [origin.line for origin in from_bytes.origins] == [1, 4, 7]
+    assert [error.line for error in from_bytes.errors] == [5, 6]
+    assert sources(Ingestor(InputOptions(), 1, 2).ingest_bytes(b"1\n")) == ["<jsonl>"]
+
+
+def test_ingest_values_matches_a_jsonl_file_with_one_document_per_line(tmp_path: Path) -> None:
+    values: list[Any] = [{"b": 1, "a": [1.0, 2**70, None]}, "x\u2028y\n", True, -0.0, "\U0001f600"]
+    ingestor = Ingestor(InputOptions(unwrap_arrays=True), 1, 2)  # unwrapping never applies to lines
+    from_values = ingestor.ingest_values(iter(values))
+    lines = "\n".join(json.dumps(value, ensure_ascii=False) for value in values)
+    from_file = ingest(write(tmp_path / "docs.jsonl", lines), unwrap=True)
+    assert [strict(value) for value in from_values.store.values()] == [strict(value) for value in values]
+    assert from_values.store == from_file.store
+    assert from_values.origins == tuple(DocOrigin("<documents>", line) for line in range(1, 6))
+
+
+def test_ingest_values_skips_documents_a_jsonl_file_could_not_carry(tmp_path: Path) -> None:
+    deep: Any = 0
+    for _ in range(MAX_NESTING_DEPTH + 1):
+        deep = [deep]
+    huge = 10 ** (sys.get_int_max_str_digits() + 5)
+    values: list[Any] = [1, float("nan"), {"s": "\ud800"}, [float("-inf")], deep, {"n": huge}, 5]
+    result = Ingestor(InputOptions(), 1, 3).ingest_values(values, "api")
+    assert [strict(value) for value in result.store.values()] == ["1", "5"]
+    assert [origin.line for origin in result.origins] == [1, 7]
+    assert [(error.source, error.line) for error in result.errors] == [("api", n) for n in (2, 3, 4, 5, 6)]
+    reasons = [error.reason for error in result.errors]
+    assert reasons[0].startswith("NaN is not a JSON value") and reasons[2].startswith("-Infinity is not")
+    assert "surrogate" in reasons[1] and "nesting" in reasons[3] and "conversion limit" in reasons[4]
+    # The same failures, reasons, and lines as a .jsonl file holding the same lines.
+    from_file = ingest(write(tmp_path / "api.jsonl", documents_to_jsonl(values)), chunk_size=3)
+    assert from_file.errors == tuple(IngestError(str(tmp_path / "api.jsonl"), e.reason, e.line) for e in result.errors)
+    assert from_file.store == result.store
+
+
+def test_ingest_values_rejects_values_outside_the_json_domain() -> None:
+    circular: list[Any] = []
+    circular.append(circular)
+    ingestor = Ingestor(InputOptions(), 1, 3)
+    for bad, where in [
+        ((2, 3), "tuple at (root)"),
+        ({"a": [1, {"b": {1, 2}}]}, "set at /a/1/b"),
+        ([b"x"], "bytes at /0"),
+        ({"a/b": {"~": object()}}, "object at /a~1b/~0"),
+        ({4: "four"}, "key of type int"),
+        ({"a": {None: 1}}, "the object at /a has a key of type NoneType"),
+    ]:
+        with pytest.raises(TypeError, match="document 1 of the iterable") as caught:
+            ingestor.ingest_values([1, bad, 2])
+        assert where in str(caught.value)
+    with pytest.raises(ValueError, match="the array at /k/0 contains itself"):
+        ingestor.ingest_values([{"k": circular}])
+
+
+def test_documents_to_jsonl_writes_the_lines_json_dumps_writes() -> None:
+    shared = [1]
+    values: list[Any] = [
+        {"b": 1, "a": [1.0, 2**70, None, -0.0, 1e300, "\u00e9\U0001f600\u2028\n\"\\"]},
+        {"": {}, "x": [[], [[]]], "y": [shared, shared]},  # a value reached twice is not a cycle
+        True, False, None, "", 0, -5, 3.25, float("nan"), float("inf"), "\ud800",
+        # Subclasses of the JSON types are written as their base type, as json.dumps writes them.
+        OrderedDict([("z", 1), ("a", 2)]), Level.HIGH, np.float64(0.5), Name("text"),
+    ]
+    data = documents_to_jsonl(iter(values))
+    assert data == b"".join(
+        json.dumps(value, ensure_ascii=True, separators=(",", ":")).encode("ascii") + b"\n" for value in values
+    )
+    assert documents_to_jsonl([]) == b""
+    # Integers past the integer string conversion limit are written in full (and then fail to parse).
+    limit = sys.get_int_max_str_digits()
+    assert documents_to_jsonl([-(10 ** (limit + 1)) - 7]) == b"-1" + b"0" * limit + b"7\n"
+    assert documents_to_jsonl([10 ** (3 * limit)]) == b"1" + b"0" * (3 * limit) + b"\n"
+    for bad in ("text", b"bytes", {"a": 1}, 5):
+        with pytest.raises(TypeError, match="iterable of JSON values"):
+            documents_to_jsonl(bad)  # type: ignore[arg-type]
+
+
+def test_ingest_values_without_documents_raises() -> None:
+    ingestor = Ingestor(InputOptions(), 1, 10)
+    with pytest.raises(NoDocumentsError) as caught:
+        ingestor.ingest_values([])
+    assert caught.value.errors == ()
+    with pytest.raises(NoDocumentsError) as caught:
+        ingestor.ingest_values([float("inf")])
+    assert [error.line for error in caught.value.errors] == [1]
+    with pytest.raises(NoDocumentsError):
+        ingestor.ingest_bytes(b"\n  \n")
+    for bad in ("text", b"bytes", {"a": 1}, 5):
+        with pytest.raises(TypeError):
+            ingestor.ingest_values(bad)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        ingestor.ingest_bytes("text")  # type: ignore[arg-type]
+    with pytest.raises(ValueError):
+        ingestor.ingest_values([1], "")

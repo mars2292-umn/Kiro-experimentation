@@ -92,7 +92,7 @@ import numpy as np
 from jsinfer.config.intervals import Interval, IntervalFormatError, format_number, is_number
 from jsinfer.core.determinism import codepoint_key
 from jsinfer.core.jsonvalue import JSON
-from jsinfer.core.provenance import FALLBACK_PREFIX
+from jsinfer.core.provenance import BASELINE_PREFIX, FALLBACK_PREFIX
 from jsinfer.core.report import SUBSTITUTION_CAUSES, SubstitutionCause
 from jsinfer.core.schema_model import join_pointer
 
@@ -196,6 +196,8 @@ def _techniques(value: Any, what: str) -> tuple[str, ...]:
     for technique in ids:
         if technique.startswith(FALLBACK_PREFIX):
             raise ValueError(f"{what} must be Technique ids, not the fallback marker {technique!r}")
+        if technique.startswith(BASELINE_PREFIX):
+            raise ValueError(f"{what} must be Technique ids, not the Baseline_Rule marker {technique!r}")
     if any(codepoint_key(a) >= codepoint_key(b) for a, b in zip(ids, ids[1:])):
         raise ValueError(f"{what} must be unique and in code-point order, got {list(ids)}")
     return ids

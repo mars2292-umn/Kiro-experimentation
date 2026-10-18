@@ -92,7 +92,7 @@ def test_value_reads_every_setting() -> None:
     assert config.value("input.unwrap_arrays") is True
     assert config.value("sample.lof") == 9 == config.resources["sample.lof"]
     assert config.value(WORKERS) == config.workers
-    assert config.value(technique_setting(MDL)) is False
+    assert config.value(technique_setting(MDL)) is REGISTRY.technique(MDL).default_enabled
     tables = config.to_json()
     for name in SETTING_NAMES:
         if name.startswith("techniques."):
@@ -124,13 +124,13 @@ def test_technique_flag_beats_file_and_leaves_other_techniques_alone() -> None:
     config = RunConfiguration.resolve(
         {technique_setting(HYBRID): False}, {"techniques": {HYBRID: True, "values.bounds": False}}
     )
-    assert config.techniques[HYBRID] is False
+    assert config.techniques[HYBRID] is False and config.techniques["values.bounds"] is False
     assert config.provenance_of[technique_setting(HYBRID)] == "flag"
     assert config.provenance_of[technique_setting("values.bounds")] == "file"
     defaults = REGISTRY.default_states()
     for tid in REGISTRY.ids():
-        assert config.techniques[tid] == defaults[tid]
         if tid not in (HYBRID, "values.bounds"):
+            assert config.techniques[tid] == defaults[tid]
             assert config.provenance_of[technique_setting(tid)] == "default"
 
 
@@ -331,7 +331,8 @@ def test_technique_toggles_take_booleans() -> None:
 
 
 def test_enabling_an_unimplemented_technique() -> None:
-    tid = "values.bounds"
+    # Any Technique that is not built yet and has no prerequisite (which would add a second problem).
+    tid = next(t for t, spec in REGISTRY.techniques.items() if not spec.implemented and not spec.prerequisites)
     assert not REGISTRY.technique(tid).implemented
     problem = only(problems_of({technique_setting(tid): True}))
     assert (problem.subject, problem.reason) == (tid, "unimplemented")
@@ -340,14 +341,15 @@ def test_enabling_an_unimplemented_technique() -> None:
 
 def test_enabled_technique_with_a_disabled_prerequisite() -> None:
     assert REGISTRY.technique(HYBRID).prerequisites == (MDL,)
-    problems = problems_of(None, {"techniques": {HYBRID: True}})
+    problems = problems_of({technique_setting(MDL): False}, {"techniques": {HYBRID: True}})
     assert [(p.subject, p.reason) for p in problems] == [(HYBRID, "unimplemented"), (HYBRID, "prerequisite")]
     message = problems[1].message
     assert f"{HYBRID!r} is enabled (configuration file)" in message
-    assert f"prerequisite {MDL!r} is disabled (default)" in message
-    # With the prerequisite enabled too, only the unimplemented problems remain.
-    problems = problems_of({technique_setting(MDL): True, technique_setting(HYBRID): True})
-    assert sorted((p.subject, p.reason) for p in problems) == [(MDL, "unimplemented"), (HYBRID, "unimplemented")]
+    assert f"prerequisite {MDL!r} is disabled (flag)" in message
+    # With the prerequisite enabled too (decide.mdl is built, so on by default), only the unimplemented problem remains.
+    assert REGISTRY.technique(MDL).implemented and REGISTRY.technique(MDL).default_enabled
+    for flags in ({technique_setting(HYBRID): True}, {technique_setting(MDL): True, technique_setting(HYBRID): True}):
+        assert [(p.subject, p.reason) for p in problems_of(flags)] == [(HYBRID, "unimplemented")]
 
 
 def test_one_error_lists_every_problem_in_report_order() -> None:
@@ -358,6 +360,7 @@ def test_one_error_lists_every_problem_in_report_order() -> None:
             "bogus": 1,
             "lsh.bands": 512,
             "techniques.not.registered": True,
+            technique_setting(MDL): False,
             technique_setting(HYBRID): True,
         },
         {"run": {"seed": -5}, "resources": {"sample.fd": 2.5}},
@@ -418,7 +421,7 @@ def test_direct_construction_is_validated() -> None:
     config = RunConfiguration.default()
     assert dataclasses.replace(config, seed=7).seed == 7
     with pytest.raises(ConfigError) as caught:
-        dataclasses.replace(config, seed=-1, techniques={**config.techniques, HYBRID: True})
+        dataclasses.replace(config, seed=-1, techniques={**config.techniques, MDL: False, HYBRID: True})
     assert [(p.subject, p.reason) for p in caught.value.problems] == [
         ("seed", "range"),
         (HYBRID, "unimplemented"),

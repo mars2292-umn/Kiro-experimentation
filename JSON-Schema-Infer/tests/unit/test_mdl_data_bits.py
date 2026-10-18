@@ -368,6 +368,29 @@ def test_dependent_required_codes_the_consequent_only_without_the_antecedent() -
     assert close(always[0], plain_required[0], -CAT((1, 0)))
 
 
+def test_presence_bits_are_the_records_own_presence_terms() -> None:
+    props: dict[str, Any] = {"a": {"type": "integer"}, "b": {}, "c": {"type": "string"}}
+    docs: list[Any] = [{"a": 1, "b": 1}, {"b": 1}, {}, {"c": "x"}, 7]
+    view = view_of(docs)
+    plain = node({"properties": props})
+    dependent = node({"properties": props, "dependentRequired": {"a": ["b"]}})
+    # One CAT per optional property; with a → b, b is coded only on the objects without a.
+    assert close(SCORER.presence_bits(plain, view), CAT((1, 3)), CAT((2, 2)), CAT((1, 3)))
+    assert close(SCORER.presence_bits(dependent, view), CAT((1, 3)), CAT((1, 2)), CAT((1, 3)))
+    # A rule every object satisfies changes the data bits by exactly the change of the presence bits.
+    change = SCORER.data_bits(dependent, view)[0] - SCORER.data_bits(plain, view)[0]
+    assert close(change, SCORER.presence_bits(dependent, view), -SCORER.presence_bits(plain, view))
+    # Required properties cost nothing; rows the node rejects (the scalar 7 under type object) are not coded.
+    required = node({"type": "object", "properties": props, "required": ["b"]})
+    assert close(SCORER.presence_bits(required, view_of([{"a": 1, "b": 1}, {"b": 1}, 7])), CAT((1, 1)), CAT((0, 2)))
+    for schema in ({"type": "object"}, {"enum": [{"a": 1}]}, {"const": {"a": 1}}, False):
+        assert SCORER.presence_bits(node(schema), view) == 0.0
+    assert SCORER.presence_bits(plain, view_of([1, "s"])) == 0.0  # no object rows
+    for schema in ({"anyOf": [{"properties": props}]}, {"$ref": "#/$defs/r", "$defs": {"r": {}}}):
+        with pytest.raises(ValueError, match="Record node itself"):
+            SCORER.presence_bits(node(schema), view)
+
+
 def test_field_group_presence_is_coded_once() -> None:
     props: dict[str, Any] = {"a": {}, "b": {}, "c": {}}
     docs: list[Any] = [{"a": 1, "b": 1}, {}, {"c": 1}]
@@ -389,6 +412,27 @@ def test_closed_record_rejects_extras() -> None:
     # patternProperties keys are not extras.
     patterned = {"properties": {"a": {}}, "patternProperties": {PHONE.source: {}}, "additionalProperties": False}
     assert bits(patterned, [{"a": 1, "555-1234": 2}])[2] == 0
+
+
+def test_universal_bits_are_the_exception_payload() -> None:
+    docs: list[Any] = [{"a": [1, "s", None], "b": {"c": True}}, 2.5, "x", {}]
+    assert close(SCORER.universal_bits(view_of(docs)), *(U(doc) for doc in docs))
+    # They are what a rejecting schema pays on top of the flag and CAT(|A|, |R|).
+    _, exceptions, rejected = bits(False, docs)
+    assert rejected == len(docs) and close(exceptions, FLAG, CAT((0, 4)), SCORER.universal_bits(view_of(docs)))
+    assert SCORER.universal_bits(view_of([])) == 0.0
+
+
+def test_closed_record_codes_no_extras_flag() -> None:
+    # No accepted object can hold an extra, so the open Record's CAT(n, 0) flag is not paid (design: closed vs open).
+    docs: list[Any] = [{"a": 1}, {"a": 2}, {"a": 3}]
+    record = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}
+    accepted({**record, "additionalProperties": False}, docs, LZ(1), LZ(2), LZ(3), flags=2)
+    accepted(record, docs, CAT((3, 0)), LZ(1), LZ(2), LZ(3), flags=2)
+    # With patternProperties, pattern-matched extras can occur, so the flag stays.
+    patterned = {"properties": {"a": {}}, "patternProperties": {PHONE.source: {}}, "additionalProperties": False}
+    plain_data = bits({"properties": {"a": {}}, "additionalProperties": False}, docs)[0]
+    assert close(bits(patterned, docs)[0], plain_data, CAT((3, 0)))
 
 
 def test_open_record_extras() -> None:

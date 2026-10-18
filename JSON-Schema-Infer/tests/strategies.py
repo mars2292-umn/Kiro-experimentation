@@ -25,6 +25,8 @@ from jsinfer.config.run_config import (
 )
 from jsinfer.core.paths import ELEM_STEP, KEY, MAPVAL_STEP, key_step, render_step
 from jsinfer.core.provenance import (
+    BASELINE_PREFIX,
+    BASELINE_RULES,
     DECISION_MODEL_COMPARISON,
     FALLBACK_REASONS,
     MDL_COMPARISON,
@@ -38,6 +40,7 @@ from jsinfer.core.provenance import (
     Resolution,
     SampleInfo,
     Support,
+    baseline_technique,
     fallback_technique,
 )
 from jsinfer.io.ingest import UTF8_BOM
@@ -286,18 +289,20 @@ def provenance_records(draw: st.DrawFn) -> ProvenanceRecord:
     """Valid ProvenanceRecords, each optional part present or absent."""
     fallback = draw(st.none() | fallback_infos())
     if fallback is None:
-        # Fallback markers and fallback resolutions require fallback information.
-        technique = draw(_TECHNIQUES)
+        # Fallback markers and fallback resolutions require fallback information;
+        # Baseline_Rule markers allow neither fallback information nor a resolution (26.13).
+        technique = draw(_TECHNIQUES | st.sampled_from(BASELINE_RULES).map(baseline_technique))
         methods: tuple[str, ...] = ("mdl", "decision-model", "priority")
     else:
         technique = draw(_TECHNIQUES | _KINDS.map(fallback_technique))
         methods = RESOLUTION_METHODS
+    baseline = technique.startswith(BASELINE_PREFIX)
     return ProvenanceRecord(
         technique=technique,
         support=draw(supports()),
         confidence=draw(_UNIT),
         fallback=fallback,
-        resolution=draw(st.none() | resolutions(methods)),
+        resolution=None if baseline else draw(st.none() | resolutions(methods)),
         cutoff=draw(st.none() | cutoffs()),
         sample=draw(st.none() | sample_infos()),
         changes=tuple(draw(st.lists(relaxation_records(), max_size=2))),

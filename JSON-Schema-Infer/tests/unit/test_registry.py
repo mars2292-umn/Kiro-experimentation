@@ -68,6 +68,7 @@ EXPECTED_DECISION_POINTS = {
 
 EXPECTED_TIE_RULES = {
     "record_or_map": (("record",), ("4.10",)),
+    "tuple_or_list": (("list",), ("7.10",)),
     "array_pattern": (("base-array-schema",), ("7.8",)),
     "string_constraint": (("none", TIE_FEWER_SUBPATTERNS), ("14.2",)),
     "closed_or_open_enum": (("open",), ("15.6",)),
@@ -164,13 +165,13 @@ def test_technique_entries_match_design() -> None:
             spec = REGISTRY.technique(tid)
             assert spec.tier == tier, tid
             assert spec.area == TABLE_1_AREAS[tid.partition(".")[0]], tid
-            # Nothing is built yet: every entry is unimplemented and off by default.
-            assert spec.implemented is False and spec.default_enabled is False, tid
+            # A Technique is on by default exactly when it is built (Technique tasks flip ``implemented``).
+            assert spec.default_enabled is spec.implemented, tid
             assert spec.prerequisites == (("decide.mdl",) if tid == "structure.hybrid_record_map" else ()), tid
             assert spec.sample_param == EXPECTED_SAMPLE_PARAMS.get(tid), tid
             assert spec.superlinear is (tid in EXPECTED_SAMPLE_PARAMS), tid
             assert set(spec.thresholds) == EXPECTED_THRESHOLDS.get(tid, set()), tid
-    assert REGISTRY.default_states() == {tid: False for tid in REGISTRY.ids()}
+    assert REGISTRY.default_states() == {tid: REGISTRY.technique(tid).implemented for tid in REGISTRY.ids()}
 
 
 def test_serves_and_priority_agree_with_decision_points() -> None:
@@ -211,7 +212,8 @@ def test_active_servers_follow_toggles_priority_and_defaults() -> None:
     for kind in REGISTRY.kinds():
         assert REGISTRY.active_servers(kind, off) == ()
         assert REGISTRY.fallback_applies(kind, off)
-        assert REGISTRY.active_servers(kind, {}) == ()  # unset ids take the registered default (off)
+        # Unset ids take the registered default (on exactly when implemented).
+        assert REGISTRY.active_servers(kind, {}) == REGISTRY.active_servers(kind, REGISTRY.default_states())
     on = dict.fromkeys(REGISTRY.ids(), True)
     assert REGISTRY.active_servers("record_or_map", on) == ("decide.dm_record_map", "decide.mdl")
     assert REGISTRY.active_servers("record_or_map", {"decide.mdl": True}) == ("decide.mdl",)
@@ -221,8 +223,9 @@ def test_active_servers_follow_toggles_priority_and_defaults() -> None:
 def test_closed_enum_decision_model_serves_only_with_enum_estimation() -> None:
     kind = "closed_or_open_enum"
     assert REGISTRY.decision_point(kind).serves_only_with == {"decide.dm_closed_enum": "values.enum_estimation"}
-    assert REGISTRY.active_servers(kind, {"decide.dm_closed_enum": True}) == ()
-    assert REGISTRY.fallback_applies(kind, {"decide.dm_closed_enum": True})  # 15.7: open whatever the model says
+    model_only = {"decide.dm_closed_enum": True, "values.enum_estimation": False}
+    assert REGISTRY.active_servers(kind, model_only) == ()
+    assert REGISTRY.fallback_applies(kind, model_only)  # 15.7: open whatever the model says
     both = {"decide.dm_closed_enum": True, "values.enum_estimation": True}
     assert REGISTRY.active_servers(kind, both) == ("decide.dm_closed_enum", "values.enum_estimation")
     assert REGISTRY.active_servers(kind, {"values.enum_estimation": True}) == ("values.enum_estimation",)
