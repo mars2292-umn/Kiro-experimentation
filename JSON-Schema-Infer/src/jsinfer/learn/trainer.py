@@ -584,7 +584,7 @@ def featurize_collections(
     if workers == 1:
         return [featurize_collection(c, m, config=config, max_depth=max_depth) for c, m in items]
     task = single_threaded(featurize_collection)
-    return list(Parallel(n_jobs=workers)(delayed(task)(c, m, config=config, max_depth=max_depth) for c, m in items))
+    return list(Parallel(n_jobs=workers, batch_size=1)(delayed(task)(c, m, config=config, max_depth=max_depth) for c, m in items))
 
 
 def _mean_ari(examples: Sequence[GroupingExample], grouping: Callable[[GroupingExample], Sequence[Sequence[int]]]) -> float:

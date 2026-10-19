@@ -1354,7 +1354,9 @@ class SyntheticGenerator:
             delayed(_generate_schema)(self.index, model, schema_id, split, cfg, seed, per_schema)
             for schema_id, model, split in schemas
         ]
-        results = Parallel(n_jobs=workers)(tasks) if workers > 1 else [task[0](*task[1], **task[2]) for task in tasks]
+        # One schema per task: joblib's automatic batching would otherwise bundle the quick schemas into a few
+        # large batches and leave most workers idle while one works through a slow schema.
+        results = Parallel(n_jobs=workers, batch_size=1)(tasks) if workers > 1 else [task[0](*task[1], **task[2]) for task in tasks]
         collections: list[GeneratedCollection] = []
         excluded: list[tuple[str, str]] = []
         for result in results:
