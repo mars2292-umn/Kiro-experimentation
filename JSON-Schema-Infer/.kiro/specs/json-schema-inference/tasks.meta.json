@@ -151,6 +151,14 @@
     "26.2 Write property test for mutations": {
       "status": "passed",
       "lastRunTimestamp": 1792384775651
+    },
+    "27.2 Write property test for metric definitions": {
+      "status": "passed",
+      "lastRunTimestamp": 1792385099983
+    },
+    "27.4 Write property test for statistical summaries": {
+      "status": "passed",
+      "lastRunTimestamp": 1792385099983
     }
   },
   "executionHistory": {

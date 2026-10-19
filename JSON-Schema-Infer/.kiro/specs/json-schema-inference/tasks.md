@@ -553,18 +553,18 @@ Conventions used by every task:
     - **Property 55: Negative correctness and mutation discipline**
     - **Validates: Requirements 32.2, 32.3, 32.4, 32.5, 32.9, 32.10**
 
-- [ ] 27. Implement metrics and bootstrap statistics
-  - [ ] 27.1 Implement metrics (`bench/metrics.py`)
+- [x] 27. Implement metrics and bootstrap statistics
+  - [x] 27.1 Implement metrics (`bench/metrics.py`)
     - Recall, negative rejection rate, and harmonic mean (0 when both are 0); undefined propagation; aggregates that skip undefined values and report their count; per-operator rejection rates (not applicable at zero)
     - Judgment accuracy via `derive_labels`; Constraint precision and recall via `align()` and the 31.10 matching rules; reliability bins reusing the ECE function
     - _Requirements: 31.3, 31.4, 31.5, 31.9, 31.10, 31.14, 32.8, 33.7, 33.9, 35.6_
-  - [ ] 27.2 Write property test for metric definitions
+  - [x] 27.2 Write property test for metric definitions
     - **Property 53: Metric definitions**
     - **Validates: Requirements 31.3, 31.4, 31.5, 31.10, 31.14, 32.8, 33.7, 33.9**
-  - [ ] 27.3 Implement the bootstrap (`bench/bootstrap.py`)
+  - [x] 27.3 Implement the bootstrap (`bench/bootstrap.py`)
     - 95% percentile CI with `bootstrap.resamples` seeded resamples; paired test with p = min(1, 2·min(P*(Δ ≤ 0), P*(Δ ≥ 0))); not computable below two values or pairs
     - _Requirements: 35.1, 35.2_
-  - [ ] 27.4 Write property test for statistical summaries
+  - [x] 27.4 Write property test for statistical summaries
     - **Property 56: Statistical summaries**
     - **Validates: Requirements 21.5, 35.1, 35.2, 35.6**
 
