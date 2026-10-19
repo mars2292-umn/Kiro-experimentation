@@ -120,7 +120,12 @@ Keyword loading
     only for keywords the rewrite renamed, and records name it.
 
     1. ``x-`` keywords and the annotations of :data:`ANNOTATION_KEYWORDS` are
-       kept as JSON values at every node under every draft (2.10). This
+       kept as JSON values at every node under every draft (2.10); an
+       annotation whose value lacks its draft 2020-12 shape (``deprecated``
+       not a boolean, ``examples`` not an array, ``title`` not a string) is
+       recorded as ignored instead, since the emitted document must satisfy
+       the 2020-12 meta-schema and the source draft left the value unchecked.
+       This
        includes the inline ``x-provenance`` of the Schema_Emitter (26.6): it
        is kept, never recorded as ignored or unsupported, and 2.7 equality
        and the Schema_Emitter leave it out, so a schema emitted with inline
@@ -871,6 +876,17 @@ def _is_schema(value: Any) -> bool:
     return isinstance(value, (dict, bool))
 
 
+_ANNOTATION_SHAPES: Final[dict[str, type | tuple[type, ...]]] = {
+    "$comment": str,
+    "deprecated": bool,
+    "description": str,
+    "examples": list,
+    "readOnly": bool,
+    "title": str,
+    "writeOnly": bool,
+}
+
+
 def _is_anchor_fragment(value: Any) -> bool:
     """Whether an id value is a fragment alone: a plain name (``#name``), which drafts 04 to 07 read as an
     anchor, or a JSON Pointer (``#/definitions/x``), which only names the document the id already sits in."""
@@ -968,8 +984,14 @@ class _Builder:
         return isinstance(ident, str) and not ident.startswith("#")
 
     def _classify(self, keyword: str, source_keyword: str, value: Any, root: bool) -> _Action:
-        if keyword.startswith("x-") or keyword in ANNOTATION_KEYWORDS:
+        if keyword.startswith("x-"):
             return "load"
+        if keyword in ANNOTATION_KEYWORDS:
+            # An annotation whose value lacks its draft 2020-12 shape (a string "deprecated", a scalar
+            # "examples") would fail the 2020-12 meta-schema when emitted; the source draft either did not
+            # define it or did not check it there, so it is left out and recorded (2.5).
+            shape = _ANNOTATION_SHAPES.get(keyword)
+            return "load" if shape is None or isinstance(value, shape) else "ignore"
         if keyword == "$schema":
             if root:
                 # A $schema at the root is consumed by dialect detection; when the

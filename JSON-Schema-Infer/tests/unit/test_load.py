@@ -14,7 +14,7 @@ import pytest
 
 from jsinfer.core.schema_model import SUBSCHEMA_KEYWORDS, SchemaModel, SchemaNode
 from jsinfer.io.emit import SchemaEmitter
-from jsinfer.io.load import ANNOTATION_KEYWORDS, SUPPORTED_KEYWORDS, SchemaLoader
+from jsinfer.io.load import ANNOTATION_KEYWORDS, SUPPORTED_KEYWORDS, SchemaLoader, SchemaLoadError
 from jsinfer.io.validator import Validator
 
 D4 = "http://json-schema.org/draft-04/schema#"
@@ -941,3 +941,23 @@ def test_loader_accepts_a_shared_validator() -> None:
     assert isinstance(model, SchemaModel) and model.root.kw == {"type": "string"}
     with pytest.raises(TypeError):
         SchemaLoader("not a validator")  # type: ignore[arg-type]
+
+
+def test_annotations_with_the_wrong_shape_are_ignored_and_recorded(loader: SchemaLoader) -> None:
+    # SchemaStore's app-config and utcm-monitor (draft-07) carry a string "deprecated" and a scalar "examples"
+    # under $defs, which draft-07 does not know and so never checks; emitted as draft 2020-12 they would fail
+    # the meta-schema. Where the declared draft checks the annotation, the meta-schema rejects the document.
+    root: dict[str, Any] = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "$defs": {"a": {"type": "string", "deprecated": "use b instead", "examples": "Present", "readOnly": 1, "title": "A"}},
+        "properties": {"p": {"$ref": "#/$defs/a"}},
+    }
+    model = loader.load(root)
+    node = model.resolve("/$defs/a")
+    assert "deprecated" not in node.kw and "examples" not in node.kw and "readOnly" not in node.kw
+    assert node.kw["title"] == "A"
+    assert sorted(model.ignored) == [("/$defs/a", "deprecated"), ("/$defs/a", "examples"), ("/$defs/a", "readOnly")]
+    assert not model.unsupported
+    checked = {**root, "$schema": "https://json-schema.org/draft/2020-12/schema"}
+    with pytest.raises(SchemaLoadError, match="deprecated"):
+        loader.load(checked)
