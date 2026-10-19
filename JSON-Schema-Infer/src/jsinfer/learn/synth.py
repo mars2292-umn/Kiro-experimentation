@@ -85,6 +85,7 @@ from jsinfer.learn.labels import Labels, derive_labels
 from jsinfer.values.formats import FORMATS
 
 __all__ = [
+    "GenerationBudget",
     "GeneratedCollection",
     "GeneratorConfig",
     "SampledParameters",
@@ -101,6 +102,7 @@ SchemaSource = tuple[str, SchemaModel, str | None]  # (schema id, model, split t
 
 _DEFAULT_MAX_DEPTH: Final[int] = int(RESOURCE_PARAMETERS["synth.max_depth"].default)  # type: ignore[arg-type]
 _DEFAULT_MAX_NODES: Final[int] = int(RESOURCE_PARAMETERS["synth.max_nodes"].default)  # type: ignore[arg-type]
+_DEFAULT_MAX_SCHEMA_NODES: Final[int] = int(RESOURCE_PARAMETERS["synth.max_schema_nodes"].default)  # type: ignore[arg-type]
 # The optional-field walk is capped like every other Path walk (``nearest.max_paths``): a schema whose
 # references multiply its Paths past the cap keeps the fields found so far, and the rest stay present.
 _MAX_PATHS: Final[int] = int(RESOURCE_PARAMETERS["nearest.max_paths"].default)  # type: ignore[arg-type]
@@ -131,6 +133,21 @@ _WORD_CLASS: Final = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 _SPACE_CLASS: Final = " \t\n\r\f\v"
 _HEX: Final = "0123456789abcdef"
 _TLDS: Final = ("com", "org", "net", "io", "dev", "example")
+
+
+class GenerationBudget:
+    """The values generated for one schema so far, against ``limit`` (``synth.max_schema_nodes``)."""
+
+    __slots__ = ("limit", "used")
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.used = 0
+
+    def charge(self, schema_id: str, nodes: int) -> None:
+        self.used += nodes
+        if self.used > self.limit:
+            raise SchemaExcluded(schema_id, f"generation budget of {self.limit} values exceeded ({self.used} generated)")
 
 
 class SchemaExcluded(Exception):
@@ -181,10 +198,12 @@ class GeneratorConfig:
     in a subrange of [0, 1]); ``array_length_max`` the mean array length
     (uniform in [0, ``array_length_max``], lengths then Poisson around it);
     ``enum_skew_min``/``enum_skew_max`` the Zipf exponent (uniform).
-    ``max_depth``, ``doc_attempts``, and ``max_nodes`` are the ``synth.*``
-    Resource_Parameters; once a document holds ``max_nodes`` values, optional
-    properties, extra members, and array elements beyond the minimum are
-    left out, which bounds wide recursive schemas. ``string_max_length``,
+    ``max_depth``, ``doc_attempts``, ``max_nodes``, and ``max_schema_nodes``
+    are the ``synth.*`` Resource_Parameters; once a document holds
+    ``max_nodes`` values, optional properties, extra members, and array
+    elements beyond the minimum are left out, which bounds wide recursive
+    schemas, and a schema whose generation (rejected attempts included)
+    passes ``max_schema_nodes`` values is excluded (22.8). ``string_max_length``,
     ``integer_span``, and ``map_keys_max`` bound type-based values.
     """
 
@@ -198,6 +217,7 @@ class GeneratorConfig:
     max_depth: int = _DEFAULT_MAX_DEPTH
     doc_attempts: int = _DEFAULT_DOC_ATTEMPTS
     max_nodes: int = _DEFAULT_MAX_NODES
+    max_schema_nodes: int = _DEFAULT_MAX_SCHEMA_NODES
     string_max_length: int = 12
     integer_span: int = 1000
     map_keys_max: int = 4
@@ -216,6 +236,7 @@ class GeneratorConfig:
             raise ValueError("enum_skew_max must be at least enum_skew_min")
         object.__setattr__(self, "max_depth", _check_count("max_depth", self.max_depth, 0))
         object.__setattr__(self, "max_nodes", _check_count("max_nodes", self.max_nodes, 1))
+        object.__setattr__(self, "max_schema_nodes", _check_count("max_schema_nodes", self.max_schema_nodes, 1))
         object.__setattr__(self, "doc_attempts", _check_count("doc_attempts", self.doc_attempts, 1))
         object.__setattr__(self, "string_max_length", _check_count("string_max_length", self.string_max_length, 1))
         object.__setattr__(self, "integer_span", _check_count("integer_span", self.integer_span, 1))
@@ -1273,16 +1294,25 @@ class SyntheticGenerator:
         params: SampledParameters,
         seed: int,
         compiled: Any = None,
+        budget: GenerationBudget | None = None,
     ) -> tuple[JSON, int]:
-        """Document ``doc_index`` of collection ``k`` and the attempts it took; raises :class:`SchemaExcluded` (22.8)."""
+        """Document ``doc_index`` of collection ``k`` and the attempts it took; raises :class:`SchemaExcluded` (22.8).
+
+        ``budget`` is the schema's generation budget, charged with the
+        values of every attempt (its own when None).
+        """
         compiled = self._compiled(model, schema_id) if compiled is None else compiled
+        budget = budget if budget is not None else GenerationBudget(cfg.max_schema_nodes)
         rng = np.random.default_rng(_document_seed(seed, schema_id, k, doc_index))
         generator = _DocumentGenerator(model, cfg, params, self.index, self.validator, rng)
         for attempt in range(1, cfg.doc_attempts + 1):
+            before = generator.nodes
             try:
                 value = generator.generate([model.root], ())
             except _Reject:
+                budget.charge(schema_id, generator.nodes - before)
                 continue
+            budget.charge(schema_id, generator.nodes - before)
             if self.validator.is_valid(compiled, value):
                 return canonical_value(value), attempt
         raise SchemaExcluded(
@@ -1314,18 +1344,24 @@ class SyntheticGenerator:
         cfg: GeneratorConfig,
         seed: int,
         split: str | None = None,
+        budget: GenerationBudget | None = None,
     ) -> GeneratedCollection:
-        """Document_Collection ``k`` of ``schema_id``: documents, sampled parameters, and labels (22.1–22.4)."""
+        """Document_Collection ``k`` of ``schema_id``: documents, sampled parameters, and labels (22.1–22.4).
+
+        ``budget`` is the schema's generation budget shared by its
+        collections (``synth.max_schema_nodes``; a fresh one when None).
+        """
         if not isinstance(schema_id, str) or not schema_id:
             raise ValueError("schema_id must be a non-empty str")
         k = _check_count("k", k)
         seed = _check_count("seed", seed)
         compiled = self._compiled(model, schema_id)
+        budget = budget if budget is not None else GenerationBudget(cfg.max_schema_nodes)
         params = sample_parameters(model, cfg, np.random.default_rng(_params_seed(seed, schema_id, k)))
         documents: list[JSON] = []
         attempts = 0
         for doc_index in range(params.size):
-            value, used = self.document(model, schema_id, k, doc_index, cfg, params, seed, compiled)
+            value, used = self.document(model, schema_id, k, doc_index, cfg, params, seed, compiled, budget)
             documents.append(value)
             attempts += used
         labels = derive_labels(model, cfg.max_depth)
@@ -1379,9 +1415,10 @@ def _generate_schema(
     """Every collection of one schema (runs in a joblib worker); the exclusion instead of a partial result."""
     generator = SyntheticGenerator(Validator(), index)
     found: list[GeneratedCollection] = []
+    budget = GenerationBudget(cfg.max_schema_nodes)
     try:
         for k in range(per_schema):
-            found.append(generator.collection(model, schema_id, k, cfg, seed, split))
+            found.append(generator.collection(model, schema_id, k, cfg, seed, split, budget))
     except SchemaExcluded as exc:
         return exc
     return found

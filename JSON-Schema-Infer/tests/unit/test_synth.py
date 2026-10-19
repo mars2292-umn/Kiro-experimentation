@@ -340,3 +340,16 @@ def test_lookarounds_are_sampled_and_checked(pattern: str) -> None:
     assert any(text is not None for text in found)
     docs = _docs({"type": "string", "pattern": pattern})
     assert docs and all(VALIDATOR.matches_pattern(pattern, v) for v in docs)
+
+
+def test_a_schema_past_its_generation_budget_is_excluded_deterministically() -> None:
+    schema = {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "integer"}}, "required": ["a", "b"]}
+    tight = GeneratorConfig(size_min=6, size_max=10, max_depth=3, doc_attempts=20, max_schema_nodes=5)
+    generator = SyntheticGenerator()
+    with pytest.raises(SchemaExcluded, match="generation budget of 5 values exceeded"):
+        generator.collection(_model(schema), "s", 0, tight, 0)
+    found, excluded = generator.collections([("s", _model(schema), None)], tight, 0, 2)
+    assert found == [] and excluded == [("s", excluded[0][1])] and "generation budget" in excluded[0][1]
+    assert generator.collections([("s", _model(schema), None)], CFG, 0, 2)[1] == []
+    with pytest.raises(ValueError, match="max_schema_nodes"):
+        GeneratorConfig(max_schema_nodes=0)
