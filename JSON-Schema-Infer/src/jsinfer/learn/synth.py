@@ -100,6 +100,7 @@ __all__ = [
 SchemaSource = tuple[str, SchemaModel, str | None]  # (schema id, model, split tag)
 
 _DEFAULT_MAX_DEPTH: Final[int] = int(RESOURCE_PARAMETERS["synth.max_depth"].default)  # type: ignore[arg-type]
+_DEFAULT_MAX_NODES: Final[int] = int(RESOURCE_PARAMETERS["synth.max_nodes"].default)  # type: ignore[arg-type]
 # The optional-field walk is capped like every other Path walk (``nearest.max_paths``): a schema whose
 # references multiply its Paths past the cap keeps the fields found so far, and the rest stay present.
 _MAX_PATHS: Final[int] = int(RESOURCE_PARAMETERS["nearest.max_paths"].default)  # type: ignore[arg-type]
@@ -180,9 +181,11 @@ class GeneratorConfig:
     in a subrange of [0, 1]); ``array_length_max`` the mean array length
     (uniform in [0, ``array_length_max``], lengths then Poisson around it);
     ``enum_skew_min``/``enum_skew_max`` the Zipf exponent (uniform).
-    ``max_depth`` and ``doc_attempts`` are the ``synth.*``
-    Resource_Parameters. ``string_max_length``, ``integer_span``, and
-    ``map_keys_max`` bound type-based values.
+    ``max_depth``, ``doc_attempts``, and ``max_nodes`` are the ``synth.*``
+    Resource_Parameters; once a document holds ``max_nodes`` values, optional
+    properties, extra members, and array elements beyond the minimum are
+    left out, which bounds wide recursive schemas. ``string_max_length``,
+    ``integer_span``, and ``map_keys_max`` bound type-based values.
     """
 
     size_min: int = 1
@@ -194,6 +197,7 @@ class GeneratorConfig:
     enum_skew_max: float = 2.0
     max_depth: int = _DEFAULT_MAX_DEPTH
     doc_attempts: int = _DEFAULT_DOC_ATTEMPTS
+    max_nodes: int = _DEFAULT_MAX_NODES
     string_max_length: int = 12
     integer_span: int = 1000
     map_keys_max: int = 4
@@ -211,6 +215,7 @@ class GeneratorConfig:
         if self.enum_skew_max < self.enum_skew_min:
             raise ValueError("enum_skew_max must be at least enum_skew_min")
         object.__setattr__(self, "max_depth", _check_count("max_depth", self.max_depth, 0))
+        object.__setattr__(self, "max_nodes", _check_count("max_nodes", self.max_nodes, 1))
         object.__setattr__(self, "doc_attempts", _check_count("doc_attempts", self.doc_attempts, 1))
         object.__setattr__(self, "string_max_length", _check_count("string_max_length", self.string_max_length, 1))
         object.__setattr__(self, "integer_span", _check_count("integer_span", self.integer_span, 1))
@@ -762,10 +767,21 @@ _SCALAR_RETRIES: Final = 8
 _REJECTION_SAMPLES: Final = 24
 
 
+_INT_WINDOW: Final[int] = 2**62  # the widest span drawn in one step; bounds past int64 are handled in Python ints
+
+
+def _integer_between(rng: np.random.Generator, low: int, high: int) -> int:
+    """A uniform integer in ``[low, high]`` for bounds of any size (``rng.integers`` is limited to int64)."""
+    span = high - low
+    if span < _INT_WINDOW:
+        return low + int(rng.integers(0, span + 1))
+    return low + int(rng.integers(0, _INT_WINDOW))
+
+
 class _DocumentGenerator:
     """Generates one document from a Schema_Model under one random stream."""
 
-    __slots__ = ("cfg", "index", "model", "params", "rng", "validator")
+    __slots__ = ("cfg", "index", "model", "nodes", "params", "rng", "validator")
 
     def __init__(
         self,
@@ -782,6 +798,11 @@ class _DocumentGenerator:
         self.index = index
         self.validator = validator
         self.rng = rng
+        self.nodes = 0  # values generated so far; past cfg.max_nodes only required content is produced
+
+    @property
+    def _over_budget(self) -> bool:
+        return self.nodes >= self.cfg.max_nodes
 
     # -- conjuncts -----------------------------------------------------------
 
@@ -833,6 +854,7 @@ class _DocumentGenerator:
 
     def generate(self, nodes: Sequence[SchemaNode], path: Path) -> JSON:
         """A value for the position constrained by ``nodes`` at ``path``; raises ``_Reject``."""
+        self.nodes += 1
         for attempt in range(_BRANCH_RETRIES):
             try:
                 return self._value(self._effective(nodes, path), path)
@@ -939,7 +961,7 @@ class _DocumentGenerator:
             hi_k = math.floor(high / unit)
             if lo_k > hi_k:
                 raise _Reject
-            k = int(rng.integers(lo_k, hi_k + 1))
+            k = _integer_between(rng, lo_k, hi_k)
             value = k * unit
             if value == int(value) and abs(value) < 2**53:
                 return int(value)
@@ -948,7 +970,7 @@ class _DocumentGenerator:
             lo_k, hi_k = math.ceil(low / step), math.floor(high / step)
             if lo_k > hi_k:
                 raise _Reject
-            return float(int(rng.integers(lo_k, hi_k + 1)) * step)
+            return float(_integer_between(rng, lo_k, hi_k) * step)
         value = float(rng.uniform(low, high))
         return round(value, 3)
 
@@ -1066,7 +1088,7 @@ class _DocumentGenerator:
         required = sorted(eff.required, key=codepoint_key)
         for name in sorted(eff.properties, key=codepoint_key):
             child = path + (key_step(name),)
-            wanted = name in eff.required or rng.random() < self._presence(child)
+            wanted = name in eff.required or (not self._over_budget and rng.random() < self._presence(child))
             if not wanted:
                 continue
             try:
@@ -1101,7 +1123,9 @@ class _DocumentGenerator:
         closed = any(node.boolean is False for node in eff.additional)
         extra_allowed = bool(eff.pattern_properties) or (not closed and (bool(eff.additional) or not eff.properties))
         if extra_allowed:
-            if eff.properties and not eff.pattern_properties:
+            if self._over_budget:
+                target = 0
+            elif eff.properties and not eff.pattern_properties:
                 target = int(rng.integers(0, 2))
             else:
                 target = int(rng.integers(0, self.cfg.map_keys_max + 1))
@@ -1142,7 +1166,7 @@ class _DocumentGenerator:
             high = prefix_count if high is None else min(high, prefix_count)
         if high is not None and low > high:
             raise _Reject
-        extra = int(rng.poisson(self.params.array_length_mean))
+        extra = 0 if self._over_budget else int(rng.poisson(self.params.array_length_mean))
         total = max(low, prefix_count + extra)
         if high is not None:
             total = min(total, high)

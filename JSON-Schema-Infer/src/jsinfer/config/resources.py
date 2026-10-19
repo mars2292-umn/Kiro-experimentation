@@ -283,6 +283,7 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
     _count("synth.collections_per_schema", 3, "Document_Collections generated per training- or validation-split schema (22.1)"),
     _count("synth.doc_attempts", 50, "generation attempts per document before the schema is excluded (22.8, 31.12)"),
     _count("synth.max_depth", 6, "$ref recursion depth of the Synthetic_Generator"),
+    _count("synth.max_nodes", 2_000, "values one generated document may hold before optional members and extra elements stop (22.8)"),
     _count("train.max_schemas", 2_000, "training- and validation-split schemas one training run uses, together (21.2; provisional until 29.9)"),
     _count("ece.bins", 15, "equal-width Confidence bins for calibration error and reliability curves (21.5, 35.6)"),
     _count("ds.max_iter", 100, "Dawid-Skene EM iteration cap (23.3)"),

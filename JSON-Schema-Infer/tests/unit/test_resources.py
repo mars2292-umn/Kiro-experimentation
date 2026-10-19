@@ -56,6 +56,7 @@ DESIGN_DEFAULTS: dict[str, int | float] = {
     "synth.collections_per_schema": 3,
     "synth.doc_attempts": 50,
     "synth.max_depth": 6,
+    "synth.max_nodes": 2000,
     "train.max_schemas": 2_000,
     "ece.bins": 15,
     "mutations.negatives_per_schema": 5,

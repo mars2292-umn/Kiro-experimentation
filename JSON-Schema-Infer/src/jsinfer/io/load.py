@@ -746,8 +746,9 @@ class _Translator:
                 and self._draft in _REF_OVERRIDES_SIBLINGS
                 and _is_anchor_fragment(value)
             ):
-                # A root id of the form "#name" (drafts 04 to 07) only names the document as an anchor, which
-                # "#" already does; draft 2020-12 forbids such an $id, so it is left out and recorded (2.5).
+                # A root id that is a fragment alone ("#name" or "#/pointer", drafts 04 to 07) only names the
+                # document, which "#" already does; draft 2020-12 forbids such an $id, so it is left out and
+                # recorded (2.5).
                 self._ignored.append((here, keyword))
             elif draft4 and keyword == "id":
                 out["$id"] = value
@@ -871,8 +872,9 @@ def _is_schema(value: Any) -> bool:
 
 
 def _is_anchor_fragment(value: Any) -> bool:
-    """Whether an id value is a plain-name fragment (``#name``), which drafts 04 to 07 read as an anchor."""
-    return isinstance(value, str) and value.startswith("#") and len(value) > 1 and not value.startswith("#/")
+    """Whether an id value is a fragment alone: a plain name (``#name``), which drafts 04 to 07 read as an
+    anchor, or a JSON Pointer (``#/definitions/x``), which only names the document the id already sits in."""
+    return isinstance(value, str) and value.startswith("#") and len(value) > 1
 
 
 def _has_2020_12_shape(keyword: str, value: Any) -> bool:
