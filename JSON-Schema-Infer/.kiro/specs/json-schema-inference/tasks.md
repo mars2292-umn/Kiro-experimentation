@@ -683,8 +683,8 @@ Conventions used by every task:
     - **Property 16: Shared definitions are faithful**
     - **Validates: Requirements 8.2, 8.4, 8.5**
 
-- [ ] 37. Implement hybrid Record/Map partitioning
-  - [ ] 37.1 Implement the hybrid partition (`structure/record_map.py`, `config/registry.py`)
+- [x] 37. Implement hybrid Record/Map partitioning
+  - [x] 37.1 Implement the hybrid partition (`structure/record_map.py`, `config/registry.py`)
     - Top-j partitions by key frequency, plus the induced-Pattern partition; replaces the outcome only if strictly below both pure encodings
     - `patternProperties` when the Pattern matches every Map key and no Record field, otherwise `additionalProperties`; Closed-or-Open applies to the partitioned Record
     - Property 10's hybrid clause reads the partition DL from the report's `record_map_partition` entry at the Path; adjust that lookup if the entry differs

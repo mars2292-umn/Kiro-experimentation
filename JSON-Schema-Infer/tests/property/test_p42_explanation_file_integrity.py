@@ -819,7 +819,7 @@ def _injection_order(kind: str) -> int:
 
 def _explicit(docs: Sequence[Any], *injections: Injection, mdl: bool = True, **flags: Any) -> Case:
     """An explicit case under the default Technique states (``decide.mdl`` as given) and the loose thresholds."""
-    config = RunConfiguration.resolve({"workers": 1, technique_setting(MDL): mdl, **flags})
+    config = RunConfiguration.resolve({"workers": 1, technique_setting(MDL): mdl, **({} if mdl else {"techniques.structure.hybrid_record_map": False}), **flags})  # 28.8
     return Case(tuple(docs), config, "loose", injections)
 
 

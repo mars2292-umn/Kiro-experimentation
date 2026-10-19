@@ -584,7 +584,7 @@ def cases(draw: st.DrawFn) -> Case:
 
 def _explicit(docs: Sequence[Any], *injections: Injection, mdl: bool = True, **flags: Any) -> Case:
     """An explicit case under the default Technique states (``decide.mdl`` as given) with every M2 threshold."""
-    flags = {"workers": 1, technique_setting(MDL): mdl, **flags}
+    flags = {"workers": 1, technique_setting(MDL): mdl, **({} if mdl else {"techniques.structure.hybrid_record_map": False}), **flags}  # 28.8
     thresholds = {
         "lsh.keyset_jaccard": 0.5,
         "dbscan.eps": 0.34,

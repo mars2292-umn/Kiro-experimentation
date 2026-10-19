@@ -133,7 +133,8 @@ import numpy as np
 
 from jsinfer.core.jsonvalue import JSON, JType
 from jsinfer.core.observations import isin_sorted
-from jsinfer.core.paths import Path, render_path
+from jsinfer.config.registry import OUTCOME_NONE
+from jsinfer.core.paths import MAPVAL_STEP, Path, render_path
 from jsinfer.core.provenance import ProvenanceRecord, Support
 from jsinfer.core.report import InferenceReport
 from jsinfer.core.schema_model import ConstraintId, SchemaNode
@@ -174,6 +175,11 @@ __all__ = [
 
 RECORD_OR_MAP: Final = "record_or_map"
 CLOSED_OR_OPEN_RECORD: Final = "closed_or_open_record"
+RECORD_MAP_PARTITION: Final = "record_map_partition"
+HYBRID: Final = "structure.hybrid_record_map"
+PARTITION_PATTERN: Final = "pattern"  # the label of the partition the induced Map-key Pattern defines
+_MAX_TOP_PARTITIONS: Final = 64  # top-j partitions evaluated per Path (j = 1 … min(K−1, 64))
+KeyInduction: TypeAlias = Callable[["Partition"], "str | None"]  # the Map-key Pattern induced over a partition's entries
 DM_RECORD_MAP: Final = "decide.dm_record_map"
 DM_CLOSED_RECORD: Final = "decide.dm_closed_record"
 RECORD, MAP = JUDGMENT_OUTCOMES[RECORD_OR_MAP]
@@ -363,6 +369,7 @@ class RecordMapOutcome:
     kind: ObjectKind
     keys: KeyStats
     decision: Decision | None = None
+    encodings: tuple[Candidate, ...] = ()  # the scored Record and Map candidates (the pure encodings of 4.5)
 
     def __post_init__(self) -> None:
         if self.kind not in (RECORD, MAP):
@@ -493,7 +500,161 @@ def record_or_map(
 
     decision = engine.resolve(DecisionPoint(RECORD_OR_MAP, objects.path), candidates, objects, featurize)
     kind: ObjectKind = MAP if decision.label == MAP else RECORD
-    return RecordMapOutcome(objects.path, kind, keys, decision)
+    return RecordMapOutcome(objects.path, kind, keys, decision, candidates)
+
+
+# ---------------------------------------------------------------------------
+# The hybrid Record/Map partition (4.5, 4.6)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, eq=False)
+class Partition:
+    """A partition of a Path's keys into Record ``fields`` and Map ``entries`` (both in code-point order, 4.5).
+
+    ``label`` names the candidate (``top-<j>``: the j most frequent keys are
+    the fields; ``pattern``: the keys the induced Map-key Pattern matches
+    are the entries). ``pattern`` is that Pattern for the latter, which its
+    encoding emits under ``patternProperties``.
+    """
+
+    fields: tuple[str, ...]
+    entries: tuple[str, ...]
+    label: str
+    pattern: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.fields or not self.entries:
+            raise ValueError("a partition needs Record fields and Map entries")
+        if set(self.fields) & set(self.entries):
+            raise ValueError("a key is a Record field or a Map entry, not both")
+
+
+@dataclass(frozen=True, eq=False)
+class PartitionOutcome:
+    """The ``record_map_partition`` resolution of one Path: the selected :class:`Partition`, or None (no partition)."""
+
+    path: Path
+    partition: Partition | None
+    decision: Decision
+    pure_bits: float  # the lower description length of the two pure encodings
+
+    def provenance(self, n_objects: int, *, pattern: str | None = None) -> ProvenanceRecord:
+        """The record of the partitioned node's ``properties`` and Map-part Constraints (every object described)."""
+        if self.partition is None:
+            raise ValueError(f"{render_path(self.path)} was not partitioned")
+        details: dict[str, JSON] = {
+            "judgment": "hybrid",
+            "partition": self.partition.label,
+            "fields": list(self.partition.fields),
+            "entries": len(self.partition.entries),
+            "pure_bits": self.pure_bits,
+        }
+        if pattern is not None:
+            details["pattern"] = pattern
+        return self.decision.provenance(Support(n_objects, n_objects), details=details)
+
+
+def key_frequencies(objects: View) -> list[tuple[str, int]]:
+    """``(key, objects holding it)`` of the object rows, most frequent first, ties by name (code-point order)."""
+    rows = object_rows(objects)
+    stats = rows.stats()
+    store = rows.store
+    pairs = [(store.key_name(int(kid)), int(count)) for kid, count in zip(stats.key_ids.tolist(), stats.key_counts.tolist())]
+    return sorted(pairs, key=lambda pair: (-pair[1], pair[0]))
+
+
+def entries_view(objects: View, entries: Sequence[str]) -> View:
+    """The member values of the Map ``entries`` of the object rows, at the Map wildcard step of the Path."""
+    rows = object_rows(objects)
+    return View.union([rows.child_key(name) for name in entries], path=rows.path + (MAPVAL_STEP,))
+
+
+def partition_encoding(objects: View, partition: Partition) -> SchemaNode:
+    """The Naive_Merge encoding of ``partition``: ``properties`` (and ``required``) for the fields, one value schema for the entries."""
+    rows = object_rows(objects)
+    n = len(rows)
+    counts = dict(key_frequencies(rows))
+    kw: dict[str, object] = {_TYPE: ["object"]}
+    kw[_PROPERTIES] = {name: naive_merge_node(rows.child_key(name)) for name in partition.fields}
+    required = [name for name in partition.fields if counts.get(name, 0) == n]
+    if required:
+        kw["required"] = required
+    value = naive_merge_node(entries_view(rows, partition.entries))
+    if partition.pattern is not None:
+        kw["patternProperties"] = {partition.pattern: value}
+    else:
+        kw[_ADDITIONAL] = value
+    return SchemaNode(kw=kw)
+
+
+def partition_keys(
+    view: View,
+    outcome: RecordMapOutcome,
+    engine: DecisionEngine,
+    *,
+    validator: Validator,
+    scorer: MDLScorer | None = None,
+    induce: KeyInduction | None = None,
+) -> PartitionOutcome:
+    """Resolve the hybrid Record/Map partition of the Path of ``view`` (4.5); see the module docstring.
+
+    The candidates are the top-j partitions by key frequency (j = 1 …
+    min(K−1, 64), ties by name) and, when ``induce`` is given, the
+    partition of the keys matched by the Pattern it induces over the Map
+    entries of the best top-j partition, against the rest, encoded under
+    ``patternProperties``. Each is scored as its Naive_Merge encoding by
+    ``scorer``; no partition is the Technique's own candidate at the better
+    pure encoding's description length, and a partition is offered only
+    when strictly below it (4.5).
+    """
+    scorer = _check_engine(engine, scorer)
+    if not isinstance(outcome, RecordMapOutcome) or outcome.decision is None or not outcome.encodings:
+        raise ValueError("partition_keys needs the resolved Record-or-Map outcome with its scored encodings (4.5)")
+    objects = _objects_of(view)
+    pure = min(c.score.total for c in outcome.encodings if c.score is not None)
+    frequencies = key_frequencies(objects)
+    partitions: list[Partition] = []
+    seen: set[tuple[str, ...]] = set()
+    for j in range(1, min(len(frequencies) - 1, _MAX_TOP_PARTITIONS) + 1):
+        fields = tuple(sorted(name for name, _ in frequencies[:j]))
+        entries = tuple(sorted(name for name, _ in frequencies[j:]))
+        partitions.append(Partition(fields, entries, f"top-{j}"))
+        seen.add(fields)
+    scored: list[tuple[Partition, SchemaNode, Score]] = []
+    for partition in partitions:
+        node = partition_encoding(objects, partition)
+        scored.append((partition, node, scorer.score(node, objects)))
+    if induce is not None and scored:
+        best_top = min(scored, key=lambda item: (item[2].total, item[2].model_bits))[0]
+        key_pattern = induce(best_top)
+        if key_pattern is not None:
+            matching = tuple(sorted(name for name, _ in frequencies if validator.matches_pattern(key_pattern, name)))
+            rest = tuple(sorted(name for name, _ in frequencies if not validator.matches_pattern(key_pattern, name)))
+            if matching and rest:
+                partition = Partition(rest, matching, PARTITION_PATTERN, key_pattern)
+                node = partition_encoding(objects, partition)
+                scored.append((partition, node, scorer.score(node, objects)))
+    # No partition is the Technique's own candidate, scored as the better pure encoding, so that a partition is
+    # selected only when strictly below both (4.5): partitions at or above it are not offered.
+    best = min((c for c in outcome.encodings if c.score is not None), key=lambda c: c.score.total)  # type: ignore[union-attr]
+    candidates: list[Candidate] = [
+        Candidate(technique=HYBRID, outcome=OUTCOME_NONE, order_key=(-1,), node=best.node, label=OUTCOME_NONE, score=best.score)
+    ]
+    for index, (partition, node, score) in enumerate(scored):
+        if score.total < pure:
+            candidates.append(
+                Candidate(technique=HYBRID, outcome=partition, order_key=(index,), node=node, label=partition.label, score=score)
+            )
+    details: dict[str, JSON] = {
+        "n_keys": len(frequencies),
+        "evaluated": len(scored),
+        "pure_bits": pure,
+        "cap_reached": len(frequencies) - 1 > _MAX_TOP_PARTITIONS,
+    }
+    decision = engine.resolve(DecisionPoint(RECORD_MAP_PARTITION, objects.path), candidates, objects, details=details)
+    partition = decision.outcome if isinstance(decision.outcome, Partition) else None
+    return PartitionOutcome(objects.path, partition, decision, pure)
 
 
 def _open_record(record: SchemaNode | None, objects: View) -> SchemaNode:

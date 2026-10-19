@@ -477,8 +477,12 @@ def test_property_names_and_pattern_properties() -> None:
     keyed = {"type": "object", "patternProperties": {PHONE.source: {"type": "integer"}}, "additionalProperties": False}
     assert bits(keyed, [{"555-1234": 1}, {"x": 1}])[2] == 1
     assert bits(keyed, [{"555-1234": "s"}])[2] == 1  # the value is rejected by the pattern's subschema
-    # A Map keyed by the pattern: key count, key literal, and the value under the pattern's subschema.
-    accepted(keyed, [{"555-1234": 1}], LN0(1), STR("555-1234"), LZ(1), flags=2)
+    # A Map keyed by the pattern: key count, the key under the pattern's string code (as under propertyNames),
+    # and the value under the pattern's subschema.
+    accepted(keyed, [{"555-1234": 1}], LN0(1), LN0(8), 7 * LOG10, LZ(1), flags=2)
+    # A key no pattern matches is a literal, beside the pattern-coded one.
+    loose = {"type": "object", "patternProperties": {PHONE.source: {"type": "integer"}}, "additionalProperties": {"type": "integer"}}
+    accepted(loose, [{"555-1234": 1, "x": 2}], LN0(2), LN0(8), 7 * LOG10, STR("x"), LZ(1), LZ(2), flags=3)
 
 
 def test_record_or_map_by_local_scoring() -> None:

@@ -553,7 +553,9 @@ def test_the_default_run_configuration_resolves_judgment_calls_by_mdl() -> None:
     assert (decision.method, decision.label, decision.technique) == ("mdl", "tuple", MDL)
     assert decision.fallback == FallbackInfo("decide.dm_tuple_list", "missing-model")  # the model's fallback (22.14)
     # With decide.mdl off as well, the Fallback_Behavior applies.
-    off = DecisionEngine.for_run(RunConfiguration.resolve({technique_setting(MDL): False}), None, None)
+    off = DecisionEngine.for_run(
+        RunConfiguration.resolve({technique_setting(MDL): False, "techniques.structure.hybrid_record_map": False}), None, None
+    )
     decision = off.resolve(DecisionPoint("tuple_or_list"), judgment("tuple_or_list", (score(1, 1), score(2, 2))))
     assert (decision.method, decision.label) == ("fallback", "list")
 

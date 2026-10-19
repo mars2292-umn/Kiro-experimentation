@@ -138,8 +138,9 @@ M2_THRESHOLDS: Final[tuple[str, ...]] = (
 )
 
 
-# Techniques whose Judgment_Calls cross Paths (8.1-8.4): off in an oracle run (see featurization_config).
-CROSS_PATH_TECHNIQUES: Final = ("structure.shared_defs", "structure.recursion")
+# Techniques that re-lay out Paths after the Judgment_Calls (8.1-8.4 across Paths; the hybrid partition of 4.5
+# moves Map entries to the wildcard step): off in an oracle run (see featurization_config).
+CROSS_PATH_TECHNIQUES: Final = ("structure.shared_defs", "structure.recursion", "structure.hybrid_record_map")
 
 
 # ---------------------------------------------------------------------------

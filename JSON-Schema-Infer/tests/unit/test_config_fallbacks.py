@@ -73,6 +73,7 @@ from jsinfer.pipeline.infer import PipelineResult, infer_documents
 VALIDATOR = Validator()
 
 MDL = "decide.mdl"
+HYBRID = "structure.hybrid_record_map"  # needs decide.mdl (28.8): off with it
 DM_RECORD_MAP = "decide.dm_record_map"
 DM_TUPLE_LIST = "decide.dm_tuple_list"
 DM_MERGE_SPLIT = "decide.dm_merge_split"
@@ -290,7 +291,7 @@ def test_record_or_map_without_its_decision_model_is_resolved_by_mdl() -> None:
 
 def test_record_or_map_without_mdl_is_a_record() -> None:
     # Shared definitions (8.1) would fold the equal user Records into one definition: off, to read one entry per Path.
-    result = run(USER_MAPS, config(disabled=[MDL, "structure.shared_defs", "structure.recursion"]))  # MDL would say Map
+    result = run(USER_MAPS, config(disabled=[MDL, HYBRID, "structure.shared_defs", "structure.recursion"]))  # MDL would say Map
     keys = {key for doc in USER_MAPS for key in doc}
     assert set(result.document["properties"]) == keys and "additionalProperties" not in result.document
     by_pointer = records(result)
@@ -336,7 +337,7 @@ def test_without_the_decision_model_and_mdl_the_priority_grouping_is_kept_split(
     merged = run(PETS, config(bundles["grouping"]))
     assert not {"anyOf", "oneOf"} & set(merged.document)  # MDL selects a one-Variant grouping
 
-    result = run(PETS, config(bundles["grouping"], disabled=[MDL]))
+    result = run(PETS, config(bundles["grouping"], disabled=[MDL, HYBRID]))
     (combinator,) = {"anyOf", "oneOf"} & set(result.document)
     branches = result.document[combinator]
     assert [set(branch["properties"]) for branch in branches] == [{"bark", "kind", "name"}, {"kind", "lives", "name"}]
@@ -363,7 +364,7 @@ def test_without_the_decision_model_and_mdl_the_priority_grouping_is_kept_split(
 
 def test_without_mdl_a_single_grouping_is_kept_split_without_the_mdl_indicator() -> None:
     # The shipped bundle leaves only the Bernoulli mixture in effect: priority among one candidate is no fallback.
-    result = run(PETS, config(disabled=[MDL]))
+    result = run(PETS, config(disabled=[MDL, HYBRID]))
     (grouping,) = decisions(result, "variant_grouping")
     assert grouping.resolution.method == "priority" and grouping.fallback is None
     assert [c.technique for c in grouping.resolution.candidates] == [BERNOULLI]
@@ -397,7 +398,7 @@ def test_tuple_or_list_without_its_decision_model_is_a_tuple_only_by_a_lower_des
 
 
 def test_tuple_or_list_without_mdl_is_a_list() -> None:
-    result = run(ROWS, config(disabled=[MDL]))  # MDL would say Tuple
+    result = run(ROWS, config(disabled=[MDL, HYBRID]))  # MDL would say Tuple
     assert "prefixItems" not in result.document and set(result.document["items"]["type"]) == {
         "boolean",
         "integer",

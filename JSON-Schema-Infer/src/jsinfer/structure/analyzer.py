@@ -206,7 +206,7 @@ from jsinfer.deps.cooccurrence import CooccurrenceMiner
 from jsinfer.deps.exclusions import ExclusionMiner, ExclusionRules
 from jsinfer.deps.tagged_unions import TREES, Discriminator, DiscriminatorMiner
 from jsinfer.structure.field_groups import DEPENDENT_REQUIRED, FieldGroupMiner, FieldGroups, merge_records
-from jsinfer.deps.presence import RequiredFields, required_fields
+from jsinfer.deps.presence import Presence, RequiredFields, required_fields
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.structure.arrays import ArrayAnalyzer
@@ -217,7 +217,18 @@ from jsinfer.learn.features import (
     record_map_features,
     tuple_list_features,
 )
-from jsinfer.structure.record_map import ClosedOpenOutcome, RecordMapAnalyzer, RecordMapOutcome, object_rows
+from jsinfer.structure.record_map import (
+    HYBRID,
+    ClosedOpenOutcome,
+    Partition,
+    PartitionOutcome,
+    RecordMapAnalyzer,
+    RecordMapOutcome,
+    entries_view,
+    object_rows,
+    partition_encoding,
+    partition_keys,
+)
 from jsinfer.structure.shared_defs import (
     DEFS,
     RECURSION,
@@ -261,6 +272,7 @@ BRANCH_REMAINING_TYPES: Final = "remaining_types"
 _TYPE: Final = "type"
 _ARRAY_TYPE: Final = JType.ARRAY.keyword
 _OBJECT_TYPE: Final = JType.OBJECT.keyword
+_ADDITIONAL_PROPERTIES: Final = "additionalProperties"
 _NON_SCALAR: Final = (int(JType.ARRAY), int(JType.OBJECT))
 
 # A generous bound on the Python frames one nesting level of the walk uses (about ten for an object).
@@ -712,7 +724,9 @@ class StructureAnalyzer:
         objects = object_rows(view)
         rows = len(objects)
         outcome = self._record_map.record_or_map(objects)
-        self._record_map_partition(objects, outcome)
+        hybrid = self._record_map_partition(objects, outcome)  # 4.5: replaces the outcome when it wins
+        if hybrid is not None:
+            return self._hybrid_part(objects, hybrid)
         if outcome.is_map:
             result = self._record_map.map_node(objects, outcome, child_schema=self.analyze)
             node = result.node
@@ -881,6 +895,111 @@ class StructureAnalyzer:
         """Whether Technique ``tid``'s step runs: registered as implemented and enabled in the engine."""
         return self._values.runs(tid)
 
+    def _record_map_partition(self, objects: View, outcome: RecordMapOutcome) -> PartitionOutcome | None:
+        """4.5: the hybrid Record/Map partition of an object Path with keys, when it beats both pure encodings.
+
+        Records the Fallback_Behavior (no partition) while the Technique is
+        not in effect (28.4). The partition of the keys the induced Pattern
+        matches uses a Pattern induced over every key without report
+        entries; the winner's Map entries get their own, recorded,
+        induction in :meth:`_hybrid_part` (4.6).
+        """
+        if not outcome.keys_available:
+            return None
+        if not self.runs(HYBRID):
+            self.engine.resolve(DecisionPoint(RECORD_MAP_PARTITION, objects.path), [], objects)
+            return None
+        result = partition_keys(
+            objects,
+            outcome,
+            self.engine,
+            validator=self._values.validator,
+            scorer=self._scorer,
+            induce=lambda partition: self._entry_pattern(objects, partition, side=True),
+        )
+        return result if result.partition is not None else None
+
+    def _hybrid_part(self, objects: View, hybrid: PartitionOutcome) -> _Part:
+        """4.5–4.7: the partitioned object node: Record fields under ``properties``, the Map entries' value schema
+        under ``patternProperties`` (a Pattern matching every entry and no field, 4.6) or ``additionalProperties``,
+        ``required`` over the fields, and Closed-or-Open-Record in the ``patternProperties`` form (4.7).
+
+        A partitioned Path has one object schema: Variants, Discriminators,
+        Field_Groups, Co_Occurrence_Rules, and Exclusion_Rules (which are
+        defined over a Record's fields) do not run on it.
+        """
+        partition = hybrid.partition
+        assert partition is not None
+        rows = len(objects)
+        node = SchemaNode(kw={_TYPE: [_OBJECT_TYPE]})
+        node.kw["properties"] = {name: self.analyze(objects.child_key(name)) for name in partition.fields}
+        presence = Presence.of(objects)
+        required = [name for name in partition.fields if presence.is_required(name)]
+        if required:
+            node.kw["required"] = required
+        value_node = self.analyze(entries_view(objects, partition.entries))
+        # 4.6: the Pattern partition's Pattern matches every entry and no field by construction; the run's
+        # Value_Inferrer now records its selection (the same induction, on the same keys). A top-j partition
+        # has no such Pattern: were there one, the Pattern partition would coincide with it and encode cheaper.
+        pattern = self._entry_pattern(objects, partition) if partition.pattern is not None else None
+        if pattern is not None:
+            node.kw["patternProperties"] = {pattern: value_node}
+            map_keyword = "patternProperties"
+        else:
+            node.kw[_ADDITIONAL_PROPERTIES] = value_node
+            map_keyword = _ADDITIONAL_PROPERTIES
+        provenance = hybrid.provenance(rows, pattern=pattern)
+        self._records.put(node, "properties", provenance)
+        self._records.put(node, map_keyword, provenance)
+        if required:
+            record = required_fields(presence).record
+            for name in required:
+                self._records.put(node, "required", record, item=name)
+        if pattern is not None:  # 4.7: Closed-or-Open applies to the partitioned Record
+            closed = self._record_map.closed_or_open(objects, record=node)
+            if closed.closed:
+                node.kw.update(closed.keywords())
+                self._records.put(node, _ADDITIONAL_PROPERTIES, closed.provenance())
+        self._records.put(node, _TYPE, _type_record(rows))
+        return _Part(node, (_OBJECT_TYPE,), rows)
+
+    def _entry_pattern(self, objects: View, partition: Partition, *, side: bool = False) -> str | None:
+        """4.6: the Pattern induced over the Map entries of ``partition``, or None.
+
+        The candidates are scored as the partition's encoding with and
+        without the Pattern. With ``side``, a side engine judges without
+        report entries (the exploratory induction of 4.5, which only needs
+        a Pattern of the entries); otherwise the run's Value_Inferrer
+        records the selection, and the Pattern must match every entry and
+        no Record field (4.6).
+        """
+        values = self._values
+        if side:
+            engine = self.engine
+            values = ValueInferrer(
+                DecisionEngine(engine.techniques, bundle=engine.bundle, scorer=self._scorer),
+                validator=values.validator, scorer=self._scorer, resources=values.resources, seed=values.seed,
+            )
+
+        def with_pattern(candidate: Any) -> SchemaNode:
+            return partition_encoding(objects, dataclasses.replace(partition, pattern=str(candidate.value)))
+
+        found = values.key_constraint(
+            objects,
+            keys=partition.entries,
+            make_node=with_pattern,
+            none_node=partition_encoding(objects, dataclasses.replace(partition, pattern=None)),
+        )
+        if found is None or found.candidate.keyword != "pattern":
+            return None
+        pattern = str(found.candidate.value)
+        matches = self._values.validator.matches_pattern
+        if not all(matches(pattern, name) for name in partition.entries):
+            return None
+        if not side and any(matches(pattern, name) for name in partition.fields):
+            return None
+        return pattern
+
     def _unwritten(self, tids: Sequence[str]) -> None:
         for tid in tids:
             if self.runs(tid):
@@ -896,11 +1015,6 @@ class StructureAnalyzer:
         if any(engine.enabled(tid) for tid in servers):
             return  # enabled outside a validated run, where it is not implemented: it offers nothing
         engine.resolve(DecisionPoint(kind, view.path), [], view)  # 28.4: the Fallback_Behavior is recorded
-
-    def _record_map_partition(self, objects: View, outcome: RecordMapOutcome) -> None:
-        """4.5, 4.6 (task 37.1): the hybrid Record/Map partition of an object Path with keys; none yet."""
-        if outcome.keys_available:
-            self._planned(RECORD_MAP_PARTITION, objects)
 
     def _field_groups(self, variant: View, required: RequiredFields, node: SchemaNode, index: int) -> FieldGroups:
         """6: the Field_Groups of final Variant ``index`` (``groups.fpgrowth_slim``; BMF joins in task 47.1).
@@ -1231,7 +1345,8 @@ class StructureAnalyzer:
                 return
             a, b = pair
             done.add((a.node.nid, b.node.nid))
-            view_a, view_b = self._views_by_nid[a.node.nid], self._views_by_nid[b.node.nid]
+            # The sites' object rows: a node's view may hold other JSON types beside its objects (mixed Paths).
+            view_a, view_b = object_rows(self._views_by_nid[a.node.nid]), object_rows(self._views_by_nid[b.node.nid])
             union = View.union([view_a, view_b], path=view_a.path)
             grouping = level_grouping(union, [view_a, view_b], origin=SHARED_DEFS, engine=self.engine, scorer=self._scorer)
             if grouping is None:

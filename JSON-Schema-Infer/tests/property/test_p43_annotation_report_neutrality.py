@@ -763,7 +763,7 @@ _EXPLICIT_MUTATIONS = tuple(Mutation(i, 7 * i + 3, MUTATIONS[i % len(MUTATIONS)]
 
 def _explicit(docs: Sequence[Any], *injections: Injection, mdl: bool = True, **flags: Any) -> Case:
     """An explicit case under the default Technique states (``decide.mdl`` as given) with every M2 threshold."""
-    flags = {"workers": 1, technique_setting(MDL): mdl, **flags}
+    flags = {"workers": 1, technique_setting(MDL): mdl, **({} if mdl else {"techniques.structure.hybrid_record_map": False}), **flags}  # 28.8
     return Case(
         tuple(docs),
         "drawn" if mdl else "priority",

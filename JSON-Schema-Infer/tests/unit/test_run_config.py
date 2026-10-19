@@ -162,7 +162,7 @@ def test_exclude_ids_are_sorted_and_unique() -> None:
 
 
 def test_dotted_keys_in_techniques_and_resources() -> None:
-    text = "[techniques]\ndecide.mdl = false\n[resources]\nsoundness.max_passes = 3\n"
+    text = "[techniques]\ndecide.mdl = false\nstructure.hybrid_record_map = false\n[resources]\nsoundness.max_passes = 3\n"
     config = RunConfiguration.resolve(None, load_toml(text))
     assert config.resources["soundness.max_passes"] == 3
     assert config.provenance_of["soundness.max_passes"] == "file"
@@ -205,6 +205,7 @@ def test_to_toml_writes_every_setting_in_the_file_layout() -> None:
             "minhash.perm": 7,
             "lsh.bands": 7,
             technique_setting(MDL): False,
+            technique_setting(HYBRID): False,  # needs decide.mdl (28.8)
         },
     ],
 )
@@ -342,14 +343,16 @@ def test_enabling_an_unimplemented_technique() -> None:
 def test_enabled_technique_with_a_disabled_prerequisite() -> None:
     assert REGISTRY.technique(HYBRID).prerequisites == (MDL,)
     problems = problems_of({technique_setting(MDL): False}, {"techniques": {HYBRID: True}})
-    assert [(p.subject, p.reason) for p in problems] == [(HYBRID, "unimplemented"), (HYBRID, "prerequisite")]
-    message = problems[1].message
+    assert [(p.subject, p.reason) for p in problems] == [(HYBRID, "prerequisite")]
+    message = problems[0].message
     assert f"{HYBRID!r} is enabled (configuration file)" in message
     assert f"prerequisite {MDL!r} is disabled (flag)" in message
-    # With the prerequisite enabled too (decide.mdl is built, so on by default), only the unimplemented problem remains.
+    # With the prerequisite enabled too (decide.mdl is built, so on by default), the configuration resolves.
     assert REGISTRY.technique(MDL).implemented and REGISTRY.technique(MDL).default_enabled
     for flags in ({technique_setting(HYBRID): True}, {technique_setting(MDL): True, technique_setting(HYBRID): True}):
-        assert [(p.subject, p.reason) for p in problems_of(flags)] == [(HYBRID, "unimplemented")]
+        assert RunConfiguration.resolve(flags).techniques[HYBRID]
+    # Enabled by default, the dependent makes disabling its prerequisite alone an error (28.8, the strict reading).
+    assert [(p.subject, p.reason) for p in problems_of({technique_setting(MDL): False})] == [(HYBRID, "prerequisite")]
 
 
 def test_one_error_lists_every_problem_in_report_order() -> None:
@@ -373,7 +376,6 @@ def test_one_error_lists_every_problem_in_report_order() -> None:
         ("sample.fd", "type"),
         ("lsh.bands", "range"),
         ("techniques", "unregistered"),
-        (HYBRID, "unimplemented"),
         (HYBRID, "prerequisite"),
     ]
     assert {p.reason for p in problems} <= set(CONFIG_PROBLEM_REASONS)
@@ -424,7 +426,6 @@ def test_direct_construction_is_validated() -> None:
         dataclasses.replace(config, seed=-1, techniques={**config.techniques, MDL: False, HYBRID: True})
     assert [(p.subject, p.reason) for p in caught.value.problems] == [
         ("seed", "range"),
-        (HYBRID, "unimplemented"),
         (HYBRID, "prerequisite"),
     ]
     resources = dict(config.resources)

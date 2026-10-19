@@ -131,7 +131,7 @@ Determinism
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final, Literal, TypeAlias
 
@@ -600,6 +600,14 @@ class ValueInferrer:
         return self._validator
 
     @property
+    def resources(self) -> ResourceReader:
+        return self._resources
+
+    @property
+    def seed(self) -> int:
+        return self._seed
+
+    @property
     def report(self) -> InferenceReport | None:
         return self._report
 
@@ -868,34 +876,51 @@ class ValueInferrer:
 
     # -- Map keys (4.4) -----------------------------------------------------
 
-    def key_constraint(self, view: View, *, base: Mapping[str, Any] | None = None) -> KeyConstraint | None:
+    def key_constraint(
+        self,
+        view: View,
+        *,
+        base: Mapping[str, Any] | None = None,
+        keys: Collection[str] | None = None,
+        make_node: Callable[[StringCandidate], SchemaNode] | None = None,
+        none_node: SchemaNode | None = None,
+    ) -> KeyConstraint | None:
         """The ``propertyNames`` Constraint of the keys of the objects of the Map view ``view`` (4.4).
 
         ``base`` holds the Map node's other keywords for scoring (default
         ``{"type": "object"}``). Returns None when the objects have no keys
         or no candidate is selected; withheld candidates and any
         Fallback_Behavior are recorded as for string values.
+
+        With ``keys``, only those keys are the strings (the Map entries of a
+        hybrid partition, 4.6): Formats are not offered, since the Pattern
+        keys ``patternProperties``, and ``make_node`` / ``none_node`` give
+        the nodes scored with and without a candidate Pattern.
         """
         if not isinstance(view, View):
             raise TypeError(f"key_constraint takes a View, got {type(view).__name__}")
         view = view.live()
         base_kw = _base_keywords(base, _OBJECT_BASE, "propertyNames")
         strings = StringSet.of_keys(view)
+        if keys is not None:
+            wanted = set(keys)
+            pairs = [(s, c) for s, c in zip(strings.strings, strings.counts) if s in wanted]
+            strings = StringSet(tuple(s for s, _ in pairs), tuple(c for _, c in pairs))
         if not strings.total:
             return None
         offered: list[StringCandidate] = []
-        if self.runs(FORMAT):
+        if self.runs(FORMAT) and keys is None:
             checks = format_candidates(self._detector_for(view), view, self._engine.techniques, keys=True)
             offered.extend(_from_format(check) for check in checks)
 
-        def make_node(candidate: StringCandidate) -> SchemaNode:
+        def names_node(candidate: StringCandidate) -> SchemaNode:
             return SchemaNode.from_json({**base_kw, "propertyNames": candidate.constraint})
 
-        selection = self._select(view, _rows_of(view, JType.OBJECT), strings, offered, "keys", make_node)
+        build = make_node if make_node is not None else names_node
+        without = none_node if none_node is not None else SchemaNode.from_json(dict(base_kw))
+        selection = self._select(view, _rows_of(view, JType.OBJECT), strings, offered, "keys", build)
         if selection.keyword != "format":
-            selection = self._pattern_step(  # induced key Patterns (14.1)
-                view, strings, selection, _rows_of(view, JType.OBJECT), make_node, SchemaNode.from_json(dict(base_kw))
-            )
+            selection = self._pattern_step(view, strings, selection, _rows_of(view, JType.OBJECT), build, without)  # 14.1
         return None if selection.selected is None else KeyConstraint(selection)
 
     # -- bounds (16) --------------------------------------------------------

@@ -206,7 +206,7 @@ def test_flags_override_the_file_and_the_file_overrides_defaults(
     config_file = tmp_path / "run.toml"
     config_file.write_text(
         '[run]\nseed = 11\nworkers = 3\n[resources]\n"soundness.max_passes" = 3\n'
-        '[techniques]\n"decide.mdl" = false\n"values.bounds" = false\n',
+        '[techniques]\n"decide.mdl" = false\n"structure.hybrid_record_map" = false\n"values.bounds" = false\n',
         encoding="utf-8",
     )
     out = tmp_path / "out"
@@ -299,22 +299,19 @@ def test_an_unregistered_technique_id_is_reported_whatever_its_switch(
 
 def test_prerequisite_and_unimplemented_problems(capsys: pytest.CaptureFixture[str], data: Path, tmp_path: Path) -> None:
     flags = ["--technique", "decide.mdl=off", "--technique", "structure.hybrid_record_map=on"]
-    unimplemented = "  - Technique 'structure.hybrid_record_map' is enabled (flag) but is not implemented yet; disable it"
     prerequisite = "but its prerequisite 'decide.mdl' is disabled (flag)"  # 28.8: the Technique and its prerequisite
     status, _, err = run(capsys, "infer", str(data), *flags, "--out", str(tmp_path / "out"))
     assert status == cli.EXIT_USAGE
-    assert err.splitlines()[0] == "jsinfer: error: 2 configuration problems:"
-    assert unimplemented in err.splitlines() and prerequisite in err
+    assert err.splitlines()[0].startswith("jsinfer: error: Technique 'structure.hybrid_record_map' is enabled (flag) ")
+    assert prerequisite in err
 
     # With an unreadable configuration file the effective Technique states are unknown, so no
-    # prerequisite problem is claimed; the file problem and the flags' own problems are reported.
+    # prerequisite problem is claimed; the file problem (and any problem of the flags' own) is reported.
     missing = tmp_path / "missing.toml"
     status, _, err = run(capsys, "infer", str(data), "-c", str(missing), *flags, "--out", str(tmp_path / "out"))
     assert status == cli.EXIT_USAGE
     assert err.splitlines() == [
-        "jsinfer: error: 2 configuration problems:",
-        f"  - configuration file {str(missing)!r} cannot be read: {os.strerror(errno.ENOENT)}",
-        unimplemented,
+        f"jsinfer: error: configuration file {str(missing)!r} cannot be read: {os.strerror(errno.ENOENT)}",
     ]
     assert not (tmp_path / "out").exists()
 

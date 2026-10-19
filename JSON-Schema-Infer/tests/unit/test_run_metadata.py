@@ -212,6 +212,10 @@ def test_a_run_lists_the_resource_parameters_its_components_read() -> None:
         "fpgrowth.min_support": (2, "default"),
         "fpgrowth.max_itemsets": (2_000, "default"),
         "sample.fpgrowth": (50_000, "default"),
+        # The hybrid partition (4.5) induces a Pattern over the Map entries of its best top-j partition.
+        "patterns.attempt_budget": (200, "default"),
+        "patterns.max_alternatives": (4, "default"),
+        "sample.patterns": (20_000, "default"),
     }
 
 

@@ -822,7 +822,7 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
                implemented=False, sample_param="sample.bmf"),
     # Structure
     _technique("structure.hybrid_record_map", "Hybrid Record/Map partitioning", "should",
-               implemented=False, prerequisites=("decide.mdl",)),
+               implemented=True, prerequisites=("decide.mdl",)),
     _technique("structure.shared_defs", "Shared_Definition extraction", "should",
                implemented=True),
     _technique("structure.recursion", "recursion detection", "should",

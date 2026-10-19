@@ -888,7 +888,6 @@ class RunConfiguration:
                     break
             else:
                 states[tid], origins[name] = REGISTRY.technique(tid).default_enabled, "default"
-
         # Ranges bounded by another setting, over the effective values; a
         # relation with an invalid value is skipped, as that value is reported.
         for pair in BOUNDED_BY:

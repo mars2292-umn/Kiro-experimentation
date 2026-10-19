@@ -173,8 +173,10 @@ Data bits (Requirements 19.1, 19.2)
       object can hold an extra (the design's closed candidate pays no
       ``CAT(n, 0)``); otherwise
       ``CAT(no extras, extras)`` over the objects, ``LN0(#extras)`` per
-      object with extras, each extra key as ``STR(k)`` (or under
-      ``propertyNames``), and each extra value under the first matching
+      object with extras, each extra key as ``STR(k)`` (under
+      ``propertyNames`` when present, else under the first
+      ``patternProperties`` Pattern matching it, as a ``pattern`` string
+      code), and each extra value under the first matching
       ``patternProperties`` subschema in code-point order of the patterns,
       else under ``additionalProperties``, else as ``U(v)``.
     - Maps (an object node without ``properties`` that has a keyword-schema
@@ -1253,6 +1255,7 @@ class _DataCoder:
         "_active",
         "_branch_views",
         "_key_bits",
+        "_pattern_key_specs",
         "_payloads",
         "_root",
         "_specs",
@@ -1278,6 +1281,7 @@ class _DataCoder:
         self._active: set[tuple[int, bytes]] = set()  # evaluations in progress; membership only
         self._payloads: dict[int, float] = {}
         self._key_bits: dict[int, float] = {}
+        self._pattern_key_specs: dict[str, tuple[SchemaNode, _Spec]] = {}  # patternProperties source -> its key code
         self.data_terms: list[float] = []
         self.exception_terms: list[float] = []
         self.n_rejected = 0
@@ -1349,6 +1353,14 @@ class _DataCoder:
                 bits = NUM(number)
             self._payloads[vid] = bits
         return bits
+
+    def _pattern_key_spec(self, source: str) -> _Spec:
+        """The spec of ``{"pattern": source}``: the string code of the keys a ``patternProperties`` Pattern matches."""
+        found = self._pattern_key_specs.get(source)
+        if found is None:
+            node = SchemaNode(kw={"pattern": source})
+            found = self._pattern_key_specs[source] = (node, self.spec(node))
+        return found[1]
 
     def _key_str(self, kid: int) -> float:
         bits = self._key_bits.get(kid)
@@ -1950,7 +1962,24 @@ class _DataCoder:
             return
 
         extra_kids = kids[extra]
-        self._key_terms(spec.property_names, extra_kids, stats.key_counts[extra])
+        extra_counts = stats.key_counts[extra]
+        if spec.property_names is None and spec.pattern_properties:
+            # A key a patternProperties Pattern matches is coded under that Pattern (the first matching one).
+            plain: list[int] = []
+            for kid, count in zip(extra_kids.tolist(), extra_counts.tolist()):
+                name = self._store.key_name(kid)
+                hits = self._key_patterns(spec, name)
+                if not hits:
+                    plain.append(kid)
+                    continue
+                bits = _string_bits(self._pattern_key_spec(spec.pattern_properties[hits[0]][0]), name)
+                if bits:
+                    terms.append(bits * count)
+            if plain:
+                keep = isin_sorted(extra_kids, np.array(sorted(plain), dtype=np.int64))
+                self._key_terms(None, extra_kids[keep], extra_counts[keep])
+        else:
+            self._key_terms(spec.property_names, extra_kids, extra_counts)
         members = view.child_map()
         if not len(members):
             return

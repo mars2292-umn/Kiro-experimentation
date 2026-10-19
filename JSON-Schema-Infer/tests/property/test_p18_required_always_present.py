@@ -142,6 +142,7 @@ VALIDATOR = Validator()
 MDL = "decide.mdl"
 SHARED_DEFS = "structure.shared_defs"
 RECURSION = "structure.recursion"
+HYBRID = "structure.hybrid_record_map"
 
 Loc = tuple[Any, ...]  # (document index, key or position, …)
 OBJECT = "object"
@@ -463,6 +464,7 @@ def setups(draw: st.DrawFn) -> Setup:
         base[technique_setting(DBSCAN)] = True
     base[technique_setting(SHARED_DEFS)] = False  # Path-by-Path walks: shared definitions are Property 16's
     base[technique_setting(RECURSION)] = False
+    base[technique_setting(HYBRID)] = False  # a partitioned Path (4.5) is no Variant: Property 10's
     config = draw(run_configs(vary=(*TECHNIQUE_SETTINGS, "seed"), base=base), label="config")
     present = {tid: draw(st.integers(0, 3), label=f"thresholds of {tid}") != 0 for tid in THRESHOLD_TECHNIQUES}
     if scenario == "dbscan first":

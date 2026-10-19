@@ -530,8 +530,8 @@ def test_flagged_documents_and_items_are_left_out() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_unimplemented_decision_points_record_their_fallbacks() -> None:
-    _, report = infer(RECORDS)
+def test_disabled_decision_points_record_their_fallbacks() -> None:
+    _, report = infer(RECORDS, {"structure.hybrid_record_map": False})
     expected = {
         RECORD_MAP_PARTITION: "structure.hybrid_record_map",
     }
@@ -539,6 +539,9 @@ def test_unimplemented_decision_points_record_their_fallbacks() -> None:
         (entry,) = decisions(report, kind)
         assert entry.path == "$" and entry.resolution.method == "fallback"
         assert (entry.fallback.technique, entry.fallback.reason) == (technique, "disabled")
+    _, report = infer(RECORDS)  # the hybrid partition (task 37.1) is selected by MDL, no partition included
+    (entry,) = decisions(report, RECORD_MAP_PARTITION)
+    assert entry.path == "$" and entry.resolution.method == "mdl"
     (groups,) = decisions(report, FIELD_GROUPS)  # Field_Groups (task 33.1) are selected by MDL
     assert groups.path == "$" and groups.resolution.method == "mdl"
     (tagged,) = decisions(report, DISCRIMINATOR)  # decision trees (task 34.1) need tagged.branch_support (10.6)
@@ -546,7 +549,7 @@ def test_unimplemented_decision_points_record_their_fallbacks() -> None:
     (exclusion,) = decisions(report, EXCLUSION_RULE)  # exclusion mining (task 35.1) needs exclusion.min_confidence (11.7)
     assert exclusion.resolution.method == "fallback" and exclusion.fallback.reason == "missing-threshold"
     # A Path with no keys reaches none of them.
-    _, report = infer([{}, {}])
+    _, report = infer([{}, {}], {"structure.hybrid_record_map": False})
     assert all(decisions(report, kind) == [] for kind in expected)
 
 
@@ -557,12 +560,3 @@ def test_enabled_unimplemented_techniques_offer_nothing() -> None:
     assert_complete(model)
 
 
-@pytest.mark.parametrize(
-    "technique", ["structure.hybrid_record_map"]
-)
-def test_hooks_raise_once_a_technique_is_marked_implemented(technique: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    sa, _ = analyzer({technique: True})
-    original = ValueInferrer.runs
-    monkeypatch.setattr(ValueInferrer, "runs", lambda self, tid: tid == technique or original(self, tid))
-    with pytest.raises(NotImplementedError, match=technique):
-        sa.infer_model(root(RECORDS))

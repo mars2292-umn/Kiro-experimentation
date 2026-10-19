@@ -193,8 +193,14 @@ CONFIG_FILE_TEXT = '[run]\nseed = 7\n[techniques]\n"values.format" = false\n'
 CONFIGURATIONS: dict[str, tuple[list[str], dict[str, Any]]] = {
     "defaults": (["--set", "workers=1"], {"workers": 1}),
     "file and flags": (
-        ["-c", "FILE", "--technique", "decide.mdl=off", "--set", "output.inline_provenance=true", "--set", "workers=1"],
-        {"techniques.decide.mdl": False, "output.inline_provenance": True, "workers": 1},
+        [
+            "-c", "FILE", "--technique", "decide.mdl=off", "--technique", "structure.hybrid_record_map=off",
+            "--set", "output.inline_provenance=true", "--set", "workers=1",
+        ],  # the hybrid partition needs decide.mdl (28.8), so both go off
+        {
+            "techniques.decide.mdl": False, "techniques.structure.hybrid_record_map": False,
+            "output.inline_provenance": True, "workers": 1,
+        },
     ),
 }
 

@@ -1410,14 +1410,25 @@ def check_reference_support(result: PipelineResult, state: RunState) -> None:
             event("branch Support below its total")
 
 
+def is_hybrid(node: SchemaNode) -> bool:
+    """A partitioned object node (4.5): Record fields next to a Map part."""
+    if node.boolean is not None or "properties" not in node.kw:
+        return False
+    additional = node.kw.get("additionalProperties")
+    return "patternProperties" in node.kw or (isinstance(additional, SchemaNode) and additional.boolean is None)
+
+
 def judgment_of(node: SchemaNode, cid: ConstraintId, record: ProvenanceRecord) -> tuple[str, str] | None:
     """The Judgment_Call kind and outcome a Constraint expresses, if it is one's (design granularity table)."""
     keyword = cid.keyword
+    hybrid = is_hybrid(node)
     if keyword == "properties":
-        return "record_or_map", "record"
+        return None if hybrid else ("record_or_map", "record")  # a partition's fields carry the partition decision
     if keyword == "additionalProperties":
         value = node.kw[keyword]
-        return ("closed_or_open_record", "closed") if value.boolean is False else ("record_or_map", "map")
+        if value.boolean is False:
+            return "closed_or_open_record", "closed"
+        return None if hybrid else ("record_or_map", "map")
     if keyword == "prefixItems":
         return "tuple_or_list", "tuple"
     if keyword == "items":
@@ -1472,6 +1483,8 @@ def check_judgment_calls(result: PipelineResult, state: RunState) -> None:
 
     entries = [entry for entry in result.report.decisions if entry.kind in JUDGMENT_OUTCOMES]
     keys = {(entry.kind, entry.path, resolution_text(entry.resolution)) for entry in entries}
+    hybrids = {render_path(paths[nid]) for nid, node in nodes.items() if is_hybrid(node)}
+    pattern_hybrids = {render_path(paths[nid]) for nid, node in nodes.items() if is_hybrid(node) and "patternProperties" in node.kw}
     for key, cids in held.items():
         assert key in keys, f"{cids}: no report decision of {key[0]} at {key[1]} with the record's resolution"
     rejected = [entry for entry in result.report.rejected if entry.category == "enums"]
@@ -1481,6 +1494,9 @@ def check_judgment_calls(result: PipelineResult, state: RunState) -> None:
         if entry.kind == "merge_or_split" and entry.details.get("origin") in CROSS_PATH:
             # 8.3, 8.4: a cross-Path grouping kept apart leaves the Paths as they are; a merge is on its $ref nodes.
             event(f"cross-Path Merge-or-Split {label} ({entry.details['origin']})")
+            continue
+        if entry.kind == "record_or_map" and entry.path in hybrids:
+            event("Record-or-Map replaced by the hybrid partition (4.5)")  # its Constraints carry the partition decision
             continue
         if (entry.kind, label) in PRODUCING:
             assert key in held, f"{entry.kind}={label} at {entry.path} produced no Constraint carrying its record"
@@ -1496,7 +1512,11 @@ def check_judgment_calls(result: PipelineResult, state: RunState) -> None:
                 assert found, f"the open enum at {entry.path} has no rejected enum candidate with its statistics"
 
     # 4.7: every Record Path resolves Closed-or-Open, the 4.11 Paths without keys included.
-    records = Counter(e.path for e in entries if e.kind == "record_or_map" and selected_label(e.resolution) == "record")
+    records = Counter(
+        e.path for e in entries
+        if e.kind == "record_or_map" and selected_label(e.resolution) == "record" and e.path not in hybrids
+    )
+    records.update(sorted(pattern_hybrids))  # 4.7: a partition emitted under patternProperties resolves Closed-or-Open
     keyless = Counter(
         render_path(paths[cid.nid])
         for cid, record in analyzer.provenance.items()

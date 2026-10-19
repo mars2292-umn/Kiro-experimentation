@@ -426,6 +426,14 @@ def setups(draw: st.DrawFn, bundles: Mapping[str, str], scenario: str, technique
     elif scenario == "one off":
         assert technique is not None
         base[technique_setting(technique)] = False
+        # A disabled prerequisite takes its dependents with it, transitively (28.8; the ablation rule of 30.10).
+        off = {technique}
+        while True:
+            more = {t for t in REGISTRY.ids() if t not in off and set(REGISTRY.technique(t).prerequisites) & off}
+            if not more:
+                break
+            off |= more
+        base.update({technique_setting(t): False for t in off})
     else:  # "one on" (with its prerequisites, none of which an implemented Technique has yet) or "all off"
         closure = set() if technique is None else {technique, *REGISTRY.technique(technique).prerequisites}
         base.update({technique_setting(tid): tid in closure for tid in REGISTRY.ids()})

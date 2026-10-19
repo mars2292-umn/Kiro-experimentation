@@ -53,6 +53,7 @@ from jsinfer.structure.analyzer import StructureAnalyzer
 
 EMITTER = SchemaEmitter()
 ONE_WORKER = RunConfiguration.resolve({"workers": 1})
+NO_HYBRID = RunConfiguration.resolve({"workers": 1, "techniques.structure.hybrid_record_map": False})
 ALL_OFF = RunConfiguration.resolve({"workers": 1, **{technique_setting(tid): False for tid in REGISTRY.ids()}})
 
 
@@ -799,7 +800,8 @@ def test_every_record_of_pipeline_runs_is_rendered(tmp_path: Path, monkeypatch: 
         "orders": infer_documents(ORDERS, ONE_WORKER),
         "all-off": infer_documents(ORDERS, ALL_OFF),
         "enum-and-objects": infer_documents(ENUM_AND_OBJECTS, ONE_WORKER),
-        "mixed": infer_documents(MIXED, ONE_WORKER),
+        "mixed": infer_documents(MIXED, NO_HYBRID),  # the user Records stay a Map with propertyNames
+        "hybrid": infer_documents(MIXED, ONE_WORKER),  # the hybrid partition (4.5) puts them under patternProperties
         "relaxed": relaxed_run(monkeypatch),
     }
     seen: dict[str, ProvenanceRecord] = {}
@@ -820,6 +822,7 @@ def test_every_record_of_pipeline_runs_is_rendered(tmp_path: Path, monkeypatch: 
     assert having(lambda _, r: r.cutoff is not None and r.cutoff.source == MDL_COMPARISON)
     assert having(lambda k, r: k.startswith("enum-and-objects:/anyOf/") and r.details.get("branch"))
     assert having(lambda k, _: k.startswith("mixed:") and k.endswith("/propertyNames"))
+    assert having(lambda k, r: k.startswith("hybrid:") and k.endswith("/patternProperties") and r.details.get("judgment") == "hybrid")
     relaxed = seen["relaxed:/properties/id/maximum"]
     assert relaxed.changes and relaxed.changes[0].resolution is not None
     text = explain(runs["relaxed"].schema, EMITTER.explanation(runs["relaxed"].model, runs["relaxed"].pointers),
