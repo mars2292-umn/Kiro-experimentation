@@ -824,9 +824,9 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
     _technique("structure.hybrid_record_map", "Hybrid Record/Map partitioning", "should",
                implemented=False, prerequisites=("decide.mdl",)),
     _technique("structure.shared_defs", "Shared_Definition extraction", "should",
-               implemented=False),
+               implemented=True),
     _technique("structure.recursion", "recursion detection", "should",
-               implemented=False),
+               implemented=True),
     _technique("structure.array_grammar", "array grammar inference", "could",
                implemented=False),
     # Inter-field rules (co-occurrence: task 14.2, deps/cooccurrence.py)

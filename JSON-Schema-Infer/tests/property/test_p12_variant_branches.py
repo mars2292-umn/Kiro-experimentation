@@ -164,6 +164,8 @@ from tests.strategies import KEYS, SCHEMA_TYPE_NAMES, TECHNIQUE_SETTINGS, run_co
 VALIDATOR = Validator()
 MDL = "decide.mdl"
 COOCCURRENCE = "rules.cooccurrence"
+SHARED_DEFS = "structure.shared_defs"
+RECURSION = "structure.recursion"
 COMBINATORS = (ANY_OF, ONE_OF)
 
 Where = tuple[int, tuple[str | int, ...]]  # (document index, steps from the document root)
@@ -463,6 +465,8 @@ def setups(draw: st.DrawFn) -> Setup:
     for tid in (MDL, BERNOULLI_MIXTURE):
         if draw(st.integers(0, 3), label=f"force {tid}") != 0:
             base[technique_setting(tid)] = True
+    base[technique_setting(SHARED_DEFS)] = False  # Path-by-Path walks: shared definitions are Property 16's
+    base[technique_setting(RECURSION)] = False
     config = draw(run_configs(vary=(*TECHNIQUE_SETTINGS, "seed"), base=base), label="config")
     # Each Technique's Learned_Thresholds are present together or absent (20.6: a missing one disables it).
     thresholds: dict[str, int | float] = {}

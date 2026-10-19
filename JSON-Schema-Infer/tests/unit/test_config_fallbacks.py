@@ -289,7 +289,8 @@ def test_record_or_map_without_its_decision_model_is_resolved_by_mdl() -> None:
 
 
 def test_record_or_map_without_mdl_is_a_record() -> None:
-    result = run(USER_MAPS, config(disabled=[MDL]))  # MDL would say Map
+    # Shared definitions (8.1) would fold the equal user Records into one definition: off, to read one entry per Path.
+    result = run(USER_MAPS, config(disabled=[MDL, "structure.shared_defs", "structure.recursion"]))  # MDL would say Map
     keys = {key for doc in USER_MAPS for key in doc}
     assert set(result.document["properties"]) == keys and "additionalProperties" not in result.document
     by_pointer = records(result)

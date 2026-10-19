@@ -1428,6 +1428,7 @@ def merge_or_split(
     *,
     scorer: MDLScorer | None = None,
     features: MergeSplitFeatures | None = None,
+    details: Mapping[str, JSON] | None = None,
 ) -> MergeSplitOutcome:
     """Resolve the Merge-or-Split Judgment_Call of ``variants`` (5.3, 5.11); see the module docstring.
 
@@ -1460,7 +1461,9 @@ def merge_or_split(
     def featurize() -> np.ndarray:
         return (features or merge_split_features)(variants, candidates)
 
-    decision = engine.resolve(DecisionPoint(MERGE_OR_SPLIT, variants.path), candidates, signatures.objects, featurize)
+    decision = engine.resolve(
+        DecisionPoint(MERGE_OR_SPLIT, variants.path), candidates, signatures.objects, featurize, details=details
+    )
     return MergeSplitOutcome(variants, decision.label == MERGE, decision)
 
 
@@ -1898,9 +1901,9 @@ class VariantAnalyzer:
 
     # -- Merge-or-Split and branches ----------------------------------------
 
-    def merge_or_split(self, variants: VariantGrouping) -> MergeSplitOutcome:
+    def merge_or_split(self, variants: VariantGrouping, *, details: Mapping[str, JSON] | None = None) -> MergeSplitOutcome:
         """:func:`merge_or_split` with this run's engine, scorer, and features (5.3, 5.11)."""
-        return merge_or_split(variants, self._engine, scorer=self._scorer, features=self._merge_features)
+        return merge_or_split(variants, self._engine, scorer=self._scorer, features=self._merge_features, details=details)
 
     def branches(self, outcome: MergeSplitOutcome, *, variant_schema: VariantSchema = naive_merge_node) -> VariantNode:
         """:func:`variant_branches` with this run's Validator (5.4, 5.5, 5.6)."""

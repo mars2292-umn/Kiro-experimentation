@@ -195,6 +195,7 @@ JUDGMENT_OUTCOMES: dict[str, tuple[str, str]] = {
     "merge_or_split": ("merge", "split"),
 }
 # The outcomes that produce a Constraint; the others (open Record, open enum, merged Variants) produce none.
+CROSS_PATH = frozenset({"structure.recursion", "structure.shared_defs"})
 PRODUCING = frozenset(
     {
         ("record_or_map", "record"),
@@ -809,10 +810,9 @@ class Reference:
         return Bounds(total, total + maybe, consistent, consistent + undecided + maybe)
 
 
-def logical_paths(model: SchemaModel) -> dict[int, tuple[Step, ...]]:
-    """The logical Path of each node reached from the root without ``$defs``, ``not``, or ``propertyNames``."""
-    paths: dict[int, tuple[Step, ...]] = {model.root.nid: ()}
-    stack = [model.root]
+def _walk_paths(root: SchemaNode, base: tuple[Step, ...], ref_sites: dict[str, tuple[Step, ...]]) -> dict[int, tuple[Step, ...]]:
+    paths: dict[int, tuple[Step, ...]] = {root.nid: base}
+    stack = [root]
     while stack:
         node = stack.pop()
         if node.boolean is not None:
@@ -834,9 +834,35 @@ def logical_paths(model: SchemaModel) -> dict[int, tuple[Step, ...]]:
                 children.extend((child, base) for child in value)
             elif keyword in ("if", "then", "else"):
                 children.append((value, base))
-        for child, path in children:
+        for child, path in reversed(children):  # a pre-order walk in keyword order, as the analyzer's
             paths[child.nid] = path
             stack.append(child)
+        if node.boolean is None and isinstance(node.kw.get("$ref"), str):
+            ref = node.kw["$ref"]
+            if ref.startswith("#/$defs/") and "/" not in ref[len("#/$defs/"):]:
+                token = unquote(ref[len("#/$defs/"):]).replace("~1", "/").replace("~0", "~")
+                ref_sites.setdefault(token, base)
+    return paths
+
+
+def logical_paths(model: SchemaModel) -> dict[int, tuple[Step, ...]]:
+    """The logical Path of each node reached from the root (``not`` and ``propertyNames`` excluded).
+
+    A ``$defs`` body (8.1-8.3) takes the Path of the first site referring to
+    it in the walk: the site whose subschema became the body.
+    """
+    root = model.root
+    ref_sites: dict[str, tuple[Step, ...]] = {}
+    paths = _walk_paths(root, (), ref_sites)
+    defs = root.kw.get("$defs", {}) if root.boolean is None else {}
+    pending = dict(defs)
+    while pending:
+        ready = [name for name in pending if name in ref_sites]
+        if not ready:
+            ready = sorted(pending)  # referenced from nowhere reached: no Path of their own
+        for name in ready:
+            body = pending.pop(name)
+            paths.update(_walk_paths(body, ref_sites.get(name, ()), ref_sites))
     return paths
 
 
@@ -1452,6 +1478,10 @@ def check_judgment_calls(result: PipelineResult, state: RunState) -> None:
     for entry in entries:
         label = selected_label(entry.resolution)
         key = (entry.kind, entry.path, resolution_text(entry.resolution))
+        if entry.kind == "merge_or_split" and entry.details.get("origin") in CROSS_PATH:
+            # 8.3, 8.4: a cross-Path grouping kept apart leaves the Paths as they are; a merge is on its $ref nodes.
+            event(f"cross-Path Merge-or-Split {label} ({entry.details['origin']})")
+            continue
         if (entry.kind, label) in PRODUCING:
             assert key in held, f"{entry.kind}={label} at {entry.path} produced no Constraint carrying its record"
         else:

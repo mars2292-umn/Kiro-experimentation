@@ -442,8 +442,28 @@ def ref_target(model: SchemaModel, node: SchemaNode) -> SchemaNode | None:
         return None
     ref = node.kw["$ref"]
     pointer = unquote(ref[1:]) if isinstance(ref, str) and ref.startswith("#") else ""
+    if pointer == "":  # a recursive definition whose body is the root (8.4)
+        return model.root
     assert split_pointer(pointer)[:1] == ["$defs"], f"the reference walk needs root $defs references, got {ref!r}"
     return model.resolve(pointer)
+
+
+ROOT_DEF = "root"
+
+
+def _refers_to_root(value: JSON) -> bool:
+    if isinstance(value, dict):
+        return any(k == "$ref" and v == "#" or _refers_to_root(v) for k, v in value.items())
+    return isinstance(value, list) and any(_refers_to_root(v) for v in value)
+
+
+def _reroot(value: JSON, name: str) -> JSON:
+    """``value`` with every ``{"$ref": "#"}`` pointing at ``#/$defs/<name>`` instead."""
+    if isinstance(value, dict):
+        return {k: (f"#/$defs/{name}" if k == "$ref" and v == "#" else _reroot(v, name)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_reroot(v, name) for v in value]
+    return value
 
 
 class Reach:
@@ -459,10 +479,24 @@ class Reach:
         self._checks: dict[int, Compiled] = {}
 
     def standalone(self, part: JSON) -> JSON:
-        """``part`` as a schema of its own: the root ``$defs`` copied in, which every reference names."""
-        if isinstance(part, bool) or self.defs is None:
+        """``part`` as a schema of its own: the root ``$defs`` copied in, which every reference names.
+
+        A ``"#"`` reference (a recursive root definition, 8.4) would name the
+        part itself, so the root is copied in as a definition and such
+        references are redirected to it.
+        """
+        if isinstance(part, bool):
             return part
-        return {**part, "$defs": self.defs}  # type: ignore[dict-item]
+        defs = dict(self.defs) if isinstance(self.defs, dict) else {}
+        if isinstance(self.doc, dict) and _refers_to_root(part):
+            name = ROOT_DEF
+            while name in defs:
+                name += "_"
+            defs[name] = _reroot({k: v for k, v in self.doc.items() if k != "$defs"}, name)
+            part = _reroot(part, name)
+        if not defs:
+            return part
+        return {**part, "$defs": defs}  # type: ignore[dict-item]
 
     def subschema(self, node: SchemaNode) -> JSON:
         return json_at(self.doc, self.pointers[node.nid])

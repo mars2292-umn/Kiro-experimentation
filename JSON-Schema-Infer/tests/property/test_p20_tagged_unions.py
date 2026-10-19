@@ -45,6 +45,10 @@ class StubBundle:
         return "stub"
 
 
+# The branches are read at their Paths: shared definitions and recursion (Property 16) stay off.
+PATH_BY_PATH = {"structure.shared_defs": False, "structure.recursion": False}
+
+
 @st.composite
 def unions(draw: st.DrawFn) -> tuple[list[dict[str, Any]], float]:
     tags = draw(st.lists(st.sampled_from(TAGS), min_size=2, max_size=4, unique=True), label="tags")
@@ -68,7 +72,7 @@ def unions(draw: st.DrawFn) -> tuple[list[dict[str, Any]], float]:
 def test_selected_discriminator_branches_are_exact(case: tuple[list[dict[str, Any]], float]) -> None:
     docs, threshold = case
     report = InferenceReport()
-    sa = StructureAnalyzer.for_techniques(bundle=StubBundle(threshold), report=report)
+    sa = StructureAnalyzer.for_techniques(PATH_BY_PATH, bundle=StubBundle(threshold), report=report)
     model = sa.infer_model(View.root(build_store(docs)))
     records = [r for cid, r in model.provenance.items() if cid.keyword == "oneOf" and r.technique == "rules.decision_trees"]
     if not records:

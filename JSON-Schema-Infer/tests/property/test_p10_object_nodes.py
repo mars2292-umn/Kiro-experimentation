@@ -167,6 +167,8 @@ EMITTER = SchemaEmitter()
 
 MDL = "decide.mdl"
 HYBRID = "structure.hybrid_record_map"
+SHARED_DEFS = "structure.shared_defs"
+RECURSION = "structure.recursion"
 COMBINATORS = ("anyOf", "oneOf")
 # Object keywords: none may appear on a node that no object reaches.
 OBJECT_KEYWORDS = frozenset(
@@ -541,6 +543,9 @@ class Setup:
 @st.composite
 def setups(draw: st.DrawFn, scenario: str) -> Setup:
     base: dict[str, Any] = {technique_setting(MDL): True} if scenario == "stubbed" else {}
+    # The walk follows the schema's object Paths node by node; Shared_Definitions and recursion (8.1-8.3,
+    # Property 16) re-layout them behind ``$ref``, so this property runs with those techniques off.
+    base.update({technique_setting(SHARED_DEFS): False, technique_setting(RECURSION): False})
     config = draw(run_configs(vary=(*TECHNIQUE_SETTINGS, "seed"), base=base), label="config")
     salt = draw(st.integers(0, 2**32 - 1), label="salt")
     closing = draw(st.booleans(), label="closing Decision_Model")
@@ -639,7 +644,10 @@ class Walk:
         self.report = report
         self.hybrid_in_effect = REGISTRY.technique(HYBRID).implemented and setup.config.techniques[HYBRID]
         self.flagged = set(case.flagged_items)
-        self.document = VALIDATOR.compile(EMITTER.layout(model)[0])
+        emitted = EMITTER.layout(model)[0]
+        self.document = VALIDATOR.compile(emitted)
+        # A subtree compiled alone must still resolve the root's shared definitions (Shared_Definitions, 8.1).
+        self.defs = emitted.get("$defs", {}) if isinstance(emitted, dict) else {}
         self.kind_index: dict[frozenset[Address], list[int]] = {}
         for i, (seen, _) in enumerate(spy.kinds):
             self.kind_index.setdefault(seen, []).append(i)
@@ -993,7 +1001,7 @@ class Walk:
         key = unknown_key(observed, patterns)
         if key is None:
             return
-        compiled = VALIDATOR.compile(node.to_json())
+        compiled = VALIDATOR.compile({**node.to_json(), "$defs": self.defs} if self.defs else node.to_json())
         tested = 0
         for _, obj in objects:
             if tested == LOCAL_TESTS:

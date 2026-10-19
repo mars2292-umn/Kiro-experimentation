@@ -416,7 +416,7 @@ def test_closed_enum_beside_other_types_is_its_own_branch() -> None:
 
 def test_closed_enum_beside_variants_comes_after_them() -> None:
     docs = COLLECTIONS["families-enum"]
-    model, _ = infer(docs)
+    model, _ = infer(docs, {"structure.shared_defs": False})  # Shared_Definitions (8) would merge the two Variants
     branches = model.root.kw[ANY_OF]
     assert [b.kw["type"] for b in branches] == [["object"], ["object"], ["string"], ["array"]]
     assert branches[2].kw["enum"] == ["a", "b"]
@@ -558,7 +558,7 @@ def test_enabled_unimplemented_techniques_offer_nothing() -> None:
 
 
 @pytest.mark.parametrize(
-    "technique", ["structure.hybrid_record_map", "structure.shared_defs", "structure.recursion"]
+    "technique", ["structure.hybrid_record_map"]
 )
 def test_hooks_raise_once_a_technique_is_marked_implemented(technique: str, monkeypatch: pytest.MonkeyPatch) -> None:
     sa, _ = analyzer({technique: True})

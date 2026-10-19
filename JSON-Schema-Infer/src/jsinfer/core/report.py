@@ -1653,13 +1653,16 @@ class InferenceReport:
 
     __slots__ = (
         "_active",
+        "_decision_seqs",
         "_decisions",
         "_discarded",
         "_flagged",
         "_ingest_errors",
         "_nearest",
         "_rejected",
+        "_rejected_seqs",
         "_resources",
+        "_seq",
         "_run",
         "_soundness",
         "_status",
@@ -1680,6 +1683,9 @@ class InferenceReport:
         self._versions: VersionsInfo | None = None
         self._decisions: list[DecisionEntry] = []
         self._rejected: list[RejectedCandidate] = []
+        self._seq = 0  # one sequence over decisions and rejected candidates, in recording order
+        self._decision_seqs: list[int] = []
+        self._rejected_seqs: list[int] = []
         self._soundness: dict[int | None, SoundnessSummary] = {}
         self._nearest: NearestInfo | None = None
         self._timings: dict[str, list[float]] = {}
@@ -1820,14 +1826,39 @@ class InferenceReport:
     def record_decision(self, entry: DecisionEntry) -> None:
         """Record a resolved Decision_Point (19.5, 20.7)."""
         self._decisions.append(_instance(entry, DecisionEntry, "decision"))
+        self._decision_seqs.append(self._seq)
+        self._seq += 1
 
     @property
     def decisions(self) -> tuple[DecisionEntry, ...]:
         return tuple(sorted(self._decisions, key=DecisionEntry.sort_key))
 
+    def mark(self) -> int:
+        """The position in the recording order of decisions and rejected candidates (for :meth:`forget_between`)."""
+        return self._seq
+
+    def forget_between(self, start: int, end: int) -> int:
+        """Drop the decisions and rejected candidates recorded between two :meth:`mark` positions.
+
+        For the entries a subtree's analysis produced when that subtree
+        leaves the model (8.1-8.3: sites re-inferred as one
+        Shared_Definition from the union of their Observations), so the
+        report describes the schema as emitted. Entries recorded outside
+        ``[start, end)``, such as those of definitions inferred later, stay.
+        Returns the number of entries dropped.
+        """
+        before = len(self._decisions) + len(self._rejected)
+        decisions = [(seq, e) for seq, e in zip(self._decision_seqs, self._decisions) if not start <= seq < end]
+        rejected = [(seq, e) for seq, e in zip(self._rejected_seqs, self._rejected) if not start <= seq < end]
+        self._decision_seqs, self._decisions = [s for s, _ in decisions], [e for _, e in decisions]
+        self._rejected_seqs, self._rejected = [s for s, _ in rejected], [e for _, e in rejected]
+        return before - len(self._decisions) - len(self._rejected)
+
     def record_rejected(self, entry: RejectedCandidate) -> None:
         """Record a rejected candidate or suggestion."""
         self._rejected.append(_instance(entry, RejectedCandidate, "rejected candidate"))
+        self._rejected_seqs.append(self._seq)
+        self._seq += 1
 
     @property
     def rejected(self) -> tuple[RejectedCandidate, ...]:

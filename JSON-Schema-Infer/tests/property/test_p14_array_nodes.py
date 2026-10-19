@@ -129,6 +129,8 @@ from tests.strategies import KEYS, TECHNIQUE_SETTINGS, json_values, run_configs
 VALIDATOR = Validator()
 SCORER = MDLScorer(validator=VALIDATOR)
 MDL = "decide.mdl"
+SHARED_DEFS = "structure.shared_defs"
+RECURSION = "structure.recursion"
 
 Location = tuple[int | str, ...]  # (document index, then keys and array indices)
 
@@ -548,10 +550,12 @@ SCENARIOS = ("drawn", "tupling", "all off")
 
 
 def configs(scenario: str) -> st.SearchStrategy[RunConfiguration]:
+    # Path-by-Path walks: shared definitions and recursion (Property 16) stay off.
+    off = {technique_setting(SHARED_DEFS): False, technique_setting(RECURSION): False}
     if scenario == "drawn":
-        return run_configs(vary=TECHNIQUE_SETTINGS)
+        return run_configs(vary=TECHNIQUE_SETTINGS, base=off)
     if scenario == "tupling":
-        return run_configs(vary=TECHNIQUE_SETTINGS, base={technique_setting(MDL): True})
+        return run_configs(vary=TECHNIQUE_SETTINGS, base={**off, technique_setting(MDL): True})
     return run_configs(vary=TECHNIQUE_SETTINGS, base={technique_setting(tid): False for tid in REGISTRY.ids()})
 
 

@@ -138,6 +138,10 @@ M2_THRESHOLDS: Final[tuple[str, ...]] = (
 )
 
 
+# Techniques whose Judgment_Calls cross Paths (8.1-8.4): off in an oracle run (see featurization_config).
+CROSS_PATH_TECHNIQUES: Final = ("structure.shared_defs", "structure.recursion")
+
+
 # ---------------------------------------------------------------------------
 # Examples
 # ---------------------------------------------------------------------------
@@ -250,6 +254,7 @@ class OracleEngine(DecisionEngine):
         mdl_by: str | None = None,
         cutoff: Any = None,
         scorer: MDLScorer | None = None,
+        details: Mapping[str, JSON] | None = None,
     ) -> Decision:
         offered = list(candidates)
         label: str | None = None
@@ -271,7 +276,7 @@ class OracleEngine(DecisionEngine):
                     )
                     self._seen.add((aligned, dp.kind))
                     label = truth
-        decision = super().resolve(dp, offered, view, features, mdl_by=mdl_by, cutoff=cutoff, scorer=scorer)
+        decision = super().resolve(dp, offered, view, features, mdl_by=mdl_by, cutoff=cutoff, scorer=scorer, details=details)
         if dp.kind == "variant_grouping":
             return self._expose_merge_or_split(dp, offered, view, decision)
         if label is not None and decision.label != label:
@@ -312,9 +317,14 @@ class OracleEngine(DecisionEngine):
 
 def featurization_config(flags: Mapping[str, Any] | None = None) -> RunConfiguration:
     """The Run_Configuration of an oracle run: one worker, the Decision_Models off (MDL resolves), plus ``flags``."""
-    settings: dict[str, Any] = {"workers": 1, **(flags or {})}
+    settings: dict[str, Any] = {"workers": 1}
     for tid in DECISION_MODEL_TECHNIQUES.values():
         settings[technique_setting(tid)] = False
+    # Shared_Definitions and recursion (8.1-8.4) judge across Paths and re-infer merged Paths from unions: those
+    # Judgment_Calls carry no planted label and would move the per-Path calls off the source schema's Paths.
+    for tid in CROSS_PATH_TECHNIQUES:
+        settings[technique_setting(tid)] = False
+    settings.update(flags or {})
     return RunConfiguration.resolve(settings)
 
 

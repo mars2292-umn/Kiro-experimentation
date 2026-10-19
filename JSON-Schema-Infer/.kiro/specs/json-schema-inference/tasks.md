@@ -672,14 +672,14 @@ Conventions used by every task:
     - **Property 17: Mining primitives equal brute-force references** (maximal Exclusion_Rule candidates)
     - **Validates: Requirements 11.1**
 
-- [ ] 36. Implement Shared_Definitions and recursion
-  - [ ] 36.1 Implement the shared-definition pass (`structure/shared_defs.py`, `structure/analyzer.py`, `pipeline/infer.py`, `config/registry.py`)
+- [x] 36. Implement Shared_Definitions and recursion
+  - [x] 36.1 Implement the shared-definition pass (`structure/shared_defs.py`, `structure/analyzer.py`, `pipeline/infer.py`, `config/registry.py`)
     - Canonical subschema hash that ignores provenance; inline vs extracted model-bit comparison with rejections reported
     - Cross-Path Merge-or-Split over union views for object subschemas sharing a property, using the same Decision_Model kind
     - Recursion: prefix-related pairs become a self-referencing definition inferred from the union of levels, and the analyzer emits `$ref` at the recursive step
     - Naming per 8.5 with collision suffixes and default name `def`; Support across referencing Paths; `structure.shared_defs` and `structure.recursion` toggles per 8.7 and 8.8
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 26.2_
-  - [ ] 36.2 Write property test for Shared_Definitions
+  - [x] 36.2 Write property test for Shared_Definitions
     - **Property 16: Shared definitions are faithful**
     - **Validates: Requirements 8.2, 8.4, 8.5**
 

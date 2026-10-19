@@ -556,7 +556,7 @@ class DecisionEngine:
     ``scorer`` is the default MDL_Scorer.
     """
 
-    __slots__ = ("_bundle", "_models", "_report", "_requirements", "_scorer", "_states")
+    __slots__ = ("_bundle", "_extra", "_models", "_report", "_requirements", "_scorer", "_states")
 
     def __init__(
         self,
@@ -567,6 +567,7 @@ class DecisionEngine:
         scorer: MDLScorer | None = None,
     ) -> None:
         self._states = _states({} if techniques is None else techniques)
+        self._extra: dict[str, JSON] | None = None
         if report is not None and not isinstance(report, InferenceReport):
             raise TypeError(f"report must be an InferenceReport or None, got {type(report).__name__}")
         if scorer is not None and not isinstance(scorer, MDLScorer):
@@ -635,8 +636,13 @@ class DecisionEngine:
         mdl_by: str | None = None,
         cutoff: Cutoff | None = None,
         scorer: MDLScorer | None = None,
+        details: Mapping[str, JSON] | None = None,
     ) -> Decision:
         """Resolve ``dp`` among ``candidates`` (see the module docstring for the order).
+
+        ``details`` are added to the Decision's (and so to its report entry
+        and the records it produces): what the caller knows about the point,
+        for example the origin of a cross-Path grouping.
 
         ``view`` holds the Observations MDL scores candidates on (19.3); it
         may be None when every candidate carries a ``score`` or no MDL step
@@ -654,6 +660,23 @@ class DecisionEngine:
             raise TypeError(f"cutoff must be a Cutoff or None, got {type(cutoff).__name__}")
         if scorer is not None and not isinstance(scorer, MDLScorer):
             raise TypeError(f"scorer must be an MDLScorer or None, got {type(scorer).__name__}")
+        self._extra = dict(details) if details else None
+        try:
+            return self._resolve(dp, candidates, view, features, mdl_by=mdl_by, cutoff=cutoff, scorer=scorer)
+        finally:
+            self._extra = None
+
+    def _resolve(
+        self,
+        dp: DecisionPoint,
+        candidates: Iterable[Candidate],
+        view: View | None,
+        features: Callable[[], np.ndarray] | None,
+        *,
+        mdl_by: str | None,
+        cutoff: Cutoff | None,
+        scorer: MDLScorer | None,
+    ) -> Decision:
         spec = REGISTRY.decision_point(dp.kind)
         if mdl_by is not None and mdl_by not in spec.served_by:
             raise ValueError(f"mdl_by {mdl_by!r} does not serve Decision_Point {spec.kind!r}")
@@ -900,6 +923,8 @@ class DecisionEngine:
         )
 
     def _finish(self, decision: Decision) -> Decision:
+        if self._extra:
+            decision = replace(decision, details={**decision.details, **self._extra})
         if self._report is not None:
             self._report.record_decision(decision.entry)
         return decision

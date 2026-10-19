@@ -182,6 +182,8 @@ Determinism
 
 from __future__ import annotations
 
+import dataclasses
+
 import sys
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -197,8 +199,9 @@ from jsinfer.core.jsonvalue import JSON, JType
 from jsinfer.core.provenance import ProvenanceRecord, Support
 from jsinfer.core.report import InferenceReport, RejectedCandidate
 from jsinfer.core.schema_model import ConstraintId, SchemaModel, SchemaNode
+from jsinfer.core.paths import ELEM_STEP, Path, key_step, render_path
 from jsinfer.core.views import View
-from jsinfer.decide.engine import ArtifactSource, DecisionEngine, DecisionPoint
+from jsinfer.decide.engine import ArtifactSource, Decision, DecisionEngine, DecisionPoint
 from jsinfer.deps.cooccurrence import CooccurrenceMiner
 from jsinfer.deps.exclusions import ExclusionMiner, ExclusionRules
 from jsinfer.deps.tagged_unions import TREES, Discriminator, DiscriminatorMiner
@@ -215,6 +218,18 @@ from jsinfer.learn.features import (
     tuple_list_features,
 )
 from jsinfer.structure.record_map import ClosedOpenOutcome, RecordMapAnalyzer, RecordMapOutcome, object_rows
+from jsinfer.structure.shared_defs import (
+    DEFS,
+    RECURSION,
+    SHARED_DEFS,
+    Definition,
+    SharedDefinitionPass,
+    assign_names,
+    level_grouping,
+    preferred_name,
+    ref_node,
+    ref_string,
+)
 from jsinfer.structure.variants import ANY_OF, ONE_OF, MergeSplitOutcome, VariantAnalyzer, VariantNode
 from jsinfer.values.inferrer import ScalarNode, ValueInferrer
 
@@ -280,6 +295,11 @@ class _Records:
     def update(self, records: Mapping[ConstraintId, ProvenanceRecord]) -> None:
         for cid, record in records.items():
             self.add(cid, record)
+
+    def discard_subtree(self, node: SchemaNode) -> None:
+        """Forget the records of ``node`` and every subschema below it (a node replaced by a ``$ref``)."""
+        for _, inner in node.walk():
+            self._by_node.pop(inner.nid, None)
 
     def drop(self, node: SchemaNode, keyword: str, item: str | int | None = None) -> None:
         """Forget the record of one Constraint, if any (a replaced keyword)."""
@@ -353,6 +373,17 @@ class _Split:
 # ---------------------------------------------------------------------------
 
 
+_MAX_MERGES: Final = 16  # cross-Path merges (8.3) one model performs
+
+
+def _property_names(objects: View) -> set[str]:
+    """The property names of the non-flagged objects of a view (empty when it has none)."""
+    if objects.is_empty:
+        return set()
+    stats = objects.stats()
+    return {objects.store.key_name(int(kid)) for kid in stats.key_ids.tolist()}
+
+
 def _levels(view: View) -> int:
     """An upper bound on the walk's nesting levels below ``view``: the steps of its store's deepest column, plus one."""
     return max((len(column) for column in view.store.columns), default=0) + 1
@@ -392,7 +423,11 @@ class StructureAnalyzer:
     components; each must use ``values.engine``.
     """
 
-    __slots__ = ("_arrays", "_cooccurrence", "_discriminators", "_exclusion_miner", "_field_groups_miner", "_groups_by_nid", "_record_map", "_records", "_scorer", "_values", "_variants")
+    __slots__ = (
+        "_arrays", "_building", "_cooccurrence", "_definitions", "_discriminators", "_exclusion_miner",
+        "_entries_by_nid", "_field_groups_miner", "_groups_by_nid", "_record_map", "_records", "_recursive",
+        "_scorer", "_shared_defs", "_values", "_variants", "_views_by_nid",
+    )
 
     def __init__(
         self,
@@ -471,6 +506,12 @@ class StructureAnalyzer:
             else ExclusionMiner(engine, scorer=scorer, report=values.report, validator=validator)
         )
         self._groups_by_nid: dict[int, tuple[frozenset[str], ...]] = {}
+        self._shared_defs = SharedDefinitionPass(engine, scorer=scorer, report=values.report)
+        self._definitions: list[Definition] = []
+        self._recursive: dict[Path, tuple[int, Decision]] = {}  # recursive step Path -> (definition index, decision)
+        self._building: set[Path] = set()
+        self._views_by_nid: dict[int, View] = {}  # node nid -> the view it was inferred from (8.1-8.3 unions)
+        self._entries_by_nid: dict[int, tuple[int, int]] = {}  # node nid -> the report entries its analysis recorded
         for name, component in (
             ("record_map", self._record_map),
             ("variants", self._variants),
@@ -580,8 +621,19 @@ class StructureAnalyzer:
         if not isinstance(view, View):
             raise TypeError(f"infer_model takes a View, got {type(view).__name__}")
         self._records = _Records()
+        self._definitions = []
+        self._recursive = {}
+        self._building = set()
+        self._views_by_nid = {}
+        self._entries_by_nid = {}
         with _recursion_room(_levels(view)):
             root = self.analyze(view)
+        root = self._hoist_root_definition(root)
+        self._fill_references()  # 8.4
+        self._merge_similar(root)  # 8.3 across non-prefix Paths
+        root = self._extract_definitions(root)  # 8.1, 8.2, 8.6, 8.7
+        self._prune_definitions(root)
+        self._name_definitions(root)  # 8.5
         model = SchemaModel(root=root, provenance=self._records.constraint_ids())
         nodes = model.index()  # also checks that every node holds one position with a distinct nid
         stray = [cid for cid in model.provenance if cid.nid not in nodes]
@@ -598,6 +650,23 @@ class StructureAnalyzer:
         """
         if not isinstance(view, View):
             raise TypeError(f"analyze takes a View, got {type(view).__name__}")
+        start = self._mark()
+        node = self._analyze(view)
+        self._views_by_nid[node.nid] = view  # the view a node was inferred from (8.1-8.3 unions)
+        self._entries_by_nid[node.nid] = (start, self._mark())
+        return node
+
+    def _mark(self) -> int:
+        return self.report.mark() if self.report is not None else 0
+
+    def _forget_subtree(self, node: SchemaNode) -> None:
+        """Drop the records of ``node``'s subtree and the report entries its analysis recorded (it left the model)."""
+        self._records.discard_subtree(node)
+        span = self._entries_by_nid.get(node.nid)
+        if span is not None and self.report is not None:
+            self.report.forget_between(*span)
+
+    def _analyze(self, view: View) -> SchemaNode:
         live = view.live()
         stats = live.stats()
         if stats.n == 0:
@@ -607,6 +676,10 @@ class StructureAnalyzer:
             return reference
         n_arrays = stats.count(JType.ARRAY)
         n_objects = stats.count(JType.OBJECT)
+        if n_objects == stats.n and self.runs(RECURSION) and live.path not in self._building:
+            recursive = self._recursion(live)  # 8.3, 8.4: a self-referencing Shared_Definition
+            if recursive is not None:
+                return recursive
         scalar = self._scalar_part(live) if stats.n > n_arrays + n_objects else None
         array = self._array_part(live) if n_arrays else None
         obj = self._object_part(live) if n_objects else None
@@ -668,6 +741,8 @@ class StructureAnalyzer:
             return node
 
         emitted = self._variants.branches(split, variant_schema=variant_schema)
+        for branch, branch_view in zip(emitted.branches or (emitted.node,), emitted.views):
+            self._views_by_nid[branch.nid] = branch_view
         exclusions = self._exclusions(objects, outcome, emitted)
         if emitted.keyword is None:
             return _Part(emitted.node, (_OBJECT_TYPE,), rows, type_details[emitted.node.nid], exclusions=exclusions)
@@ -677,6 +752,7 @@ class StructureAnalyzer:
         self, variant: View, index: int, outcome: RecordMapOutcome, closed: ClosedOpenOutcome
     ) -> tuple[SchemaNode, dict[str, JSON]]:
         """The object schema of one final Variant (design walk, step 2.5) and its ``type`` record's details."""
+        start = self._mark()
         result = self._record_map.record_node(variant, outcome, closed, child_schema=self.analyze)
         node = result.node
         node.kw[_TYPE] = [_OBJECT_TYPE]
@@ -705,6 +781,7 @@ class StructureAnalyzer:
             else:
                 group_records[cid] = record
         self._records.update(group_records)
+        self._entries_by_nid[node.nid] = (start, self._mark())
         return node, details
 
     # -- combining the families (design walk, step 4) -------------------------
@@ -767,7 +844,12 @@ class StructureAnalyzer:
             consistent = sum(part.rows for part in coexisting)
             types = [name for part in coexisting for name in part.types]
             details: dict[str, JSON] = {"branch": BRANCH_REMAINING_TYPES, "combinator": ANY_OF, "types": types}
-            if split is not None:
+            if split is not None and split.variants.kind == "tagged_union":
+                # The Discriminator's decision produced the branches (its Variants may be one): its record, resupported.
+                first = split.variants.provenance[0]
+                kept = {k: v for k, v in first.details.items() if k not in ("branch", "value_group", "support_ratio", "closed_enum")}
+                record = dataclasses.replace(first, support=Support(consistent, rows), details={**kept, **details})
+            elif split is not None:
                 record = split.variants.outcome.remaining_provenance(consistent, rows, details=details)
             else:
                 assert scalar is not None
@@ -871,10 +953,15 @@ class StructureAnalyzer:
                 node, _ = self._variant_node(fallback_view, len(branches), outcome, closed)
                 self._restrict_required(node, base)
             else:
+                # No object fell outside the dedicated groups: the fallback branch is the Discriminator's decision alone.
                 node = SchemaNode(kw={_TYPE: [_OBJECT_TYPE], "properties": {name: SchemaNode(kw={})}})
+                empty = found.decision.provenance(Support(0, n), sample=found.sample, details={"branch": "fallback", "objects": 0})
+                self._records.put(node, _TYPE, _type_record(0))
+                self._records.put(node, "properties", empty)
                 if base:
                     node.kw["required"] = list(base)
-                self._records.put(node, _TYPE, _type_record(0))
+                    for field_name in base:
+                        self._records.put(node, "required", empty, item=field_name)
             constraint: dict[str, JSON] = {"enum": found.fallback_values} if enum_closed else {"not": {"enum": found.dedicated_values}}
             self._fix_discriminator(node, name, constraint, found)
             views.append(fallback_view)
@@ -918,7 +1005,10 @@ class StructureAnalyzer:
             child.kw[keyword] = SchemaNode.from_json(value) if keyword == "not" else value
             n = found.candidate.score.n_scored
             extra: dict[str, JSON] = {"discriminator": name, "value_group": value} if keyword != "not" else {"discriminator": name, "not_values": value["enum"]}
-            self._records.put(child, keyword, found.decision.provenance(Support(n, n), sample=found.sample, details=extra))
+            record = found.decision.provenance(Support(n, n), sample=found.sample, details=extra)
+            self._records.put(child, keyword, record)
+            if keyword == "not":  # the enum inside the not is a Constraint of its own node, from the same decision
+                self._records.put(child.kw[keyword], "enum", record)
 
     def _restrict_required(self, node: SchemaNode, base: Sequence[str]) -> None:
         """The fallback branch requires only the Base_Fields (10.5): drop the other required entries and their records."""
@@ -971,6 +1061,259 @@ class StructureAnalyzer:
         return None if rules.is_empty else rules  # applied by _assemble to the node the Path finally gets
 
     def _reference(self, view: View) -> SchemaNode | None:
-        """8.2, 8.4 (task 36.1): a ``$ref`` to a Shared_Definition at a recursive step; None while not implemented."""
-        self._unwritten(SHARED_DEFINITION_TECHNIQUES)
+        """8.4: at the recursive step of a Shared_Definition being built, a ``$ref`` to it instead of recursing."""
+        found = self._recursive.get(view.path)
+        if found is None:
+            return None
+        index, _ = found
+        # A placeholder ({} while the body is built, so scoring and validation see an accept-all subschema);
+        # _fill_references turns it into the $ref once the whole walk is done.
+        node = SchemaNode()
+        definition = self._definitions[index]
+        definition.refs.append(node)
+        definition.supports[node.nid] = len(view)
+        return node
+
+    def _recursion(self, objects: View) -> SchemaNode | None:
+        """8.3, 8.4, 8.8: the levels ``A, A + S, A + 2S, …`` merged into one self-referencing definition, or None.
+
+        ``S`` is a property step, or a property's array elements, whose
+        objects share a property name with the objects at ``A``. The levels
+        form a cross-Path Merge-or-Split grouping over their union
+        (``shared_defs.level_grouping``); a merge analyzes the union once as
+        the definition's body, with the step ``A + S`` registered so that the
+        body's analysis emits a ``$ref`` there, and returns a ``$ref`` for
+        ``A`` itself.
+        """
+        names = _property_names(objects)
+        if not names:
+            return None
+        path = objects.path
+        for name in sorted_codepoint(names):
+            child = objects.child_key(name)
+            for steps, candidate in (((key_step(name),), child), ((key_step(name), ELEM_STEP), child.elements())):
+                level = object_rows(candidate)
+                if level.is_empty or not (_property_names(level) & names):
+                    continue
+                levels = [objects, level]
+                while len(levels) < 64:
+                    deeper = level
+                    for step in steps:
+                        deeper = deeper.child_key(step.key) if step.kind == 0 else deeper.elements()
+                    deeper = object_rows(deeper)
+                    if deeper.is_empty:
+                        break
+                    levels.append(deeper)
+                    level = deeper
+                union = View.union(levels, path=path)
+                grouping = level_grouping(union, levels, origin=RECURSION, engine=self.engine, scorer=self._scorer)
+                if grouping is None:
+                    continue  # the levels show no distinct shapes: nothing a judgment could separate
+                outcome = self._variants.merge_or_split(
+                    grouping, details={"origin": RECURSION, "sites": [render_path(v.path) for v in levels]}
+                )
+                if not outcome.merged:
+                    continue
+                assert outcome.decision is not None
+                index = len(self._definitions)
+                sites = [(view.path, len(view)) for view in levels]
+                definition = Definition(SchemaNode(), preferred_name(sites), sum(len(v) for v in levels))
+                self._definitions.append(definition)
+                recursive_path = path + steps
+                self._recursive[recursive_path] = (index, outcome.decision)
+                self._building.add(path)
+                try:
+                    body = self.analyze(union)
+                finally:
+                    self._building.discard(path)
+                    del self._recursive[recursive_path]
+                definition.body = body
+                definition.decision = outcome.decision
+                node = SchemaNode()  # the placeholder for A itself; _fill_references makes it the $ref
+                definition.refs.append(node)
+                definition.supports[node.nid] = len(objects)
+                return node
         return None
+
+    def _hoist_root_definition(self, root: SchemaNode) -> SchemaNode:
+        """A recursive definition whose ``A`` is the root is the root itself: its body stands there, its refs are ``#``."""
+        for definition in self._definitions:
+            if definition.decision is not None and any(ref is root for ref in definition.refs):
+                definition.refs = [ref for ref in definition.refs if ref is not root]
+                definition.supports.pop(root.nid, None)
+                definition.at_root = True
+                return definition.body
+        return root
+
+    def _fill_references(self) -> None:
+        """Turn the placeholders of the recursive definitions into ``$ref`` nodes with their records (8.4)."""
+        for index, definition in enumerate(self._definitions):
+            if definition.decision is None:
+                continue
+            for node in definition.refs:
+                if "$ref" in node.kw:
+                    continue
+                node.kw["$ref"] = "#" if definition.at_root else f"#/{DEFS}/{index}"
+                n = definition.supports.get(node.nid, 0)
+                self._records.put(node, "$ref", definition.decision.provenance(Support(n, n), details={"definition": index, "recursive": True}))
+
+    def _extract_definitions(self, root: SchemaNode) -> SchemaNode:
+        """8.1, 8.2, 8.6, 8.7: the shared-definition pass over the finished root."""
+        if not self._shared_defs.in_effect():
+            return root
+        counts: dict[int, int] = {}
+        for cid, record in self._records.constraint_ids().items():
+            if cid.keyword == _TYPE:
+                counts[cid.nid] = record.support.consistent
+        records = self._records
+
+        def on_extract(body: SchemaNode, nodes: Sequence[SchemaNode], refs: Sequence[SchemaNode], decision: Decision) -> SchemaNode:
+            # The definition is inferred once from the union of the sites' observations, so its records (and
+            # their totals) count every referencing site; the sites' own records go with their subschemas.
+            index = len(self._definitions) - 1  # this definition; the union's analysis may add recursive ones
+            views = [self._views_by_nid[node.nid] for node in nodes]
+            union = View.union(views, path=views[0].path)
+            sites = [render_path(view.path) for view in views]
+            self._building.add(union.path)
+            try:
+                new_body = self.analyze(union)
+            finally:
+                self._building.discard(union.path)
+            self._fill_references()
+            for node in nodes:
+                self._forget_subtree(node)
+            for ref, view in zip(refs, views):
+                n = len(view.live())
+                records.put(ref, "$ref", decision.provenance(Support(n, n), details={"definition": index, "sites": sites}))
+            return new_body
+
+        self._shared_defs.run(root, self._definitions, counts, views=self._views_by_nid, on_extract=on_extract)
+        return root
+
+    def _merge_similar(self, root: SchemaNode) -> None:
+        """8.3, 8.7: Merge-or-Split for object subschemas at distinct, non-prefix Paths that share a property name.
+
+        Candidates are object schema sites with recorded views whose
+        property-name sets overlap (Jaccard at least 1/2) and that are not
+        structurally equivalent (those are 8.1's). A merge re-infers one
+        definition from the union of the sites' object views and replaces
+        both sites with ``$ref``; the sites' records are replaced by the
+        definition's. At most :data:`_MAX_MERGES` merges per model.
+        """
+        if not self._shared_defs.in_effect():
+            return
+        from jsinfer.structure.shared_defs import _sites, canonical_hash
+
+        merges = 0
+        done: set[tuple[int, int]] = set()
+        while merges < _MAX_MERGES:
+            sites = [s for s in _sites(root) if s.node.nid in self._views_by_nid and s.node.boolean is None and "properties" in s.node.kw and "$ref" not in s.node.kw]
+            pair = None
+            for i in range(len(sites)):
+                for j in range(i + 1, len(sites)):
+                    a, b = sites[i], sites[j]
+                    key = (a.node.nid, b.node.nid)
+                    if key in done or a.pointer.startswith(b.pointer + "/") or b.pointer.startswith(a.pointer + "/"):
+                        continue
+                    pa, pb = self._views_by_nid[a.node.nid].path, self._views_by_nid[b.node.nid].path
+                    if pa[: len(pb)] == pb or pb[: len(pa)] == pa:
+                        continue  # prefix-related Paths are recursion's (8.4, 8.8)
+                    names_a, names_b = set(a.node.kw["properties"]), set(b.node.kw["properties"])
+                    if not names_a & names_b or len(names_a & names_b) / len(names_a | names_b) < 0.5:
+                        continue
+                    if canonical_hash(a.node) == canonical_hash(b.node):
+                        continue  # equivalent: 8.1 decides those
+                    pair = (a, b)
+                    break
+                if pair is not None:
+                    break
+            if pair is None:
+                return
+            a, b = pair
+            done.add((a.node.nid, b.node.nid))
+            view_a, view_b = self._views_by_nid[a.node.nid], self._views_by_nid[b.node.nid]
+            union = View.union([view_a, view_b], path=view_a.path)
+            grouping = level_grouping(union, [view_a, view_b], origin=SHARED_DEFS, engine=self.engine, scorer=self._scorer)
+            if grouping is None:
+                continue
+            outcome = self._variants.merge_or_split(
+                grouping, details={"origin": SHARED_DEFS, "sites": [render_path(view_a.path), render_path(view_b.path)]}
+            )
+            if not outcome.merged:
+                continue
+            assert outcome.decision is not None
+            index = len(self._definitions)
+            self._building.add(union.path)
+            try:
+                body = self.analyze(union)
+            finally:
+                self._building.discard(union.path)
+            self._fill_references()
+            self._forget_subtree(a.node)
+            self._forget_subtree(b.node)
+            definition = Definition(body, preferred_name([(view_a.path, len(view_a)), (view_b.path, len(view_b))]), len(view_a) + len(view_b), decision=outcome.decision)
+            self._definitions.append(definition)
+            for site, view in ((a, view_a), (b, view_b)):
+                ref = ref_node(f"{index}")
+                site.container[site.key] = ref
+                definition.refs.append(ref)
+                n = len(view)
+                self._records.put(ref, "$ref", outcome.decision.provenance(Support(n, n), details={"definition": index, "merged_paths": [render_path(view_a.path), render_path(view_b.path)]}))
+            merges += 1
+
+    def _prune_definitions(self, root: SchemaNode) -> None:
+        """Drop definitions whose every ``$ref`` left the schema (a site replaced by a later merge), with their records."""
+        reachable = {inner.nid for _, inner in root.walk()}
+        for definition in self._definitions:
+            for body in (definition.body,):
+                for _, inner in body.walk():
+                    reachable.add(inner.nid)
+        kept: list[Definition] = []
+        for definition in self._definitions:
+            definition.refs = [ref for ref in definition.refs if ref.nid in reachable]
+            kept.append(definition)
+        # A definition is live when a ref to it sits in the root or in a live definition's body (fixed point).
+        live = [False] * len(kept)
+        root_nids = {inner.nid for _, inner in root.walk()}
+        changed = True
+        while changed:
+            changed = False
+            body_nids = [{inner.nid for _, inner in d.body.walk()} for d in kept]
+            for i, definition in enumerate(kept):
+                if live[i]:
+                    continue
+                if definition.at_root:
+                    live[i] = True
+                    changed = True
+                    continue
+                for ref in definition.refs:
+                    if ref.nid in root_nids or any(live[j] and ref.nid in body_nids[j] for j in range(len(kept))):
+                        live[i] = True
+                        changed = True
+                        break
+        for i, definition in enumerate(kept):
+            if not live[i]:
+                self._records.discard_subtree(definition.body)
+        self._definitions = [d for i, d in enumerate(kept) if live[i]]
+
+    def _name_definitions(self, root: SchemaNode) -> None:
+        """8.5: the final names, the ``$defs`` map on the root, and the rewritten ``$ref`` strings."""
+        if not self._definitions:
+            return
+        if root.boolean is not None:
+            raise RuntimeError("Shared_Definitions need a keyword schema at the root")
+        listed = [d for d in self._definitions if not d.at_root]
+        for definition in self._definitions:
+            if definition.at_root:
+                for ref in definition.refs:
+                    ref.kw["$ref"] = "#"
+        if not listed:
+            return
+        names = assign_names(listed)
+        defs: dict[str, SchemaNode] = dict(root.kw.get(DEFS, {}))
+        for definition, name in zip(listed, names):
+            definition.name = name
+            defs[name] = definition.body
+            for ref in definition.refs:
+                ref.kw["$ref"] = ref_string(name)
+        root.kw[DEFS] = {name: defs[name] for name in sorted_codepoint(defs)}

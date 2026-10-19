@@ -42,6 +42,10 @@ class StubBundle:
         return "stub"
 
 
+# The branches are read at their Paths: shared definitions and recursion (Property 16) stay off.
+PATH_BY_PATH = {"structure.shared_defs": False, "structure.recursion": False}
+
+
 def shapes(n: int = 60, *, odd_every: int = 11) -> list[dict[str, Any]]:
     docs = []
     for i in range(n):
@@ -145,7 +149,7 @@ def test_sampled_trees_record_the_sample() -> None:
 def test_analyzer_emits_exact_branches_with_const_enum_and_a_fallback() -> None:
     docs = shapes()
     report = InferenceReport()
-    sa = StructureAnalyzer.for_techniques(bundle=StubBundle({"tagged.branch_support": 0.15}), report=report)
+    sa = StructureAnalyzer.for_techniques(PATH_BY_PATH, bundle=StubBundle({"tagged.branch_support": 0.15}), report=report)
     model = sa.infer_model(view(docs))
     schema = model.root.to_json()
     branches = schema["oneOf"]
@@ -172,7 +176,7 @@ def test_open_discriminator_gets_a_not_enum_fallback() -> None:
         if kind == "circle":
             d["radius"] = 1.0
         docs.append(d)
-    sa = StructureAnalyzer.for_techniques(bundle=StubBundle({"tagged.branch_support": 0.2}))
+    sa = StructureAnalyzer.for_techniques(PATH_BY_PATH, bundle=StubBundle({"tagged.branch_support": 0.2}))
     schema = sa.infer_model(view(docs)).root.to_json()
     assert "oneOf" in schema, json.dumps(schema)[:300]
     # The rare values form one multi-value group (no split separates them): a dedicated enum branch (10.4).
@@ -186,7 +190,7 @@ def test_open_discriminator_gets_a_not_enum_fallback() -> None:
 
 def test_variants_stand_without_a_discriminator() -> None:
     docs = [{"a": 1, "x": "p"}] * 10 + [{"b": 2, "y": "q"}] * 10
-    sa = StructureAnalyzer.for_techniques(bundle=StubBundle({"tagged.branch_support": 0.15}))
+    sa = StructureAnalyzer.for_techniques(PATH_BY_PATH, bundle=StubBundle({"tagged.branch_support": 0.15}))
     schema = sa.infer_model(view(docs)).root.to_json()
     assert "oneOf" in schema or "anyOf" in schema or "properties" in schema
     assert not any("discriminator" in r.details for r in sa.infer_model(view(docs)).provenance.values() if r.technique == TREES and "branch" in r.details) or True
