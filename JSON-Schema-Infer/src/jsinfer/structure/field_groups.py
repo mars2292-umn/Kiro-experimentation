@@ -60,6 +60,7 @@ from typing import Any, Final
 import numpy as np
 
 from jsinfer.config.registry import OUTCOME_NONE, REGISTRY
+from jsinfer.config.resources import RESOURCE_PARAMETERS
 from jsinfer.config.resources import ResourceReader
 from jsinfer.core.determinism import codepoint_key, rng, sorted_codepoint
 from jsinfer.core.jsonvalue import JSON
@@ -90,6 +91,7 @@ FPGROWTH: Final = "groups.fpgrowth_slim"
 BMF: Final = "groups.bmf"
 REJECTED_CATEGORY: Final = "field_groups"
 MIN_SUPPORT: Final = "fpgrowth.min_support"
+MAX_ITEMSETS: Final = "fpgrowth.max_itemsets"
 SAMPLE: Final = "sample.fpgrowth"
 DEPENDENT_REQUIRED: Final = "dependentRequired"
 OUTCOME_FPGROWTH: Final = "fp-growth"
@@ -135,7 +137,13 @@ class _Node:
         self.children: dict[str, _Node] = {}
 
 
-def _fp_growth(weighted: Sequence[tuple[tuple[str, ...], int]], min_support: int, suffix: Itemset, out: dict[Itemset, int]) -> None:
+class _Enough(Exception):
+    """FP-growth reached the itemset cap."""
+
+
+def _fp_growth(weighted: Sequence[tuple[tuple[str, ...], int]], min_support: int, suffix: Itemset, out: dict[Itemset, int], max_size: int, max_itemsets: int) -> None:
+    if len(suffix) >= max_size:
+        return
     support: Counter[str] = Counter()
     for items, count in weighted:
         for item in items:
@@ -159,6 +167,8 @@ def _fp_growth(weighted: Sequence[tuple[tuple[str, ...], int]], min_support: int
             node = child
     for item in reversed(order):  # least frequent first, as FP-growth does
         itemset = suffix | {item}
+        if len(out) >= max_itemsets:
+            raise _Enough
         out[itemset] = frequent[item]
         bases: list[tuple[tuple[str, ...], int]] = []
         for node in header[item]:
@@ -170,15 +180,32 @@ def _fp_growth(weighted: Sequence[tuple[tuple[str, ...], int]], min_support: int
             if path:
                 bases.append((tuple(path), node.count))
         if bases:
-            _fp_growth(bases, min_support, itemset, out)
+            _fp_growth(bases, min_support, itemset, out, max_size, max_itemsets)
 
 
-def frequent_itemsets(weighted: Mapping[Itemset, int], min_support: int) -> dict[Itemset, int]:
-    """Every itemset with support at least ``min_support`` (objects holding all its fields), in code-point order (6.3)."""
+MAX_ITEMSET_SIZE: Final = 8  # fields per frequent itemset; a Field_Group wider than this is not sought
+
+
+def frequent_itemsets(weighted: Mapping[Itemset, int], min_support: int, *, max_size: int = MAX_ITEMSET_SIZE, max_itemsets: int | None = None) -> dict[Itemset, int]:
+    """Every itemset of at most ``max_size`` fields with support at least ``min_support``, in code-point order (6.3).
+
+    ``max_itemsets`` (``fpgrowth.max_itemsets``) stops the enumeration: a
+    wide Variant whose optional fields all co-occur has exponentially many
+    frequent itemsets. The itemsets found before the stop are returned; the
+    stop is deterministic (mining order is fixed).
+    """
     if isinstance(min_support, bool) or not isinstance(min_support, int) or min_support < 1:
         raise ValueError(f"min_support must be a positive int, got {min_support!r}")
+    if isinstance(max_size, bool) or not isinstance(max_size, int) or max_size < 1:
+        raise ValueError(f"max_size must be a positive int, got {max_size!r}")
+    cap = max_itemsets if max_itemsets is not None else int(RESOURCE_PARAMETERS[MAX_ITEMSETS].default)  # type: ignore[arg-type]
+    if isinstance(cap, bool) or not isinstance(cap, int) or cap < 1:
+        raise ValueError(f"max_itemsets must be a positive int, got {max_itemsets!r}")
     found: dict[Itemset, int] = {}
-    _fp_growth([(tuple(sorted_codepoint(items)), count) for items, count in weighted.items() if count > 0], min_support, frozenset(), found)
+    try:
+        _fp_growth([(tuple(sorted_codepoint(items)), count) for items, count in weighted.items() if count > 0], min_support, frozenset(), found, max_size, cap)
+    except _Enough:
+        pass
     return {itemset: found[itemset] for itemset in sorted(found, key=lambda s: (len(s), tuple(sorted_codepoint(s))))}
 
 
@@ -449,6 +476,7 @@ class FieldGroupMiner:
         sample: SampleInfo | None = None
         if self.runs(FPGROWTH) and p.optional:  # a Variant without an optional field has no key set to mine
             min_support = int(self._reader.read(MIN_SUPPORT))
+            max_itemsets = int(self._reader.read(MAX_ITEMSETS))
             sample_size = int(self._reader.read(SAMPLE))
             thresholds[MIN_SUPPORT] = min_support
             rows: np.ndarray | None = None
@@ -456,7 +484,7 @@ class FieldGroupMiner:
                 rows = np.asarray(sorted(sample_rows(list(range(p.n_objects)), sample_size, rng(FPGROWTH, render_path(p.path), seed=self._seed))))
                 sample = SampleInfo(sample_size, p.n_objects)
             weighted = transactions(p, (), rows)
-            frequent = frequent_itemsets(weighted, min_support) if weighted else {}
+            frequent = frequent_itemsets(weighted, min_support, max_itemsets=max_itemsets) if weighted else {}
             for itemset in code_table(weighted, {s: c for s, c in frequent.items() if len(s) >= 2}):
                 fields = tuple(sorted_codepoint(itemset))
                 candidates.append(GroupCandidate(fields, _support(p, fields), FPGROWTH, violations(p, fields)))

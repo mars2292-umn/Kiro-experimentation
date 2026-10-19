@@ -259,6 +259,7 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
         "Bernoulli-mixture EM convergence tolerance: mean log-likelihood gain per object, in nats (5.2)",
     ),
     _count("fpgrowth.min_support", 2, "FP-growth minimum support in objects (6.3)"),
+    _count("fpgrowth.max_itemsets", 2_000, "frequent itemsets FP-growth enumerates per Variant before it stops (6.3)"),
     _count("patterns.max_alternatives", 4, "maximum sub-patterns per induced Pattern (14.1)"),
     _count("patterns.attempt_budget", 200, "candidate Patterns evaluated per Path before induction stops (14.8)"),
     _count("trees.max_depth", 4, "maximum depth of a Tagged_Union decision tree (10.2)"),

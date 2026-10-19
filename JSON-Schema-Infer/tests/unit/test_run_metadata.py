@@ -210,6 +210,7 @@ def test_a_run_lists_the_resource_parameters_its_components_read() -> None:
         "workers": (1, "flag"),
         # Field_Group mining (6) runs at a Variant with optional fields.
         "fpgrowth.min_support": (2, "default"),
+        "fpgrowth.max_itemsets": (2_000, "default"),
         "sample.fpgrowth": (50_000, "default"),
     }
 

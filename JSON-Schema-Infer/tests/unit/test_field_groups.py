@@ -170,3 +170,18 @@ def test_field_groups_rejects_a_node_without_its_cliques() -> None:
     with pytest.raises(ValueError, match="dependentRequired"):
         out.constraint_provenance(SchemaNode(kw={"type": "object"}))
     assert FieldGroups(presence(planted())).keywords() == {}
+
+
+def test_frequent_itemsets_are_capped_in_size_and_count() -> None:
+    # 20 optional fields that always co-occur: 2^20 - 1 frequent itemsets without the caps.
+    names = [f"f{i:02d}" for i in range(20)]
+    weighted = {frozenset(names): 3}
+    found = frequent_itemsets(weighted, 2, max_itemsets=500)
+    assert len(found) == 500 and all(len(s) <= 8 for s in found)
+    assert frequent_itemsets(weighted, 2, max_itemsets=500) == found  # the stop is deterministic
+    small = frequent_itemsets(weighted, 2, max_size=2, max_itemsets=10_000)
+    assert len(small) == 20 + 190
+    docs = [{"id": i, **{name: 1 for name in names}} for i in range(6)] + [{"id": 9}]
+    out = FieldGroupMiner.for_techniques(resources={"fpgrowth.max_itemsets": 200}).mine(presence(docs))
+    assert out.thresholds == {"fpgrowth.min_support": 2}
+    assert all(len(g) <= 8 for g in out.groups)
