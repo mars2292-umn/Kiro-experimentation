@@ -11,7 +11,7 @@ Commands
     ``jsinfer --version``                                        ``jsinfer <version>``
     ===========================================================  ==========================================
 
-    ``jsinfer train -c FILE --out DIR``                          train a Model_Bundle (21.1, 21.8)
+    ``jsinfer train -c FILE --out DIR``                          train a Model_Bundle (21.1, 21.8); stage progress on stderr
     ``jsinfer split -c FILE``                                    build the Schema_Split (30.1–30.5)
     ``jsinfer bench {synthetic,real,ablation} -c FILE [--out DIR]``  run a benchmark (30.7, 30.8, 31, 33, 35.3)
 
@@ -678,7 +678,7 @@ def _train(args: argparse.Namespace) -> int:
     except ConfigError as error:  # 27.11
         return _config_failure(error)
     try:
-        bundle_id = Trainer().run(config, args.out)
+        bundle_id = Trainer(progress=lambda line: _say(f"train: {line}")).run(config, args.out)
     except TrainingError as error:  # 21.8: no bundle is left at the output location
         _error(str(error))
         return EXIT_STAGE_ERROR

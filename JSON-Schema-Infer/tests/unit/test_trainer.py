@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from jsinfer.config.errors import ConfigError
+
 import numpy as np
 import pytest
 
@@ -22,6 +24,7 @@ from jsinfer.learn.trainer import (
     featurization_config,
     featurize_collection,
     featurize_collections,
+    TrainingConfig,
     fit_m2_thresholds,
     fit_threshold,
     grouping_examples,
@@ -189,3 +192,31 @@ def test_thresholds_without_validation_examples_are_omitted_with_a_reason() -> N
     # Training-split collections do not count (20.3).
     train_only = featurize_collection(SyntheticGenerator().collection(model_of(PLANTED), "p", 0, CFG, 1, split="train"), model_of(PLANTED))
     assert fit_m2_thresholds([train_only], training_data="x")[0] == {}
+
+
+# -- worker processes (22.9) --------------------------------------------------------
+
+
+def test_featurization_is_the_same_for_every_worker_count() -> None:
+    model = model_of(PLANTED)
+    collections = [(SyntheticGenerator().collection(model, "planted", k, CFG, 1, split="val"), model) for k in range(3)]
+    serial = featurize_collections(collections)
+    parallel = featurize_collections(collections, workers=2)
+    assert [f.schema_id for f in parallel] == [f.schema_id for f in serial]
+    assert [f.examples.to_json() if hasattr(f.examples, "to_json") else [e.kind for e in f.examples.examples] for f in parallel] == [
+        f.examples.to_json() if hasattr(f.examples, "to_json") else [e.kind for e in f.examples.examples] for f in serial
+    ]
+    assert [[(e.kind, e.label, tuple(e.features)) for e in f.examples.examples] for f in parallel] == [
+        [(e.kind, e.label, tuple(e.features)) for e in f.examples.examples] for f in serial
+    ]
+    with pytest.raises(ValueError, match="workers"):
+        featurize_collections(collections, workers=0)
+
+
+def test_training_config_reads_and_checks_workers(tmp_path: Any) -> None:
+    base = {"training": {"corpus_manifest": "m.json", "schema_split": "s.json", "workers": 4}}
+    cfg = TrainingConfig.from_mapping(base, tmp_path)
+    assert cfg.workers == 4 and cfg.to_json()["workers"] == 4
+    assert TrainingConfig.from_mapping({"training": {"corpus_manifest": "m.json", "schema_split": "s.json"}}, tmp_path).workers == 1
+    with pytest.raises(ConfigError, match="workers"):
+        TrainingConfig.from_mapping({"training": {**base["training"], "workers": 0}}, tmp_path)

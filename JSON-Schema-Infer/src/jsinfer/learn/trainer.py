@@ -62,6 +62,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Final
 
 import numpy as np
+from joblib import Parallel, delayed
 from sklearn.metrics import adjusted_rand_score
 
 from jsinfer.config.registry import REGISTRY
@@ -75,6 +76,7 @@ from jsinfer.core.paths import ROOT, Path, render_path
 from jsinfer.core.report import InferenceReport
 from jsinfer.core.schema_model import SchemaModel, SchemaNode
 from jsinfer.core.views import View
+from jsinfer.core.workers import single_threaded
 from jsinfer.corpus.normalize import ref_target, walk_paths
 from jsinfer.decide.engine import JUDGMENT_OUTCOMES, Candidate, Decision, DecisionEngine, DecisionPoint
 from jsinfer.deps.cooccurrence import rule_candidates
@@ -567,9 +569,22 @@ def featurize_collections(
     *,
     config: RunConfiguration | None = None,
     max_depth: int = DEFAULT_MAX_DEPTH,
+    workers: int = 1,
 ) -> list[FeaturizedCollection]:
-    """:func:`featurize_collection` for each ``(collection, model)``, in order."""
-    return [featurize_collection(c, m, config=config, max_depth=max_depth) for c, m in collections]
+    """:func:`featurize_collection` for each ``(collection, model)``, in order.
+
+    With ``workers`` above 1 the collections are featurized in joblib
+    processes (each single-threaded, ``core.workers.single_threaded``);
+    the results come back in submission order, so the output is the same
+    for every worker count (22.9).
+    """
+    if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+        raise ValueError(f"workers must be a positive int, got {workers!r}")
+    items = list(collections)
+    if workers == 1:
+        return [featurize_collection(c, m, config=config, max_depth=max_depth) for c, m in items]
+    task = single_threaded(featurize_collection)
+    return list(Parallel(n_jobs=workers)(delayed(task)(c, m, config=config, max_depth=max_depth) for c, m in items))
 
 
 def _mean_ari(examples: Sequence[GroupingExample], grouping: Callable[[GroupingExample], Sequence[Sequence[int]]]) -> float:
@@ -893,6 +908,7 @@ assert all(name in REGISTRY.technique(THRESHOLDS[name].techniques[0]).thresholds
 import datetime as _datetime  # noqa: E402
 import os as _os  # noqa: E402
 import tempfile as _tempfile  # noqa: E402
+import time as _time  # noqa: E402
 import uuid as _uuid  # noqa: E402
 from types import MappingProxyType  # noqa: E402
 from pathlib import Path as _Path  # noqa: E402
@@ -1005,6 +1021,7 @@ class TrainingConfig:
     seed: int = 0
     schemas: tuple[str, ...] | None = None
     training_data: str | None = None
+    workers: int = 1  # generation and featurization worker processes; the output is the same for every count (22.9)
     resources: Mapping[str, int | float] = field(default_factory=dict)
     techniques: Mapping[str, bool] = field(default_factory=dict)
     generator: Mapping[str, int | float] = field(default_factory=dict)
@@ -1017,6 +1034,8 @@ class TrainingConfig:
                 raise _config_error(name, f"training configuration: {name} must be a non-empty path")
         if isinstance(self.seed, bool) or not isinstance(self.seed, int) or self.seed < 0:
             raise _config_error("seed", f"training configuration: seed must be a non-negative integer, got {self.seed!r}")
+        if isinstance(self.workers, bool) or not isinstance(self.workers, int) or self.workers < 1:
+            raise _config_error("workers", f"training configuration: workers must be a positive integer, got {self.workers!r}")
         if self.schemas is not None:
             if not all(isinstance(sid, str) and sid for sid in self.schemas):
                 raise _config_error("schemas", "training configuration: schemas must be non-empty strings")
@@ -1056,7 +1075,7 @@ class TrainingConfig:
         training = document.get("training", {})
         if not isinstance(training, Mapping):
             raise _config_error("training", "training configuration: [training] must be a table")
-        known = {"corpus_manifest", "schema_split", "seed", "schemas", "training_data"}
+        known = {"corpus_manifest", "schema_split", "seed", "schemas", "training_data", "workers"}
         unknown = sorted(k for k in training if k not in known)
         if unknown:
             raise _config_error("training", f"training configuration: unknown [training] settings {unknown}")
@@ -1089,6 +1108,7 @@ class TrainingConfig:
             seed=training.get("seed", 0),
             schemas=None if schemas is None else tuple(schemas) if isinstance(schemas, list) else schemas,
             training_data=training.get("training_data"),
+            workers=training.get("workers", 1),
             **sections,
         )
 
@@ -1120,6 +1140,7 @@ class TrainingConfig:
             "seed": self.seed,
             "schemas": None if self.schemas is None else list(self.schemas),
             "training_data": self.training_data,
+            "workers": self.workers,
             "resources": {name: self.resources[name] for name in sorted(self.resources, key=codepoint_key)},
             "techniques": {tid: self.techniques[tid] for tid in sorted(self.techniques, key=codepoint_key)},
             "generator": {name: self.generator[name] for name in sorted(self.generator, key=codepoint_key)},
@@ -1156,9 +1177,22 @@ class Trainer:
     generated documents; new ones are made when None.
     """
 
-    def __init__(self, loader: SchemaLoader | None = None, validator: Validator | None = None) -> None:
+    def __init__(
+        self,
+        loader: SchemaLoader | None = None,
+        validator: Validator | None = None,
+        *,
+        progress: Callable[[str], None] | None = None,
+    ) -> None:
         self.validator = validator if validator is not None else Validator()
         self.loader = loader if loader is not None else SchemaLoader(self.validator)
+        self._progress = progress
+        self._clock = _time.monotonic()
+
+    def _say(self, message: str) -> None:
+        """A progress line (stage, counts, elapsed seconds) through ``progress``, when one was given."""
+        if self._progress is not None:
+            self._progress(f"{message} [{_time.monotonic() - self._clock:.0f}s]")
 
     def run(self, cfg: TrainingConfig, out_dir: str | _os.PathLike[str]) -> str:
         """Train on ``cfg`` and write the Model_Bundle to ``out_dir``; returns the bundle id (21.1)."""
@@ -1213,11 +1247,13 @@ class Trainer:
         # 3. generate (22.1, 22.8)
         generator = SyntheticGenerator(self.validator, ValueIndex.build((sid, m) for sid, m, _ in models))
         per_schema = int(cfg.resource("synth.collections_per_schema"))
+        self._say(f"schemas: {len(models)} loaded ({len(loaded['train'])} train, {len(loaded['val'])} val); generating {per_schema} collections each with {cfg.workers} worker(s)")
         try:
-            collections, generation_excluded = generator.collections(models, cfg.generator_config(), cfg.seed, per_schema)
+            collections, generation_excluded = generator.collections(models, cfg.generator_config(), cfg.seed, per_schema, workers=cfg.workers)
         except Exception as error:  # noqa: BLE001 - any failure here is a stage error (21.8)
             raise TrainingError("generate", f"{type(error).__name__}: {error}") from error
         excluded.extend({"id": sid, "reason": reason} for sid, reason in generation_excluded)
+        self._say(f"generate: {len(collections)} collections, {len(generation_excluded)} schemas excluded; featurizing with {cfg.workers} worker(s)")
         model_of = {sid: m for sid, m, _ in models}
         # 4. featurize (22.6, 22.10), with the provisional thresholds in a temporary bundle
         max_depth = int(cfg.resource("synth.max_depth"))
@@ -1231,10 +1267,11 @@ class Trainer:
                 bundle_dir = write_bundle(_Path(scratch) / "bundle", bundle_id="featurization", thresholds=provisional)
                 flags = {**dict(cfg.featurization), "seed": cfg.seed, "model_bundle": str(bundle_dir)}
                 featurized = featurize_collections(
-                    ((c, model_of[c.schema_id]) for c in collections), config=featurization_config(flags), max_depth=max_depth
+                    ((c, model_of[c.schema_id]) for c in collections), config=featurization_config(flags), max_depth=max_depth, workers=cfg.workers
                 )
         except Exception as error:  # noqa: BLE001
             raise TrainingError("featurize", f"{type(error).__name__}: {error}") from error
+        self._say(f"featurize: {len(featurized)} collections featurized; training the Decision_Models")
         examples = ExampleSet()
         for item in featurized:
             examples.extend(item.examples)
@@ -1269,6 +1306,7 @@ class Trainer:
         for artifact in (SEMANTIC_TYPE_CLASSIFIER, SEMANTIC_MAPPING):
             omitted.append({"artifact": artifact, "reason": self._not_produced(cfg, SEMANTIC_TYPE), "class_counts": None})
         omitted.append({"artifact": CORPUS_INDEX, "reason": self._not_produced(cfg, SUGGESTION_TECHNIQUES[0]), "class_counts": None})
+        self._say(f"models: {len(artifacts)} Decision_Models trained, {len(omitted)} omitted; fitting the Learned_Thresholds")
         # 6. Learned_Thresholds on validation-split objectives (20.3, 20.4, 20.8)
         training_data = cfg.training_data if cfg.training_data is not None else f"{split.id}@{cfg.seed}"
         try:
@@ -1291,6 +1329,7 @@ class Trainer:
         for spec in THRESHOLDS.values():
             if spec.name not in records and not any(o.name == spec.name for o in omitted_thresholds):
                 omitted_thresholds.append(OmittedThreshold(spec.name, "no training stage fits it yet (its Technique is not implemented)"))
+        self._say(f"thresholds: {len(records)} fitted, {len(omitted_thresholds)} omitted; writing the Model_Bundle")
         # 7. the manifest (21.2, 21.5, 22.2, 22.6, 22.8)
         bundle_id = f"bundle-{_uuid.uuid4()}"
         document: dict[str, JSON] = {
