@@ -459,7 +459,8 @@ class StructureAnalyzer:
         scorer = MDLScorer(validator=validator)
         engine = DecisionEngine(techniques, bundle=bundle, report=report, scorer=scorer)
         values = ValueInferrer(
-            engine, validator=validator, report=report, scorer=scorer, enum_features=closed_enum_features
+            engine, validator=validator, report=report, scorer=scorer, enum_features=closed_enum_features,
+            resources=resources, seed=seed,
         )
         return cls(values, scorer=scorer, resources=resources, seed=seed)
 
@@ -482,10 +483,11 @@ class StructureAnalyzer:
         validator = validator if validator is not None else Validator()
         scorer = MDLScorer(validator=validator)
         engine = DecisionEngine.for_run(config, bundle, report, scorer=scorer)
-        values = ValueInferrer(
-            engine, validator=validator, report=report, scorer=scorer, enum_features=closed_enum_features
-        )
         resources = ResourceReader.for_run(config, report)
+        values = ValueInferrer(
+            engine, validator=validator, report=report, scorer=scorer, enum_features=closed_enum_features,
+            resources=resources, seed=config.seed,
+        )
         return cls(values, scorer=scorer, resources=resources, seed=config.seed)
 
     # -- components ---------------------------------------------------------

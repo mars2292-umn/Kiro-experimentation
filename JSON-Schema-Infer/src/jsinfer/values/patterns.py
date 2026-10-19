@@ -81,8 +81,9 @@ Matcher
 
 from __future__ import annotations
 
+import math
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Final
@@ -541,3 +542,241 @@ def _parse_count(text: str, body: str) -> int:
     if not text or not text.isascii() or not text.isdigit():
         raise ValueError(f"bad repetition count {text!r} in {body!r}")
     return int(text)
+
+
+# ---------------------------------------------------------------------------
+# Induction (task 32.1; Requirements 14.1, 14.2, 14.7, 14.8)
+# ---------------------------------------------------------------------------
+#
+# FlashProfile-style, as the design describes it:
+#
+# - :func:`tokenize` splits a string into atoms: maximal runs of ``[0-9]``,
+#   ``[a-z]``, and ``[A-Z]``, and single literal characters (a run of one
+#   literal is one token after normal form).
+# - Strings are grouped into *profiles* by their atom sequence
+#   (:func:`profiles`); a profile keeps every string's run lengths.
+# - A profile yields one alternative per rung of the generality ladder
+#   (:data:`LADDER`): exact run lengths when every string shares them,
+#   ``{min,max}`` ranges, class widening (``[0-9]``/``[a-z]``/``[A-Z]`` to
+#   ``[A-Za-z]`` to ``[0-9A-Za-z]``), and ``+``.
+# - :class:`Induction` builds one candidate Pattern per rung: the
+#   alternatives of every profile at that rung, merged greedily by the
+#   smallest estimated description-length increase (:func:`estimate_bits`,
+#   the MDL_Scorer's pattern coding without a view) until at most
+#   ``max_alternatives`` remain. Two alternatives merge token by token
+#   (classes join, equal literals stay, quantifiers take the union); a
+#   pair whose atom sequences cannot be aligned does not merge, and a rung
+#   that cannot reach the cap yields no candidate.
+#
+# The candidates are yielded from the most specific rung to the most
+# general; duplicates (the same source) are yielded once. The caller
+# checks each against all strings with the Validator (14.7) and stops at
+# the attempt budget (14.8).
+
+
+Atom = CharClass | str
+
+
+@dataclass(frozen=True, slots=True)
+class Profile:
+    """The strings that share one atom sequence, with each string's run lengths per atom."""
+
+    atoms: tuple[Atom, ...]
+    runs: tuple[tuple[int, ...], ...]  # one tuple per string, in first-seen order
+    count: int  # occurrences of the profile's strings, with multiplicity
+
+    def low(self, i: int) -> int:
+        return min(run[i] for run in self.runs)
+
+    def high(self, i: int) -> int:
+        return max(run[i] for run in self.runs)
+
+
+def tokenize(s: str) -> tuple[Token, ...]:
+    """The atoms of ``s`` with exact run lengths: maximal class runs and single literal characters."""
+    tokens: list[Token] = []
+    pos, n = 0, len(s)
+    while pos < n:
+        base = CharClass.base_of(s[pos])
+        if base is not None:
+            end = _CLASS_RUNS[base](s, pos).end()  # type: ignore[union-attr]
+            tokens.append(Token(base, Quantifier.exactly(end - pos)))
+            pos = end
+        else:
+            ch = s[pos]
+            end = pos + 1
+            while end < n and s[end] == ch:
+                end += 1
+            tokens.append(Token(ch, Quantifier.exactly(end - pos)))
+            pos = end
+    return tuple(tokens)
+
+
+def profiles(strings: Iterable[str], counts: Iterable[int] | None = None) -> list[Profile]:
+    """Group ``strings`` by atom sequence, in first-seen order (see the induction notes)."""
+    counts_list = list(counts) if counts is not None else None
+    found: dict[tuple[Atom, ...], tuple[list[tuple[int, ...]], int]] = {}
+    for index, s in enumerate(strings):
+        tokens = tokenize(s)
+        key = tuple(token.atom for token in tokens)
+        runs, count = found.setdefault(key, ([], 0))
+        runs.append(tuple(token.quantifier.low for token in tokens))
+        found[key] = (runs, count + (counts_list[index] if counts_list is not None else 1))
+    return [Profile(atoms, tuple(runs), count) for atoms, (runs, count) in found.items()]
+
+
+LADDER: Final = ("exact", "range", "widen", "plus")
+_WIDEN: Final = {CharClass.DIGIT: CharClass.ALNUM, CharClass.LOWER: CharClass.ALPHA, CharClass.UPPER: CharClass.ALPHA}
+
+
+def alternative_at(profile: Profile, rung: str) -> Alternative:
+    """The alternative of ``profile`` at a rung of :data:`LADDER`."""
+    if rung not in LADDER:
+        raise ValueError(f"rung must be one of {LADDER}, got {rung!r}")
+    tokens: list[Token] = []
+    for i, atom in enumerate(profile.atoms):
+        low, high = profile.low(i), profile.high(i)
+        if rung == "exact":
+            quantifier = Quantifier(low, high)  # exact when every string agrees, else the observed range
+        elif rung == "range":
+            quantifier = Quantifier(low, high)
+        elif rung == "widen":
+            quantifier = Quantifier(low, high)
+            if isinstance(atom, CharClass):
+                atom = _WIDEN.get(atom, atom)
+        elif isinstance(atom, CharClass):
+            quantifier = PLUS
+            atom = _WIDEN.get(atom, atom)
+        else:
+            quantifier = Quantifier(low, high)  # a literal keeps its observed run lengths at every rung
+        tokens.append(Token(atom, quantifier))
+    return Alternative(tokens)
+
+
+def _unique_lengths(profile: Profile) -> bool:
+    return all(profile.low(i) == profile.high(i) for i in range(len(profile.atoms)))
+
+
+def merge_alternatives(a: Alternative, b: Alternative) -> Alternative | None:
+    """Merge two alternatives token by token (classes join, equal literals stay, quantifiers union), or None."""
+    if len(a.tokens) != len(b.tokens):
+        return None
+    tokens: list[Token] = []
+    for x, y in zip(a.tokens, b.tokens):
+        if isinstance(x.atom, CharClass) and isinstance(y.atom, CharClass):
+            atom: Atom = x.atom.join(y.atom)
+        elif x.atom == y.atom:
+            atom = x.atom
+        else:
+            return None
+        low = min(x.quantifier.low, y.quantifier.low)
+        high = None if x.quantifier.high is None or y.quantifier.high is None else max(x.quantifier.high, y.quantifier.high)
+        tokens.append(Token(atom, Quantifier(low, high)))
+    return Alternative(tokens)
+
+
+def _log2(n: int) -> float:
+    return math.log2(n) if n > 1 else 0.0
+
+
+def estimate_bits(alternatives: Sequence[tuple[Alternative, Profile]]) -> float:
+    """A description-length estimate of a Pattern over its profiles (the scorer's pattern coding, without a view).
+
+    Model bits follow ``mdl.scorer.M_re``'s shape (a constant per token plus
+    the quantifier counts); data bits are, per string, ``log2`` of the
+    number of alternatives plus, per token, the run length times
+    ``log2 |class|`` (0 for a literal) plus the count code of its quantifier.
+    """
+    k = len(alternatives)
+    model = _log2(k + 1)
+    data = 0.0
+    for alternative, profile in alternatives:
+        tokens = alternative.tokens
+        model += 2.0 + sum(4.0 + _log2(t.quantifier.low + 1) + (0.0 if t.quantifier.high is None else _log2(t.quantifier.high - t.quantifier.low + 1)) for t in tokens)
+        per_string = _log2(k)
+        for run in profile.runs:
+            bits = per_string
+            # Normal form may fuse adjacent tokens after a class join, so a run is charged under the token
+            # at its index, the last token absorbing the rest.
+            for i, length in enumerate(run):
+                token = tokens[min(i, len(tokens) - 1)] if tokens else None
+                if token is None:
+                    continue
+                if isinstance(token.atom, CharClass):
+                    bits += length * _log2(token.atom.size)
+                q = token.quantifier
+                bits += _log2(q.high - q.low + 1) if q.high is not None else _log2(length - q.low + 2)
+            data += bits
+    return model + data
+
+
+@dataclass(frozen=True, slots=True)
+class Induced:
+    """One induced candidate: the Pattern, its rung, and the number of profiles it merged into alternatives."""
+
+    pattern: Pattern
+    rung: str
+    merged: int
+
+    @property
+    def sub_patterns(self) -> int:
+        return len(self.pattern.alternatives)
+
+
+class Induction:
+    """Candidate Patterns of a set of strings, most specific first (see the induction notes)."""
+
+    __slots__ = ("_max_alternatives", "_profiles")
+
+    def __init__(self, strings: Iterable[str], counts: Iterable[int] | None = None, *, max_alternatives: int = 4) -> None:
+        if isinstance(max_alternatives, bool) or not isinstance(max_alternatives, int) or max_alternatives < 1:
+            raise ValueError(f"max_alternatives must be a positive int, got {max_alternatives!r}")
+        self._profiles = profiles(strings, counts)
+        self._max_alternatives = max_alternatives
+
+    @property
+    def profiles(self) -> list[Profile]:
+        return list(self._profiles)
+
+    def _merge_down(self, items: list[tuple[Alternative, Profile]]) -> list[tuple[Alternative, Profile]] | None:
+        """Greedily merge the pair with the smallest estimated bit increase until the cap is met, or None."""
+        while len(items) > self._max_alternatives:
+            best: tuple[float, int, int, Alternative] | None = None
+            base = estimate_bits(items)
+            for i in range(len(items)):
+                for j in range(i + 1, len(items)):
+                    merged = merge_alternatives(items[i][0], items[j][0])
+                    if merged is None:
+                        continue
+                    joint = Profile(items[i][1].atoms, items[i][1].runs + items[j][1].runs, items[i][1].count + items[j][1].count)
+                    trial = [*items[:i], *items[i + 1 : j], *items[j + 1 :], (merged, joint)]
+                    increase = estimate_bits(trial) - base
+                    if best is None or (increase, i, j) < best[:3]:
+                        best = (increase, i, j, merged)
+            if best is None:
+                return None
+            _, i, j, merged = best
+            joint = Profile(items[i][1].atoms, items[i][1].runs + items[j][1].runs, items[i][1].count + items[j][1].count)
+            items = [*items[:i], *items[i + 1 : j], *items[j + 1 :], (merged, joint)]
+        return items
+
+    def candidates(self) -> Iterator[Induced]:
+        """Yield one candidate per rung of :data:`LADDER` that reaches the alternatives cap, distinct sources once."""
+        if not self._profiles:
+            return
+        seen: set[str] = set()
+        for rung in LADDER:
+            if rung == "exact" and not all(_unique_lengths(p) for p in self._profiles):
+                continue  # exact lengths exist only when every string of every profile agrees
+            items = [(alternative_at(p, rung), p) for p in self._profiles]
+            merged = self._merge_down(items)
+            if merged is None:
+                continue
+            pattern = Pattern([alternative for alternative, _ in merged])
+            if pattern.source in seen:
+                continue
+            seen.add(pattern.source)
+            yield Induced(pattern, rung, len(self._profiles) - len(merged))
+
+
+__all__ += ["LADDER", "Induced", "Induction", "Profile", "alternative_at", "estimate_bits", "merge_alternatives", "profiles", "tokenize"]

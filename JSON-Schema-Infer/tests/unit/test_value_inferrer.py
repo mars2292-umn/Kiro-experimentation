@@ -148,7 +148,7 @@ def test_latent_pattern_is_emitted_when_no_format_competes() -> None:
 
 def test_rejecting_candidates_are_withheld_with_counts() -> None:
     strings = ["a@example.com", "b@example.com", "nope!", "nope!"]
-    result, report = infer(strings)
+    result, report = infer(strings, states={PATTERN: False})  # induction (14) would offer a Pattern here
     kw = result.keywords()
     assert "format" not in kw and "pattern" not in kw
     assert kw["type"] == ["string"]  # the other Constraints stay
@@ -175,7 +175,7 @@ def test_string_set_counts_rejections_with_multiplicity() -> None:
 
 
 def test_disabled_string_techniques_give_the_fallback() -> None:
-    result, report = infer(DATES, states={LATENT_TYPE: False, FORMAT: False})
+    result, report = infer(DATES, states={LATENT_TYPE: False, FORMAT: False, PATTERN: False})
     kw = result.keywords()
     assert "x-latent-type" not in kw and "format" not in kw and "pattern" not in kw
     assert result.latent is None and result.string.candidates == ()
@@ -274,7 +274,7 @@ def test_key_constraint_emits_a_format_under_property_names() -> None:
 
 def test_key_formats_that_reject_a_key_are_withheld() -> None:
     docs = [{UUIDS[0]: 1, "not a key!": 2}, {UUIDS[1]: 3}]
-    vi, report = inferrer()
+    vi, report = inferrer({PATTERN: False})  # induction (14) would offer a key Pattern here
     assert vi.key_constraint(at(build_store(docs))) is None
     entries = rejected(report)
     assert entries and all(entry.details["target"] == "keys" for entry in entries)
@@ -283,7 +283,7 @@ def test_key_formats_that_reject_a_key_are_withheld() -> None:
 
 
 def test_key_constraint_with_format_disabled_records_the_fallback() -> None:
-    vi, report = inferrer({FORMAT: False, LATENT_TYPE: False})
+    vi, report = inferrer({FORMAT: False, LATENT_TYPE: False, PATTERN: False})
     assert vi.key_constraint(at(build_store([{UUIDS[0]: 1}]))) is None
     (entry,) = decisions(report, STRING_CONSTRAINT)
     assert entry.resolution.method == "fallback"

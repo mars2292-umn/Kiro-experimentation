@@ -361,11 +361,16 @@ def _check_selection(selection: StringConstraint, strings: Sequence[str], where:
         )
         assert candidate.withheld == (rejected > 0)
     selected = selection.selected
-    if selection.survivors:
+    step3 = [candidate for candidate in selection.survivors if candidate.technique != PATTERN]
+    if step3:
         assert selected is not None and selected in selection.survivors, f"a candidate survives at {where}, none selected"
+    if selection.survivors:
         decision = selection.decision
         assert decision is not None
-        if decision.method == "mdl":
+        if selected is None:  # only induced Patterns survived and no Pattern won (14.2)
+            assert decision.label == "none" and decision.method == "mdl", f"induced survivors at {where} lost without an MDL decision"
+            event("no induced Pattern chosen")
+        elif decision.method == "mdl":
             scores = [c.score for c in decision.resolution.candidates]
             assert scores[decision.resolution.selected] == min(scores), f"{selected.label} is not the shortest at {where}"
     else:

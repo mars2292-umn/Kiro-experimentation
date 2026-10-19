@@ -619,13 +619,13 @@ Conventions used by every task:
 
 ### M5: Should tier
 
-- [ ] 32. Implement FlashProfile-style pattern induction
-  - [ ] 32.1 Implement induction (`values/patterns.py`, `values/inferrer.py`, `config/registry.py`)
+- [x] 32. Implement FlashProfile-style pattern induction
+  - [x] 32.1 Implement induction (`values/patterns.py`, `values/inferrer.py`, `config/registry.py`)
     - Atom tokenization; profiles by atom-class sequence; generality ladder (exact lengths, ranges, class widening, `+`); greedy merging down to `patterns.max_alternatives`
     - Validator check of every candidate against all distinct values (induction may use a sample); `patterns.attempt_budget`; MDL selection with ties to no Pattern, then fewer sub-patterns; discarded candidates and budget exhaustion reported
     - Applies to Paths with no selected Format that are not Closed_Enums, and to Map keys through `key_constraint` → `propertyNames`
     - _Requirements: 4.4, 14.1, 14.2, 14.3, 14.6, 14.7, 14.8_
-  - [ ] 32.2 Write unit tests for induction limits
+  - [x] 32.2 Write unit tests for induction limits
     - Attempt budget, the alternatives cap, and reporting
     - _Requirements: 14.7, 14.8_
 

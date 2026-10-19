@@ -848,7 +848,7 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
     _technique("values.semantic_type", "Semantic_Type_Classifier", "could",
                implemented=False, thresholds=("semantic.min_probability",)),
     _technique("values.pattern", "FlashProfile-style pattern induction", "should",
-               implemented=False, sample_param="sample.patterns"),
+               implemented=True, sample_param="sample.patterns"),
     _technique("values.enum_estimation", "Good–Turing/Chao1 enum estimation", "must",
                implemented=True),
     _technique("values.bounds", "bound generalization", "must",

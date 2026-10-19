@@ -457,10 +457,10 @@ def test_map_node_has_one_value_schema_key_format_and_key_count_bounds() -> None
 
 
 def test_map_node_follows_technique_states() -> None:
-    ra, report = analyzer({"values.bounds": False, "values.format": False})
+    ra, report = analyzer({"values.bounds": False, "values.format": False, "values.pattern": False})
     node = ra.object_node(root(UUID_MAPS))
     kw = node.keywords()
-    assert node.kind.is_map and set(kw) == {"additionalProperties"}  # 16.8 and no key Format candidates
+    assert node.kind.is_map and set(kw) == {"additionalProperties"}  # 16.8 and no key Format or Pattern candidates
     bound_methods = [entry.resolution.method for entry in decisions(report, "bound")]
     assert bound_methods == ["fallback", "fallback"]
 

@@ -55,7 +55,15 @@ Order at a scalar view (:meth:`ValueInferrer.infer_scalar`)
        offered to the engine, so identical Constraints do not split the MDL
        posterior; the others are listed as ``also_offered_by``.
     6. Pattern induction (14), at a Path with no selected Format that is not
-       a Closed_Enum.
+       a Closed_Enum: FlashProfile-style candidates
+       (``values.patterns.Induction``) over at most ``sample.patterns``
+       distinct strings, each checked against every string and discarded
+       with a report entry when it rejects one (14.7), at most
+       ``patterns.attempt_budget`` of them (14.8, reported when reached);
+       the survivors compete by MDL with the option of no induced Pattern,
+       ties going to no Pattern and then fewer sub-patterns (14.2). An
+       induced Pattern that wins replaces a Latent_Type Pattern; otherwise
+       the earlier selection stands.
     7. Bounds (16): ``minimum``/``maximum`` over the non-flagged numbers
        unless the Path is a Closed_Enum, and ``minLength``/``maxLength`` over
        the code-point lengths of the non-flagged strings unless the Path is
@@ -78,14 +86,13 @@ Technique states (13.9, 28.11)
     A step runs only when its Technique is registered as implemented and is
     enabled in the engine: a disabled Technique produces no candidate and,
     for latent types, no ``x-latent-type``, and the other steps run
-    unchanged. ``values.semantic_type``, ``corpus.name_suggest``,
-    ``corpus.cf_suggest``, and ``values.pattern`` are not implemented yet,
-    so their steps are skipped by registry state; each has a hook method
+    unchanged. ``values.semantic_type``, ``corpus.name_suggest``, and
+    ``corpus.cf_suggest`` are not implemented yet, so their steps are
+    skipped by registry state; each has a hook method
     (:meth:`ValueInferrer._semantic_candidates`,
-    :meth:`ValueInferrer._corpus_candidates`,
-    :meth:`ValueInferrer._pattern_step`) that the implementing task fills
-    in, and which raises ``NotImplementedError`` if the registry marks the
-    Technique implemented before the hook is written.
+    :meth:`ValueInferrer._corpus_candidates`) that the implementing task
+    fills in, and which raises ``NotImplementedError`` if the registry
+    marks the Technique implemented before the hook is written.
 
     The ``string_constraint`` Decision_Point exists at a Path with strings
     (or keys) when a candidate survives. When no serving Technique is
@@ -130,12 +137,15 @@ from typing import Any, Final, Literal, TypeAlias
 
 import numpy as np
 
-from jsinfer.config.registry import REGISTRY
+from jsinfer.config.registry import REGISTRY, OUTCOME_NONE, TIE_FEWER_SUBPATTERNS
 from jsinfer.core.determinism import RANK_INTEGER, RANK_NUMBER
 from jsinfer.core.jsonvalue import JSON, JType
 from jsinfer.core.paths import Path, render_path
-from jsinfer.core.provenance import ProvenanceRecord, Support, baseline_technique
+from jsinfer.config.resources import ResourceReader
+from jsinfer.core.determinism import rng as _rng
+from jsinfer.core.provenance import ProvenanceRecord, SampleInfo, Support, baseline_technique
 from jsinfer.core.report import InferenceReport, RejectedCandidate
+from jsinfer.core.sampling import sample_rows
 from jsinfer.core.schema_model import ConstraintId, SchemaNode
 from jsinfer.core.stats import Histogram
 from jsinfer.core.views import View
@@ -144,6 +154,7 @@ from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.values.bounds import NUMBER, STRING_LENGTH, BoundDecision, Number, QuantityKind, QuantitySet, decide_bound
 from jsinfer.values.enums import EnumFeatures, EnumJudgment, judge_enum
+from jsinfer.values.patterns import Induction
 from jsinfer.values.formats import REJECTED_CATEGORY, FormatCheck, FormatDetector, format_candidates
 from jsinfer.values.latent import LatentDetection, detect_latent, view_strings
 from jsinfer.values.types import ScalarTypes, scalar_types
@@ -171,6 +182,7 @@ FORMAT: Final = "values.format"
 SEMANTIC_TYPE: Final = "values.semantic_type"
 CORPUS_TECHNIQUES: Final = ("corpus.name_suggest", "corpus.cf_suggest")
 PATTERN: Final = "values.pattern"
+PATTERN_CATEGORY: Final = "patterns"  # the Inference_Report category of discarded induced candidates (14.7, 14.8)
 
 # The producer named in the Provenance_Record of ``type``: the ``type`` Baseline_Rule (13.1, 13.2, 26.13).
 TYPE_PRODUCER: Final = baseline_technique("type")
@@ -300,7 +312,8 @@ class StringCandidate:
         details: dict[str, JSON] = {"rejected": self.rejected, "distinct_rejected": self.distinct_rejected}
         if target == "keys":
             details["target"] = "keys"
-        return RejectedCandidate(REJECTED_CATEGORY, render_path(path), self.constraint, self.technique, details)
+        category = PATTERN_CATEGORY if self.technique == PATTERN else REJECTED_CATEGORY  # induced Patterns (14.7)
+        return RejectedCandidate(category, render_path(path), self.constraint, self.technique, details)
 
 
 def _from_format(check: FormatCheck) -> StringCandidate:
@@ -333,6 +346,7 @@ class StringConstraint:
     withheld: tuple[RejectedCandidate, ...]
     decision: Decision | None
     selected: StringCandidate | None
+    sample: SampleInfo | None = None  # the induction sample behind a selected induced Pattern (14.7, 26.4)
 
     @property
     def survivors(self) -> tuple[StringCandidate, ...]:
@@ -394,7 +408,7 @@ class StringConstraint:
             details["also_offered_by"] = [candidate.technique for candidate in duplicates]
         if self.target == "keys":
             details["target"] = "keys"
-        return self.decision.provenance(Support(total, total), details=details)
+        return self.decision.provenance(Support(total, total), sample=self.sample, details=details)
 
 
 # ---------------------------------------------------------------------------
@@ -516,7 +530,7 @@ class ValueInferrer:
     engine's MDL_Scorer by default).
     """
 
-    __slots__ = ("_detector", "_engine", "_enum_features", "_report", "_scorer", "_validator")
+    __slots__ = ("_detector", "_engine", "_enum_features", "_report", "_resources", "_scorer", "_seed", "_validator")
 
     def __init__(
         self,
@@ -526,6 +540,8 @@ class ValueInferrer:
         report: InferenceReport | None = None,
         scorer: MDLScorer | None = None,
         enum_features: EnumFeatures | None = None,
+        resources: ResourceReader | Mapping[str, Any] | None = None,
+        seed: int = 0,
     ) -> None:
         if not isinstance(engine, DecisionEngine):
             raise TypeError(f"engine must be a DecisionEngine, got {type(engine).__name__}")
@@ -543,6 +559,10 @@ class ValueInferrer:
             raise TypeError("enum_features must be callable or None")
         self._enum_features = enum_features
         self._detector: FormatDetector | None = None
+        self._resources = ResourceReader.of(resources)
+        if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+            raise ValueError(f"seed must be a non-negative int, got {seed!r}")
+        self._seed = seed
 
     @property
     def enum_features(self) -> EnumFeatures | None:
@@ -557,16 +577,19 @@ class ValueInferrer:
         bundle: ArtifactSource | None = None,
         report: InferenceReport | None = None,
         validator: Validator | None = None,
+        resources: ResourceReader | Mapping[str, Any] | None = None,
+        seed: int = 0,
     ) -> ValueInferrer:
         """An inferrer whose engine has the Technique states ``techniques`` (omitted ids take their default).
 
         The engine, the MDL_Scorer, and the inferrer share ``validator`` and
-        ``report``; ``bundle`` supplies Decision_Models and Learned_Thresholds.
+        ``report``; ``bundle`` supplies Decision_Models and Learned_Thresholds;
+        ``resources`` and ``seed`` feed pattern induction (14.8, 29.8).
         """
         validator = validator if validator is not None else Validator()
         scorer = MDLScorer(validator=validator)
         engine = DecisionEngine(techniques, bundle=bundle, report=report, scorer=scorer)
-        return cls(engine, validator=validator, report=report, scorer=scorer)
+        return cls(engine, validator=validator, report=report, scorer=scorer, resources=resources, seed=seed)
 
     @property
     def engine(self) -> DecisionEngine:
@@ -638,7 +661,9 @@ class ValueInferrer:
             offered = self._value_candidates(view, strings, latent)
             string = self._select(view, _rows_of(view, JType.STRING), strings, offered, "values", self._value_node)
             if string.keyword != "format" and not judgment.closed:
-                string = self._pattern_step(view, strings, string)  # 6. (14.1)
+                string = self._pattern_step(  # 6. (14.1)
+                    view, strings, string, _rows_of(view, JType.STRING), self._value_node, SchemaNode.from_json({**_STRING_BASE, **string.keywords()})
+                )
             for keyword, value in string.keywords().items():
                 kw[keyword] = value
                 provenance[keyword] = string.provenance()
@@ -722,16 +747,82 @@ class ValueInferrer:
             found.extend(self._planned(tid))
         return found
 
-    def _pattern_step(self, view: View, strings: StringSet, selection: StringConstraint) -> StringConstraint:
-        """Step 6 (14, task 32.1): Pattern induction at a Path (or Map keys) with no selected Format.
+    def _pattern_step(
+        self,
+        view: View,
+        strings: StringSet,
+        selection: StringConstraint,
+        scored: View,
+        make_node: Callable[[StringCandidate], SchemaNode],
+        none_node: SchemaNode,
+    ) -> StringConstraint:
+        """Step 6 (14): Pattern induction at a Path (or Map keys) with no selected Format.
 
-        The caller has checked the Path is not a Closed_Enum. Task 32.1
-        induces the candidates, selects with the no-Pattern option (14.2),
-        and returns the replacing selection; until then ``selection`` stands.
+        The caller has checked the Path is not a Closed_Enum. Candidates
+        come from :class:`~jsinfer.values.patterns.Induction` over at most
+        ``sample.patterns`` distinct strings (sampled with
+        ``rng("values.pattern", path)``), each checked against every
+        non-flagged string with the Validator: a rejecting candidate is
+        discarded and reported with the number of non-matching strings
+        (14.7). Induction stops at ``patterns.attempt_budget`` candidates,
+        which the report records (14.8). The survivors and the option of
+        no induced Pattern (``none_node``, the current selection) are
+        resolved by MDL on ``scored``; ties favor no Pattern, then fewer
+        sub-patterns (14.2). ``selection`` stands when nothing replaces it.
         """
-        if not self.runs(PATTERN):
+        if not self.runs(PATTERN) or not strings.strings:
             return selection
-        raise NotImplementedError(f"{PATTERN} is registered as implemented, but the ValueInferrer has no step for it")
+        path = view.path
+        max_alternatives = int(self._resources.read("patterns.max_alternatives"))
+        budget = int(self._resources.read("patterns.attempt_budget"))
+        sample_size = int(self._resources.read("sample.patterns"))
+        sample: SampleInfo | None = None
+        induced_from = strings.strings
+        induced_counts: tuple[int, ...] = strings.counts
+        if strings.n_distinct > sample_size:
+            indices = sorted(sample_rows(list(range(strings.n_distinct)), sample_size, _rng(PATTERN, render_path(path), seed=self._seed)))
+            induced_from = tuple(strings.strings[i] for i in indices)
+            induced_counts = tuple(strings.counts[i] for i in indices)
+            sample = SampleInfo(sample_size, strings.n_distinct)
+        offered: list[StringCandidate] = []
+        evaluated = 0
+        exhausted = False
+        for index, candidate in enumerate(Induction(induced_from, induced_counts, max_alternatives=max_alternatives).candidates()):
+            if evaluated >= budget:
+                exhausted = True
+                break
+            evaluated += 1
+            rejected, distinct = strings.rejections("pattern", candidate.pattern.source, self._validator)
+            details: dict[str, JSON] = {"rung": candidate.rung, "sub_patterns": candidate.sub_patterns, "merged_profiles": candidate.merged}
+            offered.append(StringCandidate(PATTERN, "pattern", candidate.pattern.source, (index,), rejected, distinct, details))
+        withheld: list[RejectedCandidate] = list(selection.withheld)
+        survivors: list[StringCandidate] = []
+        for candidate in offered:
+            if candidate.withheld:
+                entry = candidate.rejection(path, selection.target)
+                withheld.append(entry)
+                if self._report is not None:
+                    self._report.record_rejected(entry)
+            else:
+                survivors.append(candidate)
+        if exhausted and self._report is not None:
+            budget_entry = RejectedCandidate(
+                PATTERN_CATEGORY, render_path(path), {"attempt_budget": budget}, PATTERN,
+                {"budget_exhausted": True, "evaluated": evaluated, **({"target": "keys"} if selection.target == "keys" else {})},
+            )
+            self._report.record_rejected(budget_entry)
+            withheld.append(budget_entry)
+        candidates = (*selection.candidates, *offered)
+        if not survivors:
+            return StringConstraint(path, selection.target, strings, candidates, tuple(withheld), selection.decision, selection.selected, selection.sample)
+        none = Candidate(technique=PATTERN, outcome=OUTCOME_NONE, order_key=(-1,), node=none_node, label=OUTCOME_NONE, tie_ranks={TIE_FEWER_SUBPATTERNS: 0})
+        pairs = [(sc, Candidate(technique=PATTERN, outcome=sc.constraint, order_key=sc.order_key, node=make_node(sc), label=sc.label, tie_ranks={TIE_FEWER_SUBPATTERNS: int(sc.details["sub_patterns"])})) for sc in _distinct(survivors)]
+        decision = self._engine.resolve(DecisionPoint(STRING_CONSTRAINT, path), [none, *(ec for _, ec in pairs)], scored, mdl_by=PATTERN, scorer=self._scorer)
+        selected = next((sc for sc, ec in pairs if ec is decision.candidate), None)
+        if selected is None:  # no induced Pattern (14.2): the earlier selection stands, with the induced candidates recorded
+            kept = selection.decision if selection.selected is not None else decision
+            return StringConstraint(path, selection.target, strings, candidates, tuple(withheld), kept, selection.selected, selection.sample)
+        return StringConstraint(path, selection.target, strings, candidates, tuple(withheld), decision, selected, sample)
 
     # -- selection (13.6, 13.8) ---------------------------------------------
 
@@ -802,7 +893,9 @@ class ValueInferrer:
 
         selection = self._select(view, _rows_of(view, JType.OBJECT), strings, offered, "keys", make_node)
         if selection.keyword != "format":
-            selection = self._pattern_step(view, strings, selection)  # induced key Patterns (14.1)
+            selection = self._pattern_step(  # induced key Patterns (14.1)
+                view, strings, selection, _rows_of(view, JType.OBJECT), make_node, SchemaNode.from_json(dict(base_kw))
+            )
         return None if selection.selected is None else KeyConstraint(selection)
 
     # -- bounds (16) --------------------------------------------------------
