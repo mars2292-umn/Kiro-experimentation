@@ -1,0 +1,31 @@
+# Benchmark configuration for `jsinfer split -c bench.toml` (and the later `jsinfer bench` commands).
+# Paths are relative to this file. Copy to bench.toml and fill in the pinned checkouts:
+#
+#   git clone https://github.com/SchemaStore/schemastore.git checkouts/schemastore
+#   git -C checkouts/schemastore checkout <commit>          # the pinned commit; record it below
+#   git clone https://github.com/<jsonschemabench repository> checkouts/jsonschemabench
+#   git -C checkouts/jsonschemabench checkout <revision>    # the pinned revision; record it below
+#   jsinfer split -c bench.toml
+#
+# The first run writes corpus/manifest.json (schemas, linked test files, omissions with reasons) and
+# split.json (groups, splits, cut-off, deviation flags). Inspect the omissions and the printed cut-off
+# and mixture component count before relying on the split.
+
+[corpus]
+manifest = "corpus/manifest.json"
+schemastore = "checkouts/schemastore"
+schemastore_commit = "<pinned commit>"
+# jsonschemabench = "checkouts/jsonschemabench"     # a directory of *.json schema files (see the loader's docstring)
+# jsonschemabench_revision = "<pinned revision>"
+
+[split]
+out = "split.json"
+seed = 0
+# known_schemas = ["schemastore/package"]           # Real_Dataset known schemas in the corpus (held out with their groups)
+# [split.known_schema_files]                        # known schemas outside the corpus: similar corpus schemas are held out
+# my-dataset = "datasets/my-dataset/schema.json"
+
+[resources]
+"split.train" = 0.70
+"split.val" = 0.10
+"split.held_out" = 0.20

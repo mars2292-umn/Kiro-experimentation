@@ -187,7 +187,7 @@ def test_unique_items_over_scalars_is_supported(schema: dict[str, Any]) -> None:
     ],
 )
 def test_unique_items_over_possible_containers_is_unsupported(schema: dict[str, Any]) -> None:
-    assert uses(schema) == [("", "uniqueItems", NON_SCALAR_ITEMS)]
+    assert ("", "uniqueItems", NON_SCALAR_ITEMS) in uses(schema)  # an enum of arrays is reported on its own too
 
 
 # ---------------------------------------------------------------------------
@@ -396,11 +396,12 @@ def test_naive_merge_schemas_end_to_end() -> None:
     assert CHECKER.relation(emitted, stricter) is Relation.SUPERSET
 
 
-def test_jsonsubschema_errors_are_unsupported_with_the_error() -> None:
-    result = CHECKER.relation({"type": "object", "not": {"type": "object", "required": ["a"]}}, {"type": "object"})
-    assert isinstance(result, Unsupported)
-    assert result.cause == "error"
-    assert "UnsupportedNegatedObject" in result.message
+def test_jsonsubschema_errors_reach_the_runner_as_failures() -> None:
+    # The keyword scan now refuses negated object schemas before any check (task 25.6); the runner itself
+    # still turns jsonsubschema's exception into a failure with cause "error".
+    outcome = SubprocessRunner()({"type": "object", "not": {"type": "object", "required": ["a"]}}, {"type": "object"}, 30.0)
+    assert isinstance(outcome, CheckFailure) and outcome.kind == "error"
+    assert "UnsupportedNegatedObject" in outcome.message
 
 
 def _fake_python(directory: Path, body: str) -> Path:

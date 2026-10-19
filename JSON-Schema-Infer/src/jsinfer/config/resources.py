@@ -286,7 +286,10 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
     _count("ece.bins", 15, "equal-width Confidence bins for calibration error and reliability curves (21.5, 35.6)"),
     _count("ds.max_iter", 100, "Dawid-Skene EM iteration cap (23.3)"),
     SettingSpec("ds.tol", float, Interval(0), 1e-6, "Dawid-Skene EM convergence tolerance (23.3)"),
-    # Evaluation_Harness (31.8, 31.13, 34.7, 35.1)
+    # Evaluation_Harness (30.2, 31.8, 31.13, 34.7, 35.1)
+    SettingSpec("split.train", float, Interval(0, 1, low_open=True, high_open=True), 0.70, "training-split proportion of the Schema_Corpus, in schemas (30.2)"),
+    SettingSpec("split.val", float, Interval(0, 1, low_open=True, high_open=True), 0.10, "validation-split proportion of the Schema_Corpus, in schemas (30.2)"),
+    SettingSpec("split.held_out", float, Interval(0, 1, low_open=True, high_open=True), 0.20, "held-out-split proportion of the Schema_Corpus, in schemas (30.2)"),
     _count("bootstrap.resamples", 2_000, "seeded bootstrap resamples per confidence interval (35.1)"),
     _seconds("subschema.timeout_s", 30.0, "per-check time limit of the Subschema_Checker in seconds (31.8)"),
     _seconds("bench.run_timeout_s", 1_800.0, "per-run time limit of a benchmarked system in seconds (31.13, 34.7)"),

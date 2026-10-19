@@ -143,6 +143,10 @@
     "23.3 Write property test for missing artifacts": {
       "status": "passed",
       "lastRunTimestamp": 1792367287724
+    },
+    "25.3 Write property test for split integrity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792373376367
     }
   },
   "executionHistory": {

@@ -271,7 +271,8 @@ def small_values(name: str) -> st.SearchStrategy[Any]:
     if spec.type is int:
         start = math.ceil(low) + (1 if spec.range.low_open and math.ceil(low) == low else 0)
         return st.integers(start, start + 40)
-    return st.floats(float(low), float(low) + 60.0, exclude_min=spec.range.low_open, allow_nan=False)
+    high = float(low) + 60.0 if spec.range.high is None else float(spec.range.high)
+    return st.floats(float(low), high, exclude_min=spec.range.low_open, exclude_max=spec.range.high_open, allow_nan=False)
 
 
 @dataclass(frozen=True)

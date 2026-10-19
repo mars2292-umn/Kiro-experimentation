@@ -65,6 +65,20 @@ Supported keywords
       number of references followed, a reference back into a target already
       being expanded; references that only lead into such a cycle are
       recursive too, since their expansion does not end either;
+    - an ``enum`` or ``const`` holding an object or array value
+      (:data:`CONTAINER_VALUES`): jsonsubschema 0.0.8 raises
+      ``UnsupportedEnumCanonicalization`` on such an enum (probed in
+      ``tests/integration/test_subschema_probe.py``, task 25.6);
+    - a ``not`` whose subschema holds object or array keywords
+      (:data:`NEGATED_COMPOUND`: ``properties``, ``patternProperties``,
+      ``additionalProperties``, ``required``, ``minProperties``,
+      ``maxProperties``, ``items``, ``prefixItems``, ``minItems``,
+      ``maxItems``, ``uniqueItems``), which jsonsubschema 0.0.8 cannot negate
+      (``UnsupportedNegatedObject``/``UnsupportedNegatedArray``); a negated
+      plain type (``{"not": {"type": "object"}}``) is fine, except a
+      negated numeric type (:data:`NEGATED_NUMBER`): jsonsubschema 0.0.8
+      reports ``{"not": {"type": "integer"}}`` and ``{"not": {"type":
+      "number"}}`` equivalent, although 1.5 satisfies only the first;
     - ``uniqueItems: true`` on an array whose items may be objects or arrays
       (:data:`NON_SCALAR_ITEMS`). Items are known to be scalars when every
       ``prefixItems`` entry and ``items`` (which must then be present) admit
@@ -76,8 +90,11 @@ Supported keywords
 
     The keyword scan walks the subschemas of supported and unsupported
     keywords alike, so a finding nested under another (a ``format`` inside
-    ``contains``) is listed as well. Task 25.6 probes jsonsubschema's actual
-    keyword coverage and updates these lists.
+    ``contains``) is listed as well. Task 25.6 probed jsonsubschema's actual
+    keyword coverage: ``dependencies`` and ``format`` are ignored (so stay
+    unsupported), ``multipleOf``, negated plain types, and integer-valued
+    enums are decided correctly, and the two cases above are the ones that
+    raise; the probe test records the results.
 
 The draft-04 shim
     :func:`to_draft4` builds a new document; the input is never changed.
@@ -168,6 +185,9 @@ from jsinfer.io.validator import Draft, Validator, dialect_of
 __all__ = [
     "BELOW_ROOT",
     "EMBEDDED_RESOURCE",
+    "CONTAINER_VALUES",
+    "NEGATED_COMPOUND",
+    "NEGATED_NUMBER",
     "NON_SCALAR_ITEMS",
     "NOT_LOCAL",
     "NOT_SUPPORTED",
@@ -246,6 +266,16 @@ NOT_LOCAL: Final = "not a local JSON Pointer reference"
 UNRESOLVED: Final = "target is not a schema position of the document"
 RECURSIVE: Final = "recursive reference"
 NON_SCALAR_ITEMS: Final = "items may be objects or arrays"
+CONTAINER_VALUES: Final = "holds an object or array value, which jsonsubschema cannot canonicalize"
+NEGATED_COMPOUND: Final = "negates an object or array schema, which jsonsubschema cannot negate"
+NEGATED_NUMBER: Final = "negates a numeric type, which jsonsubschema decides wrongly"
+_NUMERIC_TYPES: Final = frozenset({"integer", "number"})
+_COMPOUND_KEYWORDS: Final = frozenset(
+    {
+        "properties", "patternProperties", "additionalProperties", "required", "minProperties", "maxProperties",
+        "dependentRequired", "items", "prefixItems", "minItems", "maxItems", "uniqueItems", "contains",
+    }
+)
 
 # The subschema positions of draft 2020-12, by how each keyword holds them. The
 # scan walks all of them; the shim meets only those of supported keywords.
@@ -448,6 +478,11 @@ def _keyword_reason(keyword: str, value: Any, root: bool) -> str | None:
     return None if keyword in SUPPORTED_KEYWORDS else NOT_SUPPORTED
 
 
+def _numeric_type(declared: Any) -> bool:
+    names = [declared] if isinstance(declared, str) else declared if isinstance(declared, list) else []
+    return any(name in _NUMERIC_TYPES for name in names)
+
+
 def unsupported_keywords(schema: Any) -> list[KeywordUse]:
     """Every keyword of a draft 2020-12 document that the checker does not support, sorted.
 
@@ -473,6 +508,14 @@ def unsupported_keywords(schema: Any) -> list[KeywordUse]:
                 refs.append((tokens, item))
             elif keyword == "uniqueItems" and item is True:
                 unique.append((tokens, value))
+            elif keyword == "const" and isinstance(item, (dict, list)):
+                found.append(KeywordUse(pointer, keyword, CONTAINER_VALUES))
+            elif keyword == "enum" and isinstance(item, list) and any(isinstance(v, (dict, list)) for v in item):
+                found.append(KeywordUse(pointer, keyword, CONTAINER_VALUES))
+            elif keyword == "not" and isinstance(item, dict) and any(k in _COMPOUND_KEYWORDS for k in item):
+                found.append(KeywordUse(pointer, keyword, NEGATED_COMPOUND))
+            elif keyword == "not" and isinstance(item, dict) and _numeric_type(item.get("type")):
+                found.append(KeywordUse(pointer, keyword, NEGATED_NUMBER))
             if keyword in _POSITIONS:
                 stack.extend((child, _extend(tokens, keyword, token)) for token, child in _children(keyword, item))
 

@@ -247,10 +247,12 @@ class _Documents:
         draw = self.draw
         if keyword == "type":
             out[keyword] = self._types(SCHEMA_TYPES)
-        elif keyword == "enum":
-            out[keyword] = draw(st.lists(st.sampled_from(MEMBERS), min_size=1, max_size=4))
+        elif keyword == "enum":  # scalar values only: jsonsubschema cannot canonicalize container values (task 25.6)
+            out[keyword] = draw(st.lists(st.sampled_from(SCALARS), min_size=1, max_size=4))
         elif keyword == "const":
-            out[keyword] = copy.deepcopy(draw(st.sampled_from(MEMBERS)))
+            out[keyword] = draw(st.sampled_from(SCALARS))
+        elif keyword == "not":
+            out[keyword] = self._negatable(depth)
         elif keyword in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
             out[keyword] = draw(st.sampled_from(NUMBERS))
         elif keyword in ("minLength", "maxLength", "minItems", "maxItems", "minProperties", "maxProperties"):
@@ -271,6 +273,19 @@ class _Documents:
             out[keyword] = [self.node(depth - 1) for _ in range(draw(st.integers(1, 2)))]
         else:  # additionalProperties, items, not
             out[keyword] = self.node(depth - 1)
+
+    def _negatable(self, depth: int) -> dict[str, Any]:
+        """A subschema jsonsubschema can negate (task 25.6): no numeric type, no object or array keywords."""
+        draw = self.draw
+        kind = draw(st.integers(0, 3), label="negatable kind")
+        if kind == 0:
+            return {"enum": draw(st.lists(st.sampled_from(SCALARS), min_size=1, max_size=3))}
+        if kind == 1:
+            return {"const": draw(st.sampled_from(SCALARS))}
+        out: dict[str, Any] = {"type": self._types(("null", "boolean", "string"))}
+        if kind == 2:
+            out["pattern"] = draw(st.sampled_from(PATTERNS))
+        return out
 
     def _scalar_items(self, out: dict[str, Any], depth: int) -> None:
         """Make the items of an array schema with ``uniqueItems: true`` known scalars."""

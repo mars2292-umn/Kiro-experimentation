@@ -32,7 +32,7 @@ def test_corpus_manifest_round_trips_and_resolves_paths(tmp_path: Path) -> None:
         (json.dumps({"format": 2, "schemas": []}), "format 2 is not supported"),
         (json.dumps({"format": 1}), "'schemas' array"),
         (json.dumps({"format": 1, "schemas": [{"id": "a", "source": "nope", "path": "a.json"}]}), "source must be"),
-        (json.dumps({"format": 1, "schemas": [{"id": "a", "source": "fixture", "path": "../a.json"}]}), "relative path"),
+        (json.dumps({"format": 1, "schemas": [{"id": "a", "source": "fixture", "path": "/a.json"}]}), "relative path"),
         (json.dumps({"format": 1, "schemas": [{"id": "a", "source": "fixture", "path": "a"}] * 2}), "twice"),
     ],
 )

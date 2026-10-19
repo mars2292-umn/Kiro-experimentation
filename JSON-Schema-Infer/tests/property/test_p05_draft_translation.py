@@ -609,3 +609,83 @@ def test_translated_schemas_keep_their_verdicts(case: tuple[Draft, dict[str, Any
             f"{DRAFT_NAMES[draft]} verdict {expected} differs from the emitted 2020-12 schema's\n"
             f"instance: {instance!r}\nemitted: {emitted!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Corpus-parametrized cases (task 25.7; Requirements 2.9, 34.5)
+# ---------------------------------------------------------------------------
+#
+# Every fully supported corpus schema with SchemaStore positive or negative
+# test files is a case: each test document gets the same verdict from the
+# original schema under its declared draft and from the emitted draft 2020-12
+# form. The fixture corpus has no test files, so its schemas are checked
+# against their own generated documents instead (accept) and against a
+# document of a foreign type (whatever the original says). The full corpus
+# runs when ``JSINFER_CORPUS_MANIFEST`` names its manifest (nightly).
+
+import json as _json  # noqa: E402
+import os as _os  # noqa: E402
+
+import pytest as _pytest  # noqa: E402
+
+from jsinfer.bench.splits import CorpusManifest as _CorpusManifest  # noqa: E402
+from jsinfer.io.load import SchemaLoadError as _SchemaLoadError  # noqa: E402
+from jsinfer.learn.synth import GeneratorConfig as _GeneratorConfig  # noqa: E402
+from jsinfer.learn.synth import SchemaExcluded as _SchemaExcluded  # noqa: E402
+from jsinfer.learn.synth import SyntheticGenerator as _SyntheticGenerator  # noqa: E402
+from tests.conftest import FIXTURE_MANIFEST as _FIXTURE_MANIFEST  # noqa: E402
+
+
+def _corpus_cases() -> list[tuple[str, _CorpusManifest]]:
+    manifests = [_CorpusManifest.load(_FIXTURE_MANIFEST)]
+    nightly = _os.environ.get("JSINFER_CORPUS_MANIFEST")
+    if nightly:
+        manifests.append(_CorpusManifest.load(nightly))
+    return [(sid, manifest) for manifest in manifests for sid in manifest.ids()]
+
+
+_CORPUS_CASES = _corpus_cases()
+
+
+def _test_documents(schema_id: str, manifest: _CorpusManifest, schema: Any) -> list[Any]:
+    """The schema's SchemaStore test documents, or generated and foreign documents for a schema without tests."""
+    tests = manifest.entries[schema_id].extra.get("tests")
+    documents: list[Any] = []
+    if isinstance(tests, dict):
+        for kind in ("positive", "negative"):
+            for relative in tests.get(kind, []):
+                path = manifest.root / relative
+                try:
+                    documents.append(_json.loads(path.read_text(encoding="utf-8")))
+                except (OSError, ValueError):
+                    continue
+    if documents:
+        return documents
+    model = LOADER.load(schema)
+    try:
+        collection = _SyntheticGenerator().collection(model, schema_id, 0, _GeneratorConfig(size_min=4, size_max=4, max_depth=3), 0)
+        documents.extend(collection.documents)
+    except _SchemaExcluded:
+        pass
+    documents.extend([None, 1, "x", [], {}, {"unexpected": 1}])
+    return documents
+
+
+@_pytest.mark.parametrize(("schema_id", "manifest"), _CORPUS_CASES, ids=[sid for sid, _ in _CORPUS_CASES])
+def test_corpus_schemas_keep_their_test_verdicts(schema_id: str, manifest: _CorpusManifest) -> None:
+    schema = _json.loads(manifest.schema_path(schema_id).read_text(encoding="utf-8"))
+    try:
+        model = LOADER.load(schema)
+    except _SchemaLoadError as error:
+        _pytest.skip(f"{schema_id} does not load: {error}")
+    if not model.fully_supported:
+        _pytest.skip(f"{schema_id} is partially supported: {model.unsupported[:3]}")
+    emitted, _ = EMITTER.layout(model)
+    original = VALIDATOR.compile(schema)
+    translated = VALIDATOR.compile(emitted)
+    documents = _test_documents(schema_id, manifest, schema)
+    assert documents
+    for instance in documents:
+        assert VALIDATOR.is_valid(translated, instance) == VALIDATOR.is_valid(original, instance), (
+            f"{schema_id}: the emitted schema's verdict differs for {instance!r}"
+        )

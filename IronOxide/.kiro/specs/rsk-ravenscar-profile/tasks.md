@@ -265,7 +265,7 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
   - [ ] 17.2 Build the Loom host model of the Kernel logic and Shuttle tests for the larger configurations.
     - Evidence: Loom and Shuttle runs labelled as testing evidence
     - _Requirements: 47.1, 47.2, 47.3_
-  - [ ]* 17.3 Evaluate Aeneas on one pure control-law function as a Lean-level alternative for small computations.
+  - [ ] 17.3 Evaluate Aeneas on one pure control-law function as a Lean-level alternative for small computations.
     - Evidence: evaluation note in the Verification_Plan
     - _Requirements: 46.5_
 
@@ -335,7 +335,7 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
   - [ ] 25.2 Select a RISC-V part, record its interrupt controller and ceiling mapping, port Kernel_Arch, and extend the Hardware_Model.
     - Evidence: all Phase 1 suites passing on the RISC-V target
     - _Requirements: 45.1, 60.4, 60.5_
-  - [ ]* 25.3 Evaluate a privileged fast path for the highest Criticality_Level (ORQ-01 option c).
+  - [ ] 25.3 Evaluate a privileged fast path for the highest Criticality_Level (ORQ-01 option c).
     - Evidence: Δ_lock_in and Δ_lock_out compared with the SVC path
     - _Requirements: 20.5_
 

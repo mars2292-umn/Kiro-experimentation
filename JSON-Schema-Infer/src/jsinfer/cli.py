@@ -12,8 +12,9 @@ Commands
     ===========================================================  ==========================================
 
     ``jsinfer train -c FILE --out DIR``                          train a Model_Bundle (21.1, 21.8)
+    ``jsinfer split -c FILE``                                    build the Schema_Split (30.1–30.5)
 
-    ``split`` and ``bench`` are added by their tasks (25.2, 30.5). :func:`main` takes the arguments (default ``sys.argv[1:]``)
+    ``bench`` is added by task 30.5. :func:`main` takes the arguments (default ``sys.argv[1:]``)
     and returns the exit status instead of exiting, so tests call it in
     process; the console script ``jsinfer`` (``jsinfer.cli:main``) exits
     with it.
@@ -307,6 +308,19 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("-c", "--config", required=True, metavar="FILE", help="the TOML training configuration")
     train.add_argument("--out", required=True, metavar="DIR", help="the Model_Bundle directory to write")
     train.set_defaults(handler=_train)
+
+    split = commands.add_parser(
+        "split",
+        help="build the Schema_Split of a schema corpus",
+        description=(
+            "Load the configured SchemaStore and JSONSchemaBench checkouts into the corpus manifest (when "
+            "configured), group near-duplicate schemas, assign the groups to the training, validation, and held-out "
+            "splits, and write the Schema_Split file."
+        ),
+        allow_abbrev=False,
+    )
+    split.add_argument("-c", "--config", required=True, metavar="FILE", help="the TOML benchmark configuration")
+    split.set_defaults(handler=_split)
     return parser
 
 
@@ -653,6 +667,58 @@ def _train(args: argparse.Namespace) -> int:
         _error(str(error))
         return EXIT_STAGE_ERROR
     _say(f"wrote Model_Bundle {bundle_id} to {_quote(args.out)}")
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
+# split (30.1–30.5, 30.10)
+# ---------------------------------------------------------------------------
+
+
+def _split(args: argparse.Namespace) -> int:
+    from jsinfer.bench.config import BenchConfig
+    from jsinfer.bench.corpus_loader import CorpusSource, load_jsonschemabench, load_schemastore, write_corpus_manifest
+    from jsinfer.bench.splits import CorpusManifest, SplitBuilder, SplitError, SplitFormatError, SplitInputs
+    from jsinfer.config.errors import ConfigError
+
+    try:
+        config = BenchConfig.from_toml(args.config)
+    except ConfigError as error:  # 27.11
+        return _config_failure(error)
+    try:
+        if config.has_checkouts:
+            sources: list[CorpusSource] = []
+            if config.schemastore is not None:
+                assert config.schemastore_commit is not None
+                sources.append(load_schemastore(config.schemastore, config.schemastore_commit))
+            if config.jsonschemabench is not None:
+                assert config.jsonschemabench_revision is not None
+                sources.append(load_jsonschemabench(config.jsonschemabench, config.jsonschemabench_revision))
+            manifest = write_corpus_manifest(sources, config.manifest)
+            omitted = len(manifest.extra.get("omitted", []))  # type: ignore[arg-type]
+            _say(f"wrote the corpus manifest ({len(manifest.ids())} schemas, {omitted} omitted files) to {_quote(config.manifest)}")
+        else:
+            manifest = CorpusManifest.load(config.manifest)
+        inputs = SplitInputs.from_manifest(
+            manifest,
+            known_ids=config.known_schemas,
+            known_files=config.known_schema_files,
+            ref_depth=int(config.resource("nearest.ref_depth")),
+        )
+        builder = SplitBuilder(perm=int(config.resource("minhash.perm")), bands=int(config.resource("lsh.bands")))
+        proportions = {name: config.resource(name) for name in ("split.train", "split.val", "split.held_out")}
+        split = builder.build(inputs, split_id=config.split_id, seed=config.seed, proportions=proportions)
+        split.save(config.split_out)
+    except (SplitError, SplitFormatError, OSError) as error:  # 30.10: nothing is written
+        _error(f"split: {error}")
+        return EXIT_STAGE_ERROR
+    cutoff: Any = split.extra["cutoff"]
+    groups: Any = split.extra["groups"]
+    _say(
+        f"wrote Schema_Split {split.id} ({len(split.train)} train, {len(split.val)} val, {len(split.held_out)} held out; "
+        f"{len(set(groups.values()))} near-duplicate groups; cut-off {cutoff['value']:.3f} from {cutoff['components']} "
+        f"mixture components over {cutoff['candidate_pairs']} candidate pairs) to {_quote(config.split_out)}"
+    )
     return EXIT_OK
 
 

@@ -516,30 +516,30 @@ Conventions used by every task:
 
 ### M4: Evaluation Harness
 
-- [ ] 25. Implement corpus loading, splits, and leakage checks
-  - [ ] 25.1 Implement the corpus loader (`bench/corpus_loader.py`)
+- [x] 25. Implement corpus loading, splits, and leakage checks
+  - [x] 25.1 Implement the corpus loader (`bench/corpus_loader.py`)
     - Read a SchemaStore checkout at a pinned commit (schemas, positive and negative tests, catalog versions) and a JSONSchemaBench checkout at a pinned revision from configured local paths
     - Assign unique ids with source and snapshot, and link test files. Omit unreadable or invalid files with reasons. Write the corpus manifest the Trainer reads, in the file model of 23.2, extended with test-file paths and catalog versions
     - _Requirements: 30.1, 30.9_
-  - [ ] 25.2 Implement the split builder and `jsinfer split` (`bench/splits.py`, `cli.py`)
+  - [x] 25.2 Implement the split builder and `jsinfer split` (`bench/splits.py`, `cli.py`)
     - MinHash/LSH over normalized Path sets with exact Jaccard on candidate pairs; cut-off from a 1–3 component GMM on logit similarities selected by BIC; union-find over catalog versions and pairs above the cut-off
     - Assign forced held-out groups first, then the seeded deficit assignment. Persist everything 30.4 lists, including deviation flags
     - Exclude schemas from synthetic generation per 30.5. Reject invalid proportions without writing a split
     - _Requirements: 30.2, 30.3, 30.4, 30.5, 30.10_
-  - [ ] 25.3 Write property test for split integrity
+  - [x] 25.3 Write property test for split integrity
     - **Property 51: Split integrity**
     - **Validates: Requirements 30.2, 30.3, 30.4, 30.10**
-  - [ ] 25.4 Implement leakage checks (`bench/leakage.py`)
+  - [x] 25.4 Implement leakage checks (`bench/leakage.py`)
     - Before any run, compare the training manifest with held-out groups, Real_Dataset collections, and loaded ids. Abort on overlap, a missing manifest, or unknown ids, listing every offender
     - _Requirements: 30.7, 30.8, 30.11_
-  - [ ] 25.5 Write unit tests for leakage aborts
+  - [x] 25.5 Write unit tests for leakage aborts
     - _Requirements: 30.7, 30.8, 30.11_
-  - [ ] 25.6 Probe jsonsubschema keyword coverage (open decision, M4)
+  - [x] 25.6 Probe jsonsubschema keyword coverage (open decision, M4)
     - Integration test (`tests/integration/test_subschema_probe.py`) with known inclusion pairs per keyword
     - Update the supported-keyword list in `io/subschema.py` from the results, and record them in the test module docstring
     - Map jsonsubschema's own unsupported cases (an `enum` of objects, a negated object or array schema), which now surface as `error`, to `keywords` where the probe identifies them. Recheck `dependencies` (ignored by 0.0.8, so `dependentRequired` is unsupported), `multipleOf`, number negation, and integer/number `enum` handling
     - _Requirements: 31.7, 31.8_
-  - [ ] 25.7 Add corpus-parametrized cases to the round-trip and translation tests
+  - [x] 25.7 Add corpus-parametrized cases to the round-trip and translation tests
     - **Property 3: Schema emit/load round trip** and **Property 5: Draft translation preserves verdicts** over fully supported corpus schemas and SchemaStore tests (fixed subset in CI, full corpus nightly)
     - **Validates: Requirements 2.8, 2.9, 34.5**
 

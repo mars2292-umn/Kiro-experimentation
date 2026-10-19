@@ -726,3 +726,46 @@ def test_inferrer_outputs_round_trip_through_emit_and_load(case: Case) -> None:
     for label, model in emitted_models(result):
         describe_inferred(model, result, applied)
         check_round_trip(label, model, result.schema if label == "schema" else None)
+
+
+# ---------------------------------------------------------------------------
+# Corpus-parametrized cases (task 25.7; Requirement 2.8)
+# ---------------------------------------------------------------------------
+#
+# The fixture corpus (``tests/fixtures/corpus``) runs in CI. The full
+# Schema_Corpus runs when ``JSINFER_CORPUS_MANIFEST`` names a corpus manifest
+# written by ``jsinfer split`` (the nightly job); every fully supported schema
+# of it is a case, and the others are skipped with the loader's reason.
+
+import os  # noqa: E402
+
+import pytest  # noqa: E402
+
+from jsinfer.bench.splits import CorpusManifest  # noqa: E402
+from jsinfer.io.load import SchemaLoadError  # noqa: E402
+from tests.conftest import FIXTURE_MANIFEST  # noqa: E402
+
+
+def corpus_cases() -> list[tuple[str, CorpusManifest]]:
+    manifests = [CorpusManifest.load(FIXTURE_MANIFEST)]
+    nightly = os.environ.get("JSINFER_CORPUS_MANIFEST")
+    if nightly:
+        manifests.append(CorpusManifest.load(nightly))
+    return [(sid, manifest) for manifest in manifests for sid in manifest.ids()]
+
+
+CORPUS_CASES = corpus_cases()
+
+
+@pytest.mark.parametrize(("schema_id", "manifest"), CORPUS_CASES, ids=[sid for sid, _ in CORPUS_CASES])
+def test_corpus_schemas_round_trip(schema_id: str, manifest: CorpusManifest) -> None:
+    try:
+        model = LOADER.load(manifest.schema_path(schema_id).read_bytes())
+    except SchemaLoadError as error:
+        pytest.skip(f"{schema_id} does not load: {error}")
+    if not model.fully_supported:
+        pytest.skip(f"{schema_id} is partially supported: {model.unsupported[:3]}")
+    emitted = EMITTER.emit(model)
+    loaded = LOADER.load(emitted)
+    assert loaded.fully_supported and loaded == model, f"{schema_id}: the round trip changed the model"
+    assert EMITTER.emit(loaded) == emitted
