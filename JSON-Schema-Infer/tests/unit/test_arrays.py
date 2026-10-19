@@ -138,7 +138,7 @@ def validates(schema: dict[str, Any], docs: list[Any]) -> bool:
 
 def test_mdl_serves_tuple_or_list_with_ties_and_fallback_to_list() -> None:
     assert TUPLE_OR_LIST in REGISTRY.technique(MDL).serves
-    assert REGISTRY.active_servers(TUPLE_OR_LIST, REGISTRY.default_states()) == (MDL,)  # no Decision_Model yet
+    assert REGISTRY.active_servers(TUPLE_OR_LIST, REGISTRY.default_states()) == (DM_TUPLE_LIST, MDL)
     assert REGISTRY.fallback(TUPLE_OR_LIST)() == LIST
     assert REGISTRY.decision_point(TUPLE_OR_LIST).tie_rule.favors == (LIST,)  # 7.10
     assert not REGISTRY.technique(ARRAY_GRAMMAR).implemented
@@ -248,7 +248,7 @@ def test_mdl_disabled_falls_back_to_list() -> None:
     assert outcome.is_list
     record = outcome.provenance()
     assert record.technique == "fallback:tuple_or_list"
-    assert record.fallback == FallbackInfo(DM_TUPLE_LIST, "disabled")
+    assert record.fallback == FallbackInfo(DM_TUPLE_LIST, "missing-model")  # on by default, no model (22.14)
     assert record.resolution.method == "fallback" and record.cutoff is None
     assert record.confidence == laplace_confidence(record.support)
     assert [entry.resolution.method for entry in decisions(report, TUPLE_OR_LIST)] == ["fallback"]

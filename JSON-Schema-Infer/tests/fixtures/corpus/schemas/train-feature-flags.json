@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "properties": {
+    "flags": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z]+(_[a-z]+)*$": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "owner": {
+      "$ref": "#/$defs/owner"
+    }
+  },
+  "$defs": {
+    "owner": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 12
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "emailAddress": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "flags"
+  ],
+  "additionalProperties": false
+}

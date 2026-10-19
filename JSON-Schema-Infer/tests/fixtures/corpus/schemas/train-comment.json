@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "author": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "string",
+          "pattern": "^@[a-z0-9_]{2,8}$"
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 12
+        }
+      },
+      "required": [
+        "handle"
+      ],
+      "additionalProperties": false
+    },
+    "link": {
+      "type": "string",
+      "format": "uri"
+    },
+    "rating": {
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    "replies": {
+      "type": "array",
+      "items": {
+        "$ref": "#"
+      },
+      "maxItems": 2
+    }
+  },
+  "required": [
+    "id",
+    "body",
+    "author"
+  ],
+  "additionalProperties": true
+}

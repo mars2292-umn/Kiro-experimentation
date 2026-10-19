@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "id": "fixture-split",
+  "seed": 0,
+  "splits": {
+    "train": [
+      "train/comment",
+      "train/conditional-license",
+      "train/counters",
+      "train/event-union",
+      "train/feature-flags",
+      "train/geo-point",
+      "train/matrix",
+      "train/measurement-series",
+      "train/network-host",
+      "train/order",
+      "train/settings-map",
+      "train/shape",
+      "train/tree",
+      "train/user-profile"
+    ],
+    "val": [
+      "val/account",
+      "val/grid",
+      "val/invoice",
+      "val/labels-map",
+      "val/linked-list",
+      "val/payment-union",
+      "val/readings",
+      "val/rgb",
+      "val/service",
+      "val/ticket",
+      "val/toggles",
+      "val/vehicle"
+    ],
+    "held_out": [
+      "heldout/animal-union",
+      "heldout/inventory-map",
+      "heldout/pair-list",
+      "heldout/person"
+    ]
+  },
+  "groups": {
+    "train/user-profile": "train/user-profile",
+    "train/settings-map": "train/settings-map",
+    "train/geo-point": "train/geo-point",
+    "train/order": "train/order",
+    "train/event-union": "train/event-union",
+    "train/tree": "train/tree",
+    "train/network-host": "train/network-host",
+    "train/measurement-series": "train/measurement-series",
+    "train/feature-flags": "train/feature-flags",
+    "train/shape": "train/shape",
+    "train/comment": "train/comment",
+    "train/matrix": "train/matrix",
+    "train/conditional-license": "train/conditional-license",
+    "train/counters": "train/counters",
+    "val/account": "val/account",
+    "val/labels-map": "val/labels-map",
+    "val/rgb": "val/rgb",
+    "val/invoice": "val/invoice",
+    "val/payment-union": "val/payment-union",
+    "val/linked-list": "val/linked-list",
+    "val/service": "val/service",
+    "val/readings": "val/readings",
+    "val/toggles": "val/toggles",
+    "val/vehicle": "val/vehicle",
+    "val/ticket": "val/ticket",
+    "val/grid": "val/grid",
+    "heldout/person": "heldout/person",
+    "heldout/inventory-map": "heldout/inventory-map",
+    "heldout/animal-union": "heldout/animal-union",
+    "heldout/pair-list": "heldout/pair-list"
+  },
+  "excluded": [],
+  "proportions": {
+    "configured": {
+      "train": 0.45,
+      "val": 0.4,
+      "held_out": 0.15
+    },
+    "realized": {
+      "train": 0.4666666666666667,
+      "val": 0.4,
+      "held_out": 0.13333333333333333
+    }
+  }
+}

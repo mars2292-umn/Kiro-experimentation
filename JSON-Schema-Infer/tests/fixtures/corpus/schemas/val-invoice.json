@@ -1,0 +1,75 @@
+{
+  "type": "object",
+  "properties": {
+    "invoiceNumber": {
+      "type": "string",
+      "pattern": "^INV-[0-9]{4}$"
+    },
+    "state": {
+      "enum": [
+        "draft",
+        "sent",
+        "paid"
+      ]
+    },
+    "issued": {
+      "type": "string",
+      "format": "date"
+    },
+    "payer": {
+      "$ref": "#/$defs/party"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      },
+      "minItems": 1,
+      "maxItems": 3
+    }
+  },
+  "$defs": {
+    "party": {
+      "type": "object",
+      "properties": {
+        "emailAddress": {
+          "type": "string",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 12
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}[0-9]{2}$"
+        },
+        "amount": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000.0
+        }
+      },
+      "required": [
+        "code",
+        "amount"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "invoiceNumber",
+    "state",
+    "items"
+  ],
+  "additionalProperties": false
+}

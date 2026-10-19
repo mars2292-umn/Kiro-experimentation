@@ -1038,3 +1038,159 @@ def patterns_with_strings(draw: st.DrawFn, max_strings: int = 6) -> tuple[_Patte
     pattern = draw(safe_patterns(), label="pattern")
     strings = draw(st.lists(pattern_strings(pattern), min_size=1, max_size=max_strings), label="strings")
     return pattern, strings
+
+
+# ---------------------------------------------------------------------------
+# Planted-structure Document_Collections from the Synthetic_Generator (task 21.4)
+# ---------------------------------------------------------------------------
+#
+# :func:`planted_schemas` draws draft 2020-12 schemas that plant the
+# structures the Inferrer must find: Records with required and optional
+# fields, Maps, Variants, Tagged_Unions, Field_Groups, Tuples, Lists, and
+# recursion through ``$defs``. :func:`collections` generates a
+# Document_Collection from one with the Synthetic_Generator and may add rare
+# outliers: a few documents that break the planted structure (a wrong type,
+# an unknown key, or a missing required field). Imported here rather than
+# at the top so this section stays self-contained.
+
+from jsinfer.learn.synth import GeneratorConfig as _GeneratorConfig  # noqa: E402
+from jsinfer.learn.synth import SchemaExcluded as _SchemaExcluded  # noqa: E402
+from jsinfer.learn.synth import SyntheticGenerator as _SyntheticGenerator  # noqa: E402
+
+# Field names that normalize differently and include every name style.
+PLANTED_NAMES: tuple[str, ...] = (
+    "id", "name", "email", "created_at", "updatedAt", "Count", "tags", "value", "kind", "meta", "x-y", "é", "a b",
+)
+_PLANTED_FORMATS = ("date-time", "date", "email", "uuid", "ipv4", "uri")
+_PLANTED_PATTERNS = ("^[A-Z]{2}-[0-9]{3}$", "^[a-z]+$", "^v[0-9]+(\\.[0-9]+)*$")
+
+
+def _scalar_schema(draw: st.DrawFn) -> dict[str, Any]:
+    kind = draw(st.sampled_from(["string", "format", "pattern", "integer", "number", "boolean", "enum", "null"]))
+    if kind == "format":
+        return {"type": "string", "format": draw(st.sampled_from(_PLANTED_FORMATS))}
+    if kind == "pattern":
+        return {"type": "string", "pattern": draw(st.sampled_from(_PLANTED_PATTERNS))}
+    if kind == "enum":
+        values = draw(st.lists(st.sampled_from(["red", "green", "blue", 1, 2, 3, True, None]), min_size=1, max_size=4, unique=True))
+        return {"enum": values}
+    if kind == "integer":
+        low = draw(st.integers(-10, 10))
+        return {"type": "integer", "minimum": low, "maximum": low + draw(st.integers(0, 100))}
+    if kind == "number":
+        return {"type": "number", "exclusiveMinimum": 0}
+    if kind == "string":
+        return {"type": "string", "maxLength": draw(st.integers(1, 8))}
+    return {"type": kind}
+
+
+def _record_schema(draw: st.DrawFn, fields: st.SearchStrategy, closed: bool) -> dict[str, Any]:
+    names = draw(st.lists(st.sampled_from(PLANTED_NAMES), min_size=1, max_size=5, unique=True))
+    properties = {name: draw(fields) for name in names}
+    required = draw(st.lists(st.sampled_from(names), unique=True, max_size=len(names)))
+    schema: dict[str, Any] = {"type": "object", "properties": properties}
+    if required:
+        schema["required"] = sorted(required)
+    if closed:
+        schema["additionalProperties"] = False
+    return schema
+
+
+@st.composite
+def planted_schemas(draw: st.DrawFn, max_depth: int = 3) -> dict[str, Any]:
+    """Schemas with planted Records, Maps, Variants, Tagged_Unions, Field_Groups, Tuples, Lists, and recursion."""
+    def value(depth: int) -> st.SearchStrategy[dict[str, Any]]:
+        return st.deferred(lambda: _value(depth))
+
+    @st.composite
+    def _value(inner: st.DrawFn, depth: int) -> dict[str, Any]:
+        options = ["scalar", "scalar"]
+        if depth < max_depth:
+            options += ["record", "map", "list", "tuple", "variants", "tagged", "groups", "recursive"]
+        kind = inner(st.sampled_from(options))
+        if kind == "scalar":
+            return _scalar_schema(inner)
+        if kind == "record":
+            return _record_schema(inner, value(depth + 1), inner(st.booleans()))
+        if kind == "map":
+            schema: dict[str, Any] = {"type": "object", "additionalProperties": inner(value(depth + 1))}
+            if inner(st.booleans()):
+                schema["propertyNames"] = {"pattern": "^[a-z][a-z0-9_]{0,5}$"}
+            return schema
+        if kind == "list":
+            return {"type": "array", "items": inner(value(depth + 1)), "maxItems": 4}
+        if kind == "tuple":
+            prefix = inner(st.lists(value(depth + 1), min_size=1, max_size=3))
+            return {"type": "array", "prefixItems": prefix, "items": False, "minItems": len(prefix)}
+        if kind == "variants":
+            count = inner(st.integers(2, 3))
+            return {"anyOf": [_record_schema(inner, value(depth + 1), True) for _ in range(count)]}
+        if kind == "tagged":
+            tags = inner(st.lists(st.sampled_from(["a", "b", "c", "d"]), min_size=2, max_size=3, unique=True))
+            branches = []
+            for tag in tags:
+                branch = _record_schema(inner, value(depth + 1), True)
+                branch["properties"] = {"kind": {"const": tag}, **branch["properties"]}
+                branch["required"] = sorted(set(branch.get("required", [])) | {"kind"})
+                branches.append(branch)
+            return {"oneOf": branches}
+        if kind == "groups":
+            # A Field_Group: two fields that are always present together, beside independent ones.
+            base = _record_schema(inner, value(depth + 1), False)
+            group = inner(st.sampled_from([("first_name", "last_name"), ("lat", "lon"), ("start", "end")]))
+            base["properties"].update({name: _scalar_schema(inner) for name in group})
+            base["dependentRequired"] = {group[0]: [group[1]], group[1]: [group[0]]}
+            return base
+        node = _record_schema(inner, value(depth + 1), True)
+        node["properties"]["next"] = {"$ref": "#/$defs/node"}
+        return {"$ref": "#/$defs/node", "$defs": {"node": node}}
+
+    root_kind = draw(st.sampled_from(["record", "variants", "any"]))
+    if root_kind == "record":
+        return _record_schema(draw, value(1), draw(st.booleans()))
+    if root_kind == "variants":
+        return {"anyOf": [_record_schema(draw, value(1), True) for _ in range(draw(st.integers(2, 3)))]}
+    return draw(_value(0))
+
+
+def _outlier(draw: st.DrawFn, document: Any) -> Any:
+    """A document that breaks the planted structure of ``document``."""
+    if not isinstance(document, dict) or not document:
+        return draw(st.sampled_from([None, 0, "outlier", [], {}]))
+    doc = dict(document)
+    edit = draw(st.sampled_from(["type", "extra", "missing"]))
+    name = draw(st.sampled_from(sorted(doc)))
+    if edit == "type":
+        doc[name] = draw(st.sampled_from([None, -1, "🙂", [1], {"z": 1}]))
+    elif edit == "extra":
+        doc[draw(st.sampled_from(["unexpected", "_x", "Zzz"]))] = draw(json_scalars)
+    else:
+        del doc[name]
+    return doc
+
+
+@st.composite
+def collections(
+    draw: st.DrawFn, max_docs: int = 12, outliers: bool = True, max_depth: int = 3
+) -> list[Any]:
+    """A Document_Collection generated from a :func:`planted_schemas` schema by the Synthetic_Generator.
+
+    The collection has one to ``max_docs`` documents in generated order; with
+    ``outliers`` a few rare outliers (at most one in eight documents) are
+    appended. Schemas the generator excludes are assumed away.
+    """
+    schema = draw(planted_schemas(max_depth=max_depth), label="schema")
+    seed = draw(st.integers(0, 2**31 - 1), label="seed")
+    size = draw(st.integers(1, max_docs), label="size")
+    cfg = _GeneratorConfig(size_min=size, size_max=size, max_depth=max_depth, doc_attempts=20)
+    model = _SchemaModel(_SchemaNode.from_json(schema))
+    try:
+        generated = _SyntheticGenerator().collection(model, "planted", 0, cfg, seed)
+    except _SchemaExcluded:
+        assume(False)
+        raise AssertionError  # unreachable
+    docs = list(generated.documents)
+    if outliers:
+        for _ in range(draw(st.integers(0, max(1, len(docs) // 8)), label="outliers")):
+            docs.append(_outlier(draw, docs[draw(st.integers(0, len(docs) - 1))]))
+    return docs

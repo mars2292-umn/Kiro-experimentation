@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "properties": {
+    "license": {
+      "enum": [
+        "free",
+        "pro"
+      ]
+    },
+    "seats": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 20,
+      "not": {
+        "const": "forbidden"
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "license": {
+        "const": "pro"
+      }
+    },
+    "required": [
+      "license"
+    ]
+  },
+  "then": {
+    "required": [
+      "seats"
+    ]
+  },
+  "required": [
+    "license"
+  ],
+  "additionalProperties": false
+}

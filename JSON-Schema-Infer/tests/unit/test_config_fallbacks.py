@@ -35,13 +35,13 @@ Criteria and the component-level tests that already cover them:
   ``test_cooccurrence`` (missing-threshold at the component), and
   ``test_decision_engine``: ``test_a_missing_learned_threshold_drops_the_techniques_candidates``.
 
-Not testable through a validated run yet: every ``decide.dm_*`` Technique is
-registered as unimplemented, so a Run_Configuration cannot enable one (it is a
-``ConfigError``). The Decision_Model branches of 4.10, 5.11, 7.10, and 15.7
-(an enabled model, a missing model, ``decide.dm_closed_enum`` enabled while
-``values.enum_estimation`` is off) are covered only at the engine and
-component level above until the ``decide.dm_*`` Techniques are marked
-implemented (task 22.4 builds the Decision_Models).
+The ``decide.dm_*`` Techniques are implemented (task 22.4), so they are on
+by default; the stub bundles of this module hold no Decision_Model, so a run
+that leaves one on records its ``missing-model`` fallback (22.14). The
+Decision_Model branches of 4.10, 5.11, 7.10, and 15.7 (an enabled model that
+selects, a missing model, and ``decide.dm_closed_enum`` enabled while
+``values.enum_estimation`` is off) run through the pipeline in the last
+section, with Decision_Models trained on a few labeled examples.
 """
 
 from __future__ import annotations
@@ -264,22 +264,21 @@ def techniques_named(result: PipelineResult) -> set[str]:
 
 
 def test_record_or_map_without_its_decision_model_is_resolved_by_mdl() -> None:
-    assert not REGISTRY.technique(DM_RECORD_MAP).implemented  # disabled in every validated run
     maps = run(USER_MAPS, config())
     assert set(maps.document) >= {"additionalProperties", "propertyNames"} and "properties" not in maps.document
     record = records(maps)["/additionalProperties"]
     # MDL is the Decision_Model's Fallback_Behavior (22.13): recorded with the Decision_Model's indicator.
-    assert record.technique == MDL and record.fallback == FallbackInfo(DM_RECORD_MAP, "disabled")
+    assert record.technique == MDL and record.fallback == FallbackInfo(DM_RECORD_MAP, "missing-model")
     assert record.resolution.method == "mdl" and record.cutoff.source == "MDL comparison"
     record_score, map_score = (c.score for c in record.resolution.candidates)
     assert [c.outcome for c in record.resolution.candidates] == ["record", "map"] and map_score < record_score
     (entry,) = decisions(maps, "record_or_map", "$")
-    assert entry.resolution.method == "mdl" and entry.fallback == FallbackInfo(DM_RECORD_MAP, "disabled")
+    assert entry.resolution.method == "mdl" and entry.fallback == FallbackInfo(DM_RECORD_MAP, "missing-model")
 
     recs = run(RECORDS, config())
     assert set(recs.document["properties"]) == {"name", "age", "email"}
     record = records(recs)["/properties"]
-    assert record.technique == MDL and record.fallback == FallbackInfo(DM_RECORD_MAP, "disabled")
+    assert record.technique == MDL and record.fallback == FallbackInfo(DM_RECORD_MAP, "missing-model")
     record_score, map_score = (c.score for c in record.resolution.candidates)
     assert record.resolution.selected == 0 and record_score < map_score
 
@@ -289,7 +288,7 @@ def test_record_or_map_without_mdl_is_a_record() -> None:
     keys = {key for doc in USER_MAPS for key in doc}
     assert set(result.document["properties"]) == keys and "additionalProperties" not in result.document
     by_pointer = records(result)
-    fallback = FallbackInfo(DM_RECORD_MAP, "disabled")  # the first serving Technique in priority order
+    fallback = FallbackInfo(DM_RECORD_MAP, "missing-model")  # the first serving Technique in priority order
     assert_fallback_record(by_pointer["/properties"], "record_or_map", fallback)
     assert by_pointer["/properties"].details["judgment"] == "record"
     # Every object Path takes the fallback, the nested Records included.
@@ -342,7 +341,7 @@ def test_without_the_decision_model_and_mdl_the_priority_grouping_is_kept_split(
     assert grouping.fallback == FallbackInfo(MDL, "disabled")
     assert grouping.cutoff.source == "lsh.keyset_jaccard" and grouping.cutoff.value == 0.9
     # Merge-or-Split takes its Fallback_Behavior: keep the candidate Variants separate.
-    fallback = FallbackInfo(DM_MERGE_SPLIT, "disabled")
+    fallback = FallbackInfo(DM_MERGE_SPLIT, "missing-model")
     (entry,) = decisions(result, "merge_or_split")
     assert_fallback_entry(entry, "merge_or_split", fallback)
     by_pointer = records(result)
@@ -363,7 +362,7 @@ def test_without_mdl_a_single_grouping_is_kept_split_without_the_mdl_indicator()
     assert grouping.resolution.method == "priority" and grouping.fallback is None
     assert [c.technique for c in grouping.resolution.candidates] == [BERNOULLI]
     (entry,) = decisions(result, "merge_or_split")
-    assert_fallback_entry(entry, "merge_or_split", FallbackInfo(DM_MERGE_SPLIT, "disabled"))
+    assert_fallback_entry(entry, "merge_or_split", FallbackInfo(DM_MERGE_SPLIT, "missing-model"))
     (combinator,) = {"anyOf", "oneOf"} & set(result.document)
     assert len(result.document[combinator]) == 2
 
@@ -374,20 +373,19 @@ def test_without_mdl_a_single_grouping_is_kept_split_without_the_mdl_indicator()
 
 
 def test_tuple_or_list_without_its_decision_model_is_a_tuple_only_by_a_lower_description_length() -> None:
-    assert not REGISTRY.technique(DM_TUPLE_LIST).implemented
     rows = run(ROWS, config())
     assert len(rows.document["prefixItems"]) == 3 and rows.document["items"] is False
     by_pointer = records(rows)
     for pointer in ("/prefixItems", "/items"):  # both Constraints carry the Tuple-or-List record
         record = by_pointer[pointer]
-        assert record.technique == MDL and record.fallback == FallbackInfo(DM_TUPLE_LIST, "disabled")
+        assert record.technique == MDL and record.fallback == FallbackInfo(DM_TUPLE_LIST, "missing-model")
         tuple_score, list_score = (c.score for c in record.resolution.candidates)
         assert record.resolution.selected == 0 and tuple_score < list_score
 
     lists = run(LISTS, config())
     assert "prefixItems" not in lists.document and isinstance(lists.document["items"], dict)
     record = records(lists)["/items"]
-    assert record.technique == MDL and record.fallback == FallbackInfo(DM_TUPLE_LIST, "disabled")
+    assert record.technique == MDL and record.fallback == FallbackInfo(DM_TUPLE_LIST, "missing-model")
     tuple_score, list_score = (c.score for c in record.resolution.candidates)
     assert record.resolution.selected == 1 and list_score < tuple_score
 
@@ -399,7 +397,7 @@ def test_tuple_or_list_without_mdl_is_a_list() -> None:
         "integer",
         "string",
     }
-    fallback = FallbackInfo(DM_TUPLE_LIST, "disabled")
+    fallback = FallbackInfo(DM_TUPLE_LIST, "missing-model")
     record = records(result)["/items"]
     assert_fallback_record(record, "tuple_or_list", fallback)
     assert record.details["judgment"] == "list"
@@ -436,7 +434,8 @@ def test_disabled_cooccurrence_mining_emits_no_rules_and_keeps_required(bundles:
         assert len(entry.resolution.candidates) == 1
     assert [e for e in result.report.rejected if e.category == "rules"] == []
     assert COOCCURRENCE not in techniques_named(result)
-    assert result.report.substitutions == ()  # a disabled Technique's thresholds are not read (20.6)
+    # A disabled Technique's thresholds are not read (20.6); only the absent Decision_Models are substituted.
+    assert all(s.fallback.reason == "missing-model" for s in result.report.substitutions)
 
 
 # ---------------------------------------------------------------------------
@@ -460,8 +459,8 @@ def test_disabled_enum_estimation_judges_every_scalar_path_open() -> None:
     entries = decisions(result, "closed_or_open_enum")
     assert sorted(e.path for e in entries) == ["$.color", "$.size", "$.tags[*]"]
     for entry in entries:
-        # Both serving Techniques are disabled; the first in priority order is named (28.12).
-        assert_fallback_entry(entry, "closed_or_open_enum", FallbackInfo(DM_CLOSED_ENUM, "disabled"))
+        # The Decision_Model is on but gated by the disabled enum estimation, which is named (15.7, 28.12).
+        assert_fallback_entry(entry, "closed_or_open_enum", FallbackInfo(ENUM_ESTIMATION, "disabled"))
     # 15.8: no statistics were computed, so no rejected enum candidate is reported.
     assert [e for e in result.report.rejected if e.category == "enums"] == []
     assert ENUM_ESTIMATION not in techniques_named(result)
@@ -549,7 +548,7 @@ def test_invalid_threshold_values_are_substituted_like_missing_ones(bundles: dic
     assert [t for t in triples if t[1] in (COOCCURRENCE, LSH)] == [
         ("cooccur.min_confidence", COOCCURRENCE, "missing-threshold", "invalid", applied("cooccurrence_rule")),
         ("cooccur.min_support", COOCCURRENCE, "missing-threshold", "invalid", applied("cooccurrence_rule")),
-        ("lsh.keyset_jaccard", LSH, "missing-threshold", "invalid", applied("variant_grouping")),
+        ("lsh.keyset_jaccard", LSH, "missing-threshold", "invalid", f"{DBSCAN}, {HDBSCAN}, {BERNOULLI} at variant_grouping"),
     ]
     # The valid thresholds of the other grouping Techniques keep them in effect; LSH offers no grouping.
     assert not [t for t in triples if t[1] in (DBSCAN, HDBSCAN)]
@@ -568,7 +567,7 @@ def test_missing_grouping_thresholds_leave_only_the_bernoulli_mixture() -> None:
     assert techniques_named(result).isdisjoint({LSH, DBSCAN, HDBSCAN})
     by_technique = {t[0]: t for t in substitution_triples(result) if t[1] in (LSH, DBSCAN, HDBSCAN)}
     assert by_technique == {
-        name: (name, spec.techniques[0], "missing-threshold", "missing", applied("variant_grouping"))
+        name: (name, spec.techniques[0], "missing-threshold", "missing", f"{BERNOULLI} at variant_grouping")
         for name, spec in THRESHOLDS.items()
         if spec.decision_point == "variant_grouping"
     }
@@ -584,3 +583,82 @@ def test_missing_grouping_thresholds_without_the_bernoulli_mixture_give_one_vari
     assert_fallback_entry(entry, "variant_grouping", FallbackInfo(LSH, "missing-threshold"))
     assert decisions(result, "merge_or_split") == []
     assert fallback_technique("variant_grouping") not in techniques_named(result)  # one Variant emits no Constraint
+
+
+# ---------------------------------------------------------------------------
+# 4.10, 5.11, 7.10, 15.7: the Decision_Model branches through the pipeline (task 22.4)
+# ---------------------------------------------------------------------------
+
+from jsinfer.learn.bundle import decision_model_artifact  # noqa: E402
+from tests.models import FIXED_PROBABILITIES, fixed_models, write_model_bundle  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def model_bundle(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """A bundle holding a stub Decision_Model per Judgment_Call kind (``tests.models``) and the LOOSE thresholds."""
+    root = tmp_path_factory.mktemp("t22-4-models")
+    return write_model_bundle(root / "models", "t22.4-models", fixed_models(), {n: threshold_entry(n, v) for n, v in LOOSE.items()})
+
+
+@pytest.fixture(scope="module")
+def record_model_bundle(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """Like ``model_bundle``, but its Record-or-Map stub says Record, so Variants and Merge-or-Split are reached."""
+    root = tmp_path_factory.mktemp("t22-4-record-models")
+    models = fixed_models({**FIXED_PROBABILITIES, "record_or_map": (0.9, 0.1)})
+    return write_model_bundle(root / "models", "t22.4-record-models", models, {n: threshold_entry(n, v) for n, v in LOOSE.items()})
+
+
+def test_an_enabled_decision_model_selects_by_its_calibrated_probability(model_bundle: str) -> None:
+    # MDL says Record for RECORDS; the stub Record-or-Map model says Map with probability 0.7 (22.12).
+    result = run(RECORDS, config(model_bundle))
+    assert "additionalProperties" in result.document and "properties" not in result.document
+    record = records(result)["/additionalProperties"]
+    assert record.technique == DM_RECORD_MAP and record.fallback is None
+    assert record.resolution is not None and record.resolution.method == "decision-model"
+    assert record.confidence == FIXED_PROBABILITIES["record_or_map"][1] == 0.7
+    assert record.cutoff is not None and record.cutoff.source == "Decision_Model comparison"
+    assert record.cutoff.artifact == decision_model_artifact("record_or_map", "synthetic")
+    assert sorted((c.outcome, c.score) for c in record.cutoff.scores) == [("map", 0.7), ("record", 0.3)]
+    assert record.details["decision_model"] == decision_model_artifact("record_or_map", "synthetic")
+    assert not any(s.fallback.technique == DM_RECORD_MAP for s in result.report.substitutions)
+    # MDL says List for LISTS; the stub Tuple-or-List model says Tuple with probability 0.6 (7.10).
+    lists = run(LISTS, config(model_bundle))
+    assert "prefixItems" in lists.document and lists.document["items"] is False
+    prefix = records(lists)["/prefixItems"]
+    assert prefix.technique == DM_TUPLE_LIST and prefix.confidence == 0.6
+    assert prefix.cutoff is not None and prefix.cutoff.source == "Decision_Model comparison"
+
+
+def test_equal_probabilities_are_resolved_by_the_mdl_scorer(record_model_bundle: str) -> None:
+    # The stub Merge-or-Split model ties (0.5, 0.5): the MDL comparison over the tied outcomes decides (22.12, 20.7).
+    result = run(NESTED, config(record_model_bundle))
+    assert records(result)["/properties"].technique == DM_RECORD_MAP and records(result)["/properties"].confidence == 0.9
+    (entry,) = decisions(result, "merge_or_split", "$.obj")
+    assert entry.resolution.method == "decision-model" and entry.fallback is None
+    assert entry.cutoff is not None and entry.cutoff.source == "MDL comparison" and entry.details["tie_break"] == "MDL comparison"
+    assert entry.details["decision_model"] == decision_model_artifact("merge_or_split", "synthetic")
+
+
+def test_a_missing_decision_model_falls_through_to_mdl_and_is_substituted() -> None:
+    result = run(RECORDS, config(DEFAULT_MODEL_BUNDLE))  # the shipped bundle holds no model
+    record = records(result)["/properties"]
+    assert record.technique == MDL and record.resolution is not None and record.resolution.method == "mdl"
+    assert record.fallback == FallbackInfo(DM_RECORD_MAP, "missing-model")
+    artifact = decision_model_artifact("record_or_map", "synthetic")
+    assert (artifact, DM_RECORD_MAP, "missing-model", "missing", "decide.mdl at record_or_map") in substitution_triples(result)
+    assert decisions(result, "record_or_map", "$")[0].fallback == FallbackInfo(DM_RECORD_MAP, "missing-model")
+
+
+def test_the_closed_enum_model_serves_only_with_enum_estimation(record_model_bundle: str) -> None:
+    # 15.7: with enum estimation off, every scalar Path is open, whatever the (present, enabled) model says.
+    off = run(COLORS, config(record_model_bundle, disabled=[ENUM_ESTIMATION]))
+    counts = keywords(off)
+    assert counts["enum"] == 0 and counts["const"] == 0
+    for entry in decisions(off, "closed_or_open_enum"):
+        assert_fallback_entry(entry, "closed_or_open_enum", FallbackInfo(ENUM_ESTIMATION, "disabled"))
+    assert not any(e.resolution.method == "decision-model" for e in decisions(off, "closed_or_open_enum"))
+    # With both on, the model (closed with 0.55) judges the repeated values closed and is named as the producer.
+    on = run(COLORS, config(record_model_bundle))
+    color = records(on)["/properties/color/enum"]
+    assert color.technique == DM_CLOSED_ENUM and color.confidence == 0.55
+    assert color.cutoff is not None and color.cutoff.artifact == decision_model_artifact("closed_or_open_enum", "synthetic")

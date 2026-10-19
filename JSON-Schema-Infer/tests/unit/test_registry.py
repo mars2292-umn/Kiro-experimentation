@@ -216,8 +216,9 @@ def test_active_servers_follow_toggles_priority_and_defaults() -> None:
         assert REGISTRY.active_servers(kind, {}) == REGISTRY.active_servers(kind, REGISTRY.default_states())
     on = dict.fromkeys(REGISTRY.ids(), True)
     assert REGISTRY.active_servers("record_or_map", on) == ("decide.dm_record_map", "decide.mdl")
-    assert REGISTRY.active_servers("record_or_map", {"decide.mdl": True}) == ("decide.mdl",)
-    assert not REGISTRY.fallback_applies("record_or_map", {"decide.mdl": True})
+    mdl_only = {"decide.mdl": True, "decide.dm_record_map": False}
+    assert REGISTRY.active_servers("record_or_map", mdl_only) == ("decide.mdl",)
+    assert not REGISTRY.fallback_applies("record_or_map", mdl_only)
 
 
 def test_closed_enum_decision_model_serves_only_with_enum_estimation() -> None:
@@ -228,7 +229,8 @@ def test_closed_enum_decision_model_serves_only_with_enum_estimation() -> None:
     assert REGISTRY.fallback_applies(kind, model_only)  # 15.7: open whatever the model says
     both = {"decide.dm_closed_enum": True, "values.enum_estimation": True}
     assert REGISTRY.active_servers(kind, both) == ("decide.dm_closed_enum", "values.enum_estimation")
-    assert REGISTRY.active_servers(kind, {"values.enum_estimation": True}) == ("values.enum_estimation",)
+    estimation_only = {"values.enum_estimation": True, "decide.dm_closed_enum": False}
+    assert REGISTRY.active_servers(kind, estimation_only) == ("values.enum_estimation",)
 
 
 def test_registry_pickles_for_worker_processes() -> None:

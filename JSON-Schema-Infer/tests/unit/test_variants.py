@@ -735,9 +735,8 @@ def test_merge_or_split_is_served_by_its_decision_model_then_mdl() -> None:
     assert spec.served_by == (DM_MERGE_SPLIT, MDL)
     assert REGISTRY.fallback(MERGE_OR_SPLIT)() == SPLIT and spec.tie_rule is None
     assert JUDGMENT_OUTCOMES[MERGE_OR_SPLIT] == (MERGE, SPLIT)
-    # The Decision_Model is trained in M3; MDL selection serves the point by default.
-    assert not REGISTRY.technique(DM_MERGE_SPLIT).implemented
-    assert REGISTRY.active_servers(MERGE_OR_SPLIT, REGISTRY.default_states()) == (MDL,)
+    # Both serve by default; without a model in the bundle MDL selection resolves the point (22.14).
+    assert REGISTRY.active_servers(MERGE_OR_SPLIT, REGISTRY.default_states()) == (DM_MERGE_SPLIT, MDL)
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +752,7 @@ def test_mdl_splits_unrelated_families_and_records_both_candidates() -> None:
     assert outcome.judgment == SPLIT and not outcome.merged and outcome.n_variants == 2
     decision = outcome.decision
     assert decision.method == "mdl" and decision.technique == MDL and decision.cutoff.source == "MDL comparison"
-    assert decision.fallback == FallbackInfo(DM_MERGE_SPLIT, "disabled")  # 22.13: the Decision_Model is off
+    assert decision.fallback == FallbackInfo(DM_MERGE_SPLIT, "missing-model")  # 22.14: no model in the bundle
     merge, split = decision.resolution.candidates
     assert (merge.outcome, split.outcome) == (MERGE, SPLIT) and merge.technique is None
     # The design's comparison: one Naive_Merge object schema vs the anyOf of the candidate Variants.
@@ -827,7 +826,7 @@ def test_without_the_decision_model_and_mdl_the_priority_grouping_stays_split() 
     decision = outcome.decision
     assert decision.method == "fallback" and decision.label == SPLIT
     assert decision.technique == "fallback:merge_or_split"
-    assert decision.fallback == FallbackInfo(DM_MERGE_SPLIT, "disabled")
+    assert decision.fallback == FallbackInfo(DM_MERGE_SPLIT, "missing-model")
     assert decision.cutoff is None and decision.confidence is None
     assert [entry.resolution.method for entry in merge_decisions(report)] == ["fallback"]
 
@@ -981,7 +980,7 @@ def test_fallback_branch_records_name_the_fallback() -> None:
     assert node.outcome.decision.method == "fallback"
     for record in node.provenance.values():
         assert record.technique == "fallback:merge_or_split"
-        assert record.fallback == FallbackInfo(DM_MERGE_SPLIT, "disabled")
+        assert record.fallback == FallbackInfo(DM_MERGE_SPLIT, "missing-model")
         assert record.cutoff is None and record.confidence == laplace_confidence(record.support)
         assert record.details["variant_grouping"]["method"] == "priority"
 

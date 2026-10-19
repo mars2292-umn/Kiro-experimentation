@@ -11,8 +11,9 @@ Commands
     ``jsinfer --version``                                        ``jsinfer <version>``
     ===========================================================  ==========================================
 
-    ``train``, ``split``, and ``bench`` are added by their tasks (23.2,
-    25.2, 30.5). :func:`main` takes the arguments (default ``sys.argv[1:]``)
+    ``jsinfer train -c FILE --out DIR``                          train a Model_Bundle (21.1, 21.8)
+
+    ``split`` and ``bench`` are added by their tasks (25.2, 30.5). :func:`main` takes the arguments (default ``sys.argv[1:]``)
     and returns the exit status instead of exiting, so tests call it in
     process; the console script ``jsinfer`` (``jsinfer.cli:main``) exits
     with it.
@@ -293,6 +294,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--bundle", metavar="ID", help="a Model_Bundle identifier or path (default: bundles/default)"
     )
     thresholds.set_defaults(handler=_list_thresholds)
+
+    train = commands.add_parser(
+        "train",
+        help="train a Model_Bundle from a schema corpus",
+        description=(
+            "Generate labeled collections from the training and validation schemas of a Schema_Split, train and "
+            "calibrate the Decision_Models, fit the Learned_Thresholds, and write the Model_Bundle to DIR."
+        ),
+        allow_abbrev=False,
+    )
+    train.add_argument("-c", "--config", required=True, metavar="FILE", help="the TOML training configuration")
+    train.add_argument("--out", required=True, metavar="DIR", help="the Model_Bundle directory to write")
+    train.set_defaults(handler=_train)
     return parser
 
 
@@ -617,6 +631,28 @@ def _list_thresholds(args: argparse.Namespace) -> int:
     except ConfigError as error:  # 27.11
         return _config_failure(error)
     _write(sys.stdout, thresholds_text(bundle))
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
+# train (21.1, 21.8)
+# ---------------------------------------------------------------------------
+
+
+def _train(args: argparse.Namespace) -> int:
+    from jsinfer.config.errors import ConfigError
+    from jsinfer.learn.trainer import Trainer, TrainingConfig, TrainingError
+
+    try:
+        config = TrainingConfig.from_toml(args.config)
+    except ConfigError as error:  # 27.11
+        return _config_failure(error)
+    try:
+        bundle_id = Trainer().run(config, args.out)
+    except TrainingError as error:  # 21.8: no bundle is left at the output location
+        _error(str(error))
+        return EXIT_STAGE_ERROR
+    _say(f"wrote Model_Bundle {bundle_id} to {_quote(args.out)}")
     return EXIT_OK
 
 

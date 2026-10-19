@@ -123,7 +123,8 @@ def test_empty_bundle_records_every_fallback_with_every_technique_enabled() -> N
     ]
     assert sorted(triples(resolved)) == sorted((*entry, "missing") for entry in expected)
     by_artifact = {(s.artifact, s.fallback.technique): s.applied for s in resolved.substitutions}
-    assert by_artifact[("dbscan.eps", "variants.dbscan")] == "Fallback_Behavior of variant_grouping: one Variant"
+    # Every grouping threshold is missing, so the Bernoulli mixture alone still resolves the kind (task 22.1).
+    assert by_artifact[("dbscan.eps", "variants.dbscan")] == "variants.bernoulli_mixture at variant_grouping"
     assert by_artifact[("dm.record_or_map.synthetic", "decide.dm_record_map")] == "decide.mdl at record_or_map"
     assert by_artifact[("dm.record_or_map.weak", "decide.weak_supervision")] == (
         "Fallback_Behavior of judgment_model: synthetic-only Decision_Model"
@@ -415,3 +416,91 @@ def test_resolve_rejects_unregistered_technique_ids() -> None:
         bundle.resolve({"decide.nope": True})
     with pytest.raises(TypeError):
         bundle.resolve({"decide.mdl": 1})  # type: ignore[dict-item]
+
+
+# ---------------------------------------------------------------------------
+# Writing bundles, digests, and the feature spec (task 23.1; 21.10, 22.10)
+
+
+from jsinfer.learn.bundle import BUNDLE_FORMAT, FEATURE_SPEC_FILE, BundleArtifact, sha256_of, write_bundle  # noqa: E402
+from jsinfer.learn.features import FEATURE_VERSION, feature_spec_json  # noqa: E402
+from tests.models import FixedDecisionModel  # noqa: E402
+
+
+def test_write_bundle_writes_digests_the_feature_spec_and_the_manifest_atomically(tmp_path: Path) -> None:
+    target = tmp_path / "out" / "bundle"
+    target.parent.mkdir()
+    artifacts = [
+        BundleArtifact.model("dm.record_or_map.synthetic", FixedDecisionModel("record_or_map", (0.2, 0.8))),
+        BundleArtifact("semantic_mapping", "models/semantic_mapping.json", b'{"a": 1}'),
+    ]
+    thresholds = {"dbscan.eps": ThresholdRecord.from_json(record("dbscan.eps", 0.25))}
+    written = write_bundle(target, bundle_id="b-1", artifacts=artifacts, thresholds=thresholds, manifest={"seed": 3})
+    assert written == target and sorted(p.name for p in target.iterdir()) == [FEATURE_SPEC_FILE, MANIFEST_FILE, "models", THRESHOLDS_FILE]
+    manifest = json.loads((target / MANIFEST_FILE).read_text(encoding="utf-8"))
+    assert manifest["format"] == BUNDLE_FORMAT and manifest["bundle_id"] == "b-1" and manifest["seed"] == 3
+    for name, entry in manifest["artifacts"].items():
+        assert entry["sha256"] == sha256_of(target / entry["path"]) and name in ("dm.record_or_map.synthetic", "semantic_mapping")
+    assert json.loads((target / FEATURE_SPEC_FILE).read_text(encoding="utf-8")) == feature_spec_json()
+    bundle = load_bundle(target)
+    assert bundle.threshold_values() == {"dbscan.eps": 0.25} and bundle.feature_spec == feature_spec_json()
+    assert bundle.load_artifact("dm.record_or_map.synthetic").proba == (0.2, 0.8)
+    assert bundle.load_artifact("semantic_mapping") == {"a": 1}
+    # Rewriting replaces the directory as a whole; a failed write leaves the old bundle and no temp directory.
+    write_bundle(target, bundle_id="b-2", artifacts=artifacts[1:])
+    assert load_bundle(target).bundle_id == "b-2" and not (target / "models" / "dm.record_or_map.synthetic.joblib").exists()
+    with pytest.raises(ValueError, match="distinct"):
+        write_bundle(target, bundle_id="b-3", artifacts=[artifacts[1], artifacts[1]])
+    assert load_bundle(target).bundle_id == "b-2" and [p.name for p in target.parent.iterdir()] == ["bundle"]
+    with pytest.raises(ValueError, match="written by write_bundle"):
+        write_bundle(target, bundle_id="b-4", manifest={"format": 9})
+    with pytest.raises(ValueError, match="joblib"):
+        BundleArtifact("semantic_type", "models/x.bin", object())
+
+
+def test_a_digest_mismatch_is_a_checksum_substitution(tmp_path: Path) -> None:
+    target = tmp_path / "b"
+    write_bundle(target, bundle_id="b", artifacts=[BundleArtifact.model("dm.tuple_or_list.synthetic", FixedDecisionModel("tuple_or_list", (0.5, 0.5)))])
+    file = target / "models" / "dm.tuple_or_list.synthetic.joblib"
+    file.write_bytes(file.read_bytes() + b"\0")
+    bundle = load_bundle(target)
+    with pytest.raises(ArtifactError, match="SHA-256") as caught:
+        bundle.load_artifact("dm.tuple_or_list.synthetic")
+    assert caught.value.problem.cause == "checksum"
+    resolved = bundle.resolve({**ALL_OFF, "decide.dm_tuple_list": True})
+    assert triples(resolved) == [("dm.tuple_or_list.synthetic", "decide.dm_tuple_list", "missing-model", "checksum")]
+
+
+def test_a_feature_spec_mismatch_is_a_missing_model(tmp_path: Path) -> None:
+    target = tmp_path / "b"
+    write_bundle(target, bundle_id="b", artifacts=[BundleArtifact.model("dm.record_or_map.synthetic", FixedDecisionModel("record_or_map", (0.5, 0.5)))])
+    other = feature_spec_json()
+    other["version"] = FEATURE_VERSION + "-other"
+    (target / FEATURE_SPEC_FILE).write_text(json.dumps(other), encoding="utf-8")
+    resolved = load_bundle(target).resolve({**ALL_OFF, "decide.dm_record_map": True})
+    assert triples(resolved) == [("dm.record_or_map.synthetic", "decide.dm_record_map", "missing-model", "invalid")]
+    assert "feature_spec.json differs" in resolved.problems[0].detail  # type: ignore[union-attr]
+    # A model that declares another featurizer version or dimension is refused too.
+    for stale in (
+        FixedDecisionModel("record_or_map", (0.5, 0.5), feature_version="0"),
+        FixedDecisionModel("record_or_map", (0.5, 0.5), feature_dim=3),
+    ):
+        write_bundle(target, bundle_id="b", artifacts=[BundleArtifact.model("dm.record_or_map.synthetic", stale)])
+        assert triples(load_bundle(target).resolve({**ALL_OFF, "decide.dm_record_map": True}))[0][3] == "invalid"
+    (target / FEATURE_SPEC_FILE).write_text("[]", encoding="utf-8")
+    with pytest.raises(ConfigError, match="feature_spec.json: expected an object"):
+        load_bundle(target)
+
+
+@pytest.mark.parametrize(
+    ("entry", "match"),
+    [
+        ({"sha256": "ab"}, "must hold a path"),
+        ({"path": "models/x.joblib", "sha256": "xyz"}, "64-character lowercase hex"),
+        ({"path": "models/x.joblib", "extra": 1}, "unknown members"),
+    ],
+)
+def test_malformed_artifact_entries_make_the_bundle_unloadable(tmp_path: Path, entry: dict[str, Any], match: str) -> None:
+    root = make_bundle(tmp_path / "b", manifest=_manifest({"semantic_type": entry}))
+    with pytest.raises(ConfigError, match=match):
+        load_bundle(root)

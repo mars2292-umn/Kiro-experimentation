@@ -1,0 +1,41 @@
+{
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "species": {
+          "const": "cat"
+        },
+        "lives": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9
+        }
+      },
+      "required": [
+        "species",
+        "lives"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "species": {
+          "const": "dog"
+        },
+        "bark": {
+          "enum": [
+            "loud",
+            "quiet"
+          ]
+        }
+      },
+      "required": [
+        "species",
+        "bark"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

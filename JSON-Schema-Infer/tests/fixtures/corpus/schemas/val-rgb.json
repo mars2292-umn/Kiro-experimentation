@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "rgb": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      ],
+      "items": false,
+      "minItems": 3
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 8
+    }
+  },
+  "required": [
+    "rgb"
+  ],
+  "additionalProperties": true
+}

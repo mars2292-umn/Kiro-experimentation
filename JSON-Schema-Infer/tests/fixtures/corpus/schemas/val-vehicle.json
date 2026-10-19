@@ -1,0 +1,59 @@
+{
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "car"
+        },
+        "doors": {
+          "enum": [
+            2,
+            4
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "doors"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "bike"
+        },
+        "gears": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      },
+      "required": [
+        "type",
+        "gears"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "boat"
+        },
+        "length_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000.0
+        }
+      },
+      "required": [
+        "type",
+        "length_m"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

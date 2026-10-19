@@ -1,0 +1,155 @@
+{
+  "format": 1,
+  "schemas": [
+    {
+      "id": "train/user-profile",
+      "source": "fixture",
+      "path": "schemas/train-user-profile.json"
+    },
+    {
+      "id": "train/settings-map",
+      "source": "fixture",
+      "path": "schemas/train-settings-map.json"
+    },
+    {
+      "id": "train/geo-point",
+      "source": "fixture",
+      "path": "schemas/train-geo-point.json"
+    },
+    {
+      "id": "train/order",
+      "source": "fixture",
+      "path": "schemas/train-order.json"
+    },
+    {
+      "id": "train/event-union",
+      "source": "fixture",
+      "path": "schemas/train-event-union.json"
+    },
+    {
+      "id": "train/tree",
+      "source": "fixture",
+      "path": "schemas/train-tree.json"
+    },
+    {
+      "id": "train/network-host",
+      "source": "fixture",
+      "path": "schemas/train-network-host.json"
+    },
+    {
+      "id": "train/measurement-series",
+      "source": "fixture",
+      "path": "schemas/train-measurement-series.json"
+    },
+    {
+      "id": "train/feature-flags",
+      "source": "fixture",
+      "path": "schemas/train-feature-flags.json"
+    },
+    {
+      "id": "train/shape",
+      "source": "fixture",
+      "path": "schemas/train-shape.json"
+    },
+    {
+      "id": "train/comment",
+      "source": "fixture",
+      "path": "schemas/train-comment.json"
+    },
+    {
+      "id": "train/matrix",
+      "source": "fixture",
+      "path": "schemas/train-matrix.json"
+    },
+    {
+      "id": "train/conditional-license",
+      "source": "fixture",
+      "path": "schemas/train-conditional-license.json"
+    },
+    {
+      "id": "train/counters",
+      "source": "fixture",
+      "path": "schemas/train-counters.json"
+    },
+    {
+      "id": "val/account",
+      "source": "fixture",
+      "path": "schemas/val-account.json"
+    },
+    {
+      "id": "val/labels-map",
+      "source": "fixture",
+      "path": "schemas/val-labels-map.json"
+    },
+    {
+      "id": "val/rgb",
+      "source": "fixture",
+      "path": "schemas/val-rgb.json"
+    },
+    {
+      "id": "val/invoice",
+      "source": "fixture",
+      "path": "schemas/val-invoice.json"
+    },
+    {
+      "id": "val/payment-union",
+      "source": "fixture",
+      "path": "schemas/val-payment-union.json"
+    },
+    {
+      "id": "val/linked-list",
+      "source": "fixture",
+      "path": "schemas/val-linked-list.json"
+    },
+    {
+      "id": "val/service",
+      "source": "fixture",
+      "path": "schemas/val-service.json"
+    },
+    {
+      "id": "val/readings",
+      "source": "fixture",
+      "path": "schemas/val-readings.json"
+    },
+    {
+      "id": "val/toggles",
+      "source": "fixture",
+      "path": "schemas/val-toggles.json"
+    },
+    {
+      "id": "val/vehicle",
+      "source": "fixture",
+      "path": "schemas/val-vehicle.json"
+    },
+    {
+      "id": "val/ticket",
+      "source": "fixture",
+      "path": "schemas/val-ticket.json"
+    },
+    {
+      "id": "val/grid",
+      "source": "fixture",
+      "path": "schemas/val-grid.json"
+    },
+    {
+      "id": "heldout/person",
+      "source": "fixture",
+      "path": "schemas/heldout-person.json"
+    },
+    {
+      "id": "heldout/inventory-map",
+      "source": "fixture",
+      "path": "schemas/heldout-inventory-map.json"
+    },
+    {
+      "id": "heldout/animal-union",
+      "source": "fixture",
+      "path": "schemas/heldout-animal-union.json"
+    },
+    {
+      "id": "heldout/pair-list",
+      "source": "fixture",
+      "path": "schemas/heldout-pair-list.json"
+    }
+  ]
+}

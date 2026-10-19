@@ -112,9 +112,9 @@ Interpretation
       3.3 takes the relaxation decision's whole record.
     - The model-selection criteria are those the design names for
       Decision_Point cut-offs: BIC, for the Bernoulli mixture (5.2).
-    - Decision_Model comparisons cannot occur yet: every ``decide.dm_*``
-      Technique is unimplemented, so it is disabled in every valid
-      Run_Configuration. The checks above apply to them once they land.
+    - Decision_Model comparisons occur with the ``models`` bundle, which
+      holds a stub Decision_Model per Judgment_Call kind (``tests.models``);
+      the Merge-or-Split stub ties, so its MDL tie-break is reached too.
     - Limitations: a use inside C code that reads the number without Python
       conversion (numpy, ``math.isfinite``) is not seen as a use, so
       Resource_Parameters also count when handed out; reads of
@@ -172,6 +172,7 @@ from jsinfer.learn.bundle import (
 from jsinfer.pipeline.infer import PipelineResult, infer_documents
 from jsinfer.structure import variants as variants_module
 from jsinfer.structure.analyzer import StructureAnalyzer
+from tests.models import fixed_models, write_model_bundle
 from tests.strategies import KEYS, TECHNIQUE_SETTINGS, json_values, setting_flags
 
 MDL = "decide.mdl"
@@ -237,6 +238,8 @@ def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Bundle]:
         (directory / MANIFEST_FILE).write_text(json.dumps(manifest), encoding="utf-8")
         (directory / THRESHOLDS_FILE).write_text(json.dumps(entries), encoding="utf-8")
         found[name] = Bundle(str(directory), bundle_id, dict(values))
+    # Stub Decision_Models for every Judgment_Call kind and no Learned_Threshold (Decision_Model comparisons).
+    found["models"] = Bundle(write_model_bundle(root / "models", "p31-models", fixed_models()), "p31-models", {})
     return found
 
 
@@ -1004,7 +1007,7 @@ def check_rejected(report: InferenceReport) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("bundle", ["default", *STUB_THRESHOLDS])
+@pytest.mark.parametrize("bundle", ["default", "models", *STUB_THRESHOLDS])
 @given(data=st.data())
 def test_every_cutoff_and_every_threshold_and_resource_read_is_recorded(
     bundles: dict[str, Bundle], bundle: str, data: st.DataObject

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "additionalProperties": {
+    "type": "string",
+    "pattern": "^[a-z]{1,6}$"
+  },
+  "propertyNames": {
+    "pattern": "^k[0-9]{1,2}$"
+  },
+  "minProperties": 2,
+  "maxProperties": 5
+}

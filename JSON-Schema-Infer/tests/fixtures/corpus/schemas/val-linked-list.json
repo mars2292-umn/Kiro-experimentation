@@ -1,0 +1,21 @@
+{
+  "$ref": "#/$defs/cell",
+  "$defs": {
+    "cell": {
+      "type": "object",
+      "properties": {
+        "head": {
+          "type": "string",
+          "maxLength": 4
+        },
+        "tail": {
+          "$ref": "#/$defs/cell"
+        }
+      },
+      "required": [
+        "head"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

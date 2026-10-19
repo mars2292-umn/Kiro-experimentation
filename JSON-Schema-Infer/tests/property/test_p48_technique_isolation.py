@@ -147,6 +147,7 @@ from jsinfer.decide.engine import DecisionEngine
 from jsinfer.learn.bundle import DECISION_MODEL_TECHNIQUES
 from jsinfer.pipeline.infer import PipelineResult, infer_documents
 from jsinfer.structure.analyzer import StructureAnalyzer
+from tests.models import fixed_models, write_model_bundle
 from tests.strategies import KEYS, TECHNIQUE_SETTINGS, json_values, setting_flags
 
 IDS = frozenset(REGISTRY.ids())
@@ -188,8 +189,12 @@ STUB_THRESHOLDS: dict[str, dict[str, int | float]] = {
 }
 BUNDLE_THRESHOLDS: dict[str, frozenset[str]] = {
     "default": frozenset(),
+    "models": frozenset(),  # stub Decision_Models for every Judgment_Call kind, no Learned_Threshold
     **{name: frozenset(values) for name, values in STUB_THRESHOLDS.items()},
 }
+# The Judgment_Call kinds whose Decision_Model each bundle holds.
+BUNDLE_MODELS: dict[str, frozenset[str]] = {name: frozenset() for name in BUNDLE_THRESHOLDS}
+BUNDLE_MODELS["models"] = frozenset(DECISION_MODEL_TECHNIQUES)
 
 
 @pytest.fixture(scope="module")
@@ -210,6 +215,7 @@ def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
         (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         (directory / "thresholds.json").write_text(json.dumps(entries), encoding="utf-8")
         found[name] = str(directory)
+    found["models"] = write_model_bundle(root / "models", "p48-models", fixed_models())
     return found
 
 
@@ -369,7 +375,7 @@ class Setup:
         if gate is not None and not self.states[gate]:
             return "gated"
         if DECISION_MODEL_TECHNIQUES.get(kind) == tid:
-            return "missing-model"  # no bundle of this module holds a Decision_Model
+            return None if kind in BUNDLE_MODELS[self.bundle] else "missing-model"
         thresholds = REGISTRY.technique(tid).thresholds
         if any(THRESHOLDS[name].decision_point == kind and name not in self.held for name in thresholds):
             return "missing-threshold"

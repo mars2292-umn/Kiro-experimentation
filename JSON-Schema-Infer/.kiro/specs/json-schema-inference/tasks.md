@@ -435,84 +435,84 @@ Conventions used by every task:
 
 ### M3: Learning
 
-- [ ] 21. Implement normalization, the Synthetic_Generator, and labels
-  - [ ] 21.1 Implement field-name normalization and Path sets (`corpus/normalize.py`)
+- [x] 21. Implement normalization, the Synthetic_Generator, and labels
+  - [x] 21.1 Implement field-name normalization and Path sets (`corpus/normalize.py`)
     - `normalize_name` splits on `_`, `-`, and lower/digit→upper transitions, then casefolds
     - Normalized Path sets across branches, with `$ref` expanded to depth `nearest.ref_depth`
     - _Requirements: 24.2, 25.1_
-  - [ ] 21.2 Write property test for field-name normalization
+  - [x] 21.2 Write property test for field-name normalization
     - **Property 38: Field-name normalization**
     - **Validates: Requirements 24.2**
-  - [ ] 21.3 Implement the Synthetic_Generator (`learn/synth.py`)
+  - [x] 21.3 Implement the Synthetic_Generator (`learn/synth.py`)
     - Per-document streams from `SeedSequence([seed, blake2b(schema_id), k, doc_index])`; sampled collection parameters recorded per collection
     - Value sources in 22.3 order: generators for the ten Formats; `examples`/`default`/`enum` from the field or from same-name corpus fields; then type-based values. Pattern sampler over `re._parser` after ECMA translation, with rejection fallback
     - `$ref` depth cap `synth.max_depth`; rejection sampling for `allOf`, `oneOf`, `not`, and `if`; every document validated; attempt budget `synth.doc_attempts`; uncompilable schemas excluded with a reason
     - For source (b) of 22.3, index `examples`, `default`, and `enum` values by normalized field name across the training-split and validation-split schemas the generator is given, never held-out ones; the train-only Corpus_Index cannot serve this (design, Generator)
     - _Requirements: 22.1, 22.2, 22.3, 22.7, 22.8, 22.9_
-  - [ ] 21.4 Write property test for the generator
+  - [x] 21.4 Write property test for the generator
     - **Property 33: Generator correctness and determinism**
     - Also add the planted-structure `collections()` strategy (Maps, Variants, Tagged_Unions, Field_Groups, Tuples, recursion, rare outliers) to `tests/strategies.py`
     - **Validates: Requirements 22.7, 22.9**
-  - [ ] 21.5 Implement label derivation and Path alignment (`learn/labels.py`)
+  - [x] 21.5 Implement label derivation and Path alignment (`learn/labels.py`)
     - `derive_labels` on the `$ref`-expanded model with Key, MapVal, and Elem stepping per 22.4. Missing labels and conflicting labels across branches become unknown
     - `align(schema, path)` maps inferred Paths to schema Paths
     - _Requirements: 22.4, 22.5, 31.9, 31.10_
-  - [ ] 21.6 Write property test for label derivation
+  - [x] 21.6 Write property test for label derivation
     - **Property 34: Label derivation is consistent**
     - **Validates: Requirements 22.4, 22.5, 31.9**
 
-- [ ] 22. Implement featurization, Decision_Models, and threshold fitting
-  - [ ] 22.1 Implement the featurizers and wire them in (`learn/features.py`, `structure/record_map.py`, `structure/arrays.py`, `structure/variants.py`, `values/enums.py`)
+- [x] 22. Implement featurization, Decision_Models, and threshold fitting
+  - [x] 22.1 Implement the featurizers and wire them in (`learn/features.py`, `structure/record_map.py`, `structure/arrays.py`, `structure/variants.py`, `values/enums.py`)
     - Per-kind feature tables from the design, the normalized MDL difference, hashed name and parent tokens, and a versioned feature spec
     - Pass a `features` callable to the DecisionEngine at every Judgment_Call site
     - Make the Substitution for a missing grouping threshold name what actually resolves `variant_grouping`: the grouping Techniques still in effect, or the one-Variant Fallback_Behavior when none is (design Open Decisions, Techniques not in effect and fallback indicators)
     - _Requirements: 15.2, 22.10_
-  - [ ] 22.2 Implement oracle-resolver featurization (`learn/trainer.py`)
+  - [x] 22.2 Implement oracle-resolver featurization (`learn/trainer.py`)
     - Run the real pipeline with an oracle resolver: upstream Judgment_Calls take the ground-truth label when known and MDL otherwise. Record features and labels per Judgment_Call, aligned with `align()`
     - Exclude unknown-label and no-Observation examples and count them per kind and per cause
     - _Requirements: 22.6, 22.10_
-  - [ ] 22.3 Write property test for feature parity
+  - [x] 22.3 Write property test for feature parity
     - **Property 35: Feature parity**
     - **Validates: Requirements 22.10**
-  - [ ] 22.4 Implement Decision_Models (`learn/decision_models.py`)
+  - [x] 22.4 Implement Decision_Models (`learn/decision_models.py`)
     - `HistGradientBoostingClassifier(random_state=…, early_stopping=False)`, calibrated with `CalibratedClassifierCV(FrozenEstimator(m), method="sigmoid")` on validation examples
     - Confirm the closed Closed-or-Open-Record clauses of Properties 10 and 41 run once a Decision_Model can select a closed Record; MDL does not close Records on their inputs (even at 1,000 documents)
     - Report whether the normalized MDL-difference feature carries signal for Closed-or-Open-Record (its spread and importance on validation examples). Revisit the Good–Turing unseen-key charge only if it does not and the Decision_Model cannot close Records either (design Open Decisions, Closed-or-Open-Record Judgment_Call)
     - Omit a kind with only one class and record the per-class counts. Validation metrics: n, accuracy, macro-F1, and ECE before and after calibration with `ece.bins`
     - When the `decide.dm_*` Techniques become `implemented=True`, add pipeline-level tests of the Decision_Model branches of 4.10, 5.11, 7.10, and 15.7 (an enabled model, a missing model, `decide.dm_closed_enum` on with `values.enum_estimation` off) to `tests/unit/test_config_fallbacks.py`, and check that Properties 31 and 48 reach Decision_Model cut-offs and fallbacks
     - _Requirements: 21.3, 21.4, 21.5, 22.11_
-  - [ ] 22.5 Implement Learned_Threshold fitting (`learn/trainer.py`, `config/thresholds.py`)
+  - [x] 22.5 Implement Learned_Threshold fitting (`learn/trainer.py`, `config/thresholds.py`)
     - Deterministic grid search on validation examples, ties to the smallest value. Store the fitted value, objective value, example count, and Training_Data id. Omit thresholds with no validation examples and record why
     - Objectives for the M2 thresholds: ARI for `lsh.keyset_jaccard`, `dbscan.eps`, `dbscan.min_samples`, and `hdbscan.min_cluster_size`; `dependentRequired` F1 for `cooccur.min_support` and `cooccur.min_confidence`. Fit `dbscan.min_samples` in objects and `hdbscan.min_cluster_size` in distinct signatures, the units task 13.2 uses. Fit `cooccur.min_confidence` on the Confidence `(count(a) + 1) / (count(a) + 2)` of task 14.2, which makes it a minimum Support count
     - _Requirements: 20.3, 20.4, 20.8_
 
-- [ ] 23. Implement the Model_Bundle writer and the Trainer
-  - [ ] 23.1 Implement the bundle writer (`learn/bundle.py`)
+- [x] 23. Implement the Model_Bundle writer and the Trainer
+  - [x] 23.1 Implement the bundle writer (`learn/bundle.py`)
     - Bundle layout, manifest fields, `thresholds.json`, `feature_spec.json`, and models, written atomically (temp directory, then rename)
     - The reader treats a feature-spec mismatch as a missing model
     - Record `artifacts {name: {path, sha256}}` in the manifest. The reader verifies the digest before unpickling or reading an artifact and treats a missing file or a mismatch as a missing artifact (substitution cause `checksum`). Document that only trusted bundles should be loaded, since the digest does not make an untrusted pickle safe
     - _Requirements: 21.1, 21.2, 21.10, 22.10_
-  - [ ] 23.2 Implement `Trainer.run` and `jsinfer train` (`learn/trainer.py`, `cli.py`, `bench/splits.py`)
+  - [x] 23.2 Implement `Trainer.run` and `jsinfer train` (`learn/trainer.py`, `cli.py`, `bench/splits.py`)
     - Define the `SchemaSplit` file model (load and save) and a minimal corpus manifest file model (schema id, source, schema file path relative to the manifest) in `bench/splits.py`; 25.1 later writes the same model. Read train and validation schemas by id from the corpus manifest named in the training config (design Open Decisions, Corpus manifest and training fixtures)
     - Register the Resource_Parameter `train.max_schemas` (default 2,000, provisional until 29.9): above it, sample each split's sorted schema ids in proportion to its size with `rng("train.subset", split)`, and list the schemas used per split in the manifest
     - Run the design's training order. Reject held-out or unknown schemas with a non-zero exit and no bundle
     - Omit artifacts of disabled or unimplemented Techniques (label model, Semantic_Type_Classifier, Corpus_Index) and record the reasons. Stage errors remove the temp directory
     - _Requirements: 21.1, 21.2, 21.3, 21.7, 21.8, 21.9, 22.1, 22.6_
-  - [ ] 23.3 Write property test for missing artifacts
+  - [x] 23.3 Write property test for missing artifacts
     - **Property 32: Missing artifacts degrade to fallbacks**
     - Include artifacts whose SHA-256 does not match the manifest
     - **Validates: Requirements 20.6, 21.10, 22.14, 24.9**
-  - [ ] 23.4 Hand-write the fixture schema corpus (`tests/fixtures/corpus/`)
+  - [x] 23.4 Hand-write the fixture schema corpus (`tests/fixtures/corpus/`)
     - 30 draft 2020-12 schemas written for the tests, with no SchemaStore or JSONSchemaBench content (design Open Decisions, Corpus manifest and training fixtures)
     - Cover every Judgment_Call label of 22.4 in both classes (Record and Map, closed and open Record, Tuple and List, Closed_Enum and open enum, Split and Merge) in both the training and the validation split, so `tiny_bundle` trains a Decision_Model per kind. Also cover the ten Formats, `examples`/`default`/`enum` values, normalized field names shared across schemas (22.3(b)), `$ref` with recursion, `allOf`/`oneOf`/`not`/`if`, and Patterns
     - Add a corpus manifest in the 23.2 file model and a fixture Schema_Split with training, validation, and held-out schemas, so 23.5 can test held-out rejection (21.8)
     - A unit test checks that every schema passes the meta-schema check and compiles with the Validator, that the manifest and split agree, and that `derive_labels` (21.5) finds both classes of every kind in the training and validation splits
     - _Requirements: 21.8, 21.9, 22.3, 22.4_
-  - [ ] 23.5 Write Trainer integration tests and fixtures
+  - [x] 23.5 Write Trainer integration tests and fixtures
     - The fixture corpus and split of 23.4; session-scoped `tiny_bundle` cached by content hash; `empty_bundle`; two-run reproducibility; held-out schema rejection
     - _Requirements: 21.7, 21.8, 21.9_
 
-- [ ] 24. Checkpoint (M3): ensure all tests pass, ask the user if questions arise.
+- [x] 24. Checkpoint (M3): ensure all tests pass, ask the user if questions arise.
 
 ### M4: Evaluation Harness
 

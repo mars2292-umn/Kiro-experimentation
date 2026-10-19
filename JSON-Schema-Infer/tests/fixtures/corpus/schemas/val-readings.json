@@ -1,0 +1,27 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "when": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "reading": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 1000000.0
+      },
+      "sensor": {
+        "const": "t1"
+      }
+    },
+    "required": [
+      "when",
+      "reading"
+    ],
+    "additionalProperties": false
+  },
+  "minItems": 1,
+  "maxItems": 5
+}

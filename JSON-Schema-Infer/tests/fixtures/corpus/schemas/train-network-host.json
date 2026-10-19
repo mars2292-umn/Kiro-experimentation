@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "hostname": {
+      "type": "string",
+      "format": "hostname"
+    },
+    "ipv4": {
+      "type": "string",
+      "format": "ipv4"
+    },
+    "ipv6": {
+      "type": "string",
+      "format": "ipv6"
+    },
+    "up_since": {
+      "type": "string",
+      "format": "date"
+    },
+    "check_interval": {
+      "type": "string",
+      "format": "duration"
+    },
+    "ports": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535
+      },
+      "uniqueItems": true,
+      "maxItems": 4
+    }
+  },
+  "required": [
+    "hostname",
+    "ipv4"
+  ],
+  "additionalProperties": true
+}

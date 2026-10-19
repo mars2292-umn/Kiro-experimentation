@@ -152,8 +152,8 @@ def test_a_repeated_value_set_is_closed_as_enum() -> None:
     assert judgment.keywords() == {"enum": ["blue", "red"]}
     decision = judgment.decision
     assert (decision.method, decision.technique) == ("mdl", ENUM_ESTIMATION)
-    # The Decision_Model is disabled, so MDL is its Fallback_Behavior (22.13).
-    assert decision.fallback == FallbackInfo(DM_CLOSED_ENUM, "disabled")
+    # No bundle holds the Decision_Model, so MDL is its Fallback_Behavior (22.14).
+    assert decision.fallback == FallbackInfo(DM_CLOSED_ENUM, "missing-model")
     assert [entry.kind for entry in report.decisions] == [CLOSED_OR_OPEN_ENUM]
     assert report.rejected == ()
 

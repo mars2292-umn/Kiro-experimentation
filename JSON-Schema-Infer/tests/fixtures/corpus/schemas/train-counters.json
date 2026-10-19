@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 99
+  },
+  "propertyNames": {
+    "pattern": "^c[0-9]{1,3}$"
+  },
+  "minProperties": 1,
+  "maxProperties": 8
+}

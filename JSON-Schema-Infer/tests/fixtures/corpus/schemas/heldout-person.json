@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "emailAddress": {
+      "type": "string",
+      "format": "email"
+    },
+    "birth_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "nickname": {
+      "type": "string",
+      "maxLength": 12
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false
+}

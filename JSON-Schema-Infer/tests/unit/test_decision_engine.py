@@ -546,12 +546,12 @@ def test_a_usable_technique_without_candidates_is_an_error() -> None:
 
 
 def test_the_default_run_configuration_resolves_judgment_calls_by_mdl() -> None:
-    # decide.mdl is implemented, so it is on by default; the Decision_Models are not built yet.
+    # decide.mdl and the Decision_Models are on by default; the shipped bundle holds no model (22.14).
     config = RunConfiguration.resolve()
     on = DecisionEngine.for_run(config, load_bundle(DEFAULT_MODEL_BUNDLE).resolve(config.techniques), InferenceReport())
     decision = on.resolve(DecisionPoint("tuple_or_list"), judgment("tuple_or_list", (score(1, 1), score(2, 2))))
     assert (decision.method, decision.label, decision.technique) == ("mdl", "tuple", MDL)
-    assert decision.fallback == FallbackInfo("decide.dm_tuple_list", "disabled")  # the Decision_Model's fallback (22.13)
+    assert decision.fallback == FallbackInfo("decide.dm_tuple_list", "missing-model")  # the model's fallback (22.14)
     # With decide.mdl off as well, the Fallback_Behavior applies.
     off = DecisionEngine.for_run(RunConfiguration.resolve({technique_setting(MDL): False}), None, None)
     decision = off.resolve(DecisionPoint("tuple_or_list"), judgment("tuple_or_list", (score(1, 1), score(2, 2))))

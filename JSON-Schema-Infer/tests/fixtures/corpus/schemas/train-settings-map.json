@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "propertyNames": {
+    "pattern": "^[a-z][a-z_]{1,10}$"
+  },
+  "additionalProperties": {
+    "type": "string",
+    "maxLength": 8
+  },
+  "minProperties": 2,
+  "maxProperties": 6
+}

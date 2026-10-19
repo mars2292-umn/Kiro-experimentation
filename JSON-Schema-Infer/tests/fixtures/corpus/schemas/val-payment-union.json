@@ -1,0 +1,42 @@
+{
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "card"
+        },
+        "last4": {
+          "type": "string",
+          "pattern": "^[0-9]{4}$"
+        },
+        "expires": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "required": [
+        "method",
+        "last4"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "bank"
+        },
+        "iban": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}[0-9]{10}$"
+        }
+      },
+      "required": [
+        "method",
+        "iban"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

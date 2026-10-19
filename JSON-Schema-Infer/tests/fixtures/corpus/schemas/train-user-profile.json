@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "User profile",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "emailAddress": {
+      "type": "string",
+      "format": "email",
+      "examples": [
+        "ada@example.com"
+      ]
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24,
+      "default": "anonymous"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "role": {
+      "enum": [
+        "admin",
+        "editor",
+        "viewer"
+      ]
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 13,
+      "maximum": 120
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,11}$"
+      },
+      "maxItems": 5
+    }
+  },
+  "required": [
+    "id",
+    "emailAddress",
+    "role"
+  ],
+  "additionalProperties": false
+}

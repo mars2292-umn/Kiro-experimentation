@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "toggles": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z_]{2,10}$": {
+          "enum": [
+            "on",
+            "off"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "editor": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "display_name": {
+              "type": "string",
+              "maxLength": 12
+            }
+          },
+          "required": [
+            "display_name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "email_address": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "toggles"
+  ],
+  "additionalProperties": false
+}

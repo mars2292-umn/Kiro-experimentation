@@ -201,6 +201,13 @@ from jsinfer.deps.presence import RequiredFields, required_fields
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.structure.arrays import ArrayAnalyzer
+from jsinfer.learn.features import (
+    closed_enum_features,
+    closed_record_features,
+    merge_split_features,
+    record_map_features,
+    tuple_list_features,
+)
 from jsinfer.structure.record_map import ClosedOpenOutcome, RecordMapAnalyzer, RecordMapOutcome, object_rows
 from jsinfer.structure.variants import ANY_OF, MergeSplitOutcome, VariantAnalyzer, VariantNode
 from jsinfer.values.inferrer import ScalarNode, ValueInferrer
@@ -394,13 +401,32 @@ class StructureAnalyzer:
         validator = values.validator
         scorer = scorer if scorer is not None else MDLScorer(validator=validator)
         self._values = values
-        self._record_map = record_map if record_map is not None else RecordMapAnalyzer(values, scorer=scorer)
+        # The default components judge with the versioned featurizers of learn.features (22.10).
+        self._record_map = (
+            record_map
+            if record_map is not None
+            else RecordMapAnalyzer(
+                values,
+                scorer=scorer,
+                record_map_features=record_map_features,
+                closed_record_features=closed_record_features,
+            )
+        )
         self._variants = (
             variants
             if variants is not None
-            else VariantAnalyzer(engine, scorer=scorer, resources=resources, seed=seed, validator=validator)
+            else VariantAnalyzer(
+                engine,
+                scorer=scorer,
+                resources=resources,
+                seed=seed,
+                validator=validator,
+                merge_split_features=merge_split_features,
+            )
         )
-        self._arrays = arrays if arrays is not None else ArrayAnalyzer(values, scorer=scorer)
+        self._arrays = (
+            arrays if arrays is not None else ArrayAnalyzer(values, scorer=scorer, tuple_list_features=tuple_list_features)
+        )
         self._cooccurrence = (
             cooccurrence if cooccurrence is not None else CooccurrenceMiner(engine, scorer=scorer, report=values.report)
         )
@@ -432,7 +458,9 @@ class StructureAnalyzer:
         validator = validator if validator is not None else Validator()
         scorer = MDLScorer(validator=validator)
         engine = DecisionEngine(techniques, bundle=bundle, report=report, scorer=scorer)
-        values = ValueInferrer(engine, validator=validator, report=report, scorer=scorer)
+        values = ValueInferrer(
+            engine, validator=validator, report=report, scorer=scorer, enum_features=closed_enum_features
+        )
         return cls(values, scorer=scorer, resources=resources, seed=seed)
 
     @classmethod
@@ -454,7 +482,9 @@ class StructureAnalyzer:
         validator = validator if validator is not None else Validator()
         scorer = MDLScorer(validator=validator)
         engine = DecisionEngine.for_run(config, bundle, report, scorer=scorer)
-        values = ValueInferrer(engine, validator=validator, report=report, scorer=scorer)
+        values = ValueInferrer(
+            engine, validator=validator, report=report, scorer=scorer, enum_features=closed_enum_features
+        )
         resources = ResourceReader.for_run(config, report)
         return cls(values, scorer=scorer, resources=resources, seed=config.seed)
 

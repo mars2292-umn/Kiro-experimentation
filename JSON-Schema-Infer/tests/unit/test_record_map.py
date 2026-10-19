@@ -151,7 +151,8 @@ def test_mdl_selection_is_implemented_and_serves_both_judgment_calls() -> None:
     assert spec.implemented and spec.default_enabled
     for kind in (RECORD_OR_MAP, CLOSED_OR_OPEN_RECORD):
         assert kind in spec.serves
-        assert REGISTRY.active_servers(kind, REGISTRY.default_states()) == (MDL,)  # the Decision_Models are not built
+        model = DM_RECORD_MAP if kind == RECORD_OR_MAP else "decide.dm_closed_record"
+        assert REGISTRY.active_servers(kind, REGISTRY.default_states()) == (model, MDL)  # both on by default
     assert REGISTRY.fallback(RECORD_OR_MAP)() == RECORD and REGISTRY.fallback(CLOSED_OR_OPEN_RECORD)() == OPEN
     assert REGISTRY.decision_point(RECORD_OR_MAP).tie_rule.favors == (RECORD,)
 
@@ -218,7 +219,7 @@ def test_mdl_disabled_falls_back_to_record() -> None:
     assert outcome.is_record
     record = outcome.provenance()
     assert record.technique == "fallback:record_or_map"
-    assert record.fallback == FallbackInfo(DM_RECORD_MAP, "disabled")
+    assert record.fallback == FallbackInfo(DM_RECORD_MAP, "missing-model")  # on by default, no model (22.14)
     assert record.resolution.method == "fallback" and record.cutoff is None
     assert record.confidence == laplace_confidence(record.support)
     assert [entry.resolution.method for entry in decisions(report, RECORD_OR_MAP)] == ["fallback"]
@@ -363,7 +364,7 @@ def test_mdl_disabled_falls_back_to_open() -> None:
     outcome = closed_or_open(root(RECORDS), eng, scorer=CLOSING)  # MDL would close
     assert not outcome.closed and outcome.decision.method == "fallback"
     assert outcome.decision.technique == "fallback:closed_or_open_record"
-    assert outcome.decision.fallback == FallbackInfo("decide.dm_closed_record", "disabled")
+    assert outcome.decision.fallback == FallbackInfo("decide.dm_closed_record", "missing-model")
     assert [entry.resolution.method for entry in decisions(report, CLOSED_OR_OPEN_RECORD)] == ["fallback"]
 
 

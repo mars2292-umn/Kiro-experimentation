@@ -143,7 +143,7 @@ from jsinfer.decide.engine import ArtifactSource, Candidate, Decision, DecisionE
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.values.bounds import NUMBER, STRING_LENGTH, BoundDecision, Number, QuantityKind, QuantitySet, decide_bound
-from jsinfer.values.enums import EnumJudgment, judge_enum
+from jsinfer.values.enums import EnumFeatures, EnumJudgment, judge_enum
 from jsinfer.values.formats import REJECTED_CATEGORY, FormatCheck, FormatDetector, format_candidates
 from jsinfer.values.latent import LatentDetection, detect_latent, view_strings
 from jsinfer.values.types import ScalarTypes, scalar_types
@@ -516,7 +516,7 @@ class ValueInferrer:
     engine's MDL_Scorer by default).
     """
 
-    __slots__ = ("_detector", "_engine", "_report", "_scorer", "_validator")
+    __slots__ = ("_detector", "_engine", "_enum_features", "_report", "_scorer", "_validator")
 
     def __init__(
         self,
@@ -525,6 +525,7 @@ class ValueInferrer:
         validator: Validator | None = None,
         report: InferenceReport | None = None,
         scorer: MDLScorer | None = None,
+        enum_features: EnumFeatures | None = None,
     ) -> None:
         if not isinstance(engine, DecisionEngine):
             raise TypeError(f"engine must be a DecisionEngine, got {type(engine).__name__}")
@@ -538,7 +539,15 @@ class ValueInferrer:
         self._validator = validator if validator is not None else Validator()
         self._report = report
         self._scorer = scorer
+        if enum_features is not None and not callable(enum_features):
+            raise TypeError("enum_features must be callable or None")
+        self._enum_features = enum_features
         self._detector: FormatDetector | None = None
+
+    @property
+    def enum_features(self) -> EnumFeatures | None:
+        """The Closed-or-Open-Enum featurizer passed to ``judge_enum`` (the six statistics when None)."""
+        return self._enum_features
 
     @classmethod
     def for_techniques(
@@ -611,7 +620,9 @@ class ValueInferrer:
             provenance["type"] = ProvenanceRecord.laplace(TYPE_PRODUCER, types.support)
 
         # 2. Closed-or-Open-Enum (15); judge_enum reports an open judgment itself.
-        judgment = judge_enum(view, self._engine, report=self._report, scorer=self._scorer)
+        judgment = judge_enum(
+            view, self._engine, report=self._report, scorer=self._scorer, features=self._enum_features
+        )
         if judgment.closed:
             record = judgment.provenance()
             for keyword, value in judgment.keywords().items():

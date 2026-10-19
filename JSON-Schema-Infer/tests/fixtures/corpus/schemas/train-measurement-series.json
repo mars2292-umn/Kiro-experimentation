@@ -1,0 +1,27 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string",
+        "format": "time"
+      },
+      "value": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 1000000.0
+      },
+      "unit": {
+        "const": "kg"
+      }
+    },
+    "required": [
+      "at",
+      "value"
+    ],
+    "additionalProperties": false
+  },
+  "minItems": 1,
+  "maxItems": 6
+}

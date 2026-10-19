@@ -201,7 +201,7 @@ RejectedCategory: TypeAlias = Literal[
     "defs", "enums", "field_groups", "formats", "keys", "patterns", "rules", "suggestions"
 ]
 ResourceOrigin: TypeAlias = Literal["default", "file", "flag"]
-SubstitutionCause: TypeAlias = Literal["invalid", "missing"]
+SubstitutionCause: TypeAlias = Literal["checksum", "invalid", "missing"]
 OrderingKeySource: TypeAlias = Literal["configured", "document-index", "selected"]
 NearestStatus: TypeAlias = Literal["disabled", "empty-index", "searched"]
 StatusState: TypeAlias = Literal["failed", "ok"]
@@ -241,7 +241,7 @@ RESOURCE_ORIGINS: Final[tuple[ResourceOrigin, ...]] = ("default", "file", "flag"
 
 # Why an artifact was substituted: it is absent, or present but unusable
 # (a non-finite or out-of-range Learned_Threshold, 20.6).
-SUBSTITUTION_CAUSES: Final[tuple[SubstitutionCause, ...]] = ("invalid", "missing")
+SUBSTITUTION_CAUSES: Final[tuple[SubstitutionCause, ...]] = ("checksum", "invalid", "missing")
 
 # How the Ordering_Key was chosen: configured (18.2), selected from the date
 # Paths (18.3), or the document index (18.4, 18.11).

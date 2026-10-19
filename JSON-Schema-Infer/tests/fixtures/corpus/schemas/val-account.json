@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "accountId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "email_address": {
+      "type": "string",
+      "format": "email",
+      "examples": [
+        "grace@example.org",
+        "linus@example.org"
+      ]
+    },
+    "display_name": {
+      "type": "string",
+      "maxLength": 16
+    },
+    "plan": {
+      "enum": [
+        "free",
+        "team",
+        "enterprise"
+      ]
+    },
+    "balance": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100000.0,
+      "default": 0
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri"
+    },
+    "signup_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "accountId",
+    "email_address",
+    "plan"
+  ],
+  "additionalProperties": false
+}

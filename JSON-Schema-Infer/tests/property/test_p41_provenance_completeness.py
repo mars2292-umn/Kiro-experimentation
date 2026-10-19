@@ -45,8 +45,9 @@ Inputs
     arbitrary value (``tests.strategies.json_values``) is added, and
     sometimes a NaN document, which the Ingestor skips. Under MDL a closed
     Record does not win on these inputs (the closed candidate's extra model
-    bits exceed the extras flag it saves), so the closed Closed-or-Open-Record
-    clause only runs once a Decision_Model can select it.
+    bits exceed the extras flag it saves); the ``models`` bundle holds a
+    stub Closed-or-Open-Record Decision_Model that closes, so the closed
+    Closed-or-Open-Record clause runs in those examples (task 22.4).
 
 Injection
     Up to three rows per run: a tighter bound, an ``enum`` or ``const``
@@ -162,6 +163,7 @@ from jsinfer.pipeline import infer as pipeline
 from jsinfer.pipeline.infer import PipelineResult, infer_documents
 from jsinfer.structure.analyzer import StructureAnalyzer
 from tests.records import complete_records
+from tests.models import fixed_models, write_model_bundle
 from tests.strategies import KEYS, TECHNIQUE_SETTINGS, json_values, run_configs
 
 # One Validator and one Schema_Emitter for the module: compiled schemas are cached across examples.
@@ -254,6 +256,7 @@ STUB_THRESHOLDS: dict[str, dict[str, int | float]] = {
 }
 BUNDLE_THRESHOLDS: dict[str, frozenset[str]] = {
     "default": frozenset(),
+    "models": frozenset(),  # stub Decision_Models for every Judgment_Call kind, no Learned_Threshold
     **{name: frozenset(values) for name, values in STUB_THRESHOLDS.items()},
 }
 
@@ -276,6 +279,7 @@ def bundles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
         (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         (directory / "thresholds.json").write_text(json.dumps(entries), encoding="utf-8")
         found[name] = str(directory)
+    found["models"] = write_model_bundle(root / "models", "p41-models", fixed_models())
     return found
 
 

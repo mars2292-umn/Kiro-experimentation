@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "click"
+        },
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 12
+        }
+      },
+      "required": [
+        "kind",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "keypress"
+        },
+        "key": {
+          "type": "string",
+          "maxLength": 1
+        },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "shift",
+              "ctrl",
+              "alt"
+            ]
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "kind",
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "scroll"
+        },
+        "delta": {
+          "type": "integer",
+          "minimum": -500,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "kind",
+        "delta"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

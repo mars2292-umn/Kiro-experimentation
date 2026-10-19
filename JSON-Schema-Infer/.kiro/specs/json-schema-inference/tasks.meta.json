@@ -123,6 +123,26 @@
     "19.8 Write property test for cut-off provenance": {
       "status": "passed",
       "lastRunTimestamp": 1792298773052
+    },
+    "21.2 Write property test for field-name normalization": {
+      "status": "passed",
+      "lastRunTimestamp": 1792362820482
+    },
+    "21.4 Write property test for the generator": {
+      "status": "passed",
+      "lastRunTimestamp": 1792362820482
+    },
+    "21.6 Write property test for label derivation": {
+      "status": "passed",
+      "lastRunTimestamp": 1792362820482
+    },
+    "22.3 Write property test for feature parity": {
+      "status": "passed",
+      "lastRunTimestamp": 1792365276269
+    },
+    "23.3 Write property test for missing artifacts": {
+      "status": "passed",
+      "lastRunTimestamp": 1792367287724
     }
   },
   "executionHistory": {
@@ -1983,7 +2003,7 @@
         "timestamp": 1792182960022
       }
     ],
-    "39.2 Implement Dawid–Skene (`learn/label_model.py`)": [
+    "39.2 Implement Dawid\u2013Skene (`learn/label_model.py`)": [
       {
         "executionId": "ed588016-0e5c-464c-9d97-5c9bb04c44c9",
         "chatSessionId": "sess_3b765a5f-3eec-4726-9b65-cc1d22ec54e5",

@@ -48,8 +48,15 @@ Loading (:func:`load_bundle`)
       that the report gives for every Learned_Threshold read (20.5) and in its
       ``run`` section (27.8).
     - ``artifacts``: an object that maps artifact names (lowercase dotted,
-      for example ``dm.record_or_map.synthetic``) to file paths relative to
-      the bundle directory.
+      for example ``dm.record_or_map.synthetic``) to ``{"path": <file path
+      relative to the bundle directory>, "sha256": <hex digest of the file's
+      bytes>}``, as the Trainer writes them (design, Model_Bundle). A plain
+      path string is accepted too, for hand-written bundles; such an
+      artifact has no digest to verify.
+
+    ``feature_spec.json``, when present, is the featurizer spec the bundle's
+    Decision_Models were trained with (``learn.features.feature_spec_json``);
+    it must be a JSON object.
 
     Artifact paths are relative POSIX paths whose segments are letters,
     digits, ``_``, ``.``, and ``-``, and do not start with ``.``. A path must
@@ -84,9 +91,26 @@ Artifacts
     which the consuming component opens. A listed file that does not exist
     is missing. A file that cannot be loaded is invalid.
 
-    Joblib files are pickles, and loading one can run arbitrary code. Load
-    only bundles you trust. Task 23.1 adds the ``feature_spec.json`` check,
-    which treats a featurizer mismatch as a missing model.
+    Digests (21.10): before an artifact file is unpickled or read, its
+    SHA-256 is compared with the manifest's; a mismatch makes the artifact
+    unusable with cause ``checksum``, and the Fallback_Behavior applies. The
+    digest catches corrupted or swapped files, not a malicious bundle whose
+    manifest matches its files: joblib files are pickles, and loading one
+    can run arbitrary code, so load only bundles you trust.
+
+    Feature spec (22.10): a Decision_Model is usable only when the bundle's
+    ``feature_spec.json`` equals the running featurizer spec and the model's
+    own ``feature_version`` and ``feature_dim`` match the kind's; otherwise
+    it is treated as a missing model (cause ``invalid``, the detail naming
+    the mismatch) and the next resolution step applies.
+
+Writing (:func:`write_bundle`)
+    The Trainer writes a bundle with :func:`write_bundle`: the artifact
+    files (joblib for objects, bytes as given) under ``models/`` or the
+    given relative paths, ``thresholds.json``, ``feature_spec.json``, and
+    ``manifest.json`` with the artifact digests and the training metadata,
+    all through ``core.determinism.atomic_directory`` (a temp sibling, then
+    one rename), so a failed write leaves no bundle behind.
 
 Resolution against a run (:meth:`ModelBundle.resolve`, :func:`open_bundle`)
     Given the run's Technique states, the reader checks the Learned_Thresholds
@@ -122,11 +146,12 @@ Resolution against a run (:meth:`ModelBundle.resolve`, :func:`open_bundle`)
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 from types import MappingProxyType
@@ -145,7 +170,7 @@ from jsinfer.config.thresholds import (
     check_thresholds,
     thresholds_used_by,
 )
-from jsinfer.core.determinism import codepoint_key, sorted_codepoint
+from jsinfer.core.determinism import atomic_directory, codepoint_key, encode_canonical, sorted_codepoint
 from jsinfer.core.jsonvalue import JSON
 from jsinfer.core.provenance import FallbackInfo
 from jsinfer.core.report import SUBSTITUTION_CAUSES, Substitution, SubstitutionCause
@@ -154,6 +179,8 @@ __all__ = [
     "BUILTIN_PREFIX",
     "BUNDLE_FORMAT",
     "CORPUS_INDEX",
+    "FEATURE_SPEC_FILE",
+    "BundleArtifact",
     "DECISION_MODEL_SOURCES",
     "DECISION_MODEL_TECHNIQUES",
     "DEFAULT_MODEL_BUNDLE",
@@ -176,6 +203,8 @@ __all__ = [
     "load_bundle",
     "open_bundle",
     "required_models",
+    "sha256_of",
+    "write_bundle",
 ]
 
 # The manifest format this reader understands.
@@ -183,6 +212,8 @@ BUNDLE_FORMAT: Final = 1
 
 MANIFEST_FILE: Final = "manifest.json"
 THRESHOLDS_FILE: Final = "thresholds.json"
+FEATURE_SPEC_FILE: Final = "feature_spec.json"
+_SHA256_RE: Final = re.compile(r"[0-9a-f]{64}")
 
 # Identifiers of bundles shipped as package data: "bundles/<name>".
 BUILTIN_PREFIX: Final = "bundles/"
@@ -415,6 +446,26 @@ def _read_json_file(root: Path, resolved_root: Path, name: str, problems: list[s
         return None
 
 
+def _artifact_entry(name: str, value: Any) -> tuple[str, str | None] | str:
+    """``(path, digest or None)`` of the manifest's entry for artifact ``name``, or the problem with it."""
+    where = f"{MANIFEST_FILE}: artifacts[{name!r}]"
+    digest: str | None = None
+    if isinstance(value, dict):
+        if "path" not in value:
+            return f"{where} must hold a path"
+        unknown = sorted(member for member in value if member not in ("path", "sha256"))
+        if unknown:
+            return f"{where} has unknown members {unknown}"
+        digest = value.get("sha256")
+        if digest is not None and (not isinstance(digest, str) or not _SHA256_RE.fullmatch(digest)):
+            return f"{where} sha256 must be a 64-character lowercase hex digest, got {_kind(digest)}"
+        value = value["path"]
+    problem = _artifact_path_problem(name, value)
+    if problem is not None:
+        return problem
+    return value, digest
+
+
 def _artifact_path_problem(name: str, value: Any) -> str | None:
     """Why the manifest's path for artifact ``name`` is unusable, or None."""
     where = f"{MANIFEST_FILE}: artifacts[{name!r}]"
@@ -429,8 +480,8 @@ def _artifact_path_problem(name: str, value: Any) -> str | None:
     return None
 
 
-def _check_manifest(manifest: Any, problems: list[str]) -> tuple[str, dict[str, str]] | None:
-    """The bundle id and the artifact paths of a parsed manifest; None (with problems) when unusable."""
+def _check_manifest(manifest: Any, problems: list[str]) -> tuple[str, dict[str, str], dict[str, str | None]] | None:
+    """The bundle id, artifact paths, and artifact digests of a parsed manifest; None (with problems) when unusable."""
     if not isinstance(manifest, dict):
         problems.append(f"{MANIFEST_FILE}: expected an object at the top level, got {_kind(manifest)}")
         return None
@@ -453,6 +504,7 @@ def _check_manifest(manifest: Any, problems: list[str]) -> tuple[str, dict[str, 
         problems.append(f"{MANIFEST_FILE}: bundle_id contains an unpaired surrogate")
     listed = manifest["artifacts"]
     artifacts: dict[str, str] = {}
+    digests: dict[str, str | None] = {}
     if not isinstance(listed, dict):
         problems.append(f"{MANIFEST_FILE}: artifacts must be an object, got {_kind(listed)}")
     else:
@@ -460,14 +512,14 @@ def _check_manifest(manifest: Any, problems: list[str]) -> tuple[str, dict[str, 
             if not _ARTIFACT_RE.fullmatch(name):
                 problems.append(f"{MANIFEST_FILE}: artifact name {name!r} is not a lowercase dotted name")
                 continue
-            problem = _artifact_path_problem(name, listed[name])
-            if problem is not None:
-                problems.append(problem)
+            entry = _artifact_entry(name, listed[name])
+            if isinstance(entry, str):
+                problems.append(entry)
             else:
-                artifacts[name] = listed[name]
+                artifacts[name], digests[name] = entry
     if len(problems) > count:
         return None
-    return bundle_id, artifacts
+    return bundle_id, artifacts, digests
 
 
 # ---------------------------------------------------------------------------
@@ -515,6 +567,26 @@ def _in_effect(tid: str, states: Mapping[str, bool]) -> bool:
 
 def _fallback_text(kind: str) -> str:
     return f"Fallback_Behavior of {kind}: {REGISTRY.decision_point(kind).fallback_doc}"
+
+
+def _resolves_without(kind: str, states: Mapping[str, bool], broken: Iterable[str]) -> str:
+    """What resolves ``kind`` when the Learned_Thresholds ``broken`` are unusable (design, Open Decisions).
+
+    The serving Techniques of ``kind`` that are still in effect there (those
+    enabled under their gates and reading no unusable threshold at the kind),
+    in priority order, or the kind's Fallback_Behavior when none is.
+    """
+    unusable = set(broken)
+    standing = [
+        tid
+        for tid in REGISTRY.active_servers(kind, states)
+        if not any(
+            name in unusable and THRESHOLDS[name].decision_point == kind for name in REGISTRY.technique(tid).thresholds
+        )
+    ]
+    if standing:
+        return f"{', '.join(standing)} at {kind}"
+    return _fallback_text(kind)
 
 
 def _next_step(kind: str, technique: str, states: Mapping[str, bool]) -> str:
@@ -586,6 +658,8 @@ class ModelBundle:
     manifest: Mapping[str, JSON]
     artifacts: Mapping[str, str]
     threshold_entries: Mapping[str, JSON]
+    digests: Mapping[str, str | None] = field(default_factory=dict)
+    feature_spec: Mapping[str, JSON] | None = None
 
     def has_artifact(self, name: str) -> bool:
         """Whether the manifest lists artifact ``name``."""
@@ -606,11 +680,43 @@ class ModelBundle:
             raise ArtifactError(ArtifactProblem(name, "missing", f"its file {relative} does not exist"))
         if not path.is_file():
             raise ArtifactError(ArtifactProblem(name, "invalid", f"its file {relative} is not a regular file"))
+        expected = self.digests.get(name)
+        if expected is not None:  # 21.10: verified before the file is unpickled or read
+            try:
+                actual = sha256_of(path)
+            except OSError as error:
+                reason = error.strerror or type(error).__name__
+                raise ArtifactError(ArtifactProblem(name, "invalid", f"its file {relative} cannot be read: {reason}")) from None
+            if actual != expected:
+                raise ArtifactError(
+                    ArtifactProblem(name, "checksum", f"the SHA-256 of its file {relative} is {actual}, the manifest says {expected}")
+                )
         try:
-            return _load_file(path)
+            loaded = _load_file(path)
         except Exception as error:  # unpickling can raise anything; every failure means an unusable model
             reason = str(error) or type(error).__name__
             raise ArtifactError(ArtifactProblem(name, "invalid", f"its file {relative} cannot be loaded: {reason}")) from None
+        mismatch = self._feature_mismatch(name, loaded)
+        if mismatch is not None:
+            raise ArtifactError(ArtifactProblem(name, "invalid", mismatch))
+        return loaded
+
+    def _feature_mismatch(self, name: str, model: Any) -> str | None:
+        """Why Decision_Model ``name`` was not trained with the running featurizers (22.10), or None."""
+        if not name.startswith("dm."):
+            return None
+        from jsinfer.learn.features import FEATURE_SPEC, FEATURE_VERSION, feature_spec_json  # deferred: import cycle
+
+        if self.feature_spec is not None and dict(self.feature_spec) != feature_spec_json():
+            return f"the bundle's {FEATURE_SPEC_FILE} differs from the running featurizer spec (version {FEATURE_VERSION})"
+        kind = name.split(".")[1] if name.count(".") >= 2 else ""
+        version = getattr(model, "feature_version", None)
+        dim = getattr(model, "feature_dim", None)
+        if version is not None and str(version) != FEATURE_VERSION:
+            return f"it was trained with featurizer version {version!r}, the running version is {FEATURE_VERSION!r}"
+        if dim is not None and kind in FEATURE_SPEC and int(dim) != len(FEATURE_SPEC[kind]):
+            return f"it takes {dim} features, the running {kind} featurizer computes {len(FEATURE_SPEC[kind])}"
+        return None
 
     def check_thresholds(self, specs: Iterable[ThresholdSpec] | None = None) -> ThresholdCheck:
         """Check the stored entries of ``specs`` (default: every registered Learned_Threshold) (20.6)."""
@@ -631,8 +737,9 @@ class ModelBundle:
         check = check_thresholds(thresholds_used_by(in_effect), self.threshold_entries)
         problems: list[ThresholdProblem | ArtifactProblem] = list(check.problems)
         substitutions: list[Substitution] = []
+        broken = {problem.name for problem in check.problems}
         for threshold in check.problems:
-            applied = _fallback_text(threshold.decision_point)
+            applied = _resolves_without(threshold.decision_point, states, broken)
             for tid in threshold.techniques:
                 if tid in in_effect:
                     fallback = FallbackInfo(tid, "missing-threshold")
@@ -729,9 +836,14 @@ def load_bundle(identifier: str | os.PathLike[str]) -> ModelBundle:
     entries = _read_json_file(root, resolved_root, THRESHOLDS_FILE, problems, constants=True)
     if entries is not None and not isinstance(entries, dict):
         problems.append(f"{THRESHOLDS_FILE}: expected an object at the top level, got {_kind(entries)}")
+    spec: Any = None
+    if (root / FEATURE_SPEC_FILE).exists() or (root / FEATURE_SPEC_FILE).is_symlink():
+        spec = _read_json_file(root, resolved_root, FEATURE_SPEC_FILE, problems, constants=False)
+        if spec is not None and not isinstance(spec, dict):
+            problems.append(f"{FEATURE_SPEC_FILE}: expected an object at the top level, got {_kind(spec)}")
     if problems or checked is None or not isinstance(entries, dict):
         raise _bundle_error(name, problems)
-    bundle_id, artifacts = checked
+    bundle_id, artifacts, digests = checked
     return ModelBundle(
         identifier=name,
         root=root,
@@ -740,9 +852,99 @@ def load_bundle(identifier: str | os.PathLike[str]) -> ModelBundle:
         manifest=MappingProxyType(manifest),
         artifacts=MappingProxyType(artifacts),
         threshold_entries=MappingProxyType(entries),
+        digests=MappingProxyType(digests),
+        feature_spec=None if spec is None else MappingProxyType(spec),
     )
 
 
 def open_bundle(identifier: str | os.PathLike[str], techniques: Mapping[str, bool]) -> ResolvedBundle:
     """The bundle stage of a run: ``load_bundle(identifier).resolve(techniques)``."""
     return load_bundle(identifier).resolve(techniques)
+
+
+# ---------------------------------------------------------------------------
+# Writing a bundle (task 23.1)
+# ---------------------------------------------------------------------------
+
+
+def sha256_of(path: Path) -> str:
+    """The hex SHA-256 of a file's bytes."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+@dataclass(frozen=True)
+class BundleArtifact:
+    """An artifact to write: its name, its path relative to the bundle, and bytes or a picklable object."""
+
+    name: str
+    path: str
+    payload: Any
+
+    def __post_init__(self) -> None:
+        if not _ARTIFACT_RE.fullmatch(self.name):
+            raise ValueError(f"artifact name {self.name!r} is not a lowercase dotted name")
+        problem = _artifact_path_problem(self.name, self.path)
+        if problem is not None:
+            raise ValueError(problem)
+        if not isinstance(self.payload, bytes) and not self.path.endswith(".joblib"):
+            raise ValueError(f"artifact {self.name!r}: an object payload is written with joblib, so its path must end in .joblib")
+
+    @classmethod
+    def model(cls, name: str, payload: Any) -> BundleArtifact:
+        """A joblib model artifact at ``models/<name>.joblib``."""
+        return cls(name, f"models/{name}.joblib", payload)
+
+
+def write_bundle(
+    target: str | os.PathLike[str],
+    *,
+    bundle_id: str,
+    artifacts: Iterable[BundleArtifact] = (),
+    thresholds: Mapping[str, ThresholdRecord] | None = None,
+    feature_spec: Mapping[str, JSON] | None = None,
+    manifest: Mapping[str, JSON] | None = None,
+) -> Path:
+    """Write a Model_Bundle to ``target`` atomically and return its path (see the module docstring, Writing).
+
+    ``manifest`` holds the training metadata; ``format``, ``bundle_id``, and
+    ``artifacts`` are set here and may not be supplied. ``feature_spec``
+    defaults to the running featurizer spec. Artifacts must have distinct
+    names and paths.
+    """
+    if not isinstance(bundle_id, str) or not bundle_id or _SURROGATE_RE.search(bundle_id):
+        raise ValueError("bundle_id must be a non-empty str without unpaired surrogates")
+    listed = list(artifacts)
+    names = [artifact.name for artifact in listed]
+    paths = [artifact.path for artifact in listed]
+    if len(set(names)) != len(names) or len(set(paths)) != len(paths):
+        raise ValueError("artifact names and paths must be distinct")
+    extra = dict(manifest or {})
+    clash = sorted(member for member in extra if member in _REQUIRED_MEMBERS)
+    if clash:
+        raise ValueError(f"manifest members {clash} are written by write_bundle")
+    if feature_spec is None:
+        from jsinfer.learn.features import feature_spec_json  # deferred: import cycle
+
+        feature_spec = feature_spec_json()
+    import joblib  # deferred: only writers pay for the import
+
+    with atomic_directory(target) as tmp:
+        entries: dict[str, JSON] = {}
+        for artifact in sorted(listed, key=lambda a: codepoint_key(a.name)):
+            path = tmp / artifact.path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(artifact.payload, bytes):
+                path.write_bytes(artifact.payload)
+            else:
+                joblib.dump(artifact.payload, path)
+            entries[artifact.name] = {"path": artifact.path, "sha256": sha256_of(path)}
+        records = {name: record.to_json() for name, record in sorted((thresholds or {}).items(), key=lambda i: codepoint_key(i[0]))}
+        (tmp / THRESHOLDS_FILE).write_bytes(encode_canonical(records))
+        (tmp / FEATURE_SPEC_FILE).write_bytes(encode_canonical(dict(feature_spec)))
+        document = {"format": BUNDLE_FORMAT, "bundle_id": bundle_id, "artifacts": entries, **extra}
+        (tmp / MANIFEST_FILE).write_bytes(encode_canonical(document))
+    return Path(target)

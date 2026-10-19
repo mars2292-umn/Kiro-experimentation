@@ -277,6 +277,9 @@ from jsinfer.pipeline.soundness import (
 )
 from jsinfer.structure.analyzer import StructureAnalyzer
 
+# Builds a run's StructureAnalyzer from (config, bundle, report, validator); see run_pipeline.
+AnalyzerFactory = Callable[[RunConfiguration, ResolvedBundle, InferenceReport, Validator], StructureAnalyzer]
+
 __all__ = [
     "ANALYZER_STAGE",
     "BUNDLE_STAGE",
@@ -462,6 +465,7 @@ class InferenceContext:
     registry: Registry = field(default_factory=lambda: REGISTRY)
     bundle: ResolvedBundle | None = None
     analyzer: StructureAnalyzer | None = None
+    analyzer_factory: AnalyzerFactory | None = None
     ingested: IngestResult | None = None
     store: ObservationStore | None = None
     segments: tuple[_Segment, ...] = ()
@@ -581,7 +585,13 @@ def _open_bundle(ctx: InferenceContext) -> None:
     for substitution in bundle.substitutions:
         ctx.report.record_substitution(substitution)
     ctx.bundle = bundle
-    ctx.analyzer = StructureAnalyzer.for_run(config, bundle, ctx.report, validator=ctx.validator)
+    factory = ctx.analyzer_factory
+    if factory is None:
+        ctx.analyzer = StructureAnalyzer.for_run(config, bundle, ctx.report, validator=ctx.validator)
+    else:
+        ctx.analyzer = factory(config, bundle, ctx.report, ctx.validator)
+        if not isinstance(ctx.analyzer, StructureAnalyzer):
+            raise TypeError(f"analyzer_factory must return a StructureAnalyzer, got {type(ctx.analyzer).__name__}")
     ctx.report.set_run(
         RunInfo(
             config=config.to_json(),
@@ -758,13 +768,20 @@ def _emit(
 # ---------------------------------------------------------------------------
 
 
-def run_pipeline(source: Source, config: RunConfiguration | None = None) -> PipelineResult:
+def run_pipeline(
+    source: Source, config: RunConfiguration | None = None, *, analyzer_factory: AnalyzerFactory | None = None
+) -> PipelineResult:
     """Run every stage on the documents of ``source`` under ``config`` (see the module docstring).
 
-    ``config`` None means every default setting (27.2). Raises
-    ``ConfigError``, ``NoDocumentsError``, or ``InferenceError`` as the
-    module docstring describes.
+    ``config`` None means every default setting (27.2). ``analyzer_factory``
+    builds the run's StructureAnalyzer in place of ``StructureAnalyzer.for_run``
+    (the Trainer's oracle featurization passes one, task 22.2); it must give
+    every component the run's Validator and report. Raises ``ConfigError``,
+    ``NoDocumentsError``, or ``InferenceError`` as the module docstring
+    describes.
     """
+    if analyzer_factory is not None and not callable(analyzer_factory):
+        raise TypeError("analyzer_factory must be callable or None")
     if config is not None and not isinstance(config, RunConfiguration):
         raise TypeError(f"config must be a RunConfiguration or None, got {type(config).__name__}")
     if not callable(getattr(source, "ingest", None)):
@@ -773,7 +790,7 @@ def run_pipeline(source: Source, config: RunConfiguration | None = None) -> Pipe
     report = InferenceReport()
     with _stage(report, CONFIG_STAGE):
         effective = RunConfiguration.default() if config is None else config
-    ctx = InferenceContext(effective, report, started=started)
+    ctx = InferenceContext(effective, report, started=started, analyzer_factory=analyzer_factory)
 
     try:
         # Workers are launched only with more than one (design, Open Decisions, Standard input).
@@ -818,10 +835,13 @@ def run_pipeline(source: Source, config: RunConfiguration | None = None) -> Pipe
 
 
 def infer_documents(
-    documents: Iterable[JSON] | bytes | bytearray | memoryview, config: RunConfiguration | None = None
+    documents: Iterable[JSON] | bytes | bytearray | memoryview,
+    config: RunConfiguration | None = None,
+    *,
+    analyzer_factory: AnalyzerFactory | None = None,
 ) -> PipelineResult:
     """Run the pipeline on in-memory documents: JSON values, or the bytes of a JSONL file (see the module docstring)."""
-    return run_pipeline(_source(documents), config)
+    return run_pipeline(_source(documents), config, analyzer_factory=analyzer_factory)
 
 
 def infer_paths(paths: Sequence[str | PathLike[str]], config: RunConfiguration | None = None) -> PipelineResult:

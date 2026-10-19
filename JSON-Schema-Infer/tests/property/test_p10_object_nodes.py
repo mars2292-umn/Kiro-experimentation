@@ -88,7 +88,10 @@ Inputs
     - ``stubbed``: the Record-or-Map and Closed-or-Open candidates are scored
       by a stub that picks open Record, closed Record, or Map per Path (from
       a drawn salt), with ``decide.mdl`` enabled, so closed Records and Maps
-      appear at arbitrary Paths, including split Paths and keyless ones. The
+      appear at arbitrary Paths, including split Paths and keyless ones. In
+      either scenario the stub bundle may hold a Closed-or-Open-Record
+      Decision_Model that closes with certainty (task 22.4), so closed
+      Records also occur in the measured scenario. The
       VariantAnalyzer's scorer halves the cost of Variant encodings at three
       Paths in four (same salt), so small planted families split there.
       Every other component uses the real MDL_Scorer.
@@ -132,6 +135,7 @@ from jsinfer.core.report import InferenceReport
 from jsinfer.core.schema_model import ConstraintId, SchemaModel, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import DecisionEngine
+from jsinfer.learn.bundle import decision_model_artifact
 from jsinfer.io.emit import SchemaEmitter
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer, Score
@@ -153,6 +157,7 @@ from jsinfer.structure.record_map import (
 )
 from jsinfer.structure.variants import VariantAnalyzer
 from jsinfer.values.inferrer import ValueInferrer
+from tests.models import FixedDecisionModel
 from tests.strategies import TECHNIQUE_SETTINGS, run_configs
 
 # One Validator and MDL_Scorer for the module, so compiled schemas are cached across examples.
@@ -481,13 +486,14 @@ class SplitScorer(MDLScorer):
 
 
 class StubBundle:
-    """A Model_Bundle of hand-set Learned_Thresholds by name; no Decision_Models."""
+    """A Model_Bundle of hand-set Learned_Thresholds by name and stub Decision_Models by artifact name."""
 
-    def __init__(self, thresholds: Mapping[str, int | float]) -> None:
+    def __init__(self, thresholds: Mapping[str, int | float], models: Mapping[str, Any] | None = None) -> None:
         self.thresholds = dict(thresholds)
+        self.models = dict(models or {})
 
     def model(self, name: str) -> Any | None:
-        return None
+        return self.models.get(name)
 
     def threshold(self, name: str) -> int | float | None:
         return self.thresholds.get(name)
@@ -524,6 +530,12 @@ class Setup:
     config: RunConfiguration
     thresholds: Mapping[str, int | float]
     salt: int
+    closing: bool  # the bundle holds a Closed-or-Open-Record Decision_Model that closes with certainty
+
+    def models(self) -> dict[str, Any]:
+        if not self.closing:
+            return {}
+        return {decision_model_artifact("closed_or_open_record", "synthetic"): FixedDecisionModel("closed_or_open_record", (1.0, 0.0))}
 
 
 @st.composite
@@ -531,13 +543,15 @@ def setups(draw: st.DrawFn, scenario: str) -> Setup:
     base: dict[str, Any] = {technique_setting(MDL): True} if scenario == "stubbed" else {}
     config = draw(run_configs(vary=(*TECHNIQUE_SETTINGS, "seed"), base=base), label="config")
     salt = draw(st.integers(0, 2**32 - 1), label="salt")
-    return Setup(scenario, config, draw(thresholds(), label="thresholds"), salt)
+    closing = draw(st.booleans(), label="closing Decision_Model")
+    return Setup(scenario, config, draw(thresholds(), label="thresholds"), salt, closing)
 
 
 def analyzer(setup: Setup, rows: Mapping[ShapePath, list[Address]]) -> tuple[StructureAnalyzer, SpyRecordMap]:
     config = setup.config
     report = InferenceReport()
-    engine = DecisionEngine(config.techniques, bundle=StubBundle(setup.thresholds), report=report, scorer=SCORER)
+    bundle = StubBundle(setup.thresholds, setup.models())
+    engine = DecisionEngine(config.techniques, bundle=bundle, report=report, scorer=SCORER)
     values = ValueInferrer(engine, validator=VALIDATOR, report=report, scorer=SCORER)
     stubbed = setup.scenario == "stubbed"
     spy = SpyRecordMap(values, scorer=ChoiceScorer(setup.salt) if stubbed else SCORER, rows=rows)
