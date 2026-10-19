@@ -256,10 +256,13 @@ def _tagged_union(node: SchemaNode) -> tuple[str, str, frozenset[Any]] | None:
 
 def _exclusion(node: SchemaNode) -> tuple[str, int | None, frozenset[Any]] | None:
     negated = node.kw.get("not")
-    if isinstance(negated, SchemaNode) and negated.boolean is None and set(negated.kw) == {"required"}:
-        members = negated.kw["required"]
-        if isinstance(members, list) and len(members) >= 2:
-            return "not", None, frozenset(members)
+    if isinstance(negated, SchemaNode) and negated.boolean is None and set(negated.kw) - {"type"} in ({"required"}, {"anyOf"}):
+        # One pair: {"required": [a, b]}; several: {"anyOf": [{"required": pair}, ...]}; an optional type guard.
+        sets: list[Any] = [negated.kw["required"]] if "required" in negated.kw else [
+            b.kw.get("required") for b in negated.kw["anyOf"] if isinstance(b, SchemaNode) and b.boolean is None and set(b.kw) == {"required"}
+        ]
+        if sets and all(isinstance(m, list) and len(m) >= 2 for m in sets) and len(sets) == len(negated.kw.get("anyOf", [None])):
+            return "not", None, frozenset(name for m in sets for name in m)
     branches = node.kw.get("oneOf")
     if isinstance(branches, list) and len(branches) >= 2:
         groups = []

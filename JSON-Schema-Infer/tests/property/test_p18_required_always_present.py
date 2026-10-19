@@ -406,7 +406,17 @@ def _tagged_union(branches: Sequence[SchemaNode]) -> bool:
     """Whether the branches fix one common property with const/enum/not (a Discriminator's value groups, 10.4)."""
     properties = [b.kw.get("properties", {}) for b in branches]
     common = set.intersection(*(set(p) for p in properties)) if properties else set()
-    return any(all(isinstance(p[name], SchemaNode) and {"const", "enum", "not"} & set(p[name].kw) for p in properties) for name in common)
+    return any(all(isinstance(p[name], SchemaNode) and _fixes_value(p[name]) for p in properties) for name in common)
+
+
+def _fixes_value(sub: SchemaNode) -> bool:
+    """A const, an enum, or the fallback's ``not: {enum: …}``; a ``not`` over ``required`` is an Exclusion_Rule (11)."""
+    if sub.boolean is not None:
+        return False
+    if {"const", "enum"} & set(sub.kw):
+        return True
+    negated = sub.kw.get("not")
+    return isinstance(negated, SchemaNode) and negated.boolean is None and "enum" in negated.kw
 
 
 class StubBundle:

@@ -650,7 +650,38 @@ def test_cooccurrence_rule_candidates_equal_brute_force(layout: str, data: st.Da
     note_case(case)
 
 
-# Tasks 35.3 and 44.2 add their primitives' tests below, reusing cases() and Case.reference.
+# Task 44.2 adds its primitives' tests below, reusing cases() and Case.reference.
+
+
+# ---------------------------------------------------------------------------
+# Maximal Exclusion_Rule candidates (11.1, task 35.3)
+# ---------------------------------------------------------------------------
+
+
+def reference_exclusions(key_sets: Sequence[KeySet]) -> list[tuple[str, ...]]:
+    """Every maximal set of two or more fields, each held by some object, no two held by one object."""
+    from itertools import combinations
+
+    fields = sorted({key for key_set in key_sets for key in key_set})
+    exclusive = {(a, b) for a, b in combinations(fields, 2) if not any(a in ks and b in ks for ks in key_sets)}
+    sets = [c for size in range(2, len(fields) + 1) for c in combinations(fields, size) if all((a, b) in exclusive for a, b in combinations(c, 2))]
+    return sorted(c for c in sets if not any(set(c) < set(d) for d in sets))
+
+
+@given(data=st.data())
+def test_exclusion_candidates_equal_brute_force(data: st.DataObject) -> None:
+    from jsinfer.deps.exclusions import exclusion_candidates
+
+    case = data.draw(cases("$"), label="case")
+    _, view = build(case)
+    ids = sorted(case.reference)
+    found = [tuple(name for member in c.members for name in member) for c in exclusion_candidates(Presence.of(view))]
+    expected = reference_exclusions([case.key_set(oid) for oid in ids])
+    assert found == expected
+    for candidate in exclusion_candidates(Presence.of(view)):
+        assert 0.0 <= candidate.confidence < 1.0 and candidate.expected >= 0.0
+    event("exclusive sets" if expected else "no exclusive set")
+    note_case(case)
 
 
 # ---------------------------------------------------------------------------

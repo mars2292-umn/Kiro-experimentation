@@ -200,6 +200,7 @@ from jsinfer.core.schema_model import ConstraintId, SchemaModel, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import ArtifactSource, DecisionEngine, DecisionPoint
 from jsinfer.deps.cooccurrence import CooccurrenceMiner
+from jsinfer.deps.exclusions import ExclusionMiner, ExclusionRules
 from jsinfer.deps.tagged_unions import TREES, Discriminator, DiscriminatorMiner
 from jsinfer.structure.field_groups import DEPENDENT_REQUIRED, FieldGroupMiner, FieldGroups, merge_records
 from jsinfer.deps.presence import RequiredFields, required_fields
@@ -330,6 +331,7 @@ class _Part:
     rows: int
     details: dict[str, JSON] = field(default_factory=dict)
     scalar: ScalarNode | None = None
+    exclusions: ExclusionRules | None = None  # the object family's Exclusion_Rules (11), applied at assembly
 
     @property
     def closed_enum(self) -> bool:
@@ -343,6 +345,7 @@ class _Split:
 
     variants: VariantNode
     rows: int
+    exclusions: ExclusionRules | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +392,7 @@ class StructureAnalyzer:
     components; each must use ``values.engine``.
     """
 
-    __slots__ = ("_arrays", "_cooccurrence", "_discriminators", "_field_groups_miner", "_record_map", "_records", "_scorer", "_values", "_variants")
+    __slots__ = ("_arrays", "_cooccurrence", "_discriminators", "_exclusion_miner", "_field_groups_miner", "_groups_by_nid", "_record_map", "_records", "_scorer", "_values", "_variants")
 
     def __init__(
         self,
@@ -404,6 +407,7 @@ class StructureAnalyzer:
         cooccurrence: CooccurrenceMiner | None = None,
         field_groups: FieldGroupMiner | None = None,
         discriminators: DiscriminatorMiner | None = None,
+        exclusions: ExclusionMiner | None = None,
     ) -> None:
         if not isinstance(values, ValueInferrer):
             raise TypeError(f"values must be a ValueInferrer, got {type(values).__name__}")
@@ -414,6 +418,7 @@ class StructureAnalyzer:
         _check(cooccurrence, CooccurrenceMiner, "cooccurrence")
         _check(field_groups, FieldGroupMiner, "field_groups")
         _check(discriminators, DiscriminatorMiner, "discriminators")
+        _check(exclusions, ExclusionMiner, "exclusions")
         if variants is not None and (resources is not None or seed != DEFAULT_SEED):
             raise ValueError("resources and seed configure the default VariantAnalyzer and FieldGroupMiner; pass them to those instead")
         engine = values.engine
@@ -460,6 +465,12 @@ class StructureAnalyzer:
             if discriminators is not None
             else DiscriminatorMiner(engine, scorer=scorer, report=values.report, resources=resources, seed=seed)
         )
+        self._exclusion_miner = (
+            exclusions
+            if exclusions is not None
+            else ExclusionMiner(engine, scorer=scorer, report=values.report, validator=validator)
+        )
+        self._groups_by_nid: dict[int, tuple[frozenset[str], ...]] = {}
         for name, component in (
             ("record_map", self._record_map),
             ("variants", self._variants),
@@ -467,6 +478,7 @@ class StructureAnalyzer:
             ("cooccurrence", self._cooccurrence),
             ("field_groups", self._field_groups_miner),
             ("discriminators", self._discriminators),
+            ("exclusions", self._exclusion_miner),
         ):
             if component.engine is not engine:
                 raise ValueError(f"{name} must use the ValueInferrer's DecisionEngine")
@@ -645,8 +657,7 @@ class StructureAnalyzer:
         split = self._variants.merge_or_split(self._variants.select(objects))
         tagged = self._discriminator(objects, outcome, split, closed)  # 10: value groups replace the Variants
         if tagged is not None:
-            self._exclusions(objects, outcome, tagged)
-            return _Split(tagged, rows)
+            return _Split(tagged, rows, self._exclusions(objects, outcome, tagged))
         # Each final Variant's index among the Path's Variants, by its rows (the views partition the objects).
         index = {variant.digest: position for position, variant in enumerate(split.views())}
         type_details: dict[int, dict[str, JSON]] = {}
@@ -657,10 +668,10 @@ class StructureAnalyzer:
             return node
 
         emitted = self._variants.branches(split, variant_schema=variant_schema)
-        self._exclusions(objects, outcome, emitted)
+        exclusions = self._exclusions(objects, outcome, emitted)
         if emitted.keyword is None:
-            return _Part(emitted.node, (_OBJECT_TYPE,), rows, type_details[emitted.node.nid])
-        return _Split(emitted, rows)
+            return _Part(emitted.node, (_OBJECT_TYPE,), rows, type_details[emitted.node.nid], exclusions=exclusions)
+        return _Split(emitted, rows, exclusions)
 
     def _variant_node(
         self, variant: View, index: int, outcome: RecordMapOutcome, closed: ClosedOpenOutcome
@@ -676,6 +687,7 @@ class StructureAnalyzer:
         node.kw.update(required.keywords())
         self._records.update(required.constraint_provenance(node))
         groups = self._field_groups(variant, required, node, index)  # 6
+        self._groups_by_nid[node.nid] = groups.groups  # for the Exclusion_Rule members (11.1)
         rules = self._cooccurrence.rules(required.presence, record=node, groups=groups.groups, variant=index)
         # 6.6, 9.4: the cliques and the rules share one dependentRequired; an antecedent in both is one Constraint.
         entries: dict[str, list[str]] = {}
@@ -724,10 +736,16 @@ class StructureAnalyzer:
         others = [part for part in (array, obj if isinstance(obj, _Part) else None) if part is not None]
         isolated = scalar is not None and scalar.closed_enum and (bool(others) or split is not None)
         coexisting = ([scalar] if scalar is not None and not isolated else []) + others
+        exclusions = obj.exclusions if obj is not None else None
         if split is None and not isolated:
-            return self._merge(coexisting)
+            merged = self._merge(coexisting)
+            if exclusions is not None:  # 11: on the object schema, guarded when other types share the node
+                self._records.update(exclusions.apply(merged, guard=len(coexisting) > 1))
+            return merged
         if split is not None and not coexisting and not isolated:
             self._records.update(split.variants.constraint_provenance())
+            if exclusions is not None:
+                self._records.update(exclusions.apply(split.variants.node))
             return split.variants.node
 
         branches: list[SchemaNode] = []
@@ -759,6 +777,8 @@ class StructureAnalyzer:
         node = SchemaNode(kw={ANY_OF: branches})
         for position, record in enumerate(records):
             self._records.put(node, ANY_OF, record, position)
+        if exclusions is not None:  # 11: the mixed node's objects, guarded against its other instances
+            self._records.update(exclusions.apply(node, guard=True))
         return node
 
     @staticmethod
@@ -928,10 +948,27 @@ class StructureAnalyzer:
             )
         return bad == 0
 
-    def _exclusions(self, objects: View, outcome: RecordMapOutcome, emitted: VariantNode) -> None:
-        """11 (task 35.1): the Exclusion_Rules of a Record Path, given its branches; none yet (11.7)."""
-        if outcome.keys_available:
-            self._planned(EXCLUSION_RULE, objects)
+    def _exclusions(self, objects: View, outcome: RecordMapOutcome, emitted: VariantNode) -> ExclusionRules | None:
+        """11: the Exclusion_Rules of a Record Path, given its branches (see ``deps.exclusions``).
+
+        The rules go on the Path's final node (:meth:`_assemble`): the object
+        schema of one final Variant, or the combinator node of a split (where
+        only the ``not`` form applies), guarded with ``type: object`` when
+        the node also admits other types. Members are the fields and the
+        Field_Groups of the branches; the branches are the ones that may
+        already enforce a candidate (11.3).
+        """
+        if not outcome.keys_available:
+            return None
+        target = emitted.node
+        branches = list(emitted.branches) if emitted.keyword is not None else []
+        groups: list[frozenset[str]] = []
+        for node in branches or [target]:
+            for group in self._groups_by_nid.get(node.nid, ()):
+                if not any(group & g for g in groups):
+                    groups.append(group)
+        rules = self._exclusion_miner.mine(objects, target=target, branches=branches, groups=groups)
+        return None if rules.is_empty else rules  # applied by _assemble to the node the Path finally gets
 
     def _reference(self, view: View) -> SchemaNode | None:
         """8.2, 8.4 (task 36.1): a ``$ref`` to a Shared_Definition at a recursive step; None while not implemented."""

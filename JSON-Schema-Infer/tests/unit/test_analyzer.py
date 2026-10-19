@@ -534,7 +534,6 @@ def test_unimplemented_decision_points_record_their_fallbacks() -> None:
     _, report = infer(RECORDS)
     expected = {
         RECORD_MAP_PARTITION: "structure.hybrid_record_map",
-        EXCLUSION_RULE: "rules.exclusion",
     }
     for kind, technique in expected.items():
         (entry,) = decisions(report, kind)
@@ -544,6 +543,8 @@ def test_unimplemented_decision_points_record_their_fallbacks() -> None:
     assert groups.path == "$" and groups.resolution.method == "mdl"
     (tagged,) = decisions(report, DISCRIMINATOR)  # decision trees (task 34.1) need tagged.branch_support (10.6)
     assert tagged.resolution.method == "fallback" and tagged.fallback.reason == "missing-threshold"
+    (exclusion,) = decisions(report, EXCLUSION_RULE)  # exclusion mining (task 35.1) needs exclusion.min_confidence (11.7)
+    assert exclusion.resolution.method == "fallback" and exclusion.fallback.reason == "missing-threshold"
     # A Path with no keys reaches none of them.
     _, report = infer([{}, {}])
     assert all(decisions(report, kind) == [] for kind in expected)
@@ -557,7 +558,7 @@ def test_enabled_unimplemented_techniques_offer_nothing() -> None:
 
 
 @pytest.mark.parametrize(
-    "technique", ["structure.hybrid_record_map", "rules.exclusion", "structure.shared_defs", "structure.recursion"]
+    "technique", ["structure.hybrid_record_map", "structure.shared_defs", "structure.recursion"]
 )
 def test_hooks_raise_once_a_technique_is_marked_implemented(technique: str, monkeypatch: pytest.MonkeyPatch) -> None:
     sa, _ = analyzer({technique: True})

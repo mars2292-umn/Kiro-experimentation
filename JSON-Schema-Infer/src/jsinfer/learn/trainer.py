@@ -102,7 +102,11 @@ from jsinfer.values.inferrer import ValueInferrer
 __all__ = [
     "EXCLUSION_CAUSES",
     "M2_THRESHOLDS",
+    "EXCLUSION_THRESHOLD",
+    "ExclusionExample",
     "TAGGED_THRESHOLD",
+    "exclusion_examples",
+    "fit_exclusion_threshold",
     "TaggedUnionExample",
     "fit_tagged_threshold",
     "tagged_union_examples",
@@ -771,6 +775,89 @@ TAGGED_THRESHOLD: Final = "tagged.branch_support"
 assert THRESHOLDS[TAGGED_THRESHOLD].objective == "tagged_union_f1"
 
 
+# -- exclusion examples (F1, task 35.1) ---------------------------------------------
+
+
+@dataclass(frozen=True, eq=False)
+class ExclusionExample:
+    """The Exclusion_Rule candidates of one Record Path (member sets with Confidence) and the schema's exclusions."""
+
+    schema_id: str
+    path: Path
+    candidates: tuple[tuple[frozenset[frozenset[str]], float], ...]
+    truth: frozenset[frozenset[frozenset[str]]]
+
+
+def _schema_exclusions(model: SchemaModel, path: Path, max_depth: int) -> frozenset[frozenset[frozenset[str]]]:
+    from jsinfer.bench.metrics import _exclusion
+
+    found: set[frozenset[frozenset[str]]] = set()
+    for at, node in walk_paths(model, max_depth):
+        if at != path or node.boolean is not None:
+            continue
+        exclusion = _exclusion(node)
+        if exclusion is None:
+            continue
+        keyword, _, members = exclusion
+        if keyword == "not":
+            found.add(frozenset(frozenset([name]) for name in members))
+        else:
+            found.add(frozenset(frozenset(group) for group in members))
+    return frozenset(found)
+
+
+def exclusion_examples(featurized: Iterable[FeaturizedCollection], max_depth: int = DEFAULT_MAX_DEPTH) -> list[ExclusionExample]:
+    """One example per Record Path with an Exclusion_Rule candidate or an exclusion in the schema (11.1, 11.2)."""
+    from jsinfer.deps.exclusions import exclusion_candidates
+
+    out: list[ExclusionExample] = []
+    for item in featurized:
+        root = View.root(item.store)
+        done: set[Path] = set()
+        for example in item.examples.of_kind("record_or_map"):
+            if example.label != "record" or example.path in done:
+                continue
+            done.add(example.path)
+            try:
+                view = object_rows(root.descend(example.path))
+            except (KeyError, ValueError):
+                continue
+            if view.is_empty:
+                continue
+            candidates = tuple((frozenset(frozenset(m) for m in c.members), c.confidence) for c in exclusion_candidates(presence(view)))
+            truth = _schema_exclusions(item.model, example.schema_path, max_depth)
+            if candidates or truth:
+                out.append(ExclusionExample(item.schema_id, example.path, candidates, truth))
+    return out
+
+
+def _exclusion_f1(examples: Sequence[ExclusionExample], threshold: float) -> float:
+    tp = fp = fn = 0
+    for example in examples:
+        predicted = {members for members, confidence in example.candidates if confidence >= threshold}
+        tp += len(predicted & example.truth)
+        fp += len(predicted - example.truth)
+        fn += len(example.truth - predicted)
+    return 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) else 0.0
+
+
+def fit_exclusion_threshold(
+    featurized: Iterable[FeaturizedCollection], *, training_data: str, max_depth: int = DEFAULT_MAX_DEPTH
+) -> tuple[dict[str, ThresholdRecord], list[OmittedThreshold]]:
+    """Fit ``exclusion.min_confidence`` on the validation split by the F1 of Exclusion_Rules (20.3, 20.4)."""
+    validation = [item for item in featurized if item.split in (None, "val", "validation")]
+    examples = exclusion_examples(validation, max_depth)
+    if not examples:
+        return {}, [OmittedThreshold(EXCLUSION_THRESHOLD, "no validation-split Record Path with an Exclusion_Rule candidate or an exclusion (exclusion_rule)")]
+    confidences = np.asarray([c for e in examples for _, c in e.candidates] or [0.5], dtype=np.float64)
+    record = fit_threshold(THRESHOLDS[EXCLUSION_THRESHOLD], confidences, lambda t: _exclusion_f1(examples, t), n_examples=len(examples), training_data=training_data)
+    return {EXCLUSION_THRESHOLD: record}, []
+
+
+EXCLUSION_THRESHOLD: Final = "exclusion.min_confidence"
+assert THRESHOLDS[EXCLUSION_THRESHOLD].objective == "exclusion_f1"
+
+
 # -- the M2 thresholds -----------------------------------------------------------
 
 
@@ -1326,6 +1413,12 @@ class Trainer:
             raise TrainingError("thresholds", f"{type(error).__name__}: {error}") from error
         records.update(tagged_records)
         omitted_thresholds.extend(tagged_omitted)
+        try:
+            exclusion_records, exclusion_omitted = fit_exclusion_threshold(featurized, training_data=training_data, max_depth=max_depth)
+        except Exception as error:  # noqa: BLE001
+            raise TrainingError("thresholds", f"{type(error).__name__}: {error}") from error
+        records.update(exclusion_records)
+        omitted_thresholds.extend(exclusion_omitted)
         for spec in THRESHOLDS.values():
             if spec.name not in records and not any(o.name == spec.name for o in omitted_thresholds):
                 omitted_thresholds.append(OmittedThreshold(spec.name, "no training stage fits it yet (its Technique is not implemented)"))

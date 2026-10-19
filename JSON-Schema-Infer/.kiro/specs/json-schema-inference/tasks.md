@@ -657,18 +657,18 @@ Conventions used by every task:
     - **Property 20: Tagged unions are exact**
     - **Validates: Requirements 10.1, 10.2, 10.4, 10.5, 10.7, 10.8**
 
-- [ ] 35. Implement exclusion mining
-  - [ ] 35.1 Implement exclusions (`deps/exclusions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)
+- [x] 35. Implement exclusion mining
+  - [x] 35.1 Implement exclusions (`deps/exclusions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)
     - Members are fields or Field_Groups. Maximal cliques of the never-co-occur graph via Bron–Kerbosch with pivoting in canonical order; Confidence `1 − exp(−E)` with E reported
     - "Already enforced" check with Validator witnesses (kept when no witness exists); MDL or `exclusion.min_confidence`; `oneOf` vs `not` emission; rejections reported; fallback none
     - Register the `exclusion.min_confidence` objective
     - Settle the Support of Constraints inside `not` (now (0, 0), as `not` contents are not walked) and inside `if` (now always consistent); keep `rules.exclusion` in `KIND_SPECIFIC_CONFIDENCE` so its `1 − exp(−E)` Confidence survives finalization
     - Property 19's Exclusion clauses activate automatically. If an Exclusion `oneOf` sits on a node without `type` (beside Variant branches), extend that test's routing walk
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
-  - [ ] 35.2 Write property test for Confidence monotonicity
+  - [x] 35.2 Write property test for Confidence monotonicity
     - **Property 21: Confidence functions are monotone** (exclusion clause now; key, reference, and FD clause added in 44.3)
     - **Validates: Requirements 11.2**
-  - [ ] 35.3 Extend the mining-primitives test with exclusions
+  - [x] 35.3 Extend the mining-primitives test with exclusions
     - **Property 17: Mining primitives equal brute-force references** (maximal Exclusion_Rule candidates)
     - **Validates: Requirements 11.1**
 

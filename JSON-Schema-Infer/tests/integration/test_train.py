@@ -34,7 +34,7 @@ from jsinfer.learn.bundle import (
 )
 from jsinfer.learn.decision_models import DecisionModel
 from jsinfer.learn.features import FEATURE_SPEC, feature_spec_json
-from jsinfer.learn.trainer import M2_THRESHOLDS, TAGGED_THRESHOLD, Trainer, TrainingConfig, TrainingError
+from jsinfer.learn.trainer import EXCLUSION_THRESHOLD, M2_THRESHOLDS, TAGGED_THRESHOLD, Trainer, TrainingConfig, TrainingError
 from jsinfer.pipeline.infer import infer_documents
 from jsinfer.config.run_config import RunConfiguration
 from tests.conftest import FIXTURE_MANIFEST, FIXTURE_SPLIT, TINY_TRAINING
@@ -59,7 +59,7 @@ def test_tiny_bundle_holds_a_decision_model_per_kind_and_the_m2_thresholds(tiny_
         model = bundle.load_artifact(name)
         assert isinstance(model, DecisionModel) and model.feature_dim == len(FEATURE_SPEC[model.kind])
     fitted = set(bundle.threshold_values())
-    assert set(M2_THRESHOLDS) <= fitted <= set(M2_THRESHOLDS) | {TAGGED_THRESHOLD}  # the fixture corpus may hold a Tagged_Union
+    assert set(M2_THRESHOLDS) <= fitted <= set(M2_THRESHOLDS) | {TAGGED_THRESHOLD, EXCLUSION_THRESHOLD}  # the fixture corpus may hold unions and exclusions
     manifest = manifest_of(tiny_bundle)
     assert manifest["schema_split"] == {"id": "fixture-split", "seed": 0}
     assert len(manifest["schemas"]["train"]) == 14 and len(manifest["schemas"]["val"]) == 12

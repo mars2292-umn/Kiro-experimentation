@@ -835,7 +835,7 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
     _technique("rules.decision_trees", "per-field decision trees for Tagged_Unions", "should",
                implemented=True, sample_param="sample.trees", thresholds=("tagged.branch_support",)),
     _technique("rules.exclusion", "exclusion mining", "should",
-               implemented=False, thresholds=("exclusion.min_confidence",)),
+               implemented=True, thresholds=("exclusion.min_confidence",)),
     _technique("rules.keys", "key discovery", "could",
                implemented=False, thresholds=("keys.min_confidence",)),
     _technique("rules.fd_ind", "functional and inclusion dependency discovery", "could",
