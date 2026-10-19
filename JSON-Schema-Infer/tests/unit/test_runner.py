@@ -263,5 +263,8 @@ def test_jsonoid_adapter_runs_the_jar(tmp_path: Path, docs_jsonl: Path) -> None:
     assert adapter.available().available, adapter.available().reason
     run = run_system(adapter, docs_jsonl, tmp_path / "out", seed=1, timeout_s=600)
     assert run.kind == "schema", (run.reason, run.stderr[-2000:])
-    assert run.translation is not None and run.translation.source_draft == "DRAFT201909"
+    # Release 0.40 declares draft 2020-12 itself; an older jar's 2019-09 output is translated and recorded.
+    assert run.translation is None or run.translation.source_draft == "DRAFT201909"
     assert run.document["$schema"] == Draft.DRAFT202012.uri
+    assert run.model is not None and not run.model.unsupported  # JSONoid's own keywords (bloomFilter, hll, ...) are ignored
+    assert run.info.runtime.startswith("openjdk") or "java" in run.info.runtime.lower()

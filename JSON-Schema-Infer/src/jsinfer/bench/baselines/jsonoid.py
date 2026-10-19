@@ -13,10 +13,13 @@ options (design: Baselines). The jar is pinned by release and SHA-256
 or a digest mismatch as unavailability rather than a failure (34.6). The
 Java version is recorded as the runtime (34.11).
 
-JSONoid writes draft 2019-09 (its ``$schema`` is present in the output, and
-:attr:`JsonoidAdapter.output_draft` says 2019-09 when it is not), so the
-runner translates its output to draft 2020-12 and records the translation
-(34.5).
+Release 0.40 declares draft 2020-12 in its output; an older release's
+output declares 2019-09 (or nothing, when :attr:`JsonoidAdapter.output_draft`
+says 2019-09), and the runner then translates it to draft 2020-12 and
+records the translation (34.5). JSONoid also writes its own statistics as
+keywords (``bloomFilter``, ``hll``, ``lengthHistogram``, ``fieldPresence``,
+...), which the Schema_Loader records as ignored; they count in the schema
+size of 35.7, which the report notes.
 
 Configuration (``bench.toml``)::
 

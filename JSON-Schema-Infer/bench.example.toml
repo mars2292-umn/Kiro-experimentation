@@ -42,17 +42,17 @@ timeout_s = 1800               # per-run time limit (34.7); default bench.run_ti
 model_bundle = "bundles/real"  # the Model_Bundle whose training manifest the leakage check reads (30.7)
 results = "results"            # results/<study>/{results,aggregates}.{csv,json}, summary.{md,tex}
 schemastore_datasets = true    # SchemaStore test sets as Real_Datasets (33.2)
-# real_manifest = "datasets/manifest.json"   # extra Real_Dataset definitions (33.1)
+# real_manifest = "datasets/manifest.json"   # extra Real_Dataset definitions (33.1); scripts/fetch_real_datasets.py builds them
 # schemas = ["schemastore/package"]          # evaluate only these held-out schemas
 # ablations = ["decide.mdl"]                 # ablate only these Techniques (every enabled one by default)
 # resamples = 2000                           # bootstrap resamples; default bootstrap.resamples
 
 [baselines]
 naive_merge = true
-# [baselines.jsonoid]
-# jar = "checkouts/jsonoid-discovery.jar"
-# sha256 = "<sha256 of the jar>"
-# version = "v0.x.y"
+# [baselines.jsonoid]                        # https://github.com/dataunitylab/jsonoid-discovery/releases (Java 17 or later)
+# jar = "checkouts/jsonoid-discovery-0.40.1.jar"
+# sha256 = "b99ca8b90cb2a236d061fd2553c022d9d34cf3384c4390dba8fb833afc63fa41"
+# version = "v0.40.1"
 # [baselines.command.recg]                   # any other command-line system
 # argv = ["recg", "{docs}", "-o", "{out}/schema.json"]
 # label = "ReCG reimplementation"

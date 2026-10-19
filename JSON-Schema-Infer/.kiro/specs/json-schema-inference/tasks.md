@@ -612,7 +612,7 @@ Conventions used by every task:
     - `Harness` with `build_split`, `check_leakage`, `synthetic`, `real`, and `ablation`. `jsinfer bench {synthetic,real,ablation} -c bench.toml` runs the leakage check before any run
     - _Requirements: 30.7, 30.8, 30.11, 34.3_
   - [x] 30.6 Write benchmark smoke tests (`tests/bench_smoke/`)
-    - Five-schema fixture corpus with stub baselines: wiring, failure, timeout, and unavailable paths, plus every output format
+    - The fixture corpus (two held-out schemas, small collections) with the real Inferrer, Naive_Merge, and stub baselines: wiring, failure, timeout, unavailable, and leakage-abort paths, plus every output format. The corpus is the fixture corpus rather than a five-schema one because the leakage check needs the tiny bundle's training schemas present
     - _Requirements: 34.6, 34.7, 34.8, 35.8_
 
 - [x] 31. Checkpoint (M4): ensure all tests pass, ask the user if questions arise.

@@ -14,3 +14,4 @@ similarities.json
 train.toml
 /bundles/
 train-full.toml
+/datasets/

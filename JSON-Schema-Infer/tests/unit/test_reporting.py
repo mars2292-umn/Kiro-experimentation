@@ -67,6 +67,22 @@ def test_tables_put_real_first_mark_unavailable_and_carry_labels(tmp_path: Path)
     assert written.reference == "jsinfer"
 
 
+def test_relation_table_is_secondary_with_coverage() -> None:
+    rows = [
+        Row("jsinfer", "Inferrer", "s1", "synthetic@10", "default", 0, "ok", None, {"recall": 1.0}, facts={"relation": "equivalent"}),
+        Row("jsinfer", "Inferrer", "s2", "synthetic@10", "default", 0, "ok", None, {"recall": 1.0}, facts={"relation": "unsupported"}),
+        Row("jsinfer", "Inferrer", "s3", "synthetic@10", "default", 0, "failure", "x", {"recall": None}, facts={"relation": None}),
+        Row("naive", "Naive", "s1", "synthetic@10", "default", 0, "ok", None, {"recall": 1.0}, facts={"relation": "superset"}),
+    ]
+    agg = aggregate(rows, seed=0, resamples=20)
+    md = markdown(agg, rows)
+    assert "Inclusion relation to the ground truth (secondary" in md
+    assert "| Inferrer | synthetic@10 | 1 | 0 | 0 | 0 | 1/2 |" in md
+    assert "| Naive | synthetic@10 | 0 | 0 | 1 | 0 | 1/1 |" in md
+    assert md.index("Synthetic benchmark, training size 10") < md.index("Inclusion relation")
+    assert "Inclusion relation" not in markdown(aggregate(ROWS, seed=0, resamples=20), ROWS)
+
+
 def test_rows_from_benchmark_results() -> None:
     cfg = SyntheticConfig(sizes=(3,), held_out=2, seed=7)
     results = SyntheticResults(cfg, [

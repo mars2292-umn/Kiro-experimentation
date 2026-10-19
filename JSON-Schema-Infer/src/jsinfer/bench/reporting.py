@@ -411,6 +411,9 @@ def _tables(agg: Aggregates, rows: Sequence[Row], real: RealResults | None, metr
             if real is not None and real.dataset_exclusions:
                 counts = real.exclusion_reasons()
                 tables.append(("Real datasets excluded", ["Reason", "datasets"], [[reason, str(count)] for reason, count in counts.items()]))
+    relations = _relation_table(agg, rows)
+    if relations is not None:
+        tables.append(relations)
     if agg.comparisons:
         body = []
         for c in agg.comparisons:
@@ -423,6 +426,33 @@ def _tables(agg: Aggregates, rows: Sequence[Row], real: RealResults | None, metr
         if body:
             tables.append((f"Paired comparisons: {agg.labels.get(agg.reference, agg.reference)} minus system", ["System", "group", "metric", "Δ", "95% CI", "p", "pairs"], body))
     return tables
+
+
+RELATIONS: Final = ("equivalent", "subset", "superset", "incomparable", "unsupported")
+
+
+def _relation_table(agg: Aggregates, rows: Sequence[Row]) -> tuple[str, list[str], list[list[str]]] | None:
+    """The inclusion relation counts per system and synthetic group, with the coverage (31.7, 31.8).
+
+    The relation is a secondary view: the Subschema_Checker leaves it
+    unsupported whenever either schema uses a keyword outside its coverage
+    (``format`` among them), so the table states for how many of the ok
+    results it is defined.
+    """
+    cells: dict[tuple[str, str], dict[str, int]] = {}
+    for row in rows:
+        relation = row.facts.get("relation")
+        if row.ok and isinstance(relation, str):
+            counts = cells.setdefault((row.system, row.group), dict.fromkeys(RELATIONS, 0))
+            counts[relation] = counts.get(relation, 0) + 1
+    if not cells:
+        return None
+    body = []
+    for (system, group), counts in sorted(cells.items(), key=lambda i: (codepoint_key(i[0][1]), codepoint_key(i[0][0]))):
+        total = sum(counts.values())
+        defined = total - counts.get("unsupported", 0)
+        body.append([_system_name(agg, system), group, *(str(counts.get(r, 0)) for r in RELATIONS[:-1]), f"{defined}/{total}"])
+    return ("Inclusion relation to the ground truth (secondary: defined only where the Subschema_Checker covers both schemas)", ["System", "group", *RELATIONS[:-1], "defined/ok"], body)
 
 
 def markdown(agg: Aggregates, rows: Sequence[Row], real: RealResults | None = None, metrics: Sequence[str] = SYNTHETIC_METRICS) -> str:

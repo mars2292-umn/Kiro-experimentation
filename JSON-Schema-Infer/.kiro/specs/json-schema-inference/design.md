@@ -1092,6 +1092,7 @@ Two rules keep this monotone (3.5). Constraints inside a `not` or an `if` are ne
   - Recall, negative rejection rate, and harmonic mean follow 31.3–31.5. Undefined values (`None`) propagate (31.14).
   - Judgment accuracy reuses `derive_labels` on the inferred schema (31.9).
   - Constraint precision and recall align Paths with `align()` (31.10).
+  - The inclusion relation (31.7) is reported as a secondary table with its coverage: the Subschema_Checker leaves it unsupported whenever either schema uses `format` or another keyword outside jsonsubschema's coverage, which is common, so recall and negative rejection are the headline metrics and the relation is read on the covered subset (see the jsonsubschema row of Open Decisions).
   - The 95% percentile bootstrap uses `bootstrap.resamples` seeded resamples. The paired test resamples schema or dataset pairs, and its two-sided p-value is `min(1, 2·min(P*(Δ ≤ 0), P*(Δ ≥ 0)))` (35.1, 35.2).
   - ECE is the count-weighted mean absolute gap over non-empty equal-width bins (21.5, 35.6).
 - **Real datasets** (33): manifest entries and SchemaStore test sets are cleaned per 33.5. Folds come from a seeded permutation split into min(k, n) parts (33.3). Negatives are generated when none are supplied (33.4).
