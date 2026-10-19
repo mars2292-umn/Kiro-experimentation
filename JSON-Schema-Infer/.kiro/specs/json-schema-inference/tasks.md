@@ -615,7 +615,7 @@ Conventions used by every task:
     - Five-schema fixture corpus with stub baselines: wiring, failure, timeout, and unavailable paths, plus every output format
     - _Requirements: 34.6, 34.7, 34.8, 35.8_
 
-- [ ] 31. Checkpoint (M4): ensure all tests pass, ask the user if questions arise.
+- [x] 31. Checkpoint (M4): ensure all tests pass, ask the user if questions arise.
 
 ### M5: Should tier
 
