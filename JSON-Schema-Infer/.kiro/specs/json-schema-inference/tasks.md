@@ -568,15 +568,15 @@ Conventions used by every task:
     - **Property 56: Statistical summaries**
     - **Validates: Requirements 21.5, 35.1, 35.2, 35.6**
 
-- [ ] 28. Implement the run isolation and Baseline_Adapters
-  - [ ] 28.1 Implement the adapter protocol and runner (`bench/baselines/base.py`, `bench/runner.py`)
+- [x] 28. Implement the run isolation and Baseline_Adapters
+  - [x] 28.1 Implement the adapter protocol and runner (`bench/baselines/base.py`, `bench/runner.py`)
     - Child processes with `start_new_session=True`, `os.killpg` on timeout (`bench.run_timeout_s`), a psutil process-tree RSS sampler, wall-clock timing, sequential runs, and the same JSONL input for every system. The Inferrer runs as `jsinfer infer`
     - Availability checks; failures recorded with exit status and stderr; outputs meta-validated; older-draft outputs translated with the Schema_Loader, recording translations and unsupported constructs; `BaselineInfo` recorded
     - _Requirements: 34.1, 34.2, 34.3, 34.5, 34.6, 34.7, 34.8, 34.11, 35.7_
-  - [ ] 28.2 Implement the Naive_Merge and JSONoid adapters (`bench/baselines/naive.py`, `bench/baselines/jsonoid.py`)
+  - [x] 28.2 Implement the Naive_Merge and JSONoid adapters (`bench/baselines/naive.py`, `bench/baselines/jsonoid.py`)
     - Naive adapter calls `pipeline/naive_merge.py`. JSONoid runs `java -jar` on a jar pinned by release and SHA-256, with `--random-seed`, and records options, version, and Java version
     - _Requirements: 34.1, 34.4, 34.11_
-  - [ ] 28.3 Write adapter tests
+  - [x] 28.3 Write adapter tests
     - Stub baselines for the failure, timeout, unavailable, and invalid-output paths; JSONoid test skipped when Java is absent
     - _Requirements: 34.6, 34.7, 34.8_
 

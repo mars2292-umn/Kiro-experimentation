@@ -87,6 +87,8 @@ Labels = dict[tuple[Path, str], str]
 KINDS: Final[tuple[str, ...]] = tuple(JUDGMENT_OUTCOMES)
 UNKNOWN: Final = "unknown"
 DEFAULT_MAX_DEPTH: Final[int] = int(RESOURCE_PARAMETERS["synth.max_depth"].default)  # type: ignore[arg-type]
+# Every Path walk is capped (``nearest.max_paths``); Paths past the cap of a reference-heavy schema get no label.
+MAX_PATHS: Final[int] = int(RESOURCE_PARAMETERS["nearest.max_paths"].default)  # type: ignore[arg-type]
 
 _SCALAR_TYPES: Final = frozenset({"null", "boolean", "integer", "number", "string"})
 _OPEN_ENUM_TYPES: Final = frozenset({"integer", "number", "string"})
@@ -196,7 +198,7 @@ def derive_labels(model: SchemaModel, max_depth: int = DEFAULT_MAX_DEPTH) -> Lab
     if not isinstance(model, SchemaModel):
         raise TypeError(f"model must be a SchemaModel, got {type(model).__name__}")
     by_path: dict[Path, list[SchemaNode]] = defaultdict(list)
-    for path, node in walk_paths(model, max_depth):
+    for path, node in walk_paths(model, max_depth, MAX_PATHS):
         by_path[path].append(node)
     labels: Labels = {}
     for path in sorted(by_path, key=path_sort_key):
@@ -242,7 +244,7 @@ class SchemaPaths:
 
     @classmethod
     def of(cls, model: SchemaModel, max_depth: int = DEFAULT_MAX_DEPTH) -> SchemaPaths:
-        return cls(path for path, _ in walk_paths(model, max_depth))
+        return cls(path for path, _ in walk_paths(model, max_depth, MAX_PATHS))
 
     @property
     def paths(self) -> frozenset[Path]:

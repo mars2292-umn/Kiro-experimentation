@@ -100,6 +100,9 @@ __all__ = [
 SchemaSource = tuple[str, SchemaModel, str | None]  # (schema id, model, split tag)
 
 _DEFAULT_MAX_DEPTH: Final[int] = int(RESOURCE_PARAMETERS["synth.max_depth"].default)  # type: ignore[arg-type]
+# The optional-field walk is capped like every other Path walk (``nearest.max_paths``): a schema whose
+# references multiply its Paths past the cap keeps the fields found so far, and the rest stay present.
+_MAX_PATHS: Final[int] = int(RESOURCE_PARAMETERS["nearest.max_paths"].default)  # type: ignore[arg-type]
 _DEFAULT_DOC_ATTEMPTS: Final[int] = int(RESOURCE_PARAMETERS["synth.doc_attempts"].default)  # type: ignore[arg-type]
 
 _SCALAR_NAMES: Final = ("null", "boolean", "integer", "number", "string")
@@ -1177,7 +1180,7 @@ class _DocumentGenerator:
 def _optional_fields(model: SchemaModel, max_depth: int) -> list[str]:
     """The rendered Paths of the optional properties of ``model`` (every property not required at its Path)."""
     by_path: dict[Path, list[SchemaNode]] = defaultdict(list)
-    for path, node in walk_paths(model, max_depth):
+    for path, node in walk_paths(model, max_depth, _MAX_PATHS):
         by_path[path].append(node)
     found: dict[str, None] = {}
     for path in sorted(by_path, key=path_sort_key):

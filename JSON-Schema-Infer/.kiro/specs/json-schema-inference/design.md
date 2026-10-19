@@ -148,7 +148,7 @@ src/jsinfer/
                          # label_model.py, synth.py, mutations.py, labels.py, trainer.py, bundle.py
   pipeline/              # infer.py (orchestration), soundness.py, naive_merge.py, versions_out.py
   bench/                 # corpus_loader.py, splits.py, leakage.py, synthetic.py, real.py,
-                         # baselines/{base,naive,jsonoid,recg}.py, metrics.py, bootstrap.py,
+                         # baselines/{base,inferrer,naive,jsonoid,recg}.py, metrics.py, bootstrap.py,
                          # studies.py, reporting.py, resume.py, runner.py
 tests/
   unit/  property/  integration/  bench_smoke/  fixtures/  strategies.py
