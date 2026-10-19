@@ -543,13 +543,13 @@ Conventions used by every task:
     - **Property 3: Schema emit/load round trip** and **Property 5: Draft translation preserves verdicts** over fully supported corpus schemas and SchemaStore tests (fixed subset in CI, full corpus nightly)
     - **Validates: Requirements 2.8, 2.9, 34.5**
 
-- [ ] 26. Implement Mutation_Operators
-  - [ ] 26.1 Implement mutations and negatives (`learn/mutations.py`)
+- [x] 26. Implement Mutation_Operators
+  - [x] 26.1 Implement mutations and negatives (`learn/mutations.py`)
     - All 14 operators with site enumeration and the design's violation forms; one mutated schema per site, or a seeded subset at the per-operator limit
     - Generate candidates from the mutated schema and keep distinct ones the ground truth rejects (with `format` asserted), up to the target or the attempt budget
     - Label each negative with operator, schema id, and site pointer. Record skips and unproductive operators
     - _Requirements: 32.1, 32.2, 32.3, 32.4, 32.5, 32.6, 32.7, 32.9, 32.10_
-  - [ ] 26.2 Write property test for mutations
+  - [x] 26.2 Write property test for mutations
     - **Property 55: Negative correctness and mutation discipline**
     - **Validates: Requirements 32.2, 32.3, 32.4, 32.5, 32.9, 32.10**
 

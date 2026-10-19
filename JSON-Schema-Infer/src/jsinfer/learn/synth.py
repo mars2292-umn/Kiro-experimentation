@@ -62,6 +62,7 @@ Exclusions (22.8)
 
 from __future__ import annotations
 
+import copy
 import math
 import re
 import re._parser as _sre_parse
@@ -604,6 +605,7 @@ class _Effective:
     items: list[SchemaNode] = field(default_factory=list)
     contains: list[SchemaNode] = field(default_factory=list)
     min_contains: int = 1
+    duplicate: bool = False  # a ``not: {uniqueItems: true}`` conjunct: the array must repeat an element
     declared: list[JSON] = field(default_factory=list)  # examples and default, for source (b)
     enum_declared: list[JSON] | None = None  # the first enum, in declared order, for the skew
     keywords: set[str] = field(default_factory=set)
@@ -688,6 +690,9 @@ def _merge(eff: _Effective, node: SchemaNode) -> None:
             setattr(eff, attr, max(current, count) if bigger else min(current, count))
     if kw.get("uniqueItems") is True:
         eff.unique_items = True
+    negated = kw.get("not")
+    if isinstance(negated, SchemaNode) and negated.boolean is None and negated.kw.get("uniqueItems") is True:
+        eff.duplicate = True  # mutation negatives (32.1 n): repeat an element
     properties = kw.get("properties")
     if isinstance(properties, dict):
         for name in sorted(properties, key=codepoint_key):
@@ -1154,6 +1159,11 @@ class _DocumentGenerator:
                 out.insert(int(rng.integers(0, len(out) + 1)), element)
         if eff.unique_items:
             out = _distinct(out)
+        if eff.duplicate and out:
+            if high is not None and len(out) >= high:
+                out[-1] = copy.deepcopy(out[0])
+            else:
+                out.append(copy.deepcopy(out[0]))
         if len(out) < low:
             raise _Reject
         return out
