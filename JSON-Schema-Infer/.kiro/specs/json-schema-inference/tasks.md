@@ -580,17 +580,17 @@ Conventions used by every task:
     - Stub baselines for the failure, timeout, unavailable, and invalid-output paths; JSONoid test skipped when Java is absent
     - _Requirements: 34.6, 34.7, 34.8_
 
-- [ ] 29. Implement the synthetic and real-data benchmarks
-  - [ ] 29.1 Implement the synthetic benchmark (`bench/synthetic.py`)
+- [x] 29. Implement the synthetic and real-data benchmarks
+  - [x] 29.1 Implement the synthetic benchmark (`bench/synthetic.py`)
     - For each eligible Held_Out_Schema: training collections at each configured size; held-out positives distinct from training documents; mutation negatives; `corpus.exclude_ids` set to the held-out group
     - Run every available system, then compute recall, negative rejection, harmonic mean, inclusion relation, judgment accuracy, and Constraint precision and recall with `format` asserted. Record exclusions, failures, and timeouts as missing
     - Load and re-emit each truth schema as draft 2020-12 before the Subschema_Checker, which rejects earlier-draft and unknown keywords. Inferred schemas with `dependentRequired` get `Unsupported` until 25.6 (design Open Decisions, jsonsubschema keyword coverage)
     - _Requirements: 30.6, 31.1, 31.2, 31.6, 31.7, 31.8, 31.11, 31.12, 31.13_
-  - [ ] 29.2 Implement the real-data benchmark (`bench/real.py`)
+  - [x] 29.2 Implement the real-data benchmark (`bench/real.py`)
     - Manifest parsing with exclusions; SchemaStore schemas with positive tests as Real_Datasets; cleaning per 33.5
     - Seeded min(k, n) folds shared by all systems; generated negatives when none remain; per-fold metrics; not-available handling
     - _Requirements: 33.1, 33.2, 33.3, 33.4, 33.5, 33.7, 33.8, 33.9_
-  - [ ] 29.3 Write property test for evaluation data preparation
+  - [x] 29.3 Write property test for evaluation data preparation
     - **Property 52: Evaluation data preparation**
     - **Validates: Requirements 31.1, 33.3, 33.5**
 
