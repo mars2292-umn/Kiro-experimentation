@@ -226,6 +226,11 @@ def keywords(result: PipelineResult) -> Counter[str]:
     """How often each keyword occurs in the emitted schema (property and definition names excluded)."""
     return Counter(keyword for _, node in result.model.walk() for keyword in node.kw)
 
+def no_cooccurrence_entries(result: PipelineResult) -> bool:
+    """No ``dependentRequired`` entry carries a co-occurrence record; Field_Group cliques (6) may still be emitted."""
+    return not any("/dependentRequired/" in pointer and record.technique == COOCCURRENCE for pointer, record in records(result).items())
+
+
 
 def subschema(document: Any, *steps: str | int) -> Any:
     for step in steps:
@@ -420,7 +425,8 @@ def test_disabled_cooccurrence_mining_emits_no_rules_and_keeps_required(bundles:
     assert subschema(mined.document, "properties", "contact", "dependentRequired") == {"ext": ["phone"], "phone": ["ext"]}
 
     result = run(RULED, config(bundles["full"], disabled=[COOCCURRENCE]))
-    assert keywords(result)["dependentRequired"] == 0
+    # Field_Groups (6) may still emit dependentRequired cliques (9.9); no entry comes from co-occurrence mining.
+    assert no_cooccurrence_entries(result)
     assert required_lists(result) == required_lists(mined) == {"": ["contact", "id"], "/properties/contact": ["name"]}
     by_pointer = records(result)
     assert {by_pointer[p].technique for p in by_pointer if p.startswith(("/required/", "/properties/contact/required/"))} == {
@@ -505,7 +511,7 @@ def applied(kind: str) -> str:
 
 def test_missing_cooccurrence_thresholds_apply_the_fallback_at_every_rule_decision(bundles: dict[str, str]) -> None:
     result = run(RULED, config(DEFAULT_MODEL_BUNDLE))  # the shipped bundle holds no Learned_Threshold
-    assert keywords(result)["dependentRequired"] == 0
+    assert no_cooccurrence_entries(result)
     entries = decisions(result, "cooccurrence_rule")
     # The full bundle emits rules at these Paths; without the thresholds each takes the fallback.
     mined = run(RULED, config(bundles["full"]))
@@ -527,7 +533,7 @@ def test_missing_cooccurrence_thresholds_apply_the_fallback_at_every_rule_decisi
 def test_one_missing_cooccurrence_threshold_is_enough_for_the_fallback(bundles: dict[str, str]) -> None:
     # Design, Open Decisions ("Co-occurrence thresholds under MDL"): both are needed, even while MDL selects.
     result = run(RULED, config(bundles["support-only"]))
-    assert keywords(result)["dependentRequired"] == 0
+    assert no_cooccurrence_entries(result)
     entries = decisions(result, "cooccurrence_rule")
     assert {e.path for e in entries} == {"$", "$.contact"}
     for entry in entries:
@@ -539,7 +545,7 @@ def test_one_missing_cooccurrence_threshold_is_enough_for_the_fallback(bundles: 
 
 def test_invalid_threshold_values_are_substituted_like_missing_ones(bundles: dict[str, str]) -> None:
     result = run(RULED, config(bundles["invalid"]))
-    assert keywords(result)["dependentRequired"] == 0
+    assert no_cooccurrence_entries(result)
     entries = decisions(result, "cooccurrence_rule")
     assert {e.path for e in entries} == {"$", "$.contact"}
     for entry in entries:

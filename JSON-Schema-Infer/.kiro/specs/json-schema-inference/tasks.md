@@ -629,8 +629,8 @@ Conventions used by every task:
     - Attempt budget, the alternatives cap, and reporting
     - _Requirements: 14.7, 14.8_
 
-- [ ] 33. Implement Field_Groups with FP-growth and Krimp-style selection
-  - [ ] 33.1 Implement field groups (`structure/field_groups.py`, `structure/analyzer.py`, `config/registry.py`)
+- [x] 33. Implement Field_Groups with FP-growth and Krimp-style selection
+  - [x] 33.1 Implement field groups (`structure/field_groups.py`, `structure/analyzer.py`, `config/registry.py`)
     - In-house FP-growth over distinct non-base key sets with counts at `fpgrowth.min_support`, sampled at `sample.fpgrowth`; Krimp-style code-table acceptance when total DL drops
     - All-or-none filter (violations reported) and greedy disjointness filter by DL gain; MDL selection among ∅ and the FP set
     - Loosen `test_disabled_cooccurrence_mining_emits_no_rules_and_keeps_required` in `tests/unit/test_config_fallbacks.py`, which asserts no `dependentRequired` at all: with co-occurrence mining off, Field_Groups may still emit it (9.9)
@@ -638,10 +638,10 @@ Conventions used by every task:
     - Pass the selected groups to `CooccurrenceMiner.rules(groups=...)` so their cliques are given rules. When an antecedent has both a clique entry and a Co_Occurrence_Rule entry, merge them into one `dependentRequired` entry (one Constraint) and combine the two Provenance_Records
     - Property 19 then treats Field_Group pairs as given rules, and its check that a rule decision without a record is derivable in some Variant at its Path becomes live; confirm it passes
     - _Requirements: 6.2, 6.3, 6.6, 6.7, 6.8, 6.9_
-  - [ ] 33.2 Write property test for Field_Groups
+  - [x] 33.2 Write property test for Field_Groups
     - **Property 13: Field_Groups are well-formed and hold**
     - **Validates: Requirements 6.5, 6.6, 6.7, 6.8**
-  - [ ] 33.3 Extend the mining-primitives test with FP-growth
+  - [x] 33.3 Extend the mining-primitives test with FP-growth
     - **Property 17: Mining primitives equal brute-force references** (FP-growth frequent itemsets)
     - **Validates: Requirements 6.3**
 

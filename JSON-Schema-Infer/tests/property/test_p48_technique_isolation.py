@@ -163,7 +163,7 @@ KIND_KEYWORDS: dict[str, tuple[str, ...]] = {
         "minimum", "maximum", "minLength", "maxLength", "minItems", "maxItems", "minProperties", "maxProperties",
     ),
     "string_constraint": ("format", "pattern"),
-    "cooccurrence_rule": ("dependentRequired",),
+    "cooccurrence_rule": ("dependentRequired",),  # also emitted by field_groups cliques; see check_keywords
     "closed_or_open_enum": ("enum", "const"),
     "record_or_map": ("propertyNames",),
     "tuple_or_list": ("prefixItems",),
@@ -655,6 +655,8 @@ def check_records(setup: Setup, result: PipelineResult) -> None:
 def check_keywords(setup: Setup, result: PipelineResult) -> None:
     """28.4 at the schema level: a kind out of effect emits only its Fallback_Behavior's outcome."""
     absent = {kind: words for kind, words in KIND_KEYWORDS.items() if setup.out_of_effect(kind)}
+    if "cooccurrence_rule" in absent and not setup.out_of_effect("field_groups"):
+        absent["cooccurrence_rule"] = ()  # Field_Group cliques (6.6) share dependentRequired with the rules (9.4)
     closed = setup.out_of_effect(CLOSED_RECORD)
     for pointer, node in result.model.walk():
         if node.boolean is not None:

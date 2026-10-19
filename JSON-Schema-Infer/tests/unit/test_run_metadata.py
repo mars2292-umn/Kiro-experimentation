@@ -208,6 +208,9 @@ def test_a_run_lists_the_resource_parameters_its_components_read() -> None:
         "variants.em_tol": (1e-6, "default"),
         "variants.max_components": (3, "flag"),
         "workers": (1, "flag"),
+        # Field_Group mining (6) runs at a Variant with optional fields.
+        "fpgrowth.min_support": (2, "default"),
+        "sample.fpgrowth": (50_000, "default"),
     }
 
 

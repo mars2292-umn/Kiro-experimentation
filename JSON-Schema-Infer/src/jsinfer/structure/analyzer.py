@@ -138,10 +138,13 @@ Hooks (Techniques the walk reaches that are not implemented yet)
       and its Map entries to ``patternProperties`` or
       ``additionalProperties``.
     - :meth:`StructureAnalyzer._field_groups` (6, ``groups.fpgrowth_slim``
-      and ``groups.bmf``, tasks 33.1 and 47.1), per final Variant with a
-      field: the selected Field_Groups go to :meth:`CooccurrenceMiner.rules`
-      as ``groups``, and their ``dependentRequired`` cliques merge with the
-      Co_Occurrence_Rule entries of the same antecedent.
+      through :class:`~jsinfer.structure.field_groups.FieldGroupMiner`;
+      ``groups.bmf`` joins in task 47.1), per final Variant with a field:
+      the selected Field_Groups go to :meth:`CooccurrenceMiner.rules` as
+      ``groups``, their ``dependentRequired`` cliques merge with the
+      Co_Occurrence_Rule entries of the same antecedent into one entry, and
+      an entry both produced gets one Provenance_Record
+      (:func:`~jsinfer.structure.field_groups.merge_records`).
     - :meth:`StructureAnalyzer._discriminator` (10, ``rules.decision_trees``,
       task 34.1), at a Record Path with keys after Merge-or-Split: a
       selected Discriminator's value groups replace the Variant branches.
@@ -189,7 +192,7 @@ import numpy as np
 
 from jsinfer.config.registry import REGISTRY
 from jsinfer.config.resources import ResourceReader
-from jsinfer.core.determinism import DEFAULT_SEED
+from jsinfer.core.determinism import DEFAULT_SEED, sorted_codepoint
 from jsinfer.core.jsonvalue import JSON, JType
 from jsinfer.core.provenance import ProvenanceRecord, Support
 from jsinfer.core.report import InferenceReport
@@ -197,6 +200,7 @@ from jsinfer.core.schema_model import ConstraintId, SchemaModel, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import ArtifactSource, DecisionEngine, DecisionPoint
 from jsinfer.deps.cooccurrence import CooccurrenceMiner
+from jsinfer.structure.field_groups import DEPENDENT_REQUIRED, FieldGroupMiner, FieldGroups, merge_records
 from jsinfer.deps.presence import RequiredFields, required_fields
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
@@ -374,7 +378,7 @@ class StructureAnalyzer:
     components; each must use ``values.engine``.
     """
 
-    __slots__ = ("_arrays", "_cooccurrence", "_record_map", "_records", "_values", "_variants")
+    __slots__ = ("_arrays", "_cooccurrence", "_field_groups_miner", "_record_map", "_records", "_values", "_variants")
 
     def __init__(
         self,
@@ -387,6 +391,7 @@ class StructureAnalyzer:
         variants: VariantAnalyzer | None = None,
         arrays: ArrayAnalyzer | None = None,
         cooccurrence: CooccurrenceMiner | None = None,
+        field_groups: FieldGroupMiner | None = None,
     ) -> None:
         if not isinstance(values, ValueInferrer):
             raise TypeError(f"values must be a ValueInferrer, got {type(values).__name__}")
@@ -395,8 +400,9 @@ class StructureAnalyzer:
         _check(variants, VariantAnalyzer, "variants")
         _check(arrays, ArrayAnalyzer, "arrays")
         _check(cooccurrence, CooccurrenceMiner, "cooccurrence")
+        _check(field_groups, FieldGroupMiner, "field_groups")
         if variants is not None and (resources is not None or seed != DEFAULT_SEED):
-            raise ValueError("resources and seed configure the default VariantAnalyzer; pass them to variants instead")
+            raise ValueError("resources and seed configure the default VariantAnalyzer and FieldGroupMiner; pass them to those instead")
         engine = values.engine
         validator = values.validator
         scorer = scorer if scorer is not None else MDLScorer(validator=validator)
@@ -430,11 +436,17 @@ class StructureAnalyzer:
         self._cooccurrence = (
             cooccurrence if cooccurrence is not None else CooccurrenceMiner(engine, scorer=scorer, report=values.report)
         )
+        self._field_groups_miner = (
+            field_groups
+            if field_groups is not None
+            else FieldGroupMiner(engine, scorer=scorer, report=values.report, resources=resources, seed=seed)
+        )
         for name, component in (
             ("record_map", self._record_map),
             ("variants", self._variants),
             ("arrays", self._arrays),
             ("cooccurrence", self._cooccurrence),
+            ("field_groups", self._field_groups_miner),
         ):
             if component.engine is not engine:
                 raise ValueError(f"{name} must use the ValueInferrer's DecisionEngine")
@@ -640,10 +652,24 @@ class StructureAnalyzer:
         self._records.put(node, _TYPE, _type_record(required.presence.n_objects, details))
         node.kw.update(required.keywords())
         self._records.update(required.constraint_provenance(node))
-        groups = self._field_groups(variant, required, index)
-        rules = self._cooccurrence.rules(required.presence, record=node, groups=groups, variant=index)
-        node.kw.update(rules.keywords())
-        self._records.update(rules.constraint_provenance(node))
+        groups = self._field_groups(variant, required, node, index)  # 6
+        rules = self._cooccurrence.rules(required.presence, record=node, groups=groups.groups, variant=index)
+        # 6.6, 9.4: the cliques and the rules share one dependentRequired; an antecedent in both is one Constraint.
+        entries: dict[str, list[str]] = {}
+        for source in (groups.entries(), rules.entries()):
+            for antecedent, consequents in source.items():
+                listed = entries.setdefault(antecedent, [])
+                listed.extend(c for c in consequents if c not in listed)
+        if entries:
+            node.kw[DEPENDENT_REQUIRED] = {a: sorted_codepoint(entries[a]) for a in sorted_codepoint(entries)}
+        group_records = groups.constraint_provenance(node)
+        rule_records = rules.constraint_provenance(node)
+        for cid, record in rule_records.items():
+            if cid in group_records:
+                group_records[cid] = merge_records(group_records[cid], record)
+            else:
+                group_records[cid] = record
+        self._records.update(group_records)
         return node, details
 
     # -- combining the families (design walk, step 4) -------------------------
@@ -748,11 +774,16 @@ class StructureAnalyzer:
         if outcome.keys_available:
             self._planned(RECORD_MAP_PARTITION, objects)
 
-    def _field_groups(self, variant: View, required: RequiredFields, index: int) -> tuple[frozenset[str], ...]:
-        """6 (tasks 33.1, 47.1): the selected Field_Groups of final Variant ``index``; none yet (6.9)."""
-        if required.presence.n_fields:
-            self._planned(FIELD_GROUPS, variant)
-        return ()
+    def _field_groups(self, variant: View, required: RequiredFields, node: SchemaNode, index: int) -> FieldGroups:
+        """6: the Field_Groups of final Variant ``index`` (``groups.fpgrowth_slim``; BMF joins in task 47.1).
+
+        A Variant without a field has nothing to group and reaches no
+        Decision_Point. ``node`` is the Variant subschema the candidates
+        are scored against.
+        """
+        if not required.presence.n_fields:
+            return FieldGroups(required.presence, index)
+        return self._field_groups_miner.mine(required.presence, record=node, variant=index)
 
     def _discriminator(self, objects: View, outcome: RecordMapOutcome, split: MergeSplitOutcome) -> None:
         """10 (task 34.1): the Discriminator of a Record Path, whose value groups would replace the Variants; none yet."""

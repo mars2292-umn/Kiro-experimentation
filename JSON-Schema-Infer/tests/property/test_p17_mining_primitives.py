@@ -650,4 +650,45 @@ def test_cooccurrence_rule_candidates_equal_brute_force(layout: str, data: st.Da
     note_case(case)
 
 
-# Tasks 33.3, 35.3, and 44.2 add their primitives' tests below, reusing cases() and Case.reference.
+# Tasks 35.3 and 44.2 add their primitives' tests below, reusing cases() and Case.reference.
+
+
+# ---------------------------------------------------------------------------
+# FP-growth frequent itemsets (6.3, task 33.3)
+# ---------------------------------------------------------------------------
+
+
+def reference_itemsets(key_sets: Sequence[KeySet], min_support: int) -> dict[frozenset[str], int]:
+    """Every non-empty subset of the keys held by at least ``min_support`` of the key sets, with its count."""
+    from itertools import combinations
+
+    keys = sorted({key for key_set in key_sets for key in key_set})
+    found: dict[frozenset[str], int] = {}
+    for size in range(1, len(keys) + 1):
+        for combo in combinations(keys, size):
+            itemset = frozenset(combo)
+            count = sum(1 for key_set in key_sets if itemset <= key_set)
+            if count >= min_support:
+                found[itemset] = count
+    return found
+
+
+@given(data=st.data(), min_support=st.integers(1, 4))
+def test_fpgrowth_frequent_itemsets_equal_brute_force(data: st.DataObject, min_support: int) -> None:
+    from jsinfer.structure.field_groups import frequent_itemsets, transactions
+
+    case = data.draw(cases("$"), label="case")
+    _, view = build(case)
+    ids = sorted(case.reference)
+    p = Presence.of(view)
+    # Transactions are the optional (non-required) key sets of the non-flagged objects, with counts.
+    weighted = transactions(p)
+    required = set(p.required)
+    key_sets = [case.key_set(oid) - required for oid in ids]
+    assert sum(weighted.values()) == sum(1 for key_set in key_sets if key_set)
+    found = frequent_itemsets(weighted, min_support)
+    expected = reference_itemsets(key_sets, min_support)
+    assert found == expected
+    assert list(found) == sorted(found, key=lambda s: (len(s), tuple(sorted(s))))
+    event("frequent itemsets" if expected else "none frequent")
+    note_case(case)

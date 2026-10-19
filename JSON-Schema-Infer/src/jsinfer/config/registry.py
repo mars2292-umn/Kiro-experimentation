@@ -817,7 +817,7 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
                implemented=True),
     # Field groups
     _technique("groups.fpgrowth_slim", "FP-growth with SLIM/Krimp-style MDL selection", "should",
-               implemented=False, sample_param="sample.fpgrowth"),
+               implemented=True, sample_param="sample.fpgrowth"),
     _technique("groups.bmf", "Boolean matrix factorization", "could",
                implemented=False, sample_param="sample.bmf"),
     # Structure
