@@ -679,6 +679,28 @@ def _log2(n: int) -> float:
     return math.log2(n) if n > 1 else 0.0
 
 
+def _item_bits(alternative: Alternative, profile: Profile) -> float:
+    """The bits of one alternative and its profile's strings, without the per-string alternative-choice term."""
+    tokens = alternative.tokens
+    model = 2.0 + sum(4.0 + _log2(t.quantifier.low + 1) + (0.0 if t.quantifier.high is None else _log2(t.quantifier.high - t.quantifier.low + 1)) for t in tokens)
+    if not tokens:
+        return model
+    last = len(tokens) - 1
+    class_bits = [_log2(t.atom.size) if isinstance(t.atom, CharClass) else 0.0 for t in tokens]
+    bounded = [None if t.quantifier.high is None else _log2(t.quantifier.high - t.quantifier.low + 1) for t in tokens]
+    lows = [t.quantifier.low for t in tokens]
+    data = 0.0
+    for run in profile.runs:
+        # Normal form may fuse adjacent tokens after a class join, so a run is charged under the token
+        # at its index, the last token absorbing the rest.
+        for i, length in enumerate(run):
+            j = i if i < last else last
+            data += length * class_bits[j]
+            fixed = bounded[j]
+            data += fixed if fixed is not None else _log2(length - lows[j] + 2)
+    return model + data
+
+
 def estimate_bits(alternatives: Sequence[tuple[Alternative, Profile]]) -> float:
     """A description-length estimate of a Pattern over its profiles (the scorer's pattern coding, without a view).
 
@@ -688,26 +710,11 @@ def estimate_bits(alternatives: Sequence[tuple[Alternative, Profile]]) -> float:
     ``log2 |class|`` (0 for a literal) plus the count code of its quantifier.
     """
     k = len(alternatives)
-    model = _log2(k + 1)
-    data = 0.0
-    for alternative, profile in alternatives:
-        tokens = alternative.tokens
-        model += 2.0 + sum(4.0 + _log2(t.quantifier.low + 1) + (0.0 if t.quantifier.high is None else _log2(t.quantifier.high - t.quantifier.low + 1)) for t in tokens)
-        per_string = _log2(k)
-        for run in profile.runs:
-            bits = per_string
-            # Normal form may fuse adjacent tokens after a class join, so a run is charged under the token
-            # at its index, the last token absorbing the rest.
-            for i, length in enumerate(run):
-                token = tokens[min(i, len(tokens) - 1)] if tokens else None
-                if token is None:
-                    continue
-                if isinstance(token.atom, CharClass):
-                    bits += length * _log2(token.atom.size)
-                q = token.quantifier
-                bits += _log2(q.high - q.low + 1) if q.high is not None else _log2(length - q.low + 2)
-            data += bits
-    return model + data
+    strings = sum(len(profile.runs) for _, profile in alternatives)
+    return _log2(k + 1) + strings * _log2(k) + math.fsum(_item_bits(a, p) for a, p in alternatives)
+
+
+_MAX_PROFILES: Final = 64  # profiles a rung may hold before the greedy merge is skipped (free text, not a pattern)
 
 
 @dataclass(frozen=True, slots=True)
@@ -739,26 +746,53 @@ class Induction:
         return list(self._profiles)
 
     def _merge_down(self, items: list[tuple[Alternative, Profile]]) -> list[tuple[Alternative, Profile]] | None:
-        """Greedily merge the pair with the smallest estimated bit increase until the cap is met, or None."""
-        while len(items) > self._max_alternatives:
-            best: tuple[float, int, int, Alternative] | None = None
-            base = estimate_bits(items)
-            for i in range(len(items)):
-                for j in range(i + 1, len(items)):
-                    merged = merge_alternatives(items[i][0], items[j][0])
-                    if merged is None:
-                        continue
-                    joint = Profile(items[i][1].atoms, items[i][1].runs + items[j][1].runs, items[i][1].count + items[j][1].count)
-                    trial = [*items[:i], *items[i + 1 : j], *items[j + 1 :], (merged, joint)]
-                    increase = estimate_bits(trial) - base
-                    if best is None or (increase, i, j) < best[:3]:
-                        best = (increase, i, j, merged)
+        """Greedily merge the pair with the smallest estimated bit increase until the cap is met, or None.
+
+        The increase of merging two items is the merged item's bits minus
+        the two items' bits (the alternative-count terms change equally for
+        every pair), so each pair is evaluated once and only the pairs of a
+        newly merged item are evaluated again. More than
+        :data:`_MAX_PROFILES` profiles is free text, not a pattern: None.
+        """
+        if len(items) > _MAX_PROFILES:
+            return None
+        live: dict[int, tuple[Alternative, Profile, float]] = {i: (a, p, _item_bits(a, p)) for i, (a, p) in enumerate(items)}
+        order = list(range(len(items)))  # canonical order of the live items, for deterministic ties
+        pairs: dict[tuple[int, int], tuple[float, Alternative] | None] = {}
+
+        def evaluate(i: int, j: int) -> tuple[float, Alternative] | None:
+            key = (i, j)
+            if key not in pairs:
+                a, pa, bits_a = live[i]
+                b, pb, bits_b = live[j]
+                merged = merge_alternatives(a, b)
+                if merged is None:
+                    pairs[key] = None
+                else:
+                    joint = Profile(pa.atoms, pa.runs + pb.runs, pa.count + pb.count)
+                    pairs[key] = (_item_bits(merged, joint) - bits_a - bits_b, merged)
+            return pairs[key]
+
+        next_id = len(items)
+        while len(order) > self._max_alternatives:
+            best: tuple[float, int, int] | None = None
+            for x in range(len(order)):
+                for y in range(x + 1, len(order)):
+                    found = evaluate(order[x], order[y])
+                    if found is not None and (best is None or (found[0], x, y) < best):
+                        best = (found[0], x, y)
             if best is None:
                 return None
-            _, i, j, merged = best
-            joint = Profile(items[i][1].atoms, items[i][1].runs + items[j][1].runs, items[i][1].count + items[j][1].count)
-            items = [*items[:i], *items[i + 1 : j], *items[j + 1 :], (merged, joint)]
-        return items
+            _, x, y = best
+            i, j = order[x], order[y]
+            increase, merged = pairs[(i, j)]  # type: ignore[misc]
+            pa, pb = live[i][1], live[j][1]
+            joint = Profile(pa.atoms, pa.runs + pb.runs, pa.count + pb.count)
+            live[next_id] = (merged, joint, _item_bits(merged, joint))
+            del live[i], live[j]
+            order = [o for o in order if o not in (i, j)] + [next_id]
+            next_id += 1
+        return [(live[o][0], live[o][1]) for o in order]
 
     def candidates(self) -> Iterator[Induced]:
         """Yield one candidate per rung of :data:`LADDER` that reaches the alternatives cap, distinct sources once."""
