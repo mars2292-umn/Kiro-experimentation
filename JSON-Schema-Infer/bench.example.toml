@@ -3,8 +3,9 @@
 #
 #   git clone https://github.com/SchemaStore/schemastore.git checkouts/schemastore
 #   git -C checkouts/schemastore checkout <commit>          # the pinned commit; record it below
-#   git clone https://github.com/<jsonschemabench repository> checkouts/jsonschemabench
-#   git -C checkouts/jsonschemabench checkout <revision>    # the pinned revision; record it below
+#   The JSONSchemaBench schemas are the Hugging Face dataset epfl-dlab/JSONSchemaBench (parquet files per
+#   subset). Export them once to JSONL in a throwaway environment, which also prints the dataset revision:
+#   uv run --no-project --with pyarrow --with huggingface_hub python scripts/export_jsonschemabench.py checkouts/jsonschemabench-data
 #   jsinfer split -c bench.toml
 #
 # The first run writes corpus/manifest.json (schemas, linked test files, omissions with reasons) and
@@ -15,8 +16,8 @@
 manifest = "corpus/manifest.json"
 schemastore = "checkouts/schemastore"
 schemastore_commit = "<pinned commit>"
-# jsonschemabench = "checkouts/jsonschemabench"     # a directory of *.json schema files (see the loader's docstring)
-# jsonschemabench_revision = "<pinned revision>"
+# jsonschemabench = "checkouts/jsonschemabench-data"   # the JSONL export (one file per subset)
+# jsonschemabench_revision = "<dataset revision printed by the export>"
 
 [split]
 out = "split.json"

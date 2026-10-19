@@ -85,8 +85,12 @@ def _resolve(root: Any, pointer: str) -> Any:
 def _subschemas_by_path(root: Any) -> dict[Path, list[Any]]:
     by_path: dict[Path, list[Any]] = defaultdict(list)
     stack: list[tuple[Path, Any, frozenset[str]]] = [((), root, frozenset())]
+    walked: set[tuple[int, Path]] = set()  # a subschema reached twice at one Path (through two branches) counts once
     while stack:
         path, schema, chain = stack.pop()
+        if (id(schema), path) in walked:
+            continue
+        walked.add((id(schema), path))
         by_path[path].append(schema)
         if not isinstance(schema, dict):
             continue

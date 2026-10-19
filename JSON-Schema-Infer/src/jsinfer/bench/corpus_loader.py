@@ -15,9 +15,20 @@ lists among its versions, the ``catalog_group`` (the entry's name), which
 the split builder groups (30.2).
 
 :func:`load_jsonschemabench` reads a JSONSchemaBench checkout at a pinned
-revision: every ``*.json`` file under the configured directory, recursively,
-with the id ``jsonschemabench/<relative path without the extension>`` and the
-source ``jsonschemabench``.
+revision from the configured directory, recursively: every ``*.json`` file
+is one schema with the id ``jsonschemabench/<relative path without the
+extension>``, and every ``*.jsonl`` file holds one schema per line, as the
+Hugging Face dataset ``epfl-dlab/JSONSchemaBench`` exports (an object with
+the schema's JSON text under ``json_schema`` and, when present, its
+``unique_id``; other members such as the dataset's own ``split`` are kept
+in the entry's extras). A JSONL row gets the id ``jsonschemabench/<file
+stem>/<unique_id or 1-based line number>`` and the path ``<file>#<line>``,
+which :meth:`CorpusManifest.schema_path` cannot open; the schema text is
+therefore written next to the manifest under ``jsonschemabench/<file
+stem>/<row>.json`` by :func:`build_corpus`, and the entry's path points at
+that file. The parquet files of the dataset are converted with a script
+outside this package (``bench.example.toml`` says how), since no parquet
+reader is a dependency.
 
 A schema file that cannot be read or is not valid JSON, or whose root is not
 an object or a boolean, is omitted with its reason, and so are its test
@@ -188,18 +199,61 @@ def load_jsonschemabench(root: str | os.PathLike[str], revision: str) -> CorpusS
     if not base.is_dir():
         raise FileNotFoundError(f"no JSONSchemaBench checkout at {base}")
     source = CorpusSource("jsonschemabench", revision, base)
-    files = sorted((p for p in base.rglob("*.json") if p.is_file()), key=lambda p: codepoint_key(_relative(p, base)))
+    files = sorted((p for p in base.rglob("*") if p.is_file() and p.suffix in (".json", ".jsonl")), key=lambda p: codepoint_key(_relative(p, base)))
     for file in files:
         relative = _relative(file, base)
-        sid = f"jsonschemabench/{relative[: -len('.json')]}"
-        document, reason = _read_json(file)
-        if reason is None and not isinstance(document, (dict, bool)):
-            reason = "the root is not a schema object or boolean"
-        if reason is not None:
-            source.omitted.append(Omission(sid, reason))
+        if file.suffix == ".json":
+            sid = f"jsonschemabench/{relative[: -len('.json')]}"
+            document, reason = _read_json(file)
+            if reason is None and not isinstance(document, (dict, bool)):
+                reason = "the root is not a schema object or boolean"
+            if reason is not None:
+                source.omitted.append(Omission(sid, reason))
+                continue
+            source.entries.append(CorpusEntry(sid, "jsonschemabench", relative, {"snapshot": revision}))
             continue
-        source.entries.append(CorpusEntry(sid, "jsonschemabench", relative, {"snapshot": revision}))
+        _load_jsonl(source, file, relative, revision)
     return source
+
+
+def _load_jsonl(source: CorpusSource, file: Path, relative: str, revision: str) -> None:
+    """One schema per line of a JSONL export; see the module docstring."""
+    stem = relative[: -len(".jsonl")]
+    try:
+        lines = file.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        source.omitted.append(Omission(f"jsonschemabench/{stem}", f"cannot be read: {error}"))
+        return
+    seen: dict[str, int] = {}
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        where = f"{relative}#{number}"
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            source.omitted.append(Omission(where, f"not valid JSON: {error}"))
+            continue
+        if not isinstance(row, dict) or "json_schema" not in row:
+            source.omitted.append(Omission(where, "no json_schema member"))
+            continue
+        text = row["json_schema"]
+        try:
+            document = json.loads(text) if isinstance(text, str) else text
+        except json.JSONDecodeError as error:
+            source.omitted.append(Omission(where, f"json_schema is not valid JSON: {error}"))
+            continue
+        key = str(row.get("unique_id", number))
+        seen[key] = seen.get(key, 0) + 1
+        if seen[key] > 1:
+            key = f"{key}~{seen[key]}"  # a repeated unique_id stays unique within the file
+        sid = f"jsonschemabench/{stem}/{key}"
+        if not isinstance(document, (dict, bool)):
+            source.omitted.append(Omission(sid, "the root is not a schema object or boolean"))
+            continue
+        extra: dict[str, JSON] = {"snapshot": revision, "row": number, **{k: v for k, v in row.items() if k not in ("json_schema", "unique_id")}}
+        extra["schema_text"] = text if isinstance(text, str) else json.dumps(text)
+        source.entries.append(CorpusEntry(sid, "jsonschemabench", f"{relative}#{number}", extra))
 
 
 def build_corpus(sources: Iterable[CorpusSource], manifest_path: str | os.PathLike[str]) -> CorpusManifest:
@@ -212,8 +266,17 @@ def build_corpus(sources: Iterable[CorpusSource], manifest_path: str | os.PathLi
         snapshots[source.source] = source.snapshot
         root = source.root.resolve()
         for entry in source.entries:
-            path = Path(os.path.relpath(root / entry.path, directory)).as_posix()
             extra = dict(entry.extra)
+            text = extra.pop("schema_text", None)
+            if isinstance(text, str):  # a JSONL row: materialize the schema next to the manifest
+                target = directory / entry.id.replace("/", os.sep).replace(":", "_")
+                target = target.with_name(target.name + ".json")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+                path = Path(os.path.relpath(target, directory)).as_posix()
+                entries.append(CorpusEntry(entry.id, entry.source, path, extra))
+                continue
+            path = Path(os.path.relpath(root / entry.path, directory)).as_posix()
             tests = extra.get("tests")
             if isinstance(tests, dict):
                 extra["tests"] = {

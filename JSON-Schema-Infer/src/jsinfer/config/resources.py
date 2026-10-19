@@ -278,6 +278,7 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
     # Corpus_Advisor (25.1, 25.2)
     _count("nearest.ref_depth", 8, "Path depth up to which $ref is expanded in normalized Path sets (25.1)"),
     _count("nearest.next", 5, "next-nearest known schemas reported after the nearest one (25.2)", minimum=0),
+    _count("nearest.max_paths", 20_000, "distinct Paths a normalized Path set may hold before $ref expansion stops (25.1, 30.2)"),
     # Trainer and Synthetic_Generator (21.5, 22.1, 22.8, 23.3)
     _count("synth.collections_per_schema", 3, "Document_Collections generated per training- or validation-split schema (22.1)"),
     _count("synth.doc_attempts", 50, "generation attempts per document before the schema is excluded (22.8, 31.12)"),
@@ -290,6 +291,7 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
     SettingSpec("split.train", float, Interval(0, 1, low_open=True, high_open=True), 0.70, "training-split proportion of the Schema_Corpus, in schemas (30.2)"),
     SettingSpec("split.val", float, Interval(0, 1, low_open=True, high_open=True), 0.10, "validation-split proportion of the Schema_Corpus, in schemas (30.2)"),
     SettingSpec("split.held_out", float, Interval(0, 1, low_open=True, high_open=True), 0.20, "held-out-split proportion of the Schema_Corpus, in schemas (30.2)"),
+    SettingSpec("split.max_cutoff", float, Interval(0, 1, low_open=True), 0.9, "ceiling of the near-duplicate cut-off: pairs at or above it always group (30.2)"),
     _count("bootstrap.resamples", 2_000, "seeded bootstrap resamples per confidence interval (35.1)"),
     _seconds("subschema.timeout_s", 30.0, "per-check time limit of the Subschema_Checker in seconds (31.8)"),
     _seconds("bench.run_timeout_s", 1_800.0, "per-run time limit of a benchmarked system in seconds (31.13, 34.7)"),

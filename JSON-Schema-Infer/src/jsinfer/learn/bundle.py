@@ -932,6 +932,7 @@ def write_bundle(
         feature_spec = feature_spec_json()
     import joblib  # deferred: only writers pay for the import
 
+    Path(target).parent.mkdir(parents=True, exist_ok=True)  # the atomic rename needs the parent to exist
     with atomic_directory(target) as tmp:
         entries: dict[str, JSON] = {}
         for artifact in sorted(listed, key=lambda a: codepoint_key(a.name)):

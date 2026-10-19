@@ -74,6 +74,19 @@ def test_near_duplicate_cutoff_falls_back_to_one_without_enough_pairs() -> None:
         near_duplicate_cutoff([1.5])
 
 
+def test_the_cutoff_is_capped_at_the_ceiling() -> None:
+    inputs = SplitInputs({"a": paths("x", "y", "z", "w", "v"), "b": paths("x", "y", "z", "w", "u"), **{f"s{i}": paths(f"k{i}") for i in range(6)}})
+    builder = SplitBuilder(perm=32, bands=8)
+    proportions = {"split.train": 0.5, "split.val": 0.25, "split.held_out": 0.25}
+    capped = builder.build(inputs, split_id="t", seed=0, proportions=proportions, max_cutoff=0.6)
+    assert capped.extra["cutoff"]["selected"] == 1.0 and capped.extra["cutoff"]["value"] == 0.6  # too few pairs: 1.0, then capped
+    assert capped.extra["groups"]["a"] == capped.extra["groups"]["b"]  # Jaccard 5/7 >= 0.6
+    strict = builder.build(inputs, split_id="t", seed=0, proportions=proportions, max_cutoff=1.0)
+    assert strict.extra["groups"]["a"] != strict.extra["groups"]["b"]
+    with pytest.raises(SplitError, match="split.max_cutoff"):
+        builder.build(inputs, split_id="t", seed=0, proportions=proportions, max_cutoff=0.0)
+
+
 def test_a_bimodal_similarity_distribution_gives_a_cutoff_between_the_modes() -> None:
     similarities = [0.05, 0.08, 0.1, 0.12, 0.15, 0.1, 0.07, 0.09] * 3 + [0.9, 0.92, 0.95, 0.97, 0.93, 0.96] * 3
     cutoff, detail = near_duplicate_cutoff(similarities, seed=0)
@@ -155,7 +168,8 @@ def test_the_split_command_writes_the_corpus_manifest_and_the_split(tmp_path: Pa
     split = SchemaSplit.load(tmp_path / "split.json")
     assert split.split_of("schemastore/c") == "held_out" and split.extra["snapshots"] == {"schemastore": "c0ffee"}
     assert split.extra["groups"]["schemastore/a"] == split.extra["groups"]["schemastore/a-1"]
-    assert {"candidate_pairs", "criterion", "value"} <= set(split.extra["cutoff"])
+    assert {"candidate_pairs", "criterion", "value", "selected", "max_cutoff"} <= set(split.extra["cutoff"])
+    assert split.extra["cutoff"]["value"] <= split.extra["cutoff"]["max_cutoff"] == 0.9
     # Invalid proportions: exit 1 and no split written (30.10).
     bad = write_toml(tmp_path / "bad.toml", config.read_text(encoding="utf-8").replace('"split.val" = 0.25', '"split.val" = 0.5').replace('out = "split.json"', 'out = "nope.json"'))
     assert cli.main(["split", "-c", str(bad)]) == cli.EXIT_STAGE_ERROR

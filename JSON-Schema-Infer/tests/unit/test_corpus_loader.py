@@ -129,3 +129,32 @@ def test_the_manifest_is_written_with_paths_relative_to_it(schemastore: Path, tm
     assert [o["id"] for o in loaded.extra["omitted"]] == sorted(o["id"] for o in loaded.extra["omitted"])
     assert len(loaded.extra["omitted"]) == 5
     assert build_corpus([], manifest_path).ids() == ()
+
+
+def test_jsonschemabench_jsonl_exports_are_read_row_by_row(tmp_path: Path) -> None:
+    root = tmp_path / "jsb"
+    root.mkdir()
+    rows = [
+        {"unique_id": "o1", "json_schema": json.dumps({"type": "object"}), "split": "test"},
+        {"unique_id": "o1", "json_schema": json.dumps({"type": "string"}), "split": "train"},  # a repeated id
+        {"json_schema": "{broken"},
+        {"json_schema": json.dumps([1])},
+        {"other": 1},
+        "",
+    ]
+    (root / "Github_easy.jsonl").write_text("\n".join(r if isinstance(r, str) else json.dumps(r) for r in rows) + "\nnot json\n", encoding="utf-8")
+    source = load_jsonschemabench(root, "sha-1")
+    ids = [e.id for e in source.entries]
+    assert ids == ["jsonschemabench/Github_easy/o1", "jsonschemabench/Github_easy/o1~2"]
+    assert source.entries[0].extra["split"] == "test" and source.entries[0].extra["row"] == 1
+    reasons = {o.id: o.reason for o in source.omitted}
+    assert "json_schema is not valid JSON" in reasons["Github_easy.jsonl#3"]
+    assert reasons["jsonschemabench/Github_easy/4"] == "the root is not a schema object or boolean"
+    assert reasons["Github_easy.jsonl#5"] == "no json_schema member"
+    assert "not valid JSON" in reasons["Github_easy.jsonl#7"]
+    manifest_path = tmp_path / "corpus" / "manifest.json"
+    manifest = write_corpus_manifest([source], manifest_path)
+    loaded = CorpusManifest.load(manifest_path)
+    assert loaded.ids() == manifest.ids() == ("jsonschemabench/Github_easy/o1", "jsonschemabench/Github_easy/o1~2")
+    assert json.loads(loaded.schema_path("jsonschemabench/Github_easy/o1~2").read_text()) == {"type": "string"}
+    assert "schema_text" not in loaded.entries["jsonschemabench/Github_easy/o1"].extra

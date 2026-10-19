@@ -147,7 +147,9 @@ def _children(node: SchemaNode) -> Iterator[tuple[Path, SchemaNode]]:
         yield (ELEM_STEP,), items
 
 
-def walk_paths(model: SchemaModel, ref_depth: int = DEFAULT_REF_DEPTH) -> Iterator[tuple[Path, SchemaNode]]:
+def walk_paths(
+    model: SchemaModel, ref_depth: int = DEFAULT_REF_DEPTH, max_paths: int | None = None
+) -> Iterator[tuple[Path, SchemaNode]]:
     """Yield ``(Path, node)`` for every subschema the Path stepping reaches, ``$ref`` expanded up to ``ref_depth``.
 
     Every node yielded at a Path is one of the subschemas that constrain the
@@ -155,21 +157,36 @@ def walk_paths(model: SchemaModel, ref_depth: int = DEFAULT_REF_DEPTH) -> Iterat
     ``if``/``then``/``else`` branches, and the targets of followed ``$ref``.
     A reference is followed when its node's Path has at most ``ref_depth``
     steps; within one chain of references that adds no step, a target is
-    expanded once. Boolean schemas are yielded too. Paths are in canonical
-    order, nodes at one Path in pre-order.
+    expanded once. A node reached again at a Path it was already walked at
+    (through another branch or reference) is not walked twice: its subtree
+    yields the same Paths. With ``max_paths``, no new Path is opened once
+    that many distinct Paths have been yielded (the ``nearest.max_paths``
+    Resource_Parameter bounds the Path sets of recursive schemas, 25.1).
+    Boolean schemas are yielded too. Paths are in canonical order, nodes at
+    one Path in pre-order.
     """
     if isinstance(ref_depth, bool) or not isinstance(ref_depth, int) or ref_depth < 0:
         raise ValueError(f"ref_depth must be a non-negative int, got {ref_depth!r}")
+    if max_paths is not None and (isinstance(max_paths, bool) or not isinstance(max_paths, int) or max_paths < 1):
+        raise ValueError(f"max_paths must be a positive int or None, got {max_paths!r}")
     # (path, node, pointers expanded in the current step-less chain)
     stack: list[tuple[Path, SchemaNode, frozenset[str]]] = [((), model.root, frozenset())]
+    walked: set[tuple[int, Path]] = set()  # (id(node), Path) pairs, for membership only
+    opened: set[Path] = set()  # distinct Paths yielded, for the size cap only
     while stack:
         path, node, chain = stack.pop()
+        marker = (id(node), path)
+        if marker in walked:
+            continue
+        walked.add(marker)
+        opened.add(path)
         yield path, node
         if node.boolean is not None:
             continue
+        capped = max_paths is not None and len(opened) >= max_paths
         below: list[tuple[Path, SchemaNode, frozenset[str]]] = []
         ref = node.kw.get("$ref")
-        if isinstance(ref, str) and len(path) <= ref_depth:
+        if isinstance(ref, str) and len(path) <= ref_depth and not capped:
             pointer = ref_target(ref)
             if pointer is not None and pointer not in chain:
                 target = _resolve_ref(model, ref)
@@ -178,14 +195,18 @@ def walk_paths(model: SchemaModel, ref_depth: int = DEFAULT_REF_DEPTH) -> Iterat
         for branch in _branches(node):
             below.append((path, branch, chain))
         for step, child in _children(node):
+            if capped and path + step not in opened:
+                continue
             below.append((path + step, child, frozenset()))
         stack.extend(reversed(below))
 
 
-def normalized_paths(model: SchemaModel, ref_depth: int = DEFAULT_REF_DEPTH) -> frozenset[str]:
+def normalized_paths(
+    model: SchemaModel, ref_depth: int = DEFAULT_REF_DEPTH, max_paths: int | None = None
+) -> frozenset[str]:
     """The normalized Path set of ``model`` (Requirement 25.1), as rendered Path strings."""
     found: set[str] = set()
-    for path, _ in walk_paths(model, ref_depth):
+    for path, _ in walk_paths(model, ref_depth, max_paths):
         found.add(render_path(normalize_path(path)))
     return frozenset(found)
 

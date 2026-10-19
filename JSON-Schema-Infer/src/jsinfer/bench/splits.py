@@ -270,10 +270,12 @@ class SchemaSplit:
 #    ``minhash.perm`` permutations seeded from the split seed; LSH with
 #    ``lsh.bands`` bands retrieves candidate pairs, whose exact Jaccard
 #    similarity is computed.
-# 2. The cut-off is where the posterior of the highest-mean component of a
-#    1–3 component Gaussian mixture on the logit of the candidate similarities,
-#    selected by BIC, reaches 0.5; it is 1.0 when BIC selects one component or
-#    there are too few candidate pairs to fit a mixture.
+# 2. The selected cut-off is where the posterior of the highest-mean component
+#    of a 1–3 component Gaussian mixture on the logit of the candidate
+#    similarities, selected by BIC, reaches 0.5; it is 1.0 when BIC selects one
+#    component or there are too few candidate pairs to fit a mixture. The
+#    effective cut-off is the selected one capped at ``split.max_cutoff``, so
+#    pairs at or above the cap always group (30.2).
 # 3. Union-find over catalog version groups and over pairs at or above the
 #    cut-off gives the near-duplicate groups; a group is named by its smallest id.
 # 4. Forced groups go to the held-out split first: the groups of the
@@ -347,18 +349,23 @@ class SplitInputs:
         known_ids: Iterable[str] = (),
         known_files: Mapping[str, str | os.PathLike[str]] | None = None,
         ref_depth: int | None = None,
+        max_paths: int | None = None,
         loader: SchemaLoader | None = None,
     ) -> SplitInputs:
-        """Load every corpus schema and known schema file into Path sets, recording the 30.5 exclusions."""
+        """Load every corpus schema and known schema file into Path sets, recording the 30.5 exclusions.
+
+        ``ref_depth`` and ``max_paths`` default to ``nearest.ref_depth`` and ``nearest.max_paths``.
+        """
         loader = loader if loader is not None else SchemaLoader()
         depth = int(RESOURCE_PARAMETERS["nearest.ref_depth"].default if ref_depth is None else ref_depth)  # type: ignore[arg-type]
+        cap = int(RESOURCE_PARAMETERS["nearest.max_paths"].default if max_paths is None else max_paths)  # type: ignore[arg-type]
         paths: dict[str, frozenset[str]] = {}
         excluded: list[tuple[str, str]] = []
         for sid, entry in manifest.entries.items():
             model, reason = _load_for_paths(loader, manifest.schema_path(sid))
             if reason is not None:
                 excluded.append((sid, reason))
-            paths[sid] = frozenset({"$"}) if model is None else normalized_paths(model, depth)
+            paths[sid] = frozenset({"$"}) if model is None else normalized_paths(model, depth, cap)
         groups: dict[str, list[str]] = {}
         for sid, entry in manifest.entries.items():
             group = entry.extra.get("catalog_group")
@@ -373,7 +380,7 @@ class SplitInputs:
             model, reason = _load_for_paths(loader, Path(file))
             if model is None:
                 raise SplitError(f"known schema file {os.fspath(file)!r} of {name!r}: {reason}")
-            known_paths[name] = normalized_paths(model, depth)
+            known_paths[name] = normalized_paths(model, depth, cap)
         snapshots = {}
         for entry in manifest.entries.values():
             snapshot = entry.extra.get("snapshot")
@@ -529,16 +536,27 @@ class SplitBuilder:
         split_id: str,
         seed: int,
         proportions: Mapping[str, float] | None = None,
+        max_cutoff: float | None = None,
     ) -> SchemaSplit:
-        """The Schema_Split of ``inputs`` (30.2–30.5, 30.10); raises :class:`SplitError` without writing anything."""
+        """The Schema_Split of ``inputs`` (30.2–30.5, 30.10); raises :class:`SplitError` without writing anything.
+
+        ``max_cutoff`` caps the selected cut-off (``split.max_cutoff`` by default).
+        """
         if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
             raise SplitError(f"the seed must be a non-negative integer, got {seed!r}")
         targets = _check_proportions(proportions or {})
+        ceiling_spec = RESOURCE_PARAMETERS["split.max_cutoff"]
+        ceiling = ceiling_spec.default if max_cutoff is None else max_cutoff
+        problem = ceiling_spec.check(ceiling)
+        if problem is not None:
+            raise SplitError(f"invalid split.max_cutoff: {problem}")
         ids = sorted(inputs.paths, key=codepoint_key)
         if not ids:
             raise SplitError("the corpus holds no schema")
         similarities = self.candidate_similarities(inputs.paths, seed)
-        cutoff, detail = near_duplicate_cutoff(list(similarities.values()), seed)
+        selected, detail = near_duplicate_cutoff(list(similarities.values()), seed)
+        cutoff = min(selected, float(ceiling))  # type: ignore[arg-type]
+        detail = {**detail, "selected": selected, "max_cutoff": float(ceiling)}  # type: ignore[arg-type]
         groups = _UnionFind(ids)
         for versions in inputs.catalog_groups:
             members = [sid for sid in versions if sid in groups.parent]

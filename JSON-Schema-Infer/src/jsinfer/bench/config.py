@@ -18,8 +18,9 @@ Sections and settings, every path relative to the file's directory:
     corpus schemas are held out.
 ``[resources]``
     Resource_Parameter overrides: the split proportions ``split.train``,
-    ``split.val``, ``split.held_out`` (30.2, 30.10), ``minhash.perm``,
-    ``lsh.bands``, and ``nearest.ref_depth``.
+    ``split.val``, ``split.held_out`` (30.2, 30.10), the cut-off ceiling
+    ``split.max_cutoff``, ``minhash.perm``,
+    ``lsh.bands``, ``nearest.ref_depth``, and ``nearest.max_paths``.
 
 Other sections (``[datasets]``, ``[bench]``, ``[baselines]``) belong to later
 tasks and are kept as given in ``extra``. Invalid settings raise
@@ -45,9 +46,11 @@ BENCH_RESOURCES: Final[tuple[str, ...]] = (
     "split.train",
     "split.val",
     "split.held_out",
+    "split.max_cutoff",
     "minhash.perm",
     "lsh.bands",
     "nearest.ref_depth",
+    "nearest.max_paths",
 )
 _CORPUS_KEYS: Final = ("manifest", "schemastore", "schemastore_commit", "jsonschemabench", "jsonschemabench_revision")
 _SPLIT_KEYS: Final = ("out", "id", "seed", "known_schemas", "known_schema_files")

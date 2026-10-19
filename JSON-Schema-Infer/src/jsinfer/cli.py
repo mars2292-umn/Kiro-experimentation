@@ -704,10 +704,17 @@ def _split(args: argparse.Namespace) -> int:
             known_ids=config.known_schemas,
             known_files=config.known_schema_files,
             ref_depth=int(config.resource("nearest.ref_depth")),
+            max_paths=int(config.resource("nearest.max_paths")),
         )
         builder = SplitBuilder(perm=int(config.resource("minhash.perm")), bands=int(config.resource("lsh.bands")))
         proportions = {name: config.resource(name) for name in ("split.train", "split.val", "split.held_out")}
-        split = builder.build(inputs, split_id=config.split_id, seed=config.seed, proportions=proportions)
+        split = builder.build(
+            inputs,
+            split_id=config.split_id,
+            seed=config.seed,
+            proportions=proportions,
+            max_cutoff=float(config.resource("split.max_cutoff")),
+        )
         split.save(config.split_out)
     except (SplitError, SplitFormatError, OSError) as error:  # 30.10: nothing is written
         _error(f"split: {error}")
@@ -716,8 +723,9 @@ def _split(args: argparse.Namespace) -> int:
     groups: Any = split.extra["groups"]
     _say(
         f"wrote Schema_Split {split.id} ({len(split.train)} train, {len(split.val)} val, {len(split.held_out)} held out; "
-        f"{len(set(groups.values()))} near-duplicate groups; cut-off {cutoff['value']:.3f} from {cutoff['components']} "
-        f"mixture components over {cutoff['candidate_pairs']} candidate pairs) to {_quote(config.split_out)}"
+        f"{len(set(groups.values()))} near-duplicate groups; cut-off {cutoff['value']:.3f}, selected {cutoff['selected']:.3f} "
+        f"from {cutoff['components']} mixture components over {cutoff['candidate_pairs']} candidate pairs, "
+        f"capped at {cutoff['max_cutoff']:.2f}) to {_quote(config.split_out)}"
     )
     return EXIT_OK
 
