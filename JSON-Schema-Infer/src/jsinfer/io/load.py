@@ -180,9 +180,14 @@ References
     (an anchor), when its pointer does not resolve in the model (a missing
     location, a location inside a construct that was left out, or one that
     is not a schema, such as ``#/$defs`` itself), or when it sits in an
-    embedded schema resource. An embedded resource starts at a subschema
-    below the root whose draft id keyword (``id`` in draft-04, renamed to
-    ``$id`` by translation; ``$id`` otherwise) is not a bare fragment; in
+    embedded schema resource. A root ``id``/``$id`` of drafts 04 to 07 whose
+    value is a plain-name fragment (``#name``, an anchor for the root, which
+    ``#`` already names) is left out and recorded as ignored, since draft
+    2020-12 admits no such ``$id`` (the round trip of 2.8 would otherwise
+    emit a document its own meta-schema rejects). An embedded resource
+    starts at a subschema below the root whose draft id keyword (``id`` in
+    draft-04, renamed to ``$id`` by translation; ``$id`` otherwise) is not a
+    bare fragment; in
     drafts 04 to 07 translation has already left out an ``$id`` next to
     ``$ref``, which those drafts ignore. Its ``$id`` is unsupported, and
     every reference inside it is relative to that resource rather than to
@@ -669,6 +674,7 @@ class _Translator:
 
     __slots__ = (
         "_draft",
+        "_id_keyword",
         "_ignored",
         "_later_formats",
         "_positions",
@@ -680,6 +686,7 @@ class _Translator:
 
     def __init__(self, draft: Draft) -> None:
         self._draft = draft
+        self._id_keyword = "id" if draft is Draft.DRAFT4 else "$id"
         self._vocabulary = VOCABULARIES[draft]
         self._later_formats = _LATER_FORMATS[draft]
         # The pointer-rewrite map: source tokens -> doc tokens of every translated schema position.
@@ -733,6 +740,15 @@ class _Translator:
                     self._renamed[(join_pointer("", *doc), "dependentRequired")] = keyword
             elif keyword == "dependentRequired" and dependent is not None:
                 self._ignored.append((here, keyword))  # drafts 04 to 07 do not define it
+            elif (
+                keyword == self._id_keyword
+                and not source
+                and self._draft in _REF_OVERRIDES_SIBLINGS
+                and _is_anchor_fragment(value)
+            ):
+                # A root id of the form "#name" (drafts 04 to 07) only names the document as an anchor, which
+                # "#" already does; draft 2020-12 forbids such an $id, so it is left out and recorded (2.5).
+                self._ignored.append((here, keyword))
             elif draft4 and keyword == "id":
                 out["$id"] = value
                 self._renamed[(join_pointer("", *doc), "$id")] = keyword
@@ -852,6 +868,11 @@ _Task: TypeAlias = tuple[Any, str, str, bool, Any, Any]
 
 def _is_schema(value: Any) -> bool:
     return isinstance(value, (dict, bool))
+
+
+def _is_anchor_fragment(value: Any) -> bool:
+    """Whether an id value is a plain-name fragment (``#name``), which drafts 04 to 07 read as an anchor."""
+    return isinstance(value, str) and value.startswith("#") and len(value) > 1 and not value.startswith("#/")
 
 
 def _has_2020_12_shape(keyword: str, value: Any) -> bool:

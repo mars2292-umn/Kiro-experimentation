@@ -550,6 +550,19 @@ def test_dependencies_next_to_dependent_required_are_unsupported_in_2019_09(load
     assert (model.ignored, model.unsupported) == ([], [("", "dependencies")])
 
 
+@pytest.mark.parametrize("declared", [D4, D6, D7])
+def test_a_root_anchor_fragment_id_is_ignored(loader: SchemaLoader, declared: str) -> None:
+    # Found on the real corpus (jsonschemabench/Github_easy/o66299): a draft-04 root "id": "#field" became a
+    # 2020-12 $id with a fragment, which the emitted document's own meta-schema rejects (2.8).
+    keyword = "id" if declared == D4 else "$id"
+    model = loader.load({"$schema": declared, keyword: "#field", "type": "string"})
+    assert "$id" not in model.root.kw and model.ignored == [("", keyword)] and model.unsupported == []
+    emitted, _ = SchemaEmitter().layout(model)
+    assert loader.load(emitted) == model
+    kept = loader.load({"$schema": declared, keyword: "https://example.com/a.json#", "type": "string"})
+    assert kept.root.kw["$id"] == "https://example.com/a.json#" and kept.ignored == []
+
+
 def test_draft4_id_becomes_id(loader: SchemaLoader) -> None:
     schema = {
         "$schema": D4,
