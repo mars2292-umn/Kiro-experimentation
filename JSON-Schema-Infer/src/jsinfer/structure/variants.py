@@ -1623,8 +1623,11 @@ class VariantNode:
     views: tuple[View, ...]
     keyword: Combinator | None = None
     provenance: Mapping[int, ProvenanceRecord] = field(default_factory=dict)
+    kind: str = "variants"  # "variants": one branch per final Variant; "tagged_union": Discriminator value groups (10)
 
     def __post_init__(self) -> None:
+        if self.kind not in ("variants", "tagged_union"):
+            raise ValueError(f"kind must be 'variants' or 'tagged_union', got {self.kind!r}")
         if self.keyword is None:
             if len(self.views) != 1 or self.provenance:
                 raise ValueError("one final Variant has no combinator and no branch records")

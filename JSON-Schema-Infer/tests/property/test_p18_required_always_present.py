@@ -381,6 +381,7 @@ THRESHOLD_VALUES: dict[str, st.SearchStrategy[int | float]] = {
     "hdbscan.min_cluster_size": st.integers(2, 6),
     "cooccur.min_support": st.integers(1, 4),
     "cooccur.min_confidence": st.one_of(st.sampled_from([0.0, 0.5, 1.0]), st.floats(0.0, 1.0)),
+    "tagged.branch_support": st.one_of(st.sampled_from([0.0, 0.1, 0.3, 1.0]), st.floats(0.0, 1.0)),
 }
 THRESHOLD_TECHNIQUES = tuple(
     tid for tid in REGISTRY.ids() if any(name in THRESHOLD_VALUES for name in REGISTRY.technique(tid).thresholds)
@@ -399,6 +400,13 @@ def resource_values(draw: st.DrawFn) -> dict[str, int | float]:
         "variants.max_components": draw(st.integers(1, 6), label="variants.max_components"),
         "variants.em_max_iter": draw(st.sampled_from([1, 5, 100]), label="variants.em_max_iter"),
     }
+
+
+def _tagged_union(branches: Sequence[SchemaNode]) -> bool:
+    """Whether the branches fix one common property with const/enum/not (a Discriminator's value groups, 10.4)."""
+    properties = [b.kw.get("properties", {}) for b in branches]
+    common = set.intersection(*(set(p) for p in properties)) if properties else set()
+    return any(all(isinstance(p[name], SchemaNode) and {"const", "enum", "not"} & set(p[name].kw) for p in properties) for name in common)
 
 
 class StubBundle:
@@ -582,9 +590,20 @@ class Checker:
         where = render_path(path)
         outcome = self.final_variants(objects, path)
         views = outcome.views()
-        assert len(views) == len(branches), f"{where}: {len(views)} final Variants for {len(branches)} branches"
         by_loc = {o.loc: o for o in objects}
-        groups = [[by_loc[loc] for loc in self.row_locations(view)] for view in views]
+        if _tagged_union(branches):
+            # A Discriminator's value groups replaced the Variants (10): every object validates against exactly one
+            # branch (10.7), which assigns it; the branch views are the objects of each group.
+            compiled = [VALIDATOR.compile(branch.to_json()) for branch in branches]
+            groups = [[o for o in objects if VALIDATOR.is_valid(c, o.value)] for c in compiled]
+            assert Counter(o.loc for g in groups for o in g) == Counter(o.loc for o in objects), f"{where}: not exactly one branch"
+            parent = object_rows(View.root(self.store).descend(path))
+            locations = self.row_locations(parent)
+            views = tuple(parent.subset(np.array([loc in {o.loc for o in g} for loc in locations], dtype=bool)) for g in groups)
+            self.notes.add("Tagged_Union branches")
+        else:
+            assert len(views) == len(branches), f"{where}: {len(views)} final Variants for {len(branches)} branches"
+            groups = [[by_loc[loc] for loc in self.row_locations(view)] for view in views]
         assigned = Counter(o.loc for group in groups for o in group)
         assert assigned == Counter(o.loc for o in objects), f"{where}: the final Variants do not partition the objects"
 

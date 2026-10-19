@@ -195,11 +195,12 @@ from jsinfer.config.resources import ResourceReader
 from jsinfer.core.determinism import DEFAULT_SEED, sorted_codepoint
 from jsinfer.core.jsonvalue import JSON, JType
 from jsinfer.core.provenance import ProvenanceRecord, Support
-from jsinfer.core.report import InferenceReport
+from jsinfer.core.report import InferenceReport, RejectedCandidate
 from jsinfer.core.schema_model import ConstraintId, SchemaModel, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import ArtifactSource, DecisionEngine, DecisionPoint
 from jsinfer.deps.cooccurrence import CooccurrenceMiner
+from jsinfer.deps.tagged_unions import TREES, Discriminator, DiscriminatorMiner
 from jsinfer.structure.field_groups import DEPENDENT_REQUIRED, FieldGroupMiner, FieldGroups, merge_records
 from jsinfer.deps.presence import RequiredFields, required_fields
 from jsinfer.io.validator import Validator
@@ -213,7 +214,7 @@ from jsinfer.learn.features import (
     tuple_list_features,
 )
 from jsinfer.structure.record_map import ClosedOpenOutcome, RecordMapAnalyzer, RecordMapOutcome, object_rows
-from jsinfer.structure.variants import ANY_OF, MergeSplitOutcome, VariantAnalyzer, VariantNode
+from jsinfer.structure.variants import ANY_OF, ONE_OF, MergeSplitOutcome, VariantAnalyzer, VariantNode
 from jsinfer.values.inferrer import ScalarNode, ValueInferrer
 
 if TYPE_CHECKING:
@@ -278,6 +279,16 @@ class _Records:
     def update(self, records: Mapping[ConstraintId, ProvenanceRecord]) -> None:
         for cid, record in records.items():
             self.add(cid, record)
+
+    def drop(self, node: SchemaNode, keyword: str, item: str | int | None = None) -> None:
+        """Forget the record of one Constraint, if any (a replaced keyword)."""
+        self._by_node.get(node.nid, {}).pop((keyword, item), None)
+
+    def snapshot(self) -> dict[int, dict[tuple[str, str | int | None], ProvenanceRecord]]:
+        return {nid: dict(bucket) for nid, bucket in self._by_node.items()}
+
+    def restore(self, snapshot: dict[int, dict[tuple[str, str | int | None], ProvenanceRecord]]) -> None:
+        self._by_node = snapshot
 
     def move(self, source: SchemaNode, target: SchemaNode, *, skip: str) -> None:
         """Re-key the records of ``source`` to ``target``, dropping those of keyword ``skip``."""
@@ -378,7 +389,7 @@ class StructureAnalyzer:
     components; each must use ``values.engine``.
     """
 
-    __slots__ = ("_arrays", "_cooccurrence", "_field_groups_miner", "_record_map", "_records", "_values", "_variants")
+    __slots__ = ("_arrays", "_cooccurrence", "_discriminators", "_field_groups_miner", "_record_map", "_records", "_scorer", "_values", "_variants")
 
     def __init__(
         self,
@@ -392,6 +403,7 @@ class StructureAnalyzer:
         arrays: ArrayAnalyzer | None = None,
         cooccurrence: CooccurrenceMiner | None = None,
         field_groups: FieldGroupMiner | None = None,
+        discriminators: DiscriminatorMiner | None = None,
     ) -> None:
         if not isinstance(values, ValueInferrer):
             raise TypeError(f"values must be a ValueInferrer, got {type(values).__name__}")
@@ -401,12 +413,14 @@ class StructureAnalyzer:
         _check(arrays, ArrayAnalyzer, "arrays")
         _check(cooccurrence, CooccurrenceMiner, "cooccurrence")
         _check(field_groups, FieldGroupMiner, "field_groups")
+        _check(discriminators, DiscriminatorMiner, "discriminators")
         if variants is not None and (resources is not None or seed != DEFAULT_SEED):
             raise ValueError("resources and seed configure the default VariantAnalyzer and FieldGroupMiner; pass them to those instead")
         engine = values.engine
         validator = values.validator
         scorer = scorer if scorer is not None else MDLScorer(validator=validator)
         self._values = values
+        self._scorer = scorer
         # The default components judge with the versioned featurizers of learn.features (22.10).
         self._record_map = (
             record_map
@@ -441,12 +455,18 @@ class StructureAnalyzer:
             if field_groups is not None
             else FieldGroupMiner(engine, scorer=scorer, report=values.report, resources=resources, seed=seed)
         )
+        self._discriminators = (
+            discriminators
+            if discriminators is not None
+            else DiscriminatorMiner(engine, scorer=scorer, report=values.report, resources=resources, seed=seed)
+        )
         for name, component in (
             ("record_map", self._record_map),
             ("variants", self._variants),
             ("arrays", self._arrays),
             ("cooccurrence", self._cooccurrence),
             ("field_groups", self._field_groups_miner),
+            ("discriminators", self._discriminators),
         ):
             if component.engine is not engine:
                 raise ValueError(f"{name} must use the ValueInferrer's DecisionEngine")
@@ -623,7 +643,10 @@ class StructureAnalyzer:
 
         closed = self._record_map.closed_or_open(objects)
         split = self._variants.merge_or_split(self._variants.select(objects))
-        self._discriminator(objects, outcome, split)
+        tagged = self._discriminator(objects, outcome, split, closed)  # 10: value groups replace the Variants
+        if tagged is not None:
+            self._exclusions(objects, outcome, tagged)
+            return _Split(tagged, rows)
         # Each final Variant's index among the Path's Variants, by its rows (the views partition the objects).
         index = {variant.digest: position for position, variant in enumerate(split.views())}
         type_details: dict[int, dict[str, JSON]] = {}
@@ -713,7 +736,10 @@ class StructureAnalyzer:
             outcome = split.variants.outcome
             for position, branch in enumerate(split.variants.branches):
                 branches.append(branch)
-                records.append(outcome.branch_provenance(position, details={"combinator": ANY_OF}, total=rows))
+                if split.variants.kind == "tagged_union":
+                    records.append(split.variants.provenance[position])
+                else:
+                    records.append(outcome.branch_provenance(position, details={"combinator": ANY_OF}, total=rows))
         if isolated:
             assert scalar is not None
             branches.append(scalar.node)
@@ -785,10 +811,122 @@ class StructureAnalyzer:
             return FieldGroups(required.presence, index)
         return self._field_groups_miner.mine(required.presence, record=node, variant=index)
 
-    def _discriminator(self, objects: View, outcome: RecordMapOutcome, split: MergeSplitOutcome) -> None:
-        """10 (task 34.1): the Discriminator of a Record Path, whose value groups would replace the Variants; none yet."""
-        if outcome.keys_available:
-            self._planned(DISCRIMINATOR, objects)
+    def _discriminator(
+        self, objects: View, outcome: RecordMapOutcome, split: MergeSplitOutcome, closed: ClosedOpenOutcome
+    ) -> VariantNode | None:
+        """10: the Discriminator of a Record Path and its branches, or None when the Variants stand.
+
+        The miner selects the Discriminator (10.1–10.3, 10.6). Each dedicated
+        value group becomes a branch built like a Variant (so ``required``
+        lists the fields common to its objects, the Base_Fields among them,
+        10.4) with the Discriminator fixed by ``const`` or ``enum``; the
+        fallback branch (10.5, 10.8) requires only the Path's Base_Fields.
+        Every object must validate against exactly one branch (10.7); if
+        not, the branches are discarded, the failure recorded, and the
+        Variants stand.
+        """
+        if not outcome.keys_available:
+            return None
+        found = self._discriminators.mine(objects, split.views())
+        if found is None:
+            return None
+        name = found.name
+        base = list(required_fields(objects).presence.required)
+        enum_closed = self._closed_enum(objects.child_key(name))
+        n = len(objects)
+        snapshot = self._records.snapshot()
+        views: list[View] = []
+        branches: list[SchemaNode] = []
+        details: list[dict[str, JSON]] = []
+        for index, (group, mask) in enumerate(zip(found.dedicated, found.masks)):
+            view = objects.subset(mask)
+            node, _ = self._variant_node(view, index, outcome, closed)
+            self._fix_discriminator(node, name, group.constraint(), found)
+            views.append(view)
+            branches.append(node)
+            details.append({"branch": "dedicated", "value_group": list(group.values), "support_ratio": group.ratio})
+        if found.below or not enum_closed:
+            fallback_view = objects.subset(found.fallback_mask)
+            if not fallback_view.is_empty:
+                node, _ = self._variant_node(fallback_view, len(branches), outcome, closed)
+                self._restrict_required(node, base)
+            else:
+                node = SchemaNode(kw={_TYPE: [_OBJECT_TYPE], "properties": {name: SchemaNode(kw={})}})
+                if base:
+                    node.kw["required"] = list(base)
+                self._records.put(node, _TYPE, _type_record(0))
+            constraint: dict[str, JSON] = {"enum": found.fallback_values} if enum_closed else {"not": {"enum": found.dedicated_values}}
+            self._fix_discriminator(node, name, constraint, found)
+            views.append(fallback_view)
+            branches.append(node)
+            details.append({"branch": "fallback", "value_group": found.fallback_values, "closed_enum": enum_closed})
+        if len(branches) < 2 or not self._exactly_one(objects, branches, name, found):
+            self._records.restore(snapshot)
+            return None
+        combined = SchemaNode(kw={ONE_OF: branches})
+        provenance = {
+            i: found.decision.provenance(
+                Support(len(view), n), sample=found.sample, details={**found.details(), **extra, "combinator": ONE_OF}
+            )
+            for i, (view, extra) in enumerate(zip(views, details))
+        }
+        return VariantNode(objects.path, combined, split, tuple(views), ONE_OF, provenance, kind="tagged_union")
+
+    def _closed_enum(self, child: View) -> bool:
+        """Whether the Value_Inferrer judges the Discriminator's Path a Closed_Enum (10.8), without report entries."""
+        from jsinfer.values.enums import judge_enum
+
+        engine = self._values.engine
+        side = DecisionEngine(engine.techniques, bundle=engine.bundle, scorer=self._scorer_of())
+        return judge_enum(child.live(), side, scorer=self._scorer_of(), features=self._values.enum_features).closed
+
+    def _scorer_of(self) -> MDLScorer:
+        return self._scorer
+
+    def _fix_discriminator(self, node: SchemaNode, name: str, constraint: Mapping[str, JSON], found: Discriminator) -> None:
+        """Constrain property ``name`` of a branch with ``constraint``, replacing any enum/const the values gave it."""
+        properties = node.kw.setdefault("properties", {})
+        child = properties.get(name)
+        if not isinstance(child, SchemaNode) or child.boolean is not None:
+            child = SchemaNode(kw={})
+            properties[name] = child
+        for keyword in ("enum", "const", "not"):
+            if keyword in child.kw:
+                del child.kw[keyword]
+                self._records.drop(child, keyword)
+        for keyword, value in constraint.items():
+            child.kw[keyword] = SchemaNode.from_json(value) if keyword == "not" else value
+            n = found.candidate.score.n_scored
+            extra: dict[str, JSON] = {"discriminator": name, "value_group": value} if keyword != "not" else {"discriminator": name, "not_values": value["enum"]}
+            self._records.put(child, keyword, found.decision.provenance(Support(n, n), sample=found.sample, details=extra))
+
+    def _restrict_required(self, node: SchemaNode, base: Sequence[str]) -> None:
+        """The fallback branch requires only the Base_Fields (10.5): drop the other required entries and their records."""
+        listed = node.kw.get("required")
+        if not isinstance(listed, list):
+            return
+        for name in listed:
+            if name not in base:
+                self._records.drop(node, "required", name)
+        kept = [name for name in listed if name in base]
+        if kept:
+            node.kw["required"] = kept
+        else:
+            del node.kw["required"]
+
+    def _exactly_one(self, objects: View, branches: Sequence[SchemaNode], name: str, found: Discriminator) -> bool:
+        """10.7: every non-flagged object validates against exactly one branch; a failure is recorded."""
+        from jsinfer.mdl.scorer import _rebuild
+
+        validator = self._values.validator
+        compiled = [validator.compile({**branch.to_json()}) for branch in branches]
+        documents = _rebuild(objects, np.arange(len(objects)))
+        bad = sum(1 for document in documents if sum(1 for c in compiled if validator.is_valid(c, document)) != 1)
+        if bad and self._values.report is not None:
+            self._values.report.record_rejected(
+                RejectedCandidate("rules", render_path(objects.path), {"discriminator": name}, TREES, {"reason": "not exactly one branch", "objects": bad})
+            )
+        return bad == 0
 
     def _exclusions(self, objects: View, outcome: RecordMapOutcome, emitted: VariantNode) -> None:
         """11 (task 35.1): the Exclusion_Rules of a Record Path, given its branches; none yet (11.7)."""

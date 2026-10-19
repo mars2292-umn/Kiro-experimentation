@@ -100,6 +100,10 @@ from jsinfer.values.inferrer import ValueInferrer
 __all__ = [
     "EXCLUSION_CAUSES",
     "M2_THRESHOLDS",
+    "TAGGED_THRESHOLD",
+    "TaggedUnionExample",
+    "fit_tagged_threshold",
+    "tagged_union_examples",
     "CooccurrenceExample",
     "Example",
     "ExampleSet",
@@ -645,6 +649,113 @@ def _rule_f1(examples: Sequence[CooccurrenceExample], min_support: float, min_co
     return 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) else 0.0
 
 
+# -- tagged-union examples (branch F1, task 34.1) ----------------------------------
+
+
+@dataclass(frozen=True, eq=False)
+class TaggedUnionExample:
+    """The Discriminator candidates of one Record Path (their value groups with Support ratios) and the schema's union."""
+
+    schema_id: str
+    path: Path
+    candidates: tuple[tuple[str, float, tuple[tuple[tuple[Any, ...], float], ...]], ...]  # (name, bits, ((values, ratio), ...))
+    truth: tuple[str, frozenset[Any]] | None  # (discriminator, its branch values) when the schema holds a Tagged_Union
+
+
+def _schema_tagged_union(model: SchemaModel, path: Path, max_depth: int) -> tuple[str, frozenset[Any]] | None:
+    from jsinfer.bench.metrics import _tagged_union
+
+    for found, node in walk_paths(model, max_depth):
+        if found != path or node.boolean is not None:
+            continue
+        union = _tagged_union(node)
+        if union is not None:
+            return union[1], union[2]
+    return None
+
+
+def tagged_union_examples(
+    featurized: Iterable[FeaturizedCollection], max_depth: int = DEFAULT_MAX_DEPTH, *, resources: Mapping[str, Any] | None = None
+) -> list[TaggedUnionExample]:
+    """One example per Record Path with a Discriminator candidate or a Tagged_Union in the schema (10.1–10.4)."""
+    from jsinfer.core.jsonvalue import canonical_key
+    from jsinfer.decide.engine import DecisionEngine
+    from jsinfer.deps.tagged_unions import DiscriminatorMiner, sibling_features, value_groups
+
+    reader = ResourceReader.of(resources)
+    max_depth_trees = int(reader.read("trees.max_depth"))
+    max_values = int(reader.read("trees.max_values"))
+    miner = DiscriminatorMiner(DecisionEngine({}), resources=resources)
+    out: list[TaggedUnionExample] = []
+    for item in featurized:
+        root = View.root(item.store)
+        done: set[Path] = set()
+        for example in item.examples.of_kind("record_or_map"):
+            if example.label != "record" or example.path in done:
+                continue
+            done.add(example.path)
+            try:
+                view = object_rows(root.descend(example.path))
+            except (KeyError, ValueError):
+                continue
+            if len(view) < 2:
+                continue
+            features = sibling_features(view, max_values)
+            candidates: list[tuple[str, float, tuple[tuple[tuple[Any, ...], float], ...]]] = []
+            if features.names:
+                p = presence(view)
+                trees = miner.trees(features, p, (), view, max_depth=max_depth_trees)
+                splits = [split for tree in trees for split in tree.splits]
+                for name in features.candidates():
+                    if not any(split.feature == name for split in splits):
+                        continue
+                    groups = value_groups(features, name, splits)
+                    if len(groups) < 2:
+                        continue
+                    score = miner._partition_score(view, features, name, groups)
+                    candidates.append((name, score.total, tuple((tuple(canonical_key(v) for v in g.values), g.ratio) for g in groups)))
+            truth = _schema_tagged_union(item.model, example.schema_path, max_depth)
+            if candidates or truth is not None:
+                out.append(TaggedUnionExample(item.schema_id, example.path, tuple(candidates), truth))
+    return out
+
+
+def _branch_f1(examples: Sequence[TaggedUnionExample], threshold: float) -> float:
+    """F1 of the dedicated branches (value sets) of the selected Discriminator against the schema's union branches."""
+    tp = fp = fn = 0
+    for example in examples:
+        eligible = [c for c in example.candidates if any(ratio >= threshold for _, ratio in c[2])]
+        predicted: set[tuple[str, frozenset[Any]]] = set()
+        if eligible:
+            name, _, groups = min(eligible, key=lambda c: (c[1], codepoint_key(c[0])))
+            predicted = {(name, frozenset(values)) for values, ratio in groups if ratio >= threshold}
+        truth: set[tuple[str, frozenset[Any]]] = set()
+        if example.truth is not None:
+            name, values = example.truth
+            truth = {(name, frozenset([v])) for v in values}
+        tp += len(predicted & truth)
+        fp += len(predicted - truth)
+        fn += len(truth - predicted)
+    return 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) else 0.0
+
+
+def fit_tagged_threshold(
+    featurized: Iterable[FeaturizedCollection], *, training_data: str, max_depth: int = DEFAULT_MAX_DEPTH, resources: Mapping[str, Any] | None = None
+) -> tuple[dict[str, ThresholdRecord], list[OmittedThreshold]]:
+    """Fit ``tagged.branch_support`` on the validation split by branch F1 (20.3, 20.4), or omit it with a reason."""
+    validation = [item for item in featurized if item.split in (None, "val", "validation")]
+    examples = tagged_union_examples(validation, max_depth, resources=resources)
+    if not examples:
+        return {}, [OmittedThreshold(TAGGED_THRESHOLD, "no validation-split Record Path with a Discriminator candidate or a Tagged_Union (discriminator)")]
+    ratios = np.asarray([ratio for e in examples for _, _, groups in e.candidates for _, ratio in groups] or [0.5], dtype=np.float64)
+    record = fit_threshold(THRESHOLDS[TAGGED_THRESHOLD], ratios, lambda t: _branch_f1(examples, t), n_examples=len(examples), training_data=training_data)
+    return {TAGGED_THRESHOLD: record}, []
+
+
+TAGGED_THRESHOLD: Final = "tagged.branch_support"
+assert THRESHOLDS[TAGGED_THRESHOLD].objective == "tagged_union_f1"
+
+
 # -- the M2 thresholds -----------------------------------------------------------
 
 
@@ -1168,6 +1279,15 @@ class Trainer:
             )
         except Exception as error:  # noqa: BLE001
             raise TrainingError("thresholds", f"{type(error).__name__}: {error}") from error
+        try:
+            tagged_records, tagged_omitted = fit_tagged_threshold(
+                featurized, training_data=training_data, max_depth=max_depth,
+                resources={name: cfg.resource(name) for name in ("trees.max_depth", "trees.max_values", "sample.trees")},
+            )
+        except Exception as error:  # noqa: BLE001
+            raise TrainingError("thresholds", f"{type(error).__name__}: {error}") from error
+        records.update(tagged_records)
+        omitted_thresholds.extend(tagged_omitted)
         for spec in THRESHOLDS.values():
             if spec.name not in records and not any(o.name == spec.name for o in omitted_thresholds):
                 omitted_thresholds.append(OmittedThreshold(spec.name, "no training stage fits it yet (its Technique is not implemented)"))

@@ -833,7 +833,7 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
     _technique("rules.cooccurrence", "Co-occurrence mining", "must",
                implemented=True, thresholds=("cooccur.min_confidence", "cooccur.min_support")),
     _technique("rules.decision_trees", "per-field decision trees for Tagged_Unions", "should",
-               implemented=False, sample_param="sample.trees", thresholds=("tagged.branch_support",)),
+               implemented=True, sample_param="sample.trees", thresholds=("tagged.branch_support",)),
     _technique("rules.exclusion", "exclusion mining", "should",
                implemented=False, thresholds=("exclusion.min_confidence",)),
     _technique("rules.keys", "key discovery", "could",

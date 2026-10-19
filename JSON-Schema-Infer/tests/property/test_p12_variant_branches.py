@@ -424,6 +424,7 @@ THRESHOLD_VALUES: dict[str, st.SearchStrategy[int | float]] = {
     "hdbscan.min_cluster_size": st.integers(2, 6),
     "cooccur.min_support": st.integers(1, 5),
     "cooccur.min_confidence": st.floats(0.0, 1.0),
+    "tagged.branch_support": st.one_of(st.sampled_from([0.0, 0.1, 0.3, 1.0]), st.floats(0.0, 1.0)),
 }
 THRESHOLD_TECHNIQUES = (*GROUPING_TECHNIQUES, COOCCURRENCE)
 

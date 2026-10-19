@@ -164,7 +164,7 @@ def test_the_m2_thresholds_are_fitted_on_validation_examples(planted: Any) -> No
     rules = cooccurrence_examples([planted])
     assert any(("street", "city") in r.truth for r in rules)
     records, omitted = fit_m2_thresholds([planted], training_data="unit")
-    assert omitted == [] and sorted(records) == sorted(M2_THRESHOLDS)
+    assert omitted == [] and sorted(records) == sorted(M2_THRESHOLDS)  # fit_m2_thresholds; tagged.branch_support is fit_tagged_threshold's
     for name, record in records.items():
         assert record.name == name and record.training_data == "unit" and record.n_examples >= 1
         assert THRESHOLDS[name].check_value(record.value) is None

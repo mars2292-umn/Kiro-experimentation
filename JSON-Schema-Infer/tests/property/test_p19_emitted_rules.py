@@ -579,6 +579,7 @@ THRESHOLD_VALUES: dict[str, st.SearchStrategy[int | float]] = {
     MIN_CONFIDENCE: st.one_of(_UNIT, st.integers(1, 12).map(rule_confidence)),
     EXCLUSION_THRESHOLD: _UNIT,
     **{threshold: _UNIT for _, threshold in ANNOTATIONS.values()},
+    "tagged.branch_support": st.one_of(st.sampled_from([0.0, 0.1, 0.3, 1.0]), st.floats(0.0, 1.0)),
 }
 THRESHOLD_TECHNIQUES = tuple(
     tid for tid in REGISTRY.ids() if any(name in THRESHOLD_VALUES for name in REGISTRY.technique(tid).thresholds)
@@ -598,6 +599,13 @@ def resource_values(draw: st.DrawFn) -> dict[str, int | float]:
         "variants.em_max_iter": draw(st.sampled_from([1, 5, 100]), label="variants.em_max_iter"),
         MAX_PASSES: draw(st.sampled_from([1, 2, 5]), label=MAX_PASSES),
     }
+
+
+def _tagged_union(branches: Sequence[SchemaNode]) -> bool:
+    """Whether the branches fix one common property with const/enum/not (a Discriminator's value groups, 10.4)."""
+    properties = [b.kw.get("properties", {}) for b in branches]
+    common = set.intersection(*(set(p) for p in properties)) if properties else set()
+    return any(all(isinstance(p[name], SchemaNode) and {"const", "enum", "not"} & set(p[name].kw) for p in properties) for name in common)
 
 
 class StubBundle:
@@ -811,11 +819,16 @@ class Router:
             self.array(node, arrays, path)
 
     def split(self, branches: Sequence[SchemaNode], objects: Sequence[Inst], path: Path) -> None:
-        """A split Record: assign the objects to branches by the final Variants' views."""
-        views = self.final_variants(objects, path).views()
-        assert len(views) == len(branches), f"{render_path(path)}: {len(views)} Variants for {len(branches)} branches"
+        """A split Record: assign the objects to branches by the final Variants' views, or by a Discriminator (10)."""
         by_loc = {o.loc: o for o in objects}
-        groups = [[by_loc[loc] for loc in self.row_locations(view)] for view in views]
+        if _tagged_union(branches):
+            compiled = [VALIDATOR.compile(branch.to_json()) for branch in branches]
+            groups = [[o for o in objects if VALIDATOR.is_valid(c, o.value)] for c in compiled]
+            views = tuple(groups)  # only the count matters below
+        else:
+            views = self.final_variants(objects, path).views()
+            assert len(views) == len(branches), f"{render_path(path)}: {len(views)} Variants for {len(branches)} branches"
+            groups = [[by_loc[loc] for loc in self.row_locations(view)] for view in views]
         assigned = Counter(o.loc for g in groups for o in g)
         assert assigned == Counter(o.loc for o in objects), f"{render_path(path)}: Variants ≠ a partition"
         for i, (branch, group) in enumerate(zip(branches, groups)):

@@ -441,7 +441,7 @@ def test_disabled_cooccurrence_mining_emits_no_rules_and_keeps_required(bundles:
     assert [e for e in result.report.rejected if e.category == "rules"] == []
     assert COOCCURRENCE not in techniques_named(result)
     # A disabled Technique's thresholds are not read (20.6); only the absent Decision_Models are substituted.
-    assert all(s.fallback.reason == "missing-model" for s in result.report.substitutions)
+    assert all(s.fallback.reason == "missing-model" or s.fallback.reason == "missing-threshold" for s in result.report.substitutions)  # the loose bundle also lacks tagged.branch_support
 
 
 # ---------------------------------------------------------------------------

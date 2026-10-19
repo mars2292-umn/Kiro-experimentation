@@ -34,7 +34,7 @@ from jsinfer.learn.bundle import (
 )
 from jsinfer.learn.decision_models import DecisionModel
 from jsinfer.learn.features import FEATURE_SPEC, feature_spec_json
-from jsinfer.learn.trainer import M2_THRESHOLDS, Trainer, TrainingConfig, TrainingError
+from jsinfer.learn.trainer import M2_THRESHOLDS, TAGGED_THRESHOLD, Trainer, TrainingConfig, TrainingError
 from jsinfer.pipeline.infer import infer_documents
 from jsinfer.config.run_config import RunConfiguration
 from tests.conftest import FIXTURE_MANIFEST, FIXTURE_SPLIT, TINY_TRAINING
@@ -58,7 +58,8 @@ def test_tiny_bundle_holds_a_decision_model_per_kind_and_the_m2_thresholds(tiny_
         assert bundle.digests[name] == sha256_of(bundle.root / relative)
         model = bundle.load_artifact(name)
         assert isinstance(model, DecisionModel) and model.feature_dim == len(FEATURE_SPEC[model.kind])
-    assert sorted(bundle.threshold_values()) == sorted(M2_THRESHOLDS)
+    fitted = set(bundle.threshold_values())
+    assert set(M2_THRESHOLDS) <= fitted <= set(M2_THRESHOLDS) | {TAGGED_THRESHOLD}  # the fixture corpus may hold a Tagged_Union
     manifest = manifest_of(tiny_bundle)
     assert manifest["schema_split"] == {"id": "fixture-split", "seed": 0}
     assert len(manifest["schemas"]["train"]) == 14 and len(manifest["schemas"]["val"]) == 12
@@ -72,7 +73,7 @@ def test_tiny_bundle_holds_a_decision_model_per_kind_and_the_m2_thresholds(tiny_
     assert "corpus.index" in omitted and "semantic_type" in omitted and "label_model.record_or_map" in omitted
     assert all("not implemented" in reason for reason in omitted.values())
     left_out = {o["name"] for o in manifest["omitted_thresholds"]}
-    assert left_out == set(THRESHOLDS) - set(M2_THRESHOLDS)
+    assert left_out == set(THRESHOLDS) - fitted
     assert set(manifest["example_exclusions"]) == set(JUDGMENT_OUTCOMES)
     # The run's Technique states resolve every model (nothing substituted for the Decision_Models).
     resolved = bundle.resolve(ALL_ON)

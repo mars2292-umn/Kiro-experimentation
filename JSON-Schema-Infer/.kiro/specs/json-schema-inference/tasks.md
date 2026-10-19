@@ -645,15 +645,15 @@ Conventions used by every task:
     - **Property 17: Mining primitives equal brute-force references** (FP-growth frequent itemsets)
     - **Validates: Requirements 6.3**
 
-- [ ] 34. Implement Tagged_Unions with per-field decision trees
-  - [ ] 34.1 Implement trees and Discriminators (`deps/tagged_unions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)
+- [x] 34. Implement Tagged_Unions with per-field decision trees
+  - [x] 34.1 Implement trees and Discriminators (`deps/tagged_unions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)
     - In-house categorical tree with splits `P == v`: grown while DL decreases, post-pruned, limited by `trees.max_depth` and `trees.max_values`, sampled at `sample.trees`. Trees per field-presence target and per Variant target
     - Discriminator candidates are present everywhere and are strings, integers, or booleans. Select by DL with `tagged.branch_support` eligibility and ties by name; report non-selected candidates
     - Branches: dedicated `const`/`enum` branches with `required`, and a fallback branch per 10.5 and 10.8; exactly-one validation; value groups replace Variant branches
     - Extend the branch routing of Properties 12, 18, and 19 (which follow the Variant branches) to Discriminator value groups
     - Register the `tagged.branch_support` objective (branch F1)
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
-  - [ ] 34.2 Write property test for Tagged_Unions
+  - [x] 34.2 Write property test for Tagged_Unions
     - **Property 20: Tagged unions are exact**
     - **Validates: Requirements 10.1, 10.2, 10.4, 10.5, 10.7, 10.8**
 
