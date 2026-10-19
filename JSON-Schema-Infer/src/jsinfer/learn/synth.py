@@ -63,6 +63,7 @@ Exclusions (22.8)
 from __future__ import annotations
 
 import copy
+import itertools
 import math
 import re
 import re._parser as _sre_parse
@@ -81,7 +82,7 @@ from jsinfer.core.paths import ELEM_STEP, MAPVAL_STEP, Path, key_step, render_pa
 from jsinfer.core.schema_model import SchemaModel, SchemaNode
 from jsinfer.corpus.normalize import normalize_name, ref_target, walk_paths
 from jsinfer.io.validator import CompileError, Validator
-from jsinfer.learn.labels import Labels, derive_labels
+from jsinfer.learn.labels import Labels, derive_labels, labels_of_walk
 from jsinfer.values.formats import FORMATS
 
 __all__ = [
@@ -106,6 +107,7 @@ _DEFAULT_MAX_SCHEMA_NODES: Final[int] = int(RESOURCE_PARAMETERS["synth.max_schem
 # The optional-field walk is capped like every other Path walk (``nearest.max_paths``): a schema whose
 # references multiply its Paths past the cap keeps the fields found so far, and the rest stay present.
 _MAX_PATHS: Final[int] = int(RESOURCE_PARAMETERS["nearest.max_paths"].default)  # type: ignore[arg-type]
+_MAX_WALK: Final[int] = 200_000  # (Path, node) pairs one schema's shared label/presence walk may visit
 _DEFAULT_DOC_ATTEMPTS: Final[int] = int(RESOURCE_PARAMETERS["synth.doc_attempts"].default)  # type: ignore[arg-type]
 
 _SCALAR_NAMES: Final = ("null", "boolean", "integer", "number", "string")
@@ -771,10 +773,24 @@ def _merge(eff: _Effective, node: SchemaNode) -> None:
 
 def _in(value: JSON, values: Sequence[JSON]) -> bool:
     try:
-        key = canonical_key(value)
-        return any(canonical_key(v) == key for v in values)
+        return canonical_key(value) in _key_set(values)
     except (TypeError, ValueError):
         return False
+
+
+_KEY_SETS: dict[int, tuple[Sequence[JSON], frozenset[Any]]] = {}
+
+
+def _key_set(values: Sequence[JSON]) -> frozenset[Any]:
+    """The canonical keys of ``values``, computed once per list object (large enums made membership quadratic)."""
+    cached = _KEY_SETS.get(id(values))
+    if cached is not None and cached[0] is values:
+        return cached[1]
+    keys = frozenset(canonical_key(v) for v in values)
+    if len(_KEY_SETS) > 4096:
+        _KEY_SETS.clear()
+    _KEY_SETS[id(values)] = (values, keys)
+    return keys
 
 
 # ---------------------------------------------------------------------------
@@ -946,10 +962,18 @@ class _DocumentGenerator:
 
     def _skewed(self, allowed: Sequence[JSON], declared: Sequence[JSON]) -> JSON:
         """One of ``allowed`` with Zipf weights by rank in the declared ``enum`` order."""
+        first: dict[Any, int] = {}
+        for i, d in enumerate(declared):
+            try:
+                first.setdefault(canonical_key(d), i)
+            except (TypeError, ValueError):
+                continue
         ranks: list[int] = []
         for value in allowed:
-            rank = next((i for i, d in enumerate(declared) if _in(value, [d])), len(declared))
-            ranks.append(rank)
+            try:
+                ranks.append(first.get(canonical_key(value), len(declared)))
+            except (TypeError, ValueError):
+                ranks.append(len(declared))
         weights = np.array([(rank + 1.0) ** -self.params.enum_skew for rank in ranks], dtype=float)
         weights /= weights.sum()
         return allowed[int(self.rng.choice(len(allowed), p=weights))]
@@ -1224,8 +1248,12 @@ class _DocumentGenerator:
 
 def _optional_fields(model: SchemaModel, max_depth: int) -> list[str]:
     """The rendered Paths of the optional properties of ``model`` (every property not required at its Path)."""
+    return _optional_fields_of_walk(walk_paths(model, max_depth, _MAX_PATHS))
+
+
+def _optional_fields_of_walk(walk: Iterable[tuple[Path, SchemaNode]]) -> list[str]:
     by_path: dict[Path, list[SchemaNode]] = defaultdict(list)
-    for path, node in walk_paths(model, max_depth, _MAX_PATHS):
+    for path, node in walk:
         by_path[path].append(node)
     found: dict[str, None] = {}
     for path in sorted(by_path, key=path_sort_key):
@@ -1256,14 +1284,15 @@ def _document_seed(seed: int, schema_id: str, k: int, doc_index: int) -> np.rand
     return np.random.SeedSequence([seed, stable_hash32(schema_id), k, doc_index])
 
 
-def sample_parameters(model: SchemaModel, cfg: GeneratorConfig, rng: np.random.Generator) -> SampledParameters:
-    """Sample the collection parameters of 22.2 from ``cfg`` with ``rng``."""
+def sample_parameters(
+    model: SchemaModel, cfg: GeneratorConfig, rng: np.random.Generator, optional_fields: Sequence[str] | None = None
+) -> SampledParameters:
+    """Sample the collection parameters of 22.2 from ``cfg`` with ``rng``; ``optional_fields`` when precomputed."""
     size = int(rng.integers(cfg.size_min, cfg.size_max + 1))
     array_length_mean = float(rng.uniform(0.0, cfg.array_length_max)) if cfg.array_length_max > 0 else 0.0
     enum_skew = float(rng.uniform(cfg.enum_skew_min, cfg.enum_skew_max))
-    rates = {
-        path: float(rng.uniform(cfg.presence_min, cfg.presence_max)) for path in _optional_fields(model, cfg.max_depth)
-    }
+    fields = optional_fields if optional_fields is not None else _optional_fields(model, cfg.max_depth)
+    rates = {path: float(rng.uniform(cfg.presence_min, cfg.presence_max)) for path in fields}
     return SampledParameters(size, rates, array_length_mean, enum_skew)
 
 
@@ -1277,6 +1306,22 @@ class SyntheticGenerator:
     def __init__(self, validator: Validator | None = None, index: ValueIndex | None = None) -> None:
         self.validator = validator if validator is not None else Validator()
         self.index = index if index is not None else ValueIndex()
+        # Per-schema Path walks (optional fields, labels) are the same for every collection of a schema; one
+        # generator serves one schema's collections, so they are computed once (keyed by the model object).
+        self._walks: dict[tuple[int, int], tuple[SchemaModel, list[str], Labels]] = {}
+
+    def _walked(self, model: SchemaModel, max_depth: int) -> tuple[list[str], Labels]:
+        key = (id(model), max_depth)
+        cached = self._walks.get(key)
+        if cached is None or cached[0] is not model:
+            # One walk serves both, bounded by _MAX_WALK (Path, node) pairs: a schema with hundreds of
+            # alternatives at each Path (SchemaStore's kestra) otherwise walks millions of pairs per collection.
+            walk = list(itertools.islice(walk_paths(model, max_depth, _MAX_PATHS), _MAX_WALK))
+            cached = (model, _optional_fields_of_walk(walk), labels_of_walk(model, walk))
+            if len(self._walks) > 64:
+                self._walks.clear()
+            self._walks[key] = cached
+        return cached[1], cached[2]
 
     def _compiled(self, model: SchemaModel, schema_id: str) -> Any:
         try:
@@ -1331,7 +1376,7 @@ class SyntheticGenerator:
         seed, schema_id, k = seed_key
         cfg = cfg if cfg is not None else GeneratorConfig()
         if params is None:
-            params = sample_parameters(model, cfg, np.random.default_rng(_params_seed(seed, schema_id, k)))
+            params = sample_parameters(model, cfg, np.random.default_rng(_params_seed(seed, schema_id, k)), self._walked(model, cfg.max_depth)[0])
         compiled = self._compiled(model, schema_id)
         for doc_index in range(n):
             yield self.document(model, schema_id, k, doc_index, cfg, params, seed, compiled)[0]
@@ -1357,14 +1402,14 @@ class SyntheticGenerator:
         seed = _check_count("seed", seed)
         compiled = self._compiled(model, schema_id)
         budget = budget if budget is not None else GenerationBudget(cfg.max_schema_nodes)
-        params = sample_parameters(model, cfg, np.random.default_rng(_params_seed(seed, schema_id, k)))
+        optional_fields, labels = self._walked(model, cfg.max_depth)
+        params = sample_parameters(model, cfg, np.random.default_rng(_params_seed(seed, schema_id, k)), optional_fields)
         documents: list[JSON] = []
         attempts = 0
         for doc_index in range(params.size):
             value, used = self.document(model, schema_id, k, doc_index, cfg, params, seed, compiled, budget)
             documents.append(value)
             attempts += used
-        labels = derive_labels(model, cfg.max_depth)
         return GeneratedCollection(schema_id, k, split, tuple(documents), params, labels, attempts)
 
     def collections(

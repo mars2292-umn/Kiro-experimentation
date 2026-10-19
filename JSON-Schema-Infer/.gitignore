@@ -7,7 +7,7 @@ dist/
 .pytest_cache/
 .hypothesis/
 checkouts/
-corpus/
+/corpus/
 split.json
 bench.toml
 similarities.json

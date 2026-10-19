@@ -78,6 +78,7 @@ __all__ = [
     "align",
     "derive_labels",
     "judgment_accuracy",
+    "labels_of_walk",
     "schema_paths",
 ]
 
@@ -197,8 +198,13 @@ def derive_labels(model: SchemaModel, max_depth: int = DEFAULT_MAX_DEPTH) -> Lab
     """The ground-truth labels of ``model`` per ``(Path, kind)`` (see the module docstring)."""
     if not isinstance(model, SchemaModel):
         raise TypeError(f"model must be a SchemaModel, got {type(model).__name__}")
+    return labels_of_walk(model, walk_paths(model, max_depth, MAX_PATHS))
+
+
+def labels_of_walk(model: SchemaModel, walk: Iterable[tuple[Path, SchemaNode]]) -> Labels:
+    """:func:`derive_labels` over an already produced ``(Path, node)`` walk (the Synthetic_Generator shares one walk)."""
     by_path: dict[Path, list[SchemaNode]] = defaultdict(list)
-    for path, node in walk_paths(model, max_depth, MAX_PATHS):
+    for path, node in walk:
         by_path[path].append(node)
     labels: Labels = {}
     for path in sorted(by_path, key=path_sort_key):

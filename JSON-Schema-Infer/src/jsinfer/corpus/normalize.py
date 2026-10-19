@@ -173,6 +173,7 @@ def walk_paths(
     stack: list[tuple[Path, SchemaNode, frozenset[str]]] = [((), model.root, frozenset())]
     walked: set[tuple[int, Path]] = set()  # (id(node), Path) pairs, for membership only
     opened: set[Path] = set()  # distinct Paths yielded, for the size cap only
+    resolved: dict[str, SchemaNode | None] = {}  # $ref targets, resolved once per walk (resolve validates on every call)
     while stack:
         path, node, chain = stack.pop()
         marker = (id(node), path)
@@ -189,7 +190,9 @@ def walk_paths(
         if isinstance(ref, str) and len(path) <= ref_depth and not capped:
             pointer = ref_target(ref)
             if pointer is not None and pointer not in chain:
-                target = _resolve_ref(model, ref)
+                if ref not in resolved:
+                    resolved[ref] = _resolve_ref(model, ref)
+                target = resolved[ref]
                 if target is not None:
                     below.append((path, target, chain | {pointer}))
         for branch in _branches(node):
