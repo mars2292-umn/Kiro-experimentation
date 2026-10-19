@@ -42,11 +42,12 @@ import dataclasses
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from jsinfer.bench.baselines.base import BaselineAdapter
 from jsinfer.bench.baselines.inferrer import InferrerAdapter
 from jsinfer.bench.leakage import held_out_groups
+from jsinfer.bench.measure import description_length, schema_size
 from jsinfer.bench.metrics import (
     Aggregate,
     ConstraintScores,
@@ -86,6 +87,8 @@ __all__ = [
 ]
 
 _DOC_ATTEMPTS = int(RESOURCE_PARAMETERS["synth.doc_attempts"].default)  # type: ignore[arg-type]
+# Every [bench] setting: the synthetic ones here, ``folds`` (bench.real), and the Harness's own (bench.runner).
+BENCH_SETTINGS: Final = ("sizes", "held_out", "timeout_s", "subschema_timeout_s", "generator", "schemas", "folds", "real_manifest", "model_bundle", "results", "resamples", "schemastore_datasets", "ablations")
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,7 @@ class SyntheticConfig:
     timeout_s: float | None = None
     subschema_timeout_s: float | None = None
     generator: GeneratorConfig = field(default_factory=GeneratorConfig)
+    schemas: tuple[str, ...] | None = None  # the held-out schemas to evaluate (all when None)
 
     def __post_init__(self) -> None:
         if not self.sizes or any(isinstance(s, bool) or not isinstance(s, int) or s < 1 for s in self.sizes):
@@ -117,18 +121,26 @@ class SyntheticConfig:
     @classmethod
     def from_mapping(cls, table: Mapping[str, Any], seed: int = 0) -> SyntheticConfig:
         """From a ``[bench]`` table: ``sizes``, ``held_out``, ``timeout_s``, ``subschema_timeout_s``."""
-        unknown = sorted(k for k in table if k not in ("sizes", "held_out", "timeout_s", "subschema_timeout_s", "folds", "real_manifest"))
+        unknown = sorted(k for k in table if k not in BENCH_SETTINGS)
         if unknown:
             raise ValueError(f"unknown [bench] settings {unknown}")
         sizes = table.get("sizes", list(cls.sizes))
         if not isinstance(sizes, list):
             raise ValueError("[bench] sizes must be a list of positive integers")
+        schemas = table.get("schemas")
+        if schemas is not None and (not isinstance(schemas, list) or not all(isinstance(s, str) for s in schemas)):
+            raise ValueError("[bench] schemas must be a list of schema ids")
+        generator = table.get("generator", {})
+        if not isinstance(generator, Mapping):
+            raise ValueError("[bench] generator must be a table")
         return cls(
             tuple(sizes),
             table.get("held_out", cls.held_out),
             seed,
             table.get("timeout_s"),
             table.get("subschema_timeout_s"),
+            GeneratorConfig(**generator),
+            None if schemas is None else tuple(schemas),
         )
 
     def to_json(self) -> dict[str, JSON]:
@@ -259,6 +271,8 @@ class SyntheticResult:
     constraints: ConstraintScores | None = None
     seconds: float | None = None
     peak_rss_mb: float | None = None
+    schema_size: int | None = None
+    dl_bits: float | None = None
 
     @property
     def ok(self) -> bool:
@@ -287,6 +301,8 @@ class SyntheticResult:
             "constraints": None if self.constraints is None else self.constraints.to_json(),
             "seconds": self.seconds,
             "peak_rss_mb": self.peak_rss_mb,
+            "schema_size": self.schema_size,
+            "dl_bits": self.dl_bits,
         }
 
 
@@ -323,6 +339,8 @@ def _score(data: SyntheticData, size: int, run: SystemRun, validator: Validator,
         constraint_scores(data.truth, run.model),
         run.seconds,
         run.peak_rss_mb,
+        schema_size(run.document),
+        description_length(run.model, data.training[size]),
     )
 
 
@@ -459,7 +477,7 @@ def run_synthetic(
     for sid, group in groups.items():
         by_group.setdefault(group, []).append(sid)
     excluded_by_split = split_excluded_ids(split)
-    ids = list(schema_ids) if schema_ids is not None else list(split.held_out)
+    ids = list(schema_ids) if schema_ids is not None else list(cfg.schemas) if cfg.schemas is not None else list(split.held_out)
     out = SyntheticResults(cfg)
     for schema_id in ids:
         if schema_id in excluded_by_split:

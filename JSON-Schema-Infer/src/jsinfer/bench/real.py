@@ -53,6 +53,7 @@ from typing import Any, Literal
 import numpy as np
 
 from jsinfer.bench.baselines.base import BaselineAdapter
+from jsinfer.bench.measure import description_length, schema_size
 from jsinfer.bench.metrics import Aggregate, Metric, aggregate, harmonic_mean, recall, rejection_rate
 from jsinfer.bench.runner import run_system, write_jsonl
 from jsinfer.bench.splits import CorpusManifest
@@ -99,6 +100,7 @@ class RealConfig:
 
     @classmethod
     def from_mapping(cls, table: Mapping[str, Any], seed: int = 0) -> RealConfig:
+        """From a ``[bench]`` table: ``folds`` and ``timeout_s``."""
         return cls(table.get("folds", DEFAULT_FOLDS), seed, table.get("timeout_s"))
 
     def to_json(self) -> dict[str, JSON]:
@@ -312,6 +314,8 @@ class RealResult:
     fold_rejection: tuple[Metric, ...] = ()
     seconds: float | None = None
     peak_rss_mb: float | None = None
+    schema_size: float | None = None  # mean over folds
+    dl_bits: float | None = None  # mean over folds
 
     @property
     def ok(self) -> bool:
@@ -334,6 +338,8 @@ class RealResult:
             "fold_rejection": list(self.fold_rejection),
             "seconds": self.seconds,
             "peak_rss_mb": self.peak_rss_mb,
+            "schema_size": self.schema_size,
+            "dl_bits": self.dl_bits,
         }
 
 
@@ -372,6 +378,8 @@ def evaluate(
     for system in systems:
         accepted = 0
         fold_rates: list[Metric] = []
+        sizes: list[int] = []
+        lengths: list[float] = []
         seconds = 0.0
         peak = 0.0
         missing: tuple[str, str | None] | None = None
@@ -391,6 +399,11 @@ def evaluate(
                 break
             accepted += sum(1 for j in fold if validator.is_valid(compiled, documents[j]))
             fold_rates.append(rejection_rate(sum(1 for _, neg in negatives if not validator.is_valid(compiled, neg)), len(negatives)))
+            sizes.append(schema_size(run.document))
+            held = set(fold)
+            bits = description_length(run.model, [documents[j] for j in range(dataset.n) if j not in held]) if run.model is not None else None
+            if bits is not None:
+                lengths.append(bits)
         base = dict(dataset_id=dataset.id, system=system.name, n=dataset.n, fold_count=len(assignment), excluded=len(dataset.excluded), negatives_source=source, negatives=len(negatives))
         if missing is not None:
             results.append(RealResult(**base, missing=missing[0], reason=missing[1], seconds=seconds, peak_rss_mb=peak))
@@ -398,7 +411,10 @@ def evaluate(
         r = recall(accepted, dataset.n)
         defined = [rate for rate in fold_rates if rate is not None]
         n_rate: Metric = None if not defined else sum(defined) / len(defined)
-        results.append(RealResult(**base, recall=r, rejection=n_rate, harmonic=harmonic_mean(r, n_rate), fold_rejection=tuple(fold_rates), seconds=seconds, peak_rss_mb=peak))
+        results.append(RealResult(
+            **base, recall=r, rejection=n_rate, harmonic=harmonic_mean(r, n_rate), fold_rejection=tuple(fold_rates), seconds=seconds, peak_rss_mb=peak,
+            schema_size=sum(sizes) / len(sizes) if sizes else None, dl_bits=sum(lengths) / len(lengths) if lengths else None,
+        ))
     return results
 
 

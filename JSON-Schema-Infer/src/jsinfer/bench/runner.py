@@ -32,10 +32,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -43,8 +44,11 @@ from typing import Any, Final, Literal
 import psutil
 
 from jsinfer.bench.baselines.base import Availability, BaselineAdapter, BaselineInfo
+from jsinfer.bench.config import BenchConfig
+from jsinfer.bench.leakage import LeakageError, LeakageReport, check_leakage
+from jsinfer.bench.splits import CorpusManifest, SchemaSplit
 from jsinfer.config.resources import RESOURCE_PARAMETERS
-from jsinfer.core.determinism import encode_canonical
+from jsinfer.core.determinism import codepoint_key, encode_canonical
 from jsinfer.core.jsonvalue import JSON
 from jsinfer.core.schema_model import SchemaModel
 from jsinfer.io.emit import SchemaEmitter
@@ -290,10 +294,15 @@ class CommandAdapter:
     output: str = "schema.json"
     output_draft: Draft | None = None
     info: BaselineInfo | None = None
-    availability: Availability = field(default_factory=lambda: Availability(True))
+    availability: Availability | None = None  # None: available when the executable can be found
 
     def available(self) -> Availability:
-        return self.availability
+        if self.availability is not None:
+            return self.availability
+        executable = self.argv[0] if self.argv else ""
+        if shutil.which(executable) is None and not Path(executable).is_file():
+            return Availability(False, f"no executable {executable}")
+        return Availability(True)
 
     def command(self, docs_jsonl: Path, out_dir: Path, seed: int) -> Sequence[str]:
         return [part.format(docs=docs_jsonl, out=out_dir, seed=seed) for part in self.argv]
@@ -306,3 +315,232 @@ class CommandAdapter:
 
 
 __all__ += ["CommandAdapter"]
+
+
+# ---------------------------------------------------------------------------
+# The Harness facade (task 30.5; Requirements 30.7, 30.8, 30.11, 34.3)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class HarnessSettings:
+    """The Harness's own ``[bench]`` and ``[baselines]`` settings of ``bench.toml``.
+
+    ``model_bundle`` is the Model_Bundle whose training manifest the leakage
+    check reads (default ``bundles/default``); ``results`` the directory
+    the results files go to; ``resamples`` the bootstrap resample count
+    (``bootstrap.resamples`` when None); ``real_manifest`` the Real_Dataset
+    manifest (33.1); ``schemastore_datasets`` whether SchemaStore test sets
+    become Real_Datasets (33.2). ``[baselines]`` holds ``naive_merge``
+    (default on), ``[baselines.jsonoid]`` (``bench.baselines.jsonoid``),
+    and ``[baselines.command.<name>]`` tables with ``argv`` (placeholders
+    ``{docs}``, ``{out}``, ``{seed}``), ``output``, and ``label`` for any
+    other command-line system.
+    """
+
+    model_bundle: str = "bundles/default"
+    results: str = "results"
+    resamples: int | None = None
+    real_manifest: str | None = None
+    schemastore_datasets: bool = True
+    naive_merge: bool = True
+    jsonoid: Mapping[str, Any] | None = None
+    commands: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    inferrer_settings: Mapping[str, JSON] = field(default_factory=dict)
+    ablations: tuple[str, ...] | None = None  # the Techniques to ablate (every enabled one when None)
+
+    @classmethod
+    def from_config(cls, cfg: BenchConfig) -> HarnessSettings:
+        bench = cfg.extra.get("bench", {})
+        baselines = cfg.extra.get("baselines", {})
+        for name, table in (("bench", bench), ("baselines", baselines)):
+            if not isinstance(table, Mapping):
+                raise ValueError(f"[{name}] must be a table")
+        unknown = sorted(k for k in baselines if k not in ("naive_merge", "jsonoid", "command", "inferrer"))
+        if unknown:
+            raise ValueError(f"unknown [baselines] settings {unknown}")
+        commands = baselines.get("command", {})
+        if not isinstance(commands, Mapping) or not all(isinstance(t, Mapping) and isinstance(t.get("argv"), list) for t in commands.values()):
+            raise ValueError("[baselines.command.<name>] tables need an argv list")
+        inferrer = baselines.get("inferrer", {})
+        if not isinstance(inferrer, Mapping):
+            raise ValueError("[baselines.inferrer] must be a table of --set settings")
+        base = Path(cfg.manifest).parent.parent if cfg.manifest else Path(".")
+        results = bench.get("results", "results")
+        real = bench.get("real_manifest")
+        ablations = bench.get("ablations")
+        if ablations is not None and (not isinstance(ablations, list) or not all(isinstance(a, str) for a in ablations)):
+            raise ValueError("[bench] ablations must be a list of Technique ids")
+        bundle = str(bench.get("model_bundle", "bundles/default"))
+        if (base / bundle).is_dir():  # a bundle directory under the project; otherwise an identifier load_bundle resolves
+            bundle = str(base / bundle)
+        return cls(
+            bundle,
+            str(_under(base, results)),
+            bench.get("resamples"),
+            None if real is None else str(_under(base, real)),
+            bool(bench.get("schemastore_datasets", True)),
+            bool(baselines.get("naive_merge", True)),
+            baselines.get("jsonoid"),
+            {name: dict(table) for name, table in commands.items()},
+            dict(inferrer),
+            None if ablations is None else tuple(ablations),
+        )
+
+
+def _under(base: Path, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else base / path
+
+
+class Harness:
+    """The Evaluation_Harness facade over ``bench.toml`` (see the design's Harness interface).
+
+    :meth:`systems` builds the Baseline_Adapters: the Inferrer first, then
+    Naive_Merge, JSONoid when configured, and the ``[baselines.command.*]``
+    systems. :meth:`check_leakage` runs before any system runs (30.7, 30.8,
+    30.11). :meth:`synthetic`, :meth:`real`, and :meth:`ablation` run the
+    benchmarks sequentially (34.3) and write the results files (35.8).
+    """
+
+    def __init__(self, cfg: BenchConfig, *, env: dict[str, str] | None = None) -> None:
+        from jsinfer.bench.synthetic import SyntheticConfig
+        from jsinfer.bench.real import RealConfig
+
+        self.cfg = cfg
+        self.settings = HarnessSettings.from_config(cfg)
+        bench = cfg.extra.get("bench", {})
+        self.synthetic_config = SyntheticConfig.from_mapping(bench, cfg.seed)
+        self.real_config = RealConfig.from_mapping(bench, cfg.seed)
+        self.env = env
+        self._manifest = None
+        self._split = None
+
+    # -- inputs --------------------------------------------------------------
+
+    @property
+    def manifest(self):
+        if self._manifest is None:
+            self._manifest = CorpusManifest.load(self.cfg.manifest)
+        return self._manifest
+
+    @property
+    def split(self):
+        if self._split is None:
+            self._split = SchemaSplit.load(self.cfg.split_out)
+        return self._split
+
+    def build_split(self):
+        """The Schema_Split of the configured corpus (task 25; ``jsinfer split`` writes it)."""
+        from jsinfer.bench.splits import SplitBuilder, SplitInputs
+
+        cfg = self.cfg
+        inputs = SplitInputs.from_manifest(self.manifest, known_ids=cfg.known_schemas, known_files=cfg.known_schema_files, ref_depth=int(cfg.resource("nearest.ref_depth")), max_paths=int(cfg.resource("nearest.max_paths")))
+        builder = SplitBuilder(perm=int(cfg.resource("minhash.perm")), bands=int(cfg.resource("lsh.bands")))
+        proportions = {name: cfg.resource(name) for name in ("split.train", "split.val", "split.held_out")}
+        self._split = builder.build(inputs, split_id=cfg.split_id, seed=cfg.seed, proportions=proportions, max_cutoff=float(cfg.resource("split.max_cutoff")))
+        return self._split
+
+    def systems(self) -> list[BaselineAdapter]:
+        from jsinfer.bench.baselines.inferrer import InferrerAdapter
+        from jsinfer.bench.baselines.jsonoid import jsonoid_from_config
+        from jsinfer.bench.baselines.naive import NaiveMergeAdapter
+
+        settings = {"model_bundle": self.settings.model_bundle, **self.settings.inferrer_settings}
+        out: list[BaselineAdapter] = [InferrerAdapter(settings=settings)]
+        if self.settings.naive_merge:
+            out.append(NaiveMergeAdapter())
+        if self.settings.jsonoid is not None:
+            out.append(jsonoid_from_config(self.settings.jsonoid, Path(self.cfg.manifest).parent.parent))
+        for name, table in sorted(self.settings.commands.items(), key=lambda i: codepoint_key(i[0])):
+            out.append(CommandAdapter(name, str(table.get("label", name)), tuple(str(a) for a in table["argv"]), str(table.get("output", "schema.json"))))
+        return out
+
+    def real_datasets(self):
+        """The Real_Datasets of the manifest (33.1) and of SchemaStore (33.2), with the definition-level exclusions."""
+        from jsinfer.bench.real import load_manifest, schemastore_datasets
+
+        datasets, exclusions = [], []
+        if self.settings.real_manifest is not None:
+            found, excluded = load_manifest(self.settings.real_manifest)
+            datasets.extend(found)
+            exclusions.extend(excluded)
+        if self.settings.schemastore_datasets:
+            found, excluded = schemastore_datasets(self.manifest)
+            datasets.extend(found)
+            exclusions.extend(excluded)
+        return datasets, exclusions
+
+    # -- leakage (30.7, 30.8, 30.11) ----------------------------------------------
+
+    def check_leakage(self, real_collections: Iterable[str] = ()) -> LeakageReport:
+        """Compare the Model_Bundle's training manifest with the held-out groups and Real_Datasets; raises :class:`LeakageError`."""
+        from jsinfer.config.errors import ConfigError
+        from jsinfer.learn.bundle import load_bundle
+
+        try:
+            bundle = load_bundle(self.settings.model_bundle)
+        except ConfigError as error:
+            raise LeakageError(missing_manifest=f"the Model_Bundle {self.settings.model_bundle} cannot be loaded: {error}") from None
+        return check_leakage(bundle.manifest, self.split, self.manifest.ids(), list(real_collections))
+
+    # -- benchmarks ----------------------------------------------------------------
+
+    def _labels(self, systems: Sequence[BaselineAdapter]) -> tuple[dict[str, str], list[str]]:
+        labels = {s.name: s.label for s in systems}
+        unavailable = [s.name for s in systems if not s.available().available]
+        return labels, unavailable
+
+    def synthetic(self, out_dir: Path | None = None):
+        """Run the synthetic benchmark (31) and write its results files; returns ``(results, aggregates)``."""
+        from jsinfer.bench.reporting import synthetic_rows, write_report
+        from jsinfer.bench.synthetic import run_synthetic
+
+        self.check_leakage()
+        out = Path(out_dir) if out_dir is not None else Path(self.settings.results) / "synthetic"
+        systems = self.systems()
+        results = run_synthetic(self.manifest, self.split, systems, self.synthetic_config, out / "runs", env=self.env)
+        labels, unavailable = self._labels(systems)
+        rows = synthetic_rows(results, labels, unavailable=unavailable)
+        agg = write_report(rows, out, seed=self.cfg.seed, resamples=self.settings.resamples, extra={"synthetic": results.to_json()})
+        return results, agg
+
+    def real(self, out_dir: Path | None = None):
+        """Run the real-data benchmark (33) and write its results files; returns ``(results, aggregates)``."""
+        from jsinfer.bench.real import run_real
+        from jsinfer.bench.reporting import real_rows, write_report
+
+        datasets, exclusions = self.real_datasets()
+        self.check_leakage([d.id for d in datasets])
+        out = Path(out_dir) if out_dir is not None else Path(self.settings.results) / "real"
+        systems = self.systems()
+        results = run_real(datasets, systems, self.real_config, out / "runs", exclusions=exclusions, env=self.env)
+        labels, unavailable = self._labels(systems)
+        rows = real_rows(results, labels, unavailable=unavailable)
+        agg = write_report(rows, out, real=results, seed=self.cfg.seed, resamples=self.settings.resamples, extra={"real": results.to_json()})
+        return results, agg
+
+    def ablation(self, out_dir: Path | None = None):
+        """Run the ablation study (35.3) and write its results files; returns ``(results, aggregates)``."""
+        from jsinfer.bench.baselines.inferrer import InferrerAdapter
+        from jsinfer.bench.reporting import synthetic_rows, write_report
+        from jsinfer.bench.studies import DEFAULT_SYSTEM, registry_configurations, run_ablation
+
+        self.check_leakage()
+        out = Path(out_dir) if out_dir is not None else Path(self.settings.results) / "ablation"
+        inferrer = InferrerAdapter(settings={"model_bundle": self.settings.model_bundle, **self.settings.inferrer_settings})
+        configs = registry_configurations()
+        if self.settings.ablations is not None:
+            known = {c.technique for c in configs}
+            unknown = [t for t in self.settings.ablations if t not in known]
+            if unknown:
+                raise ValueError(f"[bench] ablations names Techniques that are not enabled by default: {unknown}")
+            configs = [c for c in configs if c.technique in self.settings.ablations]
+        results = run_ablation(self.manifest, self.split, inferrer, self.synthetic_config, out / "runs", configs=configs, resamples=self.settings.resamples, env=self.env)
+        labels = {DEFAULT_SYSTEM: "Inferrer", **{c.system: f"Inferrer without {c.technique}" for c in results.configs}}
+        rows = synthetic_rows(results.results, labels)
+        agg = write_report(rows, out, reference=DEFAULT_SYSTEM, seed=self.cfg.seed, resamples=self.settings.resamples, extra={"ablation": results.to_json()})
+        return results, agg
+
+
+__all__ += ["Harness", "HarnessSettings"]

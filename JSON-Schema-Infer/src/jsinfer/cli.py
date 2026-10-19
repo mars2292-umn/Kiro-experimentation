@@ -13,6 +13,7 @@ Commands
 
     ``jsinfer train -c FILE --out DIR``                          train a Model_Bundle (21.1, 21.8)
     ``jsinfer split -c FILE``                                    build the Schema_Split (30.1–30.5)
+    ``jsinfer bench {synthetic,real,ablation} -c FILE [--out DIR]``  run a benchmark (30.7, 30.8, 31, 33, 35.3)
 
     ``bench`` is added by task 30.5. :func:`main` takes the arguments (default ``sys.argv[1:]``)
     and returns the exit status instead of exiting, so tests call it in
@@ -321,6 +322,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     split.add_argument("-c", "--config", required=True, metavar="FILE", help="the TOML benchmark configuration")
     split.set_defaults(handler=_split)
+
+    bench = commands.add_parser(
+        "bench",
+        help="run a benchmark",
+        description=(
+            "Check the Model_Bundle's training manifest against the held-out split and the Real_Datasets, then run "
+            "the synthetic benchmark, the real-data benchmark, or the ablation study, and write the results files "
+            "(CSV, JSON, Markdown, and LaTeX)."
+        ),
+        allow_abbrev=False,
+    )
+    bench.add_argument("study", choices=("synthetic", "real", "ablation"), help="the benchmark to run")
+    bench.add_argument("-c", "--config", required=True, metavar="FILE", help="the TOML benchmark configuration")
+    bench.add_argument("--out", metavar="DIR", help="the results directory (default: [bench] results/<study>)")
+    bench.set_defaults(handler=_bench)
     return parser
 
 
@@ -727,6 +743,49 @@ def _split(args: argparse.Namespace) -> int:
         f"from {cutoff['components']} mixture components over {cutoff['candidate_pairs']} candidate pairs, "
         f"capped at {cutoff['max_cutoff']:.2f}) to {_quote(config.split_out)}"
     )
+    return EXIT_OK
+
+
+# ---------------------------------------------------------------------------
+# bench (30.7, 30.8, 30.11, 34.3, 35.8)
+# ---------------------------------------------------------------------------
+
+
+def _bench(args: argparse.Namespace) -> int:
+    from jsinfer.bench.config import BenchConfig
+    from jsinfer.bench.leakage import LeakageError
+    from jsinfer.bench.runner import Harness
+    from jsinfer.bench.splits import SplitFormatError
+    from jsinfer.config.errors import ConfigError
+
+    try:
+        config = BenchConfig.from_toml(args.config)
+        harness = Harness(config)
+    except ConfigError as error:  # 27.11
+        return _config_failure(error)
+    except (ValueError, TypeError) as error:
+        _error(f"bench: {error}")
+        return EXIT_USAGE
+    out = None if args.out is None else Path(args.out)
+    try:
+        if args.study == "synthetic":
+            results, agg = harness.synthetic(out)
+            done = f"{len(results.results)} results over {len(results.data)} held-out schemas ({len(results.exclusions)} excluded)"
+        elif args.study == "real":
+            results, agg = harness.real(out)
+            done = f"{len(results.results)} results over {len({r.dataset_id for r in results.results})} Real_Datasets ({len(results.dataset_exclusions)} excluded)"
+        else:
+            results, agg = harness.ablation(out)
+            done = f"{len(results.results.results)} results over {len(results.configs)} ablations"
+    except LeakageError as error:  # 30.8, 30.11: nothing ran
+        _error(f"bench: aborted before any run: {error}")
+        return EXIT_STAGE_ERROR
+    except (SplitFormatError, OSError, ValueError) as error:
+        _error(f"bench: {error}")
+        return EXIT_STAGE_ERROR
+    where = out if out is not None else Path(harness.settings.results) / args.study
+    unavailable = f"; unavailable: {', '.join(agg.unavailable)}" if agg.unavailable else ""
+    _say(f"{args.study}: {done}{unavailable}; wrote results.csv, results.json, aggregates.csv, aggregates.json, summary.md, summary.tex to {_quote(where)}")
     return EXIT_OK
 
 

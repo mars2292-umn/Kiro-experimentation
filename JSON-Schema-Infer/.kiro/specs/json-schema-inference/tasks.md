@@ -594,24 +594,24 @@ Conventions used by every task:
     - **Property 52: Evaluation data preparation**
     - **Validates: Requirements 31.1, 33.3, 33.5**
 
-- [ ] 30. Implement ablation, reporting, and the bench CLI
-  - [ ] 30.1 Implement the ablation study (`bench/studies.py`)
+- [x] 30. Implement ablation, reporting, and the bench CLI
+  - [x] 30.1 Implement the ablation study (`bench/studies.py`)
     - One configuration per default-enabled Technique, disabling dependents transitively and recording the disabled set. Same collections and seed. Differences with paired CIs and p-values
     - _Requirements: 35.3, 35.10_
-  - [ ] 30.2 Write property test for study construction
+  - [x] 30.2 Write property test for study construction
     - **Property 57: Study construction** (ablation clause now; contamination clause added in 41.3)
     - **Validates: Requirements 35.3, 35.10**
-  - [ ] 30.3 Implement reporting (`bench/reporting.py`)
+  - [x] 30.3 Implement reporting (`bench/reporting.py`)
     - CSV and JSON written from the same rows; Markdown and LaTeX summary tables; Real_Dataset tables first and labeled primary, with per-dataset n, folds, exclusions, negative source, and exclusion counts
     - Unavailable systems marked; ReCG reimplementation label; timeout, failure, and missing counts; runtime, RSS, schema size, and DL columns
     - _Requirements: 33.6, 34.6, 34.9, 34.10, 35.7, 35.8, 35.12_
-  - [ ] 30.4 Write property test for results serialization
+  - [x] 30.4 Write property test for results serialization
     - **Property 58: Results serialization and aggregation**
     - **Validates: Requirements 34.9, 35.8, 35.12**
-  - [ ] 30.5 Implement the Harness facade and `jsinfer bench` (`bench/runner.py`, `cli.py`)
+  - [x] 30.5 Implement the Harness facade and `jsinfer bench` (`bench/runner.py`, `cli.py`)
     - `Harness` with `build_split`, `check_leakage`, `synthetic`, `real`, and `ablation`. `jsinfer bench {synthetic,real,ablation} -c bench.toml` runs the leakage check before any run
     - _Requirements: 30.7, 30.8, 30.11, 34.3_
-  - [ ] 30.6 Write benchmark smoke tests (`tests/bench_smoke/`)
+  - [x] 30.6 Write benchmark smoke tests (`tests/bench_smoke/`)
     - Five-schema fixture corpus with stub baselines: wiring, failure, timeout, and unavailable paths, plus every output format
     - _Requirements: 34.6, 34.7, 34.8, 35.8_
 

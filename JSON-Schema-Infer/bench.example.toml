@@ -30,3 +30,29 @@ seed = 0
 "split.train" = 0.70
 "split.val" = 0.10
 "split.held_out" = 0.20
+
+# ---------------------------------------------------------------------------
+# jsinfer bench {synthetic,real,ablation} -c bench.toml
+# ---------------------------------------------------------------------------
+[bench]
+sizes = [10, 100, 1000]        # training collection sizes (31.11)
+held_out = 1000                # held-out Positive_Documents per schema (31.1)
+folds = 5                      # real-data cross-validation folds k (33.3)
+timeout_s = 1800               # per-run time limit (34.7); default bench.run_timeout_s
+model_bundle = "bundles/real"  # the Model_Bundle whose training manifest the leakage check reads (30.7)
+results = "results"            # results/<study>/{results,aggregates}.{csv,json}, summary.{md,tex}
+schemastore_datasets = true    # SchemaStore test sets as Real_Datasets (33.2)
+# real_manifest = "datasets/manifest.json"   # extra Real_Dataset definitions (33.1)
+# schemas = ["schemastore/package"]          # evaluate only these held-out schemas
+# ablations = ["decide.mdl"]                 # ablate only these Techniques (every enabled one by default)
+# resamples = 2000                           # bootstrap resamples; default bootstrap.resamples
+
+[baselines]
+naive_merge = true
+# [baselines.jsonoid]
+# jar = "checkouts/jsonoid-discovery.jar"
+# sha256 = "<sha256 of the jar>"
+# version = "v0.x.y"
+# [baselines.command.recg]                   # any other command-line system
+# argv = ["recg", "{docs}", "-o", "{out}/schema.json"]
+# label = "ReCG reimplementation"
