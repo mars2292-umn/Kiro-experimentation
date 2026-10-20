@@ -36,6 +36,8 @@ DESIGN_DEFAULTS: dict[str, int | float] = {
     "variants.em_tol": 1e-6,
     "fpgrowth.min_support": 2,
     "fpgrowth.max_itemsets": 2_000,
+    "exclusion.max_cliques": 2_000,
+    "exclusion.max_members": 64,
     "patterns.max_alternatives": 4,
     "patterns.attempt_budget": 200,
     "trees.max_depth": 4,

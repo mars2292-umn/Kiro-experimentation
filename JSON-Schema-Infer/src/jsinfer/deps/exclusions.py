@@ -62,6 +62,7 @@ from typing import Any, Final
 import numpy as np
 
 from jsinfer.config.registry import OUTCOME_NONE, REGISTRY
+from jsinfer.config.resources import RESOURCE_PARAMETERS, ResourceReader
 from jsinfer.core.determinism import codepoint_key, sorted_codepoint
 from jsinfer.core.jsonvalue import JSON
 from jsinfer.core.paths import Path, render_path
@@ -126,15 +127,32 @@ def member_mask(p: Presence, member: Member) -> np.ndarray:
     return np.logical_or.reduce(masks) if masks else np.zeros(p.n_objects, dtype=bool)
 
 
-def maximal_cliques(n: int, adjacent: Mapping[int, set[int]]) -> list[tuple[int, ...]]:
-    """The maximal cliques of the graph on ``0..n-1`` (Bron–Kerbosch with pivoting), each sorted, in canonical order."""
+MAX_MEMBERS: Final = "exclusion.max_members"
+MAX_CLIQUES: Final = "exclusion.max_cliques"
+
+
+class _Enough(Exception):
+    """Raised inside the clique search once the cap is reached."""
+
+
+def maximal_cliques(n: int, adjacent: Mapping[int, set[int]], *, max_cliques: int | None = None) -> list[tuple[int, ...]]:
+    """The maximal cliques of the graph on ``0..n-1`` (Bron–Kerbosch with pivoting), each sorted, in canonical order.
+
+    ``max_cliques`` stops the search once that many are found (the graph's
+    maximal cliques can be exponential in ``n``); the result is then the
+    first ones in search order, which is deterministic.
+    """
     if n == 0:
         return []
+    if max_cliques is not None and (isinstance(max_cliques, bool) or not isinstance(max_cliques, int) or max_cliques < 1):
+        raise ValueError(f"max_cliques must be a positive int or None, got {max_cliques!r}")
     found: list[tuple[int, ...]] = []
 
     def expand(r: set[int], p: set[int], x: set[int]) -> None:
         if not p and not x:
             found.append(tuple(sorted(r)))
+            if max_cliques is not None and len(found) >= max_cliques:
+                raise _Enough
             return
         pivot = min(sorted(p | x), key=lambda v: (-len(adjacent[v] & p), v))
         for v in sorted(p - adjacent[pivot]):
@@ -142,7 +160,10 @@ def maximal_cliques(n: int, adjacent: Mapping[int, set[int]]) -> list[tuple[int,
             p = p - {v}
             x = x | {v}
 
-    expand(set(), set(range(n)), set())
+    try:
+        expand(set(), set(range(n)), set())
+    except _Enough:
+        pass
     return sorted(found)
 
 
@@ -186,10 +207,27 @@ class ExclusionCandidate:
         return {"members": [list(m) for m in self.members], "expected_overlap": self.expected, "confidence": self.confidence, "exactly_one": self.exactly_one, "enforced_by": list(self.enforced_by)}
 
 
-def exclusion_candidates(p: Presence, groups: Iterable[Collection[str]] = ()) -> list[ExclusionCandidate]:
-    """The Exclusion_Rule candidates of a Path (11.1, 11.2), in canonical order; the enforcement check is separate."""
+def exclusion_candidates(
+    p: Presence, groups: Iterable[Collection[str]] = (), *, max_members: int | None = None, max_cliques: int | None = None
+) -> list[ExclusionCandidate]:
+    """The Exclusion_Rule candidates of a Path (11.1, 11.2), in canonical order; the enforcement check is separate.
+
+    ``max_members`` (``exclusion.max_members``) keeps the most frequent
+    members (ties in canonical order) and ``max_cliques``
+    (``exclusion.max_cliques``) stops the clique search; both default to
+    the registered Resource_Parameters.
+    """
     members = members_of(p, groups)
     masks = [member_mask(p, m) for m in members]
+    keep = max_members if max_members is not None else int(RESOURCE_PARAMETERS[MAX_MEMBERS].default)  # type: ignore[arg-type]
+    if keep < 1:
+        raise ValueError(f"max_members must be a positive int, got {max_members!r}")
+    if len(members) > keep:
+        order = sorted(range(len(members)), key=lambda i: (-int(masks[i].sum()), i))[:keep]
+        chosen = sorted(order)
+        members = [members[i] for i in chosen]
+        masks = [masks[i] for i in chosen]
+    cap = max_cliques if max_cliques is not None else int(RESOURCE_PARAMETERS[MAX_CLIQUES].default)  # type: ignore[arg-type]
     n = p.n_objects
     adjacent: dict[int, set[int]] = {i: set() for i in range(len(members))}
     for i, j in combinations(range(len(members)), 2):
@@ -197,7 +235,7 @@ def exclusion_candidates(p: Presence, groups: Iterable[Collection[str]] = ()) ->
             adjacent[i].add(j)
             adjacent[j].add(i)
     out: list[ExclusionCandidate] = []
-    for clique in maximal_cliques(len(members), adjacent):
+    for clique in maximal_cliques(len(members), adjacent, max_cliques=cap):
         if len(clique) < 2:
             continue
         rates = [float(masks[i].sum()) / n for i in clique]
@@ -361,15 +399,24 @@ class ExclusionRules:
 class ExclusionMiner:
     """Mines, filters, selects, and forms the Exclusion_Rules of a Record Path (see the module docstring)."""
 
-    __slots__ = ("_engine", "_report", "_scorer", "_validator")
+    __slots__ = ("_engine", "_report", "_resources", "_scorer", "_validator")
 
-    def __init__(self, engine: DecisionEngine, *, scorer: MDLScorer | None = None, report: InferenceReport | None = None, validator: Validator | None = None) -> None:
+    def __init__(
+        self,
+        engine: DecisionEngine,
+        *,
+        scorer: MDLScorer | None = None,
+        report: InferenceReport | None = None,
+        validator: Validator | None = None,
+        resources: ResourceReader | Mapping[str, Any] | None = None,
+    ) -> None:
         if not isinstance(engine, DecisionEngine):
             raise TypeError(f"engine must be a DecisionEngine, got {type(engine).__name__}")
         self._engine = engine
         self._scorer = scorer if scorer is not None else MDLScorer()
         self._report = report
         self._validator = validator if validator is not None else Validator()
+        self._resources = ResourceReader.of(resources)
 
     @property
     def engine(self) -> DecisionEngine:
@@ -410,7 +457,9 @@ class ExclusionMiner:
         if objects.is_empty:
             return ExclusionRules(objects.path)
         p = Presence.of(objects)
-        candidates = exclusion_candidates(p, groups)
+        candidates = exclusion_candidates(
+            p, groups, max_members=int(self._resources.read(MAX_MEMBERS)), max_cliques=int(self._resources.read(MAX_CLIQUES))
+        )
         if not candidates:
             return ExclusionRules(objects.path, n_objects=p.n_objects)
         threshold = self._engine.threshold(MIN_CONFIDENCE)

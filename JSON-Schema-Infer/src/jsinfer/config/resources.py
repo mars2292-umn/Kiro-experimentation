@@ -258,6 +258,8 @@ _SPECS: Final[tuple[SettingSpec, ...]] = (
         1e-6,
         "Bernoulli-mixture EM convergence tolerance: mean log-likelihood gain per object, in nats (5.2)",
     ),
+    _count("exclusion.max_cliques", 2_000, "maximal cliques enumerated per Path before Exclusion_Rule mining stops (11.1)"),
+    _count("exclusion.max_members", 64, "most frequent members kept for Exclusion_Rule mining at a Path (11.1)"),
     _count("fpgrowth.min_support", 2, "FP-growth minimum support in objects (6.3)"),
     _count("fpgrowth.max_itemsets", 2_000, "frequent itemsets FP-growth enumerates per Variant before it stops (6.3)"),
     _count("patterns.max_alternatives", 4, "maximum sub-patterns per induced Pattern (14.1)"),

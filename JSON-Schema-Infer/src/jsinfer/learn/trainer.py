@@ -817,10 +817,14 @@ def _schema_exclusions(model: SchemaModel, path: Path, max_depth: int) -> frozen
     return frozenset(found)
 
 
-def exclusion_examples(featurized: Iterable[FeaturizedCollection], max_depth: int = DEFAULT_MAX_DEPTH) -> list[ExclusionExample]:
+def exclusion_examples(
+    featurized: Iterable[FeaturizedCollection], max_depth: int = DEFAULT_MAX_DEPTH, *, resources: Mapping[str, Any] | None = None
+) -> list[ExclusionExample]:
     """One example per Record Path with an Exclusion_Rule candidate or an exclusion in the schema (11.1, 11.2)."""
-    from jsinfer.deps.exclusions import exclusion_candidates
+    from jsinfer.deps.exclusions import MAX_CLIQUES, MAX_MEMBERS, exclusion_candidates
 
+    reader = ResourceReader.of(resources)
+    max_members, max_cliques = int(reader.read(MAX_MEMBERS)), int(reader.read(MAX_CLIQUES))
     out: list[ExclusionExample] = []
     for item in featurized:
         root = View.root(item.store)
@@ -835,7 +839,8 @@ def exclusion_examples(featurized: Iterable[FeaturizedCollection], max_depth: in
                 continue
             if view.is_empty:
                 continue
-            candidates = tuple((frozenset(frozenset(m) for m in c.members), c.confidence) for c in exclusion_candidates(presence(view)))
+            found = exclusion_candidates(presence(view), max_members=max_members, max_cliques=max_cliques)
+            candidates = tuple((frozenset(frozenset(m) for m in c.members), c.confidence) for c in found)
             truth = _schema_exclusions(item.model, example.schema_path, max_depth)
             if candidates or truth:
                 out.append(ExclusionExample(item.schema_id, example.path, candidates, truth))
@@ -853,11 +858,11 @@ def _exclusion_f1(examples: Sequence[ExclusionExample], threshold: float) -> flo
 
 
 def fit_exclusion_threshold(
-    featurized: Iterable[FeaturizedCollection], *, training_data: str, max_depth: int = DEFAULT_MAX_DEPTH
+    featurized: Iterable[FeaturizedCollection], *, training_data: str, max_depth: int = DEFAULT_MAX_DEPTH, resources: Mapping[str, Any] | None = None
 ) -> tuple[dict[str, ThresholdRecord], list[OmittedThreshold]]:
     """Fit ``exclusion.min_confidence`` on the validation split by the F1 of Exclusion_Rules (20.3, 20.4)."""
     validation = [item for item in featurized if item.split in (None, "val", "validation")]
-    examples = exclusion_examples(validation, max_depth)
+    examples = exclusion_examples(validation, max_depth, resources=resources)
     if not examples:
         return {}, [OmittedThreshold(EXCLUSION_THRESHOLD, "no validation-split Record Path with an Exclusion_Rule candidate or an exclusion (exclusion_rule)")]
     confidences = np.asarray([c for e in examples for _, c in e.candidates] or [0.5], dtype=np.float64)
@@ -1425,7 +1430,10 @@ class Trainer:
         records.update(tagged_records)
         omitted_thresholds.extend(tagged_omitted)
         try:
-            exclusion_records, exclusion_omitted = fit_exclusion_threshold(featurized, training_data=training_data, max_depth=max_depth)
+            exclusion_records, exclusion_omitted = fit_exclusion_threshold(
+                featurized, training_data=training_data, max_depth=max_depth,
+                resources={name: cfg.resource(name) for name in ("exclusion.max_members", "exclusion.max_cliques")},
+            )
         except Exception as error:  # noqa: BLE001
             raise TrainingError("thresholds", f"{type(error).__name__}: {error}") from error
         records.update(exclusion_records)

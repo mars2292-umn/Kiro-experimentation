@@ -515,7 +515,7 @@ class StructureAnalyzer:
         self._exclusion_miner = (
             exclusions
             if exclusions is not None
-            else ExclusionMiner(engine, scorer=scorer, report=values.report, validator=validator)
+            else ExclusionMiner(engine, scorer=scorer, report=values.report, validator=validator, resources=resources)
         )
         self._groups_by_nid: dict[int, tuple[frozenset[str], ...]] = {}
         self._shared_defs = SharedDefinitionPass(engine, scorer=scorer, report=values.report)

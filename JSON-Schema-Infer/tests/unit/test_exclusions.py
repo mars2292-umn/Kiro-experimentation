@@ -209,3 +209,21 @@ def test_analyzer_emits_exclusions_and_the_schema_stays_sound() -> None:
     assert entry.resolution.method in ("mdl", "priority")
     off = StructureAnalyzer.for_techniques({EXCLUSION: False}, bundle=StubBundle({"exclusion.min_confidence": 0.5})).infer_model(View.root(build_store(docs)))
     assert "not" not in off.root.to_json() and not any(r.technique == EXCLUSION for r in off.provenance.values())
+
+
+def test_clique_and_member_caps_bound_the_search() -> None:
+    # Pairs (a_i, b_i) co-occur; across pairs nothing does: the co-absence graph is complete minus a matching,
+    # whose maximal cliques number 2^k (one of each pair). The caps make both the count and the members finite.
+    k = 4
+    docs = [{f"a{i}": 1, f"b{i}": 1} for i in range(k)]
+    p = presence(docs)
+    assert len(exclusion_candidates(p)) == 2**k
+    capped = exclusion_candidates(p, max_cliques=3)
+    assert len(capped) == 3 and capped == sorted(capped, key=lambda c: c.members)
+    assert capped == exclusion_candidates(p, max_cliques=3)  # deterministic
+    fewer = exclusion_candidates(p, max_members=2)
+    assert all(len(c.fields) <= 2 for c in fewer) and fewer
+    with pytest.raises(ValueError):
+        exclusion_candidates(p, max_cliques=0)
+    with pytest.raises(ValueError):
+        maximal_cliques(2, {0: set(), 1: set()}, max_cliques=0)
