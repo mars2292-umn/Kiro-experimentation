@@ -149,3 +149,53 @@ def test_sites_and_replace_at_round_trip_awkward_property_names(name: str) -> No
     emitted = root.to_json()
     assert emitted["properties"][name] == {"$ref": ref_string(name)}
     assert Validator().compile({**emitted, "$defs": {name: {"type": "string"}}}) is not None
+
+
+def test_definitions_built_in_discarded_branches_leave_no_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tagged-union branches discarded by the exactly-one check (10.7) take their recursive definitions' refs with them."""
+    from jsinfer.structure.analyzer import StructureAnalyzer as Analyzer
+
+    class Bundle:
+        def threshold(self, name: str) -> float | None:
+            return {"tagged.branch_support": 0.1}.get(name)
+
+        def model(self, name: str) -> Any:
+            return None
+
+        @property
+        def bundle_id(self) -> str:
+            return "stub"
+
+    def nested(kind: str, depth: int, i: int) -> dict[str, Any]:
+        node: dict[str, Any] = {"name": f"n{i}", "size": i % 4}
+        if depth:
+            node["child"] = nested(kind, depth - 1, i + 1)
+        return node
+
+    docs = [{"kind": ["a", "b", "c"][i % 3], "id": i, ["x", "y", "z"][i % 3]: i, "tree": nested("t", 3, i)} for i in range(60)]
+    attempts: list[bool] = []
+
+    def refuse(self: Any, *args: Any, **kwargs: Any) -> bool:
+        attempts.append(True)
+        return False  # every Discriminator's branches are discarded after they were built
+
+    monkeypatch.setattr(Analyzer, "_exactly_one", refuse)
+    report = InferenceReport()
+    sa = Analyzer.for_techniques(bundle=Bundle(), report=report)
+    model = sa.infer_model(View.root(build_store(docs)))  # raised on stray Provenance_Records before the fix
+    assert attempts, "the Discriminator was never tried, so the discarded-branch path did not run"
+    nodes = model.index()
+    assert all(cid.nid in nodes for cid in model.provenance)
+    schema = model.root.to_json()
+    assert valid(schema, docs)
+    assert "$ref" in json.dumps(schema)  # the recursion built on the kept path is still emitted
+    # The report forgets what the discarded branches decided: its Judgment_Calls are those of a run without
+    # Discriminators, Path for Path (the Discriminator's own decision and its exactly-one failure aside).
+    plain = InferenceReport()
+    Analyzer.for_techniques({"rules.decision_trees": False}, bundle=Bundle(), report=plain).infer_model(View.root(build_store(docs)))
+    kinds = ("record_or_map", "closed_or_open_record", "merge_or_split", "tuple_or_list", "closed_or_open_enum")
+
+    def calls(r: InferenceReport) -> list[tuple[str, str]]:
+        return sorted((e.kind, e.path) for e in r.decisions if e.kind in kinds)
+
+    assert calls(report) == calls(plain)

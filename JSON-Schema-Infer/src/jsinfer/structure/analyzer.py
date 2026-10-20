@@ -1050,6 +1050,7 @@ class StructureAnalyzer:
         base = list(required_fields(objects).presence.required)
         enum_closed = self._closed_enum(objects.child_key(name))
         n = len(objects)
+        start = self._mark()
         snapshot = self._records.snapshot()
         views: list[View] = []
         branches: list[SchemaNode] = []
@@ -1081,8 +1082,14 @@ class StructureAnalyzer:
             views.append(fallback_view)
             branches.append(node)
             details.append({"branch": "fallback", "value_group": found.fallback_values, "closed_enum": enum_closed})
+        end = self._mark()
         if len(branches) < 2 or not self._exactly_one(objects, branches, name, found):
+            # The branches leave the model: their records and the report entries their analysis recorded go too
+            # (the failure itself, recorded by _exactly_one after ``end``, stays). Definitions built inside them
+            # lose their refs at pruning.
             self._records.restore(snapshot)
+            if self.report is not None:
+                self.report.forget_between(start, end)
             return None
         combined = SchemaNode(kw={ONE_OF: branches})
         provenance = {
@@ -1385,6 +1392,9 @@ class StructureAnalyzer:
                     reachable.add(inner.nid)
         kept: list[Definition] = []
         for definition in self._definitions:
+            for ref in definition.refs:
+                if ref.nid not in reachable:  # its subtree was replaced or discarded (8.1-8.4, 10.7)
+                    self._records.discard_subtree(ref)
             definition.refs = [ref for ref in definition.refs if ref.nid in reachable]
             kept.append(definition)
         # A definition is live when a ref to it sits in the root or in a live definition's body (fixed point).
