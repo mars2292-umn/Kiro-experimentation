@@ -268,3 +268,18 @@ def test_jsonoid_adapter_runs_the_jar(tmp_path: Path, docs_jsonl: Path) -> None:
     assert run.document["$schema"] == Draft.DRAFT202012.uri
     assert run.model is not None and not run.model.unsupported  # JSONoid's own keywords (bloomFilter, hll, ...) are ignored
     assert run.info.runtime.startswith("openjdk") or "java" in run.info.runtime.lower()
+
+
+def test_harness_settings_make_a_project_bundle_directory_absolute(tmp_path: Path) -> None:
+    """The Inferrer runs in each fold's directory, so a bundle under the project must be passed as an absolute path."""
+    from jsinfer.bench.config import BenchConfig
+    from jsinfer.bench.runner import HarnessSettings
+
+    (tmp_path / "corpus").mkdir()
+    (tmp_path / "corpus" / "manifest.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "bundles" / "mine").mkdir(parents=True)
+    document = {"corpus": {"manifest": "corpus/manifest.json"}, "split": {"out": "split.json"}, "bench": {"model_bundle": "bundles/mine"}}
+    settings = HarnessSettings.from_config(BenchConfig.from_mapping(document, tmp_path))
+    assert Path(settings.model_bundle).is_absolute() and Path(settings.model_bundle) == (tmp_path / "bundles" / "mine").resolve()
+    shipped = HarnessSettings.from_config(BenchConfig.from_mapping({**document, "bench": {"model_bundle": "bundles/default"}}, tmp_path))
+    assert shipped.model_bundle == "bundles/default"  # not a directory under the project: an identifier load_bundle resolves

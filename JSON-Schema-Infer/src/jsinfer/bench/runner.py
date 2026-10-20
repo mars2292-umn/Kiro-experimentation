@@ -372,8 +372,11 @@ class HarnessSettings:
         if ablations is not None and (not isinstance(ablations, list) or not all(isinstance(a, str) for a in ablations)):
             raise ValueError("[bench] ablations must be a list of Technique ids")
         bundle = str(bench.get("model_bundle", "bundles/default"))
-        if (base / bundle).is_dir():  # a bundle directory under the project; otherwise an identifier load_bundle resolves
-            bundle = str(base / bundle)
+        if (base / bundle).is_dir():
+            # A bundle directory under the project, made absolute: the Inferrer runs in each fold's own directory
+            # (see ``run_command``), so a relative path would not resolve there. Otherwise an identifier
+            # ``load_bundle`` resolves (a shipped bundle such as ``bundles/default``).
+            bundle = str((base / bundle).resolve())
         return cls(
             bundle,
             str(_under(base, results)),
