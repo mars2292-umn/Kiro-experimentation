@@ -312,13 +312,15 @@ def test_the_closed_candidate_pays_the_charge() -> None:
     closed_node = SchemaNode.from_json({**record_encoding(view).to_json(), "additionalProperties": False})
     charge = unseen_key_charge(view, scorer)
     assert charge > 0 and outcome.charge == charge
-    closed, open_ = outcome.decision.resolution.candidates
-    assert (closed.outcome, open_.outcome) == (CLOSED, OPEN)
-    plain = scorer.score(closed_node, view)
-    assert closed.model_bits == plain.model_bits and closed.n_rejected == 0
-    assert closed.data_bits == math.fsum((plain.data_bits, charge))
-    assert closed.exception_bits == math.fsum((plain.exception_bits, charge))
-    assert open_.score == scorer.score(record_encoding(view), view).total
+    assert scorer.score(closed_node, view).model_bits > 0
+    # 4.12: "rare" is held in one document, so the closed candidate is withheld before any comparison
+    # (Document_Support); the engine resolves the point among the open candidate alone.
+    (open_,) = outcome.decision.resolution.candidates
+    assert open_.outcome == OPEN and open_.score == scorer.score(record_encoding(view), view).total
+    assert outcome.decision.details["withheld"] == [
+        {"label": CLOSED, "rule": "document_support", "documents": 11, "single_document_keys": 1}
+    ]
+    assert not outcome.closed
 
 
 # ---------------------------------------------------------------------------

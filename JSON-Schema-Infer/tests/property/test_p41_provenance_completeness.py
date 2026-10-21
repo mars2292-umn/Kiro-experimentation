@@ -208,7 +208,7 @@ PRODUCING = frozenset(
     }
 )
 BASELINE_RULES = ("type", "required")
-FALLBACK_REASONS = ("disabled", "missing-threshold", "missing-model")
+FALLBACK_REASONS = ("disabled", "missing-threshold", "missing-model", "withheld")  # withheld: Document_Support
 # Techniques whose Constraints carry a kind-specific Confidence (9.8, 11.2, 12.5, 13.5, 24.3, 24.4).
 KIND_SPECIFIC = frozenset(
     {COOCCURRENCE, "rules.exclusion", "rules.keys", "rules.fd_ind", "values.semantic_type", "corpus.name_suggest",
@@ -1302,6 +1302,8 @@ def check_fallback(info: Any, setup: Setup, where: str) -> None:
         assert setup.enabled(info.technique), f"{where}: a missing threshold of the disabled {info.technique}"
         held = BUNDLE_THRESHOLDS[setup.bundle]
         assert any(name not in held for name in spec.thresholds), f"{where}: {info.technique} misses no threshold"
+    elif info.reason == "withheld":  # Document_Support withheld every candidate the in-effect Technique could compare
+        assert setup.enabled(info.technique), f"{where}: a withheld candidate of the disabled {info.technique}"
     event(f"fallback reason {info.reason}")
 
 
@@ -1649,11 +1651,22 @@ def check_good_turing(result: PipelineResult, setup: Setup, state: RunState) -> 
                     else:
                         into[inst] = value
     fallback_paths = {e.path for e in enum_entries if e.resolution.method == "fallback"}
+    # 8.3: a recursive definition's body is analyzed over the union of its levels, so its statistics span several
+    # Paths; the per-Path comparison below does not apply under a recursion site.
+    recursion_sites = [
+        site
+        for e in result.report.decisions
+        if e.kind == "merge_or_split" and e.details.get("origin") == "structure.recursion"
+        for site in e.details.get("sites", [])
+    ]
     for path in sorted(p for p in scalars if scalars[p] or p in undecided):
         if enabled:
             assert path in judged, f"the scalar Path {path} has no Closed-or-Open-Enum record (15.8)"
         else:
             assert path in fallback_paths, f"the scalar Path {path} has no Closed-or-Open-Enum fallback decision"
+        if any(path == site or path.startswith(site + ".") or path.startswith(site + "{") or path.startswith(site + "[") for site in recursion_sites):
+            event("enum statistics under a recursion site: not compared per Path")
+            continue
         if path in judged and len(judged[path]) == 1 and path not in undecided:
             stats, members = judged[path][0]
             values = list(scalars[path].values())

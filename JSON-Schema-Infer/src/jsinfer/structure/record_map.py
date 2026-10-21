@@ -51,7 +51,13 @@ Closed-or-Open-Record (4.7–4.9)
     model bits) plus the Good–Turing unseen-key charge
     (:func:`unseen_key_charge`), added to its data and exception bits:
     the expected cost of the exceptions that keys not seen yet would cause.
-    The engine resolves the point as above: the Decision_Model
+    The closed candidate is withheld (Document_Support, 4.12,
+    ``decide.support``) when the objects come from one document or a key
+    listed under ``properties`` is held in only one document: the closed
+    Record inferred without that document would reject it, so the
+    collection itself refutes the candidate, and the engine resolves the
+    point among the candidates left, without the Decision_Model.
+    Otherwise the engine resolves the point as above: the Decision_Model
     (``decide.dm_closed_record``), else MDL while ``decide.mdl`` is enabled
     (no tie rule is mandated, so a tie goes to fewer model bits, which is
     open), else the Fallback_Behavior open, which matches Naive_Merge. A
@@ -140,6 +146,7 @@ from jsinfer.core.report import InferenceReport
 from jsinfer.core.schema_model import ConstraintId, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import JUDGMENT_OUTCOMES, ArtifactSource, Candidate, Decision, DecisionEngine, DecisionPoint
+from jsinfer.decide.support import QuantitySupport, documents_of, single_document_keys, withheld
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.codes import CAT
 from jsinfer.mdl.scorer import MDLScorer, Score
@@ -690,6 +697,10 @@ def closed_or_open(
     closed_node = SchemaNode.from_json({**closed_json, _ADDITIONAL: False})
     listed = open_node.kw.get(_PROPERTIES, {})
     charge = unseen_key_charge(objects, scorer, listed)
+    # 4.12: the closed Record must survive leave-one-document-out; a listed key only one document holds refutes it.
+    documents = documents_of(objects)
+    singles = single_document_keys(objects, list(listed))
+    refuted = withheld(documents, single_document_keys=len(singles)) if documents < 2 or singles else None
     candidates = (
         Candidate(
             technique=None,
@@ -697,6 +708,7 @@ def closed_or_open(
             order_key=(0,),
             node=closed_node,
             score=_charged(scorer.score(closed_node, objects), charge),
+            withheld=refuted,
         ),
         Candidate(technique=None, outcome=OPEN, order_key=(1,), node=open_node, score=scorer.score(open_node, objects)),
     )
@@ -868,7 +880,12 @@ class RecordMapAnalyzer:
         if key_constraint is not None:
             kw.update(key_constraint.keywords())
             provenance["propertyNames"] = key_constraint.provenance()
-        key_bounds = self._values.decide_bound(objects.stats().object_sizes, KEY_COUNT, path=path)
+        key_bounds = self._values.decide_bound(
+            objects.stats().object_sizes,
+            KEY_COUNT,
+            path=path,
+            support=QuantitySupport.of_array(objects.gather("size"), objects.gather("doc")),
+        )
         records = key_bounds.provenance()
         for keyword, value in key_bounds.keywords().items():
             kw[keyword] = value

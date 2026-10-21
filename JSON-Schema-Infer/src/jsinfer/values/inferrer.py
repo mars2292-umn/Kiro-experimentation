@@ -59,8 +59,14 @@ Order at a scalar view (:meth:`ValueInferrer.infer_scalar`)
        (``values.patterns.Induction``) over at most ``sample.patterns``
        distinct strings, each checked against every string and discarded
        with a report entry when it rejects one (14.7), at most
-       ``patterns.attempt_budget`` of them (14.8, reported when reached);
-       the survivors compete by MDL with the option of no induced Pattern,
+       ``patterns.attempt_budget`` of them (14.8, reported when reached).
+       Each surviving rung is then checked across document folds
+       (Document_Support, 14.9, :meth:`ValueInferrer._fold_refutations`):
+       the Pattern induced at that rung from the other folds' strings must
+       match every string only the fold holds, else the candidate is
+       withheld with the facts in its report entry. With one document
+       every induced candidate is withheld. The survivors compete by MDL
+       with the option of no induced Pattern,
        ties going to no Pattern and then fewer sub-patterns (14.2). An
        induced Pattern that wins replaces a Latent_Type Pattern; otherwise
        the earlier selection stands.
@@ -68,7 +74,9 @@ Order at a scalar view (:meth:`ValueInferrer.infer_scalar`)
        unless the Path is a Closed_Enum, and ``minLength``/``maxLength`` over
        the code-point lengths of the non-flagged strings unless the Path is
        a Closed_Enum or has a selected Format
-       (:func:`~jsinfer.values.bounds.decide_bound`).
+       (:func:`~jsinfer.values.bounds.decide_bound`), each with the
+       quantities' documents, so rungs that fail leave-one-document-out are
+       withheld (Document_Support, 16.9).
 
 Map keys (:meth:`ValueInferrer.key_constraint`, 4.4)
     The keys of the view's non-flagged objects, each counted once per object
@@ -132,7 +140,7 @@ Determinism
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Final, Literal, TypeAlias
 
 import numpy as np
@@ -150,6 +158,8 @@ from jsinfer.core.schema_model import ConstraintId, SchemaNode
 from jsinfer.core.stats import Histogram
 from jsinfer.core.views import View
 from jsinfer.decide.engine import ArtifactSource, Candidate, Decision, DecisionEngine, DecisionPoint
+from jsinfer.decide.support import QuantitySupport, document_folds
+from jsinfer.decide.support import withheld as _withheld_facts
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.values.bounds import NUMBER, STRING_LENGTH, BoundDecision, Number, QuantityKind, QuantitySet, decide_bound
@@ -260,8 +270,10 @@ class StringCandidate:
     ``technique`` produced it and ``order_key`` is its documented position
     among that Technique's candidates. ``rejected`` and
     ``distinct_rejected`` are the Validator's rejections over the Path's
-    strings (13.6); a candidate with ``rejected > 0`` is withheld.
-    ``details`` are facts its Provenance_Record carries when it is selected.
+    strings (13.6); a candidate with ``rejected > 0`` is withheld, and so is
+    one with ``refuted`` set: the Document_Support facts of an induced
+    Pattern that failed the document folds (14.9). ``details`` are facts its
+    Provenance_Record carries when it is selected.
     """
 
     technique: str
@@ -271,6 +283,7 @@ class StringCandidate:
     rejected: int = 0
     distinct_rejected: int = 0
     details: Mapping[str, JSON] = field(default_factory=dict)
+    refuted: Mapping[str, JSON] | None = None
 
     def __post_init__(self) -> None:
         if self.technique not in _SERVERS:
@@ -292,8 +305,8 @@ class StringCandidate:
 
     @property
     def withheld(self) -> bool:
-        """Whether the candidate rejects a non-flagged string, so it is withheld (13.6)."""
-        return self.rejected > 0
+        """Whether the candidate is withheld: it rejects a non-flagged string (13.6) or failed the document folds (14.9)."""
+        return self.rejected > 0 or self.refuted is not None
 
     def sort_key(self) -> tuple[int, tuple[Any, ...]]:
         """Registry priority rank at ``string_constraint``, then the documented candidate order."""
@@ -310,6 +323,8 @@ class StringCandidate:
         if not self.withheld:
             raise ValueError(f"{self.label} rejects no string, so it is not withheld")
         details: dict[str, JSON] = {"rejected": self.rejected, "distinct_rejected": self.distinct_rejected}
+        if self.refuted is not None:
+            details["withheld"] = dict(self.refuted)
         if target == "keys":
             details["target"] = "keys"
         category = PATTERN_CATEGORY if self.technique == PATTERN else REJECTED_CATEGORY  # induced Patterns (14.7)
@@ -510,6 +525,44 @@ def _numbers(view: View) -> tuple[list[Number], list[int]]:
     return numbers, counts
 
 
+def _number_support(view: View) -> QuantitySupport:
+    """The Document_Support of the non-flagged JSON numbers of ``view`` (16.9): rows ranked by exact value."""
+    live = view.live()
+    jtypes = live.gather("jtype")
+    mask = (jtypes == JType.INTEGER) | (jtypes == JType.NUMBER)
+    distinct, inverse = np.unique(live.gather("value")[mask], return_inverse=True)
+    table = live.store.values
+    values = [table[int(vid)] for vid in distinct.tolist()]
+    order = sorted(range(len(values)), key=lambda i: values[i])  # exact int/float comparison
+    rank_of = np.empty(len(values), dtype=np.int64)
+    rank_of[order] = np.arange(len(values), dtype=np.int64)
+    return QuantitySupport.of([values[i] for i in order], rank_of[inverse.reshape(-1)], live.gather("doc")[mask])
+
+
+def _string_documents(view: View, target: Target, wanted: Collection[str]) -> dict[str, set[int]]:
+    """The documents holding each of the ``wanted`` strings: string values of ``view``, or its objects' keys."""
+    live = view.live()
+    store = live.store
+    if target == "keys":
+        members = live.child_map()
+        ids, docs = members.gather("key"), members.gather("doc")
+        name: Callable[[int], Any] = store.key_name
+    else:
+        rows = _rows_of(live, JType.STRING)
+        ids, docs = rows.gather("value"), rows.gather("doc")
+        name = store.values.__getitem__
+    found: dict[str, set[int]] = {}
+    if len(ids):
+        wanted = set(wanted)
+        span = max(store.n_docs, int(docs.max()) + 1)
+        pairs = np.unique(ids.astype(np.int64) * span + docs.astype(np.int64))
+        for sid, doc in zip((pairs // span).tolist(), (pairs % span).tolist()):
+            s = name(int(sid))
+            if s in wanted:
+                found.setdefault(s, set()).add(int(doc))
+    return found
+
+
 def _base_keywords(base: Mapping[str, Any] | None, default: Mapping[str, JSON], forbidden: str) -> dict[str, Any]:
     if base is None:
         return dict(default)
@@ -680,17 +733,21 @@ class ValueInferrer:
         number_bounds: BoundDecision | None = None
         numbers, counts = _numbers(view)
         if numbers:
-            number_bounds = self.decide_bound(numbers, NUMBER, counts=counts, path=path, closed_enum=judgment.closed)
+            number_bounds = self.decide_bound(
+                numbers, NUMBER, counts=counts, path=path, closed_enum=judgment.closed, support=_number_support(view)
+            )
             self._emit_bounds(number_bounds, kw, provenance)
         length_bounds: BoundDecision | None = None
         lengths = view.stats().string_lengths
         if lengths.total:
+            string_rows = _rows_of(view, JType.STRING)
             length_bounds = self.decide_bound(
                 lengths,
                 STRING_LENGTH,
                 path=path,
                 closed_enum=judgment.closed,
                 format_selected=string is not None and string.keyword == "format",
+                support=QuantitySupport.of_array(string_rows.gather("size"), string_rows.gather("doc")),
             )
             self._emit_bounds(length_bounds, kw, provenance)
 
@@ -803,6 +860,13 @@ class ValueInferrer:
             rejected, distinct = strings.rejections("pattern", candidate.pattern.source, self._validator)
             details: dict[str, JSON] = {"rung": candidate.rung, "sub_patterns": candidate.sub_patterns, "merged_profiles": candidate.merged}
             offered.append(StringCandidate(PATTERN, "pattern", candidate.pattern.source, (index,), rejected, distinct, details))
+        # 14.9: Document_Support. A candidate's rung must generalize across the document folds.
+        refutations = self._fold_refutations(view, selection.target, induced_from, induced_counts, offered, max_alternatives)
+        if refutations:
+            offered = [
+                c if c.withheld or str(c.details["rung"]) not in refutations else replace(c, refuted=refutations[str(c.details["rung"])])
+                for c in offered
+            ]
         withheld: list[RejectedCandidate] = list(selection.withheld)
         survivors: list[StringCandidate] = []
         for candidate in offered:
@@ -831,6 +895,64 @@ class ValueInferrer:
             kept = selection.decision if selection.selected is not None else decision
             return StringConstraint(path, selection.target, strings, candidates, tuple(withheld), kept, selection.selected, selection.sample)
         return StringConstraint(path, selection.target, strings, candidates, tuple(withheld), decision, selected, sample)
+
+    def _fold_refutations(
+        self,
+        view: View,
+        target: Target,
+        strings: Sequence[str],
+        counts: Sequence[int],
+        offered: Sequence[StringCandidate],
+        max_alternatives: int,
+    ) -> dict[str, dict[str, JSON]]:
+        """14.9: per rung of the surviving induced candidates, the Document_Support facts that refute it.
+
+        The documents behind ``strings`` (the induction set) are dealt into
+        ``document_folds``. For each fold, the strings only that fold holds
+        are held out and the ladder is induced from the strings some other
+        fold holds; a rung is refuted when its induced Pattern is missing or
+        fails to match a held-out string. With one document nothing can be
+        held out and every rung is refuted. Rungs that already reject a
+        string are not checked.
+        """
+        rungs = sorted({str(c.details["rung"]) for c in offered if not c.withheld})
+        if not rungs:
+            return {}
+        by_string = _string_documents(view, target, strings)
+        held_by: dict[int, list[str]] = {}
+        for s, docs in by_string.items():
+            for d in docs:
+                held_by.setdefault(d, []).append(s)
+        if len(held_by) < 2:
+            facts = _withheld_facts(len(held_by))
+            return {rung: facts for rung in rungs}
+        # Folds are dealt in content order, so they do not depend on document order (27.6).
+        documents = sorted(held_by, key=lambda d: (sorted(held_by[d]), d))
+        fold_of = dict(zip(documents, document_folds(len(documents)).tolist()))
+        count_of = dict(zip(strings, counts))
+        folds_of = {s: {fold_of[d] for d in by_string.get(s, ())} for s in strings}
+        refuted: dict[str, dict[str, JSON]] = {}
+        for fold in range(max(fold_of.values()) + 1):
+            held = [s for s in strings if folds_of[s] == {fold}]
+            if not held:
+                continue
+            train = [s for s in strings if any(f != fold for f in folds_of[s])]
+            ladder: dict[str, str] = {}
+            if train:
+                induction = Induction(tuple(train), tuple(count_of[s] for s in train), max_alternatives=max_alternatives)
+                for candidate in induction.candidates():
+                    ladder.setdefault(candidate.rung, candidate.pattern.source)
+            for rung in rungs:
+                if rung in refuted:
+                    continue
+                source = ladder.get(rung)
+                if source is None:
+                    unmatched = len(held)
+                else:
+                    unmatched = sum(1 for s in held if not self._validator.matches_pattern(source, s))
+                if unmatched:
+                    refuted[rung] = _withheld_facts(len(documents), fold=fold, held_out=len(held), unmatched=unmatched)
+        return refuted
 
     # -- selection (13.6, 13.8) ---------------------------------------------
 
@@ -935,8 +1057,9 @@ class ValueInferrer:
         base: Mapping[str, Any] | SchemaNode | None = None,
         closed_enum: bool = False,
         format_selected: bool = False,
+        support: QuantitySupport | None = None,
     ) -> BoundDecision:
-        """Both bounds of ``quantities`` through this run's engine (16.2, 16.7); see ``values.bounds.decide_bound``."""
+        """Both bounds of ``quantities`` through this run's engine (16.2, 16.7, 16.9); see ``values.bounds.decide_bound``."""
         return decide_bound(
             quantities,
             kind,
@@ -946,5 +1069,6 @@ class ValueInferrer:
             base=base,
             closed_enum=closed_enum,
             format_selected=format_selected,
+            support=support,
         )
 

@@ -191,14 +191,14 @@ __all__ = [
 
 T = TypeVar("T")
 
-FallbackReason: TypeAlias = Literal["disabled", "missing-threshold", "missing-model"]
+FallbackReason: TypeAlias = Literal["disabled", "missing-threshold", "missing-model", "withheld"]
 ResolutionMethod: TypeAlias = Literal["mdl", "decision-model", "priority", "fallback"]
 
 # Why a Fallback_Behavior was applied: every serving Technique is disabled
 # (28.4); a Learned_Threshold is missing or invalid (20.6); or a
 # Decision_Model, the Semantic_Type_Classifier, or the Corpus_Index is
 # missing from the Model_Bundle (21.10, 22.14).
-FALLBACK_REASONS: Final[tuple[FallbackReason, ...]] = ("disabled", "missing-threshold", "missing-model")
+FALLBACK_REASONS: Final[tuple[FallbackReason, ...]] = ("disabled", "missing-threshold", "missing-model", "withheld")
 
 # How a Decision_Point was resolved (26.3): MDL_Scorer, Decision_Model,
 # Technique priority order (28.7), or Fallback_Behavior.
@@ -658,8 +658,11 @@ class FallbackInfo:
     """The Technique whose Fallback_Behavior was applied, and why (26.10).
 
     ``reason`` is ``"disabled"`` (28.4), ``"missing-threshold"`` (a missing
-    or invalid Learned_Threshold, 20.6), or ``"missing-model"`` (a missing
-    Decision_Model, Semantic_Type_Classifier, or Corpus_Index, 21.10).
+    or invalid Learned_Threshold, 20.6), ``"missing-model"`` (a missing
+    Decision_Model, Semantic_Type_Classifier, or Corpus_Index, 21.10), or
+    ``"withheld"`` (the Technique was in effect, but every candidate it could
+    compare was withheld by Document_Support, so the Fallback_Behavior
+    resolved the point among the candidates left; ``decide.support``).
     """
 
     technique: str

@@ -368,8 +368,13 @@ def test_tuple_node_has_one_schema_per_position_and_items_false() -> None:
     assert [len(view) for view in seen] == [31, 31, 30] and {view.path for view in seen} == {(ELEM_STEP,)}
     assert node.provenance["prefixItems"] is node.provenance["items"]
     assert node.provenance["prefixItems"].details["judgment"] == TUPLE
-    assert kw["minItems"] == 2 and kw["maxItems"] == 3  # 16.4
-    assert set(node.provenance) == {"prefixItems", "items", "minItems", "maxItems"}
+    # 16.4, 16.9: only the short row attains the minimum of 2, so minItems=2 is withheld (its leave-one-document-out
+    # value is 3) and omission beats 0 on model bits; every long row attains the maximum, which stands.
+    assert "minItems" not in kw and kw["maxItems"] == 3
+    assert node.item_bounds.minimum.decision.details["withheld"] == [
+        {"label": "minItems=2", "rule": "document_support", "documents": 31, "leave_one_out_value": 3}
+    ]
+    assert set(node.provenance) == {"prefixItems", "items", "maxItems"}
     assert validates({"type": "array", **kw}, docs)
     assert not validates({"type": "array", **kw}, [["a", 1, True, None]])  # items: false
     assert not validates({"type": "array", **kw}, [[1, "a", True]])  # positions are typed

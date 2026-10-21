@@ -195,12 +195,15 @@ def test_the_closed_candidate_pays_the_good_turing_charge() -> None:
     closed_node = SchemaNode(kw={"enum": ["a" * 20, "b" * 20, "c" * 20, "d" * 20]})
     uncharged = scorer.score(closed_node, view).total
     open_dl = scorer.score(SchemaNode(kw={"type": ["string"]}), view).total
-    assert uncharged < open_dl  # the charge is what keeps the Path open
-    closed, open_ = judgment.decision.resolution.candidates
-    assert (closed.outcome, open_.outcome) == ("closed", "open")
-    assert closed.score == pytest.approx(uncharged + good_turing_charge(view), rel=0, abs=1e-9)
-    assert closed.exception_bits > 1.0 and closed.n_rejected == 0
-    assert open_.score == open_dl
+    assert uncharged < open_dl  # the charge would be what keeps the Path open
+    assert good_turing_charge(view) > 1.0
+    # 15.9: three values occur in one document each, so the closed candidate is withheld before any comparison
+    # (Document_Support); the engine resolves the point among the open candidate alone, without the model.
+    (open_,) = judgment.decision.resolution.candidates
+    assert open_.outcome == "open" and open_.score == open_dl
+    assert judgment.decision.details["withheld"] == [
+        {"label": "closed", "rule": "document_support", "documents": 5, "single_document_values": 3}
+    ]
     assert not judgment.closed and judgment.keywords() == {}
     (entry,) = report.rejected
     assert (entry.category, entry.path, entry.technique) == ("enums", "$", ENUM_ESTIMATION)

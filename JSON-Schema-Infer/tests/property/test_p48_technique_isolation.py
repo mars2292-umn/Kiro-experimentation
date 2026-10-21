@@ -521,7 +521,10 @@ def check_fallback_info(info: FallbackInfo | None, kind: str, setup: Setup, wher
         assert cause != "gated", f"{where}: names the gated {tid!r} rather than its disabled gate"
     else:
         cause = None if setup.states[tid] else "disabled"
-    assert info.reason == cause, f"{where}: reason {info.reason!r} for {tid!r}, which is {cause or 'in effect'}"
+    if info.reason == "withheld":  # Document_Support withheld every candidate of a Technique that is in effect
+        assert fallback and cause is None, f"{where}: reason withheld for {tid!r}, which is {cause or 'in effect'}"
+    else:
+        assert info.reason == cause, f"{where}: reason {info.reason!r} for {tid!r}, which is {cause or 'in effect'}"
     if fallback and setup.all_disabled(kind):
         assert info.reason == "disabled", f"{where}: every server of {kind!r} is disabled, reason {info.reason!r}"
     event(f"fallback indicator {info.reason}{' (Fallback_Behavior)' if fallback else ''}")
@@ -586,7 +589,13 @@ def check_report_decisions(setup: Setup, result: PipelineResult) -> None:
             check_fallback_resolution(resolution, kind, where)
             event(f"Fallback_Behavior at {kind} ({'all disabled' if setup.all_disabled(kind) else 'out of effect'})")
         if resolution.method == "fallback":
-            assert setup.out_of_effect(kind), f"{where}: a Fallback_Behavior while a server is in effect"
+            # Document_Support may withhold every candidate a server in effect could compare (reason "withheld").
+            if entry.fallback is not None and entry.fallback.reason == "withheld":
+                assert entry.details.get("withheld"), f"{where}: reason withheld without a withheld candidate"
+                assert not setup.out_of_effect(kind), f"{where}: reason withheld while no server is in effect"
+                event(f"Fallback_Behavior at {kind} (withheld)")
+            else:
+                assert setup.out_of_effect(kind), f"{where}: a Fallback_Behavior while a server is in effect"
             assert entry.details.get("fallback_behavior") == REGISTRY.decision_point(kind).fallback_doc, (
                 f"{where}: the Fallback_Behavior is not recorded"
             )

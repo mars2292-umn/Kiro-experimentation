@@ -853,6 +853,14 @@ Conventions used by every task:
   - Watch Property 42 under `nightly`: one early randomized probe timed out at 300 s and could not be reproduced
   - Hypothesis favors the first `sampled_from` choice and small integers; Property 42 offsets its draws by the documents' size, while Property 3's sum-of-two-draws spread still leans toward index 0. Apply the same correction where coverage events show the skew
 
+- [x] 51. Document_Support: leave-one-document-out withholding of closing Constraints
+  - [x] 51.1 Implement the rule and wire it into the four families (`decide/support.py`, `decide/engine.py`, `values/enums.py`, `structure/record_map.py`, `values/bounds.py`, `values/inferrer.py`, `structure/arrays.py`)
+    - `Candidate.withheld`: the engine drops withheld candidates from every step, skips the Decision_Model when one is withheld, and records them in `details["withheld"]`
+    - Closed_Enum withheld when a value occurs in one document; closed Record when a listed key is held in one document; bound rungs when the leave-one-document-out value no longer covers the extreme; induced Pattern rungs when they fail the document folds. `required` and `type` stay Baseline_Rules (28.5)
+    - Motivated by the real-data benchmark on `bundles/real-2000-t37` (2026-10-21): recall 0.212 against Naive_Merge 0.439, 66.6% of held-out documents rejected; see the design's "Document_Support"
+    - Unit tests in `tests/unit/test_document_support.py`; the fixtures of `test_enums`, `test_record_map`, and `test_arrays` that hit the rule updated
+    - _Requirements: 4.12, 14.9, 15.9, 16.9_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -918,7 +926,8 @@ Conventions used by every task:
     { "id": 50, "tasks": ["46.2", "47.1"] },
     { "id": 51, "tasks": ["47.2", "48.1"] },
     { "id": 52, "tasks": ["48.2"] },
-    { "id": 53, "tasks": ["48.3", "48.4", "49.1"] }
+    { "id": 53, "tasks": ["48.3", "48.4", "49.1"] },
+    { "id": 54, "tasks": ["51.1"] }
   ]
 }
 ```

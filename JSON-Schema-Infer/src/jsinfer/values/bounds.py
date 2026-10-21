@@ -73,6 +73,21 @@ Scores (19.1, 19.3)
     ``n_scored`` is the number of quantities. ``decide_bound`` takes any
     scorer with the same signature, so tests can force ties.
 
+Document_Support (16.9)
+    A caller that knows which document each quantity came from passes a
+    :class:`~jsinfer.decide.support.QuantitySupport`, and every rung that
+    does not survive leave-one-document-out validation is offered withheld
+    (``Candidate.withheld``), so the engine resolves the side among the
+    rest and records it. Omission closes nothing and always survives. With
+    one document every other rung is withheld. Otherwise only the one
+    document that alone attains the observed extreme can change a rung by
+    its absence: the rung's value is recomputed from the extreme over the
+    other documents (:func:`round_outward` for the rounded rungs, the
+    constants unchanged), and the rung survives iff that value still covers
+    the observed extreme. When two or more documents attain the extreme,
+    every rung survives. The design's ``minLength: 6`` from two strings and
+    ``maxLength: 20`` from one are what this removes.
+
 Skips (16.1, 16.3)
     No Decision_Point exists, and no decision is recorded, for an empty set
     of quantities, for numbers or strings at a Closed_Enum Path (the enum
@@ -112,6 +127,7 @@ from jsinfer.core.provenance import ProvenanceRecord, Support
 from jsinfer.core.schema_model import SchemaNode
 from jsinfer.core.stats import Histogram
 from jsinfer.decide.engine import Candidate, Decision, DecisionEngine, DecisionPoint
+from jsinfer.decide.support import QuantitySupport, withheld
 from jsinfer.mdl.codes import LN0, LZ, UNI, decimal_parts
 from jsinfer.mdl.scorer import Score, model_bits
 
@@ -613,6 +629,49 @@ def _base(base: Mapping[str, Any] | SchemaNode | None, q: QuantitySet) -> dict[s
     return dict(base)
 
 
+def _leave_one_out_value(rung: Rung, others: Number, side: Side) -> Number:
+    """The rung's value had the one document attaining the extreme been left out: built from ``others``."""
+    if rung.name == RUNG_OBSERVED:
+        return others
+    if rung.name == RUNG_ONE_DIGIT:
+        return round_outward(others, 1, side)
+    if rung.name == RUNG_TWO_DIGITS:
+        return round_outward(others, 2, side)
+    assert rung.value is not None
+    return rung.value  # zero and the integer limits do not depend on the quantities
+
+
+def _constant(rung: Rung, q: QuantitySet, side: Side) -> bool:
+    """Whether the rung's value is also a constant proposal (zero, or an integer limit of integer quantities).
+
+    The ladder keeps the first name of a value proposed twice, so an observed
+    extreme of 0 is the ``observed`` rung; leaving a document out cannot move
+    a constant, so such a rung survives.
+    """
+    if rung.value is None:
+        return False
+    exact = Fraction(rung.value)
+    if exact == 0:
+        return True
+    return q.integers and any(Fraction(value) == exact for _, value in INTEGER_LIMIT_RUNGS[side])
+
+
+def _refutation(
+    support: QuantitySupport, side: Side, rung: Rung, extreme: Number, q: QuantitySet
+) -> dict[str, JSON] | None:
+    """The ``withheld`` details of a rung that fails leave-one-document-out (16.9); None when it survives."""
+    if rung.value is None:
+        return None  # omission closes nothing
+    if support.documents < 2:
+        return withheld(support.documents)
+    facts = support.minimum if side == MINIMUM else support.maximum
+    if facts.unchanged or facts.others is None or _constant(rung, q, side):
+        return None
+    value = _leave_one_out_value(rung, facts.others, side)
+    covers = Fraction(value) <= Fraction(extreme) if side == MINIMUM else Fraction(value) >= Fraction(extreme)
+    return None if covers else withheld(support.documents, leave_one_out_value=value)
+
+
 def _decide_side(
     engine: DecisionEngine,
     dp: DecisionPoint,
@@ -621,6 +680,7 @@ def _decide_side(
     base: Mapping[str, Any],
     low: Number | None,
     scorer: BoundScorer,
+    support: QuantitySupport | None,
 ) -> BoundSide:
     """Resolve one side; for the maximum, ``low`` is the chosen minimum (None when omitted)."""
     keyword = BOUND_KEYWORDS[q.kind][0 if side == MINIMUM else 1]
@@ -646,6 +706,7 @@ def _decide_side(
                     node=node,
                     score=score,
                     tie_ranks={} if rung.value is None else {TIE_NEAREST_EXTREME: rank},
+                    withheld=None if support is None else _refutation(support, side, rung, extreme, q),
                 )
             )
     decision = engine.resolve(dp, candidates, mdl_by=BOUNDS)
@@ -664,8 +725,9 @@ def decide_bound(
     closed_enum: bool = False,
     format_selected: bool = False,
     scorer: BoundScorer | None = None,
+    support: QuantitySupport | None = None,
 ) -> BoundDecision:
-    """Decide the lower and upper bound of the non-flagged ``quantities`` at ``path`` (16.1–16.8).
+    """Decide the lower and upper bound of the non-flagged ``quantities`` at ``path`` (16.1–16.9).
 
     ``kind`` names the quantities: ``"number"`` (JSON numbers),
     ``"string_length"`` (code points), ``"item_count"``, or ``"key_count"``
@@ -675,12 +737,16 @@ def decide_bound(
     by default the quantities' ``type``). ``closed_enum`` marks a Closed_Enum
     Path (numbers and strings) and ``format_selected`` a string Path with a
     selected Format; both skip the Decision_Point. ``scorer`` replaces
-    :func:`mdl_bound_score`. The engine resolves the minimum, then the
-    maximum with the chosen minimum, and records both in its report.
+    :func:`mdl_bound_score`. ``support`` carries the documents behind the
+    quantities; with it, rungs that fail leave-one-document-out are offered
+    withheld (16.9). The engine resolves the minimum, then the maximum with
+    the chosen minimum, and records both in its report.
     """
     kind = _choice(kind, QUANTITY_KINDS, "quantity kind")
     if not isinstance(engine, DecisionEngine):
         raise TypeError(f"engine must be a DecisionEngine, got {type(engine).__name__}")
+    if support is not None and not isinstance(support, QuantitySupport):
+        raise TypeError(f"support must be a QuantitySupport or None, got {type(support).__name__}")
     if _flag(closed_enum, "closed_enum") and kind not in (NUMBER, STRING_LENGTH):
         raise ValueError(f"closed_enum applies to numbers and string lengths, not to {kind!r} (16.1, 16.3)")
     if _flag(format_selected, "format_selected") and kind != STRING_LENGTH:
@@ -706,8 +772,8 @@ def decide_bound(
     score = mdl_bound_score if scorer is None else scorer
     dp = DecisionPoint(BOUND_DECISION_POINT, path)
     node_base = _base(base, q)
-    minimum = _decide_side(engine, dp, q, MINIMUM, node_base, None, score)
+    minimum = _decide_side(engine, dp, q, MINIMUM, node_base, None, score, support)
     if minimum.value is not None:
         node_base = {**node_base, minimum.keyword: minimum.value}
-    maximum = _decide_side(engine, dp, q, MAXIMUM, node_base, minimum.value, score)
+    maximum = _decide_side(engine, dp, q, MAXIMUM, node_base, minimum.value, score, support)
     return BoundDecision(kind, q, minimum, maximum)

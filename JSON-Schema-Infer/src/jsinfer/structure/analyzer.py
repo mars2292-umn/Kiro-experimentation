@@ -1112,13 +1112,20 @@ class StructureAnalyzer:
         return self._scorer
 
     def _fix_discriminator(self, node: SchemaNode, name: str, constraint: Mapping[str, JSON], found: Discriminator) -> None:
-        """Constrain property ``name`` of a branch with ``constraint``, replacing any enum/const the values gave it."""
+        """Constrain property ``name`` of a branch with ``constraint``, replacing any enum/const the values gave it.
+
+        The open fallback's ``not`` form (10.8) admits every value not assigned
+        to a dedicated branch, so that child keeps no other keyword: the
+        ``type``, Format, Pattern, and bounds its own group's values gave it
+        would reject an unseen value of another shape.
+        """
         properties = node.kw.setdefault("properties", {})
         child = properties.get(name)
         if not isinstance(child, SchemaNode) or child.boolean is not None:
             child = SchemaNode(kw={})
             properties[name] = child
-        for keyword in ("enum", "const", "not"):
+        replaced = tuple(child.kw) if "not" in constraint else ("enum", "const", "not")
+        for keyword in replaced:
             if keyword in child.kw:
                 del child.kw[keyword]
                 self._records.drop(child, keyword)

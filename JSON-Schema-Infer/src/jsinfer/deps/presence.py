@@ -72,7 +72,10 @@ Base_Fields (6.1)
     family. With no required field the keyword is omitted. The rule is the
     ``required`` Baseline_Rule, which every run applies and no Technique
     serves, so there is no Decision_Point, no Fallback_Behavior, and no
-    registry entry to switch.
+    registry entry to switch. Document_Support (``decide.support``) does not
+    apply to it either: a Baseline_Rule is what a run with every Technique
+    off emits, and that run must equal Naive_Merge (28.5), which lists
+    ``required`` from one document as from many.
 
     Each entry is its own Constraint, ``(nid, "required", name)`` at
     ``…/required/<i>`` (the design's granularity table; ``i`` is the name's

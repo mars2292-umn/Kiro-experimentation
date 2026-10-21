@@ -122,6 +122,7 @@ from jsinfer.core.report import InferenceReport
 from jsinfer.core.schema_model import ConstraintId, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import JUDGMENT_OUTCOMES, ArtifactSource, Candidate, Decision, DecisionEngine, DecisionPoint
+from jsinfer.decide.support import QuantitySupport
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.pipeline.naive_merge import naive_merge_node
@@ -573,7 +574,8 @@ class ArrayAnalyzer:
     def item_bounds(self, view: View) -> BoundDecision:
         """``minItems``/``maxItems`` over the lengths of the non-flagged arrays of ``view`` (16.4, 16.8)."""
         arrays = _arrays_of(view)
-        return self._values.decide_bound(arrays.stats().array_lengths, ITEM_COUNT, path=arrays.path)
+        support = QuantitySupport.of_array(arrays.gather("size"), arrays.gather("doc"))
+        return self._values.decide_bound(arrays.stats().array_lengths, ITEM_COUNT, path=arrays.path, support=support)
 
     def _array_pattern(self, arrays: View, outcome: ArrayOutcome) -> Decision | None:
         """The ``array_pattern`` step (7.5–7.8, task 43.1) at a Path with a non-flagged element.

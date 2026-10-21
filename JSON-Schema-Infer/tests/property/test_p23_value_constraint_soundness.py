@@ -359,7 +359,9 @@ def _check_selection(selection: StringConstraint, strings: Sequence[str], where:
         assert candidate.rejected == rejected, (
             f"{candidate.label} by {candidate.technique} at {where}: {candidate.rejected} rejections, Validator {rejected}"
         )
-        assert candidate.withheld == (rejected > 0)
+        # 13.6, 14.9: withheld for a rejected string, or refuted by Document_Support (induced Patterns only)
+        assert candidate.withheld == (rejected > 0 or candidate.refuted is not None)
+        assert candidate.refuted is None or candidate.technique == "values.pattern"
     selected = selection.selected
     step3 = [candidate for candidate in selection.survivors if candidate.technique != PATTERN]
     if step3:

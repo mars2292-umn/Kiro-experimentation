@@ -28,7 +28,13 @@ Judgment (15.2, 15.5, 15.6, 15.7)
        (15.5). The rule overrides criteria 2 and 6, so the engine is not
        consulted; the judgment is recorded as a rejected enum candidate.
     4. Otherwise the engine resolves the closed and open candidates, both
-       produced by ``values.enum_estimation``. A Decision_Model in effect
+       produced by ``values.enum_estimation``. The closed candidate is
+       withheld (Document_Support, 15.9, ``decide.support``) when the
+       Observations come from one document or some distinct value occurs in
+       only one document: the enum inferred without that document would
+       reject it. The engine then resolves the point without the
+       Decision_Model, among the candidates left, and records the withheld
+       candidate in the decision's details. A Decision_Model in effect
        (``decide.dm_closed_enum``, with enum estimation on and a model in the
        Model_Bundle) decides on ``features`` (15.2); the default features are
        the six statistics of 15.1, in :meth:`EnumStats.vector` order, which
@@ -94,6 +100,7 @@ from jsinfer.core.report import InferenceReport, RejectedCandidate
 from jsinfer.core.schema_model import SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import JUDGMENT_OUTCOMES, Candidate, Decision, DecisionEngine, DecisionPoint
+from jsinfer.decide.support import documents_of, value_documents, withheld
 from jsinfer.mdl.codes import CAT, U
 from jsinfer.mdl.scorer import MDLScorer, Score
 from jsinfer.pipeline.naive_merge import naive_type_names
@@ -396,8 +403,14 @@ def judge_enum(
     scorer = scorer if scorer is not None else MDLScorer()
     closed_score = _charged(scorer.score(closed_node, scalars), good_turing_charge(scalars))
     open_score = scorer.score(open_node, scalars)
+    # 15.9: the Closed_Enum must survive leave-one-document-out; a value only one document holds refutes it.
+    documents = documents_of(scalars)
+    single = int((value_documents(scalars) < 2).sum())
+    refuted = withheld(documents, single_document_values=single) if documents < 2 or single else None
     candidates = (
-        Candidate(technique=ENUM_ESTIMATION, outcome=CLOSED, order_key=(0,), node=closed_node, score=closed_score),
+        Candidate(
+            technique=ENUM_ESTIMATION, outcome=CLOSED, order_key=(0,), node=closed_node, score=closed_score, withheld=refuted
+        ),
         Candidate(technique=ENUM_ESTIMATION, outcome=OPEN, order_key=(1,), node=open_node, score=open_score),
     )
 

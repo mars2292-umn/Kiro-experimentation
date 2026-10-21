@@ -398,6 +398,7 @@ class Candidate:
     node: SchemaNode               # partial schema expressing the outcome
     outcome: Any                   # e.g. "record" | "map", grouping id, bound value
     rejects: RowSet = EMPTY        # rows it would reject (exception candidates)
+    withheld: Mapping | None = None  # Document_Support facts when the rule refutes it (4.12, 14.9, 15.9, 16.9)
 
 class DecisionEngine:
     def resolve(self, dp: DecisionPoint, candidates: Sequence[Candidate], view: View,
@@ -426,6 +427,8 @@ A `DecisionPointSpec` can declare a tie rule that a requirement mandates, and th
 | MDL exceptions | widening | 17.2, 17.3 |
 
 Candidates with `rejects ≠ ∅` are offered only when `robust.mdl_exceptions` is enabled. If such a candidate wins, the rejected rows become Flagged_Items (17.2, 17.3). Ties favor the widening candidate.
+
+Candidates with `withheld` set (Document_Support, `decide/support.py`) take part in no step, as if the Technique had not produced them, and the decision's `details["withheld"]` lists each with its label and facts in canonical order. A withheld Judgment_Call candidate removes one of the Decision_Model's classes, so step 1 is skipped at a point with a withheld candidate and steps 2–4 resolve it among the rest; the model's one-candidate-per-class check stays intact. See "Document_Support" under Key Algorithms.
 
 Exception encoding does not depend on `decide.mdl` (17.2, 17.3). When the MDL step runs, exception-bearing candidates compete in its pool as above. When step 1 or step 3 selects a widening winner W and eligible exception-bearing candidates exist, the engine runs an exception check: the best exception-bearing candidate E (lowest DL; ties by the mandated tie rule, fewer model bits, then canonical order) replaces W only when `DL(E) < DL(W)`, so ties go to widening. This is the MDL step's rule restricted to W plus the exception-bearing candidates. W and each exception-bearing candidate are scored by their precomputed score or `MDLScorer.score(node, view)`.
 
@@ -1013,6 +1016,25 @@ The closed candidates charge for expected future exceptions, which models the Go
 ### Bound selection (16.2, 16.7)
 
 For one side, the candidates are: omit; the observed extreme; 0; the extreme rounded outward to 1 and to 2 significant digits; and, when all quantities are integers, the 16 signed and unsigned 8/16/32/64-bit limits. Violated candidates are removed, as are negative candidates for lengths and counts. The minimum is decided first with the maximum omitted. The maximum is then decided given the chosen minimum, because the uniform code couples the two. DL ties go to the candidate nearest the extreme, with "omit" treated as farthest.
+
+### Document_Support (4.12, 14.9, 15.9, 16.9)
+
+The real-data benchmark (task 41) showed the closing Constraints over-fitting small Document_Collections: 80 of 187 datasets train on one document per fold and 139 on four or fewer, and two thirds of held-out documents failed their fold's schema, rejected by `additionalProperties: false` on user-keyed objects, enums of every observed value, Patterns synthesized from two strings, and bounds at the observed extremes. Every one of those decisions counts Observations at the Path, which arrays and Maps inflate far beyond the document count; none sees how many documents the evidence came from, and the synthetic training draws collection sizes uniformly from 1 to 40, so the Decision_Models rarely saw the regime.
+
+Document_Support is the one mechanism that addresses all four families: a closing Constraint candidate is withheld unless it survives leave-one-document-out validation on the collection — for every non-flagged document, the Constraint inferred from the other documents' Observations accepts that document's Observations. It is a validation, not a cut-off (nothing is thresholded; a candidate the collection itself refutes is removed), and it needs no re-inference, since each family has a closed form computed from the `doc` field of the Observations (`decide/support.py`):
+
+| Family | Survives iff | Facts recorded |
+|---|---|---|
+| Closed_Enum (15.9) | every distinct value occurs in ≥ 2 documents | `documents`, `single_document_values` |
+| Closed Record (4.12) | every key under `properties` is held in ≥ 2 documents | `documents`, `single_document_keys` |
+| Bound rung (16.9) | ≥ 2 documents attain the extreme, or the rung's value recomputed from the extreme over the other documents still covers the observed extreme | `documents`, `leave_one_out_value` |
+| Induced Pattern rung (14.9) | for each of ≤ 3 document folds, the Pattern induced at that rung from the other folds matches every string only that fold holds | `documents`, `fold`, `held_out`, `unmatched` |
+
+With one document nothing can be held out, so every closing Constraint is withheld. The Baseline_Rules `type` and `required` are not Decision_Points and are unaffected: a run with every Technique off must still equal Naive_Merge (28.5), which lists `required` from one document as from many. The rule makes the Good–Turing charges of 15.6 and the closed Record inert in practice without changing them: a value or key with Document_Support ≥ 2 occurs ≥ 2 times, so `f1 = 0` whenever the closed candidate is not withheld.
+
+When the only candidates left are structural and no MDL step runs (for example a closed Record withheld with `decide.mdl` off), the Fallback_Behavior resolves the point and the decision records the serving Technique with the fallback reason `withheld`, a fourth `FallbackReason` beside `disabled`, `missing-threshold`, and `missing-model`.
+
+Withholding never adds a Constraint, so soundness (Requirement 3) is unaffected, and results depend only on the documents and their order (27.6). Pattern folds cost at most three extra inductions per string Path.
 
 ### Soundness check and relaxation (Requirement 3)
 

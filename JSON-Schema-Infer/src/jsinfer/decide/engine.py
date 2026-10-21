@@ -40,6 +40,19 @@ Eligibility (28.11, 20.6, 17.2)
     the MDL step's pool and in the exception check that follows a
     Decision_Model or priority selection.
 
+Withheld candidates (Document_Support; 4.12, 14.9, 15.9, 16.9)
+    A caller marks a candidate ``withheld`` when the Document_Support rule of
+    ``decide.support`` refutes it: the closing Constraint it expresses does
+    not survive leave-one-document-out validation on the collection. The
+    mapping names the ``rule`` and its facts. A withheld candidate takes
+    part in no step, as if the Technique had not produced it, and the
+    decision's ``details["withheld"]`` lists each one with its label and
+    facts, in canonical order. Because a withheld Judgment_Call candidate
+    removes one of a Decision_Model's classes, the model is not consulted
+    at a point with a withheld candidate; MDL, priority, or the
+    Fallback_Behavior resolves it among the rest, which keeps the
+    Decision_Model's class check (one candidate per class) intact.
+
 Resolution order
     1. **Decision_Model** (22.12, 23.8, 23.9). When the kind is a Judgment_Call
        kind and its ``decide.dm_*`` Technique is in effect, the model is
@@ -354,10 +367,15 @@ class Candidate:
     rejects: View | None = None
     score: Score | None = None
     tie_ranks: Mapping[str, float] = field(default_factory=dict)
+    withheld: Mapping[str, JSON] | None = None
 
     def __post_init__(self) -> None:
         if self.technique is not None:
             _name(self.technique, "Candidate technique")
+        if self.withheld is not None:
+            if not isinstance(self.withheld, Mapping) or "rule" not in self.withheld:
+                raise TypeError("Candidate withheld must be a mapping naming the 'rule' that withheld it, or None")
+            _set(self, "withheld", MappingProxyType(dict(self.withheld)))
         if not isinstance(self.order_key, tuple):
             raise TypeError(f"Candidate order_key must be a tuple, got {type(self.order_key).__name__}")
         if self.node is not None and not isinstance(self.node, SchemaNode):
@@ -556,7 +574,7 @@ class DecisionEngine:
     ``scorer`` is the default MDL_Scorer.
     """
 
-    __slots__ = ("_bundle", "_extra", "_models", "_report", "_requirements", "_scorer", "_states")
+    __slots__ = ("_bundle", "_extra", "_models", "_report", "_requirements", "_scorer", "_states", "_withheld")
 
     def __init__(
         self,
@@ -568,6 +586,7 @@ class DecisionEngine:
     ) -> None:
         self._states = _states({} if techniques is None else techniques)
         self._extra: dict[str, JSON] | None = None
+        self._withheld: list[_Entry] = []
         if report is not None and not isinstance(report, InferenceReport):
             raise TypeError(f"report must be an InferenceReport or None, got {type(report).__name__}")
         if scorer is not None and not isinstance(scorer, MDLScorer):
@@ -691,14 +710,19 @@ class DecisionEngine:
         )
         ordered = self._ordered(spec, candidates)
         eligible = [entry for entry in ordered if self._eligible(entry.candidate, ctx)]
+        # Withheld candidates (Document_Support) are out of every step; the decision records them.
+        withheld = [entry for entry in eligible if entry.candidate.withheld is not None]
+        eligible = [entry for entry in eligible if entry.candidate.withheld is None]
         widening = [entry for entry in eligible if not entry.candidate.exceptional]
+        self._withheld = withheld
 
-        # 1. Decision_Model (22.12, 23.8, 23.9, 22.14).
+        # 1. Decision_Model (22.12, 23.8, 23.9, 22.14). A withheld candidate takes one of the model's
+        # classes with it, so the model cannot be consulted; the remaining steps resolve the point.
         dm_fallback: FallbackInfo | None = None
         dm = DECISION_MODEL_TECHNIQUES.get(spec.kind)
         if dm is not None:
             reason = self._unavailable(dm, ctx)
-            if reason is None and widening:
+            if reason is None and widening and not withheld:
                 chosen = self._by_model(ctx, dm, widening, features)
                 return self._finish(self._exception_check(ctx, eligible, chosen))
             if reason == _GATED:  # enabled, but its serving gate is disabled (15.7)
@@ -923,6 +947,12 @@ class DecisionEngine:
         )
 
     def _finish(self, decision: Decision) -> Decision:
+        if self._withheld:
+            listed: list[JSON] = [
+                {"label": entry.candidate.label, **dict(entry.candidate.withheld or {})} for entry in self._withheld
+            ]
+            decision = replace(decision, details={**decision.details, "withheld": listed})
+            self._withheld = []
         if self._extra:
             decision = replace(decision, details={**decision.details, **self._extra})
         if self._report is not None:
@@ -990,7 +1020,12 @@ class DecisionEngine:
         return None
 
     def _fallback_info(self, ctx: _Context) -> FallbackInfo:
-        """The Technique whose Fallback_Behavior applies, and why (26.10, 28.12)."""
+        """The Technique whose Fallback_Behavior applies, and why (26.10, 28.12).
+
+        When a serving Technique is in effect but every candidate it could
+        compare was withheld (Document_Support), the reason is ``withheld``:
+        the Fallback_Behavior resolves the point among the candidates left.
+        """
         named: FallbackInfo | None = None
         gated: str | None = None  # the disabled gate of the first gated server (15.7)
         usable: list[str] = []
@@ -1002,6 +1037,8 @@ class DecisionEngine:
                 gated = gated or ctx.spec.serves_only_with[tid]
             elif named is None:
                 named = FallbackInfo(tid, reason)
+        if usable and self._withheld:
+            return FallbackInfo(usable[0], "withheld")
         if usable:
             raise ValueError(
                 f"no eligible candidate at {ctx.spec.kind!r} ({render_path(ctx.path)}) although "
