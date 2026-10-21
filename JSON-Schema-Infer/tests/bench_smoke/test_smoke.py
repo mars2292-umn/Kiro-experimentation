@@ -122,6 +122,21 @@ def test_real_benchmark_end_to_end(workspace: Path, capsys: pytest.CaptureFixtur
     assert "the definition lacks" in summary  # the "broken" definition is reported as excluded
 
 
+def test_a_restarted_real_benchmark_resumes_and_writes_the_same_results(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """35.9: the second run of the same configuration reuses every stored result; --fresh reruns them."""
+    out = workspace / "results" / "real"
+    if not (out / "results.json").exists():
+        assert cli.main(["bench", "real", "-c", str(workspace / "bench.toml")]) == 0
+        capsys.readouterr()
+    before = (out / "results.json").read_bytes()
+    assert cli.main(["bench", "real", "-c", str(workspace / "bench.toml")]) == 0
+    assert "resumed" in capsys.readouterr().err
+    assert (out / "results.json").read_bytes() == before
+    assert cli.main(["bench", "real", "-c", str(workspace / "bench.toml"), "--fresh"]) == 0
+    assert "resumed" not in capsys.readouterr().err
+    assert any((out / "resume").iterdir())  # the fresh run stored its results again
+
+
 def test_ablation_study_end_to_end(workspace: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["bench", "ablation", "-c", str(workspace / "bench.toml")]) == 0
     assert "ablation:" in capsys.readouterr().err

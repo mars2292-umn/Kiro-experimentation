@@ -30,6 +30,7 @@ from pathlib import Path
 
 from jsinfer.bench.baselines.inferrer import InferrerAdapter
 from jsinfer.bench.bootstrap import PairedTest, paired_test
+from jsinfer.bench.resume import ResumeStore
 from jsinfer.bench.splits import CorpusManifest, SchemaSplit
 from jsinfer.bench.synthetic import SyntheticConfig, SyntheticResults, _metric_values, run_synthetic
 from jsinfer.config.registry import REGISTRY, Registry
@@ -158,15 +159,16 @@ def run_ablation(
     validator: Validator | None = None,
     checker: SubschemaChecker | None = None,
     env: dict[str, str] | None = None,
+    store: ResumeStore | None = None,
 ) -> AblationResults:
-    """Run the default and every ablated Inferrer configuration on the same collections and seed (35.3)."""
+    """Run the default and every ablated Inferrer configuration on the same collections and seed (35.3); ``store`` resumes (35.9)."""
     configs = list(configs) if configs is not None else registry_configurations()
     default = dataclasses.replace(inferrer, name=DEFAULT_SYSTEM)
     systems = [default] + [
         dataclasses.replace(inferrer, name=c.system, label=f"Inferrer without {c.technique}", settings={**inferrer.settings, **c.settings()})
         for c in configs
     ]
-    results = run_synthetic(manifest, split, systems, cfg, out_root, schema_ids=schema_ids, generator=generator, validator=validator, checker=checker, env=env)
+    results = run_synthetic(manifest, split, systems, cfg, out_root, schema_ids=schema_ids, generator=generator, validator=validator, checker=checker, env=env, store=store)
     return AblationResults(configs, results, resamples)
 
 

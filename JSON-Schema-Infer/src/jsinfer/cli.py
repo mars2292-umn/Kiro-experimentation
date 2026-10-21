@@ -13,7 +13,8 @@ Commands
 
     ``jsinfer train -c FILE --out DIR``                          train a Model_Bundle (21.1, 21.8); stage progress on stderr
     ``jsinfer split -c FILE``                                    build the Schema_Split (30.1–30.5)
-    ``jsinfer bench {synthetic,real,ablation} -c FILE [--out DIR]``  run a benchmark (30.7, 30.8, 31, 33, 35.3)
+    ``jsinfer bench {synthetic,real,ablation} -c FILE [--out DIR] [--fresh]``  run a benchmark (30.7, 30.8, 31, 33, 35.3),
+                                                                 resuming an interrupted run in DIR unless --fresh (35.9)
 
     ``bench`` is added by task 30.5. :func:`main` takes the arguments (default ``sys.argv[1:]``)
     and returns the exit status instead of exiting, so tests call it in
@@ -336,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("study", choices=("synthetic", "real", "ablation"), help="the benchmark to run")
     bench.add_argument("-c", "--config", required=True, metavar="FILE", help="the TOML benchmark configuration")
     bench.add_argument("--out", metavar="DIR", help="the results directory (default: [bench] results/<study>)")
+    bench.add_argument(
+        "--fresh",
+        action="store_true",
+        help="discard the stored results of an earlier run in DIR instead of resuming it (35.9)",
+    )
     bench.set_defaults(handler=_bench)
     return parser
 
@@ -760,7 +766,7 @@ def _bench(args: argparse.Namespace) -> int:
 
     try:
         config = BenchConfig.from_toml(args.config)
-        harness = Harness(config)
+        harness = Harness(config, fresh=args.fresh)
     except ConfigError as error:  # 27.11
         return _config_failure(error)
     except (ValueError, TypeError) as error:
@@ -785,7 +791,9 @@ def _bench(args: argparse.Namespace) -> int:
         return EXIT_STAGE_ERROR
     where = out if out is not None else Path(harness.settings.results) / args.study
     unavailable = f"; unavailable: {', '.join(agg.unavailable)}" if agg.unavailable else ""
-    _say(f"{args.study}: {done}{unavailable}; wrote results.csv, results.json, aggregates.csv, aggregates.json, summary.md, summary.tex to {_quote(where)}")
+    store = harness.resume
+    resumed = f"; resumed {store.reused} stored results" if store is not None and store.reused else ""
+    _say(f"{args.study}: {done}{unavailable}{resumed}; wrote results.csv, results.json, aggregates.csv, aggregates.json, summary.md, summary.tex to {_quote(where)}")
     return EXIT_OK
 
 

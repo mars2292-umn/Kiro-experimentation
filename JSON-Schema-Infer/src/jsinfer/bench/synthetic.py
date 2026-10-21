@@ -61,6 +61,7 @@ from jsinfer.bench.metrics import (
     recall,
     rejection_rate,
 )
+from jsinfer.bench.resume import ResumeStore, content_digest
 from jsinfer.bench.runner import SystemRun, run_system, write_jsonl
 from jsinfer.bench.splits import CorpusManifest, SchemaSplit
 from jsinfer.config.resources import RESOURCE_PARAMETERS
@@ -278,6 +279,47 @@ class SyntheticResult:
     def ok(self) -> bool:
         return self.missing is None
 
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> SyntheticResult:
+        """The result :meth:`to_json` wrote (benchmark resume, 35.9).
+
+        An unsupported relation keeps its cause, message, and keyword names,
+        which is all :meth:`to_json` and the reports read; the individual
+        keyword uses are not restored.
+        """
+        relation: Relation | Unsupported | None = None
+        stored = value["relation"]
+        if stored is not None:
+            if stored["relation"] == "unsupported":
+                relation = Unsupported(stored["cause"], stored["message"], tuple(stored["keywords"]))
+            else:
+                relation = Relation(stored["relation"])
+        constraints = value["constraints"]
+        return cls(
+            schema_id=value["schema_id"],
+            size=value["size"],
+            system=value["system"],
+            missing=value["missing"],
+            reason=value["reason"],
+            recall=value["recall"],
+            rejection=value["rejection"],
+            harmonic=value["harmonic"],
+            operators={name: OperatorRate(rate["operator"], rate["produced"], rate["rejected"]) for name, rate in value["operators"].items()},
+            relation=relation,
+            judgments=dict(value["judgments"]),
+            constraints=None if constraints is None else ConstraintScores(
+                {k: s["precision"] for k, s in constraints.items()},
+                {k: s["recall"] for k, s in constraints.items()},
+                {k: s["inferred"] for k, s in constraints.items()},
+                {k: s["truth"] for k, s in constraints.items()},
+                {k: s["matched"] for k, s in constraints.items()},
+            ),
+            seconds=value["seconds"],
+            peak_rss_mb=value["peak_rss_mb"],
+            schema_size=value["schema_size"],
+            dl_bits=value["dl_bits"],
+        )
+
     def to_json(self) -> dict[str, JSON]:
         relation: JSON
         if self.relation is None:
@@ -354,28 +396,47 @@ def evaluate(
     validator: Validator | None = None,
     checker: SubschemaChecker | None = None,
     env: dict[str, str] | None = None,
+    store: ResumeStore | None = None,
 ) -> list[SyntheticResult]:
     """Run every system at every size on ``data`` and score it (31.2–31.11, 31.13); see the module docstring.
 
     ``excluded_ids`` is the Held_Out_Schema's near-duplicate group, given to
     the Inferrer as ``corpus.exclude_ids`` (30.6). Results come in size then
     system order; the runs of size ``s`` and system ``x`` live in
-    ``out_dir/<s>/<x>``.
+    ``out_dir/<s>/<x>``. With ``store``, stored (system, size) results are
+    reused without running the system, and new ones are stored (35.9).
     """
     validator = validator if validator is not None else Validator()
     checker = checker if checker is not None else SubschemaChecker(validator=validator)
     loader = SchemaLoader()
     excluded = list(excluded_ids) if excluded_ids else [data.schema_id]
+    shared = None
+    if store is not None:
+        shared = [data.truth_document, list(data.positives), [[n.operator, n.site, n.document] for n in data.negatives]]
     results: list[SyntheticResult] = []
     for size in cfg.sizes:
         size_dir = out_dir / str(size)
-        size_dir.mkdir(parents=True, exist_ok=True)
         docs = size_dir / "docs.jsonl"
-        write_jsonl(data.training[size], docs)
+        written = False
         for system in systems:
             adapter = _with_exclusions(system, excluded)
+            key = None
+            if store is not None:
+                content = content_digest([shared, list(data.training[size])])
+                key = store.key("synthetic", schema=data.schema_id, size=size, content=content, config=cfg.to_json(), system=adapter.describe().to_json())
+                stored = store.load(key)
+                if stored is not None:
+                    results.append(SyntheticResult.from_json(stored))
+                    continue
+            if not written:
+                size_dir.mkdir(parents=True, exist_ok=True)
+                write_jsonl(data.training[size], docs)
+                written = True
             run = run_system(adapter, docs, size_dir / system.name, seed=cfg.seed, timeout_s=cfg.timeout_s, validator=validator, loader=loader, env=env)
-            results.append(_score(data, size, run, validator, checker, cfg.subschema_timeout_s))
+            result = _score(data, size, run, validator, checker, cfg.subschema_timeout_s)
+            if key is not None and result.missing != "unavailable":  # no system ran: recheck on a restart
+                store.save(key, result.to_json())
+            results.append(result)
     return results
 
 
@@ -467,8 +528,13 @@ def run_synthetic(
     validator: Validator | None = None,
     checker: SubschemaChecker | None = None,
     env: dict[str, str] | None = None,
+    store: ResumeStore | None = None,
 ) -> SyntheticResults:
-    """Prepare and evaluate every eligible Held_Out_Schema of ``split`` (or of ``schema_ids``); see the module docstring."""
+    """Prepare and evaluate every eligible Held_Out_Schema of ``split`` (or of ``schema_ids``); see the module docstring.
+
+    ``store`` resumes an interrupted run (35.9, ``bench.resume``); the data are
+    regenerated, which is deterministic, and only stored runs are skipped.
+    """
     validator = validator if validator is not None else Validator()
     generator = generator if generator is not None else SyntheticGenerator(validator)
     loader = SchemaLoader()
@@ -495,7 +561,7 @@ def run_synthetic(
         out.data[schema_id] = prepared.to_json()
         group_members = sorted(by_group.get(groups.get(schema_id, schema_id), [schema_id]), key=codepoint_key)
         out.results.extend(
-            evaluate(prepared, systems, out_root / _safe(schema_id), cfg, excluded_ids=group_members, validator=validator, checker=checker, env=env)
+            evaluate(prepared, systems, out_root / _safe(schema_id), cfg, excluded_ids=group_members, validator=validator, checker=checker, env=env, store=store)
         )
     return out
 

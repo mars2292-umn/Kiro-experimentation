@@ -46,6 +46,7 @@ import psutil
 from jsinfer.bench.baselines.base import Availability, BaselineAdapter, BaselineInfo
 from jsinfer.bench.config import BenchConfig
 from jsinfer.bench.leakage import LeakageError, LeakageReport, check_leakage
+from jsinfer.bench.resume import ResumeStore, fingerprint
 from jsinfer.bench.splits import CorpusManifest, SchemaSplit
 from jsinfer.config.resources import RESOURCE_PARAMETERS
 from jsinfer.core.determinism import codepoint_key, encode_canonical
@@ -404,9 +405,14 @@ class Harness:
     systems. :meth:`check_leakage` runs before any system runs (30.7, 30.8,
     30.11). :meth:`synthetic`, :meth:`real`, and :meth:`ablation` run the
     benchmarks sequentially (34.3) and write the results files (35.8).
+
+    Each study keeps a :class:`~jsinfer.bench.resume.ResumeStore` in
+    ``<out>/resume``, so a restarted run reuses every completed combination
+    (35.9); ``fresh=True`` clears it first. :attr:`resume` is the last
+    study's store, for its counts.
     """
 
-    def __init__(self, cfg: BenchConfig, *, env: dict[str, str] | None = None) -> None:
+    def __init__(self, cfg: BenchConfig, *, env: dict[str, str] | None = None, fresh: bool = False) -> None:
         from jsinfer.bench.synthetic import SyntheticConfig
         from jsinfer.bench.real import RealConfig
 
@@ -416,8 +422,18 @@ class Harness:
         self.synthetic_config = SyntheticConfig.from_mapping(bench, cfg.seed)
         self.real_config = RealConfig.from_mapping(bench, cfg.seed)
         self.env = env
+        self.fresh = fresh
+        self.resume: ResumeStore | None = None
         self._manifest = None
         self._split = None
+
+    def _store(self, out: Path) -> ResumeStore:
+        """The study's ResumeStore under ``out/resume``, fingerprinted with the code and the Model_Bundle (35.9)."""
+        store = ResumeStore(out / "resume", fingerprint(self.settings.model_bundle))
+        if self.fresh:
+            store.clear()
+        self.resume = store
+        return store
 
     # -- inputs --------------------------------------------------------------
 
@@ -502,7 +518,7 @@ class Harness:
         self.check_leakage()
         out = Path(out_dir) if out_dir is not None else Path(self.settings.results) / "synthetic"
         systems = self.systems()
-        results = run_synthetic(self.manifest, self.split, systems, self.synthetic_config, out / "runs", env=self.env)
+        results = run_synthetic(self.manifest, self.split, systems, self.synthetic_config, out / "runs", env=self.env, store=self._store(out))
         labels, unavailable = self._labels(systems)
         rows = synthetic_rows(results, labels, unavailable=unavailable)
         agg = write_report(rows, out, seed=self.cfg.seed, resamples=self.settings.resamples, extra={"synthetic": results.to_json()})
@@ -517,7 +533,7 @@ class Harness:
         self.check_leakage([d.id for d in datasets])
         out = Path(out_dir) if out_dir is not None else Path(self.settings.results) / "real"
         systems = self.systems()
-        results = run_real(datasets, systems, self.real_config, out / "runs", exclusions=exclusions, env=self.env)
+        results = run_real(datasets, systems, self.real_config, out / "runs", exclusions=exclusions, env=self.env, store=self._store(out))
         labels, unavailable = self._labels(systems)
         rows = real_rows(results, labels, unavailable=unavailable)
         agg = write_report(rows, out, real=results, seed=self.cfg.seed, resamples=self.settings.resamples, extra={"real": results.to_json()})
@@ -539,7 +555,9 @@ class Harness:
             if unknown:
                 raise ValueError(f"[bench] ablations names Techniques that are not enabled by default: {unknown}")
             configs = [c for c in configs if c.technique in self.settings.ablations]
-        results = run_ablation(self.manifest, self.split, inferrer, self.synthetic_config, out / "runs", configs=configs, resamples=self.settings.resamples, env=self.env)
+        results = run_ablation(
+            self.manifest, self.split, inferrer, self.synthetic_config, out / "runs", configs=configs, resamples=self.settings.resamples, env=self.env, store=self._store(out)
+        )
         labels = {DEFAULT_SYSTEM: "Inferrer", **{c.system: f"Inferrer without {c.technique}" for c in results.configs}}
         rows = synthetic_rows(results.results, labels)
         agg = write_report(rows, out, reference=DEFAULT_SYSTEM, seed=self.cfg.seed, resamples=self.settings.resamples, extra={"ablation": results.to_json()})

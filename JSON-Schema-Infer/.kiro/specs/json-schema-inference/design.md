@@ -1484,7 +1484,7 @@ Invalid proportions are rejected without writing a split.
 **Validates: Requirements 34.9, 35.8, 35.12**
 
 ### Property 59: Benchmark resume
-*For any* interruption point in a benchmark run, restarting with the same configuration and seed reuses exactly the combinations whose results were fully written and recomputes the rest. The final results equal those of an uninterrupted run.
+*For any* interruption point in a benchmark run, restarting with the same configuration and seed reuses exactly the combinations whose results were fully written and recomputes the rest. The final results equal those of an uninterrupted run, except the measured `seconds` and `peak_rss_mb` of recomputed combinations, which are new measurements. "The same configuration" includes the code and the Model_Bundle: every resume key carries a digest of the `jsinfer` sources and of the bundle manifest (`bench/resume.py`), so neither a code change nor a retrained bundle reuses a stored result. Results of `unavailable` systems are not stored, since no system ran.
 **Validates: Requirements 35.9**
 
 ## Error Handling

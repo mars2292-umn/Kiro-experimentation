@@ -757,10 +757,11 @@ Conventions used by every task:
   - [ ] 41.4 Implement the calibration study (`bench/studies.py`)
     - Reliability-curve data and ECE over the Inferrer's Constraints on Held_Out_Schemas, using `ece.bins`
     - _Requirements: 35.6_
-  - [ ] 41.5 Implement benchmark resume (`bench/resume.py`, `bench/runner.py`)
+  - [x] 41.5 Implement benchmark resume (`bench/resume.py`, `bench/runner.py`)
     - `results/<hash>.json` written by temp file and rename, with completion markers; restarts skip complete combinations and recompute absent or partial ones
+    - Done as `<out>/resume/<sha256>.json` per (system, dataset) or (system, schema, size) combination, wired into the real and synthetic benchmarks and through the latter the ablation study. Keys include a fingerprint of the `jsinfer` sources and the Model_Bundle manifest, so code or bundle changes never reuse stale results; `unavailable` results are not stored; `jsinfer bench … --fresh` clears the store
     - _Requirements: 35.9_
-  - [ ] 41.6 Write property test for benchmark resume
+  - [x] 41.6 Write property test for benchmark resume
     - **Property 59: Benchmark resume**
     - **Validates: Requirements 35.9**
   - [ ] 41.7 Add the `robustness` and `calibration` bench subcommands (`cli.py`)

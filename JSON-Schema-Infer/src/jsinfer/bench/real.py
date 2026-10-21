@@ -40,6 +40,14 @@ Folds and metrics (33.3, 33.4, 33.7, 33.9)
     available and recorded as such (33.9). A system that fails, times out,
     is unavailable, or produces no loadable schema in any fold has every
     metric missing for the dataset with the failure kind.
+
+Resume (35.9)
+    With a :class:`~jsinfer.bench.resume.ResumeStore`, each (system,
+    dataset) result is stored when it completes, keyed by the system, the
+    cleaned dataset's content, the configuration, and the store's
+    fingerprint; a restarted run reuses stored results without running the
+    system, and when every system of a dataset is stored the dataset's
+    folds are not even written.
 """
 
 from __future__ import annotations
@@ -55,6 +63,7 @@ import numpy as np
 from jsinfer.bench.baselines.base import BaselineAdapter
 from jsinfer.bench.measure import description_length, schema_size
 from jsinfer.bench.metrics import Aggregate, Metric, aggregate, harmonic_mean, recall, rejection_rate
+from jsinfer.bench.resume import ResumeKey, ResumeStore, content_digest
 from jsinfer.bench.runner import run_system, write_jsonl
 from jsinfer.bench.splits import CorpusManifest
 from jsinfer.core.determinism import codepoint_key, rng
@@ -321,6 +330,29 @@ class RealResult:
     def ok(self) -> bool:
         return self.missing is None
 
+    @classmethod
+    def from_json(cls, value: Mapping[str, Any]) -> RealResult:
+        """The result :meth:`to_json` wrote (benchmark resume, 35.9)."""
+        return cls(
+            dataset_id=value["dataset_id"],
+            system=value["system"],
+            n=value["n"],
+            fold_count=value["folds"],
+            excluded=value["excluded"],
+            negatives_source=value["negatives_source"],
+            negatives=value["negatives"],
+            missing=value["missing"],
+            reason=value["reason"],
+            recall=value["recall"],
+            rejection=value["rejection"],
+            harmonic=value["harmonic"],
+            fold_rejection=tuple(value["fold_rejection"]),
+            seconds=value["seconds"],
+            peak_rss_mb=value["peak_rss_mb"],
+            schema_size=value["schema_size"],
+            dl_bits=value["dl_bits"],
+        )
+
     def to_json(self) -> dict[str, JSON]:
         return {
             "dataset_id": self.dataset_id,
@@ -356,9 +388,25 @@ def evaluate(
     *,
     validator: Validator | None = None,
     env: dict[str, str] | None = None,
+    store: ResumeStore | None = None,
 ) -> list[RealResult]:
-    """Cross-validate every system on ``dataset`` (33.3, 33.4, 33.7, 33.9); runs live in ``out_dir/fold<i>/<system>``."""
+    """Cross-validate every system on ``dataset`` (33.3, 33.4, 33.7, 33.9); runs live in ``out_dir/fold<i>/<system>``.
+
+    With ``store``, a system whose result on this dataset is stored is not
+    run again, and every newly completed result is stored (35.9).
+    """
     validator = validator if validator is not None else Validator()
+    keys: dict[str, ResumeKey] = {}
+    cached: dict[str, RealResult] = {}
+    if store is not None:
+        digest = content_digest([[list(p) for p in dataset.positives], [list(n) for n in dataset.negatives], dataset.schema, len(dataset.excluded)])
+        for system in systems:
+            keys[system.name] = store.key("real", dataset=dataset.id, content=digest, config=cfg.to_json(), system=system.describe().to_json())
+            stored = store.load(keys[system.name])
+            if stored is not None:
+                cached[system.name] = RealResult.from_json(stored)
+        if len(cached) == len(systems):
+            return [cached[system.name] for system in systems]
     loader = SchemaLoader()
     negatives = list(dataset.negatives)
     source: NegativesSource = "supplied"
@@ -376,46 +424,68 @@ def evaluate(
         fold_dirs.append((fold, fold_dir))
     results: list[RealResult] = []
     for system in systems:
-        accepted = 0
-        fold_rates: list[Metric] = []
-        sizes: list[int] = []
-        lengths: list[float] = []
-        seconds = 0.0
-        peak = 0.0
-        missing: tuple[str, str | None] | None = None
-        for fold, fold_dir in fold_dirs:
-            run = run_system(system, fold_dir / "docs.jsonl", fold_dir / system.name, seed=cfg.seed, timeout_s=cfg.timeout_s, validator=validator, loader=loader, env=env)
-            if run.seconds is not None:
-                seconds += run.seconds
-            if run.peak_rss_mb is not None:
-                peak = max(peak, run.peak_rss_mb)
-            if run.kind != "schema" or run.document is None:
-                missing = (run.kind, run.reason)
-                break
-            try:
-                compiled = validator.compile(run.document, name=f"{system.name}:{dataset.id}")
-            except CompileError as error:
-                missing = ("failure", f"the Validator cannot load the schema: {error}")
-                break
-            accepted += sum(1 for j in fold if validator.is_valid(compiled, documents[j]))
-            fold_rates.append(rejection_rate(sum(1 for _, neg in negatives if not validator.is_valid(compiled, neg)), len(negatives)))
-            sizes.append(schema_size(run.document))
-            held = set(fold)
-            bits = description_length(run.model, [documents[j] for j in range(dataset.n) if j not in held]) if run.model is not None else None
-            if bits is not None:
-                lengths.append(bits)
-        base = dict(dataset_id=dataset.id, system=system.name, n=dataset.n, fold_count=len(assignment), excluded=len(dataset.excluded), negatives_source=source, negatives=len(negatives))
-        if missing is not None:
-            results.append(RealResult(**base, missing=missing[0], reason=missing[1], seconds=seconds, peak_rss_mb=peak))
+        if system.name in cached:
+            results.append(cached[system.name])
             continue
-        r = recall(accepted, dataset.n)
-        defined = [rate for rate in fold_rates if rate is not None]
-        n_rate: Metric = None if not defined else sum(defined) / len(defined)
-        results.append(RealResult(
-            **base, recall=r, rejection=n_rate, harmonic=harmonic_mean(r, n_rate), fold_rejection=tuple(fold_rates), seconds=seconds, peak_rss_mb=peak,
-            schema_size=sum(sizes) / len(sizes) if sizes else None, dl_bits=sum(lengths) / len(lengths) if lengths else None,
-        ))
+        result = _evaluate_system(system, dataset, fold_dirs, documents, negatives, source, assignment, cfg, validator, loader, env)
+        if store is not None and result.missing != "unavailable":  # no system ran: recheck on a restart
+            store.save(keys[system.name], result.to_json())
+        results.append(result)
     return results
+
+
+def _evaluate_system(
+    system: BaselineAdapter,
+    dataset: CleanedDataset,
+    fold_dirs: list[tuple[list[int], Path]],
+    documents: list[JSON],
+    negatives: list[tuple[str, JSON]],
+    source: NegativesSource,
+    assignment: list[list[int]],
+    cfg: RealConfig,
+    validator: Validator,
+    loader: SchemaLoader,
+    env: dict[str, str] | None,
+) -> RealResult:
+    """Run ``system`` on every fold of ``dataset``: its one result (33.7, 33.9)."""
+    accepted = 0
+    fold_rates: list[Metric] = []
+    sizes: list[int] = []
+    lengths: list[float] = []
+    seconds = 0.0
+    peak = 0.0
+    missing: tuple[str, str | None] | None = None
+    for fold, fold_dir in fold_dirs:
+        run = run_system(system, fold_dir / "docs.jsonl", fold_dir / system.name, seed=cfg.seed, timeout_s=cfg.timeout_s, validator=validator, loader=loader, env=env)
+        if run.seconds is not None:
+            seconds += run.seconds
+        if run.peak_rss_mb is not None:
+            peak = max(peak, run.peak_rss_mb)
+        if run.kind != "schema" or run.document is None:
+            missing = (run.kind, run.reason)
+            break
+        try:
+            compiled = validator.compile(run.document, name=f"{system.name}:{dataset.id}")
+        except CompileError as error:
+            missing = ("failure", f"the Validator cannot load the schema: {error}")
+            break
+        accepted += sum(1 for j in fold if validator.is_valid(compiled, documents[j]))
+        fold_rates.append(rejection_rate(sum(1 for _, neg in negatives if not validator.is_valid(compiled, neg)), len(negatives)))
+        sizes.append(schema_size(run.document))
+        held = set(fold)
+        bits = description_length(run.model, [documents[j] for j in range(dataset.n) if j not in held]) if run.model is not None else None
+        if bits is not None:
+            lengths.append(bits)
+    base = dict(dataset_id=dataset.id, system=system.name, n=dataset.n, fold_count=len(assignment), excluded=len(dataset.excluded), negatives_source=source, negatives=len(negatives))
+    if missing is not None:
+        return RealResult(**base, missing=missing[0], reason=missing[1], seconds=seconds, peak_rss_mb=peak)
+    r = recall(accepted, dataset.n)
+    defined = [rate for rate in fold_rates if rate is not None]
+    n_rate: Metric = None if not defined else sum(defined) / len(defined)
+    return RealResult(
+        **base, recall=r, rejection=n_rate, harmonic=harmonic_mean(r, n_rate), fold_rejection=tuple(fold_rates), seconds=seconds, peak_rss_mb=peak,
+        schema_size=sum(sizes) / len(sizes) if sizes else None, dl_bits=sum(lengths) / len(lengths) if lengths else None,
+    )
 
 
 @dataclass
@@ -473,8 +543,12 @@ def run_real(
     exclusions: Sequence[DatasetExclusion] = (),
     validator: Validator | None = None,
     env: dict[str, str] | None = None,
+    store: ResumeStore | None = None,
 ) -> RealResults:
-    """Clean and evaluate every Real_Dataset (see the module docstring); ``exclusions`` are the definition-level ones."""
+    """Clean and evaluate every Real_Dataset (see the module docstring); ``exclusions`` are the definition-level ones.
+
+    ``store`` resumes an interrupted run (35.9, ``bench.resume``).
+    """
     validator = validator if validator is not None else Validator()
     out = RealResults(cfg, dataset_exclusions=list(exclusions))
     for dataset in datasets:
@@ -483,7 +557,7 @@ def run_real(
             out.dataset_exclusions.append(cleaned)
             continue
         out.document_exclusions.extend(cleaned.excluded)
-        out.results.extend(evaluate(cleaned, systems, out_root / _safe(dataset.id), cfg, validator=validator, env=env))
+        out.results.extend(evaluate(cleaned, systems, out_root / _safe(dataset.id), cfg, validator=validator, env=env, store=store))
     return out
 
 
