@@ -9,7 +9,20 @@ import pytest
 
 from jsinfer.bench.measure import schema_size
 from jsinfer.bench.real import RealConfig, RealResult, RealResults, DatasetExclusion
-from jsinfer.bench.reporting import Row, aggregate, latex, markdown, read_csv, real_rows, synthetic_rows, write_csv, write_json, write_report
+from jsinfer.bench.reporting import (
+    Row,
+    aggregate,
+    latex,
+    markdown,
+    read_csv,
+    real_rows,
+    real_size_group,
+    real_size_rows,
+    synthetic_rows,
+    write_csv,
+    write_json,
+    write_report,
+)
 from jsinfer.bench.synthetic import SyntheticConfig, SyntheticResult, SyntheticResults
 from jsinfer.io.subschema import Relation
 
@@ -65,6 +78,30 @@ def test_tables_put_real_first_mark_unavailable_and_carry_labels(tmp_path: Path)
     assert {p.name for p in tmp_path.iterdir()} == {"results.csv", "results.json", "aggregates.csv", "aggregates.json", "summary.md", "summary.tex"}
     assert json.loads((tmp_path / "aggregates.json").read_text())["unavailable"] == ["recg"]
     assert written.reference == "jsinfer"
+
+
+def test_real_results_are_also_reported_per_size_group(tmp_path: Path) -> None:
+    """33.10: size groups by n, after the primary table, with paired comparisons; the results files stay per dataset."""
+    rows = [
+        _row("jsinfer", "small", recall=0.2, n=2), _row("naive", "small", recall=0.4, n=2),
+        _row("jsinfer", "mid", recall=0.6, n=4), _row("naive", "mid", recall=0.5, n=4),
+        _row("jsinfer", "big", recall=0.9, n=40), _row("naive", "big", recall=0.7, n=40),
+        _row("jsinfer", "s1", group="synthetic@10", recall=0.9), _row("naive", "s1", group="synthetic@10", recall=0.3),
+        Row("recg", "ReCG reimplementation", "*", "real", "default", 0, "unavailable", "no runtime", {"recall": None, "harmonic": None}),
+    ]
+    assert [r.group for r in real_size_rows(rows)] == ["real:2", "real:2", "real:3-5", "real:3-5", "real:>30", "real:>30", "real:2", "real:3-5", "real:>30"]
+    assert (real_size_group(1), real_size_group(2), real_size_group(30), real_size_group(31)) == (None, "real:2", "real:11-30", "real:>30")
+    agg = write_report(rows, tmp_path, seed=0, resamples=50)
+    assert agg.groups == ["real", "real:2", "real:3-5", "real:>30", "synthetic@10"]  # empty size groups get no table
+    assert agg.summary("jsinfer", "real:3-5", "recall").summary.mean == 0.6
+    assert agg.summary("jsinfer", "real", "recall").summary.count == 3  # the primary group is unchanged
+    assert agg.summary("recg", "real:2", "recall").missing == {"unavailable": 1}
+    [pair] = [c for c in agg.comparisons if c.system == "naive" and c.group == "real:>30" and c.metric == "recall"]
+    assert pair.n_pairs == 1
+    md = (tmp_path / "summary.md").read_text()
+    order = ["Real datasets (primary comparison)", "Real datasets with 2 documents", "Real datasets with 3-5 documents", "Real datasets with >30 documents", "Synthetic benchmark, training size 10"]
+    assert [md.index(t) for t in order] == sorted(md.index(t) for t in order)
+    assert len(json.loads((tmp_path / "results.json").read_text())) == len(rows)  # no copies in the results files
 
 
 def test_relation_table_is_secondary_with_coverage() -> None:

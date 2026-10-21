@@ -25,9 +25,20 @@ Aggregates (34.9, 35.1, 35.2, 35.12)
     Inferrer) and every other system use only the datasets where both are
     ``ok`` and defined (``bootstrap.paired_test``).
 
+Size groups (33.10)
+    Most Real_Datasets are small (SchemaStore test sets often have two or
+    three documents), and every dataset weighs the same in the primary mean,
+    so :func:`write_report` also aggregates the real rows per size group
+    (:data:`REAL_SIZE_GROUPS`, by the positive documents left after
+    cleaning): ``real:2``, ``real:3-5``, ``real:6-10``, ``real:11-30``, and
+    ``real:>30``, each with its means, intervals, and paired comparisons.
+    The copies (:func:`real_size_rows`) feed only the aggregates; the
+    results files keep one row per dataset.
+
 Tables (33.6, 34.6, 34.10)
     :func:`markdown` and :func:`latex` render the aggregates: the
-    Real_Dataset tables first, labeled the primary comparison, with the
+    Real_Dataset tables first, labeled the primary comparison, then one per
+    size group, with the
     per-dataset facts (n, folds, exclusions, negative source) and the
     dataset exclusion counts per reason, then the synthetic tables per
     training size, then the paired comparisons. A system that was
@@ -38,6 +49,7 @@ Tables (33.6, 34.6, 34.10)
 from __future__ import annotations
 
 import csv
+import dataclasses
 import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
@@ -55,6 +67,7 @@ __all__ = [
     "FIXED_COLUMNS",
     "MEASURE_COLUMNS",
     "REAL_GROUP",
+    "REAL_SIZE_GROUPS",
     "SYNTHETIC_METRICS",
     "REAL_METRICS",
     "Aggregates",
@@ -66,6 +79,8 @@ __all__ = [
     "markdown",
     "read_csv",
     "real_rows",
+    "real_size_group",
+    "real_size_rows",
     "synthetic_rows",
     "synthetic_group",
     "write_csv",
@@ -76,6 +91,14 @@ __all__ = [
 FIXED_COLUMNS: Final = ("system", "label", "dataset", "group", "config", "seed", "status", "reason")
 MEASURE_COLUMNS: Final = ("seconds", "peak_rss_mb", "schema_size", "dl_bits")
 REAL_GROUP: Final = "real"
+# Real_Dataset size groups (33.10): (name, fewest, most) positive documents after cleaning; None is unbounded.
+REAL_SIZE_GROUPS: Final[tuple[tuple[str, int, int | None], ...]] = (
+    ("2", 2, 2),
+    ("3-5", 3, 5),
+    ("6-10", 6, 10),
+    ("11-30", 11, 30),
+    (">30", 31, None),
+)
 SYNTHETIC_METRICS: Final = ("recall", "rejection", "harmonic")
 REAL_METRICS: Final = ("recall", "rejection", "harmonic")
 STATUSES: Final = ("ok", "failure", "timeout", "unavailable")
@@ -83,6 +106,36 @@ STATUSES: Final = ("ok", "failure", "timeout", "unavailable")
 
 def synthetic_group(size: int) -> str:
     return f"synthetic@{size}"
+
+
+def real_size_group(n: int) -> str | None:
+    """The size group ``real:<name>`` of a Real_Dataset with ``n`` positive documents (33.10); None below the smallest."""
+    for name, low, high in REAL_SIZE_GROUPS:
+        if n >= low and (high is None or n <= high):
+            return f"{REAL_GROUP}:{name}"
+    return None
+
+
+def real_size_rows(rows: Sequence[Row]) -> list[Row]:
+    """Copies of the real rows in their size groups, for aggregation only (33.10).
+
+    A row lands in the group of its ``n`` fact. An ``unavailable`` row
+    (dataset ``*``) is copied into every size group that holds a dataset, so
+    the system stays marked in each size table. The results files keep one
+    row per dataset; these copies only feed :func:`aggregate`.
+    """
+    sized: list[Row] = []
+    for row in rows:
+        n = row.facts.get("n")
+        if row.group == REAL_GROUP and row.dataset != "*" and isinstance(n, int):
+            group = real_size_group(n)
+            if group is not None:
+                sized.append(dataclasses.replace(row, group=group))
+    present = sorted({row.group for row in sized}, key=_group_order)
+    for row in rows:
+        if row.group == REAL_GROUP and row.dataset == "*":
+            sized.extend(dataclasses.replace(row, group=group) for group in present)
+    return sized
 
 
 @dataclass(frozen=True)
@@ -297,7 +350,7 @@ class Aggregates:
 
     @property
     def groups(self) -> list[str]:
-        return sorted({s.group for s in self.summaries}, key=lambda g: (g != REAL_GROUP, _group_key(g)))
+        return sorted({s.group for s in self.summaries}, key=_group_order)
 
     def to_json(self) -> dict[str, JSON]:
         return {
@@ -308,20 +361,26 @@ class Aggregates:
         }
 
 
-def _group_key(group: str) -> tuple[int, str]:
+def _group_order(group: str) -> tuple[int, int, str]:
+    """Report order: the primary real group, its size groups smallest first, synthetic sizes ascending, then others."""
+    if group == REAL_GROUP:
+        return (0, 0, "")
+    names = [name for name, _, _ in REAL_SIZE_GROUPS]
+    if group.startswith(REAL_GROUP + ":") and group.split(":", 1)[1] in names:
+        return (1, names.index(group.split(":", 1)[1]), "")
     if group.startswith("synthetic@"):
         try:
-            return (int(group.split("@", 1)[1]), "")
+            return (2, int(group.split("@", 1)[1]), "")
         except ValueError:
             pass
-    return (0, group)
+    return (3, 0, group)
 
 
 def aggregate(rows: Sequence[Row], *, reference: str = "jsinfer", metrics: Sequence[str] | None = None, seed: int = 0, resamples: int | None = None) -> Aggregates:
     """Per-system, per-group, per-metric summaries and paired comparisons to ``reference`` (see the module docstring)."""
     names = list(metrics) if metrics is not None else sorted({m for row in rows for m in row.metrics}, key=codepoint_key)
     systems = sorted({row.system for row in rows}, key=codepoint_key)
-    groups = sorted({row.group for row in rows}, key=lambda g: (g != REAL_GROUP, _group_key(g)))
+    groups = sorted({row.group for row in rows}, key=_group_order)
     labels = {row.system: row.label for row in rows}
     unavailable = sorted({row.system for row in rows if row.status == "unavailable"}, key=codepoint_key)
     summaries: list[MetricSummary] = []
@@ -388,9 +447,15 @@ def _system_name(agg: Aggregates, system: str) -> str:
 def _tables(agg: Aggregates, rows: Sequence[Row], real: RealResults | None, metrics: Sequence[str]) -> list[tuple[str, list[str], list[list[str]]]]:
     """``(title, header, body)`` tables in report order: real first and labeled primary, then synthetic, then comparisons."""
     tables: list[tuple[str, list[str], list[list[str]]]] = []
+    real_groups = [g for g in agg.groups if _group_order(g)[0] <= 1]
     for group in agg.groups:
         shown = [m for m in metrics if any(s.group == group and s.metric == m for s in agg.summaries)]
-        title = "Real datasets (primary comparison)" if group == REAL_GROUP else f"Synthetic benchmark, training size {group.split('@', 1)[-1]}"
+        if group == REAL_GROUP:
+            title = "Real datasets (primary comparison)"
+        elif group in real_groups:
+            title = f"Real datasets with {group.split(':', 1)[1]} documents"
+        else:
+            title = f"Synthetic benchmark, training size {group.split('@', 1)[-1]}"
         header = ["System", *shown]
         body = []
         for system in agg.systems:
@@ -400,7 +465,7 @@ def _tables(agg: Aggregates, rows: Sequence[Row], real: RealResults | None, metr
                 cells.append("n/a" if s is None else _summary_cell(s))
             body.append(cells)
         tables.append((title, header, body))
-        if group == REAL_GROUP:
+        if real_groups and group == real_groups[-1]:  # the per-dataset facts follow the primary and size tables (33.6, 33.10)
             facts: dict[str, Mapping[str, JSON]] = {}
             for row in rows:
                 if row.group == REAL_GROUP and row.dataset != "*" and row.dataset not in facts:
@@ -496,7 +561,7 @@ def write_report(rows: Sequence[Row], out_dir: Path, *, real: RealResults | None
     out_dir.mkdir(parents=True, exist_ok=True)
     write_csv(rows, out_dir / "results.csv")
     write_json(rows, out_dir / "results.json")
-    agg = aggregate(rows, reference=reference, seed=seed, resamples=resamples)
+    agg = aggregate([*rows, *real_size_rows(rows)], reference=reference, seed=seed, resamples=resamples)
     document: dict[str, Any] = agg.to_json()
     if extra:
         document["extra"] = dict(extra)

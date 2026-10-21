@@ -876,6 +876,13 @@ Conventions used by every task:
     - Unit tests in `tests/unit/test_document_support.py`
     - _Requirements: 14.10_
 
+- [x] 54. Real-data results per dataset size
+  - [x] 54.1 Report the real-data metrics per size group (`bench/reporting.py`)
+    - `real_size_rows` copies each real row into `real:2`, `real:3-5`, `real:6-10`, `real:11-30`, or `real:>30` by its `n` for aggregation only; the summary gets one table per non-empty group after the primary comparison, and the paired comparisons cover each group
+    - Motivated by the Task 52 subset benchmark: 80 of 182 Real_Datasets have two documents (one per training fold), so the primary mean is dominated by learning from one document
+    - Unit test in `tests/unit/test_reporting.py`
+    - _Requirements: 33.10_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -944,7 +951,8 @@ Conventions used by every task:
     { "id": 53, "tasks": ["48.3", "48.4", "49.1"] },
     { "id": 54, "tasks": ["51.1"] },
     { "id": 55, "tasks": ["52.1"] },
-    { "id": 56, "tasks": ["53.1"] }
+    { "id": 56, "tasks": ["53.1"] },
+    { "id": 57, "tasks": ["54.1"] }
   ]
 }
 ```
