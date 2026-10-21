@@ -8,6 +8,21 @@ Formats
     accepts it, which is the verdict of ``{"format": f}`` with format
     assertion on. No other rule (regex, parser, or cut-off) decides it.
 
+Distinctive evidence (13.10)
+    A Format is a candidate only when some string shows the structure that
+    sets the Format apart, not merely satisfies it. Every Format but
+    ``hostname`` carries that structure in its grammar (a ``@``, a scheme,
+    digits and separators). A single-label ``hostname`` is any short
+    letter-digit-hyphen word, so ``"docs"`` or ``"user"`` satisfies it and
+    says nothing about hostnames; on the real-data benchmark the Inferrer
+    emitted ``hostname`` thousands of times on such words and rejected
+    held-out values with a space or an underscore. :data:`DISTINCTIVE` holds
+    the rule per Format: ``hostname`` needs a satisfying string with two or
+    more labels (a ``.``). The verdicts are unchanged, so withholding (13.6)
+    still checks every string, and a ``hostname`` candidate with a dotted
+    string accepts single-label ones too. It is a rule about evidence, not a
+    cut-off: no count or ratio is compared.
+
 Checks
     :class:`FormatDetector` belongs to one ObservationStore. It checks each
     distinct string once per Format and keeps the ten verdicts of a string as
@@ -67,6 +82,7 @@ from jsinfer.decide.engine import Candidate
 from jsinfer.io.validator import Validator
 
 __all__ = [
+    "DISTINCTIVE",
     "FORMATS",
     "REJECTED_CATEGORY",
     "TECHNIQUE",
@@ -95,11 +111,16 @@ FORMATS: Final[tuple[str, ...]] = (
     "uuid",
 )
 
+# 13.10: the Formats whose satisfying strings must also show distinctive structure, with the test.
+DISTINCTIVE: Final[Mapping[str, Callable[[str], bool]]] = {"hostname": lambda s: "." in s}
+
 _ORDER: Final[Mapping[str, int]] = {fmt: i for i, fmt in enumerate(FORMATS)}
-# Bit i of a verdict mask is set when the string satisfies FORMATS[i].
+# Bit i of a verdict mask is set when the string satisfies FORMATS[i]; bit len(FORMATS) + j when it also
+# shows the distinctive structure of the j-th Format of DISTINCTIVE.
 _BITS: Final = np.left_shift(np.int64(1), np.arange(len(FORMATS), dtype=np.int64))
+_DISTINCT_BITS: Final[Mapping[str, int]] = {fmt: 1 << (len(FORMATS) + j) for j, fmt in enumerate(DISTINCTIVE)}
 _UNCHECKED: Final = -1  # mask of a string the Validator has not been asked about yet
-_MASK_DTYPE: Final = np.int16  # ten bits and the sentinel
+_MASK_DTYPE: Final = np.int16  # ten verdict bits, the distinctive bits, and the sentinel
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +129,10 @@ class FormatCheck:
 
     ``satisfied`` and ``rejected`` count strings with multiplicity (one per
     non-flagged Observation, or per object for keys); the ``distinct_``
-    fields count distinct strings.
+    fields count distinct strings. ``distinctive`` counts, with
+    multiplicity, the satisfying strings that show the Format's distinctive
+    structure (13.10); None for a Format without such a rule, where every
+    satisfying string counts.
     """
 
     fmt: str
@@ -116,6 +140,7 @@ class FormatCheck:
     rejected: int
     distinct_satisfied: int
     distinct_rejected: int
+    distinctive: int | None = None
 
     def __post_init__(self) -> None:
         if self.fmt not in _ORDER:
@@ -126,16 +151,21 @@ class FormatCheck:
                 raise ValueError(f"FormatCheck {name} must be an int >= 0, got {value!r}")
         if self.distinct_satisfied > self.satisfied or self.distinct_rejected > self.rejected:
             raise ValueError("a FormatCheck counts more distinct strings than strings")
+        value = self.distinctive
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= self.satisfied):
+            raise ValueError(f"FormatCheck distinctive must be None or an int in 0 … satisfied, got {value!r}")
 
     @property
     def is_candidate(self) -> bool:
-        """Whether at least one string satisfies the Format, so it is a candidate (13.4)."""
+        """Whether a string satisfies the Format and one shows its distinctive structure (13.4, 13.10)."""
+        if self.distinctive is not None:
+            return self.distinctive > 0
         return self.satisfied > 0
 
     @property
     def satisfies_all(self) -> bool:
         """Whether the Format is a candidate that accepts every string (13.6, 13.8)."""
-        return self.satisfied > 0 and self.rejected == 0
+        return self.is_candidate and self.rejected == 0
 
     @property
     def keywords(self) -> dict[str, JSON]:
@@ -204,7 +234,7 @@ class FormatDetection:
     @classmethod
     def empty(cls) -> FormatDetection:
         """The detection over no strings: no Format is a candidate."""
-        return cls(0, 0, tuple(FormatCheck(fmt, 0, 0, 0, 0) for fmt in FORMATS))
+        return cls(0, 0, tuple(FormatCheck(fmt, 0, 0, 0, 0, 0 if fmt in DISTINCTIVE else None) for fmt in FORMATS))
 
     def check(self, fmt: str) -> FormatCheck:
         """The check of Format ``fmt``."""
@@ -233,11 +263,13 @@ def _summarize(masks: np.ndarray, counts: np.ndarray) -> FormatDetection:
     """Aggregate the verdict masks of distinct strings, weighted by their counts."""
     if len(masks) == 0:
         return FormatDetection.empty()
-    bits = (masks.astype(np.int64)[:, None] & _BITS) != 0  # (distinct strings, Formats)
+    wide = masks.astype(np.int64)
+    bits = (wide[:, None] & _BITS) != 0  # (distinct strings, Formats)
     counts = counts.astype(np.int64, copy=False)
     satisfied = counts @ bits.astype(np.int64)
     distinct = bits.sum(axis=0, dtype=np.int64)
     n_strings, n_distinct = int(counts.sum()), len(masks)
+    distinctive = {fmt: int(counts[(wide & bit) != 0].sum()) for fmt, bit in _DISTINCT_BITS.items()}
     checks = tuple(
         FormatCheck(
             fmt,
@@ -245,6 +277,7 @@ def _summarize(masks: np.ndarray, counts: np.ndarray) -> FormatDetection:
             n_strings - int(satisfied[i]),
             int(distinct[i]),
             n_distinct - int(distinct[i]),
+            distinctive.get(fmt),
         )
         for i, fmt in enumerate(FORMATS)
     )
@@ -284,11 +317,14 @@ class FormatDetector:
         return self._validator
 
     def _mask(self, s: str) -> int:
-        """The verdict mask of one string: one Validator check per Format."""
+        """The verdict mask of one string: one Validator check per Format, plus the distinctive bits (13.10)."""
         mask = 0
         for i, fmt in enumerate(FORMATS):
             if self._validator.satisfies_format(fmt, s):
                 mask |= 1 << i
+                test = DISTINCTIVE.get(fmt)
+                if test is not None and test(s):
+                    mask |= _DISTINCT_BITS[fmt]
         return mask
 
     def _masks(self, cache: np.ndarray, slots: np.ndarray, string_at: Callable[[int], Any]) -> np.ndarray:

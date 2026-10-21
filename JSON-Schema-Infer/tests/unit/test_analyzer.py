@@ -266,8 +266,9 @@ def test_map_has_one_value_schema_and_no_properties_or_required() -> None:
     kind = record(model, node, "additionalProperties")
     assert kind.details["judgment"] == "map"
     names = node.kw.get("propertyNames")
-    if names is not None:  # the key Constraint is a Constraint of its subschema too
-        assert record(model, names, "format") == record(model, node, "propertyNames")
+    if names is not None:  # the key Constraint (a Format or a Pattern) is a Constraint of its subschema too
+        (keyword,) = names.kw
+        assert record(model, names, keyword) == record(model, node, "propertyNames")
     assert_complete(model)
     assert validates(EMITTER.layout(model)[0], USER_MAPS)
 
@@ -290,7 +291,7 @@ def test_keyless_record_notes_on_type_that_no_keys_were_available() -> None:
 def test_variants_become_one_branch_each() -> None:
     model, _ = infer(FAMILIES)
     node = model.root
-    (keyword,) = node.kw
+    (keyword,) = [k for k in node.kw if k != "$defs"]  # name and sku share a Pattern, hoisted to $defs (8)
     branches = node.kw[keyword]
     assert keyword in (ANY_OF, ONE_OF) and len(branches) == 2  # 5.4
     assert (keyword == ONE_OF) == pairwise_disjoint(branches, validator=VALIDATOR)
@@ -307,7 +308,7 @@ def test_variants_become_one_branch_each() -> None:
 def test_closed_record_with_variants_closes_each_branch_and_nothing_beside() -> None:
     model, report = infer(FAMILIES, closing=True)
     node = model.root
-    (keyword,) = node.kw  # no additionalProperties beside the combinator
+    (keyword,) = [k for k in node.kw if k != "$defs"]  # no additionalProperties beside the combinator
     branches = node.kw[keyword]
     assert len(branches) == 2
     closing = decisions(report, "closed_or_open_record")
@@ -381,7 +382,7 @@ def test_two_object_branches_and_a_branch_for_the_other_types() -> None:
     docs = COLLECTIONS["families-mixed"]
     model, _ = infer(docs)
     node = model.root
-    assert list(node.kw) == [ANY_OF]
+    assert [k for k in node.kw if k != "$defs"] == [ANY_OF]  # a shared Pattern may be hoisted to $defs (8)
     branches = node.kw[ANY_OF]
     assert len(branches) == 3
     assert [b.kw["type"] for b in branches] == [["object"], ["object"], ["string", "array"]]

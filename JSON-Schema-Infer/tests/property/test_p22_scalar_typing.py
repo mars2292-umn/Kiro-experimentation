@@ -579,8 +579,11 @@ def check_path(
             assert not unmatched, f"pattern {latent.value!r} does not match {unmatched!r}"
         event(f"latent type {expected_latent} -> {latent.keyword}")
 
-    # 13.4: the Format candidates are exactly the Formats at least one string satisfies.
-    expected_formats = {fmt for fmt in TEN_FORMATS if any(satisfies(fmt, s) for s in strings)} if format_on else set()
+    # 13.4: the Format candidates are exactly the Formats at least one string satisfies; 13.10: for hostname,
+    # one satisfying string must contain a "." (a single-label hostname is any short word).
+    expected_formats = {
+        fmt for fmt in TEN_FORMATS if any(satisfies(fmt, s) and (fmt != "hostname" or "." in s) for s in strings)
+    } if format_on else set()
     offered = [] if result.string is None else [c for c in result.string.candidates if c.technique == FORMAT]
     assert all(c.keyword == "format" for c in offered)
     assert len(offered) == len({c.value for c in offered})

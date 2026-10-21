@@ -862,6 +862,13 @@ Conventions used by every task:
     - Unit tests in `tests/unit/test_document_support.py`; the fixtures of `test_enums`, `test_record_map`, and `test_arrays` that hit the rule updated
     - _Requirements: 4.12, 14.9, 15.9, 16.9_
 
+- [x] 52. Format evidence: `hostname` needs a dotted string
+  - [x] 52.1 Implement the rule (`values/formats.py`)
+    - `FormatCheck.distinctive` counts the satisfying strings that show a Format's distinctive structure (`DISTINCTIVE`: a `.` for `hostname`); a Format with such a rule is a candidate only when the count is positive. Verdicts and withholding (13.6) are unchanged
+    - Motivated by the Task 51 subset benchmark (2026-10-21): `hostname` was emitted 4,747 times across the fold schemas, mostly on single words, and removing every `format` raised mean recall from 0.368 to 0.389
+    - Unit tests in `tests/unit/test_formats.py`
+    - _Requirements: 13.4, 13.10_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -928,7 +935,8 @@ Conventions used by every task:
     { "id": 51, "tasks": ["47.2", "48.1"] },
     { "id": 52, "tasks": ["48.2"] },
     { "id": 53, "tasks": ["48.3", "48.4", "49.1"] },
-    { "id": 54, "tasks": ["51.1"] }
+    { "id": 54, "tasks": ["51.1"] },
+    { "id": 55, "tasks": ["52.1"] }
   ]
 }
 ```

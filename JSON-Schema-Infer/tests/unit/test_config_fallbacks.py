@@ -462,7 +462,8 @@ def test_disabled_enum_estimation_judges_every_scalar_path_open() -> None:
     # 15.4: the open Paths keep their type, Format, and bound Constraints.
     size = subschema(result.document, "properties", "size")
     assert size["type"] == "integer" and {"minimum", "maximum"} <= set(size)
-    assert subschema(result.document, "properties", "color", "format") == "hostname"
+    color = subschema(result.document, "properties", "color")  # no Format: the words show no dot (13.10)
+    assert color["type"] == "string" and "pattern" in color and {"minLength", "maxLength"} <= set(color)
     # No Constraint comes from the open outcome: one fallback entry per scalar Path (20.7).
     entries = decisions(result, "closed_or_open_enum")
     assert sorted(e.path for e in entries) == ["$.color", "$.size", "$.tags[*]"]

@@ -327,7 +327,7 @@ Order at a scalar view:
 6. Pattern induction, if there is no Format and the view is not a Closed_Enum (14).
 7. Bounds (16).
 
-Format checks run once per distinct value through cached validators `{"format": f}` with `validate_formats=True`.
+Format checks run once per distinct value through cached validators `{"format": f}` with `validate_formats=True`. A `hostname` candidate also needs one satisfying string with a `.` (13.10): single-label hostnames are ordinary words, so they alone are no evidence of the Format. The rule rides in a spare bit of the cached verdict mask, so it costs nothing extra.
 
 **Pattern induction** (`values/patterns.py`) is FlashProfile-style:
 

@@ -221,4 +221,6 @@ def test_a_run_lists_the_resource_parameters_its_components_read() -> None:
 
 def test_a_run_without_variant_groupings_reads_no_variant_resources() -> None:
     result = infer_documents([{"a": 1}, {"a": 2}, [1, 2], "x"], config())
-    assert not any(name.startswith(("variants.", "minhash.", "lsh.", "sample.")) for name in result.report.resources)
+    # sample.patterns is read by pattern induction at the string "x", not by Variant grouping.
+    variant_resources = [n for n in result.report.resources if n.startswith(("variants.", "minhash.", "lsh.", "sample.")) and n != "sample.patterns"]
+    assert not variant_resources

@@ -218,8 +218,11 @@ def test_candidates_resolve_through_the_decision_engine() -> None:
     dates = ["2024-01-02", "2023-12-31", "2001-07-04"]
     store = build_store([{"d": d} for d in dates])
     view = at(store, "$.d")
-    satisfying = FormatDetector(store).detect(view).satisfying
-    assert {"date", "hostname"} <= {check.fmt for check in satisfying}
+    detection = FormatDetector(store).detect(view)
+    satisfying = detection.satisfying
+    # 13.10: the dates are single-label hostnames, but none shows a dot, so hostname is no candidate.
+    assert detection.check("hostname").satisfied == 3 and detection.check("hostname").distinctive == 0
+    assert "date" in {check.fmt for check in satisfying} and "hostname" not in {check.fmt for check in satisfying}
     candidates = [check.candidate(SchemaNode.from_json({"type": "string", **check.keywords})) for check in satisfying]
     assert [c.order_key for c in candidates] == sorted(c.order_key for c in candidates)
     assert all(c.technique == TECHNIQUE and c.label == f"format={c.outcome['format']}" for c in candidates)
@@ -228,5 +231,22 @@ def test_candidates_resolve_through_the_decision_engine() -> None:
     )
     assert decision.method == "mdl"
     assert decision.candidate in candidates
-    # date strings are written with a smaller alphabet than hostnames, so date costs fewer bits.
     assert decision.candidate.outcome == {"format": "date"}
+
+
+def test_hostname_needs_a_dotted_string_to_be_a_candidate() -> None:
+    """13.10: single-label hostnames are ordinary words; a dotted one is evidence, and then every string is checked."""
+    words = ["docs", "user", "apps", "user"]
+    store = build_store(words)
+    word_check = FormatDetector(store).detect(View.root(store)).check("hostname")
+    assert (word_check.satisfied, word_check.distinctive, word_check.is_candidate) == (4, 0, False)
+    store = build_store([*words, "example.com"])
+    mixed = FormatDetector(store).detect(View.root(store))
+    check = mixed.check("hostname")
+    assert (check.satisfied, check.distinctive, check.is_candidate, check.satisfies_all) == (5, 1, True, True)
+    store = build_store(["example.com", "not a host"])
+    check = FormatDetector(store).detect(View.root(store)).check("hostname")
+    assert check.is_candidate and not check.satisfies_all and check.rejected == 1  # still withheld by 13.6
+    assert FormatDetector(store).detect(View.root(store)).check("email").distinctive is None  # no rule for email
+    with pytest.raises(ValueError):
+        FormatCheck("hostname", 1, 0, 1, 0, 2)  # more distinctive strings than satisfying ones

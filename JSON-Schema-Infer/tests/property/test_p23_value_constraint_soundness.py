@@ -444,7 +444,10 @@ def test_key_constraints_accept_every_non_flagged_key(case: Case, config: RunCon
     if found is None:
         # 13.8 at Map keys: with Format detection running, no Format may accept every key.
         if keys and vi.runs(FORMAT):
-            satisfied = [f for f in FORMAT_STRINGS if all(VALIDATOR.satisfies_format(f, k) for k in keys)]
+            satisfied = [
+                f for f in FORMAT_STRINGS
+                if all(VALIDATOR.satisfies_format(f, k) for k in keys) and (f != "hostname" or any("." in k for k in keys))  # 13.10
+            ]
             assert not satisfied, f"{satisfied} accept every key at {where}, but no key Constraint was emitted"
         event("no key Constraint")
         return
