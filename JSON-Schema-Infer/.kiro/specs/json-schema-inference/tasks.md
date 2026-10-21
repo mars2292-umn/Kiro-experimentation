@@ -869,6 +869,13 @@ Conventions used by every task:
     - Unit tests in `tests/unit/test_formats.py`
     - _Requirements: 13.4, 13.10_
 
+- [x] 53. Untested Patterns: a fold check needs a string to hold out
+  - [x] 53.1 Implement the rule (`values/inferrer.py`)
+    - When no fold holds a string of its own, the fold check of 14.9 had nothing to test and passed every rung; now every induced candidate at the Path is withheld with `held_out: 0, untested: true`
+    - Motivated by the Task 52 subset benchmark (2026-10-21): 88 held-out pattern rejections used only characters the training strings had; e.g. github-webhooks-check_run's URL Patterns were induced from 1–4 distinct URLs each held by 2–5 documents, so no fold held a string of its own
+    - Unit tests in `tests/unit/test_document_support.py`
+    - _Requirements: 14.10_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -936,7 +943,8 @@ Conventions used by every task:
     { "id": 52, "tasks": ["48.2"] },
     { "id": 53, "tasks": ["48.3", "48.4", "49.1"] },
     { "id": 54, "tasks": ["51.1"] },
-    { "id": 55, "tasks": ["52.1"] }
+    { "id": 55, "tasks": ["52.1"] },
+    { "id": 56, "tasks": ["53.1"] }
   ]
 }
 ```

@@ -275,9 +275,9 @@ def test_without_support_nothing_is_withheld() -> None:
 # ---------------------------------------------------------------------------
 
 
-def scalar(docs: list[Any]) -> tuple[Any, InferenceReport]:
+def scalar(docs: list[Any], states: dict[str, bool] | None = None) -> tuple[Any, InferenceReport]:
     report = InferenceReport()
-    inferrer = ValueInferrer.for_techniques(None, report=report)
+    inferrer = ValueInferrer.for_techniques(states, report=report)
     return inferrer.infer_scalar(root(docs)), report
 
 
@@ -301,6 +301,26 @@ def test_a_rung_that_fails_a_fold_is_withheld_while_a_generalizing_one_survives(
     assert refuted and all(c.refuted["documents"] == 6 and c.refuted["unmatched"] >= 1 for c in refuted)
     assert all("fold" in c.refuted and "held_out" in c.refuted for c in refuted)
     assert {str(c.details["rung"]) for c in refuted} < {str(c.details["rung"]) for c in node.string.candidates}
+
+
+def test_patterns_whose_strings_all_recur_across_folds_are_withheld_as_untested() -> None:
+    """14.10: four documents, two distinct strings, each in two folds: no fold holds a string of its own.
+
+    Enum estimation is off: two values held by two documents each would otherwise close the Path, and
+    pattern induction never runs at a Closed_Enum (14.1).
+    """
+    no_enum = {ENUM_ESTIMATION: False}
+    node, report = scalar(["ORD_0001", "INV_0002", "ORD_0001", "INV_0002"], no_enum)
+    assert "pattern" not in node.node.kw
+    induced = [c for c in node.string.candidates if c.technique == PATTERN]
+    assert induced and all(c.refuted == {"rule": RULE, "documents": 4, "held_out": 0, "untested": True} for c in induced)
+    entries = [e for e in report.rejected if e.category == "patterns"]
+    assert len(entries) == len(induced) and all(e.details["withheld"]["untested"] is True for e in entries)
+    # One more document with a string of its own makes the check testable again.
+    tested, _ = scalar(["ORD_0001", "INV_0002", "ORD_0001", "INV_0002", "ORD_0005"], no_enum)
+    assert [c for c in tested.string.candidates if c.technique == PATTERN]
+    assert all(c.refuted is None or "untested" not in c.refuted for c in tested.string.candidates)
+    assert "pattern" in tested.node.kw
 
 
 def test_a_shape_shared_by_two_documents_survives_leave_one_document_out() -> None:

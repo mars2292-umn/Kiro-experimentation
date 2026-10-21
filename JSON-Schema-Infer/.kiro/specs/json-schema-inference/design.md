@@ -1028,7 +1028,7 @@ Document_Support is the one mechanism that addresses all four families: a closin
 | Closed_Enum (15.9) | every distinct value occurs in ≥ 2 documents | `documents`, `single_document_values` |
 | Closed Record (4.12) | every key under `properties` is held in ≥ 2 documents | `documents`, `single_document_keys` |
 | Bound rung (16.9) | ≥ 2 documents attain the extreme, or the rung's value recomputed from the extreme over the other documents still covers the observed extreme | `documents`, `leave_one_out_value` |
-| Induced Pattern rung (14.9) | for each of ≤ 3 document folds, the Pattern induced at that rung from the other folds matches every string only that fold holds | `documents`, `fold`, `held_out`, `unmatched` |
+| Induced Pattern rung (14.9, 14.10) | some fold holds a string no other fold holds, and for each of ≤ 3 document folds, the Pattern induced at that rung from the other folds matches every string only that fold holds | `documents`, `fold`, `held_out`, `unmatched`; or `held_out: 0`, `untested: true` |
 
 With one document nothing can be held out, so every closing Constraint is withheld. The Baseline_Rules `type` and `required` are not Decision_Points and are unaffected: a run with every Technique off must still equal Naive_Merge (28.5), which lists `required` from one document as from many. The rule makes the Good–Turing charges of 15.6 and the closed Record inert in practice without changing them: a value or key with Document_Support ≥ 2 occurs ≥ 2 times, so `f1 = 0` whenever the closed candidate is not withheld.
 

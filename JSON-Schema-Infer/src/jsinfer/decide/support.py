@@ -51,7 +51,9 @@ The rule
       the strings each document holds (:func:`document_folds`), and a rung
       survives iff, for every fold, the
       Pattern induced at that rung from the other folds' strings matches
-      every string only that fold holds (``values.inferrer``).
+      every string only that fold holds (``values.inferrer``). A check with
+      nothing to hold out is no check: when no fold holds a string of its
+      own, every rung is withheld as ``untested`` (14.10).
 
 Determinism
     Every statistic is a count over the ``doc`` field of the Observations

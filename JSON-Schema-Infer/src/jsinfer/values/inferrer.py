@@ -65,7 +65,10 @@ Order at a scalar view (:meth:`ValueInferrer.infer_scalar`)
        the Pattern induced at that rung from the other folds' strings must
        match every string only the fold holds, else the candidate is
        withheld with the facts in its report entry. With one document
-       every induced candidate is withheld. The survivors compete by MDL
+       every induced candidate is withheld, and so it is when no fold
+       holds a string of its own, since the induction cannot then be
+       tested on any string it was not induced from (14.10, reported as
+       ``untested``). The survivors compete by MDL
        with the option of no induced Pattern,
        ties going to no Pattern and then fewer sub-patterns (14.2). An
        induced Pattern that wins replaces a Latent_Type Pattern; otherwise
@@ -905,15 +908,18 @@ class ValueInferrer:
         offered: Sequence[StringCandidate],
         max_alternatives: int,
     ) -> dict[str, dict[str, JSON]]:
-        """14.9: per rung of the surviving induced candidates, the Document_Support facts that refute it.
+        """14.9, 14.10: per rung of the surviving induced candidates, the Document_Support facts that refute it.
 
         The documents behind ``strings`` (the induction set) are dealt into
         ``document_folds``. For each fold, the strings only that fold holds
         are held out and the ladder is induced from the strings some other
         fold holds; a rung is refuted when its induced Pattern is missing or
         fails to match a held-out string. With one document nothing can be
-        held out and every rung is refuted. Rungs that already reject a
-        string are not checked.
+        held out and every rung is refuted. When no fold holds a string of
+        its own, every string recurs across folds and no rung can be tested
+        on a string it was not induced from, so every rung is refuted as
+        ``untested`` (14.10). Rungs that already reject a string are not
+        checked.
         """
         rungs = sorted({str(c.details["rung"]) for c in offered if not c.withheld})
         if not rungs:
@@ -931,6 +937,9 @@ class ValueInferrer:
         fold_of = dict(zip(documents, document_folds(len(documents)).tolist()))
         count_of = dict(zip(strings, counts))
         folds_of = {s: {fold_of[d] for d in by_string.get(s, ())} for s in strings}
+        if not any(len(folds) == 1 for folds in folds_of.values()):  # 14.10: nothing can be held out
+            facts = _withheld_facts(len(documents), held_out=0, untested=True)
+            return {rung: facts for rung in rungs}
         refuted: dict[str, dict[str, JSON]] = {}
         for fold in range(max(fold_of.values()) + 1):
             held = [s for s in strings if folds_of[s] == {fold}]
