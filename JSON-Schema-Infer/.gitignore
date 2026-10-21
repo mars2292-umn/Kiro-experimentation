@@ -15,3 +15,5 @@ train.toml
 /bundles/
 train-full.toml
 /datasets/
+/results/
+/logs/
