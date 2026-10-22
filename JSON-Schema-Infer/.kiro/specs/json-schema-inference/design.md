@@ -539,9 +539,9 @@ class SyntheticGenerator:
 
 def derive_labels(schema: SchemaModel) -> dict[tuple[Path, JudgmentKind], Label]: ...   # 22.4, 22.5; reused by 31.9
 
-class LabelingFunction(Protocol):
-    id: str; kind: JudgmentKind; source: str
-    def vote(self, view: View, ctx: Ctx) -> int: ...          # class index or ABSTAIN (-1)
+class LabelingFunction:
+    id: str; kind: JudgmentKind; source: str; thresholds: tuple[str, ...]
+    def vote(self, features: np.ndarray, thresholds: Mapping[str, float]) -> int: ...  # class index or ABSTAIN (-1)
 
 class DawidSkene:
     def fit(self, L: np.ndarray, n_classes: int) -> "DawidSkene": ...   # L: examples × LFs, -1 = abstain
@@ -575,6 +575,10 @@ class Trainer:
 | Merge-or-Split | key-set Jaccard; discriminator presence; MDL |
 
 **Dawid–Skene** uses EM with confusion matrices over non-abstain votes and Laplace smoothing. It is initialized from majority vote, and the iteration cap and tolerance are Resource_Parameters. It reads no ground truth (23.3).
+
+**LF inputs.** A Labeling_Function votes from the Decision_Model feature vector of its Judgment_Call (the `learn.features` featurizers), so the statistics it reads (key entropy, Chao1, key-set Jaccard, the normalized MDL difference, ...) are computed exactly as for the synthetic examples. Class 0 is the first outcome of the kind (Record, Closed, Tuple, Closed, Merge); an MDL function votes the outcome with the shorter description length and abstains on a tie. Each `lf.<id>.*` cut-off is fitted on the validation-split synthetic examples by grid search over feature quantiles, maximizing correct minus wrong votes; a cut-off without validation examples of both classes is omitted with its reason, and its function then abstains.
+
+**Weak examples.** Each kept collection is run through the pipeline with the oracle runs' configuration and a recording DecisionEngine that keeps the feature vector of every two-candidate Judgment_Call without forcing a label. Fetched collections are far larger than most Real_Datasets, so each collection also yields seeded random slices (the training configuration's `[weak_supervision] slice_sizes` × `slices_per_size`, drawn with `rng("ws.slice", id, size, i)`), each recorded separately. The label model is fitted per kind on all recorded vote rows. A row whose posterior is NaN (every function abstained) or tied is dropped; every other row becomes a weak example labeled with its most probable class and weighted by that probability, while the synthetic train examples keep weight 1. The weak examples join the train split only: the validation split, calibration, and the reported metrics stay synthetic, so `dm.<kind>.weak` and `dm.<kind>.synthetic` are measured on the same data.
 
 **Training order:**
 
@@ -866,6 +870,7 @@ Fitting is a deterministic grid search that maximizes the objective on validatio
 | `cooccur.min_support`, `cooccur.min_confidence` | F1 of emitted `dependentRequired` versus the source schema |
 | `tagged.branch_support` | F1 of Tagged_Union branches versus the source schema |
 | `exclusion.min_confidence` | F1 of Exclusion_Rules versus the source schema |
+| `lf.<id>.*` | correct minus wrong votes of the Labeling_Function on the validation-split synthetic examples (read only by the Trainer, so a bundle without them is complete at inference) |
 | `keys.min_confidence`, `ind.min_confidence`, `fd.min_confidence` | F1 where "true" means the candidate found on one half of a collection still holds on the other half (schemas rarely declare keys or FDs) |
 | `semantic.min_probability` | F1 of the emitted Format/Pattern versus the declared Format |
 | `iforest.score`, `lof.score`, `lof.n_neighbors` | F1 of flagging mutation-generated corrupt documents injected into validation collections |
@@ -899,7 +904,7 @@ Main manifest fields:
 - **Identity:** `bundle_id`, `created` (excluded from 21.7 comparison), `trainer_version`, `training_config`, `seed`.
 - **Inputs:** `schema_split {id, seed}`, `schemas {train: [...], val: [...]}`, `excluded_schemas [{id, reason}]`, `unlabeled_collections [...]`, `ws_excluded [...]`, `ws_removed_docs`.
 - **Generation:** `collections [{schema_id, k, split, sampled_params}]`, `example_exclusions {kind: {cause: count}}`.
-- **Artifacts:** `omitted_artifacts [{artifact, reason, class_counts}]`, `metrics {model: {n_val, acc, macro_f1, ece_before, ece_after}}`, `labeling_functions [{id, coverage, conflict, est_acc, measured_acc}]`, `ws_examples {kind: n}`.
+- **Artifacts:** `omitted_artifacts [{artifact, reason, class_counts}]`, `metrics {model: {n_val, acc, macro_f1, ece_before, ece_after}}`, `labeling_functions [{id, kind, source, coverage, conflict, est_acc, measured_acc}]` (null where a function never votes), `ws_examples {kind: n}`.
 - **Integrity:** `artifacts {name: {path, sha256}}` lists every file under `models/` and `corpus/` with the SHA-256 of its bytes.
 
 Joblib files are pickles, and unpickling can run arbitrary code, so only trusted bundles should be loaded; the user documentation says so. The reader verifies an artifact's SHA-256 before it unpickles or reads the file, and treats a missing file or a digest mismatch as a missing artifact: the Fallback_Behavior applies and the substitution is recorded with cause `checksum` (21.10). The digest catches corrupted or swapped files, not a malicious bundle whose manifest matches its files. `thresholds.json` and `feature_spec.json` are plain JSON, validated when read. The loader checks `feature_spec.json` against the running featurizer and treats a mismatch as a missing model (21.10).

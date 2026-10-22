@@ -75,6 +75,18 @@ GOOD_VALUES: dict[str, int | float] = {
     "changepoint.penalty": 3.0,
     "changepoint.min_segment": 5,
     "corpus.suggest_min_confidence": 0.5,
+    "lf.rm-key-entropy.min_entropy": 2.0,
+    "lf.rm-key-pattern.min_fraction": 0.5,
+    "lf.rm-dynamic.min_singleton_fraction": 0.5,
+    "lf.cr-keyset-stability.min_stability": 0.8,
+    "lf.cr-good-turing.max_unseen_mass": 0.1,
+    "lf.tl-fixed-length.min_modal_share": 0.8,
+    "lf.tl-positional-entropy.min_drop": 0.5,
+    "lf.ce-distinct-ratio.max_ratio": 0.3,
+    "lf.ce-chao1.max_ratio": 1.2,
+    "lf.ce-jsonoid.max_values": 10,
+    "lf.ms-jaccard.min_mean": 0.5,
+    "lf.ms-discriminator.min_information": 0.5,
 }
 assert set(GOOD_VALUES) == set(THRESHOLDS)
 MODEL_ARTIFACTS = tuple(decision_model_artifact(kind, "synthetic") for kind in DECISION_MODEL_TECHNIQUES)
@@ -174,6 +186,8 @@ def test_missing_or_corrupted_artifacts_degrade_to_fallbacks(
             continue
         tid = ARTIFACT_TECHNIQUE.get(name) or THRESHOLDS[name].techniques[0]
         in_effect = run_config.techniques[tid] and REGISTRY.technique(tid).implemented
+        if name in THRESHOLDS and name not in REGISTRY.technique(tid).thresholds:
+            in_effect = False  # a Labeling_Function cut-off: read only by the Trainer, never substituted
         gate = next((dp.serves_only_with.get(tid) for dp in REGISTRY.decision_points.values() if tid in dp.serves_only_with), None)
         if gate is not None and not run_config.techniques[gate]:
             in_effect = False

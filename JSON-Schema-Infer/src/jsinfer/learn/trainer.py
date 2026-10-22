@@ -1000,13 +1000,15 @@ assert all(name in REGISTRY.technique(THRESHOLDS[name].techniques[0]).thresholds
 # ---------------------------------------------------------------------------
 #
 # ``Trainer.run`` follows the design's training order with the stages that
-# exist: inputs, schemas, generation, featurization, Decision_Models,
-# Learned_Thresholds, manifest, and the atomic write. The Corpus_Index, the
-# Labeling_Function thresholds, weak supervision, and the
-# Semantic_Type_Classifier belong to Techniques that are not implemented (or
-# are disabled in the training configuration), so their artifacts are
-# omitted and the reasons recorded (21.9). A stage error raises
-# ``TrainingError`` naming the stage, and no bundle is left behind (21.8).
+# exist: inputs, schemas, generation, featurization, Decision_Models, weak
+# supervision (Labeling_Function thresholds, the unlabeled collections, the
+# label models, and the second Decision_Model per kind; skipped with a
+# recorded reason when disabled or when no ``[weak_supervision] manifest`` is
+# configured), Learned_Thresholds, manifest, and the atomic write. The
+# Corpus_Index and the Semantic_Type_Classifier belong to Techniques that are
+# not implemented, so their artifacts are omitted and the reasons recorded
+# (21.9). A stage error raises ``TrainingError`` naming the stage, and no
+# bundle is left behind (21.8).
 
 import datetime as _datetime  # noqa: E402
 import os as _os  # noqa: E402
@@ -1034,6 +1036,9 @@ from jsinfer.learn.bundle import (  # noqa: E402
 )
 from jsinfer.learn.decision_models import DEFAULT_ECE_BINS, OmittedModel, TrainedModel, train_decision_model  # noqa: E402
 from jsinfer.learn.features import FEATURE_VERSION  # noqa: E402
+from jsinfer.learn.label_model import DawidSkene  # noqa: E402
+from jsinfer.learn.labeling_functions import fit_lf_thresholds, functions_of, lf_statistics, vote_matrix  # noqa: E402
+from jsinfer.learn.weak_supervision import load_unlabeled, real_dataset_identity, record_slices, slices  # noqa: E402
 from jsinfer.learn.synth import GeneratorConfig, SyntheticGenerator, ValueIndex  # noqa: E402
 
 __all__ += ["FEATURIZATION_THRESHOLDS", "TRAINING_RESOURCES", "TrainingConfig", "TrainingError", "Trainer"]
@@ -1063,8 +1068,15 @@ TRAINING_RESOURCES: Final[tuple[str, ...]] = (
     "lsh.bands",
     "sample.dbscan",
     "sample.hdbscan",
+    "ds.max_iter",
+    "ds.tol",
 )
 _WEAK_SUPERVISION: Final = "decide.weak_supervision"
+# [weak_supervision] settings (23.2, 23.6) and their defaults; slice sizes are the sub-collection sizes cut
+# from each unlabeled collection (learn.weak_supervision).
+_WS_DEFAULTS: Final[Mapping[str, Any]] = MappingProxyType(
+    {"manifest": None, "real_manifest": None, "schemastore_datasets": True, "slice_sizes": (2, 5, 20, 100), "slices_per_size": 3}
+)
 _GENERATOR_FIELDS: Final = (
     "size_min",
     "size_max",
@@ -1077,7 +1089,7 @@ _GENERATOR_FIELDS: Final = (
     "integer_span",
     "map_keys_max",
 )
-_STAGES: Final = ("inputs", "schemas", "generate", "featurize", "models", "thresholds", "manifest", "write")
+_STAGES: Final = ("inputs", "schemas", "generate", "featurize", "models", "weak_supervision", "thresholds", "manifest", "write")
 
 
 class TrainingError(Exception):
@@ -1116,7 +1128,12 @@ class TrainingConfig:
     (:data:`FEATURIZATION_THRESHOLDS` by default; a name set to None leaves
     the threshold out, so its Technique falls back).
     ``training_data`` names the Training_Data in the threshold records
-    (default ``<split id>@<seed>``).
+    (default ``<split id>@<seed>``). ``weak_supervision`` holds the
+    ``[weak_supervision]`` settings (23.2, 23.6): ``manifest``, the
+    unlabeled-collection manifest (weak supervision is skipped without one);
+    ``real_manifest`` and ``schemastore_datasets``, the Real_Datasets the
+    leakage filter removes; ``slice_sizes`` and ``slices_per_size``, the
+    seeded sub-collections cut from each collection.
     """
 
     corpus_manifest: str
@@ -1130,6 +1147,7 @@ class TrainingConfig:
     generator: Mapping[str, int | float] = field(default_factory=dict)
     featurization: Mapping[str, Any] = field(default_factory=dict)
     featurization_thresholds: Mapping[str, int | float | None] = field(default_factory=lambda: dict(FEATURIZATION_THRESHOLDS))
+    weak_supervision: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for name in ("corpus_manifest", "schema_split"):
@@ -1171,6 +1189,26 @@ class TrainingConfig:
             self.generator_config()
         except ValueError as error:
             raise _config_error("generator", f"training configuration: generator: {error}") from None
+        unknown = sorted(name for name in self.weak_supervision if name not in _WS_DEFAULTS)
+        if unknown:
+            raise _config_error("weak_supervision", f"training configuration: unknown [weak_supervision] settings {unknown}")
+        ws = self.ws
+        for name in ("manifest", "real_manifest"):
+            if ws[name] is not None and (not isinstance(ws[name], str) or not ws[name]):
+                raise _config_error(name, f"training configuration: weak_supervision.{name} must be a non-empty path")
+        if not isinstance(ws["schemastore_datasets"], bool):
+            raise _config_error("schemastore_datasets", "training configuration: weak_supervision.schemastore_datasets must be true or false")
+        sizes = ws["slice_sizes"]
+        if not isinstance(sizes, (list, tuple)) or not all(isinstance(s, int) and not isinstance(s, bool) and s >= 2 for s in sizes):
+            raise _config_error("slice_sizes", "training configuration: weak_supervision.slice_sizes must be integers of at least 2")
+        per = ws["slices_per_size"]
+        if isinstance(per, bool) or not isinstance(per, int) or per < 0:
+            raise _config_error("slices_per_size", "training configuration: weak_supervision.slices_per_size must be a non-negative integer")
+
+    @property
+    def ws(self) -> dict[str, Any]:
+        """The ``[weak_supervision]`` settings with their defaults."""
+        return {**_WS_DEFAULTS, **dict(self.weak_supervision)}
 
     @classmethod
     def from_mapping(cls, document: Mapping[str, Any], base: str | _os.PathLike[str] | None = None) -> TrainingConfig:
@@ -1193,7 +1231,19 @@ class TrainingConfig:
             if not isinstance(table, Mapping):
                 raise _config_error("featurization_thresholds", "training configuration: [featurization_thresholds] must be a table")
             sections["featurization_thresholds"] = {**FEATURIZATION_THRESHOLDS, **table}
-        known_sections = ("training", "resources", "techniques", "generator", "featurization", "featurization_thresholds")
+        if "weak_supervision" in document:
+            table = document["weak_supervision"]
+            if not isinstance(table, Mapping):
+                raise _config_error("weak_supervision", "training configuration: [weak_supervision] must be a table")
+            ws = dict(table)
+            for name in ("manifest", "real_manifest"):
+                value = ws.get(name)
+                if isinstance(value, str) and base is not None and not _os.path.isabs(value):
+                    ws[name] = _os.path.join(_os.fspath(base), value)
+            if isinstance(ws.get("slice_sizes"), list):
+                ws["slice_sizes"] = tuple(ws["slice_sizes"])
+            sections["weak_supervision"] = ws
+        known_sections = ("training", "resources", "techniques", "generator", "featurization", "featurization_thresholds", "weak_supervision")
         extra = sorted(k for k in document if k not in known_sections)
         if extra:
             raise _config_error("training", f"training configuration: unknown sections {extra}")
@@ -1250,6 +1300,9 @@ class TrainingConfig:
             "featurization": {name: self.featurization[name] for name in sorted(self.featurization, key=codepoint_key)},
             "featurization_thresholds": {
                 name: self.featurization_thresholds[name] for name in sorted(self.featurization_thresholds, key=codepoint_key)
+            },
+            "weak_supervision": {
+                name: (list(value) if isinstance(value, tuple) else value) for name, value in sorted(self.ws.items())
             },
         }
 
@@ -1362,13 +1415,7 @@ class Trainer:
         max_depth = int(cfg.resource("synth.max_depth"))
         try:
             with _tempfile.TemporaryDirectory(prefix="jsinfer-featurization-") as scratch:
-                provisional = {
-                    name: ThresholdRecord.from_spec(THRESHOLDS[name], value=value, objective_value=0.0, n_examples=1, training_data="featurization")
-                    for name, value in cfg.featurization_thresholds.items()
-                    if value is not None
-                }
-                bundle_dir = write_bundle(_Path(scratch) / "bundle", bundle_id="featurization", thresholds=provisional)
-                flags = {**dict(cfg.featurization), "seed": cfg.seed, "model_bundle": str(bundle_dir)}
+                flags = self._featurization_flags(cfg, scratch)
                 featurized = featurize_collections(
                     ((c, model_of[c.schema_id]) for c in collections), config=featurization_config(flags), max_depth=max_depth, workers=cfg.workers
                 )
@@ -1402,16 +1449,33 @@ class Trainer:
             artifacts.append(BundleArtifact.model(artifact, outcome.model))
             metrics[artifact] = outcome.metrics.to_json()
             signals[artifact] = {name: signal.to_json() for name, signal in outcome.signals.items()}
-        # Artifacts of Techniques that are not implemented or are disabled (21.9)
-        for kind in JUDGMENT_KINDS:
-            for artifact, tid in ((decision_model_artifact(kind, "weak"), _WEAK_SUPERVISION), (label_model_artifact(kind), _WEAK_SUPERVISION)):
-                omitted.append({"artifact": artifact, "reason": self._not_produced(cfg, tid), "class_counts": None})
+        # 5b. weak supervision (23.1-23.7): Labeling_Function thresholds, then the unlabeled collections
+        training_data = cfg.training_data if cfg.training_data is not None else f"{split.id}@{cfg.seed}"
+        ws_reason = self._weak_reason(cfg)
+        lf_records: dict[str, ThresholdRecord] = {}
+        lf_omitted: list[OmittedThreshold] = []
+        ws_manifest: dict[str, JSON] = {"unlabeled_collections": [], "ws_excluded": [], "ws_removed_docs": 0, "labeling_functions": [], "ws_examples": {}}
+        if ws_reason is None:
+            self._say("weak supervision: fitting the Labeling_Function thresholds and labeling the unlabeled collections")
+            try:
+                ws_artifacts, ws_metrics, ws_omitted, ws_manifest, lf_records, lf_omitted = self._weak_supervision(
+                    cfg, examples, manifest, training_data
+                )
+            except Exception as error:  # noqa: BLE001
+                raise TrainingError("weak_supervision", f"{type(error).__name__}: {error}") from error
+            artifacts.extend(ws_artifacts)
+            metrics.update(ws_metrics)
+            omitted.extend(ws_omitted)
+        else:
+            # Artifacts of Techniques that are not implemented or are disabled (21.9)
+            for kind in JUDGMENT_KINDS:
+                for artifact in (decision_model_artifact(kind, "weak"), label_model_artifact(kind)):
+                    omitted.append({"artifact": artifact, "reason": ws_reason, "class_counts": None})
         for artifact in (SEMANTIC_TYPE_CLASSIFIER, SEMANTIC_MAPPING):
             omitted.append({"artifact": artifact, "reason": self._not_produced(cfg, SEMANTIC_TYPE), "class_counts": None})
         omitted.append({"artifact": CORPUS_INDEX, "reason": self._not_produced(cfg, SUGGESTION_TECHNIQUES[0]), "class_counts": None})
         self._say(f"models: {len(artifacts)} Decision_Models trained, {len(omitted)} omitted; fitting the Learned_Thresholds")
         # 6. Learned_Thresholds on validation-split objectives (20.3, 20.4, 20.8)
-        training_data = cfg.training_data if cfg.training_data is not None else f"{split.id}@{cfg.seed}"
         try:
             records, omitted_thresholds = fit_m2_thresholds(
                 featurized, training_data=training_data, seed=cfg.seed,
@@ -1438,6 +1502,12 @@ class Trainer:
             raise TrainingError("thresholds", f"{type(error).__name__}: {error}") from error
         records.update(exclusion_records)
         omitted_thresholds.extend(exclusion_omitted)
+        records.update(lf_records)
+        omitted_thresholds.extend(lf_omitted)
+        if ws_reason is not None:
+            for name in THRESHOLDS:
+                if name.startswith("lf.") and name not in records:
+                    omitted_thresholds.append(OmittedThreshold(name, ws_reason))
         for spec in THRESHOLDS.values():
             if spec.name not in records and not any(o.name == spec.name for o in omitted_thresholds):
                 omitted_thresholds.append(OmittedThreshold(spec.name, "no training stage fits it yet (its Technique is not implemented)"))
@@ -1454,9 +1524,9 @@ class Trainer:
             "schemas": {"train": list(loaded["train"]), "val": list(loaded["val"])},
             "schemas_available": {"train": len(by_split["train"]), "val": len(by_split["val"])},
             "excluded_schemas": sorted(excluded, key=lambda e: codepoint_key(str(e["id"]))),
-            "unlabeled_collections": [],
-            "ws_excluded": [],
-            "ws_removed_docs": 0,
+            "unlabeled_collections": ws_manifest["unlabeled_collections"],
+            "ws_excluded": ws_manifest["ws_excluded"],
+            "ws_removed_docs": ws_manifest["ws_removed_docs"],
             "collections": [
                 {"schema_id": c.schema_id, "k": c.k, "split": c.split, "sampled_params": c.params.to_json()} for c in collections
             ],
@@ -1466,8 +1536,8 @@ class Trainer:
             "omitted_thresholds": [o.to_json() for o in omitted_thresholds],
             "metrics": metrics,
             "feature_signals": signals,
-            "labeling_functions": [],
-            "ws_examples": {},
+            "labeling_functions": ws_manifest["labeling_functions"],
+            "ws_examples": ws_manifest["ws_examples"],
         }
         # 8. the atomic write (21.1, 21.8)
         try:
@@ -1475,6 +1545,122 @@ class Trainer:
         except OSError as error:
             raise TrainingError("write", f"the bundle cannot be written to {_os.fspath(out_dir)!r}: {error.strerror or error}") from None
         return bundle_id
+
+    @staticmethod
+    def _featurization_flags(cfg: TrainingConfig, scratch: str) -> dict[str, Any]:
+        """The oracle runs' flags, with a provisional bundle of the featurization thresholds written under ``scratch``."""
+        provisional = {
+            name: ThresholdRecord.from_spec(THRESHOLDS[name], value=value, objective_value=0.0, n_examples=1, training_data="featurization")
+            for name, value in cfg.featurization_thresholds.items()
+            if value is not None
+        }
+        bundle_dir = write_bundle(_Path(scratch) / "bundle", bundle_id="featurization", thresholds=provisional)
+        return {**dict(cfg.featurization), "seed": cfg.seed, "model_bundle": str(bundle_dir)}
+
+    def _weak_reason(self, cfg: TrainingConfig) -> str | None:
+        """Why weak supervision does not run, or None when it does (21.9, 23.2)."""
+        if not REGISTRY.technique(_WEAK_SUPERVISION).implemented or not cfg.technique_enabled(_WEAK_SUPERVISION):
+            return self._not_produced(cfg, _WEAK_SUPERVISION)
+        if cfg.ws["manifest"] is None:
+            return "no unlabeled-collection manifest is configured ([weak_supervision] manifest)"
+        return None
+
+    def _weak_supervision(
+        self, cfg: TrainingConfig, examples: ExampleSet, corpus: CorpusManifest, training_data: str
+    ) -> tuple[list[BundleArtifact], dict[str, JSON], list[dict[str, JSON]], dict[str, JSON], dict[str, ThresholdRecord], list[OmittedThreshold]]:
+        """23.1-23.7: LF thresholds, leakage filtering, recording, the label model, and the weak Decision_Models."""
+        ws = cfg.ws
+        # 23.1: the Labeling_Function cut-offs on the validation-split synthetic examples
+        lf_records: dict[str, ThresholdRecord] = {}
+        lf_omitted: list[OmittedThreshold] = []
+        for kind in JUDGMENT_KINDS:
+            x_val, y_val = examples.matrix(kind, "val")
+            fitted, missing = fit_lf_thresholds(kind, x_val, y_val, training_data=training_data)
+            lf_records.update(fitted)
+            lf_omitted.extend(OmittedThreshold(name, reason) for name, reason in missing)
+        values = {name: record.value for name, record in lf_records.items()}
+        # 23.2, 23.6, 23.7: the unlabeled collections after the leakage filter, and their slices
+        identity = real_dataset_identity(ws["real_manifest"], corpus if ws["schemastore_datasets"] else None)
+        unlabeled = load_unlabeled(ws["manifest"], identity)
+        items: list[tuple[str, tuple[JSON, ...]]] = []
+        collections_json: list[dict[str, JSON]] = []
+        for collection in unlabeled.collections:
+            cut = slices(collection, ws["slice_sizes"], ws["slices_per_size"], cfg.seed)
+            items.extend(cut)
+            collections_json.append({
+                "id": collection.id, "documents": len(collection.documents), "removed_documents": collection.removed,
+                "unparsed_documents": collection.skipped, "slices": len(cut) - 1,
+            })
+        self._say(f"weak supervision: {len(unlabeled.collections)} collections ({len(items)} with slices), {len(unlabeled.excluded)} excluded, {unlabeled.removed_documents} documents removed")
+        with _tempfile.TemporaryDirectory(prefix="jsinfer-ws-") as scratch:
+            recorded = record_slices(items, featurization_config(self._featurization_flags(cfg, scratch)), workers=cfg.workers)
+        by_kind: dict[str, list[np.ndarray]] = {kind: [] for kind in JUDGMENT_KINDS}
+        for _, records in recorded:
+            for kind, x in records:
+                by_kind[kind].append(x)
+        # 23.3, 23.4, 23.5: per kind, the label model, the weak examples, and the second Decision_Model
+        artifacts: list[BundleArtifact] = []
+        metrics: dict[str, JSON] = {}
+        omitted: list[dict[str, JSON]] = []
+        stats: list[JSON] = []
+        ws_examples: dict[str, JSON] = {}
+        max_iter, tol = int(cfg.resource("ds.max_iter")), float(cfg.resource("ds.tol"))
+        for kind in JUDGMENT_KINDS:
+            classes = JUDGMENT_OUTCOMES[kind]
+            dim = len(FEATURE_SPEC[kind])
+            x_val, y_val = examples.matrix(kind, "val")
+            needed = [name for lf in functions_of(kind) for name in lf.thresholds if name not in values]
+            weak_artifact, label_artifact = decision_model_artifact(kind, "weak"), label_model_artifact(kind)
+            if needed:
+                reason = f"Labeling_Function thresholds not fitted: {needed}"
+                omitted.extend({"artifact": a, "reason": reason, "class_counts": None} for a in (weak_artifact, label_artifact))
+                ws_examples[kind] = 0
+                continue
+            x_unl = np.stack(by_kind[kind]) if by_kind[kind] else np.zeros((0, dim))
+            votes = vote_matrix(kind, x_unl, values)
+            model = DawidSkene(max_iter=max_iter, tol=tol).fit(votes, len(classes)) if len(votes) else None
+            stats.extend(s.to_json() for s in lf_statistics(kind, votes, model, vote_matrix(kind, x_val, values), y_val))
+            if model is None:
+                reason = "no Judgment_Call of this kind in the unlabeled collections"
+                omitted.extend({"artifact": a, "reason": reason, "class_counts": None} for a in (weak_artifact, label_artifact))
+                ws_examples[kind] = 0
+                continue
+            artifacts.append(BundleArtifact.model(label_artifact, model))
+            proba = model.predict_proba(votes)
+            labeled = ~np.isnan(proba[:, 0])
+            keep = labeled.copy()
+            keep[labeled] = proba[labeled].max(axis=1) > proba[labeled].min(axis=1)  # 23.4: no tied labels
+            y_weak = [classes[int(i)] for i in np.argmax(proba[keep], axis=1)] if keep.any() else []
+            w_weak = proba[keep].max(axis=1) if keep.any() else np.zeros(0)
+            ws_examples[kind] = int(keep.sum())
+            x_train, y_train = examples.matrix(kind, "train")
+            try:
+                outcome = train_decision_model(
+                    kind,
+                    np.vstack([x_train, x_unl[keep]]) if keep.any() else x_train,
+                    [*y_train, *y_weak],
+                    x_val,
+                    y_val,
+                    seed=cfg.seed,
+                    ece_bins=int(cfg.resource("ece.bins")),
+                    trained_with="synthetic+weak",
+                    train_weights=[*([1.0] * len(y_train)), *w_weak.tolist()],
+                )
+            except Exception as error:  # noqa: BLE001
+                raise TrainingError("weak_supervision", f"{weak_artifact}: {type(error).__name__}: {error}") from error
+            if isinstance(outcome, OmittedModel):
+                omitted.append({"artifact": weak_artifact, "reason": outcome.reason, "class_counts": outcome.to_json()["class_counts"]})
+                continue
+            artifacts.append(BundleArtifact.model(weak_artifact, outcome.model))
+            metrics[weak_artifact] = outcome.metrics.to_json()
+        document: dict[str, JSON] = {
+            "unlabeled_collections": collections_json,
+            "ws_excluded": unlabeled.excluded,
+            "ws_removed_docs": unlabeled.removed_documents,
+            "labeling_functions": stats,
+            "ws_examples": ws_examples,
+        }
+        return artifacts, metrics, omitted, document, lf_records, lf_omitted
 
     @staticmethod
     def _not_produced(cfg: TrainingConfig, tid: str) -> str:

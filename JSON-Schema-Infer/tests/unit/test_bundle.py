@@ -105,6 +105,7 @@ def test_default_run_configuration_opens_the_default_bundle() -> None:
         for spec in THRESHOLDS.values()
         for tid in spec.techniques
         if config.techniques[tid] and REGISTRY.technique(tid).implemented
+        and spec.name in REGISTRY.technique(tid).thresholds  # lf.* are read only by the Trainer
     )
     found = sorted((s.artifact, s.fallback.technique) for s in resolved.substitutions if s.fallback.reason == "missing-threshold")
     assert found == expected
@@ -113,7 +114,12 @@ def test_default_run_configuration_opens_the_default_bundle() -> None:
 
 def test_empty_bundle_records_every_fallback_with_every_technique_enabled() -> None:
     resolved = load_bundle(DEFAULT_MODEL_BUNDLE).resolve(ALL_ON)
-    expected = [(spec.name, tid, "missing-threshold") for spec in THRESHOLDS.values() for tid in spec.techniques]
+    expected = [
+        (spec.name, tid, "missing-threshold")
+        for spec in THRESHOLDS.values()
+        for tid in spec.techniques
+        if spec.name in REGISTRY.technique(tid).thresholds  # lf.* are read only by the Trainer
+    ]
     for kind, tid in DECISION_MODEL_TECHNIQUES.items():
         expected.append((decision_model_artifact(kind, "synthetic"), tid, "missing-model"))
         expected.append((decision_model_artifact(kind, "weak"), "decide.weak_supervision", "missing-model"))

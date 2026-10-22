@@ -324,7 +324,8 @@ def test_a_missing_decision_model_falls_back_to_mdl() -> None:
     judgment = judge_enum(view_of(COLORS), eng, report=report)
     assert judgment.closed and judgment.decision.method == "mdl"
     assert judgment.decision.fallback == FallbackInfo(DM_CLOSED_ENUM, "missing-model")
-    assert [sub.artifact for sub in report.substitutions] == [SYNTHETIC]
+    # weak supervision is on by default: the WS model's absence is recorded too (23.9)
+    assert [sub.artifact for sub in report.substitutions] == [SYNTHETIC, "dm.closed_or_open_enum.weak"]
 
 
 def test_enum_estimation_is_implemented_and_enabled_by_default() -> None:

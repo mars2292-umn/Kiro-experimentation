@@ -734,7 +734,10 @@ class ModelBundle:
         """
         states = _states(techniques)
         in_effect = tuple(tid for tid in REGISTRY.ids() if _in_effect(tid, states))
-        check = check_thresholds(thresholds_used_by(in_effect), self.threshold_entries)
+        # The thresholds inference reads, as the registry declares them; the Labeling_Function
+        # cut-offs (lf.*) are read only by the Trainer, so a bundle without them is complete.
+        read = {name for tid in in_effect for name in REGISTRY.technique(tid).thresholds}
+        check = check_thresholds(thresholds_used_by(in_effect, (THRESHOLDS[name] for name in sorted_codepoint(read))), self.threshold_entries)
         problems: list[ThresholdProblem | ArtifactProblem] = list(check.problems)
         substitutions: list[Substitution] = []
         broken = {problem.name for problem in check.problems}

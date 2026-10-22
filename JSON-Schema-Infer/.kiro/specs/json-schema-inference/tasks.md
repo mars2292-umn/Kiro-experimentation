@@ -704,21 +704,21 @@ Conventions used by every task:
     - **Property 27: Outlier bookkeeping**
     - **Validates: Requirements 17.1, 17.4, 17.5, 17.9**
 
-- [ ] 39. Implement weak supervision
-  - [ ] 39.1 Implement the Labeling_Functions (`learn/labeling_functions.py`)
+- [x] 39. Implement weak supervision
+  - [x] 39.1 Implement the Labeling_Functions (`learn/labeling_functions.py`)
     - At least three LFs per Judgment_Call kind, from the design table. Every cut-off is an `lf.<id>.*` Learned_Threshold or an MDL comparison
     - _Requirements: 23.1_
-  - [ ] 39.2 Implement Dawid–Skene (`learn/label_model.py`)
+  - [x] 39.2 Implement Dawid–Skene (`learn/label_model.py`)
     - EM over confusion matrices on non-abstain votes, Laplace smoothing, majority-vote initialization, `ds.max_iter` and `ds.tol`; NaN rows when every LF abstains
     - _Requirements: 23.3_
-  - [ ] 39.3 Write property test for the label model and LF statistics
+  - [x] 39.3 Write property test for the label model and LF statistics
     - **Property 36: Label model and LF statistics are well-formed**
     - **Validates: Requirements 23.3, 23.5**
-  - [ ] 39.4 Integrate weak supervision into the Trainer (`learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)
+  - [x] 39.4 Integrate weak supervision into the Trainer (`learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)
     - Read manifest collections with the Ingestor; exclude bad entries with reasons; filter Real_Dataset ids and equal documents; fit LF thresholds on validation data
     - Label model per kind; second Decision_Model per kind using weighted weak examples, excluding tied labels and never adding them to validation; LF statistics and weak example counts in the manifest
     - _Requirements: 21.3, 23.2, 23.4, 23.5, 23.6, 23.7_
-  - [ ] 39.5 Write property test for leakage guards
+  - [x] 39.5 Write property test for leakage guards
     - **Property 37: Leakage guards** (weak-supervision filtering and the harness abort guards of 25.4)
     - **Validates: Requirements 23.6, 30.7, 30.8, 30.11**
 

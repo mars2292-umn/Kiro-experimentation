@@ -317,6 +317,7 @@ def train_decision_model(
     ece_bins: int = DEFAULT_ECE_BINS,
     trained_with: str = "synthetic",
     signal_features: Sequence[str] = (),
+    train_weights: Sequence[float] | None = None,
 ) -> TrainedModel | OmittedModel:
     """Fit, calibrate, and evaluate the Decision_Model of ``kind`` (see the module docstring).
 
@@ -324,8 +325,10 @@ def train_decision_model(
     ``x_val``/``y_val`` the validation-split examples (features in
     ``FEATURE_SPEC[kind]`` order, labels among the kind's classes).
     ``signal_features`` names the features whose :func:`feature_signal` is
-    reported. Returns an :class:`OmittedModel` when a split cannot support
-    the model (21.9, 22.11).
+    reported. ``train_weights`` gives each training example its weight
+    (each 1 by default): the weakly labeled examples of 23.4 carry the
+    probability of their label. Returns an :class:`OmittedModel` when a
+    split cannot support the model (21.9, 22.11).
     """
     if kind not in JUDGMENT_OUTCOMES:
         raise ValueError(f"{kind!r} is not a Judgment_Call kind; the kinds are {list(JUDGMENT_OUTCOMES)}")
@@ -337,6 +340,11 @@ def train_decision_model(
     val_x = _matrix(x_val, "validation", dim) if len(val_y) else np.zeros((0, dim))
     if train_x.shape[0] != len(train_y) or val_x.shape[0] != len(val_y):
         raise ValueError("features and labels must have the same length")
+    weights = None
+    if train_weights is not None:
+        weights = np.asarray(train_weights, dtype=np.float64)
+        if weights.shape != (len(train_y),) or not np.all(np.isfinite(weights)) or np.any(weights <= 0):
+            raise ValueError("train_weights must hold one positive finite weight per training example")
     for split, labels in (("train", train_y), ("val", val_y)):
         unknown = sorted({label for label in labels.tolist() if label not in classes})
         if unknown:
@@ -353,7 +361,7 @@ def train_decision_model(
     with threadpool_limits(limits=1), warnings.catch_warnings():
         # CalibratedClassifierCV still inspects its (unused) cross-validation splits for a frozen estimator.
         warnings.filterwarnings("ignore", message="The least populated class", category=UserWarning)
-        base.fit(train_x, train_y)
+        base.fit(train_x, train_y, sample_weight=weights)
         # cv is ignored for a frozen estimator, but still validated against the sample count; 2 always fits.
         calibrated = CalibratedClassifierCV(FrozenEstimator(base), method="sigmoid", cv=2)
         calibrated.fit(val_x, val_y)

@@ -272,7 +272,8 @@ def test_a_missing_decision_model_falls_back_to_mdl() -> None:
     outcome = tuple_or_list(root(ROWS), eng)
     assert outcome.is_tuple and outcome.decision.method == "mdl"
     assert outcome.decision.fallback == FallbackInfo(DM_TUPLE_LIST, "missing-model")
-    assert [s.artifact for s in report.substitutions] == ["dm.tuple_or_list.synthetic"]
+    # weak supervision is on by default: the WS model's absence is recorded too (23.9)
+    assert [s.artifact for s in report.substitutions] == ["dm.tuple_or_list.synthetic", "dm.tuple_or_list.weak"]
 
 
 def test_only_array_rows_count() -> None:

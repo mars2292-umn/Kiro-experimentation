@@ -71,7 +71,9 @@ def test_tiny_bundle_holds_a_decision_model_per_kind_and_the_m2_thresholds(tiny_
     assert "normalized_mdl_difference" in manifest["feature_signals"][decision_model_artifact("closed_or_open_record", "synthetic")]
     omitted = {o["artifact"]: o["reason"] for o in manifest["omitted_artifacts"]}
     assert "corpus.index" in omitted and "semantic_type" in omitted and "label_model.record_or_map" in omitted
-    assert all("not implemented" in reason for reason in omitted.values())
+    no_manifest = "no unlabeled-collection manifest"  # weak supervision is enabled but has no collections here
+    assert all(no_manifest in r for a, r in omitted.items() if a.startswith("label_model.") or a.endswith(".weak"))
+    assert all("not implemented" in r or no_manifest in r for r in omitted.values())
     left_out = {o["name"] for o in manifest["omitted_thresholds"]}
     assert left_out == set(THRESHOLDS) - fitted
     assert set(manifest["example_exclusions"]) == set(JUDGMENT_OUTCOMES)

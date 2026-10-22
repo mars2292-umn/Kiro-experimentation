@@ -880,7 +880,7 @@ _TECHNIQUES: Final[tuple[TechniqueSpec, ...]] = (
                implemented=True),
     # The Labeling_Function thresholds lf.<id>.* are read by the Trainer, not at inference.
     _technique("decide.weak_supervision", "weak supervision", "should",
-               implemented=False),
+               implemented=True),
     # Corpus
     _technique("corpus.name_suggest", "Name-based suggestions", "should",
                implemented=False, thresholds=("corpus.suggest_min_confidence",)),

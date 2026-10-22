@@ -206,8 +206,8 @@ def thresholds_at(kind: str) -> list[str]:
 
 
 def thresholds_read(tid: str, kind: str) -> list[str]:
-    """The Learned_Thresholds Technique ``tid`` reads at ``kind``."""
-    return [name for name in thresholds_at(kind) if tid in THRESHOLDS[name].techniques]
+    """The Learned_Thresholds Technique ``tid`` reads at ``kind`` (the registry's; lf.* are read only in training)."""
+    return [name for name in thresholds_at(kind) if name in REGISTRY.technique(tid).thresholds]
 
 
 def producers(dp: DecisionPointSpec) -> list[str]:

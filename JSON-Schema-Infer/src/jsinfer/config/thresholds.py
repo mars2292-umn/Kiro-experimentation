@@ -577,6 +577,35 @@ _SPECS: Final[tuple[ThresholdSpec, ...]] = (
 )
 
 
+# The Labeling_Function cut-offs of weak supervision (23.1, task 39.1); ``learn.labeling_functions`` reads them.
+_LF_SPECS: Final[tuple[ThresholdSpec, ...]] = (
+    lf_threshold("rm-key-entropy", "min_entropy", decision_point="judgment_model", admissible=_NON_NEGATIVE, integer=False,
+                 description="JXPlain key-entropy rule: key-frequency entropy in bits at or above which the objects are a Map"),
+    lf_threshold("rm-key-pattern", "min_fraction", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="share of integer, UUID, date, or hex keys at or above which the objects are a Map (abstains below)"),
+    lf_threshold("rm-dynamic", "min_singleton_fraction", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="JSONoid dynamic-object rule: share of keys held by one object at or above which the objects are a Map (abstains below)"),
+    lf_threshold("cr-keyset-stability", "min_stability", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="key-set stability at or above which a Record is closed"),
+    lf_threshold("cr-good-turing", "max_unseen_mass", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="Good–Turing unseen-key mass at or below which a Record is closed"),
+    lf_threshold("tl-fixed-length", "min_modal_share", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="JXPlain fixed-length heterogeneity rule: modal-length share at or above which heterogeneous arrays are a Tuple"),
+    lf_threshold("tl-positional-entropy", "min_drop", decision_point="judgment_model", admissible=_NON_NEGATIVE, integer=False,
+                 description="drop in type entropy from pooled to positional, in bits, at or above which the arrays are a Tuple"),
+    lf_threshold("ce-distinct-ratio", "max_ratio", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="distinct-value ratio S_obs/n at or below which a scalar Path is a Closed_Enum"),
+    lf_threshold("ce-chao1", "max_ratio", decision_point="judgment_model", admissible=Interval(1), integer=False,
+                 description="Chao1/S_obs at or below which a scalar Path is a Closed_Enum"),
+    lf_threshold("ce-jsonoid", "max_values", decision_point="judgment_model", admissible=_POSITIVE_COUNT, integer=True,
+                 description="JSONoid enum rule: distinct values at or below which, with no singleton, a scalar Path is a Closed_Enum (abstains above)"),
+    lf_threshold("ms-jaccard", "min_mean", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="mean key-set Jaccard of the candidate Variants at or above which they merge"),
+    lf_threshold("ms-discriminator", "min_information", decision_point="judgment_model", admissible=_UNIT, integer=False,
+                 description="normalized information a scalar field carries about the groups at or above which the Variants split (abstains below)"),
+)
+
+
 def _registry(specs: Iterable[ThresholdSpec]) -> Mapping[str, ThresholdSpec]:
     table: dict[str, ThresholdSpec] = {}
     for spec in sorted(specs, key=lambda s: codepoint_key(s.name)):
@@ -587,7 +616,7 @@ def _registry(specs: Iterable[ThresholdSpec]) -> Mapping[str, ThresholdSpec]:
 
 
 # Every registered Learned_Threshold, by name in code-point order (20.2).
-THRESHOLDS: Final[Mapping[str, ThresholdSpec]] = _registry(_SPECS)
+THRESHOLDS: Final[Mapping[str, ThresholdSpec]] = _registry((*_SPECS, *_LF_SPECS))
 
 
 def threshold_spec(name: str) -> ThresholdSpec:
