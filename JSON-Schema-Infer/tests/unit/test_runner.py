@@ -26,7 +26,7 @@ import pytest
 
 from jsinfer.bench.baselines.base import Availability, BaselineAdapter, BaselineInfo
 from jsinfer.bench.baselines.inferrer import InferrerAdapter
-from jsinfer.bench.baselines.jsonoid import JsonoidAdapter, java_version, jsonoid_from_config
+from jsinfer.bench.baselines.jsonoid import JsonoidAdapter, java_version, jsonoid_adapters, jsonoid_from_config
 from jsinfer.bench.baselines.naive import NaiveMergeAdapter
 from jsinfer.bench.runner import CommandAdapter, run_system, run_systems, write_jsonl
 from jsinfer.io.validator import Draft, Validator
@@ -310,6 +310,26 @@ def test_a_repaired_jsonoid_output_loads_and_records_the_repairs(tmp_path: Path,
     compiled = Validator().compile(run.document)
     assert Validator().is_valid(compiled, {"topics": [], "tags": ["a"]})
     assert not Validator().is_valid(compiled, {"topics": ["x"]})  # maxItems: 0 still holds
+
+
+def test_jsonoid_variants_share_the_jar_and_record_their_property_set(tmp_path: Path) -> None:
+    """34.1, 34.11: each [baselines.jsonoid.variants.<name>] is one more system with its own arguments, recorded."""
+    table = {
+        "jar": "j.jar", "sha256": "ab", "version": "v1",
+        "variants": {"simple-open": {"label": "JSONoid (Simple, open objects)", "extra_args": ["--prop", "Simple", "--additional-properties"]}},
+    }
+    main, variant = jsonoid_adapters(table, tmp_path)
+    assert (main.name, main.label, main.extra_args) == ("jsonoid", "JSONoid", ())
+    assert (variant.name, variant.label) == ("jsonoid-simple-open", "JSONoid (Simple, open objects)")
+    assert variant.jar == main.jar == tmp_path / "j.jar" and variant.sha256 == "ab"
+    assert main.describe().options["property_set"] == "default" and main.describe().options["additional_properties"] == "closed"
+    options = variant.describe().options
+    assert (options["property_set"], options["additional_properties"]) == ("Simple", "open")
+    assert options["extra_args"] == ["--prop", "Simple", "--additional-properties"]
+    assert list(variant.command(Path("/d.jsonl"), tmp_path, 3))[5:8] == ["--prop", "Simple", "--additional-properties"]
+    assert jsonoid_adapters({"jar": "j.jar", "sha256": "ab", "version": "v1"}, tmp_path)[0].name == "jsonoid"
+    with pytest.raises(ValueError, match="extra_args"):
+        jsonoid_adapters({**table, "variants": {"x": {"extra_args": "-a"}}}, tmp_path)
 
 
 def test_jsonoid_from_config(tmp_path: Path) -> None:

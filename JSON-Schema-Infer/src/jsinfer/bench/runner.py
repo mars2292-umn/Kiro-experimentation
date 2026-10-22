@@ -481,7 +481,7 @@ class Harness:
 
     def systems(self) -> list[BaselineAdapter]:
         from jsinfer.bench.baselines.inferrer import InferrerAdapter
-        from jsinfer.bench.baselines.jsonoid import jsonoid_from_config
+        from jsinfer.bench.baselines.jsonoid import jsonoid_adapters
         from jsinfer.bench.baselines.naive import NaiveMergeAdapter
 
         settings = {"model_bundle": self.settings.model_bundle, **self.settings.inferrer_settings}
@@ -489,7 +489,7 @@ class Harness:
         if self.settings.naive_merge:
             out.append(NaiveMergeAdapter())
         if self.settings.jsonoid is not None:
-            out.append(jsonoid_from_config(self.settings.jsonoid, Path(self.cfg.manifest).parent.parent))
+            out.extend(jsonoid_adapters(self.settings.jsonoid, Path(self.cfg.manifest).parent.parent))
         for name, table in sorted(self.settings.commands.items(), key=lambda i: codepoint_key(i[0])):
             out.append(CommandAdapter(name, str(table.get("label", name)), tuple(str(a) for a in table["argv"]), str(table.get("output", "schema.json"))))
         return out

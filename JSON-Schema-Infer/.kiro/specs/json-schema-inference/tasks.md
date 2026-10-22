@@ -890,6 +890,13 @@ Conventions used by every task:
     - Unit tests in `tests/unit/test_runner.py`
     - _Requirements: 34.8, 34.12_
 
+- [x] 56. JSONoid variants: a validating configuration next to the default
+  - [x] 56.1 Configure more JSONoid systems from one jar (`bench/baselines/jsonoid.py`, `bench/runner.py`)
+    - `[baselines.jsonoid.variants.<name>]` with `label` and `extra_args` adds the system `jsonoid-<name>`; `describe()` records the property set, equivalence relation, and object closing each run used
+    - The benchmark runs the default (property set All, every object closed; its output says it is not for validation) and `simple-open` (`--prop Simple --additional-properties`): JSONoid's set without statistical sketches that keeps types, required, enums, and bounds, with objects left open. Chosen by what each set emits, not by benchmark scores
+    - Unit test in `tests/unit/test_runner.py`
+    - _Requirements: 34.1, 34.11_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -960,7 +967,8 @@ Conventions used by every task:
     { "id": 55, "tasks": ["52.1"] },
     { "id": 56, "tasks": ["53.1"] },
     { "id": 57, "tasks": ["54.1"] },
-    { "id": 58, "tasks": ["55.1"] }
+    { "id": 58, "tasks": ["55.1"] },
+    { "id": 59, "tasks": ["56.1"] }
   ]
 }
 ```

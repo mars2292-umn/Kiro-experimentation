@@ -36,10 +36,23 @@ Configuration (``bench.toml``)::
     version = "v0.x.y"
     java = "java"            # optional
     extra_args = []          # optional, recorded as options
+
+    [baselines.jsonoid.variants.simple-open]   # optional: more JSONoid systems, same jar
+    label = "JSONoid (Simple, open objects)"
+    extra_args = ["--prop", "Simple", "--additional-properties"]
+
+Each variant is one more system, named ``jsonoid-<variant>`` and run with
+its own ``extra_args`` instead of the main table's (:func:`jsonoid_adapters`).
+JSONoid's default property set, ``All``, records statistics (histograms,
+Bloom filters, examples) and its output says it is not meant for
+validation; every property set closes every object unless
+``--additional-properties`` is given. :meth:`JsonoidAdapter.describe`
+records the property set and the object closing each run used.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import shutil
 import subprocess
@@ -52,7 +65,7 @@ from typing import Any
 from jsinfer.bench.baselines.base import Availability, BaselineInfo
 from jsinfer.io.validator import Draft
 
-__all__ = ["OUTPUT_FILE", "JsonoidAdapter", "java_version", "jsonoid_from_config"]
+__all__ = ["OUTPUT_FILE", "JsonoidAdapter", "java_version", "jsonoid_adapters", "jsonoid_from_config"]
 
 OUTPUT_FILE = "jsonoid.json"
 
@@ -160,7 +173,16 @@ class JsonoidAdapter:
         return repaired, tuple(removed)
 
     def describe(self) -> BaselineInfo:
-        options = {"property_set": "default", "equivalence_relation": "default", "jar_sha256": self.sha256, **dict(self.options)}
+        args = list(self.extra_args)
+        prop = next((args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-p", "--prop")), "default")
+        relation = next((args[i + 1] for i, a in enumerate(args[:-1]) if a in ("-e", "--equivalence-relation")), "default")
+        options = {
+            "property_set": prop,
+            "equivalence_relation": relation,
+            "additional_properties": "open" if {"-a", "--additional-properties"} & set(args) else "closed",
+            "jar_sha256": self.sha256,
+            **dict(self.options),
+        }
         return BaselineInfo(
             self.name,
             self.label,
@@ -191,3 +213,28 @@ def jsonoid_from_config(table: Mapping[str, Any], base: Path) -> JsonoidAdapter:
         tuple(extra),
         {"extra_args": list(extra)} if extra else {},
     )
+
+
+def jsonoid_adapters(table: Mapping[str, Any], base: Path) -> list[JsonoidAdapter]:
+    """The main JSONoid system of a ``[baselines.jsonoid]`` table and one per ``variants`` entry, in name order."""
+    main = jsonoid_from_config(table, base)
+    variants = table.get("variants", {})
+    if not isinstance(variants, Mapping):
+        raise ValueError("[baselines.jsonoid.variants] must be a table of variant tables")
+    out = [main]
+    for name in sorted(variants):
+        spec = variants[name]
+        if not isinstance(name, str) or not name or not isinstance(spec, Mapping):
+            raise ValueError(f"[baselines.jsonoid.variants.{name}] must be a table")
+        extra = spec.get("extra_args", [])
+        if not isinstance(extra, list) or not all(isinstance(a, str) for a in extra):
+            raise ValueError(f"[baselines.jsonoid.variants.{name}] extra_args must be a list of strings")
+        label = spec.get("label", f"JSONoid ({name})")
+        if not isinstance(label, str) or not label:
+            raise ValueError(f"[baselines.jsonoid.variants.{name}] label must be a non-empty string")
+        out.append(
+            dataclasses.replace(
+                main, name=f"jsonoid-{name}", label=label, extra_args=tuple(extra), options={"extra_args": list(extra)} if extra else {}
+            )
+        )
+    return out
