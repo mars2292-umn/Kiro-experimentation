@@ -20,7 +20,10 @@ one JSONL Document_Collection:
 - an output in draft-04, -06, -07, or 2019-09 is translated to draft
   2020-12 by the Schema_Loader, and the result records the source draft,
   the keywords the translation changed or left out, and the constructs it
-  reported as unsupported (34.5).
+  reported as unsupported (34.5);
+- an adapter with a ``repair_output`` method (only JSONoid's) repairs its
+  system's output before the meta-schema check, and the run records the
+  repaired locations in ``repairs`` and ``repairs.json`` (34.12).
 
 The :class:`SystemRun` holds the outcome kind (``schema``, ``timeout``,
 ``failure``, or ``unavailable``), the loaded Schema_Model and its emitted
@@ -97,6 +100,7 @@ class SystemRun:
     document: dict[str, Any] | bool | None = None
     translation: Translation | None = None
     command: tuple[str, ...] = ()
+    repairs: tuple[str, ...] = ()  # JSON Pointers of output keywords the adapter repaired (34.12)
 
     @property
     def ok(self) -> bool:
@@ -114,6 +118,7 @@ class SystemRun:
             "reason": self.reason,
             "translation": None if self.translation is None else self.translation.to_json(),
             "command": list(self.command),
+            "repairs": list(self.repairs),
         }
 
 
@@ -195,8 +200,13 @@ def _execute(command: Sequence[str], out_dir: Path, timeout_s: float, env: dict[
 
 def _load_output(
     path: Path, adapter: BaselineAdapter, validator: Validator, loader: SchemaLoader
-) -> tuple[SchemaModel, dict[str, Any] | bool, Translation | None] | str:
-    """The loaded model, its 2020-12 document, and the translation record, or the failure reason (34.5, 34.8)."""
+) -> tuple[SchemaModel, dict[str, Any] | bool, Translation | None, tuple[str, ...]] | str:
+    """The loaded model, its 2020-12 document, the translation record, and the repairs, or the failure reason (34.5, 34.8, 34.12).
+
+    An adapter with a ``repair_output`` method (JSONoid's) gets to repair
+    its system's output before the meta-schema check; every other output is
+    checked as it is.
+    """
     if not path.is_file():
         return f"no output file {path.name}"
     try:
@@ -207,6 +217,10 @@ def _load_output(
         return "the output is not a JSON Schema document (object or boolean)"
     if isinstance(document, dict) and "$schema" not in document and adapter.output_draft is not None:
         document = {"$schema": adapter.output_draft.uri, **document}
+    repairs: tuple[str, ...] = ()
+    repair = getattr(adapter, "repair_output", None)
+    if callable(repair) and isinstance(document, dict):
+        document, repairs = repair(document)
     draft, _ = dialect_of(document)
     errors = validator.meta_errors(document, draft)
     if errors:
@@ -226,7 +240,7 @@ def _load_output(
             tuple(model.ignored),
             tuple(model.unsupported),
         )
-    return model, emitted, translation
+    return model, emitted, translation, repairs
 
 
 def _keywords(document: Any) -> set[str]:
@@ -269,9 +283,14 @@ def run_system(
     loaded = _load_output(adapter.output_path(out_dir), adapter, validator or Validator(), loader or SchemaLoader())
     if isinstance(loaded, str):
         return SystemRun(adapter.name, "failure", info, seconds=seconds, peak_rss_mb=peak, exit_status=status, stderr=stderr, reason=loaded, command=command)
-    model, document, translation = loaded
+    model, document, translation, repairs = loaded
     (out_dir / "schema-2020-12.json").write_bytes(encode_canonical(document))
-    return SystemRun(adapter.name, "schema", info, seconds=seconds, peak_rss_mb=peak, exit_status=status, stderr=stderr, model=model, document=document, translation=translation, command=command)
+    if repairs:
+        (out_dir / "repairs.json").write_bytes(encode_canonical({"removed": list(repairs)}))
+    return SystemRun(
+        adapter.name, "schema", info, seconds=seconds, peak_rss_mb=peak, exit_status=status, stderr=stderr,
+        model=model, document=document, translation=translation, command=command, repairs=repairs,
+    )
 
 
 def run_systems(

@@ -883,6 +883,13 @@ Conventions used by every task:
     - Unit test in `tests/unit/test_reporting.py`
     - _Requirements: 33.10_
 
+- [x] 55. JSONoid output repair: `items: []`
+  - [x] 55.1 Repair JSONoid's empty `items` arrays (`bench/baselines/jsonoid.py`, `bench/runner.py`)
+    - `JsonoidAdapter.repair_output` removes every `"items": []` (written beside `"maxItems": 0`); the runner applies an adapter's `repair_output` before the meta-schema check and records the removals in `SystemRun.repairs` and `repairs.json`
+    - Motivated by the first JSONoid run (2026-10-21): 41 of 187 Real_Datasets, every GitHub webhook dataset among them, failed the draft 2020-12 meta-schema for this reason alone; all 41 outputs are valid after the repair
+    - Unit tests in `tests/unit/test_runner.py`
+    - _Requirements: 34.8, 34.12_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -952,7 +959,8 @@ Conventions used by every task:
     { "id": 54, "tasks": ["51.1"] },
     { "id": 55, "tasks": ["52.1"] },
     { "id": 56, "tasks": ["53.1"] },
-    { "id": 57, "tasks": ["54.1"] }
+    { "id": 57, "tasks": ["54.1"] },
+    { "id": 58, "tasks": ["55.1"] }
   ]
 }
 ```

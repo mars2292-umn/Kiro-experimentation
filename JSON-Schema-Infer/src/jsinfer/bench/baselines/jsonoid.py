@@ -21,6 +21,13 @@ keywords (``bloomFilter``, ``hll``, ``lengthHistogram``, ``fieldPresence``,
 ...), which the Schema_Loader records as ignored; they count in the schema
 size of 35.7, which the report notes.
 
+For an array it only saw empty, release 0.40 writes ``"items": []`` beside
+``"maxItems": 0``, which is invalid in the draft 2020-12 it declares, so the
+whole output would fail the meta-schema (34.8): on the real-data benchmark
+that removed 41 of 187 datasets, every GitHub webhook dataset among them.
+:meth:`JsonoidAdapter.repair_output` removes those keywords before the check
+(34.12); the runner records where.
+
 Configuration (``bench.toml``)::
 
     [baselines.jsonoid]
@@ -121,6 +128,36 @@ class JsonoidAdapter:
 
     def output_path(self, out_dir: Path) -> Path:
         return out_dir / OUTPUT_FILE
+
+    def repair_output(self, document: dict[str, Any]) -> tuple[dict[str, Any], tuple[str, ...]]:
+        """JSONoid's output with every ``"items": []`` removed, and the JSON Pointers of the removals (34.12).
+
+        For an array it saw only empty, JSONoid writes ``"items": []`` beside
+        ``"maxItems": 0``. An empty ``items`` array is the pre-2020-12
+        spelling of a zero-length tuple, which constrains no array in any
+        draft, yet draft 2020-12, the draft the output declares, requires
+        ``items`` to be a schema, so the document fails its meta-schema.
+        Removing the keyword changes no verdict; ``maxItems: 0`` keeps the
+        meaning. Every other keyword is left as it is.
+        """
+        removed: list[str] = []
+
+        def walk(value: Any, pointer: str) -> Any:
+            if isinstance(value, dict):
+                out = {}
+                for key, child in value.items():
+                    where = f"{pointer}/{key.replace('~', '~0').replace('/', '~1')}"
+                    if key == "items" and child == []:
+                        removed.append(where)
+                        continue
+                    out[key] = walk(child, where)
+                return out
+            if isinstance(value, list):
+                return [walk(child, f"{pointer}/{i}") for i, child in enumerate(value)]
+            return value
+
+        repaired = walk(document, "")
+        return repaired, tuple(removed)
 
     def describe(self) -> BaselineInfo:
         options = {"property_set": "default", "equivalence_relation": "default", "jar_sha256": self.sha256, **dict(self.options)}

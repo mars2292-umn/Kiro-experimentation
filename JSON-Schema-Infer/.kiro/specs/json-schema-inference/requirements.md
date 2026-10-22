@@ -776,6 +776,7 @@ Corpus and evaluation
 9. WHEN results are aggregated, THE Evaluation_Harness SHALL exclude runs that ended in a timeout (criterion 7) or failure (criterion 8) from the affected system's metric means, report the number of timeouts and failures per system and dataset group, and compute paired comparisons between the Inferrer and each Baseline only over datasets for which both returned a schema.
 10. WHERE a ReCG reimplementation is used in place of the official ReCG implementation, THE Evaluation_Harness SHALL label the system as a ReCG reimplementation in every CSV and JSON results file and every Markdown and LaTeX summary table that reports its results.
 11. THE Evaluation_Harness SHALL record with every Baseline result the Baseline's version or commit identifier, every configuration option and command-line argument the Baseline_Adapter passed to the Baseline, and the version of the language runtime that executed the Baseline.
+12. IF the JSONoid Baseline's output contains an `items` keyword whose value is an empty array, which JSONoid writes beside `maxItems: 0` for an array observed only empty and which constrains no array in any draft, THEN THE JSONoid Baseline_Adapter SHALL remove each such keyword before the meta-schema check of criterion 8 and record the JSON Pointer of every removal with the run. The output of no other system SHALL be repaired.
 
 ### Requirement 35: Metrics, Studies, and Reporting
 

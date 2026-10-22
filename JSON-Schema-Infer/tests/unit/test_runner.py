@@ -29,7 +29,7 @@ from jsinfer.bench.baselines.inferrer import InferrerAdapter
 from jsinfer.bench.baselines.jsonoid import JsonoidAdapter, java_version, jsonoid_from_config
 from jsinfer.bench.baselines.naive import NaiveMergeAdapter
 from jsinfer.bench.runner import CommandAdapter, run_system, run_systems, write_jsonl
-from jsinfer.io.validator import Draft
+from jsinfer.io.validator import Draft, Validator
 
 DOCS = [{"id": 1, "name": "a", "tags": ["x"]}, {"id": 2, "name": "b", "tags": []}, {"id": 3, "name": "c"}]
 
@@ -261,6 +261,55 @@ def test_a_java_that_exits_with_an_error_is_no_java_runtime(tmp_path: Path) -> N
     unavailable = JsonoidAdapter(jar, digest, "v", java=str(stub)).available()
     assert not unavailable.available and unavailable.reason == f"no Java runtime ({stub})"
     assert JsonoidAdapter(jar, digest, "v", java=str(real)).available().available
+
+
+JSONOID_EMPTY_ARRAYS = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "topics": {"type": "array", "minItems": 0, "items": [], "maxItems": 0, "lengthHistogram": {"bins": [[0.0, 4]]}},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "items": {"type": "array", "items": [], "maxItems": 0},  # a property named "items" is not the keyword
+    },
+}
+
+
+def test_jsonoid_repair_removes_only_empty_items_arrays(tmp_path: Path) -> None:
+    """34.12: "items": [] (beside maxItems: 0) goes; schema-valued items and properties named items stay."""
+    adapter = JsonoidAdapter(tmp_path / "j.jar", "0" * 64, "v")
+    repaired, removed = adapter.repair_output(JSONOID_EMPTY_ARRAYS)
+    assert removed == ("/properties/topics/items", "/properties/items/items")
+    assert "items" not in repaired["properties"]["topics"] and repaired["properties"]["topics"]["maxItems"] == 0
+    assert repaired["properties"]["tags"]["items"] == {"type": "string"}
+    assert "items" in repaired["properties"] and "items" not in repaired["properties"]["items"]
+    assert JSONOID_EMPTY_ARRAYS["properties"]["topics"]["items"] == []  # the input is not modified
+    assert adapter.repair_output({"type": "object"}) == ({"type": "object"}, ())
+
+
+def test_a_repaired_jsonoid_output_loads_and_records_the_repairs(tmp_path: Path, docs_jsonl: Path) -> None:
+    """34.8, 34.12: unrepaired, the output fails the 2020-12 meta-schema; through the JSONoid adapter it loads."""
+    java = tmp_path / "java"
+    java.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-version" ]; then echo "openjdk version \\"21\\"" >&2; exit 0; fi\n'
+        'while [ "$1" != "-w" ]; do shift; done\n'
+        f"cat > \"$2\" <<'JSON'\n{json.dumps(JSONOID_EMPTY_ARRAYS)}\nJSON\n"
+    )
+    java.chmod(0o755)
+    jar = tmp_path / "jsonoid.jar"
+    jar.write_bytes(b"jar")
+    import hashlib
+
+    adapter = JsonoidAdapter(jar, hashlib.sha256(b"jar").hexdigest(), "v-test", java=str(java))
+    assert Validator().meta_errors(JSONOID_EMPTY_ARRAYS, Draft.DRAFT202012)  # the raw output is invalid
+    run = run_system(adapter, docs_jsonl, tmp_path / "out", seed=0, timeout_s=60)
+    assert run.kind == "schema", (run.reason, run.stderr)
+    assert run.repairs == ("/properties/topics/items", "/properties/items/items")
+    assert run.to_json()["repairs"] == list(run.repairs)
+    assert json.loads((tmp_path / "out" / "repairs.json").read_text()) == {"removed": list(run.repairs)}
+    compiled = Validator().compile(run.document)
+    assert Validator().is_valid(compiled, {"topics": [], "tags": ["a"]})
+    assert not Validator().is_valid(compiled, {"topics": ["x"]})  # maxItems: 0 still holds
 
 
 def test_jsonoid_from_config(tmp_path: Path) -> None:
