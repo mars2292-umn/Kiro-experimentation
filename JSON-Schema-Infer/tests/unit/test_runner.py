@@ -243,6 +243,26 @@ def test_jsonoid_adapter_availability_rules(tmp_path: Path) -> None:
         assert JsonoidAdapter(jar, digest.upper(), "v").available().available
 
 
+def test_a_java_that_exits_with_an_error_is_no_java_runtime(tmp_path: Path) -> None:
+    """34.6: macOS's /usr/bin/java stub prints a message and exits 1; that is unavailability, not a version."""
+    stub = tmp_path / "stub-java"
+    stub.write_text("#!/bin/sh\necho 'The operation couldn’t be completed. Unable to locate a Java Runtime.' >&2\nexit 1\n")
+    stub.chmod(0o755)
+    real = tmp_path / "real-java"
+    real.write_text("#!/bin/sh\necho 'openjdk version \"21.0.0\" 2024-01-01' >&2\nexit 0\n")
+    real.chmod(0o755)
+    assert java_version(str(stub)) is None
+    assert java_version(str(real)) == 'openjdk version "21.0.0" 2024-01-01'
+    jar = tmp_path / "jsonoid.jar"
+    jar.write_bytes(b"jar")
+    import hashlib
+
+    digest = hashlib.sha256(b"jar").hexdigest()
+    unavailable = JsonoidAdapter(jar, digest, "v", java=str(stub)).available()
+    assert not unavailable.available and unavailable.reason == f"no Java runtime ({stub})"
+    assert JsonoidAdapter(jar, digest, "v", java=str(real)).available().available
+
+
 def test_jsonoid_from_config(tmp_path: Path) -> None:
     adapter = jsonoid_from_config({"jar": "tools/j.jar", "sha256": "ab", "version": "v1", "extra_args": ["-p", "Min"]}, tmp_path)
     assert adapter.jar == tmp_path / "tools" / "j.jar"

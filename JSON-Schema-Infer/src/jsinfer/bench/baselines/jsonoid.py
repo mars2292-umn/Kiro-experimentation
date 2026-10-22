@@ -52,13 +52,20 @@ OUTPUT_FILE = "jsonoid.json"
 
 @cache
 def java_version(java: str = "java") -> str | None:
-    """``java -version``'s first line, or None when ``java`` cannot be run."""
+    """``java -version``'s first line, or None when ``java`` cannot be run or exits with an error.
+
+    The exit status counts: macOS ships ``/usr/bin/java`` as a stub that
+    prints "Unable to locate a Java Runtime" and exits 1, which is no Java
+    runtime (34.6), not a version string.
+    """
     executable = shutil.which(java)
     if executable is None:
         return None
     try:
         done = subprocess.run([executable, "-version"], capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode != 0:
         return None
     text = (done.stderr or done.stdout).strip().splitlines()
     return text[0] if text else None
