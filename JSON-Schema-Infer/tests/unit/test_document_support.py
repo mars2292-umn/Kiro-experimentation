@@ -29,6 +29,7 @@ from jsinfer.decide.support import (
     withheld,
 )
 from jsinfer.io.validator import Validator
+from jsinfer.structure.arrays import tuple_or_list
 from jsinfer.structure.record_map import CLOSED, OPEN, closed_or_open
 from jsinfer.values.bounds import BOUNDS, NUMBER, STRING_LENGTH, decide_bound
 from jsinfer.values.enums import ENUM_ESTIMATION, judge_enum
@@ -332,6 +333,25 @@ def test_a_shape_shared_by_two_documents_survives_leave_one_document_out() -> No
 # ---------------------------------------------------------------------------
 # End to end
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Tuples (7.11)
+# ---------------------------------------------------------------------------
+
+
+def test_a_tuple_whose_last_position_one_document_reaches_is_withheld() -> None:
+    engine = DecisionEngine()
+    rows = [[f"n{i}", i, True] for i in range(20)]  # positionally typed: a Tuple by MDL
+    supported = tuple_or_list(root([*rows, [*rows[0][:2]]]), engine)
+    assert supported.is_tuple and "withheld" not in supported.decision.details  # 20 documents reach position 2
+    longer = tuple_or_list(root([*rows, ["n", 1, True, "extra"]]), engine)  # one document reaches position 3
+    assert not longer.is_tuple
+    assert longer.decision.details["withheld"] == [
+        {"label": "tuple", "rule": RULE, "documents": 21, "single_document_positions": 1}
+    ]
+    nested = tuple_or_list(root([[["a", 1, True], ["b", 2, False]]]).elements(), engine)  # both arrays in one document
+    assert not nested.is_tuple and nested.decision.details["withheld"][0]["documents"] == 1
 
 
 def test_two_documents_yield_an_open_schema_that_accepts_a_third() -> None:

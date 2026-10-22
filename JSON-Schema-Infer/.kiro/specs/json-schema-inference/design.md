@@ -1027,6 +1027,7 @@ Document_Support is the one mechanism that addresses all four families: a closin
 |---|---|---|
 | Closed_Enum (15.9) | every distinct value occurs in ≥ 2 documents | `documents`, `single_document_values` |
 | Closed Record (4.12) | every key under `properties` is held in ≥ 2 documents | `documents`, `single_document_keys` |
+| Tuple (7.11) | the arrays of ≥ 2 documents reach the last position (the maximum length) | `documents`, `single_document_positions` |
 | Bound rung (16.9) | ≥ 2 documents attain the extreme, or the rung's value recomputed from the extreme over the other documents still covers the observed extreme | `documents`, `leave_one_out_value` |
 | Induced Pattern rung (14.9, 14.10) | some fold holds a string no other fold holds, and for each of ≤ 3 document folds, the Pattern induced at that rung from the other folds matches every string only that fold holds | `documents`, `fold`, `held_out`, `unmatched`; or `held_out: 0`, `untested: true` |
 

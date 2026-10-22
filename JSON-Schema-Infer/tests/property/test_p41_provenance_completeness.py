@@ -1474,8 +1474,9 @@ def check_judgment_calls(result: PipelineResult, state: RunState) -> None:
         labels = [candidate.outcome for candidate in resolution.candidates]
         assert set(labels) <= set(JUDGMENT_OUTCOMES[kind]), f"{cid}: candidates {labels} of {kind}"
         assert selected_label(resolution) == label, f"{cid}: {kind} selected {selected_label(resolution)!r}"
-        if resolution.method in ("mdl", "decision-model"):
-            # 4.1, 26.3: the rejected alternative with its score.
+        if resolution.method in ("mdl", "decision-model") and not record.details.get("withheld"):
+            # 4.1, 26.3: the rejected alternative with its score (unless Document_Support withheld it, which the
+            # record's details then list instead).
             assert sorted(labels) == sorted(JUDGMENT_OUTCOMES[kind]), f"{cid}: {kind} lacks an alternative"
             assert all(c.score is not None for c in resolution.candidates), f"{cid}: an unscored alternative"
         if kind in ("record_or_map", "tuple_or_list"):

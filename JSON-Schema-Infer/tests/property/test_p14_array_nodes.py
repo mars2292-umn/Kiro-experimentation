@@ -706,8 +706,14 @@ def test_array_nodes_match_their_classification(scenario: str, group: str, data:
             ), f"recorded length statistics at {where}"
             assert math.isclose(stats["mean_length"], math.fsum(ref.lengths) / len(ref.lengths))
         resolved[(render_path(view.path), kind)] += 1
+        # 7.11: Document_Support withholds the Tuple unless two documents' arrays reach its last position.
+        reaching = {loc[0] for loc, n in zip(ref.arrays, ref.lengths) if n == ref.max_length and n > 0}
         if scenario == "tupling":
-            assert kind == TUPLE, f"the stub scorer makes {where} a Tuple"
+            if len(reaching) >= 2:
+                assert kind == TUPLE, f"the stub scorer makes {where} a Tuple"
+            else:
+                assert kind == LIST, f"{where}: one document reaches the last position, so the Tuple is withheld"
+                event("tupling: Tuple withheld by Document_Support")
         if scenario == "all off" or not mdl_on:
             assert kind == LIST, f"the Fallback_Behavior makes {where} a List"
 

@@ -651,7 +651,10 @@ def check_records(setup: Setup, result: PipelineResult) -> None:
             assert kind in REGISTRY.decision_points, f"{where}: fallback marker of an unknown kind {technique!r}"
             assert resolution is not None, f"{where}: {technique} without its resolution"
             check_fallback_resolution(resolution, kind, where)
-            assert setup.out_of_effect(kind), f"{where}: {technique} while a server of {kind} is in effect"
+            if record.fallback is not None and record.fallback.reason == "withheld":  # Document_Support (7.11, 4.12)
+                assert record.details.get("withheld"), f"{where}: reason withheld without a withheld candidate"
+            else:
+                assert setup.out_of_effect(kind), f"{where}: {technique} while a server of {kind} is in effect"
             check_fallback_info(record.fallback, kind, setup, where, fallback=True)
             assert record.details.get("fallback_behavior") == REGISTRY.decision_point(kind).fallback_doc, (
                 f"{where}: the Fallback_Behavior is not recorded"

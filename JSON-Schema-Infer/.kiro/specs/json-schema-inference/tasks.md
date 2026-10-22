@@ -897,6 +897,13 @@ Conventions used by every task:
     - Unit test in `tests/unit/test_runner.py`
     - _Requirements: 34.1, 34.11_
 
+- [x] 57. Document_Support for Tuples
+  - [x] 57.1 Withhold a Tuple whose last position one document reaches (`structure/arrays.py`)
+    - A Tuple spans the maximum array length and closes it with `items: false`, so the Tuple inferred without the one document that reaches the last position is shorter and rejects it; checked in closed form from each document's longest array
+    - Motivated by the Task 56 benchmark (2026-10-22): geojson-countries' MultiPolygon coordinate lists became one Tuple position per polygon (3,896 keywords against Naive_Merge's 24, recall 0.83 against 1.00), chosen by MDL with no Tuple-or-List Decision_Model in the bundle
+    - Unit test in `tests/unit/test_document_support.py`
+    - _Requirements: 7.11_
+
 ## Notes
 
 - Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
@@ -968,7 +975,8 @@ Conventions used by every task:
     { "id": 56, "tasks": ["53.1"] },
     { "id": 57, "tasks": ["54.1"] },
     { "id": 58, "tasks": ["55.1"] },
-    { "id": 59, "tasks": ["56.1"] }
+    { "id": 59, "tasks": ["56.1"] },
+    { "id": 60, "tasks": ["57.1"] }
   ]
 }
 ```

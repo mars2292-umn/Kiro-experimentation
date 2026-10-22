@@ -23,6 +23,15 @@ Tuple-or-List (7.1, 7.10)
       subschema of every element; this is the Naive_Merge subschema of the
       arrays themselves.
 
+    The Tuple candidate is withheld (Document_Support, 7.11,
+    ``decide.support``) when the arrays come from one document or the
+    arrays of only one document reach the last Tuple position: the Tuple
+    inferred without that document would be shorter, and its ``items:
+    false`` would reject that document's arrays. The engine then resolves
+    the point among the candidates left, without the Decision_Model; on the
+    real-data benchmark this is what kept geojson-countries' polygon lists
+    from becoming one Tuple position per polygon.
+
     The DecisionEngine resolves the point in its order: the Tuple-or-List
     Decision_Model (``decide.dm_tuple_list``) when it is in effect and the
     Model_Bundle holds it, else MDL while ``decide.mdl`` is enabled, else
@@ -122,7 +131,7 @@ from jsinfer.core.report import InferenceReport
 from jsinfer.core.schema_model import ConstraintId, SchemaNode
 from jsinfer.core.views import View
 from jsinfer.decide.engine import JUDGMENT_OUTCOMES, ArtifactSource, Candidate, Decision, DecisionEngine, DecisionPoint
-from jsinfer.decide.support import QuantitySupport
+from jsinfer.decide.support import QuantitySupport, withheld
 from jsinfer.io.validator import Validator
 from jsinfer.mdl.scorer import MDLScorer
 from jsinfer.pipeline.naive_merge import naive_merge_node
@@ -440,6 +449,29 @@ def _check_engine(engine: DecisionEngine, scorer: MDLScorer | None) -> MDLScorer
     return scorer if scorer is not None else MDLScorer()
 
 
+def _tuple_refutation(arrays: View) -> dict[str, JSON] | None:
+    """The Document_Support facts that withhold the Tuple candidate (7.11), or None when it survives.
+
+    A Tuple spans the maximum array length and closes it with ``items:
+    false``. Inferred without a document, it would be shorter by the
+    positions only that document's arrays reach, and reject them; and since
+    an array reaching a position reaches every lower one, it is enough that
+    two documents reach the last position. With one document nothing can
+    be held out.
+    """
+    sizes = arrays.gather("size").astype(np.int64)
+    docs = arrays.gather("doc").astype(np.int64)
+    documents = int(len(np.unique(docs)))
+    if documents < 2:
+        return withheld(documents)
+    # Each document's longest array; positions at or past the second-longest document's are reached by one document.
+    order = np.argsort(docs, kind="stable")
+    starts = np.flatnonzero(np.r_[True, np.diff(docs[order]) != 0])
+    per_document = np.sort(np.maximum.reduceat(sizes[order], starts))
+    single = int(per_document[-1] - per_document[-2])
+    return withheld(documents, single_document_positions=single) if single else None
+
+
 def tuple_or_list(
     view: View,
     engine: DecisionEngine,
@@ -461,8 +493,16 @@ def tuple_or_list(
     if not lengths.elements_observed:  # 7.9: neither keyword, without the Judgment_Call
         return ArrayOutcome(arrays.path, None, lengths)
     encodings = ((TUPLE, tuple_encoding(arrays)), (LIST, list_encoding(arrays)))
+    refuted = _tuple_refutation(arrays)  # 7.11: Document_Support
     candidates = tuple(
-        Candidate(technique=None, outcome=label, order_key=(index,), node=node, score=scorer.score(node, arrays))
+        Candidate(
+            technique=None,
+            outcome=label,
+            order_key=(index,),
+            node=node,
+            score=scorer.score(node, arrays),
+            withheld=refuted if label == TUPLE else None,
+        )
         for index, (label, node) in enumerate(encodings)
     )
 
