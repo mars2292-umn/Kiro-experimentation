@@ -1,0 +1,47 @@
+# Profile_Lint: the stable Clippy deny-lists of the Profile (task 11.1;
+# design.md, Profile_Lint). `cargo xtask verify` runs Clippy with
+# `clippy::disallowed_methods`, `clippy::disallowed_types`, and
+# `clippy::disallowed_macros` denied on every Flight_Build crate, and the
+# source lint (`rsk-lint`, R3.4) rejects any attribute, flag, or `[lints]`
+# table that lowers them. The Kernel crates carry their own clippy.toml
+# that admits the assembly macros of the Kernel_Unsafe_Module.
+#
+# The crates named here are also disallowed as dependencies (PR-35,
+# [disallowed_crates] of profile/profile.toml); the lists make the
+# relative-delay, selection, and privileged-access APIs explicit (R3.2).
+
+# PR-10: relative delays (R5.3). Periodic Releases are absolute instants.
+disallowed-methods = [
+  { path = "cortex_m::asm::delay", reason = "PR-10: relative delay; Releases are absolute instants (R5.3)" },
+  { path = "embassy_time::Timer::after", reason = "PR-10: relative delay (R5.3)" },
+  { path = "embassy_time::Timer::after_millis", reason = "PR-10: relative delay (R5.3)" },
+  { path = "embassy_time::Timer::after_micros", reason = "PR-10: relative delay (R5.3)" },
+  { path = "rtic_monotonics::Monotonic::delay", reason = "PR-10: relative delay (R5.3)" },
+  { path = "rtic_monotonics::Monotonic::delay_until", reason = "PR-10: waiting on a monotonic is a second suspension point (PR-09)" },
+  # PR-11: selection over alternatives and joins (R5.4).
+  { path = "futures::future::select", reason = "PR-11: no Task waits on alternative events (R5.4)" },
+  { path = "futures::future::join", reason = "PR-11: a Task has exactly one Release_Source (R5.4)" },
+  { path = "embassy_futures::select::select", reason = "PR-11: no Task waits on alternative events (R5.4)" },
+  { path = "embassy_futures::join::join", reason = "PR-11: a Task has exactly one Release_Source (R5.4)" },
+  # PR-22: privileged core-peripheral access outside the Kernel (R16.10).
+  { path = "cortex_m::Peripherals::take", reason = "PR-22: core peripherals are Kernel-owned (R16.10)" },
+  { path = "cortex_m::register::basepri::write", reason = "PR-22: BASEPRI is the Kernel's (R16.10)" },
+  { path = "cortex_m::register::primask::write", reason = "PR-22: PRIMASK is the Kernel's (R16.10)" },
+  { path = "cortex_m::interrupt::disable", reason = "PR-22: interrupt masking is the Kernel's (R16.10)" },
+  { path = "cortex_m::interrupt::free", reason = "PR-22: interrupt masking is the Kernel's (R16.10)" },
+]
+
+disallowed-types = [
+  { path = "cortex_m::Peripherals", reason = "PR-22: core peripherals are Kernel-owned (R16.10)" },
+  { path = "cortex_m::peripheral::NVIC", reason = "PR-22: the NVIC is the Kernel's (R16.10)" },
+  { path = "cortex_m::peripheral::MPU", reason = "PR-22: the MPU is the Kernel's (R16.10)" },
+  { path = "cortex_m::peripheral::SCB", reason = "PR-22: the SCB is the Kernel's (R16.10)" },
+]
+
+# PR-22: assembly outside the Kernel_Unsafe_Module (R6.3, R16.10).
+disallowed-macros = [
+  { path = "core::arch::asm", reason = "PR-22: inline assembly belongs to the Kernel_Unsafe_Module (R6.3)" },
+  { path = "core::arch::naked_asm", reason = "PR-22: naked stubs belong to the Kernel_Unsafe_Module (R6.3)" },
+  { path = "core::arch::global_asm", reason = "PR-22: assembly belongs to the Kernel_Unsafe_Module (R6.3)" },
+  { path = "cortex_m::interrupt::free", reason = "PR-22: interrupt masking is the Kernel's (R16.10)" },
+]

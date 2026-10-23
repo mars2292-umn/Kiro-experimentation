@@ -303,8 +303,9 @@ fn kani_run_with_a_failed_unwinding_assertion_is_rejected() {
 /// App_Declaration, a Partition crate that compiles, and one crate per
 /// rule that must not: re-entry of a Resource (E0499), a `&mut T` escaping
 /// its Critical_Section (a lifetime error), an undeclared Resource in a
-/// Task's Context (E0609), and an `async` Task body (E0308 at the Job
-/// wrapper's `let () =`). Each member is checked with `cargo check` from the
+/// Task's Context (E0609), an `async` Task body (E0308 at the Job
+/// wrapper's `let () =`), and a `#[rsk::bounds]` annotation with a
+/// non-constant bound or a dangling label (PR-16, task 11.1). Each member is checked with `cargo check` from the
 /// vendored sources.
 #[test]
 fn api_misuse_is_rejected_by_the_type_system() {
@@ -326,6 +327,7 @@ fn api_misuse_is_rejected_by_the_type_system() {
         ("api_escape", &["lifetime may not live long enough"]),
         ("api_undeclared", &["error[E0609]", "no field `other` on type `Beta`"]),
         ("api_asyncbody", &["error[E0308]", "mismatched types"]),
+        ("api_bounds", &["PR-16 (R35.5): the bound of `'scan` must be an integer constant", "PR-16: `'retry` names no labelled loop of `beta`"]),
     ];
     for (member, expected) in cases {
         let (ok, text) = check(member);

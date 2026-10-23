@@ -125,10 +125,16 @@ certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safet
 note = "`ResourceCell<T>` wraps `UnsafeCell`; its `unsafe impl Sync` cites the mutual-exclusion proof (R8.3)."
 
 [[item]]
-path = "core::arch::asm"
+path = "core::arch::{asm, naked_asm}"
 scope = ["kernel-unsafe"]
 certification = "none"
 substitute = "Each inline-assembly sequence is replaced by a Hardware_Model stub under Kani (R45.4) and validated by an HIL differential test (R49.3); its justification identifier links to the stub's harness or to a recorded review (R6.4)."
+
+[[item]]
+path = "core::hint::black_box"
+scope = ["application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "Keeps the iterations of `rsk::spin` (the demo's bounded busy loop) from being optimized away; an identity function with no effect on the Kernel. Added 2026-10-23 (task 11.1, found by the Profile_Lint's PR-21 check)."
 
 # --- Panic plumbing (Kernel only) ---------------------------------------
 

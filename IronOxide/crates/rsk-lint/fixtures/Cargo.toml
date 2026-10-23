@@ -1,0 +1,10 @@
+# Fixture data of the Profile_Lint's UI tests (crates/rsk-lint/tests/ui.rs):
+# the files under `ui/` are linted as text, never compiled. This manifest is
+# not a workspace member; it marks the directory as a fixture package so
+# that the Build_System's unsafe-code token scan (PR-20/R6.3), which stops
+# at nested packages, does not read the fixtures as rsk-lint's own source.
+[package]
+name = "rsk-lint-ui-fixtures"
+version = "0.0.0"
+edition = "2021"
+publish = false

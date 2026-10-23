@@ -1,6 +1,6 @@
 rsk Generated_Config summary (R24.3)
 Target: qemu_mps2_an386 (qemu), CPU 25000000 Hz, time base 25000000 Hz, 8 priority bits, 8 MPU regions
-Profile: 0.5 Ravenscar
+Profile: 0.6 Ravenscar
 Operating duration: 5000000 ticks
 Safe state: crate::report_and_exit
 Config checksum (CRC-32): 0x3d9317ae

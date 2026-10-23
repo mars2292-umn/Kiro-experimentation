@@ -48,6 +48,7 @@ pub const DOC: &str = "docs/profile.md";
 pub const VERSION_FILES: &[(&str, &str)] = &[
     ("rsk-kernel", "crates/rsk-kernel/src/profile_version.rs"),
     ("rsk-gen", "crates/rsk-gen/src/profile_version.rs"),
+    ("rsk-lint", "crates/rsk-lint/src/profile_version.rs"),
 ];
 
 pub const CATEGORIES: &[&str] = &["TS", "MC", "LN", "LK", "PO", "RT"];

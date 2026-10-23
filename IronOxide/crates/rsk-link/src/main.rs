@@ -11,12 +11,14 @@ fn main() {
     let mut out: Option<String> = None;
     let mut profile: Option<String> = None;
     let mut core_subset: Option<String> = None;
+    let mut verified: Vec<String> = Vec::new();
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--out" => out = it.next(),
             "--profile" => profile = it.next(),
             "--core-subset" => core_subset = it.next(),
+            "--verified" => verified.extend(it.next()),
             _ => positional.push(a),
         }
     }
@@ -40,7 +42,11 @@ fn main() {
     };
     let profile_inputs = match (&profile, &core_subset) {
         (Some(p), Some(c)) => match (std::fs::read_to_string(p), std::fs::read_to_string(c)) {
-            (Ok(pt), Ok(ct)) => Some(rsk_link::ProfileInputs::parse(&pt, &ct)),
+            (Ok(pt), Ok(ct)) => {
+                let mut p = rsk_link::ProfileInputs::parse(&pt, &ct);
+                p.verified = verified.clone();
+                Some(p)
+            }
             (Err(e), _) | (_, Err(e)) => {
                 eprintln!("rsk-link: cannot read the Profile inputs: {e}");
                 std::process::exit(2);

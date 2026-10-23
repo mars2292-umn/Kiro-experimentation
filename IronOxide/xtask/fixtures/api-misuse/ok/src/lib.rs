@@ -23,3 +23,13 @@ pub fn beta(mut cx: rsk_ctx::Beta) {
 }
 
 pub fn gamma(_cx: rsk_ctx::Gamma) {}
+
+/// PR-16: a Loop_Bound_Annotation on a bounded labelled loop compiles.
+#[rsk::bounds('scan = 4 * 2)]
+pub fn scan(mut cx: rsk_ctx::Alpha) {
+    let mut i = 0;
+    'scan: while i < 8 {
+        i += 1;
+    }
+    cx.state.lock(|s| *s += i);
+}

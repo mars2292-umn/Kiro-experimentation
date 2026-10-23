@@ -30,7 +30,7 @@ pub fn log(_cx: rsk_ctx::Log) {
         rsk::mmio::write(TIMER1_LOAD, PULSE_PERIOD_TICKS);
         rsk::mmio::write(TIMER1_CONTROL, (1 << 7) | (1 << 6) | (1 << 5) | (1 << 1));
     }
-    rsk::spin(250_000);
+    rsk::spin::<250_000>();
     COUNT_LOG.with_unprivileged(|c| *c += 1);
     rsk::debug(b"C");
 }

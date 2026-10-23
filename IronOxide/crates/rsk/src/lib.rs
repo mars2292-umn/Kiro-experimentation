@@ -19,6 +19,9 @@
 /// pipeline"): validates the declaration and exports the `rsk_system!` and
 /// `rsk_partition_<name>!` manifests (R21 to R24).
 pub use rsk_macros::app;
+/// `#[rsk::bounds('label = N)]`: the Loop_Bound_Annotation of a function's
+/// labelled loops (R35, PR-16).
+pub use rsk_macros::bounds;
 pub use rsk_kernel::arch::cm4::unsafe_module::ResourceCell;
 use rsk_kernel::arch::cm4::unsafe_module::{hw, stubs};
 
@@ -129,11 +132,11 @@ pub fn debug(s: &[u8]) {
     hw::semihosting_write(s);
 }
 
-/// A bounded busy loop of `n` iterations, for the demo Tasks (PR-16: the
-/// bound is the argument).
-pub fn spin(n: u32) {
+/// A bounded busy loop of `N` iterations, for the demo Tasks (PR-16: the
+/// bound is the constant argument, which the Profile_Lint derives).
+pub fn spin<const N: u32>() {
     let mut i = 0u32;
-    while i < n {
+    while i < N {
         core::hint::black_box(i);
         i = i.wrapping_add(1);
     }

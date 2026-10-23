@@ -63,6 +63,12 @@ const fn interrupts() -> [Vector; Sys::IRQ_COUNT as usize] {
 #[no_mangle]
 pub static __INTERRUPTS: [Vector; Sys::IRQ_COUNT as usize] = interrupts();
 
+/// The most ranges an initialization table holds: one `.bss` or `.data`
+/// range per Partition plus the Kernel's and the shared region's (PR-16).
+const MAX_RANGES: usize = 16;
+/// The RAM of the Target in words (nRF52840: 256 KiB; PR-16).
+const RAM_WORDS: usize = 65_536;
+
 /// An entry of the linker-provided initialization tables.
 #[repr(C)]
 struct Range {
@@ -85,27 +91,37 @@ extern "C" {
 // range lies in flash.
 #[no_mangle]
 pub unsafe extern "C" fn Reset() -> ! {
+    // PR-16: the tables have at most one range per Partition and Kernel
+    // region (MAX_RANGES), and no range exceeds the RAM (RAM_WORDS words).
     let mut entry = &__rsk_bss_table as *const Range;
-    while (*entry).start != 0 || (*entry).end != 0 {
+    let mut ranges = 0;
+    while ((*entry).start != 0 || (*entry).end != 0) && ranges < MAX_RANGES {
         let mut a = (*entry).start as usize as *mut u32;
         let end = (*entry).end as usize as *mut u32;
-        while a < end {
+        let mut words = 0;
+        while a < end && words < RAM_WORDS {
             core::ptr::write_volatile(a, 0);
             a = a.add(1);
+            words += 1;
         }
         entry = entry.add(1);
+        ranges += 1;
     }
     let mut entry = &__rsk_data_table as *const Range;
-    while (*entry).start != 0 || (*entry).end != 0 {
+    let mut ranges = 0;
+    while ((*entry).start != 0 || (*entry).end != 0) && ranges < MAX_RANGES {
         let mut a = (*entry).start as usize as *mut u32;
         let end = (*entry).end as usize as *mut u32;
         let mut src = (*entry).load as usize as *const u32;
-        while a < end {
+        let mut words = 0;
+        while a < end && words < RAM_WORDS {
             core::ptr::write_volatile(a, core::ptr::read_volatile(src));
             a = a.add(1);
             src = src.add(1);
+            words += 1;
         }
         entry = entry.add(1);
+        ranges += 1;
     }
     if !arch::boot::<Sys>() {
         Sys::safe_state();

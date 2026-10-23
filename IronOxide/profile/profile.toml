@@ -27,7 +27,7 @@
 
 [profile]
 name = "rsk"
-version = "0.5"
+version = "0.6"
 default_variant = "Ravenscar"
 variants = ["Ravenscar", "Jorvik"]
 requirements_draft = "0.2"
@@ -830,6 +830,15 @@ jorvik = "Same"
 # ---------------------------------------------------------------------------
 # Change log (R1.6), cumulative, newest first
 # ---------------------------------------------------------------------------
+
+[[change]]
+version = "0.6"
+date = "2026-10-23"
+content_hash = "sha256:0fcfecb28fd7c288a8c567b4e18fa14c626b81cfc89f136fd8e0e59039afbfe3"
+changes = [
+  { subject = "Core_Subset (PR-21, R57)", change = "`core::arch::asm` widened to `core::arch::{asm, naked_asm}` (the naked stubs' bodies); `core::hint::black_box` added for Application code.", rationale = "Task 11.1: the Profile_Lint's PR-21 check over every explicit `core::` path of the Kernel and Application crates found the two uses outside the list; both are justified in the item notes.", requirements = ["R57.1", "R57.2", "PR-21"] },
+  { subject = "PR-05, PR-09, PR-16, PR-17, PR-18, PR-21 and R3.4", change = "Enforcement by the Profile_Lint (`rsk-lint`, a source lint over the vendored parser; design.md Profile_Lint): async items and `.await` (PR-09); every loop with a Loop_Bound_Annotation `#[rsk::bounds('label = N)]`, a count derivable from constants, or a `decreases` clause inside `verus!` (PR-16, R35.1, R35.2, R35.5; exported per R35.3); explicit `core::` paths against the Core_Subset and its scopes (PR-21, R57.2); `static mut` and interior-mutable statics outside the Kernel (PR-05); direct recursion (PR-17); `dyn` and function-pointer types in Partition code (PR-18); attributes, flags, and `[lints]` tables that lower a Profile_Lint lint (R3.4). Clippy's `disallowed-methods`, `disallowed-types`, and `disallowed-macros` lists (PR-10, PR-11, PR-22) run on every Flight_Build.", rationale = "Task 11.1. Dylint is not vendored (R58.1) and needs a nightly compiler, so the lint parses the source with `syn`; it is a verification aid (TQL-5) backed by the Link_Checker's binary checks.", requirements = ["R3.2", "R3.4", "R35.1", "R35.3", "R35.5", "R57.2"] },
+]
 
 [[change]]
 version = "0.5"

@@ -85,9 +85,11 @@ fn trace(tag: &[u8], v: u32) {
         let mut n = 0;
         buf[n] = b'[';
         n += 1;
-        for b in tag {
-            buf[n] = *b;
+        let mut t = 0;
+        while t < tag.len() && t < 12 {
+            buf[n] = tag[t];
             n += 1;
+            t += 1;
         }
         buf[n] = b':';
         n += 1;

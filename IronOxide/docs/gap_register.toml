@@ -457,7 +457,7 @@ status = "partial"
 owner = "prototype"
 evidence = ["check-static-checks"]
 refs = ["GAP-13"]
-note = "PR-20, PR-36, and R6.1 to R6.4 are checked; Profile_Lint and Link_Checker are not built."
+note = "PR-20, PR-36, and R6.1 to R6.4 are checked; the Profile_Lint (task 11.1) and the Link_Checker (task 12) are built as of 2026-10-23."
 
 [[objective]]
 id = "A-5.5"
@@ -1031,8 +1031,8 @@ title = "The Phase 2 checkers are not all built"
 status = "mitigated"
 owner = "prototype"
 links = ["R50.1", "R26", "R37", "R3.5", "R51.3", "TBR-11", "TBR-12"]
-description = "The verification job runs Verus, Kani, the tests, the QEMU spike and, since 2026-10-23, the Config_Checker with its mutation suite (task 13) and the whole Link_Checker (tasks 12.1 to 12.3: stack bounds, instruction-class and symbol scans, Core_Subset mapping, the ORQ-32 stub rule, and the no-panic-path report); the Profile_Lint and the Profile_Conformance_Suite are stubs or absent (R50.1). The argument that the Generator needs no qualification now rests on a built Config_Checker (verification_plan.md 8.2)."
-plan = "Tasks 11, 14."
+description = "The verification job runs Verus, Kani, the tests, the QEMU spike and, since 2026-10-23, the Config_Checker with its mutation suite (task 13) the whole Link_Checker (tasks 12.1 to 12.3: stack bounds, instruction-class and symbol scans, Core_Subset mapping, the ORQ-32 stub rule, and the no-panic-path report), and the Profile_Lint (task 11.1: `rsk-lint` and the Clippy deny-lists); the Profile_Conformance_Suite is absent (R50.1), so the P1 demo stands in for it. The argument that the Generator needs no qualification now rests on a built Config_Checker (verification_plan.md 8.2)."
+plan = "Task 14."
 
 [[gap]]
 id = "GAP-14"

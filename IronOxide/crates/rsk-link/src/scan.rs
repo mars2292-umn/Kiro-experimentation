@@ -175,6 +175,10 @@ pub struct ScanInputs<'a> {
     pub disallowed_crates: Vec<String>,
     pub core_items: Vec<CoreItem>,
     pub model: &'a ModelInputs,
+    /// Module prefixes (`rsk_logic`, `rsk_kernel::arch::bound`) whose
+    /// items are inside `verus!` and verified by the Kernel_Proofs: an
+    /// implicit panic check there is proven never to fire (R44.7).
+    pub verified: Vec<String>,
 }
 
 /// What the scans need from the binary besides the call graph: gathered
@@ -416,9 +420,16 @@ pub fn scan(g: &CallGraph, facts: &Facts, inputs: &ScanInputs, violations: &mut 
             let mut callers = callers.clone();
             callers.sort();
             callers.dedup();
-            let shown: Vec<String> = callers.iter().take(4).map(|c| c.rsplit("::").next().unwrap_or(c).to_string()).collect();
-            let more = if callers.len() > 4 { format!(", and {} more", callers.len() - 4) } else { String::new() };
-            notes.push(format!("R14.1: implicit panic `{kind}` reachable from the Kernel entry points through {} function(s) ({}{more}); the Verus proofs show these checks never fire (R44.7), and the stack bound charges the panic path once", callers.len(), shown.join(", ")));
+            let is_verified = |c: &String| inputs.verified.iter().any(|v| c == v || c.starts_with(&format!("{v}::")) || c.contains(&format!("<{v}::")) || c.contains(&format!("_<{v}::")));
+            let (verified, other): (Vec<&String>, Vec<&String>) = callers.iter().partition(|c| is_verified(c));
+            let short = |c: &&String| c.rsplit("::").next().unwrap_or(c).to_string();
+            let others: Vec<String> = other.iter().map(short).collect();
+            notes.push(format!(
+                "R14.1: implicit panic `{kind}` reachable from the Kernel entry points through {} function(s): {} inside `verus!` modules, where the Kernel_Proofs show the check never fires (R44.7){}; the stack bound charges the panic path once",
+                callers.len(),
+                verified.len(),
+                if others.is_empty() { String::new() } else { format!(", and {} outside them ({}): shells and stub halves that inline the verified cores, which the binary does not attribute", others.len(), others.join(", ")) }
+            ));
         }
     }
 }
@@ -442,7 +453,7 @@ mod tests {
         let g = CallGraph::from_functions(functions);
         let facts = Facts { realm, task_entries, kernel_entries, func_symbols, exidx_size: 0 };
         let model = ModelInputs { tasks: vec![], partitions: vec![], kernel_ram_base: 0, kernel_ram_size: 0 };
-        let inputs = ScanInputs { disallowed_crates: disallowed.iter().map(|s| s.to_string()).collect(), core_items: core_subset(core_toml), model: &model };
+        let inputs = ScanInputs { disallowed_crates: disallowed.iter().map(|s| s.to_string()).collect(), core_items: core_subset(core_toml), model: &model, verified: vec![] };
         let mut v = Vec::new();
         let mut notes = Vec::new();
         scan(&g, &facts, &inputs, &mut v, &mut notes);

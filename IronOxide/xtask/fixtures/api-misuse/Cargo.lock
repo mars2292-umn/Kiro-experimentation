@@ -11,6 +11,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_bounds"
+version = "0.1.0"
+dependencies = [
+ "api_decl",
+ "rsk",
+]
+
+[[package]]
 name = "api_decl"
 version = "0.1.0"
 dependencies = [

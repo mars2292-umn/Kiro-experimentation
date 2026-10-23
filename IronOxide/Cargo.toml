@@ -20,6 +20,7 @@ members = [
     "crates/rsk-gen",
     "crates/rsk-macros",
     "crates/rsk-link",
+    "crates/rsk-lint",
     "crates/rsk-confcheck",
     "crates/rsk-analyzer",
     "crates/rsk-wcet",
@@ -112,6 +113,7 @@ rsk-macros = { targets = ["host"], flight = true }
 rsk-gen = { targets = ["host"] }
 rsk-model = { targets = ["host"] }
 rsk-link = { targets = ["host"] }
+rsk-lint = { targets = ["host"] }
 rsk-confcheck = { targets = ["host"] }
 rsk-analyzer = { targets = ["host"] }
 rsk-wcet = { targets = ["host"] }

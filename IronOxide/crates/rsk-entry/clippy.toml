@@ -1,0 +1,16 @@
+# Profile_Lint deny-lists for a Kernel crate (task 11.1): as the workspace
+# clippy.toml, without the assembly macros, which the Kernel_Unsafe_Module
+# uses (R6.3; the Build_System's token scan confines them to the module).
+disallowed-methods = [
+  { path = "cortex_m::asm::delay", reason = "PR-10: relative delay; Releases are absolute instants (R5.3)" },
+  { path = "embassy_time::Timer::after", reason = "PR-10: relative delay (R5.3)" },
+  { path = "futures::future::select", reason = "PR-11: no Task waits on alternative events (R5.4)" },
+  { path = "futures::future::join", reason = "PR-11: a Task has exactly one Release_Source (R5.4)" },
+  { path = "cortex_m::Peripherals::take", reason = "PR-22 (R16.10): the Kernel accesses core peripherals through its own Hardware_Model surface, not a third-party crate (PR-35)" },
+]
+disallowed-types = [
+  { path = "cortex_m::Peripherals", reason = "PR-35: cortex-m is a disallowed crate" },
+]
+disallowed-macros = [
+  { path = "core::arch::global_asm", reason = "R6.3: global assembly is not used; the stubs are naked functions" },
+]

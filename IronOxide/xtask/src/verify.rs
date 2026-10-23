@@ -246,7 +246,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 14,
+        total_steps: 15,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -496,6 +496,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let confcheck_cmds = config_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "check-config-step", "Config_Checker step", &["R26.4", "R26.5", "R25.2"], confcheck_cmds);
 
+    // --------------------------------------------------- 8c. Profile_Lint
+    job.heading("Profile_Lint (R3.2, R3.4, R3.5)");
+    let lint_cmds = profile_lint(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "check-profile-lint-step", "Profile_Lint step", &["R3.2", "R3.4", "R3.5"], lint_cmds);
+
     // ---------------------------------------------------- 9. Kernel_Proofs
     job.heading("Kernel_Proofs (Verus, R44.6) and PAR-01 cross-check");
     let mut verus_ok = true;
@@ -643,7 +648,7 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
         }
         let bounds_name = format!("stack-bounds-{}.json", binary.target_name);
         let bounds = store.dir.join(&bounds_name);
-        let cmd = Cmd::cargo_frozen("run")
+        let mut cmd = Cmd::cargo_frozen("run")
             .args(["--quiet", "-p", "rsk-link", "--manifest-path"])
             .arg(ws.root.join("Cargo.toml"))
             .arg("--target-dir")
@@ -657,6 +662,9 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
             .arg(ws.root.join("profile").join("profile.toml"))
             .arg("--core-subset")
             .arg(ws.root.join("profile").join("core_subset.toml"));
+        for prefix in verified_modules(ws) {
+            cmd = cmd.args(["--verified", &prefix]);
+        }
         commands.push(cmd.display());
         let log_name = format!("link-{}.log", binary.target_name);
         let (ok, text) = match cmd.output(Some(sandbox)) {
@@ -691,6 +699,182 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
     }
     if commands.is_empty() {
         report.note("Link_Checker: no Flight_Build binary with a Task_Model");
+    }
+    commands
+}
+
+/// The module paths of the Kernel crates' files that hold a `verus!` block
+/// (`rsk_kernel::arch::bound`), for the Link_Checker's classification of
+/// implicit panic checks as proof-covered (R14.1, R44.7).
+fn verified_modules(ws: &Workspace) -> Vec<String> {
+    let mut out = Vec::new();
+    for (name, policy) in &ws.policy.crates {
+        if !policy.kernel {
+            continue;
+        }
+        let Some(pkg) = ws.packages.values().find(|p| &p.name == name) else { continue };
+        let src = pkg.dir.join("src");
+        let mut files = Vec::new();
+        collect_rs(&src, &mut files);
+        for f in files {
+            let Ok(text) = std::fs::read_to_string(&f) else { continue };
+            if !text.contains("verus! {") {
+                continue;
+            }
+            let rel = f.strip_prefix(&src).unwrap_or(&f).with_extension("");
+            let mut segs: Vec<String> = vec![name.replace('-', "_")];
+            for c in rel.components() {
+                let s = c.as_os_str().to_string_lossy().to_string();
+                if s != "lib" && s != "mod" && s != "main" {
+                    segs.push(s);
+                }
+            }
+            out.push(segs.join("::"));
+        }
+    }
+    out.sort();
+    out
+}
+
+fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            collect_rs(&p, out);
+        } else if p.extension().is_some_and(|x| x == "rs") {
+            out.push(p);
+        }
+    }
+}
+
+/// R3.5: the Profile_Lint over every crate R2.2 subjects to a restriction
+/// (the Kernel crates with their Kernel_Unsafe_Module paths, the Target
+/// Application crates, the Generator's output directories), then Clippy
+/// with the Profile deny-lists denied (PR-10, PR-11, PR-22) on the Target
+/// crates. Two Check Evidence_Items: `check-profile-lint` and
+/// `check-profile-clippy`.
+fn profile_lint(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    let bounds_name = "loop-bounds.json".to_string();
+    let mut cmd = Cmd::cargo_frozen("run")
+        .args(["--quiet", "-p", "rsk-lint", "--manifest-path"])
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(target_dir)
+        .arg("--")
+        .arg("--root")
+        .arg(&ws.root)
+        .arg("--profile")
+        .arg(ws.root.join("profile").join("profile.toml"))
+        .arg("--core-subset")
+        .arg(ws.root.join("profile").join("core_subset.toml"))
+        .arg("--out")
+        .arg(store.dir.join(&bounds_name));
+    let mut covered = 0;
+    for (name, policy) in &ws.policy.crates {
+        let Some(pkg) = ws.packages.values().find(|p| &p.name == name) else { continue };
+        if policy.kernel {
+            cmd = cmd.arg("--kernel").arg(&pkg.dir);
+            if let Some(m) = &policy.unsafe_module {
+                cmd = cmd.arg("--unsafe").arg(pkg.dir.join(m));
+            }
+            if policy.unsafe_crate {
+                cmd = cmd.arg("--unsafe").arg(&pkg.dir);
+            }
+            covered += 1;
+        } else if policy.targets.contains(&ws.policy.target) && (policy.flight || policy.declaration) {
+            cmd = cmd.arg("--app").arg(&pkg.dir);
+            covered += 1;
+            if policy.declaration {
+                if let Some(gen) = pkg.dir.parent().map(|p| p.join("gen")) {
+                    if gen.is_dir() {
+                        cmd = cmd.arg("--gen").arg(gen);
+                    }
+                }
+            }
+        }
+    }
+    let mut model_given = false;
+    for binary in flight_binaries(ws, target_dir).into_iter().flatten() {
+        if let Some(app_dir) = ws.packages.values().find(|p| p.name == binary.package).and_then(|p| p.dir.parent().map(Path::to_path_buf)) {
+            let model = app_dir.join("gen").join("task_model.json");
+            if model.is_file() && !model_given {
+                cmd = cmd.arg("--task-model").arg(model);
+                model_given = true;
+            }
+        }
+    }
+    commands.push(cmd.display());
+    let (ok, text) = match cmd.output(Some(sandbox)) {
+        Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+        Err(e) => (false, format!("cannot run rsk-lint: {e}")),
+    };
+    let _ = store.write_artifact("lint-profile.log", &text);
+    let summary = text.lines().rev().find(|l| l.starts_with("rsk-lint:")).unwrap_or("rsk-lint: no verdict line").to_string();
+    for line in text.lines().filter(|l| l.starts_with("note: ")) {
+        report.note(format!("Profile_Lint: {}", &line[6..]));
+    }
+    if ok {
+        report.note(format!("R3.2: {covered} crates: {summary}"));
+    } else {
+        report.error(Rule::Step, None, format!("Profile_Lint: {summary} (see lint-profile.log)"));
+    }
+    let mut item = Item::new(
+        "check-profile-lint",
+        Kind::Check,
+        "Profile_Lint: async, loop bounds, Core_Subset, statics, recursion, dynamic dispatch, and lint-level lowering over the Kernel and Application sources",
+        Tool { name: "rsk-lint".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+        Verdict::from_bool(ok),
+    )
+    .covers(&["R3.2", "R3.4", "R3.5", "R35.1", "R35.2", "R35.3", "R35.5", "R57.2", "PR-05", "PR-09", "PR-16", "PR-17", "PR-18", "PR-21"]);
+    item.command_lines = vec![commands[0].clone()];
+    item.notes = vec![summary];
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = vec!["lint-profile.log".to_string(), bounds_name];
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+
+    // Clippy with the Profile deny-lists (clippy.toml) denied; every other
+    // Clippy lint is allowed here, since this step checks the Profile, not
+    // general hygiene (R3.4 concerns the Profile_Lint lints only).
+    let mut clippy = Cmd::cargo_frozen("clippy")
+        .args(["--release", "--target", &ws.policy.target])
+        .arg("--manifest-path")
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(target_dir)
+        .env("CARGO_ENCODED_RUSTFLAGS", target_rustflags(&ws.root));
+    for name in target_crates(ws) {
+        clippy = clippy.args(["-p", &name]);
+    }
+    clippy = clippy.args(["--", "-A", "clippy::all", "-D", "clippy::disallowed_methods", "-D", "clippy::disallowed_types", "-D", "clippy::disallowed_macros"]);
+    commands.push(clippy.display());
+    let (ok, text) = match clippy.output(Some(sandbox)) {
+        Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+        Err(e) => (false, format!("cannot run cargo clippy: {e}")),
+    };
+    let _ = store.write_artifact("lint-clippy.log", &text);
+    let errors = text.lines().filter(|l| l.starts_with("error")).count();
+    if ok {
+        report.note(format!("PR-10, PR-11, PR-22: Clippy deny-lists: no violation in {} Target crates", target_crates(ws).len()));
+    } else {
+        report.error(Rule::Step, None, format!("Clippy deny-lists: {errors} error line(s) (see lint-clippy.log)"));
+    }
+    let mut item = Item::new(
+        "check-profile-clippy",
+        Kind::Check,
+        "Profile_Lint: Clippy disallowed-methods, disallowed-types, and disallowed-macros deny-lists over the Target crates",
+        Tool { name: "cargo clippy".to_string(), version: clippy_version(), solvers: vec![] },
+        Verdict::from_bool(ok),
+    )
+    .covers(&["R3.2", "PR-10", "PR-11", "PR-22"]);
+    item.command_lines = vec![commands[1].clone()];
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = vec!["lint-clippy.log".to_string()];
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
     }
     commands
 }
@@ -872,4 +1056,14 @@ fn write_step_evidence(
     report.note(format!("{} Evidence_Items written to {}", store.written.len(), ws.rel(&store.dir)));
     let covered = evidence::covered_criteria(&store.dir).len();
     report.note(format!("{covered} criterion links recorded by the items of this run"));
+}
+
+/// The first line of `cargo clippy --version` (the pinned toolchain's Clippy).
+fn clippy_version() -> String {
+    Cmd::cargo()
+        .args(["clippy", "--version"])
+        .output(None)
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").trim().to_string())
+        .unwrap_or_default()
 }

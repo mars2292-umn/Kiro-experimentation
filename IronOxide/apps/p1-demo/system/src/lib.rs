@@ -20,6 +20,7 @@ p1_demo_decl::rsk_system!();
 /// Time-base ticks per millisecond on the board.
 const MS: u64 = TICK_HZ / 1000;
 
+#[rsk::bounds('digits = 10, 'copy = 10)]
 fn write_num(buf: &mut [u8; 32], mut v: u32) -> usize {
     let mut tmp = [0u8; 10];
     let mut n = 0;
@@ -27,23 +28,24 @@ fn write_num(buf: &mut [u8; 32], mut v: u32) -> usize {
         tmp[0] = b'0';
         n = 1;
     }
-    while v > 0 {
+    'digits: while v > 0 {
         tmp[n] = b'0' + (v % 10) as u8;
         v /= 10;
         n += 1;
     }
     let mut i = 0;
-    while i < n {
+    'copy: while i < n {
         buf[i] = tmp[n - 1 - i];
         i += 1;
     }
     n
 }
 
+#[rsk::bounds('key = 24, 'num = 10)]
 fn print_kv(key: &[u8], v: u32) {
     let mut line = [0u8; 48];
     let mut n = 0;
-    for b in key {
+    'key: for b in key {
         line[n] = *b;
         n += 1;
     }
@@ -52,7 +54,7 @@ fn print_kv(key: &[u8], v: u32) {
     let mut num = [0u8; 32];
     let d = write_num(&mut num, v);
     let mut i = 0;
-    while i < d {
+    'num: while i < d {
         line[n] = num[i];
         n += 1;
         i += 1;
@@ -63,6 +65,7 @@ fn print_kv(key: &[u8], v: u32) {
 }
 
 /// The system safe state of the demo (R14.4, R9.9): report and exit.
+#[rsk::bounds('events = NE)]
 pub fn report_and_exit() -> ! {
     let k = Sys::kernel().get();
     let a = p1_demo_part0::COUNT_CONTROL.peek();
@@ -84,7 +87,7 @@ pub fn report_and_exit() -> ! {
     let mut ended = false;
     let mut misses = 0u32;
     let mut i = 0;
-    while i < len {
+    'events: while i < len {
         let kind = k.log_kind(i);
         print_kv(b"event", kind as u32);
         print_kv(b"  task", k.log_task(i) as u32);
