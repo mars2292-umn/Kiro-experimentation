@@ -20,6 +20,7 @@ pub mod bound;
 pub mod cm4;
 
 pub use bound::{config_crc, Bound, Crc32, JobInfo, KernelOps};
+pub use cm4::entry::Binding;
 
 use crate::logic::kernel::Kernel;
 use crate::logic::mpu::View;
@@ -86,20 +87,6 @@ pub const DISABLED_REGION: crate::logic::mpu::Region = crate::logic::mpu::Region
 /// An all-disabled view, for `static` initializers.
 pub const fn placeholder_view() -> View {
     View { regions: [DISABLED_REGION; crate::logic::mpu::MPU_REGIONS] }
-}
-
-/// How an exception vector is bound (Generated_Config `irq` table, R24.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Binding {
-    /// The dispatch vector of a Task (DD-01).
-    Dispatch(u8),
-    /// A peripheral interrupt that releases a Sporadic_Task; the Partition
-    /// that owns the peripheral is attributed MIT_Violations (R10.7).
-    Intake { task: u8, partition: u8 },
-    /// A Kernel-owned interrupt line (the time-base timer).
-    Kernel,
-    /// Not bound: must stay disabled; an exception from it is a Kernel fault (R19.5).
-    Unbound,
 }
 
 /// The system crate's contract with Kernel_Arch.

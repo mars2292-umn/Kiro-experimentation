@@ -233,8 +233,11 @@ pub trait KernelOps: Sized {
     spec fn task_eligible(&self, t: int) -> bool;
 
     fn task_count(&self) -> (n: usize)
-        ensures n as int == self.task_count_spec();
-    fn partition_count(&self) -> usize;
+        requires self.inv(),
+        ensures n as int == self.task_count_spec(), n <= 255;
+    fn partition_count(&self) -> (n: usize)
+        requires self.inv(),
+        ensures n <= 255;
     /// Boot validation of the tables (R12.1, R12.3).
     fn validate(&self) -> (ok: bool)
         ensures ok ==> self.valid();
@@ -309,10 +312,10 @@ pub trait KernelOps: Sized {
         requires self.inv();
     fn take_reinit(&mut self, p: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv();
+        ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level();
     fn take_stop_dma(&mut self, p: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv();
+        ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level();
     fn log_len(&self) -> usize
         requires self.inv();
     fn log_kind(&self, i: usize) -> u8
@@ -369,7 +372,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         NT
     }
 
-    fn partition_count(&self) -> usize {
+    fn partition_count(&self) -> (n: usize) {
         NP
     }
 

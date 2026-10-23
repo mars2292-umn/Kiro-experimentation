@@ -1539,6 +1539,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), !final(self).reinit_partition[partition as int],
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
+            final(self).sched == old(self).sched,
     {
         self.reinit_partition[partition as usize] = false;
     }
@@ -1548,6 +1549,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), !final(self).stop_dma[partition as int],
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
+            final(self).sched == old(self).sched,
     {
         self.stop_dma[partition as usize] = false;
     }

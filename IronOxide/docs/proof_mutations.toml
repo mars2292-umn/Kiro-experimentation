@@ -105,3 +105,27 @@ file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
 find = "    if at < now + MIN_COMPARE_DISTANCE { now + MIN_COMPARE_DISTANCE } else { at }\n"
 replace = "    at\n"
 expect = ["plan.rs", "compare_for"]
+
+[[mutation]]
+id = "apply-skips-basepri"
+kills = "apply_core: basepri_matches (A1: BASEPRI is written from the Kernel state after every transition)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    hw.apply(Action::SetBasepri(k.basepri_now()));\n    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    match k.select() {\n"
+replace = "    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    match k.select() {\n"
+expect = ["entry.rs", "basepri_matches"]
+
+[[mutation]]
+id = "boot-skips-init"
+kills = "boot_core: KernelOps requires inv (A11: the Kernel is initialized before any transition)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    k.init();\n    let mut failed = hw.boot_checks(tables.priority_bits());\n"
+replace = "    let mut failed = hw.boot_checks(tables.priority_bits());\n"
+expect = ["entry.rs", "precondition not satisfied"]
+
+[[mutation]]
+id = "dispatch-privileged"
+kills = "irq_entry_core: CONTROL_JOB (A5: a Job runs unprivileged)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
+replace = "            (DispatchPlan { psp: frame, control: 0, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
+expect = ["entry.rs", "CONTROL_JOB"]

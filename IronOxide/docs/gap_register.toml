@@ -1001,11 +1001,11 @@ plan = "Deferred, not dropped: the Phase 1 checkpoint (task 9) requires these it
 [[gap]]
 id = "GAP-10"
 title = "Kernel_Arch and the unsafe module are outside the proof boundary"
-status = "open"
+status = "mitigated"
 owner = "prototype"
 links = ["TBR-05", "TBR-06", "TBR-24", "R44.5", "R45.1", "P-13"]
 description = "The logic proofs assume facts about Kernel_Arch (verification_plan.md section 4, A1 to A11). Since 2026-10-22 the bound Kernel (`arch::bound`) is inside `verus!`: A9 is proven, the computations of A1, A3, A4, and A6 are proven; the register writes and the call order in `arch::cm4` still hold by inspection only. 38 of 43 unsafe constructs are justified by review; the Kani harnesses build for the host, so the flight-only volatile and assembly paths are compiled out."
-plan = "Done: `Bound` and `KernelOps` in `verus!` (arch/bound.rs). Next: move `arch::cm4` into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model, which needs trusted specifications for the register-access functions (R44.5, docs/proof_assumptions.toml); restructure the unsafe module so that harnesses reach the flight code; HIL tests on the Target."
+plan = "Done 2026-10-22 (task 5.7): `Bound`, `KernelOps`, the planning computations, and every entry point are in `verus!` (arch/bound.rs, arch/cm4/plan.rs, arch/cm4/entry.rs); the hardware is driven through `KernelArch::apply` specified as a step of the ghost `HwModel`, with four trusted functions listed in docs/proof_assumptions.toml. Remaining: restructure the unsafe module so that Kani harnesses reach the flight code; HIL tests on the Target; a Hardware_Model lemma that takes the `HwModel` the cores write as its premise."
 
 [[gap]]
 id = "GAP-11"

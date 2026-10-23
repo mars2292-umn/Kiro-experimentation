@@ -214,6 +214,7 @@ impl Region {
 }
 
 /// A Partition's eight MPU regions.
+#[derive(Clone, Copy)]
 pub struct View {
     pub regions: [Region; MPU_REGIONS],
 }
