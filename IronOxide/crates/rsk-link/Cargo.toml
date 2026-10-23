@@ -6,4 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+# Host tool of the Build_System (R51: criterion 2 for the stack bounds). It
+# reads the linked binary with the shared ELF reader and the Task_Model with
+# a plain JSON parser; it shares no derivation code with the Generator.
 [dependencies]
+serde_json.workspace = true
+rsk-elf.workspace = true

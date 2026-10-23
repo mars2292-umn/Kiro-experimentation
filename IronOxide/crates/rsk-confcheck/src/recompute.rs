@@ -152,6 +152,37 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     }
 }
 
+/// The Link_Checker's stack bounds (`rsk-stack-bounds/1`, R37.4) against
+/// the declared stack regions (R26.2): every Partition has a bound, its
+/// `available` is the declared size, and the bound fits; the Kernel MSP
+/// bound fits as well.
+pub fn check_stack_bounds(m: &Model, bounds: &serde_json::Value, out: &mut Outcome) -> Result<(), String> {
+    let schema = bounds.get("schema").and_then(|v| v.as_str()).unwrap_or("");
+    if schema != "rsk-stack-bounds/1" {
+        return Err(format!("stack bounds: unsupported schema `{schema}`"));
+    }
+    let regions = bounds.get("regions").and_then(|v| v.as_array()).ok_or("stack bounds: no regions")?;
+    for p in &m.partitions {
+        match regions.iter().find(|r| r.get("name").and_then(|v| v.as_str()) == Some(p.id.as_str()) && r.get("kind").and_then(|v| v.as_str()) == Some("partition")) {
+            Some(r) => {
+                let bound = r.get("bound").and_then(|v| v.as_u64()).unwrap_or(u64::MAX);
+                let available = r.get("available").and_then(|v| v.as_u64()).unwrap_or(0);
+                out.mismatch(format!("{}.regions.stack (Link_Checker's view of the declared size)", p.id), p.stack, available);
+                out.require(format!("{}.regions.stack (worst case {bound})", p.id), bound <= p.stack, format!(">= {bound}"), p.stack);
+            }
+            None => out.require(format!("{}.regions.stack", p.id), false, "a Link_Checker bound", "none"),
+        }
+    }
+    match regions.iter().find(|r| r.get("kind").and_then(|v| v.as_str()) == Some("msp")) {
+        Some(r) => {
+            let ok = r.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
+            out.require("kernel MSP (Link_Checker bound within Kernel RAM)", ok, "bound <= available", format!("{:?} <= {:?}", r.get("bound"), r.get("available")));
+        }
+        None => out.require("kernel MSP", false, "a Link_Checker bound", "none"),
+    }
+    Ok(())
+}
+
 /// The `LAYOUT` image extracted from the binary against the Task_Model's
 /// MPU values (R26.2 MPU permissions, R16.7) and its checksums.
 pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outcome) {

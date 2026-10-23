@@ -246,7 +246,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 13,
+        total_steps: 14,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -486,6 +486,11 @@ pub fn run(root: &Path, options: Options) -> bool {
         vec![tests.display()],
     );
 
+    // -------------------------------------------------- 8a. Link_Checker
+    job.heading("Link_Checker: stack bounds (R37)");
+    let link_cmds = link_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "analysis-stack-step", "Link_Checker step", &["R37.1", "R37.2", "R37.3", "R37.4", "PR-17", "PR-18", "R3.3"], link_cmds);
+
     // ------------------------------------------------- 8b. Config_Checker
     job.heading("Config_Checker (R26.5)");
     let confcheck_cmds = config_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
@@ -623,6 +628,69 @@ fn qemu_spike(ws: &Workspace, target_dir: &Path, store: &mut Store, manifest_id:
     commands
 }
 
+/// R37: the Link_Checker on every Flight_Build binary with a Task_Model;
+/// its `rsk-stack-bounds/1` export is an artifact of the evidence store
+/// (R37.4), which the Config_Checker step then consumes (R26.2).
+fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    for binary in flight_binaries(ws, target_dir) {
+        let Ok(binary) = binary else { continue };
+        let elf = target_dir.join(&ws.policy.target).join("release").join(&binary.target_name);
+        let Some(app_dir) = ws.packages.values().find(|p| p.name == binary.package).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { continue };
+        let model = app_dir.join("gen").join("task_model.json");
+        if !model.is_file() {
+            continue;
+        }
+        let bounds_name = format!("stack-bounds-{}.json", binary.target_name);
+        let bounds = store.dir.join(&bounds_name);
+        let cmd = Cmd::cargo_frozen("run")
+            .args(["--quiet", "-p", "rsk-link", "--manifest-path"])
+            .arg(ws.root.join("Cargo.toml"))
+            .arg("--target-dir")
+            .arg(target_dir)
+            .arg("--")
+            .arg(&elf)
+            .arg(&model)
+            .arg("--out")
+            .arg(&bounds);
+        commands.push(cmd.display());
+        let log_name = format!("link-{}.log", binary.target_name);
+        let (ok, text) = match cmd.output(Some(sandbox)) {
+            Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+            Err(e) => (false, format!("cannot run rsk-link: {e}")),
+        };
+        let _ = store.write_artifact(&log_name, &text);
+        let summary = text.lines().rev().find(|l| l.starts_with("rsk-link:")).unwrap_or("rsk-link: no verdict line").to_string();
+        for line in text.lines().filter(|l| l.starts_with("note: ")) {
+            report.note(format!("Link_Checker `{}`: {}", binary.target_name, &line[6..]));
+        }
+        if ok {
+            report.note(format!("R37: `{}`: {summary}", binary.target_name));
+        } else {
+            report.error(Rule::Step, None, format!("Link_Checker: `{}`: {summary} (see {log_name})", binary.target_name));
+        }
+        let mut item = Item::new(
+            &format!("analysis-stack-{}", binary.target_name),
+            Kind::Analysis,
+            &format!("Link_Checker: worst-case stack usage within every stack region ({})", binary.target_name),
+            Tool { name: "rsk-link".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+            Verdict::from_bool(ok),
+        )
+        .covers(&["R37.1", "R37.2", "R37.3", "R37.4", "PR-17", "PR-18", "R3.3", "R11.4"]);
+        item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
+        item.notes = vec![summary];
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = vec![log_name, bounds_name];
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    if commands.is_empty() {
+        report.note("Link_Checker: no Flight_Build binary with a Task_Model");
+    }
+    commands
+}
+
 /// R26.5: the Config_Checker on every Flight_Build binary that has a
 /// Task_Model (the declaration crate's `gen/task_model.json` next to the
 /// binary crate), one Check Evidence_Item per binary.
@@ -643,7 +711,8 @@ fn config_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
             report.note(format!("Config_Checker: no Task_Model at {} for `{}`", ws.rel(&model), binary.target_name));
             continue;
         }
-        let cmd = Cmd::cargo_frozen("run")
+        let bounds = store.dir.join(format!("stack-bounds-{}.json", binary.target_name));
+        let mut cmd = Cmd::cargo_frozen("run")
             .args(["--quiet", "-p", "rsk-confcheck", "--manifest-path"])
             .arg(ws.root.join("Cargo.toml"))
             .arg("--target-dir")
@@ -651,6 +720,10 @@ fn config_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
             .arg("--")
             .arg(&model)
             .arg(&elf);
+        if bounds.is_file() {
+            // R26.2: the stack region sizes against the Link_Checker's bounds.
+            cmd = cmd.arg(&bounds);
+        }
         commands.push(cmd.display());
         let log_name = format!("confcheck-{}.log", binary.target_name);
         let (ok, text) = match cmd.output(Some(sandbox)) {

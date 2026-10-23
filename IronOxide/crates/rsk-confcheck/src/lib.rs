@@ -21,7 +21,7 @@
 //!
 //! | `LAYOUT` (R16.7) | the Task_Model's MPU values | binary `RSK_LAYOUT_IMAGE` and `RSK_LAYOUT_CHECKSUM` (task 13.2) |
 //!
-//! Not yet compared: the stack region sizes against the Link_Checker (task 12). The Kernel's
+//! | Stack region sizes (R26.2, R37.4) | the Link_Checker's `rsk-stack-bounds/1` export | Task_Model `regions.stack` (declared) and the computed worst case | The Kernel's
 //! table encodings (`TaskCfg`, `PartitionCfg`, the kinds, policies, and
 //! responses) are restated in `image` from the Kernel's documentation.
 #![forbid(unsafe_code)]
@@ -65,6 +65,22 @@ impl Outcome {
     }
 }
 
+/// `check` plus the Link_Checker's stack bounds (R26.2: each declared stack
+/// region against its computed worst case, R37.4).
+pub fn check_with_bounds(model_text: &str, elf: Option<&[u8]>, bounds: Option<&str>) -> Result<Outcome, String> {
+    let mut out = check(model_text, elf)?;
+    if let Some(text) = bounds {
+        let json: Value = serde_json::from_str(text).map_err(|e| format!("stack bounds are not JSON: {e}"))?;
+        let model_json: Value = serde_json::from_str(model_text).map_err(|e| format!("Task_Model is not JSON: {e}"))?;
+        let model = model::Model::parse(&model_json)?;
+        recompute::check_stack_bounds(&model, &json, &mut out)?;
+    } else {
+        out.notes.push("no stack bounds given: the stack region sizes were not checked against the Link_Checker (R26.2)".to_string());
+    }
+    out.notes.push(format!("{} values compared", out.checked));
+    Ok(out)
+}
+
 /// Checks `model_text` (the Task_Model JSON) and, when given, the linked
 /// binary. Errors are unusable inputs; discrepancies are in the outcome.
 pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
@@ -95,6 +111,5 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
         }
         None => out.notes.push("no binary given: the Task_Model's derived values were checked, not the linked binary (R26.4)".to_string()),
     }
-    out.notes.push(format!("{} values compared", out.checked));
     Ok(out)
 }

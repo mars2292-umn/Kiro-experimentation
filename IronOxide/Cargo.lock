@@ -158,6 +158,10 @@ dependencies = [
 [[package]]
 name = "rsk-link"
 version = "0.0.0"
+dependencies = [
+ "rsk-elf",
+ "serde_json",
+]
 
 [[package]]
 name = "rsk-logic"

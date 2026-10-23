@@ -1027,12 +1027,12 @@ plan = "Link_Checker no-panic-path check from Kernel entry points (task 12.3), o
 
 [[gap]]
 id = "GAP-13"
-title = "The Phase 2 checkers are not built"
-status = "open"
+title = "The Phase 2 checkers are not all built"
+status = "mitigated"
 owner = "prototype"
 links = ["R50.1", "R26", "R37", "R3.5", "R51.3", "TBR-11", "TBR-12"]
-description = "The verification job runs Verus, Kani, the tests, and the QEMU spike, but the Config_Checker, Link_Checker, Profile_Lint, and Profile_Conformance_Suite are stubs or absent (R50.1). The argument that the Generator needs no qualification rests on the Config_Checker (verification_plan.md 8.2); the ORQ-32 rule waits for the Link_Checker."
-plan = "Tasks 11 to 14."
+description = "The verification job runs Verus, Kani, the tests, the QEMU spike and, since 2026-10-23, the Config_Checker with its mutation suite (task 13) and the Link_Checker's stack bounds (tasks 12.1, 12.2); the Link_Checker's instruction scans and no-panic-path check (12.3), the Profile_Lint, and the Profile_Conformance_Suite are stubs or absent (R50.1). The argument that the Generator needs no qualification now rests on a built Config_Checker (verification_plan.md 8.2); the ORQ-32 rule waits for the scans of 12.3."
+plan = "Tasks 11, 12.3, 14."
 
 [[gap]]
 id = "GAP-14"

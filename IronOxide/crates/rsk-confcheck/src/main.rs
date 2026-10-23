@@ -6,13 +6,24 @@
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (model_path, elf_path) = match args.as_slice() {
-        [m] => (m.clone(), None),
-        [m, e] => (m.clone(), Some(e.clone())),
+    let (model_path, elf_path, bounds_path) = match args.as_slice() {
+        [m] => (m.clone(), None, None),
+        [m, e] => (m.clone(), Some(e.clone()), None),
+        [m, e, b] => (m.clone(), Some(e.clone()), Some(b.clone())),
         _ => {
-            eprintln!("usage: rsk-confcheck <task_model.json> [<flight-build.elf>]");
+            eprintln!("usage: rsk-confcheck <task_model.json> [<flight-build.elf> [<stack_bounds.json>]]");
             std::process::exit(2);
         }
+    };
+    let bounds = match &bounds_path {
+        Some(p) => match std::fs::read_to_string(p) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                eprintln!("rsk-confcheck: cannot read {p}: {e}");
+                std::process::exit(2);
+            }
+        },
+        None => None,
     };
     let model_text = match std::fs::read_to_string(&model_path) {
         Ok(t) => t,
@@ -31,7 +42,7 @@ fn main() {
         },
         None => None,
     };
-    match rsk_confcheck::check(&model_text, elf.as_deref()) {
+    match rsk_confcheck::check_with_bounds(&model_text, elf.as_deref(), bounds.as_deref()) {
         Ok(outcome) => {
             for line in &outcome.notes {
                 println!("note: {line}");
