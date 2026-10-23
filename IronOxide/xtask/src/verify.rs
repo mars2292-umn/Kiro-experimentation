@@ -487,13 +487,17 @@ pub fn run(root: &Path, options: Options) -> bool {
         tests = tests.args(["--exclude", &name]);
     }
     run_step(&tests, &sandbox, &mut report, "the tests");
-    job.flush(
-        &mut report,
-        "test-workspace-tests",
-        "workspace tests",
-        &["R6.2", "R6.4", "R6.3", "PR-20", "PR-36", "R58.1", "R33.3", "R25.5", "R33.2"],
-        vec![tests.display()],
-    );
+    // R50.5: the criteria the passing tests name in their names and doc
+    // comments join the step's own (the matrix of `cargo xtask trace`).
+    let (named, functions) = crate::trace::named_by_tests(root, "#[test]");
+    report.note(format!("covers: {} criteria named by {functions} test functions (names and doc comments), with the step's own", named.len()));
+    let mut covers: Vec<&'static str> = vec!["R6.2", "R6.4", "R6.3", "PR-20", "PR-36", "R58.1", "R33.3", "R25.5", "R33.2"];
+    for c in named {
+        if !covers.contains(&c.as_str()) {
+            covers.push(Box::leak(c.into_boxed_str()));
+        }
+    }
+    job.flush(&mut report, "test-workspace-tests", "workspace tests", &covers, vec![tests.display()]);
 
     // -------------------------------------------------- 8a. Link_Checker
     job.heading("Link_Checker: stack bounds (R37)");

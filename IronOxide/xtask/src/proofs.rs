@@ -412,6 +412,18 @@ pub fn verus_covers(root: &Path) -> Vec<String> {
     out
 }
 
+/// The criteria the Kani Evidence_Item covers: the harness requirements and
+/// the criteria the harnesses name in their doc comments and names.
+pub fn kani_covers(root: &Path) -> Vec<String> {
+    let mut out: Vec<String> = ["R45.1", "R45.2", "R45.3", "R45.5", "R45.7", "R45.8"].iter().map(|s| s.to_string()).collect();
+    for c in crate::trace::named_by_tests(root, "#[kani::proof]").0 {
+        if !out.contains(&c) {
+            out.push(c);
+        }
+    }
+    out
+}
+
 pub fn line_count_cross_check(ws: &Workspace, verus: &Verus, own_total: usize, report: &mut Report) {
     let Some(tool) = verus.line_count() else {
         report.warn("the Verus release has no `line_count` tool; PAR-01 cross-check skipped");
@@ -552,7 +564,7 @@ pub fn run_kani(
         },
         Verdict::from_bool(all_ok),
     )
-    .covers(&["R45.1", "R45.2", "R45.3", "R45.5", "R45.7", "R45.8"]);
+    .covers(&kani_covers(&ws.root).iter().map(String::as_str).collect::<Vec<_>>());
     item.command_lines = commands;
     item.notes = notes;
     item.build_manifest = Some(manifest_id.to_string());

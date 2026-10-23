@@ -146,6 +146,105 @@ pub fn plan_complete_criteria(plan_text: &str, analyses: &[&str]) -> Vec<String>
     out.into_iter().collect()
 }
 
+/// The acceptance criteria and restrictions that the functions carrying
+/// `attribute` (`#[test]`, `#[kani::proof]`) name in their doc comments
+/// (`R12.2`) or in their names (`r28_5_...`, `..._pr20_r6_3`), across the
+/// workspace sources outside `vendor` and `target`. A passing test or
+/// harness that names a criterion is evidence for it (task 8.4 follow-up,
+/// 2026-10-23); the Evidence_Item's `covers` list is derived from this.
+pub fn named_by_tests(root: &Path, attribute: &str) -> (Vec<String>, usize) {
+    let mut files = Vec::new();
+    for d in ["crates", "xtask", "apps"] {
+        collect(&root.join(d), &mut files);
+    }
+    files.sort();
+    let mut out = BTreeSet::new();
+    let mut functions = 0;
+    for f in files {
+        if f.extension().is_some_and(|x| x != "rs") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&f) else { continue };
+        let lines: Vec<&str> = text.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if line.trim() != attribute {
+                continue;
+            }
+            // Doc comment lines above, skipping other attributes.
+            let mut found = BTreeSet::new();
+            let mut j = i;
+            while j > 0 {
+                j -= 1;
+                let t = lines[j].trim();
+                if t.starts_with("///") {
+                    found.extend(criteria_in(t));
+                    for pr in prs_in(t) {
+                        found.insert(pr);
+                    }
+                } else if t.starts_with("#[") || t.is_empty() {
+                    if t.is_empty() {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            // The function name below, skipping other attributes.
+            for k in i + 1..lines.len().min(i + 6) {
+                let t = lines[k].trim();
+                if let Some(rest) = t.strip_prefix("fn ").or_else(|| t.strip_prefix("pub fn ")) {
+                    let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+                    found.extend(criteria_in_name(&name));
+                    break;
+                }
+            }
+            if !found.is_empty() {
+                functions += 1;
+                out.extend(found);
+            }
+        }
+    }
+    (out.into_iter().collect(), functions)
+}
+
+/// `PR-nn` identifiers in a text.
+fn prs_in(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for (i, _) in text.match_indices("PR-") {
+        let digits: String = text[i + 3..].chars().take_while(|c| c.is_ascii_digit()).collect();
+        if digits.len() == 2 {
+            out.push(format!("PR-{digits}"));
+        }
+    }
+    out
+}
+
+/// `r28_5` -> R28.5 and `pr20` -> PR-20 in a snake-case function name.
+pub fn criteria_in_name(name: &str) -> Vec<String> {
+    let parts: Vec<&str> = name.split('_').collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < parts.len() {
+        let p = parts[i];
+        if let Some(n) = p.strip_prefix("pr") {
+            if n.len() == 2 && n.chars().all(|c| c.is_ascii_digit()) {
+                out.push(format!("PR-{n}"));
+            }
+        } else if let Some(n) = p.strip_prefix('r') {
+            if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) {
+                if let Some(k) = parts.get(i + 1) {
+                    if !k.is_empty() && k.chars().all(|c| c.is_ascii_digit()) {
+                        out.push(format!("R{n}.{k}"));
+                        i += 1;
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
 pub fn parse_requirements(text: &str) -> Vec<Criterion> {
     let mut out = Vec::new();
     let mut current: Option<(u32, String, String)> = None;
@@ -471,6 +570,19 @@ mod tests {
         assert_eq!(v.len(), 4);
         let reqs = parse_requirements("### Requirement 3: Enforcement (Phase P2)\n\ntext\n\n#### Acceptance Criteria\n\n1. THE a.\n2. IF b.\n\n### Requirement 4: Other (Phase P1 plan)\n#### Acceptance Criteria\n1. x\n");
         assert_eq!(reqs.iter().map(|c| (c.id.as_str(), c.phase.as_str())).collect::<Vec<_>>(), vec![("R3.1", "P2"), ("R3.2", "P2"), ("R4.1", "P1 plan")]);
+    }
+
+    #[test]
+    fn criteria_named_by_tests_are_found_in_names_and_doc_comments() {
+        assert_eq!(criteria_in_name("kernel_violations_are_rejected_naming_r6_1_and_pr20_r6_3"), vec!["R6.1", "PR-20", "R6.3"]);
+        assert_eq!(criteria_in_name("r28_5_a_task_on_another_core_is_rejected_citing_ng_01"), vec!["R28.5"]);
+        assert!(criteria_in_name("r32_1_fixpoint_agrees").contains(&"R32.1".to_string()));
+        assert!(criteria_in_name("rta_r_and_x").is_empty());
+        let root = crate::repository_root();
+        let (tests, functions) = named_by_tests(&root, "#[test]");
+        assert!(functions > 40 && tests.contains(&"R28.5".to_string()) && tests.contains(&"R12.1".to_string()), "{functions} functions: {tests:?}");
+        let (harnesses, _) = named_by_tests(&root, "#[kani::proof]");
+        assert!(!harnesses.is_empty(), "{harnesses:?}");
     }
 
     #[test]
