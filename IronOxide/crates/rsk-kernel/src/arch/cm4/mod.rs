@@ -99,34 +99,9 @@ fn trace(tag: &[u8], v: u32) {
     }
 }
 
-/// NVIC priority encoding of an rsk level: level 0 (Kernel) is 0x00; a
-/// Task of Priority p is (8 - p) << 5 (HW-01, DD-02).
-pub const fn encode_level(level: u8) -> u8 {
-    if level == 0 { 0 } else { (8 - level) << 5 }
-}
-
-/// BASEPRI for a System_Ceiling (HW-03): 0 for the idle level.
-pub const fn basepri_for_ceiling(c: u8) -> u8 {
-    if c == 0 { 0 } else { encode_level(c) }
-}
-
-/// BASEPRI while a Job of Priority `top` executes under System_Ceiling
-/// `ceiling` (DD-01): the higher of the two levels, so that only the
-/// dispatch vectors of Jobs that may preempt (strictly higher Priority
-/// than both) and the Kernel level stay open.
-pub const fn basepri_for(top: u8, ceiling: u8) -> u8 {
-    basepri_for_ceiling(if top > ceiling { top } else { ceiling })
-}
-
-/// The BASEPRI the Kernel state calls for: the executing Job's level or
-/// the System_Ceiling.
-fn basepri_now<K: KernelOps>(k: &K) -> u8 {
-    let top = match k.top() {
-        Some(t) => k.job_info(t).priority,
-        None => 0,
-    };
-    basepri_for(top, k.ceiling())
-}
+/// The priority encodings (HW-01, HW-03): proven against the
+/// Hardware_Model in `arch::bound`.
+pub use crate::arch::bound::{basepri_for, basepri_for_ceiling, encode_level};
 
 /// SVC service numbers.
 pub const SVC_LOCK: u8 = 1;
@@ -232,7 +207,7 @@ fn charge_point(state: &mut ArchState) -> u32 {
 /// pending bit of the selected Job's vector, source masks, and Partition
 /// requests.
 fn apply<S: System>(k: &mut S::K) {
-    hw::write_basepri(basepri_now(k));
+    hw::write_basepri(k.basepri_now());
     if let Some(at) = k.next_compare() {
         arm_compare(at);
     }
@@ -403,7 +378,7 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
             state.floor[info.partition as usize] = frame;
             let entry = S::task_entry(t) as usize as u32;
             unsafe_module::build_frame(frame, entry, unsafe_module::stubs::job_end_trampoline as *const () as usize as u32);
-            hw::mpu_load(k.view(info.partition));
+            hw::mpu_load(k.partition_view(info.partition));
             state.current_partition = info.partition;
             hw::write_basepri(basepri_for(info.priority, k.ceiling()));
             if let Some(at) = k.next_compare() {
@@ -482,7 +457,7 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
         SVC_LOCK => {
             let ok = k.svc_lock(frame[0] as u8);
             frame[0] = ok as u32;
-            hw::write_basepri(basepri_now(k));
+            hw::write_basepri(k.basepri_now());
             0
         }
         SVC_UNLOCK => {
@@ -536,7 +511,7 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     state.last_switch = hw::dwt_cyccnt();
     // Restore the preempted Job's view.
     if rec.previous_partition != 0xFF {
-        hw::mpu_load(k.view(rec.previous_partition));
+        hw::mpu_load(k.partition_view(rec.previous_partition));
         hw::fpu_set_access(k.job_info(k.stack_at(k.depth().saturating_sub(1))).fpu);
     }
     state.current_partition = rec.previous_partition;
@@ -550,7 +525,7 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
             return (rec.psp, rec.control, rec.exc_return, next);
         }
     }
-    hw::write_basepri(basepri_now(k));
+    hw::write_basepri(k.basepri_now());
     (rec.psp, rec.control, rec.exc_return, 0)
 }
 

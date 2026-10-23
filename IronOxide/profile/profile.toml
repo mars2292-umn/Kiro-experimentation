@@ -27,7 +27,7 @@
 
 [profile]
 name = "rsk"
-version = "0.3"
+version = "0.4"
 default_variant = "Ravenscar"
 variants = ["Ravenscar", "Jorvik"]
 requirements_draft = "0.2"
@@ -478,7 +478,7 @@ evidence = { MC = ["conf-PR-30-mc"] }
 
 [[restriction]]
 id = "PR-31"
-rule = "Each Task declares whether its Jobs use the FPU; code of FPU-free Tasks executes no floating-point instructions, and Kernel code executes none other than the floating-point context-preservation instructions of the R11 policy, in the Kernel_Unsafe_Module."
+rule = "Each Task declares whether its Jobs use the FPU; code of FPU-free Tasks executes no floating-point instructions; Kernel code executes no floating-point arithmetic, comparison, or conversion instruction and never writes FPSCR, executes the context-preservation instructions of the R11 policy only in the Kernel_Unsafe_Module, and may execute the floating-point data-movement instructions (register moves, loads, and stores) that the compiler emits for memory copies."
 guarantee = "Correct FP context handling; FP costs included in WCET and stack bounds"
 enforcement = [
   { category = "MC", mechanism = "Generator: FPU flag per Task" },
@@ -830,6 +830,14 @@ jorvik = "Same"
 # ---------------------------------------------------------------------------
 # Change log (R1.6), cumulative, newest first
 # ---------------------------------------------------------------------------
+
+[[change]]
+version = "0.4"
+date = "2026-10-22"
+content_hash = "sha256:046bc96592301fd8aa4b2aea005b873c2645e0605febdfe6c279cfafa6ef1d2c"
+changes = [
+  { subject = "PR-31", change = "Kernel code may execute floating-point data-movement instructions (register moves, loads, and stores) that the compiler emits for memory copies; it still executes no floating-point arithmetic, comparison, or conversion instruction, never writes FPSCR, and executes the context-preservation instructions only in the Kernel_Unsafe_Module.", rationale = "R6.6 amended 2026-10-22 (requirements.md Draft 0.3): the DD-01 spike found that LLVM emits vldr, vstr, and vmov for 64-bit data moves on thumbv7em-none-eabihf; with eager stacking (DD-04) these alter no Job's floating-point context (verification_plan.md 5.7, GAP-17, ORQ-16).", requirements = ["R6.6", "R11.2", "PR-31"] },
+]
 
 [[change]]
 version = "0.3"

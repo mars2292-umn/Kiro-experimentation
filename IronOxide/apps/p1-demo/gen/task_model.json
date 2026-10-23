@@ -1,7 +1,7 @@
 {
   "schema": "rsk-task-model/1",
   "profile": {
-    "version": "0.3",
+    "version": "0.4",
     "variant": "Ravenscar"
   },
   "generator": "0.0.0",

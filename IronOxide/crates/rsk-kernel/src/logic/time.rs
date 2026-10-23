@@ -76,8 +76,15 @@ impl<const NS: usize> Slots<NS> {
     pub fn new() -> (s: Self)
         ensures forall|i: int| 0 <= i < NS ==> !s.armed(i), s.view() =~= Map::<int, u64>::empty(),
     {
-        let s = Slots { slots: [Slot { armed: false, at: 0, kind: SLOT_FREE, task: 0 }; NS] };
+        let fill = Slot { armed: false, at: 0, kind: SLOT_FREE, task: 0 };
+        let s = Slots { slots: [fill; NS] };
         proof {
+            // The array-fill axiom, applied explicitly: its trigger alone is
+            // not reliably instantiated in a large crate context.
+            vstd::array::axiom_spec_array_fill_for_copy_type::<Slot, NS>(fill);
+            assert(s.slots == vstd::array::spec_array_fill_for_copy_type::<Slot, NS>(fill));
+            assert(forall|i: int| 0 <= i < NS ==> s.slots[i] == fill);
+            assert(forall|i: int| 0 <= i < NS ==> !s.armed(i));
             assert(s.view() =~= Map::<int, u64>::empty());
         }
         s

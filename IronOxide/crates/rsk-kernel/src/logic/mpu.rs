@@ -507,7 +507,14 @@ impl<const NP: usize> Layout<NP> {
         ensures self.is_view_of(p as int, &v),
     {
         let pl = self.partitions[p];
-        let mut regions = [Region::disabled(); MPU_REGIONS];
+        let disabled = Region::disabled();
+        let mut regions = [disabled; MPU_REGIONS];
+        proof {
+            // The array-fill axiom, applied explicitly (as in `Slots::new`).
+            vstd::array::axiom_spec_array_fill_for_copy_type::<Region, MPU_REGIONS>(disabled);
+            assert(regions == vstd::array::spec_array_fill_for_copy_type::<Region, MPU_REGIONS>(disabled));
+            assert(forall|i: int| 0 <= i < MPU_REGIONS ==> regions[i] == disabled);
+        }
         regions[0] = Region { enabled: true, interval: self.shared_code, srd: 0, write: false, xn: false, device: false };
         regions[1] = Region { enabled: true, interval: pl.code, srd: pl.code_srd, write: false, xn: false, device: false };
         regions[2] = Region { enabled: true, interval: pl.ram, srd: pl.ram_srd, write: true, xn: true, device: false };

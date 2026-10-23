@@ -2,7 +2,7 @@
 
 **rsk: a Ravenscar-Style Concurrency Profile for Rust**
 
-Status: Draft 0.2 (requirements phase; every requirement refined). Spec: `rsk-ravenscar-profile`. Research facts checked October 2026.
+Status: Draft 0.3 (requirements phase; every requirement refined; R6.6 amended 2026-10-22, see Requirement 6). Spec: `rsk-ravenscar-profile`. Research facts checked October 2026.
 
 ## Introduction
 
@@ -343,7 +343,7 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 3. THE Kernel SHALL confine every `unsafe` block, `unsafe fn`, `unsafe trait`, `unsafe impl`, unsafe attribute (such as `no_mangle`), and inline or global assembly to the Kernel_Unsafe_Module, and SHALL apply `#![forbid(unsafe_code)]` to every other Kernel module.
 4. THE Kernel_Unsafe_Module SHALL annotate each `unsafe` block, `unsafe fn`, and `unsafe impl` that a Flight_Build compiles with a justification identifier, and SHALL link each justification identifier to a Kernel_Proofs proof or lemma or a Kani_Harnesses harness where one is feasible, and otherwise to a recorded review that states why none is feasible. THE Build_System SHALL fail the build if any of them lacks a justification identifier, if any justification identifier has no link, if a linked proof, lemma, harness, or review does not exist, or if a justification identifier linked only to a review lacks that statement (R44, R45).
 5. THE Kernel SHALL allocate statically every Kernel data structure other than local variables of Kernel functions, taking the capacity of every Kernel table and queue from Generated_Config (PR-14).
-6. THE Kernel SHALL execute no floating-point instructions other than the context-preservation instructions of the R11 policy in the Kernel_Unsafe_Module (PR-31).
+6. THE Kernel SHALL execute no floating-point arithmetic, comparison, or conversion instruction and SHALL NOT write FPSCR; the context-preservation instructions of the R11 policy SHALL execute only in the Kernel_Unsafe_Module; and Kernel code MAY execute floating-point data-movement instructions (register-to-register moves, loads, and stores of S or D registers) that the compiler emits for memory copies, because with eager stacking they alter no Job's floating-point context (PR-31). *Amended 2026-10-22 (Draft 0.3): the previous text allowed only the context-preservation instructions; the DD-01 spike found that LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves on `thumbv7em-none-eabihf` (ORQ-16, GAP-17, verification_plan.md 5.7). The Link_Checker instruction scan (R3.3, task 12.3) enforces the amended rule.*
 7. THE Kernel SHALL expose as linked symbols its version identifier and the Profile version and Profile_Variant that it implements (R3.5), and THE Config_Checker SHALL report a mismatch if the Kernel version symbol is absent or differs from the Kernel version recorded in the Task_Model.
 
 ### Requirement 7: SRP dispatching (Phase P1)
@@ -1158,7 +1158,7 @@ Each question must be resolved, or explicitly deferred with a recorded rationale
 | ORQ-13 | Adequacy of measurement-based WCET: margin selection, path coverage, and combination with static analysis. | R34, R54.2 |
 | ORQ-14 | Temporal partitioning model: priority bands with Budget enforcement or time windows (ARINC 653-like); RTA for budget-enforced Tasks; the closed set of Overrun_Responses. | R13.6, R14.5, R18, R29.4 |
 | ORQ-15 | Mixed-criticality scheduling (Vestal model, AMC mode changes) as a post-v1 extension. | NG-09, R18 |
-| ORQ-16 | FPU: lazy or eager stacking with MPU-protected stacks (lazy stacking is on by default [RN-31]); applicability to r0p1 of Cortex-M4F core errata listed in vendor errata sheets, including the VDIV/VSQRT short-ISR erratum and the store-immediate-overlapping-exception-return erratum [RN-32]; FP costs in RTA; whether LLVM emits floating-point loads and stores for Kernel memory copies on `thumbv7em-none-eabihf`, which PR-31 and R6.6 would then have to allow or prevent. | R6.6, R11, PR-31 |
+| ORQ-16 | FPU: lazy or eager stacking with MPU-protected stacks (lazy stacking is on by default [RN-31]); applicability to r0p1 of Cortex-M4F core errata listed in vendor errata sheets, including the VDIV/VSQRT short-ISR erratum and the store-immediate-overlapping-exception-return erratum [RN-32]; FP costs in RTA; whether LLVM emits floating-point loads and stores for Kernel memory copies on `thumbv7em-none-eabihf`, which PR-31 and R6.6 would then have to allow or prevent (it does; allowed by the R6.6 amendment of 2026-10-22). | R6.6, R11, PR-31 |
 | ORQ-17 | Equal-priority dispatch order: NVIC arbitration among equal-priority pending interrupts is expected to follow exception number rather than arrival order (to be confirmed in the Hardware_Model), unlike FIFO_Within_Priorities; accept a static order or emulate FIFO. | R4.3, R4.6, R7.3, R31.2, R49.1 |
 | ORQ-18 | Multiple suspension points per Job (async, self-suspension; Jorvik-style extension) and their schedulability analysis. | PR-09, R5 |
 | ORQ-19 | Later targets: the Cortex-M33 board and phase are not fixed; the RISC-V part is not chosen (CLIC or PLIC; RTIC's RISC-V backends are marked unstable [RN-04, RN-05]; Ferrocene qualification of candidate RISC-V targets is unknown). | R60 |

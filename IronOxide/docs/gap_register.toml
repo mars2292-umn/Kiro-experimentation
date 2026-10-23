@@ -1004,8 +1004,8 @@ title = "Kernel_Arch and the unsafe module are outside the proof boundary"
 status = "open"
 owner = "prototype"
 links = ["TBR-05", "TBR-06", "TBR-24", "R44.5", "R45.1", "P-13"]
-description = "The logic proofs assume facts about Kernel_Arch (verification_plan.md section 4, A1 to A11) that hold by inspection only. 38 of 43 unsafe constructs are justified by review; the Kani harnesses build for the host, so the flight-only volatile and assembly paths are compiled out."
-plan = "Move the safe planning code into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model; restructure the unsafe module so that harnesses reach the flight code; HIL tests on the Target."
+description = "The logic proofs assume facts about Kernel_Arch (verification_plan.md section 4, A1 to A11). Since 2026-10-22 the bound Kernel (`arch::bound`) is inside `verus!`: A9 is proven, the computations of A1, A3, A4, and A6 are proven; the register writes and the call order in `arch::cm4` still hold by inspection only. 38 of 43 unsafe constructs are justified by review; the Kani harnesses build for the host, so the flight-only volatile and assembly paths are compiled out."
+plan = "Done: `Bound` and `KernelOps` in `verus!` (arch/bound.rs). Next: move `arch::cm4` into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model, which needs trusted specifications for the register-access functions (R44.5, docs/proof_assumptions.toml); restructure the unsafe module so that harnesses reach the flight code; HIL tests on the Target."
 
 [[gap]]
 id = "GAP-11"
@@ -1063,12 +1063,12 @@ plan = "Refuse proof Evidence_Items from a dirty tree or archive the diff; add a
 
 [[gap]]
 id = "GAP-17"
-title = "Kernel code executes VFP data-movement instructions, which R6.6 does not allow"
-status = "open"
+title = "Kernel code executes VFP data-movement instructions, which R6.6 as first written did not allow"
+status = "closed"
 owner = "prototype"
 links = ["ORQ-16", "PR-31", "R6.6"]
-description = "LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves in Kernel code, so the coprocessor stays enabled. The moves do not alter a Job's floating-point context (verification_plan.md 5.7), but R6.6 as written allows only context-preservation instructions."
-plan = "Amend R6.6 or change code generation; confirm with the Link_Checker instruction scan (task 12.3) and the HIL register-pattern test."
+description = "LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves in Kernel code, so the coprocessor stays enabled. The moves do not alter a Job's floating-point context (verification_plan.md 5.7). Closed 2026-10-22: R6.6 and PR-31 (Profile 0.4) amended to allow floating-point data-movement instructions in Kernel code while forbidding arithmetic, comparison, conversion, and FPSCR writes."
+plan = "Closed by the amendment; the Link_Checker instruction scan (task 12.3) enforces the amended rule and the HIL register-pattern test confirms context preservation."
 
 [[gap]]
 id = "GAP-18"

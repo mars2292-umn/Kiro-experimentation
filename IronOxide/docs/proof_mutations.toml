@@ -1,0 +1,91 @@
+# Proof mutation register (R52.2 model and specification validation;
+# verification_plan.md section 9.2). `cargo xtask mutations` applies each
+# mutation to a copy of the tree, runs `cargo-verus verify` on `package`
+# (default rsk-kernel), and fails unless Verus rejects the mutant with
+# output containing every `expect` string. `cargo xtask mutations --check`
+# (run by the repository checks) confirms that every `find` still occurs
+# exactly once in its file.
+#
+# Fields: id; kills (the specification or lemma the mutation must trip);
+# file; find (exact text, once in the file); replace; expect (substrings
+# of the Verus output: take them from the failing clause's text, which
+# Verus prints with the error, or from the file name); package (optional).
+#
+# The first seven reproduce the manual vacuity checks of 2026-10-11 to
+# 2026-10-14 (verification_plan.md 9.2) or an equivalent of them; the last
+# two cover `arch::bound` (2026-10-22).
+
+schema = 1
+
+[[mutation]]
+id = "dispatch-vector-order"
+kills = "lemma_dispatch_selects_srp_choice (DD-03 tie order)"
+file = "crates/rsk-kernel/src/hw_model.rs"
+find = "    &&& forall|t: int, u: int| 0 <= t < u < NT ==> #[trigger] vector(t) < #[trigger] vector(u)\n"
+replace = "    &&& forall|t: int, u: int| 0 <= t < u < NT ==> #[trigger] vector(t) > #[trigger] vector(u)\n"
+expect = ["hw_model.rs"]
+
+[[mutation]]
+id = "kernel-level-encoding"
+kills = "lemma_encoding_order, lemma_kernel_level_never_masked (encode_level(0) must be 0x00)"
+file = "crates/rsk-kernel/src/hw_model.rs"
+find = "pub open spec fn encode_level(level: int) -> int {\n    if level == 0 { 0 } else { (8 - level) * 32 }\n"
+replace = "pub open spec fn encode_level(level: int) -> int {\n    if level == 0 { 256 } else { (8 - level) * 32 }\n"
+expect = ["hw_model.rs", "encode_level"]
+
+[[mutation]]
+id = "shared-code-writable"
+kills = "lemma_view_within_layout (a writable address lies in the Partition's RAM or a window; Property 12)"
+file = "crates/rsk-kernel/src/logic/mpu.rs"
+find = "        if i == 0 {\n            Region { enabled: true, interval: self.shared_code, srd: 0, write: false, xn: false, device: false }\n"
+replace = "        if i == 0 {\n            Region { enabled: true, interval: self.shared_code, srd: 0, write: true, xn: false, device: false }\n"
+expect = ["mpu.rs"]
+
+[[mutation]]
+id = "mpu-grants-every-write"
+kills = "lemma_mpu_grant_covered (the hardware grant implies the view's over-approximation)"
+file = "crates/rsk-kernel/src/hw_model.rs"
+find = "    match deciding_region(view, a) {\n        None => false,\n"
+replace = "    match deciding_region(view, a) {\n        None => true,\n"
+# Verus reports the failing assertion inside the lemma body, not the lemma name.
+expect = ["hw_model.rs", "view.regions[s].covers(a)"]
+
+[[mutation]]
+id = "restart-kills-one-job"
+kills = "end_partition_jobs: partition_ended (every Job of the Partition is ended or killed)"
+file = "crates/rsk-kernel/src/logic/kernel.rs"
+find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
+replace = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE && i == 0 {\n                self.sched.kill(cfg, i);\n"
+expect = ["kernel.rs"]
+
+[[mutation]]
+id = "kill-other-partitions"
+kills = "others_unchanged (R14.9: a response leaves every other Partition as it was)"
+file = "crates/rsk-kernel/src/logic/kernel.rs"
+find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
+replace = "            if self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
+expect = ["kernel.rs", "others_unchanged"]
+
+[[mutation]]
+id = "discard-clears-release"
+kills = "intake: violation_applied (a discarded event leaves the existing Release unchanged, R10.3)"
+file = "crates/rsk-kernel/src/logic/kernel.rs"
+find = "            // The violation may trip the threshold and stop or restart the\n            // Partition, which then suppresses the Release just deferred.\n            let ghost before = *self;\n"
+replace = "            self.sched.release[t as usize] = REL_NONE;\n            let ghost before = *self;\n"
+expect = ["kernel.rs"]
+
+[[mutation]]
+id = "bound-dispatch-unguarded"
+kills = "Kernel::dispatch requires started (A9: the Bound guard mirrors the precondition)"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "        if self.kernel.started && self.eligible(t) {\n"
+replace = "        if self.eligible(t) {\n"
+expect = ["bound.rs", "precondition not satisfied"]
+
+[[mutation]]
+id = "basepri-lower-level"
+kills = "basepri_for (A1: BASEPRI is the higher of the Job's level and the System_Ceiling)"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "    basepri_for_ceiling(if top > ceiling { top } else { ceiling })\n"
+replace = "    basepri_for_ceiling(if top > ceiling { ceiling } else { top })\n"
+expect = ["bound.rs", "basepri_for"]

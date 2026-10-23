@@ -35,6 +35,7 @@ pub mod diag;
 pub mod evidence;
 pub mod gen;
 pub mod manifest;
+pub mod mutations;
 pub mod policy;
 pub mod profile;
 pub mod profile_gen;
@@ -76,5 +77,6 @@ pub fn check_workspace(root: &Path) -> Report {
 pub fn check_repository(root: &Path) -> Report {
     let mut report = Report::default();
     let _workspace = checks::repository(root, &mut report);
+    mutations::check(root, &mut report);
     report
 }

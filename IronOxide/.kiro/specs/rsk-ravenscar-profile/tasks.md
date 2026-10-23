@@ -31,6 +31,7 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
   - [x] 2.2 Derive the initial Core_Subset allow-list from Ferrocene's published certified `core` subset, and record for each item its certification evidence or the substitute rsk evidence.
     - Evidence: allow-list file with sources; Gap_Register entry for the DO-178C gap
     - Done 2026-10-08: `profile/core_subset.toml` (23 items with scope and per-item certification evidence or substitute rsk evidence; Ferrocene's per-item list is customer-only, recorded as assumed/unconfirmed, ORQ-24); checked and rendered by `cargo xtask profile`; Gap_Register entry GAP-07 (task 8.2).
+    - Changed 2026-10-22 (Verification_Plan 5.9): the four `certification = "none"` items that no Kernel crate used (`NonZeroU8`, `core::array::{from_fn, map}`, the atomics, `spin_loop`) were removed; 19 items remain, two of them uncertified and in use (`core::arch::asm`, `PanicInfo`).
     - _Requirements: 57.1, 57.4, 57.5_
 
 - [ ] 3. Hardware risk retirement and Hardware_Model
@@ -83,7 +84,7 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
     - Evidence: Verus proofs of Properties 8 and 9
     - Done: `Timing::intake_decision`/`accept`/`defer`/`try_unmask`, `Kernel::intake` with attribution and the MIT_Violation threshold (R10.4).
     - Done 2026-10-11, the state parts of Property 8 (kernel.rs): `Kernel::inv` now requires that a deferred Release belongs to a Sporadic_Task under the deferral policy, that a previous accepted Release exists, and that `deferred_until == last_due + MIT`. `Kernel::intake` states every outcome: inactive (safe state, before instant 0, stopped Partition, or R9.9 horizon) changes nothing but the log; R10.1 `accepted` (Release pending and due now, previous due instant moved to now, source masked, deadline armed, no violation); R10.2 `deferred` (deferred until `last_due + MIT`, deferral event armed); discard under R10.2 or R10.3 (timing unchanged). Both violation cases end in `violation_applied` against the source Partition: within the threshold the count rises by one (saturating) and nothing else changes, so the existing Release is unchanged; past it the Partition's fault response is applied to the counted state (R10.4). `periodic_release` states R9.8 the same way; `deferred_release` states the deferred Release becoming due exactly one MIT after the previous one (or dropped under R9.9). Every Kernel_Arch entry point ensures `mit_spaced`. Mutation checks: clearing a pending Release on discard, making a deferred Release due at the current instant, and deferring a periodic Release each fail the proof. 230 items verified.
-    - Open: the statement over a whole event sequence ("no two accepted Releases less than one MIT apart") is by induction from `mit_spaced` and the per-entry-point facts, not a theorem over a trace; the log entry of each violation is not stated (the counted state ignores the log); the Kani cross-check harness on `intake` that design.md names does not exist; Release_Signal raise (R10.5) is not implemented; Property 9 (masking bound) is not covered.
+    - Open: the statement over a whole event sequence ("no two accepted Releases less than one MIT apart") is by induction from `mit_spaced` and the per-entry-point facts, not a theorem over a trace; the log entry of each violation is not stated (the counted state ignores the log); Release_Signal raise (R10.5) is not implemented; Property 9 (masking bound) is not covered. The Kani cross-check harness on `intake` exists since 2026-10-22 (task 6.2).
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.9, 19.1_
   - [x] 4.7 Implement and prove Budget accounting and Overrun detection.
     - Evidence: Verus proof of Property 10
@@ -106,11 +107,25 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
     - Evidence: Verus run with no unlisted assumptions; Verification_Plan entry for ORQ-07
     - Done: every exec function in `logic` is verified for overflow, bounds, and panic freedom (Verus checks them for all exec code); no `assume`, `admit`, or `external_body` in the Kernel crates (assumption gate); the ORQ-07 entry is in the Verification_Plan (task 8.1).
     - _Requirements: 44.1, 44.5, 44.7_
+  - [ ] 4.11 Add a ghost history to the Kernel model: a `Ghost<Seq<Step>>` trace of the transitions (dispatch, Job end, lock, unlock, release due, kill) with the instant and Task of each, carried by `Kernel` and extended by every entry point, so that the arguments of Verification_Plan section 5 can be stated as theorems over a run rather than per transition. Keep the trace ghost-only (no executable cost, PAR-01 unchanged) and the existing postconditions intact.
+    - Evidence: Verus run with the trace invariant proven at every entry point; the Kani cross-check harnesses unchanged and passing (the trace is erased)
+    - Added 2026-10-22: prerequisite of 4.12 to 4.14, which mechanize arguments 5.1 to 5.5 of the Verification_Plan (review evidence today, no DO-333 credit until mechanized).
+    - _Requirements: 44.1, 52.1, 52.5_
+  - [ ] 4.12 Prove bounded blocking over the history (Verification_Plan argument 5.1, Property 5): a Job released at r and pending but not eligible only because of the System_Ceiling waits for at most one outermost Critical_Section (with its nested sections) of one lower-Priority Job that started before r.
+    - Evidence: Verus theorem over the trace of 4.11; mutation fixture in `docs/proof_mutations.toml` showing a second blocking section failing it
+    - _Requirements: 8.4, 29.2, 44.1_
+  - [ ] 4.13 Prove ceiling restore across preemptions and lazy release over the history (arguments 5.3 and 5.2, Properties 3 and 6): after a Job's unlock the System_Ceiling equals its value before the matching lock whatever preemptions occurred between them, and the lock entries a killed Job retains until the unwind delay no Job that the Jobs above it would not delay.
+    - Evidence: Verus theorems over the trace of 4.11; mutation fixtures
+    - _Requirements: 8.2, 8.9, 14.5, 44.1_
+  - [ ] 4.14 Prove MIT spacing over a run and deadlock freedom over the history (arguments 5.4 and 5.5, Property 8 and R8.5): no two accepted Releases of a Sporadic_Task become due less than one MIT apart in any run, by induction over the trace from `mit_spaced`; and no wait-for cycle exists because a lock never waits and a pending Job waits only for higher-Priority Jobs to end.
+    - Evidence: Verus theorems over the trace of 4.11; the Verification_Plan rows P-05, P-06, P-08 move from "argument" to "proof"
+    - _Requirements: 8.5, 10.1, 10.2, 44.1_
 
 - [ ] 5. Kernel_Arch for the Cortex-M4F and the `rsk` API
   - [x] 5.1 Implement `arch::cm4` and the Kernel_Unsafe_Module from the spike: the priority map and PRIGROUP, NONBASETHRDENA, dispatch stubs with per-level records, SVC entry and exit, the two-step return, MPU loads, BASEPRI writes, eager FPCCR and FPDSCR, ACTLR.DISDEFWBUF, and DSBs before exception returns. Implement `rsk-entry` with the vector table and reset entry. Give each `unsafe` block, `unsafe fn`, and `unsafe impl` a justification identifier, and write in this task its Kani harness or Verus proof or lemma where one is feasible, and otherwise its recorded review stating why none is feasible.
     - Evidence: Kani harnesses for this task's justification identifiers, passing in the verification job that task 6.1 sets up; justification gate output (task 1.2); HIL dispatch tests carried over from 3.1
     - Done 2026-10-08: `crates/rsk-kernel/src/arch/{mod.rs,cm4/mod.rs}` (safe planning code: priority map, dispatch with per-level records and Partition stack floors, SVC services, unwind, timer/intake/fault handlers, boot) and `cm4/unsafe_module/{hw.rs,stubs.rs,mod.rs,kani.rs}` (register access, naked stubs, cells, frame builder; UJ-001..054 in `unsafe_justifications.toml`, each linked to a Kani harness or a review record, gate R6.4 passing); `crates/rsk-entry` (vector table, reset entry, panic handler, UJ-101..108). NONBASETHRDENA is no longer used (DD-01 revised). HIL-only items remain under 3.3/7.x.
+    - Changed 2026-10-22 (GAP-10, first step): the bound Kernel moved into `verus!` as `arch/bound.rs` (`Bound`, `KernelOps` with a specification on every method, the configuration CRC, and `encode_level`/`basepri_for_ceiling`/`basepri_for` with postconditions equal to the Hardware_Model encodings). Verus now checks that every call from `Bound` into the logic satisfies its `requires` (Verification_Plan fact A9), that `init` establishes the invariant with `is_view_of` for every Partition view (A6) and every method keeps it, that `eligible` decides exactly `Sched::eligible` and `select` names an eligible Job (A4), and that `basepri_now` is `hw_model::basepri_for(job_level, ceiling)` (A1). 286 items verified, 0 errors. Two pre-existing proofs (`Slots::new`, `Layout::view`) that relied on the array-fill axiom's trigger became unstable in the larger context and now apply the axiom explicitly; `end_top` carries `rlimit(40)`. `arch::cm4` (register writes, frames, level records) stays outside `verus!` (Verification_Plan section 4).
     - _Requirements: 6.3, 6.4, 6.6, 6.7, 7.7, 7.8, 11.1, 11.2, 11.3, 11.7, 11.8, 45.1_
   - [ ] 5.2 Implement boot validation (target values, clocks, configuration checksum, DWT, debug-state logging) and the system safe state.
     - Evidence: host tests of the boot logic; HIL boot-check suite (task 7.2)
@@ -131,6 +146,10 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
     - Evidence: trybuild compile-fail cases for re-entry, escaping references, undeclared Resources, and async Task bodies; Kani for the SVC glue
     - Partly done 2026-10-08: `crates/rsk` (`Shared::lock` with `&mut self` and a closure over `&mut T`, `now()`, `debug()`, `spin()`; `ResourceCell` with its justified `unsafe impl Sync`, UJ-050..054), used by the P1 demo. Open: generated Context types and `Signal` (need rsk-gen, task 10.5), trybuild cases (task 10.6).
     - _Requirements: 8.6, 8.7, 8.8, 8.10, 45.1, 45.2_
+  - [ ] 5.7 Move the remaining Kernel_Arch planning code (`arch::cm4`: `apply`, `irq_entry`, `svc`, `timer`, `epilogue`, the fault handlers, `boot`, `start`) into `verus!` behind a `KernelArch` trait whose `apply` specification is tied to the Hardware_Model, giving each register-access function of the Kernel_Unsafe_Module a trusted specification (`assume_specification`, listed in `docs/proof_assumptions.toml` with its UJ identifier and Kani harness or HIL differential test). This turns the inspection facts A1 to A8 and A11 of Verification_Plan section 4 into proof obligations and closes GAP-10 for the planning code.
+    - Evidence: Verus run with every `arch::cm4` function verified; assumption gate listing exactly the register-access specifications; TBR-24 reduced to rsk-entry and the stubs; QEMU spike unchanged
+    - Added 2026-10-22, after `arch::bound` (`Bound`, `KernelOps`, the CRC, and the priority encodings) moved into `verus!` under task 5.1.
+    - _Requirements: 44.1, 44.5, 45.1, 50.2_
 
 - [ ] 6. Kani harnesses
   - [x] 6.1 Set up Kani before the first Kernel_Unsafe_Module code (task 5.1): pin Kani and CBMC, run every harness in the verification job, count a run as passing only when every check including every unwinding assertion passes, and fail the job when a harness that a justification identifier links to fails. Build the stub library that replaces inline assembly and memory-mapped register accesses with Hardware_Model steps, and the convention for stating and justifying harness bounds. The harness for each justification identifier of an `unsafe` block or `unsafe fn` is written by the task that adds the identifier.
@@ -140,6 +159,7 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
   - [x] 6.2 Write cross-check harnesses that run each Kernel operation on bounded nondeterministic states and assert its Verus postcondition.
     - Evidence: Kani run
     - Done: `crates/rsk-kernel/src/logic/kani_harness.rs` (5 harnesses: validator totality, lock/unlock ceiling, forced end and LIFO resume, selection order) at bounds NT=3, NR=2, NL=4; all pass under Kani 0.68.0 / CBMC 6.11.0; run by `cargo xtask verify` step 10.
+    - Done 2026-10-22: `intake_outcomes_match_r10`, the `Kernel::intake` cross-check that design.md Property 8 named: three events of a Sporadic_Task at nondeterministic instants under both MIT policies, asserting R10.1 acceptance, R10.3 while a Release is pending, and R10.1/R10.2 acceptance, deferral, or discard after the Job ended, with R10.7 attribution (NS = 11, NE = 8, unwind 13). 12 harnesses pass.
     - _Requirements: 45.3_
   - [ ] 6.3 Record Kani's limitations and their mitigations in the Verification_Plan.
     - Evidence: Verification_Plan section; review record
@@ -359,8 +379,8 @@ Tasks in the same wave can run in parallel. Each wave starts after the previous 
     { "id": 3, "tasks": ["3.3", "4.2", "4.3", "4.5", "4.8", "4.9", "6.1"] },
     { "id": 4, "tasks": ["4.4", "4.6", "4.7"] },
     { "id": 5, "tasks": ["4.10", "5.1"] },
-    { "id": 6, "tasks": ["5.2", "5.3", "5.4", "5.5", "5.6"] },
-    { "id": 7, "tasks": ["6.2", "6.3", "7.2", "7.3", "7.4", "7.5"] },
+    { "id": 6, "tasks": ["4.11", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7"] },
+    { "id": 7, "tasks": ["4.12", "4.13", "4.14", "6.2", "6.3", "7.2", "7.3", "7.4", "7.5"] },
     { "id": 8, "tasks": ["8.1", "8.2", "8.3", "8.4"] },
     { "id": 9, "tasks": ["9"] },
     { "id": 10, "tasks": ["10.1", "11.1", "12.1", "17.2"] },

@@ -36,6 +36,11 @@ commands:
       Requirements 1, 2, 4, 27.3, and 57; record the content hash of the
       current version; generate docs/profile.md and the profile_version.rs
       modules. --check only compares the generated files with the tree.
+  mutations [--check] [--only <id>]
+      R52.2: apply each proof mutation of docs/proof_mutations.toml to a copy
+      of the tree and require Verus to reject it with the registered
+      diagnostic (a surviving mutant is a vacuous specification). --check
+      only validates the register against the sources, without Verus.
   gen [--check]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
@@ -63,6 +68,7 @@ fn main() -> ExitCode {
         "check" => check_command(rest),
         "rebuild-check" => rebuild_command(),
         "profile" => profile_command(rest),
+        "mutations" => mutations_command(rest),
         "gen" => gen_command(rest),
         "qemu" => qemu_command(rest),
         "probe-network" => match probe_network() {
@@ -164,6 +170,36 @@ fn profile_command(args: &[String]) -> ExitCode {
     let mut report = Report::default();
     let ok = xtask::profile_gen::generate(&xtask::repository_root(), check_only, &mut report);
     let code = print_report(&report, if check_only { "profile is current" } else { "profile generated" });
+    if ok {
+        code
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+fn mutations_command(args: &[String]) -> ExitCode {
+    let mut check_only = false;
+    let mut only: Option<String> = None;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--check" => check_only = true,
+            "--only" => match args.next() {
+                Some(id) => only = Some(id.clone()),
+                None => return usage_error("--only takes a mutation id"),
+            },
+            other => return usage_error(&format!("unknown mutations option `{other}`")),
+        }
+    }
+    let mut report = Report::default();
+    let root = xtask::repository_root();
+    let ok = if check_only {
+        xtask::mutations::check(&root, &mut report);
+        report.diagnostics.is_empty()
+    } else {
+        xtask::mutations::run(&root, only.as_deref(), &mut report)
+    };
+    let code = print_report(&report, if check_only { "proof mutation register is current" } else { "every proof mutant was killed" });
     if ok {
         code
     } else {

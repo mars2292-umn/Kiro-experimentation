@@ -20,6 +20,13 @@
 #
 # Gap_Register entry GAP-07 records that Ferrocene's core certification is
 # not a DO-178C certification (R57.4).
+#
+# 2026-10-22 (verification_plan.md 5.9): the items with certification "none"
+# that no Kernel crate used (`core::num::NonZeroU8`, `core::array::{from_fn,
+# map}`, the atomics, `core::hint::spin_loop`) were removed; an item is added
+# back with its evidence when it is first used. The two remaining "none" items
+# are in use: `core::arch::asm` (the Kernel_Unsafe_Module stubs) and
+# `core::panic::PanicInfo` (the panic handler).
 
 schema = 1
 source_release = "Ferrocene 26.05.0 (core subset certified to IEC 61508 SIL 2 and ISO 26262 ASIL B)"
@@ -84,12 +91,6 @@ scope = ["kernel", "kernel-unsafe", "application"]
 certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
 note = "Inherent integer methods used by the time base, the ceiling map, and the Config_Checker-visible tables."
 
-[[item]]
-path = "core::num::NonZeroU8"
-scope = ["kernel", "application"]
-certification = "none"
-substitute = "rsk Verus proofs of every construction site (R44.1); used for Task and Partition identifiers that are never zero."
-
 # --- Slices, arrays, iteration -------------------------------------------
 
 [[item]]
@@ -97,12 +98,6 @@ path = "core::slice::{len, is_empty, get, get_mut, iter, iter_mut, split_at, cop
 scope = ["kernel", "kernel-unsafe", "application"]
 certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
 note = "Indexing with `[i]` is permitted only where the index is proven in range (Kernel) or checked (Application); the Link_Checker reports panic paths from Kernel entry points (R14.1)."
-
-[[item]]
-path = "core::array::{from_fn, map}"
-scope = ["kernel", "application"]
-certification = "none"
-substitute = "Kani harnesses over the generated tables (R45.2); Verus specifications of `vstd::array` cover `[T; N]` indexing in the Kernel logic."
 
 [[item]]
 path = "core::iter::{Iterator, IntoIterator, Enumerate, Take, Rev, Zip}"
@@ -130,22 +125,10 @@ certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safet
 note = "`ResourceCell<T>` wraps `UnsafeCell`; its `unsafe impl Sync` cites the mutual-exclusion proof (R8.3)."
 
 [[item]]
-path = "core::sync::atomic::{AtomicU32, AtomicBool, Ordering, compiler_fence}"
-scope = ["kernel-unsafe"]
-certification = "none"
-substitute = "Kani harnesses (sequential checking only; R45.6) and the single-core precondition of every Kernel proof (R27.4); used only for the event-log overflow counter and the Init completion flag."
-
-[[item]]
 path = "core::arch::asm"
 scope = ["kernel-unsafe"]
 certification = "none"
 substitute = "Each inline-assembly sequence is replaced by a Hardware_Model stub under Kani (R45.4) and validated by an HIL differential test (R49.3); its justification identifier links to the stub's harness or to a recorded review (R6.4)."
-
-[[item]]
-path = "core::hint::spin_loop"
-scope = ["kernel-unsafe"]
-certification = "none"
-substitute = "Recorded review: a hint with no architectural effect on Armv7-M (`yield`), used only in the idle activity."
 
 # --- Panic plumbing (Kernel only) ---------------------------------------
 

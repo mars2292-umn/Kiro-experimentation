@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Version | 1, draft, 2026-10-14 |
+| Version | 1, draft, 2026-10-14; evidence and sections 4, 5.9, 6.3, 9.2 updated 2026-10-22 |
 | Implements | requirements.md component G; tasks 8.1 and 6.3; R43, R45.4, R45.6, R45.8, R46.1, R46.2, R51, R52, R58.3; the HIL frequency of R50.1 (section 11, task 8.2) |
 | Certification basis | DO-178C DAL A/B, DO-330 tool qualification, DO-333 formal-methods credit (fixed input, confirmed 2026-10-14). rsk is a research prototype that keeps this path open; it produces no applicant plans (NG-12), and activities only an applicant can perform are marked as such (R54.4). |
 | Review status | Not reviewed (section 13). |
@@ -12,17 +12,17 @@ Requirement identifiers (Rn.m, PR-nn, ASM-nn, ORQ-nn, RN-nn) point into requirem
 
 ## 1. Evidence at this revision
 
-From the local `cargo xtask verify` run of 2026-10-14 (evidence store `target/evidence-out`, 15 Evidence_Items, verdict pass):
+From the local `cargo xtask verify` run of 2026-10-22 (evidence store `target/evidence-out`, 15 Evidence_Items, verdict pass; the run of 2026-10-14 had 230 Verus items, 11 Kani harnesses, and 2,510 executable Kernel lines):
 
 | Evidence_Item | Result |
 |---|---|
-| `proof-kernel-verus` | rsk-kernel 230 items verified, 0 errors; rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
-| `check-static-checks` | 0 assumption constructs in the verified crates rsk-entry, rsk-kernel, and rsk-analyzer (R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,510 executable Kernel lines (PAR-01); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
-| `proof-kernel-kani` | 11 harnesses, every check passed; Kani 0.68.0, CBMC 6.11.0 |
+| `proof-kernel-verus` | rsk-kernel 286 items verified, 0 errors (56 new in `arch::bound`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
+| `check-static-checks` | 0 assumption constructs in the verified crates rsk-entry, rsk-kernel, and rsk-analyzer (R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,589 executable Kernel lines (PAR-01); 9 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
+| `proof-kernel-kani` | 12 harnesses, every check passed (the `intake` cross-check added); Kani 0.68.0, CBMC 6.11.0 |
 | `test-qemu-spike-p1-demo` | `RSK-OK` on QEMU mps2-an386 (not the Target) |
 | `test-workspace-tests`, builds, sandbox, `check-evidence` | pass |
 
-CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item.
+CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 9 of 9 mutants killed on 2026-10-22.
 
 ## 2. What the type system gives (R43.3)
 
@@ -43,11 +43,11 @@ Status is as of 2026-10-14. "By inspection" points to the Kernel_Arch facts of s
 | P-01 | Data-race freedom | PR-05, R8.6, R8.10 | Type system; Verus for mutual exclusion (P-02) | builds; `proof-kernel-verus`; `conf-PR-05-*` (planned) | P1, P2 | Type rules in force; PR-05 lint and trybuild cases not built | ASM-14, TBR-21, TBR-06 (UJ-050..054) |
 | P-02 | Mutual exclusion | R8.3 | Verus (proof): `lemma_no_other_holder`, `Sched::lock`, `Kernel::svc_lock` | `proof-kernel-verus` | P1 | Proven for the state model; BASEPRI realisation by inspection | ASM-08, ASM-15, TBR-02, TBR-04 |
 | P-03 | Ceiling raise and restore | R8.1, R8.2, R8.6 | Verus (proof per step); argument 5.3 across preemptions; trybuild (test, planned) | `proof-kernel-verus`; `conf-PR-07-ts` (planned) | P1, P2 | Each lock and unlock proven; restore across preemptions is argument 5.3 | ASM-15, TBR-04 |
-| P-04 | SRP start condition | R7.1, R7.2, R7.3, R20.3 | Verus over the Hardware_Model (proof): `Sched::select`, `lemma_dispatch_takes_iff_eligible`, `lemma_dispatch_selects_srp_choice`, `lemma_dispatch_idle_when_none_eligible` | `proof-kernel-verus`; `test-qemu-spike-p1-demo`; `hil-dt-hw-05` (planned) | P1 | Proven; arch facts A1 to A4 by inspection; hardware-pending | ASM-03, ASM-08, TBR-02, TBR-04, TBR-05 |
+| P-04 | SRP start condition | R7.1, R7.2, R7.3, R20.3 | Verus over the Hardware_Model (proof): `Sched::select`, `lemma_dispatch_takes_iff_eligible`, `lemma_dispatch_selects_srp_choice`, `lemma_dispatch_idle_when_none_eligible`; `arch::bound` (`eligible`, `select`, `basepri_now`) | `proof-kernel-verus`; `test-qemu-spike-p1-demo`; `hil-dt-hw-05` (planned) | P1 | Proven; the BASEPRI value and the stale-bit test are proven computations (section 4), their application to the registers (A1, A4), A2 and A3 by inspection; hardware-pending | ASM-03, ASM-08, TBR-02, TBR-04, TBR-05 |
 | P-05 | Bounded blocking | R8.4, R29.2 | Verus (state part): `lemma_blocked_by_one_holder`; argument 5.1; PBT against the SRP simulator (test, P2) | `proof-kernel-verus` | P1, P2 | State part proven; one section per Release is argument 5.1 | ASM-15, TBR-04 |
 | P-06 | Deadlock freedom | R8.5 | Verus (a lock never waits for another holder); argument 5.5 | `proof-kernel-verus` | P1 | Partial: no-wait proven, freedom from wait cycles argued | ASM-15 |
 | P-07 | Drift-free periodic release, release jitter | R9.1, R9.3, R9.5, R9.10, R44.8 | Verus (proof): `Timing::inv`, `advance_periodic`, `Kernel::start`; HIL release timing (test) | `proof-kernel-verus`; `hil-release-timing` (planned) | P1 | O + k·T proven; the link from armed slots to the Releases `timer_event` makes is not stated; jitter J_rel hardware-pending | ASM-16, ASM-18, ASM-19, TBR-15 |
-| P-08 | MIT enforcement | R9.7, R9.8, R10.1 to R10.4, R10.7, R10.9, R19.1, R19.2 | Verus (state parts): `Kernel::inv` deferral clause, `Kernel::intake`, `violation_applied`, `mit_spaced`; argument 5.4; HIL storm (test) | `proof-kernel-verus`; `hil-storm` (planned) | P1 | State parts proven; spacing over a run is argument 5.4; the interrupt-source time bound (Property 9) is not proven; the Kani `intake` harness does not exist | ASM-10 |
+| P-08 | MIT enforcement | R9.7, R9.8, R10.1 to R10.4, R10.7, R10.9, R19.1, R19.2 | Verus (state parts): `Kernel::inv` deferral clause, `Kernel::intake`, `violation_applied`, `mit_spaced`; argument 5.4; HIL storm (test) | `proof-kernel-verus`; `hil-storm` (planned) | P1 | State parts proven; spacing over a run is argument 5.4; the interrupt-source time bound (Property 9) is not proven; Kani cross-check `intake_outcomes_match_r10` (R10.1 to R10.3, R10.7) | ASM-10 |
 | P-09 | Kernel queue and Endpoint buffer correctness | R9.4, R14.6, R14.7, R39.4, R44.2 | Verus (refinement proof): `Slots`, `Log::push` | `proof-kernel-verus` | P1, P4 | Slots and log proven; Endpoints are Phase 4 | ASM-15 |
 | P-10 | LIFO preemption invariants | R7.5, R7.6 | Verus (stack, ceiling): `Sched::inv`, `complete`, `end_job`, `Kernel::job_return`; review and QEMU for the per-level register record | `proof-kernel-verus`; `test-qemu-spike-p1-demo`; `hil-register-pattern` (planned) | P1 | Stack and ceiling proven; register restore by the assembly stubs is review-only (UJ-020, UJ-022, UJ-023) | TBR-05, TBR-06 |
 | P-11 | Floating-point context preservation | R11.1 to R11.3, R6.6 | Test (QEMU, HIL) and review | `test-qemu-spike-p1-demo`; `hil-register-pattern` (planned) | P1 | Testing evidence only (3.1); Kernel VFP data moves recorded in 5.7 | ASM-08, TBR-02, TBR-03 |
@@ -78,29 +78,29 @@ Status is as of 2026-10-14. "By inspection" points to the Kernel_Arch facts of s
 
 ## 4. What holds by inspection (the Kernel_Arch boundary)
 
-`arch/mod.rs`, `arch/cm4/mod.rs`, the `unsafe_module`, and `rsk-entry` are outside `verus!`. Verus therefore never checks that the Kernel_Arch calls satisfy the logic's `requires` clauses, and the Hardware_Model lemmas take the facts below as preconditions. Each was checked by reading the code on 2026-10-11 to 2026-10-14.
+`arch/cm4/mod.rs`, the `unsafe_module`, and `rsk-entry` are outside `verus!`. Since 2026-10-22 the bound Kernel (`arch/bound.rs`: `Bound`, `KernelOps`, the CRC, and the priority encodings) is inside `verus!` (GAP-10, first step): every `KernelOps` method carries a specification, so Verus checks that each call from `Bound` into the logic satisfies that entry point's `requires`, that `init` establishes the invariant `inv` (the logic's invariant plus `is_view_of` for every Partition view) from `valid`, and that every other method preserves it. The facts below are what the Hardware_Model lemmas still assume of the code outside `verus!`; each was checked by reading the code on 2026-10-11 to 2026-10-14 and again on 2026-10-22.
 
-| # | Fact | Assumed by | Where it holds |
+| # | Fact | Assumed by | Status |
 |---|---|---|---|
-| A1 | BASEPRI = `basepri_for(top, ceiling)` after every transition | P-04, P-17 | `apply`, `irq_entry`, SVC lock, `epilogue` |
-| A2 | PRIMASK is set only by Kernel stubs and `start` and is clear on every return to Thread mode | P-04, P-17 | `stubs.rs`, `arch::cm4::start` |
-| A3 | Every dispatch vector has NVIC priority `encode_level(priority)`; every Kernel exception has priority 0 | P-04, P-17 | `boot`, `set_kernel_exception_priorities` |
-| A4 | Only the vector `Kernel::select` returns is pended; a stale pending bit is rejected at entry (argument 5.8) | P-04 | `apply`, `irq_entry` |
-| A5 | FAULTMASK is never set; Jobs run with CONTROL = 0b001 | P-17 | `irq_entry` |
-| A6 | The views are `Layout::view` of a layout that passed `validate`, loaded at dispatch and resume, with the MPU enabled from boot | P-16 | `arch/mod.rs` `init`, `mpu_enable_background` |
-| A7 | RBAR and RASR words encode the view (Kani checks field placement only) | P-16 | `hw::rasr_encode`, `rbar_encode`, `mpu_load` |
-| A8 | The time-base TIMER, dispatch vectors, and system handlers are never disabled after boot | P-17 | `nvic_disable` call sites |
-| A9 | The runtime guards in `Bound` mirror the `requires` clauses of the logic entry points | every Kernel proof | `arch/mod.rs` |
-| A10 | The Kernel cell is never entered reentrantly (DD-02) | every Kernel proof | UJ-003 to UJ-006 (review) |
-| A11 | `placeholder_kernel` is replaced by `init` before the first transition | `inv` at the first call | `arch/mod.rs` |
+| A1 | BASEPRI = `basepri_for(top, ceiling)` after every transition | P-04, P-17 | The value is proven: `KernelOps::basepri_now` ensures `hw_model::basepri_for(job_level, ceiling)`, and `encode_level`, `basepri_for_ceiling`, `basepri_for` ensure the Hardware_Model encodings. That `apply`, `irq_entry`, SVC lock, and `epilogue` write that value to BASEPRI and nothing else does: by inspection (`arch::cm4`) |
+| A2 | PRIMASK is set only by Kernel stubs and `start` and is clear on every return to Thread mode | P-04, P-17 | By inspection: `stubs.rs`, `arch::cm4::start` |
+| A3 | Every dispatch vector has NVIC priority `encode_level(priority)`; every Kernel exception has priority 0 | P-04, P-17 | `encode_level` proven; the `boot` loop and `set_kernel_exception_priorities` by inspection |
+| A4 | Only the vector `Kernel::select` returns is pended; a stale pending bit is rejected at entry (argument 5.8) | P-04 | Proven: `KernelOps::select` names only an eligible Job, `KernelOps::eligible` decides exactly `Sched::eligible` (so the entry test rejects exactly the stale bits), and `KernelOps::dispatch` refuses a Task that is not eligible. That `apply` pends that vector and `irq_entry` consults `eligible` first: by inspection |
+| A5 | FAULTMASK is never set; Jobs run with CONTROL = 0b001 | P-17 | By inspection: `irq_entry` |
+| A6 | The views are `Layout::view` of a layout that passed `validate`, loaded at dispatch and resume, with the MPU enabled from boot | P-16 | Proven: `Bound::inv` includes `layout.wf()` and `is_view_of(p, views[p])` for every Partition, established by `init` and kept by every method; `partition_view` returns an element of `views`. Loading at dispatch and resume and enabling the MPU: by inspection (`irq_entry`, `epilogue`, `boot`) |
+| A7 | RBAR and RASR words encode the view (Kani checks field placement only) | P-16 | By inspection: `hw::rasr_encode`, `rbar_encode`, `mpu_load` |
+| A8 | The time-base TIMER, dispatch vectors, and system handlers are never disabled after boot | P-17 | By inspection: `nvic_disable` call sites |
+| A9 | The runtime guards in `Bound` mirror the `requires` clauses of the logic entry points | every Kernel proof | **Proven** (2026-10-22): Verus checks every call in `arch/bound.rs`; the mutation `bound-dispatch-unguarded` (section 9.2) shows a dropped guard failing |
+| A10 | The Kernel cell is never entered reentrantly (DD-02) | every Kernel proof | By inspection: UJ-003 to UJ-006 (review) |
+| A11 | `placeholder_kernel` is replaced by `init` before the first transition | `inv` at the first call | Narrowed: every `KernelOps` method but `validate` and `init` requires `inv`, which only `init` establishes; that `boot` calls `validate` and `init` before any other method, and that no fault handler runs before `boot`: by inspection (`arch::cm4::boot`) |
 
 A12, the ascending dispatch-vector order (DD-03, `dispatch_vectors_ok`), is checked by the rsk-gen test `dispatch_irqs_ascend_for_dd03` for every built-in Target, not by inspection.
 
-Mitigation: move the safe Kernel_Arch planning code into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model (design.md, "Kernel logic and Kernel_Arch"), which would turn A1 to A9 and A11 into proof obligations; the HIL tests of section 11 test them on the Target. Neither is done. Trust_Base_Register entry TBR-24 lists these facts as trusted, and Gap_Register entry GAP-10 records the gap; until it closes, this code is a deviation from R44.5.
+Remaining mitigation: move the rest of the planning code (`arch::cm4`) into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model, which needs trusted specifications for the register-access functions of the Kernel_Unsafe_Module (R44.5, each listed in `docs/proof_assumptions.toml`); that would turn the "by inspection" halves of A1 to A8 and A11 into proof obligations. The HIL tests of section 11 test them on the Target. Trust_Base_Register entry TBR-24 lists the remaining facts as trusted, and Gap_Register entry GAP-10 records the gap; until it closes, `arch::cm4` is a deviation from R44.5.
 
 ## 5. Arguments recorded here
 
-These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take.
+These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take. Mechanizing 5.1 to 5.5 is tasks 4.11 to 4.14 (added 2026-10-22): a ghost history in the Kernel model first, then the three trace arguments as Verus theorems.
 
 ### 5.1 Bounded blocking: one Critical_Section per Release (R8.4)
 
@@ -145,7 +145,7 @@ ORQ-07 stays partly resolved.
 
 ### 5.7 Kernel VFP data moves and R6.6
 
-The DD-01 spike found that LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves in Kernel code on `thumbv7em-none-eabihf`, so the coprocessor stays enabled (hw.rs, ORQ-16 finding). R6.6 as written allows only the context-preservation instructions. These moves do not change a Job's FP context: with eager stacking, entry from a context with an active FP state pushes S0 to S15 and FPSCR before Kernel code runs; S16 to S31 are callee-saved under the AAPCS and are also pushed by the stubs; data moves do not write FPSCR. This is a recorded deviation from the wording of R6.6, pending either an amendment ("no floating-point arithmetic and no FPSCR write") or a code-generation change. Evidence to add: the Link_Checker instruction scan confirming that Kernel object code contains only VFP data-movement instructions (task 12.3), and the HIL register-pattern test.
+The DD-01 spike found that LLVM emits `vldr`, `vstr`, and `vmov` for 64-bit data moves in Kernel code on `thumbv7em-none-eabihf`, so the coprocessor stays enabled (hw.rs, ORQ-16 finding). R6.6 as written allows only the context-preservation instructions. These moves do not change a Job's FP context: with eager stacking, entry from a context with an active FP state pushes S0 to S15 and FPSCR before Kernel code runs; S16 to S31 are callee-saved under the AAPCS and are also pushed by the stubs; data moves do not write FPSCR. Resolved 2026-10-22: R6.6 (requirements.md Draft 0.3) and PR-31 (Profile 0.4) were amended to allow floating-point data-movement instructions in Kernel code and to forbid arithmetic, comparison, and conversion instructions and FPSCR writes; GAP-17 is closed. Evidence to add: the Link_Checker instruction scan confirming that Kernel object code contains only VFP data-movement instructions (task 12.3), and the HIL register-pattern test.
 
 ### 5.8 Stale pending dispatch bits (A4)
 
@@ -153,7 +153,7 @@ When a Release is suppressed after its vector was pended, the NVIC may still tak
 
 ### 5.9 Core_Subset items without Ferrocene certification
 
-`profile/core_subset.toml` lists six items with `certification = "none"`. Only `core::arch::asm` (stubs, evidence section 6) and `core::panic::PanicInfo` (the panic handler, `location()` only) are used. `NonZeroU8`, `core::array::{from_fn, map}`, the atomics, and `core::hint::spin_loop` are not used by the Kernel crates, and some recorded substitutes do not match the code (for example, the event-log overflow counter is a plain saturating `u32`, not an atomic). Proposed for the next Profile version: remove the unused items, or record their evidence when first used.
+`profile/core_subset.toml` lists six items with `certification = "none"`. Only `core::arch::asm` (stubs, evidence section 6) and `core::panic::PanicInfo` (the panic handler, `location()` only) are used. `NonZeroU8`, `core::array::{from_fn, map}`, the atomics, and `core::hint::spin_loop` are not used by the Kernel crates, and some recorded substitutes do not match the code (for example, the event-log overflow counter is a plain saturating `u32`, not an atomic). Done 2026-10-22: the four unused items were removed from `profile/core_subset.toml` (19 items remain; `cargo xtask profile` regenerated `docs/profile.md`); an item returns with its evidence when first used.
 
 ## 6. Kani (R45.4, R45.6, R45.8; task 6.3)
 
@@ -187,7 +187,8 @@ When a Release is suppressed after its vector was pended, the NVIC may still tak
 
 | Harnesses | Bounds | Covers |
 |---|---|---|
-| `logic/kani_harness.rs` (5) | NT = 3, NR = 2, NP = 2, NL = 4, 11 slots, unwind 6 | The p1-demo configuration (NT = 3, NR = 1, NP = 2, NL = 2, NS = 11) |
+| `logic/kani_harness.rs` (5 on `Sched` and `Config`) | NT = 3, NR = 2, NP = 2, NL = 4, 11 slots, unwind 6 | The p1-demo configuration (NT = 3, NR = 1, NP = 2, NL = 2, NS = 11) |
+| `intake_outcomes_match_r10` (`Kernel`, 2026-10-22) | the same, NS = 11, NE = 8, three events at instants up to 10,000 ticks, both MIT policies, unwind 13 | R10.1 acceptance, R10.3 while pending, R10.1/R10.2 after the Job ended (accept, defer, discard) with R10.7 attribution |
 | `uj_001_mmio_addresses_valid` | symbolic IRQ < 240, unwind 64 | Every NVIC line of the nRF52840 (48). The callers' bound is not checked: `nvic_*` take an exception number and subtract 16, so an out-of-range argument is excluded only by the binding tables (review) |
 | `mpu_load_writes_every_region` | 8 regions, unwind 10 | The 8 regions of the Target (ASM-02) |
 | other arch harnesses | symbolic scalar inputs, no loops | All inputs |
@@ -304,7 +305,7 @@ Every DAL A and DAL B verification objective that requires independence needs a 
 | Kill other Partitions' Jobs; reset a neighbouring Budget | `others_unchanged` (R14.9) |
 | Clear a pending Release on discard; make a deferred Release due now; defer a periodic Release | `intake`, `deferred_release`, `Kernel::inv` |
 
-These were manual runs and are not reproducible evidence yet. Open: keep them as mutation fixtures in xtask, as `kani-unwind` is.
+Since 2026-10-22 these checks are fixtures: `docs/proof_mutations.toml` registers nine mutations (the seven above, two of them in equivalent form: `shared-code-writable` for the shared-code row and `restart-kills-one-job` for the kill row, plus two for `arch::bound`), and `cargo xtask mutations` applies each to a copy of the tree, runs Verus, and fails unless the mutant is rejected with the registered diagnostic; `cargo xtask mutations --check` (part of the repository checks) keeps the register applicable to the current sources. The run is not part of `cargo xtask verify` (nine Verus runs); it is run before a Verification_Plan revision and recorded here. Run of 2026-10-22 (Verus 0.2026.10.04.426d8b0): all nine mutants killed, each by the registered diagnostic (`dispatch-vector-order`, `kernel-level-encoding`, `shared-code-writable`, `mpu-grants-every-write`, `restart-kills-one-job`, `kill-other-partitions`, `discard-clears-release`, `bound-dispatch-unguarded`, `basepri-lower-level`). Not reproduced from the manual list: the dropped deadline disarm, the deferred Release made due now, and the deferred periodic Release; they are to be added to the register.
 
 ### 9.3 Property preservation to object code (R52.3, ORQ-08)
 
@@ -406,8 +407,7 @@ Open items for v2:
 
 - R43.5 per-criterion list (task 8.4);
 - App_Prover pinning and the facts marked "to confirm" in section 7 (task 17.1);
-- vacuity checks as reproducible fixtures (9.2);
-- the Kani flight-path restructuring (6.1) and an `intake` cross-check harness (P-08);
-- the R6.6 deviation decision (5.7) and the Core_Subset clean-up (5.9);
+- the Kani flight-path restructuring (6.1);
+- moving `arch::cm4` into `verus!` (section 4, GAP-10), after `arch::bound`;
 - confirmation of the Gap_Register's Annex A applicability, independence, and DO-333 and DO-330 items against the standards' texts (OPEN-01, OPEN-02);
 - every hardware-pending item of section 11.

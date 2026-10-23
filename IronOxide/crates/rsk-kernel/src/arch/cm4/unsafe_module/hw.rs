@@ -251,8 +251,10 @@ pub fn clear_fault_status() {
 /// disabled the first timer tick faulted with UsageFault NOCP. The
 /// coprocessor therefore stays enabled while the Kernel runs, and PR-31 is
 /// enforced for FPU-free Tasks by the Link_Checker's instruction scan (its
-/// Profile enforcement is MC and LK, not RT). The Verification_Plan records
-/// the data-movement instructions in Kernel code against R6.6.
+/// Profile enforcement is MC and LK, not RT). R6.6 and PR-31 (Profile 0.4,
+/// 2026-10-22) allow these data-movement instructions in Kernel code and
+/// forbid arithmetic, comparison, conversion, and FPSCR writes
+/// (verification_plan.md 5.7).
 pub fn fpu_configure_eager() {
     let v = mmio_read(addr::FPCCR);
     mmio_write(addr::FPCCR, (v | (1 << 31)) & !(1 << 30));

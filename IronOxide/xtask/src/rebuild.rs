@@ -24,7 +24,7 @@ use crate::workspace::Workspace;
 
 /// Copies the source tree into `dest`, skipping `target` directories and
 /// `.git`.
-fn copy_tree(src: &Path, dest: &Path) -> Result<(), String> {
+pub(crate) fn copy_tree(src: &Path, dest: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dest).map_err(|e| format!("cannot create {}: {e}", dest.display()))?;
     for entry in std::fs::read_dir(src).map_err(|e| format!("cannot read {}: {e}", src.display()))? {
         let entry = entry.map_err(|e| e.to_string())?;

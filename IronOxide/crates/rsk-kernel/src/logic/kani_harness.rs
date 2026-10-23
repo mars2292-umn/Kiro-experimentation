@@ -190,3 +190,96 @@ fn select_is_total_and_orders_ties() {
         }
     }
 }
+
+// ------------------------------------------------------------------ intake
+
+const NS: usize = 11;
+const NE: usize = 8;
+
+/// The fixed configuration with Task 1 made sporadic (MIT 1000 ticks,
+/// deadline 1000) under the given MIT policy: with deferral it keeps its
+/// release slot for the deferral event, with discard it has none (R9.4).
+fn sporadic_config(mit_policy: u8) -> Config<NT, NR, NP> {
+    let mut cfg = config();
+    cfg.tasks[1].kind = super::KIND_SPORADIC;
+    cfg.tasks[1].mit_policy = mit_policy;
+    if mit_policy == super::MIT_DISCARD {
+        cfg.slot_release[1] = super::NO_SLOT;
+    }
+    cfg
+}
+
+/// Property 8 cross-check on `Kernel::intake` (R10.1, R10.2, R10.3, R10.7;
+/// the harness design.md names): three events of one Sporadic_Task at
+/// nondeterministic instants under a nondeterministic MIT policy.
+///
+/// 1. The first event is accepted: a Release pending and due now, the
+///    previous accepted instant set, the source masked, no violation.
+/// 2. A second event while that Release is still pending is an
+///    MIT_Violation whatever its instant (R10.3): the Release and the
+///    timing state are unchanged and one violation is counted against
+///    the source Partition.
+/// 3. After the Job ran and ended, a third event is accepted exactly when
+///    one MIT has elapsed since the first; otherwise it is deferred until
+///    `last_due + MIT` under the deferral policy or discarded under the
+///    discard policy, in both cases counted as a violation and leaving the
+///    previous accepted instant unchanged.
+#[kani::proof]
+#[kani::unwind(13)]
+fn intake_outcomes_match_r10() {
+    let policy: u8 = if kani::any() { super::MIT_DEFER } else { super::MIT_DISCARD };
+    let cfg = sporadic_config(policy);
+    assert!(cfg.validate());
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    let t: u8 = 1;
+    let sp: u8 = 0;
+    let mit: u64 = cfg.tasks[1].period;
+
+    // 1. Accepted (R10.1).
+    let n1: u64 = kani::any();
+    kani::assume(n1 <= 5_000);
+    k.intake(&cfg, t, sp, n1);
+    assert!(k.sched.release[1] == REL_PENDING);
+    assert!(k.timing.has_last[1] && k.timing.last_due[1] == n1 && k.timing.due[1] == n1);
+    assert!(k.timing.masked[1]);
+    assert!(k.mit_violations[0] == 0);
+    assert!(k.sched.release[0] == REL_NONE && k.sched.release[2] == REL_NONE);
+
+    // 2. A second event while the Release is pending (R10.3).
+    let n2: u64 = kani::any();
+    kani::assume(n1 <= n2 && n2 <= 10_000);
+    k.intake(&cfg, t, sp, n2);
+    assert!(k.sched.release[1] == REL_PENDING);
+    assert!(k.timing.has_last[1] && k.timing.last_due[1] == n1);
+    assert!(k.mit_violations[0] == 1);
+
+    // The Job runs and ends, so no Release of Task 1 is pending or deferred.
+    assert!(k.select(&cfg) == Some(1));
+    k.dispatch(&cfg, 1, 0);
+    assert!(k.sched.depth == 1 && k.sched.stack[0] == 1 && k.sched.job[1] == JOB_RUNNING);
+    k.job_return(&cfg, 0);
+    assert!(k.sched.depth == 0 && k.sched.release[1] == REL_NONE);
+
+    // 3. A third event: accepted, deferred, or discarded (R10.1, R10.2).
+    let n3: u64 = kani::any();
+    kani::assume(n2 <= n3 && n3 <= 10_000);
+    k.intake(&cfg, t, sp, n3);
+    if n3 >= n1 + mit {
+        assert!(k.sched.release[1] == REL_PENDING);
+        assert!(k.timing.last_due[1] == n3 && k.timing.due[1] == n3);
+        assert!(k.mit_violations[0] == 1);
+    } else if policy == super::MIT_DEFER {
+        assert!(k.sched.release[1] == super::sched::REL_DEFERRED);
+        assert!(k.timing.deferred_until[1] == n1 + mit);
+        assert!(k.timing.last_due[1] == n1);
+        assert!(k.mit_violations[0] == 2);
+    } else {
+        assert!(k.sched.release[1] == REL_NONE);
+        assert!(k.timing.last_due[1] == n1);
+        assert!(k.mit_violations[0] == 2);
+    }
+    // Other Tasks and Partitions are untouched throughout.
+    assert!(k.sched.release[0] == REL_NONE && k.sched.release[2] == REL_NONE);
+    assert!(k.mit_violations[1] == 0);
+}
