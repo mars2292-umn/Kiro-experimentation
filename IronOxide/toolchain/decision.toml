@@ -47,6 +47,38 @@ version = "0.68.0"
 cbmc = "6.11.0"
 sources = ["KANI-VERSIONS"]
 
+[creusot]
+# Task 17.1 (2026-10-23): the App_Prover (Verification_Plan section 7,
+# ORQ-10) as installed on the development machine from a local checkout of
+# the Creusot repository; `cargo creusot version` reports these. The
+# checkout is a development build 131 commits after the v0.14.0 tag, not a
+# release, so the pin is the commit. The checkout's Cargo.lock was modified
+# locally at the time of pinning (recorded; the sources were not). Creusot
+# drives its own rustc (nightly-2026-08-03), not the 1.95.0 of the
+# Flight_Build nor the 1.98.1 of Verus; the proofs therefore speak about
+# the source as compiled by that nightly (ORQ-08, Verification_Plan 9.3).
+# cvc5 prints a multi-line banner that `cargo creusot version` reports as
+# "bad CVC5 version"; the version is 1.4.1, the one Creusot recommends.
+version = "0.15.0-dev"
+commit = "18f2d371ecb0019d37ecbd25e67f474bed2dda00"
+describe = "v0.14.0-131-g18f2d371e"
+checkout = "/Users/mars2292/repos/Kiro-experimentation/creusot"
+checkout_dirty = ["Cargo.lock"]
+pinned_rustc = "nightly-2026-08-03"
+why3 = "1.8.2+git"
+why3find = "1.3.0+dev"
+solvers = { alt-ergo = "2.6.4", z3 = "5.1.0", cvc4 = "1.8", cvc5 = "1.4.1" }
+# creusot-std is patched to the checkout in ~/.cargo/config.toml
+# ([patch.crates-io]); a dependency on it must name the path or the
+# `0.15.0-dev` prerelease, since `*` does not match a prerelease.
+creusot_std = "path: <checkout>/creusot-std (0.15.0-dev, edition 2024)"
+# Confirmed on 2026-10-23 with a scratch crate: a `#![no_std]` crate with
+# `requires`, `ensures`, and a loop `invariant` proves ("Proved (2 files)")
+# with no network access; an unguarded `u32` addition fails its goal, so
+# arithmetic overflow is checked by default.
+confirmed = ["no_std", "overflow-checked", "offline"]
+sources = ["CREUSOT-VERSION-CMD"]
+
 [edition]
 chosen = "2021"
 sources = ["FLS-SCOPE", "VERUS-VSTD", "VERUS-TEST-EDITIONS"]

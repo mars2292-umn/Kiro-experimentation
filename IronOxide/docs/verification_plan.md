@@ -228,15 +228,15 @@ The Profile_Conformance_Suite Application does not exist yet (task 14.1); design
 |---|---|---|---|
 | Maintenance, release recency | Latest release 2024-02-28 on nightly-2023-09-15; describes itself as a prototype (RN-19) | Releases v0.7.0 (November 2025) to v0.13.0 (30 July 2026) (RN-20) | Active; a September 2026 report verifies 16.7 KLOC of Rust (RN-21) |
 | Rust subset | Not re-evaluated (inactive) | Mutable borrows through prophecies, loops with invariants, closures, traits (RN-20); interior mutability and `unsafe` stay behind the `rsk` API with contracts | Safe subset; no `unsafe` or concurrency; some loop forms unsupported (RN-21) |
-| `no_std` | to confirm | to confirm at pinning (task 17.1) | to confirm |
+| `no_std` | to confirm | confirmed 2026-10-23: a `#![no_std]` crate with contracts and a loop invariant proves (toolchain/decision.toml `[creusot]`) | to confirm |
 | Soundness argument, trusted base | Viper and its SMT back end | Translation to Coma and Why3, then SMT solvers (TBR-08) | Translation through Charon's LLBC, then the Lean or HOL4 kernel |
-| Toolchain compatibility | Its 2023 nightly predates rustc 1.95.0, so rsk crates may not compile | Each prover drives its own pinned rustc; the version and its gap to 1.95.0 and 1.98.1 are to be recorded at pinning (ORQ-08 applies, 9.3) | as Creusot |
-| Panic and overflow freedom | yes | yes (overflow behaviour to confirm at pinning) | yes, through the translation |
+| Toolchain compatibility | Its 2023 nightly predates rustc 1.95.0, so rsk crates may not compile | Drives its own rustc: nightly-2026-08-03 as pinned (toolchain/decision.toml), newer than the Flight_Build's 1.95.0 and Verus's 1.98.1, so the proofs speak about the source under a third compiler (ORQ-08 applies, 9.3) | as Creusot |
+| Panic and overflow freedom | yes | yes; overflow is checked by default (confirmed 2026-10-23: an unguarded `u32` addition fails its goal) | yes, through the translation |
 | Loop bounds (R35.2) | limited | termination checking with variants (RN-20) | termination in Lean |
 | Release conditions (R5.5), validation totality (R42.4) | not evaluated | pure functions with contracts and termination | possible for small pure functions |
 | DO-330 and DO-333 prospects | none known | none known (ORQ-10); several Why3 solvers allow cross-solver confirmation | none known; kernel-checked proofs give the strongest soundness argument |
 
-Designation: Creusot (ORQ-10, design.md). It is the only active candidate that covers the constructs Task bodies use, closures in particular. Aeneas stays an option for small pure computations such as control laws (task 17.3). Pinning Creusot, Why3, and the solvers in the Build_System and recording them in each `proof-app-creusot` Evidence_Item (R46.2) is open, task 17.1. No Task body is proven yet, so R46.5 has no entries.
+Designation: Creusot (ORQ-10, design.md). It is the only active candidate that covers the constructs Task bodies use, closures in particular. Aeneas stays an option for small pure computations such as control laws (task 17.3). Pinned 2026-10-23 in toolchain/decision.toml `[creusot]`: Creusot 0.15.0-dev at commit 18f2d371e (a development build 131 commits after v0.14.0, not a release; the Build_Manifest and each `proof-app-creusot` Evidence_Item are to record it, R46.2), rustc nightly-2026-08-03, Why3 1.8.2+git, why3find 1.3.0+dev, alt-ergo 2.6.4, z3 5.1.0, cvc4 1.8, cvc5 1.4.1. The install was not reproduced from a release, which TBR-08 must say. No Task body is proven yet, so R46.5 has no entries; the open design question of task 17.1 is how a Partition crate reaches the prover without translating the Kernel crates it depends on (contracts and `trusted` bodies at the `rsk` API).
 
 ## 8. Tool qualification (R51)
 
