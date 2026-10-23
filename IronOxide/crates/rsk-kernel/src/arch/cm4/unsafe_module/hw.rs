@@ -6,6 +6,7 @@
 //! (NVIC), B3.5 (MPU), C1.8 (DWT); Cortex-M4 TRM 4.3 (ACTLR); nRF52840 PS
 //! 6.30 (TIMER); CMSDK APB timer for the QEMU mps2-an386 board.
 
+use crate::arch::cm4::plan::BootExpect;
 use crate::logic::mpu::{View, MPU_REGIONS};
 
 /// Memory-mapped register addresses used by the Kernel. The Kani harness
@@ -36,10 +37,22 @@ pub mod addr {
     pub const DEMCR: u32 = 0xE000_EDFC;
     pub const FPCCR: u32 = 0xE000_EF34;
     pub const FPDSCR: u32 = 0xE000_EF3C;
+    /// Media and VFP Feature Register 0: non-zero when an FPU is present.
+    pub const MVFR0: u32 = 0xE000_EF40;
+    /// Debug Halting Control and Status: bit 0 C_DEBUGEN (a debugger is attached, ORQ-30).
+    pub const DHCSR: u32 = 0xE000_EDF0;
     pub const DWT_CTRL: u32 = 0xE000_1000;
     pub const DWT_CYCCNT: u32 = 0xE000_1004;
     /// nRF52840 TIMER0 (PS 6.30).
     pub const NRF_TIMER0: u32 = 0x4000_8000;
+    /// nRF52840 POWER.RESETREAS (PS 5.3.6): bit 1 DOG, a watchdog reset.
+    pub const NRF_RESETREAS: u32 = 0x4000_0400;
+    /// nRF52840 CLOCK.HFCLKSTAT (PS 6.5): bit 0 SRC (1 = crystal), bit 16 STATE (running).
+    pub const NRF_HFCLKSTAT: u32 = 0x4000_040C;
+    /// nRF52840 NVMC.ICACHECNF (PS 6.17): bit 0 CACHEEN.
+    pub const NRF_ICACHECNF: u32 = 0x4001_E540;
+    /// nRF52840 WDT (PS 6.36), Kernel-owned (ORQ-31).
+    pub const NRF_WDT: u32 = 0x4001_0000;
     /// QEMU mps2-an386 CMSDK APB timers.
     pub const CMSDK_TIMER0: u32 = 0x4000_0000;
     pub const CMSDK_TIMER1: u32 = 0x4000_1000;
@@ -47,7 +60,8 @@ pub mod addr {
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
         SHCSR, CFSR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
-        DWT_CYCCNT, NRF_TIMER0, CMSDK_TIMER0, CMSDK_TIMER1,
+        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, CMSDK_TIMER0,
+        CMSDK_TIMER1,
     ];
 
     /// Whether `a` is a word-aligned address in the system control space
@@ -334,9 +348,16 @@ pub fn dwt_cyccnt() -> u32 {
 /// implements, and at least 3 are needed for the DD-02 map). Returns a
 /// bit set of the failed checks (R12.2: the identifier of the failed check
 /// is kept in the event log): bit 0 implementer, bit 1 part number, bit 2
-/// MPU regions, bit 3 DWT, bit 4 priority bits; bit 5 (set by the caller)
-/// is the Generated_Config checksum of R12.3.
-pub fn boot_checks(expected_bits: u8) -> u32 {
+/// MPU regions, bit 3 DWT, bit 4 priority bits, bit 8 CPUID variant and
+/// revision (ASM-01), bit 9 PRIGROUP (ASM-03: the reset value, every
+/// priority bit a preemption bit), bit 10 the high-frequency clock source
+/// (ASM-05), bit 11 the instruction cache enabled (ASM-04), bit 12 the FPU
+/// absent while a Task uses it; bits 5 to 7 are set by the caller
+/// (`arch::cm4::entry::boot_core`): the Generated_Config checksum of
+/// R12.3, the interrupt-line count, a watchdog reset. The clock and cache
+/// checks read nRF52840 registers and are skipped on the QEMU board,
+/// which has neither (TBR-23).
+pub fn boot_checks(expect: &BootExpect) -> u32 {
     let cpuid = mmio_read(addr::CPUID);
     let mut failed = 0u32;
     if (cpuid >> 24) != 0x41 {
@@ -352,10 +373,89 @@ pub fn boot_checks(expected_bits: u8) -> u32 {
         failed |= 1 << 3;
     }
     let bits = priority_bits_implemented();
-    if bits != expected_bits || bits < 3 {
+    if bits != expect.priority_bits || bits < 3 {
         failed |= 1 << 4;
     }
+    if cpuid != expect.cpuid {
+        failed |= 1 << 8;
+    }
+    if (mmio_read(addr::AIRCR) >> 8) & 0x7 != 0 {
+        failed |= 1 << 9;
+    }
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    {
+        let hf = mmio_read(addr::NRF_HFCLKSTAT);
+        let running = (hf >> 16) & 1 == 1;
+        let xtal = hf & 1 == 1;
+        if !running || xtal != expect.hfclk_xtal {
+            failed |= 1 << 10;
+        }
+        if mmio_read(addr::NRF_ICACHECNF) & 1 != 0 {
+            failed |= 1 << 11;
+        }
+    }
+    if expect.fpu_needed && mmio_read(addr::MVFR0) == 0 {
+        failed |= 1 << 12;
+    }
     failed
+}
+
+/// Boot information for the event log (R12.2 context, ORQ-30, ORQ-31):
+/// bit 0 a debugger is attached (DHCSR.C_DEBUGEN), bit 1 the reset was a
+/// watchdog reset (nRF52840 RESETREAS.DOG, cleared here so that the next
+/// reset reports its own reason). The QEMU board has no RESETREAS.
+pub fn boot_info() -> u32 {
+    let mut info = 0u32;
+    if mmio_read(addr::DHCSR) & 1 != 0 {
+        info |= BOOT_INFO_DEBUGGER;
+    }
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    {
+        let reasons = mmio_read(addr::NRF_RESETREAS);
+        if reasons & (1 << 1) != 0 {
+            info |= BOOT_INFO_WATCHDOG_RESET;
+            mmio_write(addr::NRF_RESETREAS, 1 << 1);
+        }
+    }
+    info
+}
+
+pub const BOOT_INFO_DEBUGGER: u32 = 1;
+pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
+
+// -------------------------------------------------------------- watchdog
+
+/// nRF52840 WDT register offsets (PS 6.36).
+pub mod wdt {
+    pub const TASKS_START: u32 = 0x000;
+    pub const CRV: u32 = 0x504;
+    pub const RREN: u32 = 0x508;
+    pub const CONFIG: u32 = 0x50C;
+    pub const RR0: u32 = 0x600;
+    /// The reload request value.
+    pub const RELOAD: u32 = 0x6E52_4635;
+    /// CONFIG: keep running in sleep (bit 0), pause while halted by a
+    /// debugger (bit 3 clear).
+    pub const CONFIG_VALUE: u32 = 1;
+}
+
+/// Starts the Kernel-owned watchdog (ORQ-31) with `reload` ticks of its
+/// 32.768 kHz clock, one reload register. Once started it runs until
+/// reset; `watchdog_feed` from the time-base handler keeps it quiet, so a
+/// Kernel hang that stops the handler resets the Target. The QEMU board
+/// has no WDT: the writes go to unmapped peripheral space and are
+/// ignored (TBR-23).
+pub fn watchdog_start(reload: u32) {
+    let w = addr::NRF_WDT;
+    mmio_write(w + wdt::CRV, reload);
+    mmio_write(w + wdt::RREN, 1);
+    mmio_write(w + wdt::CONFIG, wdt::CONFIG_VALUE);
+    mmio_write(w + wdt::TASKS_START, 1);
+}
+
+/// Feeds the watchdog (reload request on RR[0]).
+pub fn watchdog_feed() {
+    mmio_write(addr::NRF_WDT + wdt::RR0, wdt::RELOAD);
 }
 
 /// The number of implemented NVIC priority bits, by writing 0xFF to an

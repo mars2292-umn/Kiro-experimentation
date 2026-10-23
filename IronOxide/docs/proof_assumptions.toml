@@ -17,14 +17,14 @@ schema = 1
 
 # The logic, the Hardware_Model lemmas, the MPU view, the bound Kernel, and
 # the Analyzer's fixed-point core are proved without `assume`, `admit`, or
-# `external_body`. The only assumption constructs are the four trusted
-# functions of `Cm4Hw` below (task 5.7). The Kani stubs that replace inline
+# `external_body`. The only assumption constructs are the five trusted
+# functions of `Cm4Hw` below (tasks 5.7 and 5.2). The Kani stubs that replace inline
 # assembly are listed in docs/kani_stubs.toml.
 
 # Task 5.7 (2026-10-22): the Kernel_Arch entry points are verified cores
 # (crates/rsk-kernel/src/arch/cm4/entry.rs) over the `KernelArch` trait,
 # whose Cortex-M4F implementation `Cm4Hw` is the whole register-facing
-# surface of the planning code: four trusted functions. `apply` performs
+# surface of the planning code: five trusted functions. `apply` performs
 # one `Action` by calling exactly one register-access function of the
 # Kernel_Unsafe_Module (each with its own UJ identifier, Kani harness, or
 # review); its specification is the step of the ghost `HwModel`, the
@@ -35,7 +35,7 @@ schema = 1
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
 item = "apply"
-why = "Register writes, NVIC pends and masks, MPU view loads, TIMER compares, and the frame write are volatile accesses and assembly (UJ-001 to UJ-054); Verus cannot model them, so the model's step is the trusted meaning of each action."
+why = "Register writes, NVIC pends and masks, MPU view loads, TIMER compares, the watchdog start and feed (nRF52840 WDT, ORQ-31), and the frame write are volatile accesses and assembly (UJ-001 to UJ-054); Verus cannot model them, so the model's step is the trusted meaning of each action."
 evidence = "Each action calls one Kernel_Unsafe_Module function with its own justification identifier: Kani harnesses for the MMIO address table, frame words, BASEPRI and MPU encoders (uj_001_mmio_addresses_valid, rasr_encoding_fields, rbar_encoding_fields, mpu_load_writes_every_region, uj_010_basepri_never_masks_kernel_level); HIL differential tests hil-dt-hw-01, -03, -05, -09, -12 (pending hardware, GAP-09); the QEMU spike (TBR-23)."
 
 [[assumption]]
@@ -56,5 +56,12 @@ evidence = "hil-dt-hw-13 and hil-cycles (pending hardware; QEMU has no cycle cou
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
 item = "boot_checks"
-why = "The R12.1 checks read the implemented priority bits, MPU type, and FPU and DWT presence from the PPB."
-evidence = "hil-boot-checks (task 7.2, pending hardware); QEMU boot (TBR-23)."
+why = "The R12.1 checks read CPUID, MPU_TYPE, DWT_CTRL, AIRCR, MVFR0, and the implemented priority bits from the PPB, and on the nRF52840 the CLOCK.HFCLKSTAT and NVMC.ICACHECNF registers (ASM-01 to ASM-05, ASM-06)."
+evidence = "Host test `boot_checks_pass_on_the_expected_board_and_fail_one_bit_per_check` (every check passes on simulated expected values and each alone fails with its bit); hil-boot-checks (task 7.2, pending hardware); QEMU boot (TBR-23; the clock and cache checks are skipped on the QEMU board)."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+construct = "#[verifier::external_body]"
+item = "boot_info"
+why = "DHCSR.C_DEBUGEN (ORQ-30) and the nRF52840 POWER.RESETREAS watchdog bit (ORQ-31) are volatile reads; the reset reason is cleared by a volatile write."
+evidence = "Host test `boot_info_reports_the_debugger_and_a_watchdog_reset_and_clears_the_reason`; hil-watchdog (task 5.3 / section 11, pending hardware; no QEMU model)."

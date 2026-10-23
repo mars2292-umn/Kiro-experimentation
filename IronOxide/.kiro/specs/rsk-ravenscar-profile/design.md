@@ -576,7 +576,7 @@ Errors are caught at the earliest stage that can see them. Every diagnostic or e
 
 A stacking fault while entering an exception from a Job is an overflow of that Partition's stack, and is attributed to the Partition (R11.5, R16.5).
 
-**Watchdog.** The nRF52840 WDT is Kernel-owned and fed from a Kernel housekeeping slot. A Kernel hang that stops the time-base handler therefore resets the Target. The boot sequence reads RESETREAS, logs a watchdog reset, and enters the system safe state unless the declaration says otherwise (ORQ-31).
+**Watchdog.** The nRF52840 WDT is Kernel-owned: `boot_core` starts it (reload: four housekeeping periods in 32.768 kHz ticks, `watchdog_reload`) before the time base, and every run of the time-base handler feeds it as its last action, so the handler runs at least once per housekeeping period or the Target resets. The boot sequence reads RESETREAS, logs a watchdog reset (`EV_WATCHDOG_RESET`), clears the reason, and enters the system safe state (boot-check bit 7, ORQ-31). A declaration-level override ("run again after a watchdog reset") is not offered; the design's "unless the declaration says otherwise" is dropped in favour of the safe state always.
 
 **Init.** Each Partition's Init runs unprivileged under that Partition's MPU view, one Partition after another, before instant 0 (PR-34). Init has its own Budget. An Init fault applies the Partition's fault response. For that response, RESTART_PARTITION means at most the declared number of Init retries, and STOP_PARTITION afterwards.
 
@@ -707,7 +707,7 @@ This section is the design of the Trust_Base_Register (R48). Entries are ordered
 | Single-core execution | Every Kernel proof | Explicit precondition in the proofs (R27.4) | None in v1 | NG-01 |
 | Static_WCET_Analyzer (P5, not selected) | Safe execution-time bounds as the cross-check of measured WCETs | Selection criteria of ORQ-12; cross-check against measurements (R36) | No static bound before P5 | ASM-11, ORQ-12, ORQ-13 |
 | QEMU mps2-an386 | That Flight_Build paths execute as designed before hardware exists, never Target behaviour | Pass only on semihosting exit 0 with `RSK-OK`; every claim also names its HIL test | QEMU differs from the Target in timer, priority bits, cycle counter, EasyDMA, and errata | ASM-08, ORQ-09 |
-| `Cm4Hw`, the trusted hardware surface of Kernel_Arch (`apply`, `now`, `cycles`, `boot_checks`), the shells and rsk-entry, and the facts of Verification_Plan section 4 that remain by inspection | That each `Action` is performed by exactly the register-access function its ghost `HwModel` step names; that rsk-entry boots before starting | Since 2026-10-22 every entry point is a verified core (`arch::cm4::entry`): BASEPRI, the pended vector, the loaded view, CONTROL, and the boot programming are proven at the model (A1, A3 to A6, A9, A11); the four trusted functions are listed in `docs/proof_assumptions.toml` with their Kani and HIL evidence; reviews UJ-003 to UJ-006 | A trusted function performing a different register access than its action names; inspection error in the stubs | ASM-08, ORQ-01 |
+| `Cm4Hw`, the trusted hardware surface of Kernel_Arch (`apply`, `now`, `cycles`, `boot_checks`, `boot_info`), the shells and rsk-entry, and the facts of Verification_Plan section 4 that remain by inspection | That each `Action` is performed by exactly the register-access function its ghost `HwModel` step names; that rsk-entry boots before starting | Since 2026-10-22 every entry point is a verified core (`arch::cm4::entry`): BASEPRI, the pended vector, the loaded view, CONTROL, and the boot programming are proven at the model (A1, A3 to A6, A9, A11); the four trusted functions are listed in `docs/proof_assumptions.toml` with their Kani and HIL evidence; reviews UJ-003 to UJ-006 | A trusted function performing a different register access than its action names; inspection error in the stubs | ASM-08, ORQ-01 |
 
 ## Comparison: rsk, Ravenscar, and RTIC
 
@@ -794,8 +794,8 @@ The requirements say each ORQ is resolved or deferred, with a rationale, in the 
 | ORQ-27 | Resolved: precise BusFaults (DD-12) | Error Handling |
 | ORQ-28 | Resolved by DD-01: every access class of every Partition is hardware-enforced; static checks are defence in depth | Architecture |
 | ORQ-29 | Deferred to the Jorvik variant (P5) | R5 |
-| ORQ-30 | Resolved: Flight_Builds log DHCSR.C_DEBUGEN at boot but still run; deployed configurations enable nRF52840 access-port protection | Error Handling |
-| ORQ-31 | Resolved: Kernel-owned WDT fed from a Kernel slot; a watchdog reset leads to the system safe state by default | Error Handling |
+| ORQ-30 | Resolved: Flight_Builds log DHCSR.C_DEBUGEN at boot (event `EV_DEBUGGER`, implemented 2026-10-23, task 5.2) but still run; deployed configurations enable nRF52840 access-port protection | Error Handling |
+| ORQ-31 | Resolved: Kernel-owned WDT started at boot before the time base and fed at the end of every time-base handler run (at least once per housekeeping period; timeout four periods); a watchdog reset is logged and leads to the system safe state (implemented 2026-10-23, task 5.3) | Error Handling |
 | ORQ-32 | Resolved 2026-10-08 (found by the P1 spike): a `cbz`/`cbnz` whose target is a symbol in another section has no ELF relocation and LLVM's assembler emits a `nop` without a diagnostic. Rule for the Kernel_Unsafe_Module: branches between naked stubs use `b`/`b.w` only (Thumb `JUMP24`); the Link_Checker (instruction-class scans, task 12.3) disassembles every naked stub and rejects `cbz`/`cbnz` with a non-local target. | Kernel_Unsafe_Module |
 
 ## Requirements Impact

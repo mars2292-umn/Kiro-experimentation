@@ -16,13 +16,13 @@ From the local `cargo xtask verify` run of 2026-10-22 (evidence store `target/ev
 
 | Evidence_Item | Result |
 |---|---|
-| `proof-kernel-verus` | rsk-logic 264 items verified, 0 errors (the ghost history of task 4.11 and the theorems of tasks 4.12 to 4.14 included); rsk-kernel 112 items verified, 0 errors (`arch::bound`, `arch::cm4::plan`, `arch::cm4::entry`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
-| `check-static-checks` | 4 assumption constructs in the verified crates, all listed (the four trusted functions of `Cm4Hw`, R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,895 executable Kernel lines (PAR-01: rsk-logic 1,230, rsk-kernel 1,576, rsk-entry 89; 49 of them the ghost-history writes of tasks 4.11 to 4.14, which emit no code); 22 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
+| `proof-kernel-verus` | rsk-logic 269 items verified, 0 errors (the ghost history of task 4.11 and the theorems of tasks 4.12 to 4.14 included); rsk-kernel 120 items verified, 0 errors (`arch::bound`, `arch::cm4::plan`, `arch::cm4::entry`, the watchdog and boot checks of tasks 5.2 and 5.3); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
+| `check-static-checks` | 5 assumption constructs in the verified crates, all listed (the five trusted functions of `Cm4Hw`, R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 3,009 executable Kernel lines (PAR-01: rsk-logic 1,240, rsk-kernel 1,680, rsk-entry 89; 49 of them the ghost-history writes of tasks 4.11 to 4.14, which emit no code); 22 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
 | `proof-kernel-kani` | 12 harnesses, every check passed (6 in rsk-logic, the `intake` cross-check among them; 6 in rsk-kernel); Kani 0.68.0, CBMC 6.11.0 |
 | `test-qemu-spike-p1-demo` | `RSK-OK` on QEMU mps2-an386 (not the Target) |
 | `test-workspace-tests`, builds, sandbox, `check-evidence` | pass |
 
-CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 22 of 22 mutants killed on 2026-10-23.
+CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 22 of 22 mutants killed on 2026-10-23 (re-run after tasks 5.2 and 5.3: the two `arch::cm4::entry` mutants).
 
 ## 2. What the type system gives (R43.3)
 
@@ -78,7 +78,7 @@ Status is as of 2026-10-14. "By inspection" points to the Kernel_Arch facts of s
 
 ## 4. What holds by inspection (the Kernel_Arch boundary)
 
-Since 2026-10-22 (task 5.7) every Kernel_Arch entry point is a verified core in `arch/cm4/entry.rs`, generic over `KernelOps` (the bound Kernel, `arch/bound.rs`), `KernelArch` (the hardware, driven through `Action`s whose specification is a step of the ghost `HwModel`, the Kernel's record of what it wrote), and `Tables` (the generated system crate's inputs). Outside `verus!` remain: the shells in `arch/cm4/mod.rs` (fetch the Kernel, the hardware, the tables, and the Kernel_Arch state; call the core; enter `System::safe_state`, which never returns), the `System` trait and its `Tables` adapter, the Kernel_Unsafe_Module (register access, assembly stubs), and rsk-entry. The register-facing surface of the planning code is the `Cm4Hw` implementation of `KernelArch`: four trusted functions (`apply`, `now`, `cycles`, `boot_checks`; `#[verifier::external_body]`, listed in `docs/proof_assumptions.toml`), of which `apply` calls exactly one register-access function per action.
+Since 2026-10-22 (task 5.7) every Kernel_Arch entry point is a verified core in `arch/cm4/entry.rs`, generic over `KernelOps` (the bound Kernel, `arch/bound.rs`), `KernelArch` (the hardware, driven through `Action`s whose specification is a step of the ghost `HwModel`, the Kernel's record of what it wrote), and `Tables` (the generated system crate's inputs). Outside `verus!` remain: the shells in `arch/cm4/mod.rs` (fetch the Kernel, the hardware, the tables, and the Kernel_Arch state; call the core; enter `System::safe_state`, which never returns), the `System` trait and its `Tables` adapter, the Kernel_Unsafe_Module (register access, assembly stubs), and rsk-entry. The register-facing surface of the planning code is the `Cm4Hw` implementation of `KernelArch`: five trusted functions (`apply`, `now`, `cycles`, `boot_checks`, `boot_info`; `#[verifier::external_body]`, listed in `docs/proof_assumptions.toml`), of which `apply` calls exactly one register-access function per action.
 
 | # | Fact | Assumed by | Status |
 |---|---|---|---|
@@ -100,7 +100,7 @@ Earlier in task 5.7 (2026-10-22, `arch/cm4/plan.rs`): the new Job's frame addres
 
 Crate layout for proof stability (2026-10-22): the proof core (`logic`, `hw_model`) is the crate `rsk-logic`, and Kernel_Arch (`arch::bound`, `arch::cm4`, the Kernel_Unsafe_Module) is `rsk-kernel`, which re-exports it. Verus verifies each crate's items in its own SMT context and imports the other's specifications only, so a change on one side cannot destabilize the other's proofs; the `rlimit` raise that `end_top` needed in the single crate was removed after the split and the proof passes at the default limit. The explicit array-fill axiom applications in `Slots::new` and `Layout::view` are kept as cheap robustness.
 
-What the model does not cover, and the evidence that does: the hardware's own response to the written state (the NVIC taking a vector, the MPU decision) is the Hardware_Model's domain (`hw_model` lemmas over the values the cores are proven to write); the stub-level register save and restore (Property 2, review UJ-020 to UJ-023 and the HIL register-pattern test); the four trusted functions (Kani harnesses on the encoders and address table, HIL differential tests, section 11). Trust_Base_Register entry TBR-24 lists the remaining facts; Gap_Register entry GAP-10 is mitigated for the planning code and stays open for the Kani flight-path restructuring.
+What the model does not cover, and the evidence that does: the hardware's own response to the written state (the NVIC taking a vector, the MPU decision) is the Hardware_Model's domain (`hw_model` lemmas over the values the cores are proven to write); the stub-level register save and restore (Property 2, review UJ-020 to UJ-023 and the HIL register-pattern test); the five trusted functions (Kani harnesses on the encoders and address table, host tests of the boot checks, HIL differential tests, section 11). Trust_Base_Register entry TBR-24 lists the remaining facts; Gap_Register entry GAP-10 is mitigated for the planning code and stays open for the Kani flight-path restructuring.
 
 ## 5. Arguments recorded here
 
@@ -371,12 +371,12 @@ No nRF52840-DK is available as of 2026-10-14. These items are deferred, not drop
 | `hil-errata` | Errata tests (R49.4, R11.6) | Erratum 838869 applicability on r0p1 and its DSB workaround | TBR-03 | Review in the `hw_model.rs` header | 3.4 |
 | `hil-spike` | Hardware part of the DD-01 spike (R7.7, R11.1, R16.4) | Register patterns preserved across preemption; unprivileged PPB access faults; a ceiling masks only Task levels | P-04, P-10, P-11 | QEMU spike (`RSK-OK`) | 3.1 |
 | `hil-rig` | Rig self-test (R34.8, R48.4) | Two-board rig, probe-rs, read-back hash | Every HIL item; TBR-18 | none | 7.1 |
-| `hil-boot-checks` | Boot-check suite (R12.6) | Mismatched values and corrupted tables reach the safe state | P-14 | Verus `validate` proofs; QEMU boot | 7.2, 5.2 |
+| `hil-boot-checks` | Boot-check suite (R12.6) | Mismatched values and corrupted tables reach the safe state; each check of R12.1 (CPUID, MPU regions, priority bits and PRIGROUP, instruction cache, HFCLK source, FPU presence, DWT), the checksum of R12.3, and a watchdog reset fail with their own bit | P-14 | Verus `validate` proofs and `boot_core`; the host test `boot_checks_pass_on_the_expected_board_and_fail_one_bit_per_check` (every check on simulated registers); QEMU boot (CPUID, MPU, PRIGROUP, DWT, checksum; no clock or cache registers) | 7.2 (5.2 done 2026-10-23) |
 | `hil-release-timing` | Release timing over PAR-05 (R9.10) | Jitter, counter wraps, coinciding releases, late Jobs | P-07; HW-12; ASM-19 | none | 7.3 |
 | `hil-mpu-matrix` | MPU access matrix (R16.8) | Every protected class faults as R16.4 requires | P-16 | `lemma_hw_partition_isolation`; QEMU view switching | 7.4 |
 | `hil-dma` | DMA isolation (R17.7) | Kernel-mediated EasyDMA | P-16; ORQ-03 | none (mediation not built) | 7.4, 5.5 |
 | `hil-overrun`, `hil-storm`, `hil-response` | Fault injection (R18.8, R19.3, R14.11) | Δ_detect, Δ_enforce, the interrupt-source bound, responses on silicon | P-08 (Property 9), P-17, P-18 | Verus response and attribution proofs | 7.5 |
-| `hil-watchdog` | Kernel-owned watchdog (ORQ-31) | A hung Kernel resets into the safe state | R14.4 path | none (watchdog not implemented; no QEMU model) | 5.3 |
+| `hil-watchdog` | Kernel-owned watchdog (ORQ-31) | A hung Kernel resets, and the next boot logs the watchdog reset and enters the safe state | R14.4 path | Verus: `boot_core` starts the WDT before the time base (`booted` requires `watchdog_running`) and `timer_core` feeds it last (`watchdog_fed`); host tests of the WDT register writes and of the RESETREAS read and clear; no QEMU model | 7.5 (5.3 done 2026-10-23) |
 | `hil-cycles` | Budget accounting with DWT (R18.1, ASM-06) | Cycle attribution on the Target | P-17 | none (QEMU has no cycle counter) | 7.5 |
 
 Work that can proceed without boards, so these items stay ready:

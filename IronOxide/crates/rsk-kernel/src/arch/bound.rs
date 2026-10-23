@@ -330,6 +330,10 @@ pub trait KernelOps: Sized {
     fn boot_failed(&mut self, failed: u32)
         requires old(self).inv(),
         ensures final(self).inv();
+    /// Logs the debug state and a watchdog reset at boot (ORQ-30, ORQ-31).
+    fn boot_info(&mut self, debugger: bool, watchdog_reset: bool)
+        requires old(self).inv(),
+        ensures final(self).inv();
 }
 
 impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const NS: usize, const NE: usize> KernelOps
@@ -597,6 +601,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn boot_failed(&mut self, failed: u32) {
         self.kernel.boot_check_failed(&self.cfg, failed);
+    }
+
+    fn boot_info(&mut self, debugger: bool, watchdog_reset: bool) {
+        self.kernel.boot_info(&self.cfg, debugger, watchdog_reset);
     }
 }
 

@@ -10,7 +10,7 @@
 //!   performs one [`Action`] (a register write, an NVIC pend or mask, an
 //!   MPU view load, a TIMER compare, a frame write) and is specified as a
 //!   step of the ghost [`HwModel`], the Kernel's view of the state it has
-//!   written to the hardware. [`Cm4Hw`] implements it with four trusted
+//!   written to the hardware. [`Cm4Hw`] implements it with five trusted
 //!   functions (`#[verifier::external_body]`, listed in
 //!   `docs/proof_assumptions.toml`): `apply`, which dispatches to the
 //!   register-access functions of the Kernel_Unsafe_Module, and the three
@@ -47,9 +47,10 @@
 //! register save and restore (Property 2).
 #![forbid(unsafe_code)]
 
+use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT};
+use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
 use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ};
@@ -83,6 +84,34 @@ pub const MAX_IRQS: u16 = 496;
 pub const BOOT_FAIL_CHECKSUM: u32 = 32;
 /// Boot-check bit for an interrupt-line count the Kernel_Arch cannot serve.
 pub const BOOT_FAIL_IRQ_COUNT: u32 = 64;
+/// Bit 7: the reset that led here was a watchdog reset (ORQ-31): the
+/// system enters the safe state rather than running again.
+pub const BOOT_FAIL_WATCHDOG_RESET: u32 = 128;
+/// `KernelArch::boot_info` bits.
+pub const BOOT_INFO_DEBUGGER: u32 = 1;
+pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
+/// The watchdog clock (nRF52840 WDT: 32.768 kHz).
+pub const WATCHDOG_HZ: u64 = 32_768;
+/// Watchdog timeout in housekeeping periods: the time-base handler runs
+/// at least once per housekeeping period, so the handler stopping for
+/// this many periods resets the Target.
+pub const WATCHDOG_HOUSEKEEPING_PERIODS: u64 = 4;
+
+/// The watchdog reload value for a time base of `tick_hz` ticks per
+/// second: `WATCHDOG_HOUSEKEEPING_PERIODS` housekeeping periods in
+/// watchdog ticks, saturated; the full range for a zero `tick_hz`.
+pub fn watchdog_reload(tick_hz: u64) -> (r: u32)
+    ensures tick_hz > 0 ==> r as int == (
+        if (HOUSEKEEPING_PERIOD as int) * (WATCHDOG_HOUSEKEEPING_PERIODS as int) * (WATCHDOG_HZ as int) / (tick_hz as int) > 0xFFFF_FFFF { 0xFFFF_FFFF as int }
+        else { (HOUSEKEEPING_PERIOD as int) * (WATCHDOG_HOUSEKEEPING_PERIODS as int) * (WATCHDOG_HZ as int) / (tick_hz as int) }),
+{
+    if tick_hz == 0 {
+        return 0xFFFF_FFFF;
+    }
+    let ticks: u64 = HOUSEKEEPING_PERIOD * WATCHDOG_HOUSEKEEPING_PERIODS * WATCHDOG_HZ;
+    let r = ticks / tick_hz;
+    if r > 0xFFFF_FFFF { 0xFFFF_FFFF } else { r as u32 }
+}
 
 /// How an exception vector is bound (Generated_Config `irq` table, R24.1).
 #[derive(Clone, Copy)]
@@ -151,6 +180,10 @@ pub enum Action {
     KernelExceptionPriorities,
     MpuEnableBackground,
     ClearFaultStatus,
+    /// Start the Kernel-owned watchdog with a reload value (ORQ-31).
+    WatchdogStart(u32),
+    /// Feed the watchdog (every time-base event).
+    WatchdogFeed,
     /// Debug trace (feature `trace` only): tag, value.
     Trace(u8, u32),
 }
@@ -177,6 +210,9 @@ pub struct HwModel {
     pub mpu_enabled: bool,
     pub timebase_running: bool,
     pub dwt_enabled: bool,
+    pub watchdog_running: bool,
+    /// Fed since this model was created (one model per entry point).
+    pub watchdog_fed: bool,
 }
 
 /// The model's step for one action.
@@ -203,6 +239,8 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::KernelExceptionPriorities => HwModel { kernel_exceptions_level0: true, ..h },
         Action::MpuEnableBackground => HwModel { mpu_enabled: true, ..h },
         Action::ClearFaultStatus => h,
+        Action::WatchdogStart(_) => HwModel { watchdog_running: true, ..h },
+        Action::WatchdogFeed => HwModel { watchdog_fed: true, ..h },
         Action::Trace(_, _) => h,
     }
 }
@@ -219,7 +257,9 @@ pub trait KernelArch: Sized {
     /// DWT CYCCNT (HW-13).
     fn cycles(&self) -> u32;
     /// The boot checks of R12.1 as a bit set of failures (0 when all pass).
-    fn boot_checks(&self, priority_bits: u8) -> u32;
+    fn boot_checks(&self, expect: &BootExpect) -> u32;
+    /// Boot information for the log: `BOOT_INFO_DEBUGGER`, `BOOT_INFO_WATCHDOG_RESET`.
+    fn boot_info(&self) -> u32;
 }
 
 /// What the generated system crate provides (the `System` trait of
@@ -236,13 +276,17 @@ pub trait Tables {
     fn config_checksum(&self) -> u32;
     fn timer_vector(&self) -> u16;
     fn priority_bits(&self) -> u8;
+    /// What the boot checks compare the hardware against (R12.1).
+    fn boot_expect(&self) -> BootExpect;
+    /// Time-base ticks per second (R21.2), for the watchdog reload.
+    fn tick_hz(&self) -> u64;
 }
 
 // ------------------------------------------------ the Cortex-M4F hardware
 
 /// The Cortex-M4F registers behind `KernelArch`. The ghost `model` is the
 /// state the Kernel has written since this value was created (one value
-/// per entry point); the four trusted functions below are the whole
+/// per entry point); the five trusted functions below are the whole
 /// register-facing surface of the planning code.
 pub struct Cm4Hw {
     pub model: Ghost<HwModel>,
@@ -291,6 +335,8 @@ impl KernelArch for Cm4Hw {
             Action::KernelExceptionPriorities => hw::set_kernel_exception_priorities(),
             Action::MpuEnableBackground => hw::mpu_enable_background(),
             Action::ClearFaultStatus => hw::clear_fault_status(),
+            Action::WatchdogStart(reload) => hw::watchdog_start(reload),
+            Action::WatchdogFeed => hw::watchdog_feed(),
             Action::Trace(tag, v) => super::trace(super::trace_tag(tag), v),
         }
     }
@@ -309,8 +355,14 @@ impl KernelArch for Cm4Hw {
 
     /// Trusted: the hardware boot checks of R12.1.
     #[verifier::external_body]
-    fn boot_checks(&self, priority_bits: u8) -> u32 {
-        super::unsafe_module::hw::boot_checks(priority_bits)
+    fn boot_checks(&self, expect: &BootExpect) -> u32 {
+        super::unsafe_module::hw::boot_checks(expect)
+    }
+
+    /// Trusted: the debug state and the reset reason (ORQ-30, ORQ-31).
+    #[verifier::external_body]
+    fn boot_info(&self) -> u32 {
+        super::unsafe_module::hw::boot_info()
     }
 }
 
@@ -346,6 +398,7 @@ pub open spec fn booted(h: HwModel) -> bool {
     &&& h.mpu_enabled
     &&& h.timebase_running
     &&& h.dwt_enabled
+    &&& h.watchdog_running
 }
 
 /// Cycles consumed by the executing context since the last switch
@@ -463,9 +516,17 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         return false;
     }
     k.init();
-    let mut failed = hw.boot_checks(tables.priority_bits());
+    // The debug state and the reset reason go to the log first (ORQ-30,
+    // ORQ-31); a watchdog reset is then treated as a failed check.
+    let info = hw.boot_info();
+    k.boot_info(info & BOOT_INFO_DEBUGGER != 0, info & BOOT_INFO_WATCHDOG_RESET != 0);
+    let expect = tables.boot_expect();
+    let mut failed = hw.boot_checks(&expect);
     if k.config_checksum() != tables.config_checksum() {
         failed = failed | BOOT_FAIL_CHECKSUM;
+    }
+    if info & BOOT_INFO_WATCHDOG_RESET != 0 {
+        failed = failed | BOOT_FAIL_WATCHDOG_RESET;
     }
     let irqs = tables.irq_count();
     if irqs > MAX_IRQS {
@@ -531,6 +592,9 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         p += 1;
     }
     hw.apply(Action::MpuEnableBackground);
+    // The watchdog starts before the time base, so no window exists in
+    // which the handler could stop unwatched (ORQ-31).
+    hw.apply(Action::WatchdogStart(watchdog_reload(tables.tick_hz())));
     hw.apply(Action::TimebaseInit);
     hw.apply(Action::DwtEnable);
     state.booted = true;
@@ -702,6 +766,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // Every time-base event feeds the watchdog (ORQ-31).
+        final(hw).hw().watchdog_fed,
 {
     hw.apply(Action::TimebaseAck);
     let now = hw.now();
@@ -711,6 +777,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     k.timer_event(now, running);
     let safe = apply_core(k, hw, tables);
     let hop = end_plan_core(k, state, top_before);
+    // Fed last: a handler that did not complete does not feed (ORQ-31).
+    hw.apply(Action::WatchdogFeed);
     (hop, safe)
 }
 
@@ -767,6 +835,9 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// level to unwind when the resumed Job was killed, else 0; and the
 /// safe-state flag. BASEPRI ends at the resumed Job's level or the
 /// System_Ceiling (A1), and the resumed Job's Partition view is loaded (A6).
+// Near Z3's default resource limit since `HwModel` gained the watchdog
+// fields (task 5.3); the limit is raised rather than the proof split.
+#[verifier::rlimit(20)]
 pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
 ) -> (r: ((u32, u32, u32, ReturnPlan), bool))

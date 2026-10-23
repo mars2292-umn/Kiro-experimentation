@@ -32,6 +32,10 @@ pub struct Target {
     /// For the Task_Model `target` field.
     pub model_name: &'static str,
     pub core_revision: &'static str,
+    /// The CPUID word the boot checks expect (ASM-01, R12.1).
+    pub cpuid: u32,
+    /// Whether the high-frequency clock runs from the crystal (ASM-05, R12.1).
+    pub hfclk_xtal: bool,
     pub cpu_hz: u64,
     pub tick_hz: u64,
     /// Implemented NVIC priority bits (ASM-03).
@@ -81,6 +85,8 @@ pub const NRF52840: Target = Target {
     name: "nrf52840",
     model_name: "nrf52840",
     core_revision: "r0p1",
+    cpuid: 0x410F_C241,
+    hfclk_xtal: true,
     cpu_hz: 64_000_000,
     tick_hz: 16_000_000,
     priority_bits: 3,
@@ -113,6 +119,9 @@ pub const QEMU_MPS2_AN386: Target = Target {
     name: "qemu_mps2_an386",
     model_name: "qemu-mps2-an386",
     core_revision: "qemu",
+    // QEMU's cortex-m4 model reports r0p0.
+    cpuid: 0x410F_C240,
+    hfclk_xtal: false,
     cpu_hz: 25_000_000,
     tick_hz: 25_000_000,
     priority_bits: 8,

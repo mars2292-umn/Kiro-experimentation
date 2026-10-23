@@ -62,7 +62,7 @@
 use vstd::prelude::*;
 
 use super::budget::Budget;
-use super::log::{Event, Log, EV_BOOT_CHECK, EV_DEADLINE_MISS, EV_END_JOB, EV_MIT_VIOLATION, EV_OPERATING_END,
+use super::log::{Event, Log, EV_BOOT_CHECK, EV_DEBUGGER, EV_WATCHDOG_RESET, EV_DEADLINE_MISS, EV_END_JOB, EV_MIT_VIOLATION, EV_OPERATING_END,
     EV_OVERRUN, EV_PARTITION_RESTART, EV_PARTITION_STOP, EV_RELEASE_OVERLAP, EV_RESOURCE_RELEASED, EV_SAFE_STATE,
     EV_API_MISUSE};
 // Spec and proof items of `history` are named by path: ghost erasure removes them from the stable build.
@@ -1796,26 +1796,39 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.record(cfg, ST_KILL, Ghost(u as int), Ghost(0));
     }
 
-    fn end_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
+    /// `others_unchanged` composes across two steps when the second keeps
+    /// the stack (so the holders of the lock entries and the executing Job
+    /// are those of the middle state).
+    pub proof fn lemma_others_unchanged_trans(&self, mid: &Self, old: &Self, cfg: &Config<NT, NR, NP>, p: int)
+        requires old.inv(cfg), mid.others_unchanged(old, cfg, p), self.others_unchanged(mid, cfg, p),
+            self.sched.depth == mid.sched.depth, self.sched.stack == mid.sched.stack,
+        ensures self.others_unchanged(old, cfg, p),
+    {
+        assert forall|u: int| 0 <= u < NT && (#[trigger] cfg.tasks[u].partition as int) != p
+            implies self.task_unchanged(old, cfg, u) by {
+            assert(mid.task_unchanged(old, cfg, u));
+            assert(self.task_unchanged(mid, cfg, u));
+        }
+        assert forall|e: int| 0 <= e < old.sched.lock_len && #[trigger] old.holder_partition(cfg, e) != p
+            implies e < self.sched.lock_len && self.sched.lock_res[e] == old.sched.lock_res[e]
+                && self.sched.lock_depth[e] == old.sched.lock_depth[e] by {
+            let i = old.sched.lock_depth[e] as int;
+            assert(i < old.sched.depth);
+            assert(mid.sched.stack[i] == old.sched.stack[i]);
+            assert(mid.holder_partition(cfg, e) == old.holder_partition(cfg, e));
+        }
+    }
+
+    /// Marks every preempted Job of `partition` killed (R14.5); the
+    /// executing one, if the Partition's, has been ended already.
+    fn kill_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
-            final(self).partition_ended(cfg, partition as int),
-            final(self).stop_dma[partition as int],
-            // R14.9: every other Partition is as it was; MIT history is kept.
+            forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> final(self).sched.job[u] != JOB_RUNNING,
             final(self).others_unchanged(old(self), cfg, partition as int),
             final(self).timing == old(self).timing,
+            final(self).sched.depth == old(self).sched.depth, final(self).sched.stack == old(self).sched.stack,
     {
-        // The executing Job first, if it belongs to the Partition.
-        if self.sched.depth > 0 {
-            let top = self.sched.stack[self.sched.depth - 1];
-            proof {
-                assert(cfg.task_ok(top as int));
-            }
-            if cfg.tasks[top as usize].partition == partition {
-                self.end_top(cfg);
-            }
-        }
-        // Preempted Jobs of the Partition are marked killed.
         let mut i: usize = 0;
         while i < self.sched.depth
             invariant self.inv(cfg), self.history_extends(old(self)), i <= self.sched.depth, (partition as int) < NP,
@@ -1823,6 +1836,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     ==> self.sched.job[self.sched.stack[j] as int] != JOB_RUNNING,
                 self.others_unchanged(old(self), cfg, partition as int),
                 self.timing == old(self).timing,
+                self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases self.sched.depth - i,
         {
             let u = self.sched.stack[i];
@@ -1849,7 +1863,20 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 }
             }
         }
-        // Releases and their events.
+    }
+
+    /// Clears the Releases of `partition`, disarms their events, resets
+    /// their Budget accounts, and requests the EasyDMA stop (R17.6).
+    fn clear_partition_releases(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
+        requires old(self).inv(cfg), (partition as int) < NP,
+            forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> old(self).sched.job[u] != JOB_RUNNING,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).partition_ended(cfg, partition as int),
+            final(self).stop_dma[partition as int],
+            final(self).others_unchanged(old(self), cfg, partition as int),
+            final(self).timing == old(self).timing,
+            final(self).sched.depth == old(self).sched.depth, final(self).sched.stack == old(self).sched.stack,
+    {
         let mut t: usize = 0;
         while t < NT
             invariant self.inv(cfg), self.history_extends(old(self)), t <= NT, (cfg.slot_count as int) == NS, (partition as int) < NP,
@@ -1857,6 +1884,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 forall|u: int| 0 <= u < t && cfg.tasks[u].partition == partition ==> self.sched.release[u] == REL_NONE,
                 self.others_unchanged(old(self), cfg, partition as int),
                 self.timing == old(self).timing,
+                self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases NT - t,
         {
             if cfg.tasks[t].partition == partition {
@@ -1882,6 +1910,41 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             t = t + 1;
         }
         self.stop_dma[partition as usize] = true;
+    }
+
+    /// Ends every Job of `partition` (R14.5): the executing one by force,
+    /// the preempted ones by marking, then the Releases. Three functions so
+    /// that each solver query stays small.
+    fn end_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
+        requires old(self).inv(cfg), (partition as int) < NP,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).partition_ended(cfg, partition as int),
+            final(self).stop_dma[partition as int],
+            // R14.9: every other Partition is as it was; MIT history is kept.
+            final(self).others_unchanged(old(self), cfg, partition as int),
+            final(self).timing == old(self).timing,
+    {
+        // The executing Job first, if it belongs to the Partition.
+        if self.sched.depth > 0 {
+            let top = self.sched.stack[self.sched.depth - 1];
+            proof {
+                assert(cfg.task_ok(top as int));
+            }
+            if cfg.tasks[top as usize].partition == partition {
+                self.end_top(cfg);
+            }
+        }
+        let ghost m1 = *self;
+        assert(m1.others_unchanged(old(self), cfg, partition as int));
+        self.kill_partition_jobs(cfg, partition);
+        proof {
+            self.lemma_others_unchanged_trans(&m1, old(self), cfg, partition as int);
+        }
+        let ghost m2 = *self;
+        self.clear_partition_releases(cfg, partition);
+        proof {
+            self.lemma_others_unchanged_trans(&m2, old(self), cfg, partition as int);
+        }
     }
 
     fn restart_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
@@ -1952,6 +2015,22 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     /// R12.2: a boot check failed; the identifiers (a bit set, `detail`)
     /// are logged and the safe state entered without any Release.
+    /// Boot information (ORQ-30, ORQ-31): a debugger attached, a watchdog
+    /// reset. Logged before the boot checks' verdict; nothing else changes.
+    pub fn boot_info(&mut self, cfg: &Config<NT, NR, NP>, debugger: bool, watchdog_reset: bool)
+        requires old(self).inv(cfg),
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+            final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
+            final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
+    {
+        if debugger {
+            self.push_event(cfg, EV_DEBUGGER, 0xFF, 0xFF, 0, 1);
+        }
+        if watchdog_reset {
+            self.push_event(cfg, EV_WATCHDOG_RESET, 0xFF, 0xFF, 0, 1);
+        }
+    }
+
     pub fn boot_check_failed(&mut self, cfg: &Config<NT, NR, NP>, failed: u32)
         requires old(self).inv(cfg),
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).safe_state,

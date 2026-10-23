@@ -30,6 +30,21 @@ use crate::hw_model::{self, MIN_COMPARE_DISTANCE};
 
 verus! {
 
+/// What the boot checks of R12.1 compare the hardware against: the values
+/// Generated_Config records for the Target (ASM-01, ASM-03, ASM-05) and
+/// whether any Task uses the FPU (R11.2).
+#[derive(Clone, Copy)]
+pub struct BootExpect {
+    /// Implemented NVIC priority bits (ASM-03).
+    pub priority_bits: u8,
+    /// The full CPUID word: implementer, variant, part number, revision (ASM-01).
+    pub cpuid: u32,
+    /// Whether the high-frequency clock must run from the crystal (ASM-05).
+    pub hfclk_xtal: bool,
+    /// Whether any Task is FPU-using, so the FPU must be present (R12.1).
+    pub fpu_needed: bool,
+}
+
 /// Basic exception frame size (HW-06).
 pub const FRAME_BYTES: u32 = 32;
 

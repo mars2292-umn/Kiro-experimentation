@@ -61,6 +61,10 @@ impl ::rsk_kernel::arch::System for Sys {
     const IRQ_COUNT: u16 = 32;
     const TIMER_VECTOR: u16 = 16 + 9;
     const PRIORITY_BITS: u8 = 8;
+    const CPUID: u32 = 0x410fc240;
+    const HFCLK_XTAL: bool = false;
+    const FPU_NEEDED: bool = false;
+    const TICK_HZ: u64 = 25000000;
     const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;
     fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> { &KERNEL }
     fn task_entry(t: u8) -> fn() {

@@ -35,6 +35,8 @@ pub const EV_END_JOB: u8 = 19;
 pub const EV_INIT_FAULT: u8 = 20;
 pub const EV_UNBOUND_IRQ: u8 = 21;
 pub const EV_API_MISUSE: u8 = 22;
+/// A debugger was attached at boot (DHCSR.C_DEBUGEN, ORQ-30): timing evidence from this run is suspect.
+pub const EV_DEBUGGER: u8 = 23;
 
 /// A bit set of Profile restriction identifiers: bit n stands for PR-n
 /// (R3.9, R14.6).

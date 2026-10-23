@@ -25,6 +25,10 @@ fn uj_001_mmio_addresses_valid() {
     for off in [0x000u32, 0x004, 0x00C, 0x044, 0x140, 0x304, 0x308, 0x504, 0x508, 0x510, 0x540, 0x544] {
         assert!(hw::addr::plausible(t + off));
     }
+    let w = hw::addr::NRF_WDT;
+    for off in [hw::wdt::TASKS_START, hw::wdt::CRV, hw::wdt::RREN, hw::wdt::CONFIG, hw::wdt::RR0] {
+        assert!(hw::addr::plausible(w + off));
+    }
 }
 
 /// UJ-007: the initial frame has the HW-06 layout for any entry and

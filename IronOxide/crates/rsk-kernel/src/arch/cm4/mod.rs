@@ -166,6 +166,12 @@ impl<S: System> Tables for SysTables<S> {
     fn priority_bits(&self) -> u8 {
         S::PRIORITY_BITS
     }
+    fn boot_expect(&self) -> plan::BootExpect {
+        plan::BootExpect { priority_bits: S::PRIORITY_BITS, cpuid: S::CPUID, hfclk_xtal: S::HFCLK_XTAL, fpu_needed: S::FPU_NEEDED }
+    }
+    fn tick_hz(&self) -> u64 {
+        S::TICK_HZ
+    }
 }
 
 // The shells below are the only Kernel_Arch code outside `verus!` besides
@@ -294,6 +300,115 @@ pub fn panic<S: System>(in_kernel: bool) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use unsafe_module::{hw, sim};
+
+    fn expected_board() -> plan::BootExpect {
+        plan::BootExpect { priority_bits: 3, cpuid: 0x410F_C241, hfclk_xtal: true, fpu_needed: true }
+    }
+
+    /// The simulated registers of an nRF52840-DK as the boot checks expect
+    /// them (the simulator models 3 implemented priority bits).
+    fn simulate_expected_board() {
+        sim::reset();
+        sim::write(hw::addr::CPUID, 0x410F_C241);
+        sim::write(hw::addr::MPU_TYPE, 8 << 8);
+        sim::write(hw::addr::DWT_CTRL, 0);
+        sim::write(hw::addr::AIRCR, 0);
+        sim::write(hw::addr::NRF_HFCLKSTAT, (1 << 16) | 1);
+        sim::write(hw::addr::NRF_ICACHECNF, 0);
+        sim::write(hw::addr::MVFR0, 0x1011_0021);
+    }
+
+    /// R12.1, task 5.2: every boot check passes on the expected board and
+    /// each one alone fails with its own bit (host test of the boot logic;
+    /// the HIL boot-check suite of task 7.2 repeats this on the Target).
+    #[test]
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    fn boot_checks_pass_on_the_expected_board_and_fail_one_bit_per_check() {
+        let expect = expected_board();
+        simulate_expected_board();
+        assert_eq!(hw::boot_checks(&expect), 0);
+
+        simulate_expected_board();
+        sim::write(hw::addr::CPUID, 0x410F_C240);
+        assert_eq!(hw::boot_checks(&expect), 1 << 8, "core revision (ASM-01)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::CPUID, 0x410F_C271);
+        assert_eq!(hw::boot_checks(&expect), (1 << 1) | (1 << 8), "part number");
+
+        simulate_expected_board();
+        sim::write(hw::addr::MPU_TYPE, 0);
+        assert_eq!(hw::boot_checks(&expect), 1 << 2, "MPU regions (ASM-02)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::DWT_CTRL, 1 << 25);
+        assert_eq!(hw::boot_checks(&expect), 1 << 3, "DWT cycle counter (ASM-06)");
+
+        simulate_expected_board();
+        assert_eq!(hw::boot_checks(&plan::BootExpect { priority_bits: 8, ..expect }), 1 << 4, "priority bits (ASM-03)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::AIRCR, 5 << 8);
+        assert_eq!(hw::boot_checks(&expect), 1 << 9, "PRIGROUP (ASM-03)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::NRF_HFCLKSTAT, 1 << 16);
+        assert_eq!(hw::boot_checks(&expect), 1 << 10, "HFCLK from the RC oscillator (ASM-05)");
+        sim::write(hw::addr::NRF_HFCLKSTAT, 1);
+        assert_eq!(hw::boot_checks(&expect), 1 << 10, "HFCLK not running (ASM-05)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::NRF_ICACHECNF, 1);
+        assert_eq!(hw::boot_checks(&expect), 1 << 11, "instruction cache enabled (ASM-04)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::MVFR0, 0);
+        assert_eq!(hw::boot_checks(&expect), 1 << 12, "FPU absent while a Task uses it");
+        assert_eq!(hw::boot_checks(&plan::BootExpect { fpu_needed: false, ..expect }), 0, "no FPU needed");
+    }
+
+    /// ORQ-30, ORQ-31, task 5.2: the debug state and a watchdog reset are
+    /// reported, and the reset reason is cleared for the next boot (the
+    /// simulator is a plain store, so the clear shows as the written bit).
+    #[test]
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    fn boot_info_reports_the_debugger_and_a_watchdog_reset_and_clears_the_reason() {
+        sim::reset();
+        assert_eq!(hw::boot_info(), 0);
+        sim::write(hw::addr::DHCSR, 1);
+        assert_eq!(hw::boot_info(), hw::BOOT_INFO_DEBUGGER);
+        sim::write(hw::addr::NRF_RESETREAS, (1 << 1) | 1);
+        assert_eq!(hw::boot_info(), hw::BOOT_INFO_DEBUGGER | hw::BOOT_INFO_WATCHDOG_RESET);
+        assert_eq!(sim::read(hw::addr::NRF_RESETREAS), 1 << 1, "the DOG bit was written to clear it");
+    }
+
+    /// ORQ-31, task 5.3: the watchdog is started with the reload value,
+    /// one reload register, running in sleep and paused under a debugger,
+    /// and fed with the reload request.
+    #[test]
+    fn watchdog_start_and_feed_write_the_wdt_registers() {
+        sim::reset();
+        hw::watchdog_start(16_384);
+        let w = hw::addr::NRF_WDT;
+        assert_eq!(sim::read(w + hw::wdt::CRV), 16_384);
+        assert_eq!(sim::read(w + hw::wdt::RREN), 1);
+        assert_eq!(sim::read(w + hw::wdt::CONFIG), 1);
+        assert_eq!(sim::read(w + hw::wdt::TASKS_START), 1);
+        hw::watchdog_feed();
+        assert_eq!(sim::read(w + hw::wdt::RR0), hw::wdt::RELOAD);
+    }
+
+    /// The reload value covers four housekeeping periods of the time base
+    /// (the handler runs at least once per period), saturating for slow
+    /// or absent time bases.
+    #[test]
+    fn watchdog_reload_covers_four_housekeeping_periods() {
+        assert_eq!(entry::watchdog_reload(16_000_000), 16_384);
+        assert_eq!(entry::watchdog_reload(25_000_000), 10_485);
+        assert_eq!(entry::watchdog_reload(0), u32::MAX);
+        assert_eq!(entry::watchdog_reload(1), u32::MAX);
+    }
 
     #[test]
     fn priority_encoding_matches_the_hardware_model() {

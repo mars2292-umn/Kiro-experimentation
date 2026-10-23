@@ -121,4 +121,12 @@ pub trait System: 'static {
     const TIMER_VECTOR: u16;
     /// Implemented NVIC priority bits of the Target (ASM-03; checked at boot, R12.1).
     const PRIORITY_BITS: u8;
+    /// The Target's CPUID word (ASM-01; checked at boot, R12.1).
+    const CPUID: u32;
+    /// Whether the high-frequency clock must run from the crystal (ASM-05; checked at boot).
+    const HFCLK_XTAL: bool;
+    /// Whether any Task is FPU-using (R11.2; the FPU's presence is then checked at boot).
+    const FPU_NEEDED: bool;
+    /// Time-base ticks per second (R21.2), for the watchdog reload (ORQ-31).
+    const TICK_HZ: u64;
 }

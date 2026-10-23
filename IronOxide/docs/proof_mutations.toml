@@ -119,8 +119,8 @@ expect = ["entry.rs", "basepri_matches"]
 id = "boot-skips-init"
 kills = "boot_core: KernelOps requires inv (A11: the Kernel is initialized before any transition)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    k.init();\n    let mut failed = hw.boot_checks(tables.priority_bits());\n"
-replace = "    let mut failed = hw.boot_checks(tables.priority_bits());\n"
+find = "    k.init();\n    // The debug state and the reset reason go to the log first (ORQ-30,\n"
+replace = "    // The debug state and the reset reason go to the log first (ORQ-30,\n"
 expect = ["entry.rs", "precondition not satisfied"]
 
 [[mutation]]

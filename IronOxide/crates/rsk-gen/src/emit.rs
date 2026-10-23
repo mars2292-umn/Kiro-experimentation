@@ -166,6 +166,10 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    const IRQ_COUNT: u16 = {};", g.target.irq_count);
     let _ = writeln!(s, "    const TIMER_VECTOR: u16 = 16 + {};", g.target.timer_irq);
     let _ = writeln!(s, "    const PRIORITY_BITS: u8 = {};", g.target.priority_bits);
+    let _ = writeln!(s, "    const CPUID: u32 = 0x{:08x};", g.target.cpuid);
+    let _ = writeln!(s, "    const HFCLK_XTAL: bool = {};", g.target.hfclk_xtal);
+    let _ = writeln!(s, "    const FPU_NEEDED: bool = {};", g.tasks.iter().any(|t| t.fpu));
+    let _ = writeln!(s, "    const TICK_HZ: u64 = {};", g.target.tick_hz);
     let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
     let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
     let _ = writeln!(s, "    fn task_entry(t: u8) -> fn() {{");
