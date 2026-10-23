@@ -7,6 +7,11 @@ pub mod rsk_ctx {
     /// The Context of Task `part0.control` (Priority 7).
     pub struct Control {
         pub state: ::rsk::Shared<'static, u32>,
+        /// Release_Signal `part0.tick` (R10.5).
+        pub tick: ::rsk::Signal,
+    }
+    /// The Context of Task `part0.echo` (Priority 6).
+    pub struct Echo {
     }
     /// The Context of Task `part0.sensor` (Priority 5).
     pub struct Sensor {
@@ -18,9 +23,15 @@ pub mod rsk_jobs {
     pub fn control() {
         let () = super::control(super::rsk_ctx::Control {
             state: ::rsk::Shared::new(&super::rsk_resources::STATE, 0),
+            tick: ::rsk::Signal::new(0),
         });
     }
-    /// Job wrapper of `part0.sensor` (vector 37; Critical_Section sites: part0.sensor#cs:state).
+    /// Job wrapper of `part0.echo` (vector 37; Critical_Section sites: none).
+    pub fn echo() {
+        let () = super::echo(super::rsk_ctx::Echo {
+        });
+    }
+    /// Job wrapper of `part0.sensor` (vector 38; Critical_Section sites: part0.sensor#cs:state).
     pub fn sensor() {
         let () = super::sensor(super::rsk_ctx::Sensor {
             state: ::rsk::Shared::new(&super::rsk_resources::STATE, 0),

@@ -112,6 +112,10 @@ dependencies = [
 [[package]]
 name = "rsk-confcheck"
 version = "0.0.0"
+dependencies = [
+ "rsk-elf",
+ "serde_json",
+]
 
 [[package]]
 name = "rsk-digest"

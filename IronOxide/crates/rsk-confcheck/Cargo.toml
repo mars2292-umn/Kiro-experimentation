@@ -7,6 +7,10 @@ rust-version.workspace = true
 publish.workspace = true
 
 # R26.1: the Config_Checker shares no derivation code, parsing code, or data
-# structures with the Generator. Its only dependencies will be a JSON parser
-# and an ELF reader; it must never depend on rsk-model or rsk-gen.
+# structures with the Generator. Its only dependencies are a JSON parser and
+# the ELF reader shared with the Build_System; it never depends on rsk-model,
+# rsk-gen, rsk-logic, or rsk-kernel (the Kernel's table encodings it decodes
+# are restated here from the Kernel's documentation, which is the point).
 [dependencies]
+serde_json.workspace = true
+rsk-elf.workspace = true

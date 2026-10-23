@@ -14,13 +14,16 @@ p1_demo_decl::rsk_partition_part0!();
 /// Demo counters (plain statics of the Partition, read by the safe state).
 pub static COUNT_CONTROL: ResourceCell<u32> = ResourceCell::new(0);
 pub static COUNT_SENSOR: ResourceCell<u32> = ResourceCell::new(0);
+pub static COUNT_ECHO: ResourceCell<u32> = ResourceCell::new(0);
 /// Times `control` saw `sensor` inside its Critical_Section (set by sensor
 /// before locking, cleared after): a control Release during that window
 /// was blocked by the Ceiling, not preempting.
 pub static BLOCKED_SEEN: ResourceCell<u32> = ResourceCell::new(0);
 pub static SENSOR_IN_CS: ResourceCell<u32> = ResourceCell::new(0);
 
-/// Task `control`: reads the state under the lock and counts.
+/// Task `control`: reads the state under the lock, counts, and raises
+/// `tick` on every third Job (R10.5; every 30 ms, so every raise is
+/// accepted against echo's 20 ms MIT).
 pub fn control(mut cx: rsk_ctx::Control) {
     let in_cs = SENSOR_IN_CS.peek_unprivileged();
     cx.state.lock(|s| {
@@ -29,8 +32,18 @@ pub fn control(mut cx: rsk_ctx::Control) {
     if in_cs != 0 {
         BLOCKED_SEEN.with_unprivileged(|b| *b += 1);
     }
-    COUNT_CONTROL.with_unprivileged(|c| *c += 1);
+    let n = COUNT_CONTROL.peek_unprivileged() + 1;
+    COUNT_CONTROL.with_unprivileged(|c| *c = n);
+    if n % 3 == 0 {
+        let _ = cx.tick.raise();
+    }
     rsk::debug(b"A");
+}
+
+/// Task `echo` (sporadic, released by `tick`): counts.
+pub fn echo(_cx: rsk_ctx::Echo) {
+    COUNT_ECHO.with_unprivileged(|c| *c += 1);
+    rsk::debug(b"E");
 }
 
 /// Task `sensor`: released 5 ms into each 20 ms period, holds the Resource

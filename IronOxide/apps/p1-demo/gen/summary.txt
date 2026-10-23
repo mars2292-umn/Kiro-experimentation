@@ -3,9 +3,9 @@ Target: qemu_mps2_an386 (qemu), CPU 25000000 Hz, time base 25000000 Hz, 8 priori
 Profile: 0.4 Ravenscar
 Operating duration: 5000000 ticks
 Safe state: crate::report_and_exit
-Config checksum (CRC-32): 0x292e44ce
-Capacities: lock stack 2, timer slots 14, event log 32
-Kernel levels: [0]; Task levels (level -> NVIC byte): 2 -> 0xc0, 4 -> 0x80, 5 -> 0x60, 7 -> 0x20
+Config checksum (CRC-32): 0x3d9317ae
+Capacities: lock stack 2, timer slots 17, event log 32
+Kernel levels: [0]; Task levels (level -> NVIC byte): 2 -> 0xc0, 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
 Kernel-owned peripherals: CMSDK_TIMER0, CMSDK_TIMER1
 Timer: IRQ 9 (vector 25)
 
@@ -18,9 +18,10 @@ Partitions:
 
 Tasks:
   part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 250000 ticks, deadline 250000 ticks, Budget 25000 cycles, fpu false, Resources [state], nesting depth 1, slots release 0 deadline 1 budget 2
-  part0.sensor (#1, Partition part0, Priority 5, vector 37): periodic, offset 125000 ticks, period 500000 ticks, deadline 500000 ticks, Budget 220000 cycles, fpu false, Resources [state], nesting depth 1, slots release 3 deadline 4 budget 5
-  part1.log (#2, Partition part1, Priority 2, vector 38): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], nesting depth 0, slots release 6 deadline 7 budget 8
-  part1.pulse (#3, Partition part1, Priority 4, vector 39): sporadic, MIT 375000 ticks, policy defer, source interrupt CMSDK_DUALTIMER (IRQ 10), deadline 375000 ticks, Budget 5000 cycles, fpu false, Resources [], nesting depth 0, slots release 9 deadline 10 budget 11
+  part0.echo (#1, Partition part0, Priority 6, vector 37): sporadic, MIT 500000 ticks, policy defer, source signal tick, deadline 500000 ticks, Budget 5000 cycles, fpu false, Resources [], nesting depth 0, slots release 3 deadline 4 budget 5
+  part0.sensor (#2, Partition part0, Priority 5, vector 38): periodic, offset 125000 ticks, period 500000 ticks, deadline 500000 ticks, Budget 220000 cycles, fpu false, Resources [state], nesting depth 1, slots release 6 deadline 7 budget 8
+  part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], nesting depth 0, slots release 9 deadline 10 budget 11
+  part1.pulse (#4, Partition part1, Priority 4, vector 40): sporadic, MIT 375000 ticks, policy defer, source interrupt CMSDK_DUALTIMER (IRQ 10), deadline 375000 ticks, Budget 5000 cycles, fpu false, Resources [], nesting depth 0, slots release 12 deadline 13 budget 14
 
 Resources:
   part0.state (#0, Partition part0, type u32): Ceiling 7, accessors [control, sensor]

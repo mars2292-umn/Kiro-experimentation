@@ -246,7 +246,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 12,
+        total_steps: 13,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -486,6 +486,11 @@ pub fn run(root: &Path, options: Options) -> bool {
         vec![tests.display()],
     );
 
+    // ------------------------------------------------- 8b. Config_Checker
+    job.heading("Config_Checker (R26.5)");
+    let confcheck_cmds = config_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "check-config-step", "Config_Checker step", &["R26.4", "R26.5", "R25.2"], confcheck_cmds);
+
     // ---------------------------------------------------- 9. Kernel_Proofs
     job.heading("Kernel_Proofs (Verus, R44.6) and PAR-01 cross-check");
     let mut verus_ok = true;
@@ -614,6 +619,65 @@ fn qemu_spike(ws: &Workspace, target_dir: &Path, store: &mut Store, manifest_id:
         if let Err(e) = store.write(&item) {
             report.error(Rule::Evidence, None, e);
         }
+    }
+    commands
+}
+
+/// R26.5: the Config_Checker on every Flight_Build binary that has a
+/// Task_Model (the declaration crate's `gen/task_model.json` next to the
+/// binary crate), one Check Evidence_Item per binary.
+fn config_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    for binary in flight_binaries(ws, target_dir) {
+        let Ok(binary) = binary else { continue };
+        let elf = target_dir.join(&ws.policy.target).join("release").join(&binary.target_name);
+        // The Task_Model of the application: `<app dir>/gen/task_model.json`,
+        // where the binary crate lives in `<app dir>/bin`.
+        let Some(app_dir) = ws.packages.iter().find(|(n, _)| **n == binary.package).and_then(|(_, p)| p.dir.parent().map(Path::to_path_buf)) else { continue };
+        let model = app_dir.join("gen").join("task_model.json");
+        if !model.is_file() {
+            report.note(format!("Config_Checker: no Task_Model at {} for `{}`", ws.rel(&model), binary.target_name));
+            continue;
+        }
+        let cmd = Cmd::cargo_frozen("run")
+            .args(["--quiet", "-p", "rsk-confcheck", "--manifest-path"])
+            .arg(ws.root.join("Cargo.toml"))
+            .arg("--target-dir")
+            .arg(target_dir)
+            .arg("--")
+            .arg(&model)
+            .arg(&elf);
+        commands.push(cmd.display());
+        let log_name = format!("confcheck-{}.log", binary.target_name);
+        let (ok, text) = match cmd.output(Some(sandbox)) {
+            Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+            Err(e) => (false, format!("cannot run rsk-confcheck: {e}")),
+        };
+        let _ = store.write_artifact(&log_name, &text);
+        let summary = text.lines().rev().find(|l| l.starts_with("rsk-confcheck:")).unwrap_or("rsk-confcheck: no verdict line").to_string();
+        if ok {
+            report.note(format!("R26.5: `{}` against {}: {summary}", binary.target_name, ws.rel(&model)));
+        } else {
+            report.error(Rule::Step, None, format!("Config_Checker: `{}` against {}: {summary} (see {log_name})", binary.target_name, ws.rel(&model)));
+        }
+        let mut item = Item::new(
+            &format!("check-config-{}", binary.target_name),
+            Kind::Check,
+            &format!("Config_Checker: the Task_Model and the linked binary agree ({})", binary.target_name),
+            Tool { name: "rsk-confcheck".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+            Verdict::from_bool(ok),
+        )
+        .covers(&["R26.1", "R26.2", "R26.3", "R26.4", "R26.5", "R25.2", "R15.6", "R16.7"]);
+        item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
+        item.notes = vec![summary];
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = vec![log_name];
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    if commands.is_empty() {
+        report.note("Config_Checker: no Flight_Build binary with a Task_Model");
     }
     commands
 }

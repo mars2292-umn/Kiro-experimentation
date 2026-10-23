@@ -12,7 +12,7 @@
     "cpu_hz": 25000000,
     "tick_hz": 25000000
   },
-  "config_checksum": "0x292e44ce",
+  "config_checksum": "0x3d9317ae",
   "operating_duration_ticks": 5000000,
   "safe_state": "crate::report_and_exit",
   "kernel_levels": [
@@ -32,13 +32,17 @@
       "nvic": 96
     },
     {
+      "level": 6,
+      "nvic": 64
+    },
+    {
       "level": 7,
       "nvic": 32
     }
   ],
   "capacities": {
     "lock_stack": 2,
-    "timer_slots": 14,
+    "timer_slots": 17,
     "event_log": 32,
     "derived": true
   },
@@ -97,12 +101,15 @@
       },
       "tasks": [
         "part0.control",
+        "part0.echo",
         "part0.sensor"
       ],
       "resources": [
         "part0.state"
       ],
-      "signals": []
+      "signals": [
+        "tick"
+      ]
     },
     {
       "id": "part1",
@@ -172,7 +179,9 @@
       "resources": [
         "part0.state"
       ],
-      "raises": [],
+      "raises": [
+        "tick"
+      ],
       "nesting_depth": 1,
       "slots": {
         "release": 0,
@@ -191,11 +200,43 @@
       ]
     },
     {
+      "id": "part0.echo",
+      "core": 0,
+      "partition": "part0",
+      "priority": 6,
+      "vector": 37,
+      "kind": "sporadic",
+      "mit_ticks": 500000,
+      "mit_policy": "defer",
+      "source": {
+        "signal": "tick"
+      },
+      "deadline_ticks": 500000,
+      "budget_cycles": 5000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 3,
+        "deadline": 4,
+        "budget": 5
+      },
+      "cs_sites": [],
+      "entry": "::p1_demo_part0::rsk_jobs::echo",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
       "id": "part0.sensor",
       "core": 0,
       "partition": "part0",
       "priority": 5,
-      "vector": 37,
+      "vector": 38,
       "kind": "periodic",
       "offset_ticks": 125000,
       "period_ticks": 500000,
@@ -209,9 +250,9 @@
       "raises": [],
       "nesting_depth": 1,
       "slots": {
-        "release": 3,
-        "deadline": 4,
-        "budget": 5
+        "release": 6,
+        "deadline": 7,
+        "budget": 8
       },
       "cs_sites": [
         "part0.sensor#cs:state"
@@ -229,7 +270,7 @@
       "core": 0,
       "partition": "part1",
       "priority": 2,
-      "vector": 38,
+      "vector": 39,
       "kind": "periodic",
       "offset_ticks": 0,
       "period_ticks": 1000000,
@@ -241,9 +282,9 @@
       "raises": [],
       "nesting_depth": 0,
       "slots": {
-        "release": 6,
-        "deadline": 7,
-        "budget": 8
+        "release": 9,
+        "deadline": 10,
+        "budget": 11
       },
       "cs_sites": [],
       "entry": "::p1_demo_part1::rsk_jobs::log",
@@ -259,7 +300,7 @@
       "core": 0,
       "partition": "part1",
       "priority": 4,
-      "vector": 39,
+      "vector": 40,
       "kind": "sporadic",
       "mit_ticks": 375000,
       "mit_policy": "defer",
@@ -274,9 +315,9 @@
       "raises": [],
       "nesting_depth": 0,
       "slots": {
-        "release": 9,
-        "deadline": 10,
-        "budget": 11
+        "release": 12,
+        "deadline": 13,
+        "budget": 14
       },
       "cs_sites": [],
       "entry": "::p1_demo_part1::rsk_jobs::pulse",
@@ -304,7 +345,16 @@
       ]
     }
   ],
-  "signals": [],
+  "signals": [
+    {
+      "id": "part0.tick",
+      "partition": "part0",
+      "bound_task": "part0.echo",
+      "raised_by": [
+        "part0.control"
+      ]
+    }
+  ],
   "endpoints": [],
   "conversions": []
 }

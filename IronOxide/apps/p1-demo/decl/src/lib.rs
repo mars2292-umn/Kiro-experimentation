@@ -6,6 +6,7 @@
 //! |---|---|---|---|---|
 //! | `control` | `part0` (level A) | 7 | 10 ms | `state` |
 //! | `sensor` | `part0` (level A) | 5 | 20 ms, offset 5 ms | `state` (held for 8 ms) |
+//! | `echo` | `part0` (level A) | 6 | sporadic, MIT 20 ms, released by the signal `tick` | none |
 //! | `log` | `part1` (level C) | 2 | 40 ms | none |
 //! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER | none |
 //!
@@ -21,6 +22,12 @@
 //! Analyzer computes (R = 11.5 ms); with a 2 ms deadline the Kernel
 //! reported a deadline miss at every Release that coincided with sensor's
 //! Critical_Section, and with 10 ms the Analyzer rejected the set.
+//!
+//! `echo` is released by the Release_Signal `tick`, which `control` raises
+//! on every third Job (every 30 ms, so every raise is accepted against the
+//! 20 ms MIT): the raise path of R10.5 (`rsk::Signal::raise`, SVC 7) on
+//! QEMU. Its 20 ms deadline covers sensor's Budget and Critical_Section
+//! (Priority 6 is below Ceiling 7) and one control Job.
 //!
 //! Budgets (1 ms, 8.8 ms, 6 ms) bound the Jobs' real execution on the board
 //! (QEMU's DWT does not count cycles, so they are not enforced there). The
@@ -49,8 +56,11 @@ rsk::app! {
                      mit_threshold = 10) {
         peripherals = [];
         resource state: u32 = 0;
+        signal tick;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
-                      priority = 7, resources = [state]);
+                      priority = 7, resources = [state], raises = [tick]);
+        task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
+                   budget = 200.us(), priority = 6);
         task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8800.us(),
                      priority = 5, resources = [state]);
     }
