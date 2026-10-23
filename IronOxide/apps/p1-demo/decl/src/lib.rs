@@ -9,6 +9,14 @@
 //! | `echo` | `part0` (level A) | 6 | sporadic, MIT 20 ms, released by the signal `tick` | none |
 //! | `log` | `part1` (level C) | 2 | 40 ms | none |
 //! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER | none |
+//! | `filter` | `part2` (level B) | 3 | 25 ms; uses the FPU | none |
+//! | `sampler` | `part2` (level B) | 1 | 100 ms; EasyDMA requests on CMSDK_GPIO0 | none |
+//!
+//! `part2` (task 14, R3.7) adds the constructs the accepted Application
+//! must exercise: a Partition at Criticality_Level B, a Task with an
+//! active floating-point context (`fpu`; R11, PR-31), and an EasyDMA
+//! peripheral (the QEMU stand-in channel of CMSDK_GPIO0, DD-08) whose
+//! transfers go through `rsk::dma_request`.
 //!
 //! `pulse` is the sporadic Task (DD-06, task 5.4): `log`'s first Job starts
 //! the Partition's dual timer at an 18 ms period through the peripheral
@@ -72,5 +80,14 @@ rsk::app! {
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 200.us(), priority = 4);
+    }
+
+    partition part2 (level = B, crate = p1_demo_part2, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
+                     fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
+                     mit_threshold = 10) {
+        peripherals = [CMSDK_GPIO0];
+        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 500.us(), priority = 3, fpu);
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
+                      priority = 1);
     }
 }

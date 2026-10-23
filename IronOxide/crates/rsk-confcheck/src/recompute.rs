@@ -23,6 +23,8 @@ pub fn kernel_owned(target: &str) -> &'static [&'static str] {
 pub fn easy_dma(target: &str) -> &'static [&'static str] {
     match target {
         "nrf52840" => &["RADIO", "UARTE0", "SPIM0", "SPIM1", "SAADC", "PWM0"],
+        // The QEMU spike's EasyDMA stand-in (rsk-gen target.rs, task 14).
+        "qemu-mps2-an386" => &["CMSDK_GPIO0"],
         _ => &[],
     }
 }
@@ -298,7 +300,7 @@ mod tests {
             ("\"nvic\": 32", "\"nvic\": 64", "priority_map"),
             ("\"nesting_depth\": 1,\n      \"slots\": {\n        \"release\": 0", "\"nesting_depth\": 2,\n      \"slots\": {\n        \"release\": 0", "part0.control.nesting_depth"),
             ("\"lock_stack\": 2", "\"lock_stack\": 3", "capacities.lock_stack"),
-            ("\"timer_slots\": 17", "\"timer_slots\": 16", "capacities.timer_slots"),
+            ("\"timer_slots\": 23", "\"timer_slots\": 22", "capacities.timer_slots"),
             ("\"peripherals\": [\n        \"CMSDK_DUALTIMER\"\n      ],\n      \"mpu\"", "\"peripherals\": [\n        \"CMSDK_DUALTIMER\",\n        \"CMSDK_TIMER0\"\n      ],\n      \"mpu\"", "part1.peripherals (CMSDK_TIMER0)"),
             ("\"read_only\": false", "\"read_only\": true", "read_only"),
         ];

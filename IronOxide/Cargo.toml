@@ -32,6 +32,7 @@ members = [
     "apps/p1-demo/system",
     "apps/p1-demo/part0",
     "apps/p1-demo/part1",
+    "apps/p1-demo/part2",
     "apps/p1-demo/bin",
     "xtask",
 ]
@@ -129,5 +130,6 @@ p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true
 rsk-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo-part0 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo-part1 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
+p1-demo-part2 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo = { targets = ["thumbv7em-none-eabihf"], flight = true, qemu-spike = true }
 xtask = { targets = ["host"] }

@@ -132,8 +132,18 @@ const MPS2_PERIPHERALS: &[Peripheral] = &[
     Peripheral { name: "CMSDK_DUALTIMER", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(10), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "CMSDK_UART0", window_base: 0x4000_4000, window_size: 0x1000, irq: Some(0), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "CMSDK_UART1", window_base: 0x4000_5000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: false, dma: None },
-    Peripheral { name: "CMSDK_GPIO0", window_base: 0x4001_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false, dma: None },
+    // EasyDMA stand-in for the QEMU spike (task 14, R3.7): the mps2-an386
+    // has no DMA engine, so GPIO0's DATAOUT and OUTENSET registers (writes
+    // to which have no effect on QEMU, which models no pins) stand for an
+    // EasyDMA channel's PTR and MAXCNT, and OUTENCLR for its STOP task. The
+    // mediation path of DD-08 (`rsk::dma_request`: Partition ownership,
+    // buffer permission, the register writes, DMA_REJECTED, the stop on
+    // Partition restart) executes exactly as for a real channel.
+    Peripheral { name: "CMSDK_GPIO0", window_base: 0x4001_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: true, dma: Some(&MPS2_GPIO_DMA) },
 ];
+
+/// The GPIO0 stand-in channel of the QEMU spike (see `MPS2_PERIPHERALS`).
+pub const MPS2_GPIO_DMA: DmaRegs = DmaRegs { channels: &[(0x004, 0x010)], stops: &[0x014], lists: &[] };
 
 /// QEMU `mps2-an386` (Cortex-M4 model): 25 MHz CPU and time base (CMSDK
 /// TIMER0 free-running, TIMER1 compare), 8 priority bits in QEMU, 8 MPU

@@ -466,10 +466,10 @@ id = "conf-PR-18-lk"
 restriction = "PR-18"
 category = "LK"
 kind = "link-mutation"
-symbol = "rsk_svc_rust"
+symbol = "rsk_epilogue_rust"
 offset = 0
 bytes = "9847"
-expect = ["unresolved indirect call"]
+expect = ["error[PR-18]", "indirect call site"]
 
 [[case]]
 id = "conf-PR-19-lk"
@@ -584,12 +584,13 @@ note = "echo writes into Partition 1's RAM: a MemManage fault of Partition 0's M
 [[accepted]]
 variant = "Ravenscar"
 binary = "p1-demo"
-# Constructs the demo exercises: two Partitions (levels A and C), periodic
-# Tasks with offsets, a sporadic Task bound to an interrupt and one released
-# by a Release_Signal, a Resource with a Critical_Section, a peripheral
-# window, a safe-state hook. Not yet exercised (GAP-13): a third Partition
-# at level B, an FPU-using Task, an EasyDMA peripheral, a cross-Partition
-# Endpoint (Phase 4), the Init_Arena.
+# Constructs the demo exercises: three Partitions (levels A, C, and B),
+# periodic Tasks with offsets, a sporadic Task bound to an interrupt and one
+# released by a Release_Signal, a Resource with a Critical_Section, a
+# peripheral window, a Task with an active FP context (`filter`, R11), an
+# EasyDMA peripheral with `rsk::dma_request` (the QEMU stand-in channel of
+# CMSDK_GPIO0, DD-08), a safe-state hook. Not yet exercised (GAP-13): a
+# cross-Partition Endpoint (Phase 4) and the Init_Arena.
 
 [[accepted]]
 variant = "Jorvik"

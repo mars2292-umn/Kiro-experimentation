@@ -12,3 +12,4 @@ rsk-kernel = { workspace = true, default-features = false, features = ["board-qe
 rsk = { path = "../../../crates/rsk" }
 p1-demo-part0 = { path = "../part0" }
 p1-demo-part1 = { path = "../part1" }
+p1-demo-part2 = { path = "../part2" }

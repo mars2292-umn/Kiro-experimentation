@@ -74,6 +74,18 @@ pub fn report_and_exit() -> ! {
     let d = p1_demo_part1::COUNT_PULSE.peek();
     let e = p1_demo_part0::COUNT_ECHO.peek();
     let blocked = p1_demo_part0::BLOCKED_SEEN.peek();
+    let f = p1_demo_part2::COUNT_FILTER.peek();
+    let g = p1_demo_part2::COUNT_SAMPLER.peek();
+    let dma_ok = p1_demo_part2::COUNT_DMA_OK.peek();
+    // After 8 filter Jobs the state is 100 * (1 - 0.875^8) = 65.7; after 7,
+    // 60.8: a state above 60 shows the FP context survived every Job
+    // (R11.2; a lost context would restart from 0 or hold garbage).
+    // Compared as IEEE-754 bit patterns (positive floats order as their
+    // bits): the safe state is Kernel-reachable code, which executes no
+    // floating-point comparison (R6.6, PR-31). 60.0 = 0x4270_0000,
+    // 100.0 = 0x42C8_0000.
+    let filter_bits = p1_demo_part2::FILTER_STATE.peek().to_bits();
+    let filter_ok = filter_bits > 0x4270_0000 && filter_bits < 0x42C8_0000;
     hw::semihosting_write(b"\nRSK-SAFE-STATE\n");
     print_kv(b"control", a);
     print_kv(b"sensor", b);
@@ -81,6 +93,10 @@ pub fn report_and_exit() -> ! {
     print_kv(b"pulse", d);
     print_kv(b"echo", e);
     print_kv(b"blocked_releases", blocked);
+    print_kv(b"filter", f);
+    print_kv(b"filter_state_bits", filter_bits);
+    print_kv(b"sampler", g);
+    print_kv(b"dma_ok", dma_ok);
     let len = k.log_len();
     print_kv(b"events", len as u32);
     let mut faults = 0u32;
@@ -114,7 +130,10 @@ pub fn report_and_exit() -> ! {
     // unmasked again after the previous window (DD-06), so a low count
     // means the unmask event failed. control raises `tick` on Jobs 3, 6,
     // ..., 18: six raises, each a Release of echo (R10.5).
-    let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5;
+    // part2 (task 14): 8 filter Jobs (25 ms) with the FP state converging,
+    // and 2 sampler Jobs (0 ms, 100 ms), each an accepted EasyDMA request.
+    let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
+        && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2;
     hw::semihosting_write(if ok { b"RSK-OK\n" } else { b"RSK-FAIL\n" });
     hw::semihosting_exit(if ok { 0 } else { 1 })
 }

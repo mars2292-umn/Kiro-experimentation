@@ -11,6 +11,7 @@ EXTERN(__INTERRUPTS);
 PROVIDE(_stack_start = ORIGIN(KRAM) + LENGTH(KRAM));
 PROVIDE(_p0_stack_top = ORIGIN(P0RAM) + 4096);
 PROVIDE(_p1_stack_top = ORIGIN(P1RAM) + 4096);
+PROVIDE(_p2_stack_top = ORIGIN(P2RAM) + 4096);
 
 SECTIONS
 {
@@ -39,6 +40,12 @@ SECTIONS
     *libp1_demo_part1-*:*(.text .text.* .rodata .rodata.*)
     . = ALIGN(4);
   } > P1CODE
+
+  .p2.text : ALIGN(4)
+  {
+    *libp1_demo_part2-*:*(.text .text.* .rodata .rodata.*)
+    . = ALIGN(4);
+  } > P2CODE
 
   .kernel.text : ALIGN(4)
   {
@@ -76,6 +83,14 @@ SECTIONS
     _p1_ebss = .;
   } > P1RAM
 
+  .p2.bss ORIGIN(P2RAM) + 4096 (NOLOAD) : ALIGN(4)
+  {
+    _p2_sbss = .;
+    *libp1_demo_part2-*:*(.bss .bss.* .data .data.* COMMON)
+    . = ALIGN(4);
+    _p2_ebss = .;
+  } > P2RAM
+
   .kernel.data : ALIGN(4)
   {
     _sdata = .;
@@ -100,6 +115,7 @@ SECTIONS
     LONG(_sbss); LONG(_ebss); LONG(0);
     LONG(_p0_sbss); LONG(_p0_ebss); LONG(0);
     LONG(_p1_sbss); LONG(_p1_ebss); LONG(0);
+    LONG(_p2_sbss); LONG(_p2_ebss); LONG(0);
     LONG(0); LONG(0); LONG(0);
     __rsk_data_table = .;
     LONG(_sdata); LONG(_edata); LONG(_sidata);

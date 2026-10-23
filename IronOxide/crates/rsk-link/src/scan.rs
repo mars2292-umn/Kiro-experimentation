@@ -308,6 +308,22 @@ pub fn scan(g: &CallGraph, facts: &Facts, inputs: &ScanInputs, violations: &mut 
     }
     notes.push(format!("PR-22: {partition_scanned} functions reachable from Task bodies scanned, none executes msr/mrs/cps or names a PPB address"));
 
+    // --- PR-18: the Kernel's call graph is static. Kernel code is
+    // monomorphic and holds no function tables (the vector table is read by
+    // hardware, not called through), so an indirect call site (`blx Rm`) in
+    // Kernel code is a violation whatever the universe resolves it to; an
+    // indirect branch is the stubs' exception return (`exception_returns`).
+    let mut kernel_indirect = 0usize;
+    for (i, f) in g.functions.iter().enumerate() {
+        if realm[i] == Realm::Kernel && f.indirect_sites > 0 {
+            kernel_indirect += f.indirect_sites as usize;
+            violations.push(Violation { rule: "PR-18", message: format!("Kernel code `{}` (0x{:08x}) has {} indirect call site(s) (`blx Rm`); the Kernel's call graph is static (R37, PR-18)", f.name, f.address, f.indirect_sites) });
+        }
+    }
+    if kernel_indirect == 0 {
+        notes.push("PR-18: no indirect call site in Kernel code; the stubs' indirect branches are exception returns".to_string());
+    }
+
     // --- ORQ-32: the naked stubs of the Kernel_Unsafe_Module branch to one
     // another with `b`/`b.w` only; a `cbz`/`cbnz` to another section has no
     // relocation and the assembler emits a `nop` without a diagnostic.
@@ -492,6 +508,16 @@ mod tests {
         let rules: Vec<&str> = v.iter().map(|x| x.rule).collect();
         assert_eq!(rules, vec!["R16.3", "PR-22", "PR-22", "PR-22"], "{v:?}");
         assert!(v[3].message.contains("0xe000ed08"));
+    }
+
+    #[test]
+    fn indirect_call_in_kernel_code() {
+        let (_, mut f, r) = fixture(vec![("rsk_svc_rust", Realm::Kernel, vec![]), ("_ZN3rsk5debug17h0000000000000000E", Realm::Shared, vec![])]);
+        f[0].indirect_sites = 1;
+        f[1].indirect_sites = 1;
+        let v = scan_fixture(f, r, vec![], vec![0], &[HANDLER], &[], CORE);
+        assert_eq!(v.iter().map(|x| x.rule).collect::<Vec<_>>(), vec!["PR-18"], "{v:?}");
+        assert!(v[0].message.contains("rsk_svc_rust"));
     }
 
     #[test]

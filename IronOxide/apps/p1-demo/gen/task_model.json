@@ -12,8 +12,8 @@
     "cpu_hz": 25000000,
     "tick_hz": 25000000
   },
-  "config_checksum": "0x3d9317ae",
-  "layout_checksum": "0x5111f577",
+  "config_checksum": "0x8fdd868f",
+  "layout_checksum": "0x2425d509",
   "operating_duration_ticks": 5000000,
   "safe_state": "crate::report_and_exit",
   "kernel_levels": [
@@ -21,8 +21,16 @@
   ],
   "priority_map": [
     {
+      "level": 1,
+      "nvic": 224
+    },
+    {
       "level": 2,
       "nvic": 192
+    },
+    {
+      "level": 3,
+      "nvic": 160
     },
     {
       "level": 4,
@@ -43,7 +51,7 @@
   ],
   "capacities": {
     "lock_stack": 2,
-    "timer_slots": 17,
+    "timer_slots": 23,
     "event_log": 32,
     "derived": true
   },
@@ -158,6 +166,56 @@
       "tasks": [
         "part1.log",
         "part1.pulse"
+      ],
+      "resources": [],
+      "signals": []
+    },
+    {
+      "id": "part2",
+      "crate": "p1_demo_part2",
+      "level": "B",
+      "fault": "RESTART_PARTITION",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "CMSDK_GPIO0"
+      ],
+      "mpu": {
+        "code": {
+          "base": 196608,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536969216,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [
+          {
+            "base": 1073807360,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "CMSDK_GPIO0"
+            ],
+            "read_only": true
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "part2.filter",
+        "part2.sampler"
       ],
       "resources": [],
       "signals": []
@@ -322,6 +380,66 @@
       },
       "cs_sites": [],
       "entry": "::p1_demo_part1::rsk_jobs::pulse",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "part2.filter",
+      "core": 0,
+      "partition": "part2",
+      "priority": 3,
+      "vector": 41,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 625000,
+      "source": null,
+      "deadline_ticks": 625000,
+      "budget_cycles": 12500,
+      "fpu": true,
+      "resources": [],
+      "raises": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 15,
+        "deadline": 16,
+        "budget": 17
+      },
+      "cs_sites": [],
+      "entry": "::p1_demo_part2::rsk_jobs::filter",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "part2.sampler",
+      "core": 0,
+      "partition": "part2",
+      "priority": 1,
+      "vector": 42,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 2500000,
+      "source": null,
+      "deadline_ticks": 2500000,
+      "budget_cycles": 12500,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 18,
+        "deadline": 19,
+        "budget": 20
+      },
+      "cs_sites": [],
+      "entry": "::p1_demo_part2::rsk_jobs::sampler",
       "derived": [
         "vector",
         "nesting_depth",

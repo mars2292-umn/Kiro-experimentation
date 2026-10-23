@@ -56,9 +56,9 @@ expect = ["capacities.lock_stack: expected 2, found 3"]
 id = "timer-slots-capacity"
 class = "capacities"
 kind = "model"
-find = "\"timer_slots\": 17"
-replace = "\"timer_slots\": 16"
-expect = ["capacities.timer_slots: expected 17, found 16"]
+find = "\"timer_slots\": 23"
+replace = "\"timer_slots\": 22"
+expect = ["capacities.timer_slots: expected 23, found 22"]
 
 # --- Budget and MIT tables (against the binary) ---
 [[mutation]]
