@@ -12,8 +12,9 @@
 # Verus prints with the error, or from the file name); package (optional).
 #
 # The first seven reproduce the manual vacuity checks of 2026-10-11 to
-# 2026-10-14 (verification_plan.md 9.2) or an equivalent of them; the last
-# two cover `arch::bound` (2026-10-22).
+# 2026-10-14 (verification_plan.md 9.2) or an equivalent of them; the rest
+# cover `arch::bound`, `arch::cm4` (2026-10-22), and the ghost history and
+# its theorems (tasks 4.11, 4.13, 4.14).
 
 schema = 1
 
@@ -54,16 +55,16 @@ expect = ["hw_model.rs", "view.regions[s].covers(a)"]
 id = "restart-kills-one-job"
 kills = "end_partition_jobs: partition_ended (every Job of the Partition is ended or killed)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
-replace = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE && i == 0 {\n                self.sched.kill(cfg, i);\n"
+find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                let ghost before = *self;\n"
+replace = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE && i == 0 {\n                let ghost before = *self;\n"
 expect = ["kernel.rs"]
 
 [[mutation]]
 id = "kill-other-partitions"
 kills = "others_unchanged (R14.9: a response leaves every other Partition as it was)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
-replace = "            if self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
+find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                let ghost before = *self;\n"
+replace = "            if self.sched.job[u as usize] != JOB_NONE {\n                let ghost before = *self;\n"
 expect = ["kernel.rs", "others_unchanged"]
 
 [[mutation]]
@@ -163,5 +164,23 @@ kills = "lemma_lazy_release_delays_nothing (argument 5.2): needs a Job in progre
 file = "crates/rsk-logic/src/logic/sched.rs"
 find = "        requires self.inv(cfg), 0 <= k < self.depth - 1, self.job[self.stack[k] as int] == JOB_KILLED,\n"
 replace = "        requires self.inv(cfg), 0 <= k < self.depth, self.job[self.stack[k] as int] == JOB_KILLED,\n"
+expect = ["sched.rs"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "mit-run-spacing-dropped"
+kills = "lemma_mit_spacing_over_run (argument 5.4): the run invariant must keep Release steps one MIT apart, not just ordered; task 4.14"
+file = "crates/rsk-logic/src/logic/history.rs"
+find = "        ==> h[i].arg + cfg.tasks[h[i].task].period as int <= h[j].arg\n}\n"
+replace = "        ==> h[i].arg <= h[j].arg\n}\n"
+expect = ["history.rs", "lemma_mit_spacing_over_run", "h[j].arg >= h[i].arg"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "deadlock-equal-priority-unblocked"
+kills = "lemma_deadlock_free (argument 5.5): a pending Job of the executing Job's Priority is blocked by it; task 4.14"
+file = "crates/rsk-logic/src/logic/sched.rs"
+find = "        &&& (i == self.depth - 1 && cfg.priority(self.top()) >= cfg.priority(t))\n"
+replace = "        &&& (i == self.depth - 1 && cfg.priority(self.top()) > cfg.priority(t))\n"
 expect = ["sched.rs"]
 package = "rsk-logic"

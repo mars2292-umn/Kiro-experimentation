@@ -21,6 +21,14 @@
 //! one, the end of a Job (returned or forced) drops a suffix, and every
 //! other step keeps the stack.
 //!
+//! MIT spacing over a run (task 4.14, argument 5.4): `history_wf` also
+//! states that any two Release steps of one Sporadic_Task are at least one
+//! MIT apart in their due instants (`releases_spaced`). `record` carries
+//! it from `Kernel::release_match` (the last Release step of a
+//! Sporadic_Task is due at `Timing::last_due`) and the acceptance rule of
+//! `Timing::accept` and the deferral clause of `Kernel::inv`;
+//! `lemma_mit_spacing_over_run` reads it back for any two steps.
+//!
 //! Theorems over the history (task 4.13): `lemma_ceiling_restored`
 //! (Verification_Plan argument 5.3, R8.2): after an unlock the
 //! System_Ceiling equals its value before the matching lock, whatever
@@ -31,7 +39,7 @@
 
 use vstd::prelude::*;
 
-use super::{Config, IDLE_CEILING};
+use super::{Config, IDLE_CEILING, KIND_SPORADIC};
 
 verus! {
 
@@ -127,9 +135,28 @@ pub open spec fn locks_before(h: Seq<Step>, k: int) -> Seq<int> {
     if k == 0 { Seq::<int>::empty() } else { h[k - 1].locks }
 }
 
+/// Two Release steps of one Sporadic_Task are due at least one MIT apart
+/// (R10.1, R10.2, Property 8 over a run).
+pub open spec fn releases_spaced<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>) -> bool {
+    forall|i: int, j: int| 0 <= i < j < h.len()
+        && #[trigger] h[i].kind == ST_RELEASE && #[trigger] h[j].kind == ST_RELEASE
+        && h[i].task == h[j].task && cfg.tasks[h[i].task].kind == KIND_SPORADIC
+        ==> h[i].arg + cfg.tasks[h[i].task].period as int <= h[j].arg
+}
+
+/// What appending `s` to `h` needs for `releases_spaced` to hold of the
+/// result: a Release step of a Sporadic_Task is due at least one MIT
+/// after every earlier Release step of that Task.
+pub open spec fn release_spaced_after<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, s: Step, cfg: &Config<NT, NR, NP>) -> bool {
+    s.kind == ST_RELEASE && cfg.tasks[s.task].kind == KIND_SPORADIC
+        ==> forall|k: int| 0 <= k < h.len() && #[trigger] h[k].kind == ST_RELEASE && h[k].task == s.task
+            ==> h[k].arg + cfg.tasks[s.task].period as int <= s.arg
+}
+
 /// The trace invariant: well-formed steps, instants nondecreasing along
-/// the history and never beyond the Kernel's observed instant `now`, and
-/// every step's lock snapshot related to the previous one by its kind.
+/// the history and never beyond the Kernel's observed instant `now`,
+/// every step's lock snapshot related to the previous one by its kind,
+/// and the Release steps of each Sporadic_Task one MIT apart.
 /// Opaque: the Kernel entry points carry it unopened (it changes only in
 /// `record` and `observe`, which use the lemmas below); only the history
 /// lemmas and theorems reveal it.
@@ -138,6 +165,7 @@ pub open spec fn history_wf<const NT: usize, const NR: usize, const NP: usize>(h
     &&& forall|i: int| 0 <= i < h.len() ==> step_wf(#[trigger] h[i], cfg) && h[i].at <= now
     &&& forall|i: int, j: int| 0 <= i < j < h.len() ==> #[trigger] h[i].at <= #[trigger] h[j].at
     &&& forall|k: int| 0 <= k < h.len() ==> step_rel(locks_before(h, k), #[trigger] h[k])
+    &&& releases_spaced(h, cfg)
 }
 
 /// The empty history is well formed at any instant.
@@ -160,10 +188,22 @@ pub proof fn lemma_history_later<const NT: usize, const NR: usize, const NP: usi
 /// snapshot follows from the last one, keeps the history well formed.
 pub proof fn lemma_history_push<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, s: Step, cfg: &Config<NT, NR, NP>, now: int)
     requires history_wf(h, cfg, now), step_wf(s, cfg), s.at == now, step_rel(locks_before(h.push(s), h.len() as int), s),
+        release_spaced_after(h, s, cfg),
     ensures history_wf(h.push(s), cfg, now),
 {
     reveal(history_wf);
     let p = h.push(s);
+    assert forall|i: int, j: int| 0 <= i < j < p.len()
+        && #[trigger] p[i].kind == ST_RELEASE && #[trigger] p[j].kind == ST_RELEASE
+        && p[i].task == p[j].task && cfg.tasks[p[i].task].kind == KIND_SPORADIC
+        implies p[i].arg + cfg.tasks[p[i].task].period as int <= p[j].arg by {
+        assert(p[i] == h[i]);
+        if j < h.len() {
+            assert(p[j] == h[j]);
+        } else {
+            assert(p[j] == s);
+        }
+    }
     assert forall|i: int| 0 <= i < p.len() implies step_wf(#[trigger] p[i], cfg) && p[i].at <= now by {
         if i < h.len() {
             assert(p[i] == h[i]);
@@ -237,6 +277,24 @@ pub proof fn lemma_ceiling_of_array<const NT: usize, const NR: usize, const NP: 
         assert(s.drop_last() =~= r);
         assert(s.last() == lock_res[n - 1] as int);
     }
+}
+
+// ------------------------------------------- Theorem: MIT spacing over a run (5.4)
+
+/// Verification_Plan argument 5.4 (R10.1, R10.2, Property 8), over the
+/// history: in any run, two Releases of one Sporadic_Task become due at
+/// least one MIT apart, so fewer than two become due in any window
+/// shorter than the MIT.
+pub proof fn lemma_mit_spacing_over_run<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, t: int, i: int, j: int)
+    requires history_wf(h, cfg, now), 0 <= i < j < h.len(),
+        h[i].kind == ST_RELEASE, h[j].kind == ST_RELEASE, h[i].task == t, h[j].task == t,
+        0 <= t < NT, cfg.tasks[t].kind == KIND_SPORADIC,
+    ensures h[j].arg >= h[i].arg + cfg.tasks[t].period as int,
+        // Due instants of distinct Release steps of `t` are at least one
+        // MIT apart in either order.
+        h[j].arg - h[i].arg >= cfg.tasks[t].period as int,
+{
+    reveal(history_wf);
 }
 
 // --------------------------------------------- Theorem: ceiling restore (5.3)

@@ -261,6 +261,74 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
         assert(cfg.priority(x) < cfg.priority(self.top()));
     }
 
+    /// The pending Job of Task `t` (no Job of `t` in progress) is kept
+    /// from starting by the Job at stack position `i`: the executing Job,
+    /// whose Priority is at least `t`'s, or a holder of a Resource whose
+    /// Ceiling is at least `t`'s Priority (the System_Ceiling). The only
+    /// waiting relation of the Kernel (task 4.14, argument 5.5).
+    pub open spec fn blocked_by<const NP: usize>(&self, cfg: &Config<NT, NR, NP>, t: int, i: int) -> bool {
+        &&& 0 <= t < NT && self.release[t] == REL_PENDING && self.job[t] == JOB_NONE && !self.eligible(cfg, t)
+        &&& 0 <= i < self.depth
+        &&& (i == self.depth - 1 && cfg.priority(self.top()) >= cfg.priority(t))
+            || (exists|e: int| 0 <= e < self.lock_len && #[trigger] self.lock_depth[e] == i && cfg.ceiling(self.lock_res[e] as int) >= cfg.priority(t))
+    }
+
+    /// Verification_Plan argument 5.5 (R8.5, Property 6; task 4.14):
+    /// deadlock freedom, for every state of a run (`inv` holds at every
+    /// state). (1) A lock never waits for another Job: a Resource the
+    /// executing Job may access is held, if at all, by that Job itself
+    /// (`lemma_no_other_holder`). (2) Every pending Job that is not
+    /// eligible waits for a Job in progress: its Task's own previous Job
+    /// (R9.7), or a `blocked_by` blocker. (3) A Job in progress waits for
+    /// nothing: `blocked_by` holds of pending Jobs only, and a blocker is in
+    /// progress. So every wait-for path has length one and there is no
+    /// cycle; Budget enforcement bounds the wait (P-17).
+    pub proof fn lemma_deadlock_free<const NP: usize>(&self, cfg: &Config<NT, NR, NP>)
+        requires self.inv(cfg),
+        ensures
+            // (1) no in-progress Job waits for a Resource.
+            self.depth > 0 ==> forall|r: int, e: int| 0 <= r < NR && #[trigger] cfg.may_access(self.top(), r)
+                && 0 <= e < self.lock_len && #[trigger] self.lock_res[e] == r ==> self.entry_of_top(e),
+            // (2) every pending, non-eligible Job has something in progress to wait for.
+            forall|t: int| 0 <= t < NT && #[trigger] self.release[t] == REL_PENDING && !self.eligible(cfg, t)
+                ==> self.job[t] != JOB_NONE || exists|i: int| self.blocked_by(cfg, t, i),
+            // (3) a blocker is in progress and waits for nothing: no cycle.
+            forall|t: int, i: int| #[trigger] self.blocked_by(cfg, t, i)
+                ==> self.in_progress(self.stack[i] as int) && forall|j: int| !self.blocked_by(cfg, self.stack[i] as int, j),
+    {
+        if self.depth > 0 {
+            assert forall|r: int, e: int| 0 <= r < NR && #[trigger] cfg.may_access(self.top(), r)
+                && 0 <= e < self.lock_len && #[trigger] self.lock_res[e] == r implies self.entry_of_top(e) by {
+                self.lemma_no_other_holder(cfg, r, e);
+            }
+        }
+        assert forall|t: int| 0 <= t < NT && #[trigger] self.release[t] == REL_PENDING && !self.eligible(cfg, t)
+            implies self.job[t] != JOB_NONE || exists|i: int| self.blocked_by(cfg, t, i) by {
+            if self.job[t] == JOB_NONE {
+                if cfg.priority(t) <= self.ceiling {
+                    // Blocked by the System_Ceiling: the entry that attains it.
+                    if self.lock_len == 0 {
+                        assert(self.ceiling == IDLE_CEILING);
+                        assert(cfg.task_ok(t));
+                        assert(false);
+                    }
+                    Self::lemma_max_ceiling_attained(cfg, self.lock_res, self.lock_len as int);
+                    let e = choose|e: int| 0 <= e < self.lock_len && #[trigger] cfg.ceiling(self.lock_res[e] as int) == max_ceiling(cfg, self.lock_res, self.lock_len as int);
+                    let i = self.lock_depth[e] as int;
+                    assert(self.blocked_by(cfg, t, i));
+                } else {
+                    // Blocked by the executing Job's Priority.
+                    assert(self.depth > 0 && cfg.priority(t) <= cfg.priority(self.top()));
+                    assert(self.blocked_by(cfg, t, self.depth - 1));
+                }
+            }
+        }
+        assert forall|t: int, i: int| #[trigger] self.blocked_by(cfg, t, i)
+            implies self.in_progress(self.stack[i] as int) && forall|j: int| !self.blocked_by(cfg, self.stack[i] as int, j) by {
+            assert(self.in_progress(self.stack[i] as int));
+        }
+    }
+
     pub proof fn lemma_max_ceiling_mono<const NP: usize>(cfg: &Config<NT, NR, NP>, lock_res: [u8; NL], a: int, b: int)
         requires 0 <= a <= b,
         ensures max_ceiling(cfg, lock_res, a) <= max_ceiling(cfg, lock_res, b),

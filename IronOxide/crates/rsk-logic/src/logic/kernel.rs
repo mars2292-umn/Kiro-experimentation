@@ -117,6 +117,95 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // (task 4.13): every lock change is recorded by the entry point
         // that makes it.
         &&& self.locks_match()
+        // The link from the Release steps to the MIT state (task 4.14):
+        // every accepted Release of a Sporadic_Task is recorded, due at
+        // the instant `Timing::last_due` then holds. A function of the
+        // fields it reads, and opaque, so that it carries over any change
+        // to the other fields without a proof step.
+        &&& Self::releases_linked(self.history@, self.timing.has_last, self.timing.last_due, cfg)
+    }
+
+    /// Whether step `k` of the history is a Release step of Task `u`.
+    pub open spec fn release_step(&self, k: int, u: int) -> bool {
+        Self::release_step_in(self.history@, k, u)
+    }
+
+    pub open spec fn release_step_in(h: Seq<Step>, k: int, u: int) -> bool {
+        0 <= k < h.len() && h[k].kind == ST_RELEASE && h[k].task == u
+    }
+
+    /// For a Sporadic_Task `u`: every recorded Release is due no later
+    /// than the previous accepted due instant, which exists once any was
+    /// recorded and is the due instant of one of them (the last).
+    pub open spec fn release_match_in(h: Seq<Step>, has_last: [bool; NT], last_due: [u64; NT], cfg: &Config<NT, NR, NP>, u: int) -> bool {
+        cfg.tasks[u].kind == KIND_SPORADIC ==> {
+            &&& forall|k: int| #[trigger] Self::release_step_in(h, k, u) ==> has_last[u] && h[k].arg <= last_due[u] as int
+            &&& has_last[u] ==> exists|k: int| #[trigger] Self::release_step_in(h, k, u) && h[k].arg == last_due[u] as int
+        }
+    }
+
+    pub open spec fn release_match(&self, cfg: &Config<NT, NR, NP>, u: int) -> bool {
+        Self::release_match_in(self.history@, self.timing.has_last, self.timing.last_due, cfg, u)
+    }
+
+    #[verifier::opaque]
+    pub open spec fn releases_linked(h: Seq<Step>, has_last: [bool; NT], last_due: [u64; NT], cfg: &Config<NT, NR, NP>) -> bool {
+        forall|u: int| 0 <= u < NT ==> #[trigger] Self::release_match_in(h, has_last, last_due, cfg, u)
+    }
+
+    /// `inv` opens the link for every Task.
+    pub proof fn lemma_releases_linked(&self, cfg: &Config<NT, NR, NP>)
+        requires self.inv(cfg),
+        ensures forall|u: int| 0 <= u < NT ==> #[trigger] self.release_match(cfg, u),
+    {
+        reveal(Kernel::releases_linked);
+    }
+
+    /// `release_match` for every Task but `except` (-1 for none) carried
+    /// from a state `before` with the same history and the same MIT state
+    /// of those Tasks: the proof obligation of `record` for the Tasks a
+    /// step does not concern.
+    pub proof fn lemma_release_match_kept(&self, before: &Self, cfg: &Config<NT, NR, NP>, except: int)
+        requires before.inv(cfg), self.history@ == before.history@,
+            forall|u: int| 0 <= u < NT && u != except ==> self.timing.has_last[u] == before.timing.has_last[u]
+                && self.timing.last_due[u] == before.timing.last_due[u],
+        ensures forall|u: int| 0 <= u < NT && u != except ==> #[trigger] self.release_match(cfg, u),
+    {
+        before.lemma_releases_linked(cfg);
+        assert forall|u: int| 0 <= u < NT && u != except implies #[trigger] self.release_match(cfg, u) by {
+            assert(before.release_match(cfg, u));
+            let h = before.history@;
+            if cfg.tasks[u].kind == KIND_SPORADIC {
+                assert forall|k: int| #[trigger] Self::release_step_in(h, k, u)
+                    implies self.timing.has_last[u] && h[k].arg <= self.timing.last_due[u] as int by {
+                    assert(before.timing.has_last[u] && h[k].arg <= before.timing.last_due[u] as int);
+                }
+                if self.timing.has_last[u] {
+                    let k = choose|k: int| #[trigger] Self::release_step_in(h, k, u) && h[k].arg == before.timing.last_due[u] as int;
+                    assert(Self::release_step_in(h, k, u) && h[k].arg == self.timing.last_due[u] as int);
+                }
+            }
+        }
+    }
+
+    /// A Release of Sporadic_Task `t` due at `arg`, at least one MIT after
+    /// the previous accepted due instant of `before` (the acceptance rule
+    /// of `Timing::accept`, or the deferral clause of `inv`), is at least
+    /// one MIT after every Release step of `t` recorded so far.
+    pub proof fn lemma_release_spaced(&self, before: &Self, cfg: &Config<NT, NR, NP>, t: int, arg: int)
+        requires before.inv(cfg), self.history@ == before.history@, 0 <= t < NT, cfg.tasks[t].kind == KIND_SPORADIC,
+            before.timing.has_last[t] ==> arg >= before.timing.last_due[t] as int + cfg.tasks[t].period as int,
+        ensures forall|k: int| 0 <= k < self.history@.len() && #[trigger] self.history@[k].kind == ST_RELEASE && self.history@[k].task == t
+            ==> self.history@[k].arg + cfg.tasks[t].period as int <= arg,
+    {
+        before.lemma_releases_linked(cfg);
+        assert(before.release_match(cfg, t));
+        let h = before.history@;
+        assert forall|k: int| 0 <= k < h.len() && #[trigger] h[k].kind == ST_RELEASE && h[k].task == t
+            implies h[k].arg + cfg.tasks[t].period as int <= arg by {
+            assert(Self::release_step_in(h, k, t));
+            assert(before.timing.has_last[t] && h[k].arg <= before.timing.last_due[t] as int);
+        }
     }
 
     // ------------------------------------------------- Property 8 (MIT enforcement)
@@ -661,6 +750,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg@ < NR,
             // The lock change since the last step is the one this kind reports.
             super::history::step_rel(old(self).locks_recorded(), old(self).step_now(kind, task@, arg@)),
+            // The MIT state of every Task this step does not release is linked
+            // to the history (task 4.14) ...
+            forall|u: int| 0 <= u < NT && !(kind == ST_RELEASE && u == task@) ==> #[trigger] old(self).release_match(cfg, u),
+            // ... and a Release of a Sporadic_Task is the one `last_due` now
+            // records, one MIT after every Release of that Task so far.
+            kind == ST_RELEASE && cfg.tasks[task@].kind == KIND_SPORADIC
+                ==> old(self).timing.has_last[task@] && old(self).timing.last_due[task@] as int == arg@
+                    && forall|k: int| 0 <= k < old(self).history@.len() && #[trigger] old(self).history@[k].kind == ST_RELEASE
+                        && old(self).history@[k].task == task@
+                        ==> old(self).history@[k].arg + cfg.tasks[task@].period as int <= arg@,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).history@ == old(self).history@.push(old(self).step_now(kind, task@, arg@)),
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
@@ -679,7 +778,49 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(super::history::locks_before(p, self.history@.len() as int) == self.locks_recorded());
             super::history::lemma_history_push(self.history@, s, cfg, self.now as int);
         }
+        let ghost before = *self;
         self.history = Ghost(self.history@.push(s));
+        proof {
+            let h = before.history@;
+            let p = self.history@;
+            let has_last = self.timing.has_last;
+            let last_due = self.timing.last_due;
+            assert forall|u: int| 0 <= u < NT implies #[trigger] Self::release_match_in(p, has_last, last_due, cfg, u) by {
+                if cfg.tasks[u].kind == KIND_SPORADIC {
+                    if kind == ST_RELEASE && u == task@ {
+                        assert forall|k: int| #[trigger] Self::release_step_in(p, k, u)
+                            implies has_last[u] && p[k].arg <= last_due[u] as int by {
+                            if k < h.len() {
+                                assert(p[k] == h[k]);
+                                assert(h[k].kind == ST_RELEASE && h[k].task == task@);
+                            } else {
+                                assert(p[k] == s);
+                            }
+                        }
+                        assert(p[h.len() as int] == s);
+                        assert(Self::release_step_in(p, h.len() as int, u) && p[h.len() as int].arg == last_due[u] as int);
+                    } else {
+                        assert(before.release_match(cfg, u));
+                        assert(Self::release_match_in(h, has_last, last_due, cfg, u));
+                        assert forall|k: int| #[trigger] Self::release_step_in(p, k, u)
+                            implies has_last[u] && p[k].arg <= last_due[u] as int by {
+                            if k < h.len() {
+                                assert(p[k] == h[k]);
+                                assert(Self::release_step_in(h, k, u));
+                            } else {
+                                assert(p[k] == s);
+                            }
+                        }
+                        if has_last[u] {
+                            let k = choose|k: int| #[trigger] Self::release_step_in(h, k, u) && h[k].arg == last_due[u] as int;
+                            assert(p[k] == h[k]);
+                            assert(Self::release_step_in(p, k, u) && p[k].arg == last_due[u] as int);
+                        }
+                    }
+                }
+            }
+            reveal(Kernel::releases_linked);
+        }
     }
 
     /// Init: everything idle, no Release before `start` (PR-34, R12.4).
@@ -690,7 +831,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             super::history::lemma_history_empty(cfg, 0);
         }
-        Kernel {
+        let k = Kernel {
             sched: Sched::new(cfg),
             timing: Timing::new(cfg),
             slots: Slots::new(),
@@ -704,14 +845,23 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             started: false,
             now: 0,
             history: Ghost(Seq::<Step>::empty()),
+        };
+        proof {
+            // Nothing recorded, nothing accepted: the link holds vacuously.
+            let h = Seq::<Step>::empty();
+            assert forall|u: int| 0 <= u < NT implies #[trigger] Self::release_match_in(h, k.timing.has_last, k.timing.last_due, cfg, u) by {
+                assert forall|j: int| !(#[trigger] Self::release_step_in(h, j, u)) by {}
+            }
+            reveal(Kernel::releases_linked);
         }
+        k
     }
 
     // ------------------------------------------------------------ helpers
 
     fn push_event(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: u8, partition: u8, prs: u64, detail: u32)
         requires old(self).inv(cfg),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).stopped == old(self).stopped,
             final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
@@ -725,7 +875,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Advances the observed instant (monotone; Kernel_Arch reads the time base).
     pub fn observe(&mut self, cfg: &Config<NT, NR, NP>, now: u64)
         requires old(self).inv(cfg), now <= cfg.operating_duration,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).now == (if now > old(self).now { now } else { old(self).now }),
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+            final(self).now == (if now > old(self).now { now } else { old(self).now }),
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).started == old(self).started, final(self).safe_state == old(self).safe_state,
             final(self).budget == old(self).budget, final(self).stopped == old(self).stopped,
@@ -851,13 +1002,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.timing.job_started(cfg, t);
         self.budget.reset(t);
         self.arm_budget(cfg, t);
+        proof {
+            self.lemma_release_match_kept(old(self), cfg, -1);
+        }
         self.record(cfg, ST_DISPATCH, Ghost(t as int), Ghost(0));
     }
 
     /// Arms the Budget event of the executing Job of `t` for its remaining Budget.
     fn arm_budget(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
         requires old(self).inv(cfg), (t as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).sched == old(self).sched, final(self).timing == old(self).timing,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+            final(self).sched == old(self).sched, final(self).timing == old(self).timing,
             final(self).started == old(self).started,
             final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
             final(self).slots.armed(cfg.slot_budget[t as int] as int),
@@ -913,6 +1068,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let released = self.sched.finish_top(cfg);
         proof {
             self.lemma_rel_shrink(old(self), ST_END, t as int, if killed { 1int } else { 0int });
+            self.lemma_release_match_kept(old(self), cfg, -1);
         }
         self.record(cfg, ST_END, Ghost(t as int), Ghost(if killed { 1int } else { 0int }));
         if released > 0 {
@@ -988,6 +1144,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if ok {
             proof {
                 self.lemma_rel_lock(old(self), self.sched.top(), r as int);
+                self.lemma_release_match_kept(old(self), cfg, -1);
             }
             self.record(cfg, ST_LOCK, Ghost(self.sched.top()), Ghost(r as int));
         }
@@ -1020,6 +1177,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if ok {
             proof {
                 self.lemma_rel_unlock(old(self), self.sched.top(), r as int);
+                self.lemma_release_match_kept(old(self), cfg, -1);
             }
             self.record(cfg, ST_UNLOCK, Ghost(self.sched.top()), Ghost(r as int));
         }
@@ -1089,6 +1247,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.sched.make_pending(cfg, t);
             let deadline = now + cfg.tasks[t as usize].deadline;
             self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
+            proof {
+                self.lemma_release_match_kept(old(self), cfg, t as int);
+                self.lemma_release_spaced(old(self), cfg, t as int, now as int);
+            }
             self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(now as int));
         } else {
             if d == INTAKE_DEFER && release_none {
@@ -1256,6 +1418,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.timing.periodic_due(cfg, t, nominal);
                 let deadline = nominal + cfg.tasks[t as usize].deadline;
                 self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
+                proof {
+                    self.lemma_release_match_kept(old(self), cfg, -1);
+                }
                 self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nominal as int));
             } else {
                 // R9.8: a Release is already pending; discard this one.
@@ -1324,6 +1489,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.sched.make_pending(cfg, t);
         let deadline = at + cfg.tasks[t as usize].deadline;
         self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
+        proof {
+            self.lemma_release_match_kept(old(self), cfg, t as int);
+            self.lemma_release_spaced(old(self), cfg, t as int, at as int);
+        }
         self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(at as int));
     }
 
@@ -1482,6 +1651,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let released = self.sched.end_job(cfg);
         proof {
             self.lemma_rel_shrink(old(self), ST_KILL, t as int, 1);
+            self.lemma_release_match_kept(old(self), cfg, -1);
         }
         self.record(cfg, ST_KILL, Ghost(t as int), Ghost(1));
         if released > 0 {
@@ -1584,7 +1754,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 assert forall|j: int| 0 <= j < i implies self.sched.stack[j] != u by {}
             }
             if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {
+                let ghost before = *self;
                 self.sched.kill(cfg, i);
+                proof {
+                    self.lemma_release_match_kept(&before, cfg, -1);
+                }
                 self.record(cfg, ST_KILL, Ghost(u as int), Ghost(0));
             }
             i = i + 1;
