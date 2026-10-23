@@ -633,7 +633,11 @@ fn config_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
         let elf = target_dir.join(&ws.policy.target).join("release").join(&binary.target_name);
         // The Task_Model of the application: `<app dir>/gen/task_model.json`,
         // where the binary crate lives in `<app dir>/bin`.
-        let Some(app_dir) = ws.packages.iter().find(|(n, _)| **n == binary.package).and_then(|(_, p)| p.dir.parent().map(Path::to_path_buf)) else { continue };
+        // `packages` is keyed by package id; match on the name.
+        let Some(app_dir) = ws.packages.values().find(|p| p.name == binary.package).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else {
+            report.note(format!("Config_Checker: package `{}` not found in the workspace", binary.package));
+            continue;
+        };
         let model = app_dir.join("gen").join("task_model.json");
         if !model.is_file() {
             report.note(format!("Config_Checker: no Task_Model at {} for `{}`", ws.rel(&model), binary.target_name));
