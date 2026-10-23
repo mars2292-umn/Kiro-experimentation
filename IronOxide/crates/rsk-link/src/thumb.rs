@@ -31,8 +31,33 @@ pub enum Effect {
     SwitchTable,
     /// `svc #imm`.
     Svc(u8),
+    /// A floating-point instruction of the given class (PR-31, R6.6).
+    Fp(FpClass),
+    /// `msr <special>, Rn` with the SYSm value (PR-22).
+    Msr(u8),
+    /// `mrs Rd, <special>` with the SYSm value.
+    Mrs(u8),
+    /// `cpsie`/`cpsid` (PR-22).
+    Cps,
+    /// `cbz`/`cbnz` to `target` (ORQ-32: forbidden across naked stubs).
+    CompareBranch(u32),
+    /// `nop` (ORQ-32: the assembler's silent replacement of an unencodable branch).
+    Nop,
     /// Anything else.
     Other,
+}
+
+/// The classes of VFP instructions the Profile distinguishes (PR-31, R6.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FpClass {
+    /// Register moves, loads, stores, and core-register transfers.
+    Move,
+    /// Arithmetic, comparison, conversion, square root, negation, absolute value.
+    Arith,
+    /// `vmsr fpscr, Rt`.
+    FpscrWrite,
+    /// `vmrs Rt, fpscr`.
+    FpscrRead,
 }
 
 /// A decoded instruction.
@@ -146,18 +171,32 @@ fn decode16(hw: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
         let imm = sign_extend((h & 0x7FF) << 1, 12);
         return Effect::Branch((pc as i32 + 4 + imm) as u32);
     }
+    // cpsie / cpsid: 1011 0110 011 im 0 a i f
+    if h & 0xFFEC == 0xB660 {
+        return Effect::Cps;
+    }
     // cbz/cbnz: 1011 op0 i 1 imm5 Rn
     if h & 0xF500 == 0xB100 {
         let i = (h >> 9) & 1;
         let imm5 = (h >> 3) & 0x1F;
         let imm = (i << 6) | (imm5 << 1);
-        return Effect::Branch(pc + 4 + imm);
+        return Effect::CompareBranch(pc + 4 + imm);
+    }
+    if h == 0xBF00 {
+        return Effect::Nop;
     }
     Effect::Other
 }
 
 fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
     let (a, b) = (hw1 as u32, hw2 as u32);
+    // msr <spec>, Rn: F380 | Rn ; hw2 1000 mask 0000 SYSm. mrs Rd, <spec>: F3EF ; hw2 1000 Rd SYSm.
+    if a & 0xFFF0 == 0xF380 && b & 0xF000 == 0x8000 {
+        return Effect::Msr((b & 0xFF) as u8);
+    }
+    if a == 0xF3EF && b & 0xF000 == 0x8000 {
+        return Effect::Mrs((b & 0xFF) as u8);
+    }
     // push.w / stmdb sp!, {regs}: E92D xxxx ; pop.w / ldmia sp!: E8BD xxxx
     if a == 0xE92D {
         return Effect::SpDown(4 * b.count_ones());
@@ -231,6 +270,32 @@ fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -
             Some(v) => Effect::Constant(rt, v),
             None => Effect::Other,
         };
+    }
+    // VFP (coprocessor 10 or 11): 111x 11xx .... | .... 101x .... ....
+    if a & 0xEC00 == 0xEC00 && (b >> 8) & 0xE == 0xA {
+        if a & 0xFE00 == 0xEC00 {
+            // VLDM/VSTM, VLDR/VSTR, 64-bit core transfers (VPUSH/VPOP matched above).
+            return Effect::Fp(FpClass::Move);
+        }
+        if a & 0xFFE0 == 0xEE00 && b & 0x10 == 0x10 {
+            // VMOV between a core register and a single-precision register.
+            return Effect::Fp(FpClass::Move);
+        }
+        if a == 0xEEE1 && b & 0x0F10 == 0x0A10 {
+            return Effect::Fp(FpClass::FpscrWrite);
+        }
+        if a == 0xEEF1 && b & 0x0F10 == 0x0A10 {
+            return Effect::Fp(FpClass::FpscrRead);
+        }
+        if a & 0xFFB0 == 0xEEB0 && b & 0x00F0 == 0 {
+            // VMOV immediate.
+            return Effect::Fp(FpClass::Move);
+        }
+        if a & 0xFFBF == 0xEEB0 && b & 0x00D0 == 0x0040 {
+            // VMOV register.
+            return Effect::Fp(FpClass::Move);
+        }
+        return Effect::Fp(FpClass::Arith);
     }
     // tbb/tbh: E8D0 F00x / E8D0 F01x
     if a & 0xFFF0 == 0xE8D0 && (b & 0xFFE0) == 0xF000 {
@@ -311,7 +376,8 @@ mod tests {
         assert_eq!(one(&[0xFE, 0xE7]), Effect::Branch(0x1000)); // b .
         assert_eq!(one(&[0x01, 0xD0]), Effect::Branch(0x1006)); // beq +2
         assert_eq!(one(&[0x05, 0xDF]), Effect::Svc(5));
-        assert_eq!(one(&[0x08, 0xB1]), Effect::Branch(0x1006)); // cbz r0, +2
+        assert_eq!(one(&[0x08, 0xB1]), Effect::CompareBranch(0x1006)); // cbz r0, +2
+        assert_eq!(one(&[0x00, 0xBF]), Effect::Nop);
     }
 
     #[test]
@@ -335,6 +401,24 @@ mod tests {
         let lit = |a: u32| if a == 0x1008 { Some(0xDEAD_BEEF) } else { None };
         assert_eq!(decode(&[0xDF, 0xF8, 0x04, 0x30], 0x1000, 0x1000, &lit).unwrap().effect, Effect::Constant(3, 0xDEAD_BEEF)); // ldr.w r3, [pc, #4]
         assert_eq!(decode(&[0x01, 0x48], 0x1000, 0x1000, &lit).unwrap().effect, Effect::Constant(0, 0xDEAD_BEEF)); // ldr r0, [pc, #4]
+    }
+
+    #[test]
+    fn privileged_and_floating_point_classes() {
+        assert_eq!(one(&[0x72, 0xB6]), Effect::Cps); // cpsid i
+        assert_eq!(one(&[0x62, 0xB6]), Effect::Cps); // cpsie i
+        assert_eq!(one(&[0x80, 0xF3, 0x11, 0x88]), Effect::Msr(0x11)); // msr BASEPRI, r0
+        assert_eq!(one(&[0xEF, 0xF3, 0x10, 0x80]), Effect::Mrs(0x10)); // mrs r0, PRIMASK
+        assert_eq!(one(&[0x9D, 0xED, 0x00, 0x0A]), Effect::Fp(FpClass::Move)); // vldr s0, [sp]
+        assert_eq!(one(&[0x8D, 0xED, 0x00, 0x0A]), Effect::Fp(FpClass::Move)); // vstr s0, [sp]
+        assert_eq!(one(&[0x00, 0xEE, 0x10, 0x0A]), Effect::Fp(FpClass::Move)); // vmov s0, r0
+        assert_eq!(one(&[0x10, 0xEE, 0x10, 0x0A]), Effect::Fp(FpClass::Move)); // vmov r0, s0
+        assert_eq!(one(&[0xB0, 0xEE, 0x40, 0x0A]), Effect::Fp(FpClass::Move)); // vmov.f32 s0, s0
+        assert_eq!(one(&[0xB1, 0xEE, 0x40, 0x0A]), Effect::Fp(FpClass::Arith)); // vneg.f32 s0, s0
+        assert_eq!(one(&[0x30, 0xEE, 0x01, 0x0A]), Effect::Fp(FpClass::Arith)); // vadd.f32 s0, s0, s2
+        assert_eq!(one(&[0xB4, 0xEE, 0x41, 0x0A]), Effect::Fp(FpClass::Arith)); // vcmp.f32 s0, s2
+        assert_eq!(one(&[0xE1, 0xEE, 0x10, 0x0A]), Effect::Fp(FpClass::FpscrWrite)); // vmsr fpscr, r0
+        assert_eq!(one(&[0xF1, 0xEE, 0x10, 0x0A]), Effect::Fp(FpClass::FpscrRead)); // vmrs r0, fpscr
     }
 
     #[test]

@@ -27,7 +27,7 @@
 
 [profile]
 name = "rsk"
-version = "0.4"
+version = "0.5"
 default_variant = "Ravenscar"
 variants = ["Ravenscar", "Jorvik"]
 requirements_draft = "0.2"
@@ -830,6 +830,15 @@ jorvik = "Same"
 # ---------------------------------------------------------------------------
 # Change log (R1.6), cumulative, newest first
 # ---------------------------------------------------------------------------
+
+[[change]]
+version = "0.5"
+date = "2026-10-23"
+content_hash = "sha256:406268ec50484e38c129b60ffedf8f6f8b3360d691098127a7bb914279fbd98b"
+changes = [
+  { subject = "Core_Subset (PR-21, R57)", change = "Added `core::panicking` (the compiler's implicit checks), `compiler_builtins` (memory copy and clear, 64-bit division), and, with the new scope `unreachable`, `core::fmt` and `core::str::count`: linked for the panic message, reached by no Task entry or Kernel entry point.", rationale = "Task 12.3: the Link_Checker now maps every linked `core` and intrinsic symbol to a Core_Subset item (R57.3) and found these four in the demo Flight_Build; the `unreachable` scope records that the formatting machinery stays dead code.", requirements = ["R57.1", "R57.3", "R14.1", "PR-21"] },
+  { subject = "PR-19, PR-22, PR-31, PR-35", change = "Enforcement by the Link_Checker over the Flight_Build: instruction-class scans (floating-point classes in the Kernel and in FPU-free Tasks; msr, mrs, cps and Private Peripheral Bus addresses outside the Kernel), the allocator, unwinding, single-panic-handler, and `vstd` symbol checks, the crate check against [disallowed_crates], and the no-panic-path report from the Kernel entry points.", rationale = "Task 12.3 (R6.6, R14.1, R16.10, R55.4).", requirements = ["R6.6", "R14.1", "R16.10", "R55.4", "PR-19", "PR-22", "PR-31", "PR-35"] },
+]
 
 [[change]]
 version = "0.4"

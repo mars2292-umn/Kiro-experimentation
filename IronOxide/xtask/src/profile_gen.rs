@@ -652,7 +652,10 @@ pub fn check(profile: &Profile, text: &str, report: &mut Report) {
     }
     let mut paths = BTreeSet::new();
     for item in &profile.core_subset {
-        if !item.path.starts_with("core::") {
+        // `compiler_builtins` is the one non-`core` crate the compiler links
+        // implicitly (memory copies, 64-bit division); its item is justified
+        // in the Core_Subset like any other (task 12.3).
+        if !item.path.starts_with("core::") && item.path != "compiler_builtins" {
             err(report, "R57.1", format!("Core_Subset item `{}` is not a `core` path", item.path));
         }
         if !paths.insert(item.path.clone()) {

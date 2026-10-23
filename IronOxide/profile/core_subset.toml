@@ -136,7 +136,31 @@ substitute = "Each inline-assembly sequence is replaced by a Hardware_Model stub
 path = "core::panic::PanicInfo"
 scope = ["kernel-unsafe"]
 certification = "none"
-substitute = "The single `#[panic_handler]` of rsk-entry (R14.1) uses only `location()`; formatting machinery is excluded (no `core::fmt` in the Core_Subset), which the Link_Checker's symbol check enforces (R57.3)."
+substitute = "The single `#[panic_handler]` of rsk-entry (R14.1) uses only `location()`; the formatting machinery the compiler links for the panic message is reached by no entry point, which the Link_Checker's Core_Subset mapping enforces (R57.3; the `core::fmt` item below)."
+
+[[item]]
+path = "core::panicking"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "none"
+substitute = "The compiler's implicit checks (bounds, division by zero, overflow) call into `core::panicking`. In the Kernel the Verus proofs show every such check holds (R44.7, Property 21), so the path is unreachable in fact; the Link_Checker reports each one from the Kernel entry points (R14.1), rejects an explicit `panic_fmt` call from Kernel code (PR-19), and charges the path once in every stack bound (R37.1). In Partitions a reached check ends the Job through the Kernel's panic handler (R14.1)."
+
+[[item]]
+path = "core::fmt"
+scope = ["unreachable"]
+certification = "none"
+substitute = "Linked only because `core::panicking::panic_fmt` takes `fmt::Arguments`; no Task entry or Kernel entry point reaches any `core::fmt` function, which the Link_Checker checks (R57.3). Added 2026-10-23 (task 12.3) with scope `unreachable`: a reachable `core::fmt` symbol is a violation."
+
+[[item]]
+path = "core::str::count"
+scope = ["unreachable"]
+certification = "none"
+substitute = "Character counting used by `core::fmt` padding; linked and unreachable for the same reason as `core::fmt`."
+
+[[item]]
+path = "compiler_builtins"
+scope = ["kernel", "kernel-unsafe", "application"]
+certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
+note = "The compiler-emitted memory copy and clear routines (`memcpy`, `__aeabi_memcpy*`, `__aeabi_memclr*`) and the 64-bit division (`__aeabi_uldivmod`, `__udivmoddi4`) that the time base uses. The Kernel's calls are implicit (struct copies, `u64` division); the Link_Checker maps every linked symbol to this item (R57.3) and includes them in the stack bounds (R37.1)."
 
 # --- Attributes and macros --------------------------------------------------
 
@@ -144,7 +168,7 @@ substitute = "The single `#[panic_handler]` of rsk-entry (R14.1) uses only `loca
 path = "core::prelude::v1::{derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default), cfg, inline, must_use, repr}"
 scope = ["kernel", "kernel-unsafe", "application"]
 certification = "Ferrocene core subset (assumed; confirm against the 26.05 Safety Manual, ORQ-24)"
-note = "`derive(Debug)` and `core::fmt` are excluded from Flight_Builds: no formatting machinery reaches the binary (R57.3)."
+note = "`derive(Debug)` is excluded from Flight_Builds; the `core::fmt` code linked for the panic message is reached by no entry point (the `core::fmt` item, R57.3)."
 
 [[item]]
 path = "core::{assert!, debug_assert!, unreachable!}"

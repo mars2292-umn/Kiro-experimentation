@@ -9,16 +9,19 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut positional = Vec::new();
     let mut out: Option<String> = None;
+    let mut profile: Option<String> = None;
+    let mut core_subset: Option<String> = None;
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
-        if a == "--out" {
-            out = it.next();
-        } else {
-            positional.push(a);
+        match a.as_str() {
+            "--out" => out = it.next(),
+            "--profile" => profile = it.next(),
+            "--core-subset" => core_subset = it.next(),
+            _ => positional.push(a),
         }
     }
     let [elf_path, model_path] = positional.as_slice() else {
-        eprintln!("usage: rsk-link <flight-build.elf> <task_model.json> [--out <stack_bounds.json>]");
+        eprintln!("usage: rsk-link <flight-build.elf> <task_model.json> [--out <stack_bounds.json>] [--profile <profile.toml> --core-subset <core_subset.toml>]");
         std::process::exit(2);
     };
     let elf = match std::fs::read(elf_path) {
@@ -35,7 +38,17 @@ fn main() {
             std::process::exit(2);
         }
     };
-    match rsk_link::check(&elf, &model) {
+    let profile_inputs = match (&profile, &core_subset) {
+        (Some(p), Some(c)) => match (std::fs::read_to_string(p), std::fs::read_to_string(c)) {
+            (Ok(pt), Ok(ct)) => Some(rsk_link::ProfileInputs::parse(&pt, &ct)),
+            (Err(e), _) | (_, Err(e)) => {
+                eprintln!("rsk-link: cannot read the Profile inputs: {e}");
+                std::process::exit(2);
+            }
+        },
+        _ => None,
+    };
+    match rsk_link::check_with_profile(&elf, &model, profile_inputs.as_ref()) {
         Ok(result) => {
             for n in &result.notes {
                 println!("note: {n}");

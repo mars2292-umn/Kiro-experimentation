@@ -652,7 +652,11 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
             .arg(&elf)
             .arg(&model)
             .arg("--out")
-            .arg(&bounds);
+            .arg(&bounds)
+            .arg("--profile")
+            .arg(ws.root.join("profile").join("profile.toml"))
+            .arg("--core-subset")
+            .arg(ws.root.join("profile").join("core_subset.toml"));
         commands.push(cmd.display());
         let log_name = format!("link-{}.log", binary.target_name);
         let (ok, text) = match cmd.output(Some(sandbox)) {
@@ -676,7 +680,7 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
             Tool { name: "rsk-link".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
             Verdict::from_bool(ok),
         )
-        .covers(&["R37.1", "R37.2", "R37.3", "R37.4", "PR-17", "PR-18", "R3.3", "R11.4"]);
+        .covers(&["R37.1", "R37.2", "R37.3", "R37.4", "PR-17", "PR-18", "R3.3", "R11.4", "R6.6", "R14.1", "R16.10", "R55.4", "R57.3", "PR-19", "PR-21", "PR-22", "PR-31", "PR-35"]);
         item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
         item.notes = vec![summary];
         item.build_manifest = Some(manifest_id.to_string());

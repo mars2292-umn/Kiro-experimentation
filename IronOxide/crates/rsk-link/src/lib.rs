@@ -19,6 +19,7 @@
 
 pub mod demangle;
 pub mod graph;
+pub mod scan;
 pub mod stack;
 pub mod thumb;
 
@@ -70,6 +71,53 @@ impl Result_ {
         });
         serde_json::to_string_pretty(&v).unwrap_or_default() + "\n"
     }
+}
+
+/// The Profile inputs of the scans (task 12.3): the disallowed crates of
+/// `profile/profile.toml` and the Core_Subset of `profile/core_subset.toml`.
+#[derive(Default)]
+pub struct ProfileInputs {
+    pub disallowed_crates: Vec<String>,
+    pub core_subset_toml: String,
+}
+
+impl ProfileInputs {
+    pub fn parse(profile_toml: &str, core_subset_toml: &str) -> ProfileInputs {
+        let mut disallowed = Vec::new();
+        let mut in_table = false;
+        for line in profile_toml.lines() {
+            let t = line.trim();
+            if t.starts_with('[') {
+                in_table = t == "[disallowed_crates]";
+                continue;
+            }
+            if in_table {
+                if let Some((k, _)) = t.split_once('=') {
+                    let k = k.trim();
+                    if !k.is_empty() && !k.starts_with('#') {
+                        disallowed.push(k.to_string());
+                    }
+                }
+            }
+        }
+        ProfileInputs { disallowed_crates: disallowed, core_subset_toml: core_subset_toml.to_string() }
+    }
+}
+
+/// Runs the Link_Checker over the binary and the Task_Model text, with the
+/// scans when the Profile inputs are given.
+pub fn check_with_profile(elf_bytes: &[u8], model_text: &str, profile: Option<&ProfileInputs>) -> Result<Result_, String> {
+    let mut out = check(elf_bytes, model_text)?;
+    if let Some(p) = profile {
+        let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
+        let model = stack::ModelInputs::parse(model_text)?;
+        let g = graph::CallGraph::build(&elf)?;
+        let inputs = scan::ScanInputs { disallowed_crates: p.disallowed_crates.clone(), core_items: scan::core_subset(&p.core_subset_toml), model: &model };
+        scan::run(&elf, &g, &inputs, &mut out.violations, &mut out.notes)?;
+    } else {
+        out.notes.push("no Profile given (--profile, --core-subset): the instruction-class, symbol, and Core_Subset scans of task 12.3 were not run".to_string());
+    }
+    Ok(out)
 }
 
 /// Runs the Link_Checker over the binary and the Task_Model text.

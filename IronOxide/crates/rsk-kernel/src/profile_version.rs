@@ -3,10 +3,10 @@
 #![forbid(unsafe_code)]
 
 /// The Profile version identifier (changes whenever the Profile changes, never reused).
-pub const PROFILE_VERSION: &str = "0.4";
+pub const PROFILE_VERSION: &str = "0.5";
 /// The default Profile_Variant.
 pub const PROFILE_DEFAULT_VARIANT: &str = "Ravenscar";
 /// Every Profile_Variant the Profile defines.
 pub const PROFILE_VARIANTS: &[&str] = &["Ravenscar", "Jorvik"];
 /// SHA-256 of the Profile source at this version.
-pub const PROFILE_CONTENT_HASH: &str = "sha256:046bc96592301fd8aa4b2aea005b873c2645e0605febdfe6c279cfafa6ef1d2c";
+pub const PROFILE_CONTENT_HASH: &str = "sha256:406268ec50484e38c129b60ffedf8f6f8b3360d691098127a7bb914279fbd98b";

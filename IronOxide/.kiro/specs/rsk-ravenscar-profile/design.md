@@ -797,7 +797,7 @@ The requirements say each ORQ is resolved or deferred, with a rationale, in the 
 | ORQ-29 | Deferred to the Jorvik variant (P5) | R5 |
 | ORQ-30 | Resolved: Flight_Builds log DHCSR.C_DEBUGEN at boot (event `EV_DEBUGGER`, implemented 2026-10-23, task 5.2) but still run; deployed configurations enable nRF52840 access-port protection | Error Handling |
 | ORQ-31 | Resolved: Kernel-owned WDT started at boot before the time base and fed at the end of every time-base handler run (at least once per housekeeping period; timeout four periods); a watchdog reset is logged and leads to the system safe state (implemented 2026-10-23, task 5.3) | Error Handling |
-| ORQ-32 | Resolved 2026-10-08 (found by the P1 spike): a `cbz`/`cbnz` whose target is a symbol in another section has no ELF relocation and LLVM's assembler emits a `nop` without a diagnostic. Rule for the Kernel_Unsafe_Module: branches between naked stubs use `b`/`b.w` only (Thumb `JUMP24`); the Link_Checker (instruction-class scans, task 12.3) disassembles every naked stub and rejects `cbz`/`cbnz` with a non-local target. | Kernel_Unsafe_Module |
+| ORQ-32 | Resolved 2026-10-08 (found by the P1 spike): a `cbz`/`cbnz` whose target is a symbol in another section has no ELF relocation and LLVM's assembler emits a `nop` without a diagnostic. Rule for the Kernel_Unsafe_Module: branches between naked stubs use `b`/`b.w` only (Thumb `JUMP24`); the Link_Checker (instruction-class scans, task 12.3, built 2026-10-23) disassembles every naked stub and rejects `cbz`/`cbnz` with a non-local target and any `nop` (the assembler's silent replacement). | Kernel_Unsafe_Module |
 
 ## Requirements Impact
 

@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::thumb::{self, Effect};
+use crate::thumb::{self, Effect, FpClass};
 
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -22,6 +22,15 @@ pub struct Function {
     /// Function addresses the body materialises (literal pool, movw/movt).
     pub materialised: Vec<u32>,
     pub svcs: Vec<u8>,
+    /// Floating-point instructions by class: (address, class).
+    pub fp: Vec<(u32, FpClass)>,
+    /// `msr`/`mrs`/`cps`: (address, description).
+    pub privileged: Vec<(u32, String)>,
+    /// Addresses in the Private Peripheral Bus (0xE000_0000..0xE010_0000) the body materialises.
+    pub ppb_refs: Vec<(u32, u32)>,
+    /// `cbz`/`cbnz` instructions whose target lies outside the function (ORQ-32), and `nop`s.
+    pub nonlocal_cbz: Vec<(u32, u32)>,
+    pub nops: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,6 +42,21 @@ pub struct FunctionReport {
     pub usage: u32,
     pub calls: Vec<String>,
     pub unbounded: Option<String>,
+}
+
+/// The special register of an `msr`/`mrs` SYSm value (B5.2.3).
+pub fn special_register(sysm: u8) -> &'static str {
+    match sysm {
+        0..=7 => "APSR/xPSR",
+        8 => "MSP",
+        9 => "PSP",
+        0x10 => "PRIMASK",
+        0x11 => "BASEPRI",
+        0x12 => "BASEPRI_MAX",
+        0x13 => "FAULTMASK",
+        0x14 => "CONTROL",
+        _ => "unknown special register",
+    }
 }
 
 pub struct CallGraph {
@@ -79,6 +103,11 @@ impl CallGraph {
                 indirect_branches: 0,
                 materialised: Vec::new(),
                 svcs: Vec::new(),
+                fp: Vec::new(),
+                privileged: Vec::new(),
+                ppb_refs: Vec::new(),
+                nonlocal_cbz: Vec::new(),
+                nops: Vec::new(),
             };
             let mut partial: BTreeMap<u8, u32> = BTreeMap::new();
             for insn in &insns {
@@ -91,8 +120,19 @@ impl CallGraph {
                             f.direct.push(*t);
                         }
                     }
+                    Effect::CompareBranch(t) => {
+                        if *t < *address || *t >= end {
+                            f.direct.push(*t);
+                            f.nonlocal_cbz.push((insn.address, *t));
+                        }
+                    }
+                    Effect::Nop => f.nops.push(insn.address),
                     Effect::IndirectCall(_) => f.indirect_sites += 1,
                     Effect::IndirectBranch(_) => f.indirect_branches += 1,
+                    Effect::Constant(reg, v) if (0xE000_0000..0xE010_0000).contains(v) => {
+                        f.ppb_refs.push((insn.address, *v));
+                        partial.insert(*reg, *v);
+                    }
                     Effect::Constant(reg, v) => {
                         // movt completes a movw in the same register; a literal or a
                         // completed pair naming a function is a candidate target.
@@ -104,6 +144,10 @@ impl CallGraph {
                         }
                     }
                     Effect::Svc(n) => f.svcs.push(*n),
+                    Effect::Fp(class) => f.fp.push((insn.address, *class)),
+                    Effect::Msr(sysm) => f.privileged.push((insn.address, format!("msr {}", special_register(*sysm)))),
+                    Effect::Mrs(sysm) => f.privileged.push((insn.address, format!("mrs {}", special_register(*sysm)))),
+                    Effect::Cps => f.privileged.push((insn.address, "cpsie/cpsid".to_string())),
                     _ => {}
                 }
             }
@@ -134,6 +178,12 @@ impl CallGraph {
         table_targets.sort_unstable();
         table_targets.dedup();
         Ok(CallGraph { functions, by_address, indirect_sites: indirect_total, table_targets })
+    }
+
+    /// A graph over given functions with no indirect-call universe (fixtures).
+    pub fn from_functions(functions: Vec<Function>) -> CallGraph {
+        let by_address = functions.iter().enumerate().map(|(i, f)| (f.address, i)).collect();
+        CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![] }
     }
 
     pub fn index_of(&self, address: u32) -> Option<usize> {
@@ -308,7 +358,7 @@ mod tests {
         let mut by_address = BTreeMap::new();
         for (i, (name, address, frame, direct, indirect, materialised, dynamic)) in funcs.into_iter().enumerate() {
             by_address.insert(address, i);
-            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![] });
+            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![] });
         }
         CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![] }
     }
