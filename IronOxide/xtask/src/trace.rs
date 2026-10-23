@@ -68,7 +68,7 @@ fn read(root: &Path, rel: &str) -> Result<String, String> {
 }
 
 /// `Rn.k` identifiers in a text, with `Rn.a to Rn.b` ranges expanded.
-fn criteria_in(text: &str) -> BTreeSet<String> {
+pub fn criteria_in(text: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     let b = text.as_bytes();
     let mut i = 0;
@@ -125,6 +125,25 @@ fn validates_in(text: &str) -> BTreeSet<String> {
         }
     }
     out
+}
+
+/// The criteria the Verification_Plan's section 9.5 lists as completely
+/// covered by the named formal analyses (the `Complete` column of the rows
+/// `| Verus, Kernel |` and `| Verus, Analyzer core |`), for the Verus
+/// Evidence_Item's `covers` list (R52.5): the plan is the single source of
+/// what the proofs are claimed to discharge.
+pub fn plan_complete_criteria(plan_text: &str, analyses: &[&str]) -> Vec<String> {
+    let mut out = BTreeSet::new();
+    for line in plan_text.lines() {
+        let cells: Vec<&str> = line.split('|').collect();
+        if cells.len() < 4 {
+            continue;
+        }
+        if analyses.contains(&cells[1].trim()) {
+            out.extend(criteria_in(cells[2]));
+        }
+    }
+    out.into_iter().collect()
 }
 
 pub fn parse_requirements(text: &str) -> Vec<Criterion> {

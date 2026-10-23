@@ -382,12 +382,7 @@ pub fn run_verus(
         },
         Verdict::from_bool(all_ok),
     )
-    .covers(&[
-        "R7.1", "R7.2", "R7.3", "R7.5", "R7.6", "R8.1", "R8.2", "R8.3", "R8.4", "R8.5", "R8.9", "R8.10", "R9.1", "R9.3",
-        "R9.4", "R9.5", "R9.7", "R9.8", "R10.1", "R10.2", "R10.3", "R10.4", "R10.7", "R14.4", "R14.5", "R14.6", "R14.7", "R14.9", "R16.1", "R16.3", "R16.5", "R16.6", "R18.1",
-        "R18.2", "R19.1", "R20.3", "R44.1", "R44.2", "R44.3", "R44.4", "R44.6", "R44.8", "R49.1", "R49.5", "PR-02", "PR-07",
-        "PR-14", "PR-16", "PR-23", "PR-34",
-    ]);
+    .covers(&verus_covers(&ws.root).iter().map(String::as_str).collect::<Vec<_>>());
     item.command_lines = commands;
     item.notes = notes;
     item.build_manifest = Some(manifest_id.to_string());
@@ -400,6 +395,23 @@ pub fn run_verus(
 
 /// PAR-01 cross-check with Verus's `line_count` (notes only; the gate is
 /// the Build_System counter, `checks::kernel_size`).
+/// The criteria the Verus Evidence_Item covers (task 8.4 follow-up,
+/// 2026-10-23): the `Complete` column of verification_plan.md section 9.5
+/// for the Kernel and Analyzer-core rows, the criterion the item itself
+/// discharges (R44.6: the proofs run in the job), and the restrictions
+/// whose PO evidence the Profile names `proof-kernel-*`. Criteria the plan
+/// lists as partial are not claimed.
+pub fn verus_covers(root: &Path) -> Vec<String> {
+    let plan = std::fs::read_to_string(root.join("docs/verification_plan.md")).unwrap_or_default();
+    let mut out = crate::trace::plan_complete_criteria(&plan, &["Verus, Kernel", "Verus, Analyzer core"]);
+    for fixed in ["R44.6", "PR-02", "PR-05", "PR-07", "PR-14", "PR-16", "PR-19", "PR-23", "PR-29", "PR-34"] {
+        if !out.iter().any(|c| c == fixed) {
+            out.push(fixed.to_string());
+        }
+    }
+    out
+}
+
 pub fn line_count_cross_check(ws: &Workspace, verus: &Verus, own_total: usize, report: &mut Report) {
     let Some(tool) = verus.line_count() else {
         report.warn("the Verus release has no `line_count` tool; PAR-01 cross-check skipped");
