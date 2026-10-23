@@ -18,7 +18,7 @@ use rsk_analyzer::{inputs::Options, EXIT_INTERNAL, EXIT_REJECTED};
 use rsk_model::report::Inputs;
 
 fn usage() -> ExitCode {
-    eprintln!("usage: rsk-analyzer --model <task_model.json> --wcet <wcet.json> --timing <kernel_timing.json> --manifest <build-manifest.json> --out <dir> [--allow-placeholders] [--prefer measured|static] [--uppaal] [--uppaal-timeout <seconds>]");
+    eprintln!("usage: rsk-analyzer --model <task_model.json> (--wcet <wcet.json> --timing <kernel_timing.json> | --placeholders) --manifest <build-manifest.json> --out <dir> [--allow-placeholders] [--prefer measured|static] [--uppaal] [--uppaal-timeout <seconds>]");
     ExitCode::from(EXIT_INTERNAL)
 }
 
@@ -35,6 +35,7 @@ fn main() -> ExitCode {
     let mut out = None;
     let mut options = Options::default();
     let mut run_uppaal = false;
+    let mut placeholders = false;
     let mut uppaal_timeout = 300u64;
     let mut i = 0;
     while i < args.len() {
@@ -49,6 +50,13 @@ fn main() -> ExitCode {
             "--manifest" => manifest = next(&mut i).map(PathBuf::from),
             "--out" => out = next(&mut i).map(PathBuf::from),
             "--allow-placeholders" => options.allow_placeholders = true,
+            // Placeholder WCET_Records and Kernel_Timing_Parameters generated
+            // from the model and the manifest (pre-hardware development runs;
+            // implies --allow-placeholders; the report says so).
+            "--placeholders" => {
+                placeholders = true;
+                options.allow_placeholders = true;
+            }
             "--prefer" => options.prefer_method = next(&mut i),
             "--uppaal" => run_uppaal = true,
             "--uppaal-timeout" => uppaal_timeout = next(&mut i).and_then(|s| s.parse().ok()).unwrap_or(300),
@@ -56,31 +64,59 @@ fn main() -> ExitCode {
         }
         i += 1;
     }
-    let (Some(model_p), Some(wcet_p), Some(timing_p), Some(manifest_p), Some(out)) = (model, wcet, timing, manifest, out) else {
+    let (Some(model_p), Some(manifest_p), Some(out)) = (model, manifest, out) else {
         return usage();
     };
-    let texts = match (read(&model_p), read(&wcet_p), read(&timing_p), read(&manifest_p)) {
-        (Ok(m), Ok(w), Ok(t), Ok(b)) => (m, w, t, b),
-        (m, w, t, b) => {
-            for e in [m.err(), w.err(), t.err(), b.err()].into_iter().flatten() {
+    let (model_text, manifest_text) = match (read(&model_p), read(&manifest_p)) {
+        (Ok(m), Ok(b)) => (m, b),
+        (m, b) => {
+            for e in [m.err(), b.err()].into_iter().flatten() {
                 eprintln!("rsk-analyzer: {e}");
             }
             return ExitCode::from(EXIT_INTERNAL);
         }
     };
-    // R28.1: schema validation of every input; each violation with its path.
-    let mut rejected = Vec::new();
-    let model = rsk_model::read_task_model(&texts.0).map_err(|e| rejected.push(format!("Task_Model: {e}"))).ok();
-    let wcet = rsk_model::read_wcet_set(&texts.1).map_err(|e| rejected.push(format!("WCET_Records: {e}"))).ok();
-    let timing = rsk_model::read_kernel_timing(&texts.2).map_err(|e| rejected.push(format!("Kernel_Timing_Parameters: {e}"))).ok();
-    let manifest = rsk_model::read_build_manifest(&texts.3).map_err(|e| rejected.push(format!("Build_Manifest: {e}"))).ok();
-    if !rejected.is_empty() {
-        for r in &rejected {
-            eprintln!("rsk-analyzer: rejected input: {r}");
+    let (wcet_p, timing_p, wcet_text, timing_text) = if placeholders {
+        // The model and the manifest are validated first so that the
+        // placeholders carry the analysed binary's hash and build settings.
+        let (model, manifest) = match (rsk_model::read_task_model(&model_text), rsk_model::read_build_manifest(&manifest_text)) {
+            (Ok(m), Ok(b)) => (m, b),
+            (m, b) => {
+                for e in [m.err().map(|e| e.to_string()), b.err().map(|e| e.to_string())].into_iter().flatten() {
+                    eprintln!("rsk-analyzer: rejected input: {e}");
+                }
+                return ExitCode::from(EXIT_REJECTED);
+            }
+        };
+        let hash = manifest.get("binaries").and_then(|b| b.as_array()).and_then(|b| b.first()).and_then(|b| b.get("hash")).and_then(|h| h.as_str()).unwrap_or("sha256:unknown").to_string();
+        let icache = manifest.pointer("/build/icache").and_then(|v| v.as_str()).unwrap_or("off").to_string();
+        let (w, t) = rsk_analyzer::placeholders::make(&model, &hash, &icache);
+        (PathBuf::from("<placeholders>"), PathBuf::from("<placeholders>"), rsk_model::print(&w), rsk_model::print(&t))
+    } else {
+        let (Some(wcet_p), Some(timing_p)) = (wcet, timing) else {
+            return usage();
+        };
+        match (read(&wcet_p), read(&timing_p)) {
+            (Ok(w), Ok(t)) => (wcet_p, timing_p, w, t),
+            (w, t) => {
+                for e in [w.err(), t.err()].into_iter().flatten() {
+                    eprintln!("rsk-analyzer: {e}");
+                }
+                return ExitCode::from(EXIT_INTERNAL);
+            }
         }
-        return ExitCode::from(EXIT_REJECTED);
-    }
-    let (model, wcet, timing, manifest) = (model.unwrap(), wcet.unwrap(), timing.unwrap(), manifest.unwrap());
+    };
+    let texts = (model_text, wcet_text, timing_text, manifest_text);
+    let loaded = match rsk_analyzer::load(&texts.0, &texts.1, &texts.2, &texts.3) {
+        Ok(l) => l,
+        Err(rejected) => {
+            for r in &rejected {
+                eprintln!("rsk-analyzer: rejected input: {r}");
+            }
+            return ExitCode::from(EXIT_REJECTED);
+        }
+    };
+    let (model, wcet, timing, manifest) = (loaded.model, loaded.wcet, loaded.timing, loaded.manifest);
     let names = Inputs {
         task_model: format!("{} ({})", model_p.display(), sha(&texts.0)),
         wcet_records: format!("{} ({})", wcet_p.display(), sha(&texts.1)),

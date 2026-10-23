@@ -26,7 +26,8 @@
 //!    the build unless their connection attempt is denied.
 //! 8. Tests: `cargo test` for the workspace, including the fixture tests.
 //! 8a. Link_Checker (R37) and 8b. Config_Checker (R26.5) on every
-//!     Flight_Build binary with a Task_Model; 8c. Profile_Lint (R3.2, R3.4,
+//!     Flight_Build binary with a Task_Model; 8c. Analyzer (R29) on the same
+//!     binaries with placeholder timing; 8d. Profile_Lint (R3.2, R3.4,
 //!     R3.5) over the Kernel and Application sources, then Clippy's
 //!     deny-lists on the Target crates.
 //! 9. Kernel_Proofs: `cargo-verus verify` for every Kernel crate with the
@@ -254,7 +255,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 16,
+        total_steps: 17,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -504,7 +505,12 @@ pub fn run(root: &Path, options: Options) -> bool {
     let confcheck_cmds = config_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "check-config-step", "Config_Checker step", &["R26.4", "R26.5", "R25.2"], confcheck_cmds);
 
-    // --------------------------------------------------- 8c. Profile_Lint
+    // ------------------------------------------------------ 8c. Analyzer
+    job.heading("Analyzer: response-time analysis with placeholder timing (R29)");
+    let rta_cmds = analyzer_run(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "analysis-rta-step", "Analyzer step", &["R29.5", "R28.1", "R3.5"], rta_cmds);
+
+    // --------------------------------------------------- 8d. Profile_Lint
     job.heading("Profile_Lint (R3.2, R3.4, R3.5)");
     let lint_cmds = profile_lint(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "check-profile-lint-step", "Profile_Lint step", &["R3.2", "R3.4", "R3.5"], lint_cmds);
@@ -768,6 +774,72 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(p);
         }
     }
+}
+
+/// R29: the Analyzer on every Flight_Build binary with a Task_Model, with
+/// placeholder WCET_Records and Kernel_Timing_Parameters (no WCET_Harness
+/// yet): the Task_Model, the Build_Manifest of this job, and the Analyzer's
+/// own Profile version are cross-checked (R28, R3.5) and the response-time
+/// analysis runs; the report says the timing is not evidence. One Analysis
+/// Evidence_Item per binary, `analysis-rta-<binary>`, with the JSON and text
+/// reports and the UPPAAL export as artifacts.
+fn analyzer_run(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    let manifest_file = store.dir.join("build-manifest.json");
+    for binary in flight_binaries(ws, target_dir).into_iter().flatten() {
+        let Some(app_dir) = ws.packages.values().find(|p| p.name == binary.package).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { continue };
+        let model = app_dir.join("gen").join("task_model.json");
+        if !model.is_file() || !manifest_file.is_file() {
+            continue;
+        }
+        let out_dir = store.dir.join(format!("rta-{}", binary.target_name));
+        let cmd = Cmd::cargo_frozen("run")
+            .args(["--quiet", "-p", "rsk-analyzer", "--manifest-path"])
+            .arg(ws.root.join("Cargo.toml"))
+            .arg("--target-dir")
+            .arg(target_dir)
+            .arg("--")
+            .arg("--model")
+            .arg(&model)
+            .arg("--manifest")
+            .arg(&manifest_file)
+            .arg("--placeholders")
+            .arg("--out")
+            .arg(&out_dir);
+        commands.push(cmd.display());
+        let (status, text) = match cmd.output(Some(sandbox)) {
+            Ok(o) => (o.status.code().unwrap_or(3), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+            Err(e) => (3, format!("cannot run rsk-analyzer: {e}")),
+        };
+        let log_name = format!("rta-{}.log", binary.target_name);
+        let _ = store.write_artifact(&log_name, &text);
+        let ok = status == 0;
+        let verdict_line = text.lines().find(|l| l.starts_with("RESULT") || l.contains("PASS") || l.contains("FAIL") || l.contains("REJECTED")).unwrap_or("").trim().to_string();
+        if ok {
+            report.note(format!("R29: `{}`: the Task set is schedulable with placeholder timing (not timing evidence): {verdict_line}", binary.target_name));
+        } else {
+            report.error(Rule::Step, None, format!("Analyzer: `{}`: exit {status} (see {log_name})", binary.target_name));
+        }
+        let mut item = Item::new(
+            &format!("analysis-rta-{}", binary.target_name),
+            Kind::Analysis,
+            &format!("Analyzer: response-time analysis of {} with placeholder WCET_Records and Kernel_Timing_Parameters (development evidence only)", binary.target_name),
+            Tool { name: "rsk-analyzer".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+            Verdict::from_bool(ok),
+        )
+        .covers(&["R28.1", "R28.2", "R28.3", "R28.4", "R28.5", "R28.6", "R28.7", "R28.8", "R29.1", "R29.2", "R29.3", "R29.4", "R29.5", "R29.6", "R29.7", "R29.8", "R29.9", "R13.3", "R3.5"]);
+        item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
+        item.notes = vec!["placeholder timing: every WCET_Record equals the Task's Budget and every Kernel_Timing_Parameter is nominal; the result is a check of the pipeline and of the Budgets' schedulability, not timing evidence (R33.1)".to_string()];
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = vec![log_name, format!("rta-{}/report.json", binary.target_name), format!("rta-{}/report.txt", binary.target_name), format!("rta-{}/model.xml", binary.target_name)];
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    if commands.is_empty() {
+        report.note("Analyzer: no Flight_Build binary with a Task_Model and a Build_Manifest");
+    }
+    commands
 }
 
 /// R3.5: the Profile_Lint over every crate R2.2 subjects to a restriction

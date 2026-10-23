@@ -7,6 +7,7 @@
 #![cfg_attr(not(verus_keep_ghost), allow(unused_imports))]
 
 pub mod inputs;
+pub mod profile_version;
 pub mod report;
 pub mod rta;
 pub mod uppaal;
@@ -39,6 +40,28 @@ pub struct Wcrt {
     pub schedulable: bool,
     pub overflow: bool,
     pub interference: Vec<Interference>,
+}
+
+/// The four inputs read and validated against their schemas (R28.1): each
+/// violated rule is reported with its JSON path (R25.6). The texts are the
+/// file contents; the names are for the messages.
+pub struct Loaded {
+    pub model: TaskModel,
+    pub wcet: WcetSet,
+    pub timing: KernelTiming,
+    pub manifest: serde_json::Value,
+}
+
+pub fn load(model: &str, wcet: &str, timing: &str, manifest: &str) -> Result<Loaded, Vec<String>> {
+    let mut rejected = Vec::new();
+    let model = rsk_model::read_task_model(model).map_err(|e| rejected.push(format!("Task_Model: {e}"))).ok();
+    let wcet = rsk_model::read_wcet_set(wcet).map_err(|e| rejected.push(format!("WCET_Records: {e}"))).ok();
+    let timing = rsk_model::read_kernel_timing(timing).map_err(|e| rejected.push(format!("Kernel_Timing_Parameters: {e}"))).ok();
+    let manifest = rsk_model::read_build_manifest(manifest).map_err(|e| rejected.push(format!("Build_Manifest: {e}"))).ok();
+    match (model, wcet, timing, manifest) {
+        (Some(model), Some(wcet), Some(timing), Some(manifest)) if rejected.is_empty() => Ok(Loaded { model, wcet, timing, manifest }),
+        _ => Err(rejected),
+    }
 }
 
 /// Runs the recurrence of R29.1 for every prepared Task (R29.5, R29.7,

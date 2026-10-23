@@ -114,7 +114,14 @@ pub fn prepare(
     let cpu_hz = model.clock.cpu_hz;
     let tick_hz = model.clock.tick_hz;
 
-    // R28.6: constructs and versions.
+    // R28.6: constructs and versions. The Analyzer implements one Profile
+    // version (profile_version.rs, generated from profile/profile.toml).
+    if model.profile.version != crate::profile_version::PROFILE_VERSION {
+        rejections.push(reject(
+            "R28.6",
+            format!("the Task_Model records Profile {}; this Analyzer implements Profile {} (R3.5)", model.profile.version, crate::profile_version::PROFILE_VERSION),
+        ));
+    }
     if model.profile.variant != "Ravenscar" {
         rejections.push(reject("R28.6", format!("Profile_Variant `{}` is not supported by this Analyzer", model.profile.variant)));
     }
