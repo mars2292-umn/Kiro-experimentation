@@ -32,6 +32,7 @@
 use vstd::prelude::*;
 
 pub mod budget;
+pub mod history;
 #[cfg(kani)]
 pub mod kani_harness;
 pub mod kernel;

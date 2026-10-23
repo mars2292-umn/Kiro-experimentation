@@ -16,13 +16,13 @@ From the local `cargo xtask verify` run of 2026-10-22 (evidence store `target/ev
 
 | Evidence_Item | Result |
 |---|---|
-| `proof-kernel-verus` | rsk-logic 231 items verified, 0 errors; rsk-kernel 112 items verified, 0 errors (`arch::bound`, `arch::cm4::plan`, `arch::cm4::entry`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
-| `check-static-checks` | 4 assumption constructs in the verified crates, all listed (the four trusted functions of `Cm4Hw`, R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,846 executable Kernel lines (PAR-01: rsk-logic 1,182, rsk-kernel 1,575, rsk-entry 89); 14 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
+| `proof-kernel-verus` | rsk-logic 241 items verified, 0 errors (the ghost history of task 4.11 included); rsk-kernel 112 items verified, 0 errors (`arch::bound`, `arch::cm4::plan`, `arch::cm4::entry`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
+| `check-static-checks` | 4 assumption constructs in the verified crates, all listed (the four trusted functions of `Cm4Hw`, R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,880 executable Kernel lines (PAR-01: rsk-logic 1,215, rsk-kernel 1,576, rsk-entry 89; 34 of them the ghost-history writes of task 4.11, which emit no code); 16 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
 | `proof-kernel-kani` | 12 harnesses, every check passed (6 in rsk-logic, the `intake` cross-check among them; 6 in rsk-kernel); Kani 0.68.0, CBMC 6.11.0 |
 | `test-qemu-spike-p1-demo` | `RSK-OK` on QEMU mps2-an386 (not the Target) |
 | `test-workspace-tests`, builds, sandbox, `check-evidence` | pass |
 
-CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 14 of 14 mutants killed on 2026-10-22.
+CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 16 of 16 mutants killed on 2026-10-22.
 
 ## 2. What the type system gives (R43.3)
 
@@ -104,7 +104,7 @@ What the model does not cover, and the evidence that does: the hardware's own re
 
 ## 5. Arguments recorded here
 
-These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take. Mechanizing 5.1 to 5.5 is tasks 4.11 to 4.14 (added 2026-10-22): a ghost history in the Kernel model first, then the three trace arguments as Verus theorems.
+These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take. Mechanizing 5.1 to 5.5 is tasks 4.12 to 4.14: the ghost history they need exists since 2026-10-22 (task 4.11, `logic::history`): `Kernel::history` records every dispatch, Job end, lock, unlock, Release due, and kill with its observed instant; `Kernel::inv` carries the trace invariant `history_wf` and every entry point ensures that it only appended to the history. No theorem over the history is proven yet; each of 5.1 to 5.5 is still review evidence.
 
 ### 5.1 Bounded blocking: one Critical_Section per Release (R8.4)
 

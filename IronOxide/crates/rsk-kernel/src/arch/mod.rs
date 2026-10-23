@@ -71,6 +71,7 @@ pub const fn placeholder_kernel<const NT: usize, const NR: usize, const NP: usiz
         safe_state: false,
         started: false,
         now: 0,
+        history: vstd::prelude::Ghost::assume_new(),
     }
 }
 

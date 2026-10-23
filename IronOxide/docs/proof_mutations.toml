@@ -129,3 +129,21 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 find = "            (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
 replace = "            (DispatchPlan { psp: frame, control: 0, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
 expect = ["entry.rs", "CONTROL_JOB"]
+
+[[mutation]]
+id = "history-step-after-now"
+kills = "record: lemma_history_push requires s.at == now (no step beyond the observed instant; task 4.11)"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        let ghost s = Step { kind, task: task@, at: self.now as int, arg: arg@ };\n"
+replace = "        let ghost s = Step { kind, task: task@, at: self.now as int + 1, arg: arg@ };\n"
+expect = ["kernel.rs", "s.at == now"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "history-step-dropped"
+kills = "record: the history left is the one found with the step appended (task 4.11)"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        self.history = Ghost(self.history@.push(s));\n"
+replace = "        self.history = Ghost(self.history@);\n"
+expect = ["kernel.rs", "push(Step"]
+package = "rsk-logic"
