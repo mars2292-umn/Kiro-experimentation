@@ -1,0 +1,658 @@
+# Profile_Conformance_Suite register (R3.6, R3.7, R3.11; task 14.1).
+#
+# One case per active restriction and enforcement category (TS, MC, LN, LK)
+# and one fault-injection case per restriction that lists RT. `cargo xtask
+# verify` (step "Profile_Conformance_Suite") and `cargo xtask conformance`
+# run every case and write one Evidence_Item per case, named as the
+# Profile's `evidence` tables name it (`conf-PR-nn-cc`, `fi-PR-nn`), so
+# `cargo xtask trace` sees them (R50.6).
+#
+# A case passes only when the check of its category rejects the program
+# with a diagnostic naming the PR identifier (R3.6), or, for a
+# fault-injection case, when the Health_Monitor's event log records the
+# violation with the restriction's identifier (R3.9, R3.11). A case whose
+# `kind` is "reason" is one the suite cannot provide; `reason` says why
+# (R3.6 admits this) and its Evidence_Item is written as inconclusive.
+#
+# Kinds and their fields:
+#   generator       the P1 demo's App_Declaration with `find` (exactly once)
+#                   replaced by `replace`, run through the Generator's parser
+#                   and validator (MC); `expect`: substrings of the rejection
+#   compile-fail    `member` of xtask/fixtures/api-misuse checked with
+#                   `cargo check`; must fail with every `expect` substring (TS)
+#   lint            `file` of crates/rsk-lint/fixtures/ui linted in `scope` by
+#                   the Profile_Lint (LN); `expect`: substrings of its output
+#   build-check     `fixture` of xtask/fixtures checked by the Build_System's
+#                   workspace checks (LN, LK); `expect`: diagnostic substrings
+#   link-mutation   the P1 demo Flight_Build altered (`patch`: `bytes` written
+#                   at `offset` of the first function symbol starting with
+#                   `symbol`; `rename`: that symbol renamed `to`), then the
+#                   Link_Checker must exit non-zero naming every `expect` (LK)
+#   fault-injection the P1 demo built with the Partition `feature`, run on
+#                   QEMU; the event log must hold an event of kind `event`
+#                   carrying the restriction bit (RT)
+#   reason          not provided; `reason` says why
+
+schema = 1
+declaration = "apps/p1-demo/decl/src/lib.rs"
+binary = "p1-demo"
+
+# ============================================================ MC (Generator)
+
+[[case]]
+id = "conf-PR-01-mc"
+restriction = "PR-01"
+category = "MC"
+kind = "reason"
+reason = "The App_Declaration grammar has no construct that creates a Task after build time; the task table is closed by construction (R21), so no declaration can violate PR-01 for the Generator to reject. The TS case covers the API side."
+
+[[case]]
+id = "conf-PR-03-mc"
+restriction = "PR-03"
+category = "MC"
+kind = "generator"
+find = "priority = 7, resources = [state], raises = [tick]);"
+replace = "priority = 7, priority = 6, resources = [state], raises = [tick]);"
+expect = ["PR-03"]
+
+[[case]]
+id = "conf-PR-04-mc"
+restriction = "PR-04"
+category = "MC"
+kind = "generator"
+find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+replace = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2, core = 1);"
+expect = ["NG-01"]
+
+[[case]]
+id = "conf-PR-06-mc"
+restriction = "PR-06"
+category = "MC"
+kind = "reason"
+reason = "The Ceiling is derived (R23.1); the grammar has no ceiling attribute, so no declaration states a wrong one. The Config_Checker recomputes every Ceiling from the Task_Model (`ceiling-lowered` mutation, docs/config_mutations.toml)."
+
+[[case]]
+id = "conf-PR-07-mc"
+restriction = "PR-07"
+category = "MC"
+kind = "reason"
+reason = "Nesting depths are derived (R23.3); the grammar has no depth attribute. The TS case (re-entry, E0499) and the Config_Checker's nesting-depth mutations cover PR-07."
+
+[[case]]
+id = "conf-PR-11-mc"
+restriction = "PR-11"
+category = "MC"
+kind = "generator"
+find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+replace = "task log (periodic, signal = tick, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+expect = ["PR-11"]
+
+[[case]]
+id = "conf-PR-12-mc"
+restriction = "PR-12"
+category = "MC"
+kind = "generator"
+find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+replace = "task log (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+expect = ["PR-12"]
+
+[[case]]
+id = "conf-PR-13-mc"
+restriction = "PR-13"
+category = "MC"
+kind = "generator"
+find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+replace = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2, when = ready);"
+expect = ["PR-13"]
+
+[[case]]
+id = "conf-PR-14-mc"
+restriction = "PR-14"
+category = "MC"
+kind = "reason"
+reason = "Capacities are computed (R23.4); the grammar has no capacity attribute. The Config_Checker's capacity mutations cover the computed values."
+
+[[case]]
+id = "conf-PR-15-mc"
+restriction = "PR-15"
+category = "MC"
+kind = "reason"
+reason = "The Init_Arena is declared and sized in the Partition header (`init_arena = N.KiB()`), the only MC rule of PR-15; the grammar admits no other form, so no declaration can violate it. The LK case (allocator symbols) and the RT reason cover the rest."
+
+[[case]]
+id = "conf-PR-23-mc"
+restriction = "PR-23"
+category = "MC"
+kind = "reason"
+reason = "Bindings and priorities are emitted into Generated_Config from the declaration; no declaration can ask for a run-time change. The Config_Checker's priority-map and binding mutations cover the emitted values."
+
+[[case]]
+id = "conf-PR-24-mc"
+restriction = "PR-24"
+category = "MC"
+kind = "reason"
+reason = "Timed events are derived from the declared periods and offsets (R9.4); the grammar has no timer construct."
+
+[[case]]
+id = "conf-PR-25-mc"
+restriction = "PR-25"
+category = "MC"
+kind = "reason"
+reason = "Per-Task state is the declared Context (R21); the grammar has no run-time attribute construct."
+
+[[case]]
+id = "conf-PR-27-mc"
+restriction = "PR-27"
+category = "MC"
+kind = "generator"
+find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+replace = "task log (periodic, period = 40.ms(), deadline = 40.ms(), priority = 2);"
+expect = ["PR-27"]
+
+[[case]]
+id = "conf-PR-28-mc"
+restriction = "PR-28"
+category = "MC"
+kind = "generator"
+find = "task sensor (periodic, period = 20.ms()"
+replace = "task control (periodic, period = 20.ms()"
+expect = ["PR-28"]
+
+[[case]]
+id = "conf-PR-29-mc"
+restriction = "PR-29"
+category = "MC"
+kind = "generator"
+find = "peripherals = [CMSDK_DUALTIMER];"
+replace = "peripherals = [CMSDK_DUALTIMER, CMSDK_TIMER0];"
+expect = ["PR-29"]
+
+[[case]]
+id = "conf-PR-30-mc"
+restriction = "PR-30"
+category = "MC"
+kind = "generator"
+find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
+replace = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2, resources = [state]);"
+expect = ["PR-30"]
+
+[[case]]
+id = "conf-PR-31-mc"
+restriction = "PR-31"
+category = "MC"
+kind = "reason"
+reason = "The FPU flag is a declared attribute the Generator copies into the Task table; a declaration cannot state an inconsistent flag. The LK case checks the object code of FPU-free Tasks."
+
+[[case]]
+id = "conf-PR-32-mc"
+restriction = "PR-32"
+category = "MC"
+kind = "reason"
+reason = "Endpoints and Protocols are Phase 4 (R38); the grammar has no Endpoint construct yet."
+
+[[case]]
+id = "conf-PR-33-mc"
+restriction = "PR-33"
+category = "MC"
+kind = "generator"
+find = "priority = 7, resources = [state], raises = [tick]);"
+replace = "priority = 8, resources = [state], raises = [tick]);"
+expect = ["PR-33"]
+
+# ======================================================== TS (type system)
+
+[[case]]
+id = "conf-PR-01-ts"
+restriction = "PR-01"
+category = "TS"
+kind = "reason"
+reason = "No API creates a Task: `rsk` exports no spawn function and Task handles are constructed only by generated code, so the violating program cannot be written (TS by absence)."
+
+[[case]]
+id = "conf-PR-02-ts"
+restriction = "PR-02"
+category = "TS"
+kind = "reason"
+reason = "No API terminates or aborts a Task (TS by absence)."
+
+[[case]]
+id = "conf-PR-03-ts"
+restriction = "PR-03"
+category = "TS"
+kind = "reason"
+reason = "No API sets a Priority (TS by absence)."
+
+[[case]]
+id = "conf-PR-05-ts"
+restriction = "PR-05"
+category = "TS"
+kind = "compile-fail"
+member = "api_undeclared"
+expect = ["error[E0609]"]
+
+[[case]]
+id = "conf-PR-07-ts"
+restriction = "PR-07"
+category = "TS"
+kind = "compile-fail"
+member = "api_reentry"
+expect = ["error[E0499]"]
+
+[[case]]
+id = "conf-PR-08-ts"
+restriction = "PR-08"
+category = "TS"
+kind = "compile-fail"
+member = "api_escape"
+expect = ["lifetime may not live long enough"]
+
+[[case]]
+id = "conf-PR-09-ts"
+restriction = "PR-09"
+category = "TS"
+kind = "compile-fail"
+member = "api_asyncbody"
+expect = ["error[E0308]"]
+
+[[case]]
+id = "conf-PR-10-ts"
+restriction = "PR-10"
+category = "TS"
+kind = "reason"
+reason = "No relative-delay API exists; `rsk::now()` is the only time API (TS by absence)."
+
+[[case]]
+id = "conf-PR-12-ts"
+restriction = "PR-12"
+category = "TS"
+kind = "reason"
+reason = "A Release_Signal handle is generated for exactly one Task's Context; no API binds a second Task (TS by absence)."
+
+[[case]]
+id = "conf-PR-13-ts"
+restriction = "PR-13"
+category = "TS"
+kind = "reason"
+reason = "No predicate-taking release API exists (TS by absence)."
+
+[[case]]
+id = "conf-PR-14-ts"
+restriction = "PR-14"
+category = "TS"
+kind = "reason"
+reason = "Capacities are const generics of the generated Kernel type; the Application has no API that grows a queue (TS by absence)."
+
+[[case]]
+id = "conf-PR-22-ts"
+restriction = "PR-22"
+category = "TS"
+kind = "reason"
+reason = "Core peripherals are owned by the Kernel: `rsk` exports no handle to them (TS by absence); the LN case rejects assembly in Application code and the RT case shows the hardware refusal."
+
+[[case]]
+id = "conf-PR-24-ts"
+restriction = "PR-24"
+category = "TS"
+kind = "reason"
+reason = "No timer API exists (TS by absence)."
+
+[[case]]
+id = "conf-PR-25-ts"
+restriction = "PR-25"
+category = "TS"
+kind = "reason"
+reason = "No per-Task attribute API exists (TS by absence)."
+
+[[case]]
+id = "conf-PR-26-ts"
+restriction = "PR-26"
+category = "TS"
+kind = "reason"
+reason = "`rsk::now()` is the only time API (TS by absence)."
+
+[[case]]
+id = "conf-PR-29-ts"
+restriction = "PR-29"
+category = "TS"
+kind = "reason"
+reason = "Peripheral access goes through `rsk::mmio` within the Partition's MPU windows; no peripheral singleton can be obtained twice (TS by absence); the MC case rejects a double assignment and the RT case shows the MPU refusal."
+
+[[case]]
+id = "conf-PR-32-ts"
+restriction = "PR-32"
+category = "TS"
+kind = "reason"
+reason = "Endpoints and Protocols are Phase 4 (R38)."
+
+[[case]]
+id = "conf-PR-34-ts"
+restriction = "PR-34"
+category = "TS"
+kind = "reason"
+reason = "Resources reach Task bodies only through their generated Context, which exists only after Init returns (TS by absence)."
+
+# ====================================================== LN (Profile_Lint)
+
+[[case]]
+id = "conf-PR-05-ln"
+restriction = "PR-05"
+category = "LN"
+kind = "lint"
+file = "statics_recursion_dyn.rs"
+scope = "application"
+expect = ["error[PR-05]"]
+
+[[case]]
+id = "conf-PR-08-ln"
+restriction = "PR-08"
+category = "LN"
+kind = "reason"
+reason = "The lock closure receives no wait-capable handle (TS); the Profile_Lint has no blocking-call rule because no blocking API exists to name. The TS case (`api_escape`) covers the closure discipline."
+
+[[case]]
+id = "conf-PR-09-ln"
+restriction = "PR-09"
+category = "LN"
+kind = "lint"
+file = "async_task.rs"
+scope = "application"
+expect = ["error[PR-09]"]
+
+[[case]]
+id = "conf-PR-10-ln"
+restriction = "PR-10"
+category = "LN"
+kind = "reason"
+reason = "Clippy's `disallowed-methods` list (clippy.toml) names the relative-delay APIs of third-party crates; those crates are disallowed and not vendored (PR-35), so no program naming them compiles, and the case cannot be built offline."
+
+[[case]]
+id = "conf-PR-11-ln"
+restriction = "PR-11"
+category = "LN"
+kind = "reason"
+reason = "As conf-PR-10-ln: the select and join combinators of the deny-list belong to crates that are not vendored."
+
+[[case]]
+id = "conf-PR-16-ln"
+restriction = "PR-16"
+category = "LN"
+kind = "lint"
+file = "loops.rs"
+scope = "application"
+expect = ["error[PR-16]"]
+
+[[case]]
+id = "conf-PR-17-ln"
+restriction = "PR-17"
+category = "LN"
+kind = "lint"
+file = "statics_recursion_dyn.rs"
+scope = "application"
+expect = ["error[PR-17]"]
+
+[[case]]
+id = "conf-PR-18-ln"
+restriction = "PR-18"
+category = "LN"
+kind = "lint"
+file = "statics_recursion_dyn.rs"
+scope = "application"
+expect = ["error[PR-18]"]
+
+[[case]]
+id = "conf-PR-20-ln"
+restriction = "PR-20"
+category = "LN"
+kind = "build-check"
+fixture = "unsafe-unjustified"
+expect = ["PR-20"]
+
+[[case]]
+id = "conf-PR-21-ln"
+restriction = "PR-21"
+category = "LN"
+kind = "lint"
+file = "core_subset.rs"
+scope = "application"
+expect = ["error[PR-21]"]
+
+[[case]]
+id = "conf-PR-22-ln"
+restriction = "PR-22"
+category = "LN"
+kind = "lint"
+file = "asm_in_task.rs"
+scope = "application"
+expect = ["error[PR-22]"]
+
+[[case]]
+id = "conf-PR-35-ln"
+restriction = "PR-35"
+category = "LN"
+kind = "build-check"
+fixture = "unlocked-dependency"
+expect = ["R58.1"]
+
+# ===================================================== LK (Link_Checker)
+
+[[case]]
+id = "conf-PR-15-lk"
+restriction = "PR-15"
+category = "LK"
+kind = "link-mutation"
+rename = "rsk_svc_rust"
+to = "__rust_alloc"
+expect = ["error[PR-15]", "__rust_alloc"]
+
+[[case]]
+id = "conf-PR-16-lk"
+restriction = "PR-16"
+category = "LK"
+kind = "reason"
+reason = "Loop detection in object code is the Static_WCET_Analyzer's (R36.3, Phase P5); the Link_Checker has no loop rule. The LN case and the Kernel_Proofs' `decreases` clauses cover PR-16 before P5."
+
+[[case]]
+id = "conf-PR-17-lk"
+restriction = "PR-17"
+category = "LK"
+kind = "link-mutation"
+symbol = "_ZN13p1_demo_part08rsk_jobs7control"
+offset = 0
+bytes = "fff7feff"
+expect = ["recursive"]
+
+[[case]]
+id = "conf-PR-18-lk"
+restriction = "PR-18"
+category = "LK"
+kind = "link-mutation"
+symbol = "rsk_svc_rust"
+offset = 0
+bytes = "9847"
+expect = ["unresolved indirect call"]
+
+[[case]]
+id = "conf-PR-19-lk"
+restriction = "PR-19"
+category = "LK"
+kind = "link-mutation"
+rename = "rsk_epilogue_rust"
+to = "rust_begin_unwind"
+expect = ["error[PR-19]", "2 panic handlers"]
+
+[[case]]
+id = "conf-PR-20-lk"
+restriction = "PR-20"
+category = "LK"
+kind = "build-check"
+fixture = "kernel-violations"
+expect = ["PR-20"]
+
+[[case]]
+id = "conf-PR-21-lk"
+restriction = "PR-21"
+category = "LK"
+kind = "link-mutation"
+rename = "_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check"
+to = "_RNvNtCs7ldSeZOOJos_4core3ptr13drop_in_place"
+expect = ["error[R57.3]", "PR-21", "core::ptr::drop_in_place"]
+
+[[case]]
+id = "conf-PR-22-lk"
+restriction = "PR-22"
+category = "LK"
+kind = "link-mutation"
+symbol = "_ZN13p1_demo_part08rsk_jobs7control"
+offset = 0
+bytes = "72b6"
+expect = ["error[PR-22]", "cpsid"]
+
+[[case]]
+id = "conf-PR-31-lk"
+restriction = "PR-31"
+category = "LK"
+kind = "link-mutation"
+symbol = "_ZN10rsk_kernel4arch3cm45entry10timer_core"
+offset = 0
+bytes = "30ee010a"
+expect = ["error[R6.6]", "PR-31"]
+
+[[case]]
+id = "conf-PR-35-lk"
+restriction = "PR-35"
+category = "LK"
+kind = "link-mutation"
+rename = "_ZN10rsk_kernel4arch3cm45entry10timer_core"
+to = "_ZN8cortex_m3asm5delay17h0000000000000000E"
+expect = ["error[PR-35]", "cortex_m"]
+
+[[case]]
+id = "conf-PR-36-lk"
+restriction = "PR-36"
+category = "LK"
+kind = "build-check"
+fixture = "feature-attr"
+expect = ["PR-36"]
+
+# ================================================== RT (fault injection)
+
+[[case]]
+id = "fi-PR-12"
+restriction = "PR-12"
+category = "RT"
+kind = "fault-injection"
+feature = "fi-pr12"
+event = 9
+note = "control raises `tick` twice in one Job: the second Release falls due while echo's is pending and is counted as an MIT_Violation (R9.8)."
+
+[[case]]
+id = "fi-PR-15"
+restriction = "PR-15"
+category = "RT"
+kind = "reason"
+reason = "The Init_Arena option is not implemented in the P1 demo (no Partition declares `init_arena`), so no allocation after Init can be injected; the case follows the Init_Arena (task 10)."
+
+[[case]]
+id = "fi-PR-19"
+restriction = "PR-19"
+category = "RT"
+kind = "fault-injection"
+feature = "fi-pr19"
+event = 1
+note = "echo panics in its second Job: the panic handler's SVC reaches the Kernel, which logs EV_PANIC for the Partition and applies RESTART_PARTITION (R14.2)."
+
+[[case]]
+id = "fi-PR-22"
+restriction = "PR-22"
+category = "RT"
+kind = "fault-injection"
+feature = "fi-pr22"
+event = 3
+note = "echo writes the NVIC enable register from unprivileged Thread mode: a BusFault (DD-01, R16.10)."
+
+[[case]]
+id = "fi-PR-29"
+restriction = "PR-29"
+category = "RT"
+kind = "fault-injection"
+feature = "fi-pr29"
+event = 2
+note = "echo writes into Partition 1's RAM: a MemManage fault of Partition 0's MPU view (R16.4)."
+
+# ================================================ Accepted Applications (R3.7)
+
+[[accepted]]
+variant = "Ravenscar"
+binary = "p1-demo"
+# Constructs the demo exercises: two Partitions (levels A and C), periodic
+# Tasks with offsets, a sporadic Task bound to an interrupt and one released
+# by a Release_Signal, a Resource with a Critical_Section, a peripheral
+# window, a safe-state hook. Not yet exercised (GAP-13): a third Partition
+# at level B, an FPU-using Task, an EasyDMA peripheral, a cross-Partition
+# Endpoint (Phase 4), the Init_Arena.
+
+[[accepted]]
+variant = "Jorvik"
+reason = "The Jorvik Profile_Variant is declared (profile.toml `variants`) but not implemented in v1: the Generator accepts `profile = Ravenscar` only."
+
+# ======================================== Proof artifacts per PO restriction (R3.8, R3.10)
+# Each PO evidence name of the Profile maps to the Verus items that carry the
+# obligation; the suite checks that every item exists in the verified crates
+# and that the Kernel_Proofs Evidence_Item passed, failing the job and
+# naming the restriction otherwise (R3.10).
+
+[[proof]]
+evidence = "proof-kernel-pr02-task-set-stable"
+restriction = "PR-02"
+items = ["task_count", "inv"]
+note = "The Task set is the immutable `Config` the Kernel borrows; `inv` carries no Task creation or removal."
+
+[[proof]]
+evidence = "proof-kernel-mutual-exclusion"
+restriction = "PR-05"
+items = ["lemma_no_other_holder", "svc_lock"]
+
+[[proof]]
+evidence = "proof-kernel-ceiling-lifo"
+restriction = "PR-07"
+items = ["lemma_ceiling_restored", "lemma_ceiling_recorded", "lemma_one_low_blocker"]
+
+[[proof]]
+evidence = "proof-kernel-queues-refine"
+restriction = "PR-14"
+items = ["lemma_slots_own", "lemma_slots_apart", "push"]
+
+[[proof]]
+evidence = "proof-kernel-loop-bounds"
+restriction = "PR-16"
+items = []
+note = "Every loop inside `verus!` carries `decreases`, which Verus checks for termination (R35.2); the Profile_Lint counts them (47 on 2026-10-23)."
+
+[[proof]]
+evidence = "proof-kernel-panic-freedom"
+restriction = "PR-19"
+items = []
+note = "Verus checks every arithmetic operation and index of the exec code in `rsk-logic` and the `verus!` modules of `rsk-kernel` (R44.7); the Link_Checker's no-panic-path report classifies the residue (verification_plan.md 5.6)."
+
+[[proof]]
+evidence = "proof-kernel-unsafe-justifications"
+restriction = "PR-20"
+items = []
+note = "The R6.4 justification gate of the static checks (`check-static-checks`): every `unsafe` construct links to a Kani harness or a review record."
+
+[[proof]]
+evidence = "proof-kernel-static-priorities"
+restriction = "PR-23"
+items = ["boot_core", "lemma_nvic_takes_iff_eligible"]
+note = "`boot_core` programs every vector's priority once; the Hardware_Model lemma ties the NVIC's choice to the fixed priorities."
+
+[[proof]]
+evidence = "proof-kernel-mpu-views-disjoint"
+restriction = "PR-29"
+items = ["lemma_views_disjoint", "lemma_hw_partition_isolation"]
+
+[[proof]]
+evidence = "proof-kernel-no-release-before-init"
+restriction = "PR-34"
+items = ["start", "lemma_dispatch_takes_iff_eligible"]
+note = "`start` enables Releases at instant 0 after Init; `dispatch` requires `started`."

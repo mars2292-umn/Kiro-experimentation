@@ -487,7 +487,11 @@ impl<'ast, 'a> Visit<'ast> for Linter<'a> {
     }
 
     fn visit_macro(&mut self, m: &'ast syn::Macro) {
-        let is_verus = m.path.segments.last().is_some_and(|s| s.ident == "verus");
+        let last = m.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default();
+        if matches!(self.scope, Scope::Application | Scope::Generated) && matches!(last.as_str(), "asm" | "naked_asm" | "global_asm") {
+            self.err("PR-22", line_of(m), format!("`{last}!` in Application code: assembly belongs to the Kernel_Unsafe_Module (R6.3, R16.10)"));
+        }
+        let is_verus = last == "verus";
         self.macro_tokens(&m.tokens, is_verus);
         visit::visit_macro(self, m);
     }

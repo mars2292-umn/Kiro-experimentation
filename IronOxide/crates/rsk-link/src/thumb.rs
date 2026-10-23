@@ -404,6 +404,11 @@ mod tests {
     }
 
     #[test]
+    fn bl_to_self_is_a_call_to_the_entry() {
+        assert_eq!(one(&[0xFF, 0xF7, 0xFE, 0xFF]), Effect::Call(0x1000)); // bl . (imm -4)
+    }
+
+    #[test]
     fn privileged_and_floating_point_classes() {
         assert_eq!(one(&[0x72, 0xB6]), Effect::Cps); // cpsid i
         assert_eq!(one(&[0x62, 0xB6]), Effect::Cps); // cpsie i

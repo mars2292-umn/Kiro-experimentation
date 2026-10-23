@@ -1002,10 +1002,14 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         (hop, safe)
     } else {
         // SVC_PANIC and anything else: a fault of the executing Job's
-        // Partition (PR-19, R14.2).
+        // Partition (PR-19, R14.2). The executing Job is read before the
+        // response so that the end plan unwinds its level when the
+        // response ended it (fi-PR-19, 2026-10-23: read after it, the plan
+        // was 0, the stub returned into the ended Job, and the next
+        // dispatch took a UsageFault).
+        let top_before = k.top();
         k.fault(EV_PANIC, false);
         let safe = apply_core(k, hw, tables);
-        let top_before = k.top();
         let hop = end_plan_core(k, state, top_before);
         (hop, safe)
     }

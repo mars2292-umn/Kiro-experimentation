@@ -84,7 +84,13 @@ fn expand(input: TokenStream2) -> TokenStream2 {
 pub fn bounds(args: TokenStream, item: TokenStream) -> TokenStream {
     let item2: TokenStream2 = item.clone().into();
     match bounds::check(args.into(), item2) {
-        Ok(()) => item,
+        // The labels exist for the annotation and the Profile_Lint, not for
+        // `break`/`continue`; `unused_labels` is a rustc lint, not a
+        // Profile_Lint lint (R3.4), so allowing it here lowers nothing.
+        Ok(()) => {
+            let item: TokenStream2 = item.into();
+            quote!(#[allow(unused_labels)] #item).into()
+        }
         Err(e) => e.to_compile_error().into(),
     }
 }

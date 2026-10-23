@@ -92,6 +92,10 @@ pub fn report_and_exit() -> ! {
         print_kv(b"event", kind as u32);
         print_kv(b"  task", k.log_task(i) as u32);
         print_kv(b"  at_ms", (k.log_instant(i) / MS) as u32);
+        // R3.9: the restriction identifiers of the event (bit n = PR-n).
+        let prs = k.log_prs(i);
+        print_kv(b"  prs_lo", prs as u32);
+        print_kv(b"  prs_hi", (prs >> 32) as u32);
         if kind == EV_OPERATING_END {
             ended = true;
         } else if kind == EV_DEADLINE_MISS {

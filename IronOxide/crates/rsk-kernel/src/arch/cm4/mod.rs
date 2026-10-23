@@ -301,7 +301,12 @@ pub fn hard_fault<S: System>() -> ! {
 }
 
 /// The panic handler body (PR-19, R14.2): a panic in a Job is a fault of
-/// its Partition; one in Kernel code is a Kernel fault.
+/// its Partition; one in Kernel code is a Kernel fault. This function is
+/// Kernel code (Kernel flash): the panic handler in the shared region
+/// (rsk-entry) issues the panic SVC itself for a Job and calls here only
+/// in Handler mode. Found by the fi-PR-19 fault injection of the
+/// Profile_Conformance_Suite (2026-10-23): a Job's panic that reached this
+/// function faulted with MemManage before the SVC.
 pub fn panic<S: System>(in_kernel: bool) -> ! {
     if !in_kernel {
         // Unprivileged: report through the SVC; the Kernel ends the Job and

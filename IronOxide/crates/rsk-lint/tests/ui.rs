@@ -63,6 +63,11 @@ fn pr21_core_subset_scopes() {
 }
 
 #[test]
+fn pr22_assembly_in_application_code() {
+    expect("asm_in_task.rs", &[("PR-21", 5), ("PR-22", 5)]);
+}
+
+#[test]
 fn r3_4_lint_lowering_attributes_are_rejected() {
     expect("lint_lowering.rs", &[("R3.4", 3), ("R3.4", 6), ("R3.4", 9), ("R3.4", 12), ("R3.4", 18)]);
 }

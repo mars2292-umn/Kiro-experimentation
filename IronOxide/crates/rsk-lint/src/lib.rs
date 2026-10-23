@@ -95,6 +95,9 @@ pub struct Options {
     pub profile_toml: String,
     pub core_subset_toml: String,
     pub task_model_json: Option<String>,
+    /// Single files with an explicit scope (`kernel`, `kernel-unsafe`,
+    /// `application`, `generated`): the conformance cases.
+    pub files: Vec<(Scope, PathBuf)>,
 }
 
 #[derive(Default, Debug)]
@@ -205,6 +208,9 @@ pub fn run(opts: &Options) -> Result<Report, String> {
         }
     }
     let mut skipped = 0;
+    for (scope, path) in &opts.files {
+        work.push((path.clone(), *scope));
+    }
     for (path, scope) in &work {
         if excluded.iter().any(|e| path == e || path.starts_with(e)) {
             skipped += 1;

@@ -25,6 +25,10 @@
 //! 7. R58.4 probe fixture: a crate whose build script and proc-macro fail
 //!    the build unless their connection attempt is denied.
 //! 8. Tests: `cargo test` for the workspace, including the fixture tests.
+//! 8a. Link_Checker (R37) and 8b. Config_Checker (R26.5) on every
+//!     Flight_Build binary with a Task_Model; 8c. Profile_Lint (R3.2, R3.4,
+//!     R3.5) over the Kernel and Application sources, then Clippy's
+//!     deny-lists on the Target crates.
 //! 9. Kernel_Proofs: `cargo-verus verify` for every Kernel crate with the
 //!    pinned Verus and Z3 (R44.6), and the PAR-01 cross-check with Verus's
 //!    `line_count`.
@@ -35,6 +39,10 @@
 //!     `qemu-system-arm -M mps2-an386`; the run passes when the binary
 //!     exits through semihosting with code 0 (it prints `RSK-OK`). Skipped
 //!     with a warning when QEMU is not installed.
+//! 10c. Profile_Conformance_Suite (R3.6, R3.7, R3.11): every case of
+//!     docs/conformance_suite.toml, one Evidence_Item each (`conf-PR-nn-cc`,
+//!     `fi-PR-nn`, `accepted-<variant>`), and the PO proof-artifact check
+//!     (R3.8, R3.10).
 //! 11. Evidence_Items (R50.3): one item per step, this one included
 //!     (written last, once its own outcome is recorded), plus the proof items
 //!     written by steps 9 and 10.
@@ -246,7 +254,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 15,
+        total_steps: 16,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -549,6 +557,20 @@ pub fn run(root: &Path, options: Options) -> bool {
         &["R7.7", "R11.1", "R16.9", "R20.1", "R20.2", "R20.5"],
         qemu_cmds,
     );
+
+    // ------------------------------------ 10c. Profile_Conformance_Suite
+    job.heading("Profile_Conformance_Suite (R3.6, R3.7, R3.11)");
+    let conf_cmds = {
+        let mut cx = crate::conformance::Context { root, ws: &ws, target_dir: &target_dir, sandbox: Some(&sandbox), store: &mut store, manifest_id: Some(manifest_id.clone()), only: None };
+        match crate::conformance::run(&mut cx, &mut report) {
+            Ok((cmds, _)) => cmds,
+            Err(e) => {
+                report.error(Rule::Step, Some(crate::conformance::REGISTER.into()), e);
+                vec![]
+            }
+        }
+    };
+    job.flush(&mut report, "check-conformance-step", "Profile_Conformance_Suite step", &["R3.5", "R3.6", "R3.7", "R3.8", "R3.10", "R3.11"], conf_cmds);
 
     // ------------------------------------------------------- 11. evidence
     job.heading("Evidence_Items (R50.3)");

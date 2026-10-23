@@ -645,9 +645,9 @@ The Kernel `logic` module is compiled for the host and driven by a Loom model. I
 
 ### Profile_Conformance_Suite and HIL_Rig
 
-- **Rejected programs (R3.6).** Compile-fail cases (trybuild) for each TS and MC rule, lint UI tests for each LN rule, and fixture binaries for each LK rule.
-- **Accepted programs (R3.7).** One accepted Application per Profile_Variant. It uses every construct: three Partitions at levels A, B, and C, periodic and sporadic Tasks of every source kind, an FPU-using Task, an EasyDMA peripheral, and a cross-partition Endpoint.
-- **RT fault injection (R3.11).** A test-only Kernel build bypasses the static checks so that run-time detection can be exercised.
+- **Rejected programs (R3.6).** One case per active restriction and category in `docs/conformance_suite.toml` (task 14.1, 2026-10-23): App_Declaration mutations run through the Generator for MC, `cargo check` compile-fail crates for TS (trybuild is not vendored, R58.1), Profile_Lint fixtures for LN, Build_System fixtures and byte-level mutations of the demo Flight_Build for LK. A case the suite cannot provide names its reason; most are TS rules enforced by the absence of an API.
+- **Accepted programs (R3.7).** One accepted Application per Profile_Variant. It uses every construct: three Partitions at levels A, B, and C, periodic and sporadic Tasks of every source kind, an FPU-using Task, an EasyDMA peripheral, and a cross-partition Endpoint. As of 2026-10-23 the P1 demo stands in for Ravenscar (two Partitions, every Release_Source kind, a Resource, a peripheral window; the missing constructs are listed in GAP-13), and Jorvik is declared not implemented.
+- **RT fault injection (R3.11).** Application features of the demo's Partition 0 (`fi-pr12`, `fi-pr19`, `fi-pr22`, `fi-pr29`), never enabled in a Flight_Build, make one Task violate one restriction; the suite builds each and runs it on QEMU, and the Health_Monitor's event log must carry the restriction's identifier (R3.9: `Kernel::fault_prs`). The Kernel itself is unchanged: the static checks are bypassed at the Application, not in the Kernel.
 - **HIL_Rig.** Two nRF52840-DK boards, one under test and one generating stimuli, plus a host running probe-rs. The rig runs:
   - the release-timing run (R9.10) and the boot-check suite (R12.6);
   - the MPU access matrix (R16.8) and the DMA cases (R17.7);

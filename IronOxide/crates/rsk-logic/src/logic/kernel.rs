@@ -62,7 +62,7 @@
 use vstd::prelude::*;
 
 use super::budget::Budget;
-use super::log::{Event, Log, EV_BOOT_CHECK, EV_DEBUGGER, EV_WATCHDOG_RESET, EV_DEADLINE_MISS, EV_END_JOB, EV_MIT_VIOLATION, EV_OPERATING_END,
+use super::log::{Event, Log, EV_BOOT_CHECK, EV_BUSFAULT, EV_DEBUGGER, EV_MEMMANAGE, EV_PANIC, EV_USAGEFAULT, EV_WATCHDOG_RESET, EV_DEADLINE_MISS, EV_END_JOB, EV_MIT_VIOLATION, EV_OPERATING_END,
     EV_OVERRUN, EV_PARTITION_RESTART, EV_PARTITION_STOP, EV_RELEASE_OVERLAP, EV_RESOURCE_RELEASED, EV_SAFE_STATE,
     EV_API_MISUSE};
 // Spec and proof items of `history` are named by path: ghost erasure removes them from the stable build.
@@ -79,6 +79,26 @@ verus! {
 pub const PRS_RELEASE: u64 = 1u64 << 12; // PR-12
 pub const PRS_BUDGET: u64 = 1u64 << 27; // PR-27 (declared Budget)
 pub const PRS_PANIC: u64 = 1u64 << 19; // PR-19
+/// PR-22: privileged state and the Private Peripheral Bus (BusFault, UsageFault).
+pub const PRS_PRIVILEGE: u64 = 1u64 << 22;
+/// PR-29 with PR-22: memory and peripheral ownership (MemManage).
+pub const PRS_OWNERSHIP: u64 = (1u64 << 29) | (1u64 << 22);
+
+/// R3.9: the restriction identifiers a fault event concerns, by the
+/// detecting mechanism: a panic is PR-19; a BusFault or UsageFault is a
+/// privilege or PPB violation (PR-22); a MemManage fault is an ownership
+/// violation (PR-29, through the MPU view of PR-22); a HardFault may be any.
+pub fn fault_prs(kind: u8) -> u64 {
+    if kind == EV_PANIC {
+        PRS_PANIC
+    } else if kind == EV_BUSFAULT || kind == EV_USAGEFAULT {
+        PRS_PRIVILEGE
+    } else if kind == EV_MEMMANAGE {
+        PRS_OWNERSHIP
+    } else {
+        PRS_PANIC | PRS_OWNERSHIP
+    }
+}
 
 /// CPU cycles per time-base tick (64 MHz / 16 MHz, PAR-08, DD-05).
 pub const CYCLES_PER_TICK: u64 = 4;
@@ -1670,8 +1690,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // Every response keeps the MIT history (R14.5).
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
     {
+        let prs = fault_prs(kind);
         if kernel || self.sched.depth == 0 {
-            self.push_event(cfg, kind, 0xFF, 0xFF, PRS_PANIC, 0);
+            self.push_event(cfg, kind, 0xFF, 0xFF, prs, 0);
             self.enter_safe_state(cfg);
             return;
         }
@@ -1680,7 +1701,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(cfg.task_ok(t as int));
         }
         let partition = cfg.tasks[t as usize].partition;
-        self.push_event(cfg, kind, t, partition, PRS_PANIC, 0);
+        self.push_event(cfg, kind, t, partition, prs, 0);
         let ghost mid = *self;
         let response = cfg.partitions[partition as usize].fault_response;
         self.apply_response(cfg, partition, response, kind, t);

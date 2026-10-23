@@ -4,8 +4,8 @@
 # step 8b (and `cargo xtask confcheck-mutations`) applies each mutation to a
 # copy of the P1 demo's Task_Model or Flight_Build binary, runs
 # `rsk-confcheck`, and fails unless it exits non-zero and its report names
-# every `expect` string. The P1 demo stands in for the Profile_Conformance_
-# Suite Application until task 14.
+# every `expect` string. The P1 demo is the Profile_Conformance_Suite's
+# accepted Application (docs/conformance_suite.toml, task 14.1).
 #
 # Fields: id; class (the R26.2 value class); kind = "model" (find/replace in
 # the Task_Model JSON text, `find` exactly once), "model-hex-digit" (the

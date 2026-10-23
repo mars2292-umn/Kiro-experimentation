@@ -187,7 +187,7 @@ impl Attrs {
     fn required(&mut self, name: &str) -> syn::Result<Attr> {
         match self.take(name) {
             Some(a) => Ok(a),
-            None => err(self.owner, format!("{} requires `{name} = ...` (R21.3)", self.what)),
+            None => err(self.owner, format!("{} requires `{name} = ...` (R21.3; PR-27: the required attributes are declared up front)", self.what)),
         }
     }
 
@@ -201,7 +201,12 @@ impl Attrs {
 
     fn finish(self) -> syn::Result<()> {
         if let Some(a) = self.items.first() {
-            return err(a.span, format!("unknown attribute `{}` of {}", a.name, self.what));
+            let hint = match a.name.as_str() {
+                "priority" => " (PR-03: a Task declares exactly one Priority)",
+                "when" | "condition" | "guard" | "barrier" => " (PR-13: the Ravenscar Profile_Variant has no release condition)",
+                _ => "",
+            };
+            return err(a.span, format!("unknown or repeated attribute `{}` of {}{hint}", a.name, self.what));
         }
         Ok(())
     }

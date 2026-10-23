@@ -36,6 +36,13 @@ pub fn control(mut cx: rsk_ctx::Control) {
     COUNT_CONTROL.with_unprivileged(|c| *c = n);
     if n % 3 == 0 {
         let _ = cx.tick.raise();
+        // fi-PR-12: a second raise while echo's Release is pending (echo's
+        // Priority 6 is below control's 7, so it has not run): the
+        // Kernel counts an MIT_Violation (R9.8, PR-12).
+        #[cfg(feature = "fi-pr12")]
+        {
+            let _ = cx.tick.raise();
+        }
     }
     rsk::debug(b"A");
 }
@@ -43,6 +50,30 @@ pub fn control(mut cx: rsk_ctx::Control) {
 /// Task `echo` (sporadic, released by `tick`): counts.
 pub fn echo(_cx: rsk_ctx::Echo) {
     COUNT_ECHO.with_unprivileged(|c| *c += 1);
+    // fi-PR-19: a panic in a Job reaches the Kernel's panic handler as a
+    // fault of the Partition (R14.2).
+    #[cfg(feature = "fi-pr19")]
+    {
+        if COUNT_ECHO.peek_unprivileged() == 2 {
+            panic!("fi-PR-19");
+        }
+    }
+    // fi-PR-22: an unprivileged write to the NVIC (the Private Peripheral
+    // Bus) is a BusFault (DD-01, R16.10).
+    #[cfg(feature = "fi-pr22")]
+    {
+        if COUNT_ECHO.peek_unprivileged() == 2 {
+            rsk::mmio::write(0xE000_E100, 1);
+        }
+    }
+    // fi-PR-29: a write into another Partition's RAM is a MemManage fault
+    // (R16.4; P1RAM of the QEMU memory map).
+    #[cfg(feature = "fi-pr29")]
+    {
+        if COUNT_ECHO.peek_unprivileged() == 2 {
+            rsk::mmio::write(0x2001_0000, 1);
+        }
+    }
     rsk::debug(b"E");
 }
 

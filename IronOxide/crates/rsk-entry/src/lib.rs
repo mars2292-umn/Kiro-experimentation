@@ -201,9 +201,16 @@ pub unsafe extern "C" fn rsk_default_entry() {
 #[link_section = ".text.rsk_shared.panic"]
 fn panic(_info: &core::panic::PanicInfo<'_>) -> ! {
     // In Handler mode (IPSR != 0) the panic is the Kernel's; in Thread mode
-    // it is the executing Job's.
+    // it is the executing Job's. A Job may execute only this shared-region
+    // code, so its path is the inlined panic SVC (SVC 5): the Kernel ends
+    // the Job and never returns here (two-step return). Calling into
+    // Kernel flash from a Job faulted with MemManage (fi-PR-19, 2026-10-23).
     let ipsr: u32 = ipsr();
-    arch::panic::<Sys>(ipsr != 0)
+    if ipsr == 0 {
+        stubs::svc_panic();
+        loop {}
+    }
+    arch::panic::<Sys>(true)
 }
 
 fn ipsr() -> u32 {

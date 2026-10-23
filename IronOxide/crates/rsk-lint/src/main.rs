@@ -34,6 +34,20 @@ fn main() {
             "--unsafe" => opts.unsafe_paths.push(value(&mut args)),
             "--app" => opts.app_dirs.push(value(&mut args)),
             "--gen" => opts.gen_dirs.push(value(&mut args)),
+            "--file" => {
+                let spec = value(&mut args).to_string_lossy().into_owned();
+                let Some((scope, path)) = spec.split_once('=') else {
+                    eprintln!("rsk-lint: `--file` takes `<scope>=<path>`");
+                    std::process::exit(2);
+                };
+                let scope = match scope {
+                    "kernel" => rsk_lint::Scope::Kernel,
+                    "kernel-unsafe" => rsk_lint::Scope::KernelUnsafe,
+                    "generated" => rsk_lint::Scope::Generated,
+                    _ => rsk_lint::Scope::Application,
+                };
+                opts.files.push((scope, PathBuf::from(path)));
+            }
             "--profile" => profile = Some(value(&mut args)),
             "--core-subset" => core_subset = Some(value(&mut args)),
             "--root" => opts.root = Some(value(&mut args)),
@@ -46,7 +60,7 @@ fn main() {
         }
     }
     let (Some(profile), Some(core_subset)) = (profile, core_subset) else {
-        eprintln!("usage: rsk-lint [--kernel <dir>]... [--unsafe <path>]... [--app <dir>]... [--gen <dir>]... --profile <profile.toml> --core-subset <core_subset.toml> [--root <workspace>] [--task-model <json>] [--out <loop_bounds.json>]");
+        eprintln!("usage: rsk-lint [--kernel <dir>]... [--unsafe <path>]... [--app <dir>]... [--gen <dir>]... --profile <profile.toml> --core-subset <core_subset.toml> [--file <scope>=<path>]... [--root <workspace>] [--task-model <json>] [--out <loop_bounds.json>]");
         std::process::exit(2);
     };
     let read = |p: &PathBuf| -> String {

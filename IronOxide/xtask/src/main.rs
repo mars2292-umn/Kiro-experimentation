@@ -57,6 +57,9 @@ commands:
       board with semihosting; the exit status is the binary's semihosting
       exit code (0 = the demo's safe-state report found every expectation
       met). Output is printed and saved under target/qemu/.
+  conformance [--only <case id>]
+      Run the Profile_Conformance_Suite (docs/conformance_suite.toml) against
+      the P1 demo built into target/conformance (R3.6, R3.7, R3.11).
   probe-network
       Attempt a connection to 192.0.2.1:9 and report whether it was denied
       (exit status 0 if denied). Used inside the sandbox by `verify`.";
@@ -74,6 +77,7 @@ fn main() -> ExitCode {
         "profile" => profile_command(rest),
         "mutations" => mutations_command(rest),
         "confcheck-mutations" => confcheck_mutations_command(rest),
+        "conformance" => conformance_command(rest),
         "gen" => gen_command(rest),
         "qemu" => qemu_command(rest),
         "probe-network" => match probe_network() {
@@ -202,6 +206,64 @@ fn confcheck_mutations_command(args: &[String]) -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// `cargo xtask conformance [--only <case id>]`: builds the suite's binary
+/// for the Target into target/conformance and runs the
+/// Profile_Conformance_Suite (R3.6, R3.7, R3.11), writing its Evidence_Items
+/// to target/conformance/evidence.
+fn conformance_command(args: &[String]) -> ExitCode {
+    let mut only: Option<String> = None;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--only" => match args.next() {
+                Some(id) => only = Some(id.clone()),
+                None => return usage_error("--only takes a case id"),
+            },
+            other => return usage_error(&format!("unknown conformance option `{other}`")),
+        }
+    }
+    let root = xtask::repository_root();
+    let mut report = Report::default();
+    let Some(ws) = xtask::workspace::Workspace::load(&root, &mut report) else {
+        for d in &report.diagnostics {
+            eprintln!("{d}");
+        }
+        return ExitCode::FAILURE;
+    };
+    let target_dir = root.join("target").join("conformance");
+    let build = xtask::cmd::Cmd::cargo_frozen("build")
+        .args(["--release", "--target", &ws.policy.target, "-p", "p1-demo"])
+        .arg("--manifest-path")
+        .arg(root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .env("CARGO_ENCODED_RUSTFLAGS", xtask::verify::target_rustflags(&root));
+    println!("$ {}", build.display());
+    if !build.status(None).unwrap_or(false) {
+        eprintln!("the Target build failed");
+        return ExitCode::FAILURE;
+    }
+    let revision = xtask::tools::Revision::of(&root);
+    let profile_version = xtask::profile_gen::load(&root).map(|(p, _)| p.version).unwrap_or_default();
+    let mut store = xtask::evidence::Store::new(&target_dir.join("evidence"), revision, &profile_version);
+    let mut cx = xtask::conformance::Context { root: &root, ws: &ws, target_dir: &target_dir, sandbox: None, store: &mut store, manifest_id: None, only };
+    let ok = match xtask::conformance::run(&mut cx, &mut report) {
+        Ok((_, ok)) => ok,
+        Err(e) => {
+            eprintln!("conformance: {e}");
+            false
+        }
+    };
+    for n in &report.notes {
+        println!("note: {n}");
+    }
+    for d in &report.diagnostics {
+        println!("{d}");
+    }
+    println!("Evidence_Items in {}", target_dir.join("evidence").display());
+    if ok && report.diagnostics.is_empty() { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }
 
 fn mutations_command(args: &[String]) -> ExitCode {

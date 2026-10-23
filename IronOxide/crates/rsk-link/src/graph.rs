@@ -234,7 +234,8 @@ impl CallGraph {
         }
         out.sort_unstable();
         out.dedup();
-        out.retain(|&c| c != i);
+        // A self edge (`bl` to the function's own entry) stays: it is direct
+        // recursion, which `visit` reports (PR-17; found by conf-PR-17-lk).
         Some(out)
     }
 
@@ -391,3 +392,4 @@ mod tests {
         assert!(by("dyn").unbounded.as_deref().unwrap().contains("dynamic"));
     }
 }
+

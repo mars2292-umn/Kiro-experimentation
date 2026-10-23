@@ -361,6 +361,9 @@ pub trait KernelOps: Sized {
         requires self.inv();
     fn log_instant(&self, i: usize) -> u64
         requires self.inv();
+    /// R3.9: the PR identifiers the event concerns, as a bit set (bit n = PR-n).
+    fn log_prs(&self, i: usize) -> u64
+        requires self.inv();
     /// R12.2: records the failed boot checks (bit set) before the safe state.
     fn boot_failed(&mut self, failed: u32)
         requires old(self).inv(),
@@ -653,6 +656,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn log_instant(&self, i: usize) -> u64 {
         if i < self.kernel.log.len { self.kernel.log.get(i).instant } else { 0 }
+    }
+
+    fn log_prs(&self, i: usize) -> u64 {
+        if i < self.kernel.log.len { self.kernel.log.get(i).prs } else { 0 }
     }
 
     fn boot_failed(&mut self, failed: u32) {

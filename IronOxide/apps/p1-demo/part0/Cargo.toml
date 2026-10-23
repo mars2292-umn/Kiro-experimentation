@@ -9,3 +9,15 @@ publish.workspace = true
 [dependencies]
 p1-demo-decl = { path = "../decl" }
 rsk = { path = "../../../crates/rsk" }
+
+# Fault-injection builds of the Profile_Conformance_Suite (R3.11, task 14):
+# each feature makes one Task violate one restriction at run time so that
+# the Kernel's detection and its event log entry (R3.9) can be checked on
+# QEMU. Never enabled in a Flight_Build (the features check of PR-36
+# applies to the Kernel crates only; these are Application features that
+# `cargo xtask conformance` enables one at a time).
+[features]
+fi-pr12 = []
+fi-pr19 = []
+fi-pr22 = []
+fi-pr29 = []
