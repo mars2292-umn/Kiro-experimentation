@@ -6,7 +6,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema", "profile", "generator", "kernel", "target", "core_revision", "clock", "config_checksum",
+    "schema", "profile", "generator", "kernel", "target", "core_revision", "clock", "config_checksum", "layout_checksum",
     "operating_duration_ticks", "safe_state", "kernel_levels", "priority_map", "capacities", "layout",
     "partitions", "tasks", "resources", "signals", "endpoints", "conversions"
   ],
@@ -25,6 +25,7 @@
       "properties": { "cpu_hz": { "type": "integer", "minimum": 1 }, "tick_hz": { "type": "integer", "minimum": 1 } }
     },
     "config_checksum": { "type": "string", "pattern": "^0x" },
+    "layout_checksum": { "type": "string", "pattern": "^0x" },
     "operating_duration_ticks": { "type": "integer", "minimum": 1 },
     "safe_state": { "type": "string" },
     "kernel_levels": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 7 } },

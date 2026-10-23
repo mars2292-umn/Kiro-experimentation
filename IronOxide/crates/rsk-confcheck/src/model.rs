@@ -68,6 +68,7 @@ pub struct Resource {
 pub struct Model {
     pub target: String,
     pub config_checksum: u32,
+    pub layout_checksum: u32,
     pub operating_duration_ticks: u64,
     pub kernel_levels: Vec<u64>,
     /// (level, nvic byte)
@@ -126,6 +127,9 @@ impl Model {
         let checksum_text = str_of(json, "config_checksum", at)?;
         let config_checksum = u32::from_str_radix(checksum_text.trim_start_matches("0x"), 16)
             .map_err(|_| format!("{at}: config_checksum `{checksum_text}` is not a hexadecimal word"))?;
+        let layout_text = str_of(json, "layout_checksum", at)?;
+        let layout_checksum = u32::from_str_radix(layout_text.trim_start_matches("0x"), 16)
+            .map_err(|_| format!("{at}: layout_checksum `{layout_text}` is not a hexadecimal word"))?;
         let caps = field(json, "capacities", at)?;
         let layout = field(json, "layout", at)?;
         let mut partitions = Vec::new();
@@ -211,6 +215,7 @@ impl Model {
         Ok(Model {
             target: str_of(json, "target", at)?,
             config_checksum,
+            layout_checksum,
             operating_duration_ticks: u64_of(json, "operating_duration_ticks", at)?,
             kernel_levels,
             priority_map,

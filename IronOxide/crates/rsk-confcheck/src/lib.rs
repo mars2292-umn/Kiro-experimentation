@@ -19,9 +19,9 @@
 //! | MPU permissions | power-of-two aligned regions, read-only EasyDMA windows (DD-08), stack within RAM, disjointness | Task_Model `mpu` |
 //! | Checksum (R25.2, R26.4) | CRC-32 (IEEE 802.3) of the extracted image | binary `RSK_CONFIG_CHECKSUM`; Task_Model `config_checksum` |
 //!
-//! Not yet compared with the binary: the `LAYOUT` (no image of it is
-//! stored; the MPU values are checked against the Task_Model only) and the
-//! stack region sizes against the Link_Checker (task 12). The Kernel's
+//! | `LAYOUT` (R16.7) | the Task_Model's MPU values | binary `RSK_LAYOUT_IMAGE` and `RSK_LAYOUT_CHECKSUM` (task 13.2) |
+//!
+//! Not yet compared: the stack region sizes against the Link_Checker (task 12). The Kernel's
 //! table encodings (`TaskCfg`, `PartitionCfg`, the kinds, policies, and
 //! responses) are restated in `image` from the Kernel's documentation.
 #![forbid(unsafe_code)]
@@ -83,6 +83,15 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
             ));
             let tables = image::decode(&img.bytes)?;
             recompute::check_binary(&model, &img, &tables, &mut out);
+            let limg = image::extract_layout(bytes)?;
+            out.notes.push(format!(
+                "binary: RSK_LAYOUT_IMAGE {} bytes at 0x{:08x}, RSK_LAYOUT_CHECKSUM 0x{:08x}",
+                limg.bytes.len(),
+                limg.address,
+                limg.stored_checksum
+            ));
+            let layout = image::decode_layout(&limg.bytes)?;
+            recompute::check_layout_binary(&model, &limg, &layout, &mut out);
         }
         None => out.notes.push("no binary given: the Task_Model's derived values were checked, not the linked binary (R26.4)".to_string()),
     }

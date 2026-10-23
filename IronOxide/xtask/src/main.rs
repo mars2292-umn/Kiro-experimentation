@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use xtask::diag::Report;
+use xtask::diag::{Report, Rule};
 use xtask::sandbox::{probe_network, Mode, ProbeResult};
 use xtask::verify::{self, Options, Proofs};
 
@@ -36,6 +36,10 @@ commands:
       Requirements 1, 2, 4, 27.3, and 57; record the content hash of the
       current version; generate docs/profile.md and the profile_version.rs
       modules. --check only compares the generated files with the tree.
+  confcheck-mutations <task_model.json> <flight-build.elf>
+      R26.7: apply each Config_Checker mutation of docs/config_mutations.toml
+      to a copy of the Task_Model or the binary and require rsk-confcheck
+      to report the altered item.
   mutations [--check] [--only <id>]
       R52.2: apply each proof mutation of docs/proof_mutations.toml to a copy
       of the tree and require Verus to reject it with the registered
@@ -69,6 +73,7 @@ fn main() -> ExitCode {
         "rebuild-check" => rebuild_command(),
         "profile" => profile_command(rest),
         "mutations" => mutations_command(rest),
+        "confcheck-mutations" => confcheck_mutations_command(rest),
         "gen" => gen_command(rest),
         "qemu" => qemu_command(rest),
         "probe-network" => match probe_network() {
@@ -170,6 +175,28 @@ fn profile_command(args: &[String]) -> ExitCode {
     let mut report = Report::default();
     let ok = xtask::profile_gen::generate(&xtask::repository_root(), check_only, &mut report);
     let code = print_report(&report, if check_only { "profile is current" } else { "profile generated" });
+    if ok {
+        code
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+fn confcheck_mutations_command(args: &[String]) -> ExitCode {
+    let [model, elf] = args else {
+        return usage_error("confcheck-mutations takes <task_model.json> <flight-build.elf>");
+    };
+    let mut report = Report::default();
+    let root = xtask::repository_root();
+    let work = root.join("target").join("xtask-confcheck-mutations");
+    let ok = match xtask::confcheck_mutations::run(&root, std::path::Path::new(model), std::path::Path::new(elf), &work, None, &mut report) {
+        Ok(ok) => ok,
+        Err(e) => {
+            report.error(Rule::Step, None, e);
+            false
+        }
+    };
+    let code = print_report(&report, "every Config_Checker mutant was reported");
     if ok {
         code
     } else {

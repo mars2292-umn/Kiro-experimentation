@@ -19,7 +19,7 @@
 pub mod bound;
 pub mod cm4;
 
-pub use bound::{config_crc, Bound, Crc32, JobInfo, KernelOps};
+pub use bound::{config_crc, layout_crc, Bound, Crc32, JobInfo, KernelOps};
 pub use cm4::entry::Binding;
 pub use cm4::plan::{DmaCfg, SignalCfg};
 
@@ -118,6 +118,8 @@ pub trait System: 'static {
     /// CRC-32 over the Generated_Config tables, recorded by the Generator
     /// (R24.1) and checked against the tables in memory at boot (R12.3).
     const CONFIG_CHECKSUM: u32;
+    /// CRC-32 over the `LAYOUT`, recorded by the Generator and checked at boot (R12.3).
+    const LAYOUT_CHECKSUM: u32;
     /// The exception number of the time-base timer interrupt.
     const TIMER_VECTOR: u16;
     /// Implemented NVIC priority bits of the Target (ASM-03; checked at boot, R12.1).

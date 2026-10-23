@@ -664,6 +664,28 @@ fn config_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
         } else {
             report.error(Rule::Step, None, format!("Config_Checker: `{}` against {}: {summary} (see {log_name})", binary.target_name, ws.rel(&model)));
         }
+        // R26.7: the mutation suite, on the same model and binary.
+        let work = target_dir.join("confcheck-mutations");
+        let suite_ok = match crate::confcheck_mutations::run(&ws.root, &model, &elf, &work, Some(sandbox), report) {
+            Ok(ok) => ok,
+            Err(e) => {
+                report.error(Rule::Step, Some(crate::confcheck_mutations::REGISTER.to_string()), e);
+                false
+            }
+        };
+        let mut suite = Item::new(
+            &format!("test-config-mutations-{}", binary.target_name),
+            Kind::Test,
+            &format!("Config_Checker mutation suite: every altered Task_Model or binary is reported ({})", binary.target_name),
+            Tool { name: "rsk-confcheck".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+            Verdict::from_bool(suite_ok),
+        )
+        .covers(&["R26.7", "R26.3", "R26.6"]);
+        suite.build_manifest = Some(manifest_id.to_string());
+        suite.notes = vec![format!("register {}", crate::confcheck_mutations::REGISTER)];
+        if let Err(e) = store.write(&suite) {
+            report.error(Rule::Evidence, None, e);
+        }
         let mut item = Item::new(
             &format!("check-config-{}", binary.target_name),
             Kind::Check,

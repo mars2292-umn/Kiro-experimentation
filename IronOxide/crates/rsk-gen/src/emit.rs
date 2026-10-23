@@ -58,6 +58,18 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "#[used]");
     let _ = writeln!(s, "#[no_mangle]");
     let _ = writeln!(s, "pub static RSK_CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
+    // The LAYOUT image and checksum (R24.1, R12.3): the Kernel compares the
+    // checksum of its LAYOUT with LAYOUT_CHECKSUM at boot; the Config_Checker
+    // compares the image with the Task_Model and the checksum (R26.4).
+    let layout_image = crate::derive::layout_bytes(g);
+    let _ = writeln!(s, "pub const LAYOUT_CHECKSUM: u32 = 0x{:08x};", crate::derive::layout_checksum(g));
+    let _ = writeln!(s, "/// Canonical image of `LAYOUT` (the bytes `LAYOUT_CHECKSUM` covers).");
+    let _ = writeln!(s, "#[used]");
+    let _ = writeln!(s, "#[no_mangle]");
+    let _ = writeln!(s, "pub static RSK_LAYOUT_IMAGE: [u8; {}] = [{}];", layout_image.len(), layout_image.iter().map(|b| format!("0x{b:02x}")).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "#[used]");
+    let _ = writeln!(s, "#[no_mangle]");
+    let _ = writeln!(s, "pub static RSK_LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;");
     let _ = writeln!(s, "pub const CONFIG: ::rsk_kernel::logic::Config<NT, NR, NP> = ::rsk_kernel::logic::Config {{");
     let _ = writeln!(s, "    tasks: [");
     for t in &g.tasks {
@@ -220,6 +232,7 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    const SIGNAL_COUNT: usize = NSIG;");
     let _ = writeln!(s, "    fn signal(i: usize) -> ::rsk_kernel::arch::SignalCfg {{ if i < NSIG {{ SIGNALS[i] }} else {{ NO_SIGNAL }} }}");
     let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
+    let _ = writeln!(s, "    const LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;");
     let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
     let _ = writeln!(s, "    fn task_entry(t: u8) -> fn() {{");
     let _ = writeln!(s, "        match t {{");

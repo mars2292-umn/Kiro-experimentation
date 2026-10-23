@@ -190,6 +190,39 @@ pub fn config_crc<const NT: usize, const NR: usize, const NP: usize>(cfg: &Confi
     c.byte(cfg.slot_count).finish()
 }
 
+/// The CRC-32 over the `LAYOUT` in memory (R12.3), in the field order the
+/// Generator hashes (`rsk_gen::derive::layout_bytes`) and the Config_Checker
+/// decodes (R26.4): the three Kernel intervals, NP, then per Partition code
+/// and RAM (base, size_log2, srd), stack_size, window_count, and every
+/// window slot (base, size_log2).
+pub fn layout_crc<const NP: usize>(layout: &Layout<NP>) -> u32 {
+    let mut c = Crc32::new();
+    c = c.u32(layout.kernel_flash.base).byte(layout.kernel_flash.size_log2).byte(0);
+    c = c.u32(layout.shared_code.base).byte(layout.shared_code.size_log2).byte(0);
+    c = c.u32(layout.kernel_ram.base).byte(layout.kernel_ram.size_log2).byte(0);
+    c = c.u32(NP as u32);
+    let mut p: usize = 0;
+    while p < NP
+        invariant p <= NP,
+        decreases NP - p,
+    {
+        let pl = layout.partitions[p];
+        c = c.u32(pl.code.base).byte(pl.code.size_log2).byte(pl.code_srd);
+        c = c.u32(pl.ram.base).byte(pl.ram.size_log2).byte(pl.ram_srd);
+        c = c.u32(pl.stack_size).byte(pl.window_count);
+        let mut w: usize = 0;
+        while w < crate::logic::mpu::MAX_WINDOWS
+            invariant w <= crate::logic::mpu::MAX_WINDOWS, p < NP,
+            decreases crate::logic::mpu::MAX_WINDOWS - w,
+        {
+            c = c.u32(pl.windows[w].base).byte(pl.windows[w].size_log2);
+            w += 1;
+        }
+        p += 1;
+    }
+    c.finish()
+}
+
 // ------------------------------------------------------------ the bound Kernel
 
 /// What Kernel_Arch needs of the executing Job to dispatch it (DD-01).
@@ -243,6 +276,8 @@ pub trait KernelOps: Sized {
         ensures ok ==> self.valid();
     /// CRC-32 over the configuration tables in memory (R12.3).
     fn config_checksum(&self) -> u32;
+    /// CRC-32 over the `LAYOUT` in memory (R12.3, R26.4).
+    fn layout_checksum(&self) -> u32;
     /// Replaces the `static` initializer's placeholder by the verified
     /// initial state and computes the Partition views (A6, A11).
     fn init(&mut self)
@@ -399,6 +434,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn config_checksum(&self) -> u32 {
         config_crc(&self.cfg)
+    }
+
+    fn layout_checksum(&self) -> u32 {
+        layout_crc(&self.layout)
     }
 
     fn validate(&self) -> (ok: bool) {

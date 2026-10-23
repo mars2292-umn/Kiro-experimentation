@@ -31,6 +31,7 @@
 pub mod cfg;
 pub mod checks;
 pub mod cmd;
+pub mod confcheck_mutations;
 pub mod diag;
 pub mod evidence;
 pub mod gen;

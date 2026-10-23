@@ -363,9 +363,9 @@ pub fn dwt_cyccnt() -> u32 {
 /// revision (ASM-01), bit 9 PRIGROUP (ASM-03: the reset value, every
 /// priority bit a preemption bit), bit 10 the high-frequency clock source
 /// (ASM-05), bit 11 the instruction cache enabled (ASM-04), bit 12 the FPU
-/// absent while a Task uses it; bits 5 to 7 are set by the caller
-/// (`arch::cm4::entry::boot_core`): the Generated_Config checksum of
-/// R12.3, the interrupt-line count, a watchdog reset. The clock and cache
+/// absent while a Task uses it; bits 5 to 7 and 13 are set by the caller
+/// (`arch::cm4::entry::boot_core`): the `CONFIG` checksum of R12.3, the
+/// interrupt-line count, a watchdog reset, the `LAYOUT` checksum. The clock and cache
 /// checks read nRF52840 registers and are skipped on the QEMU board,
 /// which has neither (TBR-23).
 pub fn boot_checks(expect: &BootExpect) -> u32 {

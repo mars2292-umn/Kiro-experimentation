@@ -394,6 +394,48 @@ pub fn checksum(g: &Generated) -> u32 {
     crc32(&config_bytes(g))
 }
 
+/// The canonical image of the `LAYOUT` the system crate holds (R24.1), in
+/// the field order `rsk_kernel::arch::layout_crc` hashes and the
+/// Config_Checker decodes: the three Kernel intervals (base u32, size_log2,
+/// srd), NP as u32, then per Partition code and RAM (base, size_log2, srd),
+/// stack_size u32, window_count, and `MAX_WINDOWS` windows (base,
+/// size_log2; the disabled window is base 0, size_log2 5).
+pub fn layout_bytes(g: &Generated) -> Vec<u8> {
+    fn region(out: &mut Vec<u8>, r: &crate::layout::Region) {
+        out.extend_from_slice(&r.base.to_le_bytes());
+        out.push(r.size_log2);
+        out.push(r.srd);
+    }
+    let mut out = Vec::new();
+    region(&mut out, &g.plan.kernel_flash);
+    region(&mut out, &g.plan.shared_code);
+    region(&mut out, &g.plan.kernel_ram);
+    out.extend_from_slice(&(g.plan.partitions.len() as u32).to_le_bytes());
+    for p in &g.plan.partitions {
+        region(&mut out, &p.code);
+        region(&mut out, &p.ram);
+        out.extend_from_slice(&p.stack.to_le_bytes());
+        out.push(p.windows.len() as u8);
+        for w in 0..crate::layout::MAX_WINDOWS {
+            match p.windows.get(w) {
+                Some(win) => {
+                    out.extend_from_slice(&win.base.to_le_bytes());
+                    out.push(win.size_log2);
+                }
+                None => {
+                    out.extend_from_slice(&0u32.to_le_bytes());
+                    out.push(5);
+                }
+            }
+        }
+    }
+    out
+}
+
+pub fn layout_checksum(g: &Generated) -> u32 {
+    crc32(&layout_bytes(g))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

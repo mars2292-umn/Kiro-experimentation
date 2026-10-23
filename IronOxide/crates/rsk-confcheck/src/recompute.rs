@@ -2,7 +2,7 @@
 //! and the comparison with the Task_Model's derived values (`check_model`)
 //! and with the tables extracted from the binary (`check_binary`).
 
-use crate::image::{self, Image, Tables};
+use crate::image::{self, Image, LayoutImg, Tables};
 use crate::model::{Model, Region};
 use crate::Outcome;
 
@@ -148,6 +148,35 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     for (i, a) in m.partitions.iter().enumerate() {
         for b in &m.partitions[i + 1..] {
             out.require(format!("{}/{} regions", a.id, b.id), disjoint(&a.code, &b.code) && disjoint(&a.ram, &b.ram), "disjoint", "overlapping");
+        }
+    }
+}
+
+/// The `LAYOUT` image extracted from the binary against the Task_Model's
+/// MPU values (R26.2 MPU permissions, R16.7) and its checksums.
+pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outcome) {
+    let computed = image::crc32(&img.bytes);
+    out.mismatch("RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)", format!("0x{computed:08x}"), format!("0x{:08x}", img.stored_checksum));
+    out.mismatch("task_model.layout_checksum", format!("0x{computed:08x}"), format!("0x{:08x}", m.layout_checksum));
+    let same = |item: &str, want: &Region, got: &image::IntervalImg, out: &mut Outcome| {
+        out.mismatch(format!("{item}.base"), want.base, got.base);
+        out.mismatch(format!("{item}.size_log2"), want.size_log2, got.size_log2);
+        out.mismatch(format!("{item}.srd"), want.srd, got.srd);
+    };
+    same("LAYOUT.kernel_flash", &m.kernel_flash, &l.kernel_flash, out);
+    same("LAYOUT.shared_code", &m.shared_code, &l.shared_code, out);
+    same("LAYOUT.kernel_ram", &m.kernel_ram, &l.kernel_ram, out);
+    out.mismatch("LAYOUT.NP", m.partitions.len(), l.partitions.len());
+    for (p, part) in m.partitions.iter().enumerate() {
+        let Some(c) = l.partitions.get(p) else { continue };
+        let item = |f: &str| format!("LAYOUT.partitions[{p}].{f} ({})", part.id);
+        same(&item("code"), &part.code, &c.code, out);
+        same(&item("ram"), &part.ram, &c.ram, out);
+        out.mismatch(item("stack_size"), part.stack, c.stack_size);
+        out.mismatch(item("window_count"), part.windows.len(), c.window_count);
+        for (w, slot) in c.windows.iter().enumerate() {
+            let want = part.windows.get(w).map_or((0u64, 5u8), |win| (win.region.base, win.region.size_log2));
+            out.mismatch(item(&format!("windows[{w}]")), format!("{:?}", want), format!("{:?}", (slot.0 as u64, slot.1)));
         }
     }
 }

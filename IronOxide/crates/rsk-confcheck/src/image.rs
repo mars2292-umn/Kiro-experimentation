@@ -47,28 +47,99 @@ pub fn level_code(name: &str) -> Option<u8> {
     })
 }
 
-/// The image as found in the binary.
+/// `MAX_WINDOWS` of the Kernel's `PartitionLayout`.
+pub const MAX_WINDOWS: usize = 5;
+
+/// An image as found in the binary.
 pub struct Image {
     pub address: u32,
     pub bytes: Vec<u8>,
     pub stored_checksum: u32,
 }
 
-/// Locates and reads `RSK_CONFIG_IMAGE` and `RSK_CONFIG_CHECKSUM`.
-pub fn extract(elf_bytes: &[u8]) -> Result<Image, String> {
+/// Locates and reads an image symbol and its checksum symbol.
+pub fn extract_named(elf_bytes: &[u8], image_symbol: &str, checksum_symbol: &str) -> Result<Image, String> {
     let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
     let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
     let image = symbols
         .iter()
-        .find(|s| s.name == "RSK_CONFIG_IMAGE" && s.is_object())
-        .ok_or("binary: no RSK_CONFIG_IMAGE symbol (is this a Flight_Build?)")?;
+        .find(|s| s.name == image_symbol && s.is_object())
+        .ok_or_else(|| format!("binary: no {image_symbol} symbol (is this a Flight_Build?)"))?;
     let checksum = symbols
         .iter()
-        .find(|s| s.name == "RSK_CONFIG_CHECKSUM" && s.is_object())
-        .ok_or("binary: no RSK_CONFIG_CHECKSUM symbol")?;
-    let bytes = elf.read_at(image.address(), image.size as usize).map_err(|e| format!("binary: RSK_CONFIG_IMAGE: {e}"))?;
-    let c = elf.read_at(checksum.address(), 4).map_err(|e| format!("binary: RSK_CONFIG_CHECKSUM: {e}"))?;
+        .find(|s| s.name == checksum_symbol && s.is_object())
+        .ok_or_else(|| format!("binary: no {checksum_symbol} symbol"))?;
+    let bytes = elf.read_at(image.address(), image.size as usize).map_err(|e| format!("binary: {image_symbol}: {e}"))?;
+    let c = elf.read_at(checksum.address(), 4).map_err(|e| format!("binary: {checksum_symbol}: {e}"))?;
     Ok(Image { address: image.address(), bytes, stored_checksum: u32::from_le_bytes([c[0], c[1], c[2], c[3]]) })
+}
+
+/// Locates and reads `RSK_CONFIG_IMAGE` and `RSK_CONFIG_CHECKSUM`.
+pub fn extract(elf_bytes: &[u8]) -> Result<Image, String> {
+    extract_named(elf_bytes, "RSK_CONFIG_IMAGE", "RSK_CONFIG_CHECKSUM")
+}
+
+/// Locates and reads `RSK_LAYOUT_IMAGE` and `RSK_LAYOUT_CHECKSUM`.
+pub fn extract_layout(elf_bytes: &[u8]) -> Result<Image, String> {
+    extract_named(elf_bytes, "RSK_LAYOUT_IMAGE", "RSK_LAYOUT_CHECKSUM")
+}
+
+/// An interval of the `LAYOUT` image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IntervalImg {
+    pub base: u32,
+    pub size_log2: u8,
+    pub srd: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartitionLayoutImg {
+    pub code: IntervalImg,
+    pub ram: IntervalImg,
+    pub stack_size: u32,
+    pub window_count: u8,
+    /// `MAX_WINDOWS` slots, (base, size_log2); unused slots are (0, 5).
+    pub windows: Vec<(u32, u8)>,
+}
+
+/// The decoded `LAYOUT` image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayoutImg {
+    pub kernel_flash: IntervalImg,
+    pub shared_code: IntervalImg,
+    pub kernel_ram: IntervalImg,
+    pub partitions: Vec<PartitionLayoutImg>,
+}
+
+/// Decodes the `LAYOUT` image (`rsk_kernel::arch::layout_crc` order).
+pub fn decode_layout(bytes: &[u8]) -> Result<LayoutImg, String> {
+    let mut r = Reader { bytes, pos: 0 };
+    let interval = |r: &mut Reader| -> Result<IntervalImg, String> {
+        Ok(IntervalImg { base: r.u32()?, size_log2: r.u8()?, srd: r.u8()? })
+    };
+    let kernel_flash = interval(&mut r)?;
+    let shared_code = interval(&mut r)?;
+    let kernel_ram = interval(&mut r)?;
+    let np = r.u32()? as usize;
+    if np > 255 {
+        return Err(format!("layout image: implausible NP={np}"));
+    }
+    let mut partitions = Vec::with_capacity(np);
+    for _ in 0..np {
+        let code = interval(&mut r)?;
+        let ram = interval(&mut r)?;
+        let stack_size = r.u32()?;
+        let window_count = r.u8()?;
+        let mut windows = Vec::with_capacity(MAX_WINDOWS);
+        for _ in 0..MAX_WINDOWS {
+            windows.push((r.u32()?, r.u8()?));
+        }
+        partitions.push(PartitionLayoutImg { code, ram, stack_size, window_count, windows });
+    }
+    if r.pos != bytes.len() {
+        return Err(format!("layout image: {} trailing bytes", bytes.len() - r.pos));
+    }
+    Ok(LayoutImg { kernel_flash, shared_code, kernel_ram, partitions })
 }
 
 /// CRC-32 (IEEE 802.3, reflected, init and final XOR all ones) over `bytes`.

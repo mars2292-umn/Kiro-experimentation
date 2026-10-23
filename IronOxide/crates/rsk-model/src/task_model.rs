@@ -17,6 +17,8 @@ pub struct TaskModel {
     pub core_revision: String,
     pub clock: Clock,
     pub config_checksum: String,
+    /// CRC-32 of the canonical `LAYOUT` image (R24.1, R26.4).
+    pub layout_checksum: String,
     pub operating_duration_ticks: u64,
     pub safe_state: String,
     pub kernel_levels: Vec<u8>,

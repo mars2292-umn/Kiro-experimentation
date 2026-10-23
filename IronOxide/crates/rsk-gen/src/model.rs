@@ -176,6 +176,7 @@ pub fn task_model(g: &Generated) -> Value {
         .with("core_revision", g.target.core_revision)
         .with("clock", Value::obj().with("cpu_hz", g.target.cpu_hz).with("tick_hz", g.target.tick_hz))
         .with("config_checksum", format!("0x{:08x}", g.checksum))
+        .with("layout_checksum", format!("0x{:08x}", crate::derive::layout_checksum(g)))
         .with("operating_duration_ticks", g.operating_duration_ticks)
         .with("safe_state", g.safe_state.as_str())
         .with("kernel_levels", g.kernel_levels.iter().map(|&l| l as u64).collect::<Vec<u64>>())

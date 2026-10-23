@@ -91,6 +91,8 @@ pub const BOOT_FAIL_IRQ_COUNT: u32 = 64;
 /// Bit 7: the reset that led here was a watchdog reset (ORQ-31): the
 /// system enters the safe state rather than running again.
 pub const BOOT_FAIL_WATCHDOG_RESET: u32 = 128;
+/// Bit 13: the `LAYOUT` in memory does not match the checksum Generated_Config recorded (R12.3).
+pub const BOOT_FAIL_LAYOUT_CHECKSUM: u32 = 1 << 13;
 /// `KernelArch::boot_info` bits.
 pub const BOOT_INFO_DEBUGGER: u32 = 1;
 pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
@@ -294,6 +296,7 @@ pub trait Tables {
     fn task_entry_address(&self, t: u8) -> u32;
     fn irq_count(&self) -> u16;
     fn config_checksum(&self) -> u32;
+    fn layout_checksum(&self) -> u32;
     fn timer_vector(&self) -> u16;
     fn priority_bits(&self) -> u8;
     /// What the boot checks compare the hardware against (R12.1).
@@ -564,6 +567,9 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     let mut failed = hw.boot_checks(&expect);
     if k.config_checksum() != tables.config_checksum() {
         failed = failed | BOOT_FAIL_CHECKSUM;
+    }
+    if k.layout_checksum() != tables.layout_checksum() {
+        failed = failed | BOOT_FAIL_LAYOUT_CHECKSUM;
     }
     if info & BOOT_INFO_WATCHDOG_RESET != 0 {
         failed = failed | BOOT_FAIL_WATCHDOG_RESET;

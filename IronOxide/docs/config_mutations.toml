@@ -1,0 +1,156 @@
+# Config_Checker mutation register (R26.7, task 13.2): for each value class
+# of R26.2 a Task_Model or a linked binary altered after generation, which
+# the Config_Checker must report with the altered item. `cargo xtask verify`
+# step 8b (and `cargo xtask confcheck-mutations`) applies each mutation to a
+# copy of the P1 demo's Task_Model or Flight_Build binary, runs
+# `rsk-confcheck`, and fails unless it exits non-zero and its report names
+# every `expect` string. The P1 demo stands in for the Profile_Conformance_
+# Suite Application until task 14.
+#
+# Fields: id; class (the R26.2 value class); kind = "model" (find/replace in
+# the Task_Model JSON text, `find` exactly once), "model-hex-digit" (the
+# first hexadecimal digit of the `field` checksum string changed), or
+# "binary" (xor `xor` into the byte at `offset` of `symbol` in the ELF);
+# expect (substrings of the Config_Checker's report, item names from
+# recompute.rs).
+
+schema = 1
+
+# --- Ceilings ---
+[[mutation]]
+id = "ceiling-lowered"
+class = "ceilings"
+kind = "model"
+find = "\"ceiling\": 7,\n      \"accessors\""
+replace = "\"ceiling\": 5,\n      \"accessors\""
+expect = ["part0.state.ceiling: expected 7, found 5"]
+
+# --- Priority-to-hardware mapping ---
+[[mutation]]
+id = "priority-map-nvic"
+class = "priority-map"
+kind = "model"
+find = "\"level\": 7,\n      \"nvic\": 32"
+replace = "\"level\": 7,\n      \"nvic\": 64"
+expect = ["priority_map"]
+
+# --- Nesting depths ---
+[[mutation]]
+id = "nesting-depth-raised"
+class = "nesting-depths"
+kind = "model"
+find = "\"nesting_depth\": 1,\n      \"slots\": {\n        \"release\": 0"
+replace = "\"nesting_depth\": 2,\n      \"slots\": {\n        \"release\": 0"
+expect = ["part0.control.nesting_depth: expected 1, found 2"]
+
+# --- Capacities (R23.4, the timer-queue rule of R9.4) ---
+[[mutation]]
+id = "lock-stack-capacity"
+class = "capacities"
+kind = "model"
+find = "\"lock_stack\": 2"
+replace = "\"lock_stack\": 3"
+expect = ["capacities.lock_stack: expected 2, found 3"]
+
+[[mutation]]
+id = "timer-slots-capacity"
+class = "capacities"
+kind = "model"
+find = "\"timer_slots\": 17"
+replace = "\"timer_slots\": 16"
+expect = ["capacities.timer_slots: expected 17, found 16"]
+
+# --- Budget and MIT tables (against the binary) ---
+[[mutation]]
+id = "budget-table-model"
+class = "budget-and-mit-tables"
+kind = "model"
+find = "\"budget_cycles\": 25000"
+replace = "\"budget_cycles\": 26000"
+expect = ["CONFIG.tasks[0].budget (part0.control): expected 26000, found 25000"]
+
+[[mutation]]
+id = "mit-table-model"
+class = "budget-and-mit-tables"
+kind = "model"
+find = "\"mit_ticks\": 375000"
+replace = "\"mit_ticks\": 400000"
+expect = ["period/mit (part1.pulse): expected 400000, found 375000"]
+
+[[mutation]]
+id = "config-image-priority-byte"
+class = "budget-and-mit-tables"
+kind = "binary"
+symbol = "RSK_CONFIG_IMAGE"
+# NT, NR, NP (12 bytes), then tasks[0].priority.
+offset = 12
+xor = 1
+expect = ["RSK_CONFIG_CHECKSUM (CRC-32 of the extracted image)", "CONFIG.tasks[0].priority (part0.control): expected 7, found 6"]
+
+[[mutation]]
+id = "config-checksum-word"
+class = "checksum"
+kind = "binary"
+symbol = "RSK_CONFIG_CHECKSUM"
+offset = 0
+xor = 255
+expect = ["RSK_CONFIG_CHECKSUM (CRC-32 of the extracted image)"]
+
+[[mutation]]
+id = "config-checksum-model"
+class = "checksum"
+kind = "model-hex-digit"
+field = "config_checksum"
+expect = ["task_model.config_checksum"]
+
+[[mutation]]
+id = "layout-checksum-model"
+class = "checksum"
+kind = "model-hex-digit"
+field = "layout_checksum"
+expect = ["task_model.layout_checksum"]
+
+# --- Kernel-owned peripheral assignment (R15.6) ---
+[[mutation]]
+id = "kernel-owned-peripheral-assigned"
+class = "kernel-owned-peripherals"
+kind = "model"
+find = "\"peripherals\": [\n        \"CMSDK_DUALTIMER\"\n      ],\n      \"mpu\""
+replace = "\"peripherals\": [\n        \"CMSDK_DUALTIMER\",\n        \"CMSDK_TIMER0\"\n      ],\n      \"mpu\""
+expect = ["part1.peripherals (CMSDK_TIMER0): expected a Partition-assignable peripheral, found Kernel-owned (R15.6)"]
+
+# --- MPU permissions (R16.7) ---
+[[mutation]]
+id = "window-read-only-flag"
+class = "mpu-permissions"
+kind = "model"
+find = "\"read_only\": false"
+replace = "\"read_only\": true"
+expect = ["read_only: expected false, found true"]
+
+[[mutation]]
+id = "layout-ram-base-model"
+class = "mpu-permissions"
+kind = "model"
+find = "\"base\": 536903680"
+replace = "\"base\": 536907776"
+expect = ["LAYOUT.partitions[0].ram (part0).base: expected 536907776, found 536903680"]
+
+[[mutation]]
+id = "layout-image-stack-byte"
+class = "mpu-permissions"
+kind = "binary"
+symbol = "RSK_LAYOUT_IMAGE"
+# Three Kernel intervals (18 bytes), NP (4), partitions[0].code and ram (12), then stack_size.
+offset = 34
+xor = 16
+expect = ["RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)", "LAYOUT.partitions[0].stack_size (part0): expected 4096, found 4112"]
+
+[[mutation]]
+id = "layout-checksum-word"
+class = "checksum"
+kind = "binary"
+symbol = "RSK_LAYOUT_CHECKSUM"
+offset = 0
+xor = 255
+expect = ["RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)"]

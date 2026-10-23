@@ -160,6 +160,9 @@ impl<S: System> Tables for SysTables<S> {
     fn config_checksum(&self) -> u32 {
         S::CONFIG_CHECKSUM
     }
+    fn layout_checksum(&self) -> u32 {
+        S::LAYOUT_CHECKSUM
+    }
     fn timer_vector(&self) -> u16 {
         S::TIMER_VECTOR
     }
