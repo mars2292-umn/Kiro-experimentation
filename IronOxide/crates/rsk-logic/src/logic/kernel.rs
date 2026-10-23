@@ -112,20 +112,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     Kernel<NT, NR, NP, NL, NS, NE>
 {
     pub open spec fn inv(&self, cfg: &Config<NT, NR, NP>) -> bool {
-        &&& self.sched.inv(cfg)
-        &&& self.timing.inv(cfg)
-        &&& self.log.wf()
-        &&& (cfg.slot_count as int) == NS
-        &&& self.now <= cfg.operating_duration
-        // The trace invariant (task 4.11).
-        &&& super::history::history_wf(self.history@, NT as int, NR as int, self.now as int)
-        // Property 8, state part (R10.2): a deferred Release belongs to a
-        // Sporadic_Task under the deferral policy and becomes due exactly one
-        // MIT after the previous accepted Release of that Task became due.
-        &&& forall|u: int| 0 <= u < NT && #[trigger] self.sched.release[u] == REL_DEFERRED
-            ==> cfg.tasks[u].kind == KIND_SPORADIC && cfg.tasks[u].mit_policy == MIT_DEFER
-                && self.timing.has_last[u]
-                && self.timing.deferred_until[u] as int == self.timing.last_due[u] as int + cfg.tasks[u].period as int
+        &&& self.inv_unrecorded(cfg)
+        // The link from the last recorded lock snapshot to the scheduler
+        // (task 4.13): every lock change is recorded by the entry point
+        // that makes it.
+        &&& self.locks_match()
     }
 
     // ------------------------------------------------- Property 8 (MIT enforcement)
@@ -573,23 +564,120 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         super::history::extends(self.history@, old.history@)
     }
 
+    /// The lock stack as a snapshot: the Resources held, bottom to top.
+    pub open spec fn locks_now(&self) -> Seq<int> {
+        Seq::new(self.sched.lock_len as nat, |e: int| self.sched.lock_res[e] as int)
+    }
+
+    /// The last step's lock snapshot (nothing before the first step).
+    pub open spec fn locks_recorded(&self) -> Seq<int> {
+        super::history::locks_before(self.history@, self.history@.len() as int)
+    }
+
+    /// The scheduler's lock stack is the last recorded snapshot: every
+    /// lock change is recorded by the entry point that makes it.
+    pub open spec fn locks_match(&self) -> bool {
+        &&& self.locks_recorded().len() == self.sched.lock_len
+        &&& forall|e: int| 0 <= e < self.sched.lock_len ==> #[trigger] self.locks_recorded()[e] == self.sched.lock_res[e]
+    }
+
+    /// `inv` without `locks_match`: the state between a lock change and
+    /// the `record` that reports it.
+    pub open spec fn inv_unrecorded(&self, cfg: &Config<NT, NR, NP>) -> bool {
+        &&& self.sched.inv(cfg)
+        &&& self.timing.inv(cfg)
+        &&& self.log.wf()
+        &&& (cfg.slot_count as int) == NS
+        &&& self.now <= cfg.operating_duration
+        &&& super::history::history_wf(self.history@, cfg, self.now as int)
+        &&& forall|u: int| 0 <= u < NT && #[trigger] self.sched.release[u] == REL_DEFERRED
+            ==> cfg.tasks[u].kind == KIND_SPORADIC && cfg.tasks[u].mit_policy == MIT_DEFER
+                && self.timing.has_last[u]
+                && self.timing.deferred_until[u] as int == self.timing.last_due[u] as int + cfg.tasks[u].period as int
+    }
+
+    /// The step `record` would append now.
+    pub open spec fn step_now(&self, kind: u8, task: int, arg: int) -> Step {
+        Step { kind, task, at: self.now as int, arg, locks: self.locks_now(), ceiling: self.sched.ceiling as int }
+    }
+
+    // The lock-snapshot relation `record` requires, from the scheduler
+    // postconditions of the change since `before` (a state with
+    // `locks_match`, the last one recorded). Kept out of the entry points
+    // so that their own proofs stay within the resource limit.
+
+    /// A Job end released a suffix (`Sched::end_job`, `finish_top`).
+    pub proof fn lemma_rel_shrink(&self, before: &Self, kind: u8, task: int, arg: int)
+        requires before.locks_match(), self.history@ == before.history@, kind == ST_END || kind == ST_KILL,
+            self.sched.lock_len <= before.sched.lock_len, self.sched.lock_res == before.sched.lock_res,
+        ensures super::history::step_rel(self.locks_recorded(), self.step_now(kind, task, arg)),
+    {
+        let s = self.step_now(kind, task, arg);
+        assert(self.locks_recorded() == before.locks_recorded());
+        assert forall|e: int| 0 <= e < s.locks.len() implies #[trigger] s.locks[e] == self.locks_recorded()[e] by {
+            assert(s.locks[e] == self.sched.lock_res[e] as int);
+            assert(before.locks_recorded()[e] == before.sched.lock_res[e] as int);
+        }
+    }
+
+    /// A lock pushed `r` (`Sched::lock` with `ok`).
+    pub proof fn lemma_rel_lock(&self, before: &Self, task: int, r: int)
+        requires before.locks_match(), self.history@ == before.history@,
+            self.sched.lock_len == before.sched.lock_len + 1,
+            forall|e: int| 0 <= e < before.sched.lock_len ==> self.sched.lock_res[e] == before.sched.lock_res[e],
+            self.sched.lock_res[before.sched.lock_len as int] as int == r,
+        ensures super::history::step_rel(self.locks_recorded(), self.step_now(ST_LOCK, task, r)),
+    {
+        let s = self.step_now(ST_LOCK, task, r);
+        assert(self.locks_recorded() == before.locks_recorded());
+        assert forall|e: int| 0 <= e < before.sched.lock_len implies #[trigger] s.locks[e] == self.locks_recorded()[e] by {
+            assert(s.locks[e] == self.sched.lock_res[e] as int);
+            assert(before.locks_recorded()[e] == before.sched.lock_res[e] as int);
+        }
+        assert(s.locks.last() == self.sched.lock_res[before.sched.lock_len as int] as int);
+    }
+
+    /// An unlock popped `r` (`Sched::unlock` with `ok`).
+    pub proof fn lemma_rel_unlock(&self, before: &Self, task: int, r: int)
+        requires before.locks_match(), self.history@ == before.history@, before.sched.lock_len >= 1,
+            self.sched.lock_len == before.sched.lock_len - 1, self.sched.lock_res == before.sched.lock_res,
+            before.sched.lock_res[before.sched.lock_len - 1] as int == r,
+        ensures super::history::step_rel(self.locks_recorded(), self.step_now(ST_UNLOCK, task, r)),
+    {
+        let s = self.step_now(ST_UNLOCK, task, r);
+        assert(self.locks_recorded() == before.locks_recorded());
+        assert forall|e: int| 0 <= e < s.locks.len() implies #[trigger] s.locks[e] == self.locks_recorded()[e] by {
+            assert(s.locks[e] == self.sched.lock_res[e] as int);
+            assert(before.locks_recorded()[e] == before.sched.lock_res[e] as int);
+        }
+        assert(self.locks_recorded().last() == before.sched.lock_res[before.sched.lock_len - 1] as int);
+    }
+
     /// Appends one step, performed now, to the ghost history (task 4.11).
     /// Erased from the Flight_Build; the `Ghost` assignment has no
     /// executable effect.
     fn record(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: Ghost<int>, arg: Ghost<int>)
-        requires old(self).inv(cfg), ST_DISPATCH <= kind <= ST_KILL, 0 <= task@ < NT, 0 <= arg@,
+        requires old(self).inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_KILL, 0 <= task@ < NT, 0 <= arg@,
             (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg@ < NR,
+            // The lock change since the last step is the one this kind reports.
+            super::history::step_rel(old(self).locks_recorded(), old(self).step_now(kind, task@, arg@)),
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
-            final(self).history@ == old(self).history@.push(Step { kind, task: task@, at: old(self).now as int, arg: arg@ }),
+            final(self).history@ == old(self).history@.push(old(self).step_now(kind, task@, arg@)),
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).log == old(self).log, final(self).stopped == old(self).stopped,
             final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
             final(self).started == old(self).started, final(self).now == old(self).now,
             final(self).reinit_partition == old(self).reinit_partition, final(self).stop_dma == old(self).stop_dma,
     {
-        let ghost s = Step { kind, task: task@, at: self.now as int, arg: arg@ };
+        let ghost s = self.step_now(kind, task@, arg@);
         proof {
-            super::history::lemma_history_push(self.history@, s, NT as int, NR as int, self.now as int);
+            // The snapshot's Resources are the scheduler's (invariant 3) and
+            // its ceiling the scheduler's mirror (invariant 2).
+            super::history::lemma_ceiling_of_array(cfg, self.sched.lock_res, self.sched.lock_len as int);
+            assert(super::history::step_wf(s, cfg));
+            let p = self.history@.push(s);
+            assert(super::history::locks_before(p, self.history@.len() as int) == self.locks_recorded());
+            super::history::lemma_history_push(self.history@, s, cfg, self.now as int);
         }
         self.history = Ghost(self.history@.push(s));
     }
@@ -600,7 +688,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures k.inv(cfg), !k.started, !k.safe_state, k.sched.depth == 0, k.history@ == Seq::<Step>::empty(),
     {
         proof {
-            super::history::lemma_history_empty(NT as int, NR as int, 0);
+            super::history::lemma_history_empty(cfg, 0);
         }
         Kernel {
             sched: Sched::new(cfg),
@@ -646,7 +734,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     {
         if now > self.now {
             proof {
-                super::history::lemma_history_later(self.history@, NT as int, NR as int, self.now as int, now as int);
+                super::history::lemma_history_later(self.history@, cfg, self.now as int, now as int);
             }
             self.now = now;
         }
@@ -822,8 +910,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // still holding a Resource broke PR-07, which the type system should
         // have rejected, and is logged as API misuse (EV_API_MISUSE).
         let killed = self.sched.job[t as usize] == JOB_KILLED;
-        self.record(cfg, ST_END, Ghost(t as int), Ghost(if killed { 1int } else { 0int }));
         let released = self.sched.finish_top(cfg);
+        proof {
+            self.lemma_rel_shrink(old(self), ST_END, t as int, if killed { 1int } else { 0int });
+        }
+        self.record(cfg, ST_END, Ghost(t as int), Ghost(if killed { 1int } else { 0int }));
         if released > 0 {
             let partition = cfg.tasks[t as usize].partition;
             let kind = if killed { EV_RESOURCE_RELEASED } else { EV_API_MISUSE };
@@ -895,6 +986,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     {
         let ok = self.sched.lock(cfg, r);
         if ok {
+            proof {
+                self.lemma_rel_lock(old(self), self.sched.top(), r as int);
+            }
             self.record(cfg, ST_LOCK, Ghost(self.sched.top()), Ghost(r as int));
         }
         if !ok {
@@ -924,6 +1018,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     {
         let ok = self.sched.unlock(cfg, r);
         if ok {
+            proof {
+                self.lemma_rel_unlock(old(self), self.sched.top(), r as int);
+            }
             self.record(cfg, ST_UNLOCK, Ghost(self.sched.top()), Ghost(r as int));
         }
         if !ok {
@@ -1362,6 +1459,38 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     }
 
     /// Ends the executing Job by force (R8.9) and resumes the preempted one.
+    /// The first half of `end_top`: ends the executing Job by force,
+    /// records the step, and disarms its events. Split from `end_top` so
+    /// that the `others_unchanged` proof there and the lock-snapshot
+    /// bookkeeping here (task 4.13) are separate solver queries.
+    fn end_top_release(&mut self, cfg: &Config<NT, NR, NP>)
+        requires old(self).inv(cfg), old(self).sched.depth > 0,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).ended_top(old(self), cfg),
+            final(self).flags_eq(old(self)),
+            final(self).budget == old(self).budget, final(self).timing == old(self).timing,
+            !final(self).slots.armed(cfg.slot_budget[old(self).sched.top()] as int),
+            !final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int),
+            forall|j: int| 0 <= j < NS && j != cfg.slot_budget[old(self).sched.top()] && j != cfg.slot_deadline[old(self).sched.top()]
+                ==> final(self).slots.slots[j] == old(self).slots.slots[j],
+    {
+        let t = self.sched.stack[self.sched.depth - 1];
+        proof {
+            assert(cfg.slot_ok(t as int));
+            assert(cfg.task_ok(t as int));
+        }
+        let released = self.sched.end_job(cfg);
+        proof {
+            self.lemma_rel_shrink(old(self), ST_KILL, t as int, 1);
+        }
+        self.record(cfg, ST_KILL, Ghost(t as int), Ghost(1));
+        if released > 0 {
+            self.push_event(cfg, EV_RESOURCE_RELEASED, t, cfg.tasks[t as usize].partition, 1u64 << 7, released as u32);
+        }
+        self.slots.disarm(cfg.slot_budget[t as usize] as usize);
+        self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
+    }
+
     fn end_top(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
@@ -1377,13 +1506,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(cfg.slot_ok(t as int));
             assert(cfg.task_ok(t as int));
         }
-        self.record(cfg, ST_KILL, Ghost(t as int), Ghost(1));
-        let released = self.sched.end_job(cfg);
-        if released > 0 {
-            self.push_event(cfg, EV_RESOURCE_RELEASED, t, cfg.tasks[t as usize].partition, 1u64 << 7, released as u32);
-        }
-        self.slots.disarm(cfg.slot_budget[t as usize] as usize);
-        self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
+        self.end_top_release(cfg);
         if self.sched.depth > 0 {
             let resumed = self.sched.stack[self.sched.depth - 1];
             proof {

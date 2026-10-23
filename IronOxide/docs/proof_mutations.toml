@@ -134,8 +134,8 @@ expect = ["entry.rs", "CONTROL_JOB"]
 id = "history-step-after-now"
 kills = "record: lemma_history_push requires s.at == now (no step beyond the observed instant; task 4.11)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "        let ghost s = Step { kind, task: task@, at: self.now as int, arg: arg@ };\n"
-replace = "        let ghost s = Step { kind, task: task@, at: self.now as int + 1, arg: arg@ };\n"
+find = "        let ghost s = self.step_now(kind, task@, arg@);\n"
+replace = "        let ghost s0 = self.step_now(kind, task@, arg@);\n        let ghost s = Step { kind: s0.kind, task: s0.task, at: s0.at + 1, arg: s0.arg, locks: s0.locks, ceiling: s0.ceiling };\n"
 expect = ["kernel.rs", "s.at == now"]
 package = "rsk-logic"
 
@@ -145,5 +145,23 @@ kills = "record: the history left is the one found with the step appended (task 
 file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "        self.history = Ghost(self.history@.push(s));\n"
 replace = "        self.history = Ghost(self.history@);\n"
-expect = ["kernel.rs", "push(Step"]
+expect = ["kernel.rs", "push(old(self).step_now"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "history-end-forgets-prefix"
+kills = "lemma_prefix_kept, hence lemma_ceiling_restored (argument 5.3): a Job end may release only a suffix of the lock stack; task 4.13"
+file = "crates/rsk-logic/src/logic/history.rs"
+find = "        &&& s.locks.len() <= prev.len()\n        &&& same_below(prev, s.locks, s.locks.len() as int)\n"
+replace = "        &&& s.locks.len() <= prev.len()\n"
+expect = ["history.rs", "assertion failed"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "lazy-release-no-job-above"
+kills = "lemma_lazy_release_delays_nothing (argument 5.2): needs a Job in progress above the killed one; task 4.13"
+file = "crates/rsk-logic/src/logic/sched.rs"
+find = "        requires self.inv(cfg), 0 <= k < self.depth - 1, self.job[self.stack[k] as int] == JOB_KILLED,\n"
+replace = "        requires self.inv(cfg), 0 <= k < self.depth, self.job[self.stack[k] as int] == JOB_KILLED,\n"
+expect = ["sched.rs"]
 package = "rsk-logic"

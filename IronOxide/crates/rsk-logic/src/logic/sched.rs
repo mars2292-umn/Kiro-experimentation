@@ -200,6 +200,67 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
 
     /// The maximum over a prefix of the lock stack is at most the maximum
     /// over a longer prefix: removing entries never raises the mirror.
+    /// A non-empty mirror is attained by some entry.
+    pub proof fn lemma_max_ceiling_attained<const NP: usize>(cfg: &Config<NT, NR, NP>, lock_res: [u8; NL], n: int)
+        requires 0 < n,
+        ensures exists|e: int| 0 <= e < n && #[trigger] cfg.ceiling(lock_res[e] as int) == max_ceiling(cfg, lock_res, n),
+        decreases n,
+    {
+        if n == 1 {
+            assert(cfg.ceiling(lock_res[0] as int) == max_ceiling(cfg, lock_res, 1));
+        } else {
+            Self::lemma_max_ceiling_attained(cfg, lock_res, n - 1);
+            let c = cfg.ceiling(lock_res[n - 1] as int);
+            if c > max_ceiling(cfg, lock_res, n - 1) {
+                assert(c == max_ceiling(cfg, lock_res, n));
+            } else {
+                let e = choose|e: int| 0 <= e < n - 1 && #[trigger] cfg.ceiling(lock_res[e] as int) == max_ceiling(cfg, lock_res, n - 1);
+                assert(cfg.ceiling(lock_res[e] as int) == max_ceiling(cfg, lock_res, n));
+            }
+        }
+    }
+
+    /// Verification_Plan argument 5.2 (R8.9, R14.5, Property 6; task
+    /// 4.13): the lock entries a killed Job keeps until the unwind delay
+    /// nothing. Job K at stack position `k` is killed and some Job is in
+    /// progress above it. A pending Task X that the System_Ceiling blocks
+    /// although no entry of another holder blocks it (its Priority is
+    /// above the Ceiling of every entry K does not hold) has Priority
+    /// below the executing Job's, so it is not eligible while any Job
+    /// above K is in progress whether or not K's entries are released.
+    /// When the last Job above K ends, Kernel_Arch unwinds to K and
+    /// `finish_top` releases the entries in the same Kernel entry
+    /// (`arch::cm4::entry::epilogue_core`).
+    pub proof fn lemma_lazy_release_delays_nothing<const NP: usize>(&self, cfg: &Config<NT, NR, NP>, k: int, x: int)
+        requires self.inv(cfg), 0 <= k < self.depth - 1, self.job[self.stack[k] as int] == JOB_KILLED,
+            0 <= x < NT, self.release[x] == REL_PENDING, self.job[x] == JOB_NONE,
+            // Blocked by the System_Ceiling ...
+            cfg.priority(x) <= self.ceiling,
+            // ... but by no entry of a holder other than K.
+            forall|e: int| 0 <= e < self.lock_len && self.lock_depth[e] != k ==> cfg.priority(x) > #[trigger] cfg.ceiling(self.lock_res[e] as int),
+        ensures
+            // X is below every Job above K, the executing one included.
+            forall|i: int| k < i < self.depth ==> cfg.priority(x) < #[trigger] cfg.priority(self.stack[i] as int),
+            !self.eligible(cfg, x),
+    {
+        if self.lock_len == 0 {
+            assert(self.ceiling == IDLE_CEILING);
+            assert(cfg.task_ok(x));
+            assert(false);
+        }
+        Self::lemma_max_ceiling_attained(cfg, self.lock_res, self.lock_len as int);
+        let e = choose|e: int| 0 <= e < self.lock_len && #[trigger] cfg.ceiling(self.lock_res[e] as int) == max_ceiling(cfg, self.lock_res, self.lock_len as int);
+        // That entry is K's: any other holder's would not block X.
+        assert(self.lock_depth[e] == k);
+        // Invariant 4: K's entries have Ceilings at most the start ceiling of
+        // every Job above K; invariant 1: each started above it.
+        assert forall|i: int| k < i < self.depth implies cfg.priority(x) < #[trigger] cfg.priority(self.stack[i] as int) by {
+            assert(cfg.ceiling(self.lock_res[e] as int) <= self.start_ceiling[i]);
+            assert(cfg.priority(self.stack[i] as int) > self.start_ceiling[i]);
+        }
+        assert(cfg.priority(x) < cfg.priority(self.top()));
+    }
+
     pub proof fn lemma_max_ceiling_mono<const NP: usize>(cfg: &Config<NT, NR, NP>, lock_res: [u8; NL], a: int, b: int)
         requires 0 <= a <= b,
         ensures max_ceiling(cfg, lock_res, a) <= max_ceiling(cfg, lock_res, b),

@@ -16,13 +16,13 @@ From the local `cargo xtask verify` run of 2026-10-22 (evidence store `target/ev
 
 | Evidence_Item | Result |
 |---|---|
-| `proof-kernel-verus` | rsk-logic 241 items verified, 0 errors (the ghost history of task 4.11 included); rsk-kernel 112 items verified, 0 errors (`arch::bound`, `arch::cm4::plan`, `arch::cm4::entry`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
-| `check-static-checks` | 4 assumption constructs in the verified crates, all listed (the four trusted functions of `Cm4Hw`, R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,880 executable Kernel lines (PAR-01: rsk-logic 1,215, rsk-kernel 1,576, rsk-entry 89; 34 of them the ghost-history writes of task 4.11, which emit no code); 16 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
+| `proof-kernel-verus` | rsk-logic 252 items verified, 0 errors (the ghost history of task 4.11 and the theorems of task 4.13 included); rsk-kernel 112 items verified, 0 errors (`arch::bound`, `arch::cm4::plan`, `arch::cm4::entry`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
+| `check-static-checks` | 4 assumption constructs in the verified crates, all listed (the four trusted functions of `Cm4Hw`, R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,888 executable Kernel lines (PAR-01: rsk-logic 1,223, rsk-kernel 1,576, rsk-entry 89; 42 of them the ghost-history writes of tasks 4.11 and 4.13, which emit no code); 18 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
 | `proof-kernel-kani` | 12 harnesses, every check passed (6 in rsk-logic, the `intake` cross-check among them; 6 in rsk-kernel); Kani 0.68.0, CBMC 6.11.0 |
 | `test-qemu-spike-p1-demo` | `RSK-OK` on QEMU mps2-an386 (not the Target) |
 | `test-workspace-tests`, builds, sandbox, `check-evidence` | pass |
 
-CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 16 of 16 mutants killed on 2026-10-22.
+CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 18 of 18 mutants killed on 2026-10-22.
 
 ## 2. What the type system gives (R43.3)
 
@@ -42,7 +42,7 @@ Status is as of 2026-10-14. "By inspection" points to the Kernel_Arch facts of s
 |---|---|---|---|---|---|---|---|
 | P-01 | Data-race freedom | PR-05, R8.6, R8.10 | Type system; Verus for mutual exclusion (P-02) | builds; `proof-kernel-verus`; `conf-PR-05-*` (planned) | P1, P2 | Type rules in force; PR-05 lint and trybuild cases not built | ASM-14, TBR-21, TBR-06 (UJ-050..054) |
 | P-02 | Mutual exclusion | R8.3 | Verus (proof): `lemma_no_other_holder`, `Sched::lock`, `Kernel::svc_lock` | `proof-kernel-verus` | P1 | Proven for the state model; BASEPRI realisation by inspection | ASM-08, ASM-15, TBR-02, TBR-04 |
-| P-03 | Ceiling raise and restore | R8.1, R8.2, R8.6 | Verus (proof per step); argument 5.3 across preemptions; trybuild (test, planned) | `proof-kernel-verus`; `conf-PR-07-ts` (planned) | P1, P2 | Each lock and unlock proven; restore across preemptions is argument 5.3 | ASM-15, TBR-04 |
+| P-03 | Ceiling raise and restore | R8.1, R8.2, R8.6 | Verus (proof per step, and `lemma_ceiling_restored` over the ghost history for restore across preemptions, task 4.13); trybuild (test, planned) | `proof-kernel-verus`; `conf-PR-07-ts` (planned) | P1, P2 | Each lock and unlock proven; restore across preemptions proven over the history (argument 5.3 mechanized 2026-10-22) | ASM-15, TBR-04 |
 | P-04 | SRP start condition | R7.1, R7.2, R7.3, R20.3 | Verus over the Hardware_Model (proof): `Sched::select`, `lemma_dispatch_takes_iff_eligible`, `lemma_dispatch_selects_srp_choice`, `lemma_dispatch_idle_when_none_eligible`; `arch::bound` (`eligible`, `select`, `basepri_now`) | `proof-kernel-verus`; `test-qemu-spike-p1-demo`; `hil-dt-hw-05` (planned) | P1 | Proven; the BASEPRI value and the stale-bit test are proven computations (section 4), their application to the registers (A1, A4), A2 and A3 by inspection; hardware-pending | ASM-03, ASM-08, TBR-02, TBR-04, TBR-05 |
 | P-05 | Bounded blocking | R8.4, R29.2 | Verus (state part): `lemma_blocked_by_one_holder`; argument 5.1; PBT against the SRP simulator (test, P2) | `proof-kernel-verus` | P1, P2 | State part proven; one section per Release is argument 5.1 | ASM-15, TBR-04 |
 | P-06 | Deadlock freedom | R8.5 | Verus (a lock never waits for another holder); argument 5.5 | `proof-kernel-verus` | P1 | Partial: no-wait proven, freedom from wait cycles argued | ASM-15 |
@@ -104,7 +104,7 @@ What the model does not cover, and the evidence that does: the hardware's own re
 
 ## 5. Arguments recorded here
 
-These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take. Mechanizing 5.1 to 5.5 is tasks 4.12 to 4.14: the ghost history they need exists since 2026-10-22 (task 4.11, `logic::history`): `Kernel::history` records every dispatch, Job end, lock, unlock, Release due, and kill with its observed instant; `Kernel::inv` carries the trace invariant `history_wf` and every entry point ensures that it only appended to the history. No theorem over the history is proven yet; each of 5.1 to 5.5 is still review evidence.
+These close gaps that the Verus specifications leave between single transitions. Each is review evidence (TBR-06 style), cites the proven facts it uses, and names what mechanizing it would take. Mechanizing 5.1 to 5.5 is tasks 4.12 to 4.14: the ghost history they need exists since 2026-10-22 (task 4.11, `logic::history`): `Kernel::history` records every dispatch, Job end, lock, unlock, Release due, and kill with its observed instant; `Kernel::inv` carries the trace invariant `history_wf` and every entry point ensures that it only appended to the history. Arguments 5.3 and 5.2 are mechanized (task 4.13, below); 5.1, 5.4, and 5.5 are still review evidence (tasks 4.12 and 4.14).
 
 ### 5.1 Bounded blocking: one Critical_Section per Release (R8.4)
 
@@ -121,6 +121,8 @@ So J waits for at most one outermost Critical_Section (with its nested sections)
 
 `Sched::kill` marks a preempted Job K but leaves its lock entries until Kernel_Arch unwinds to it, when `finish_top` releases them. Every Job above K started above the ceiling of its start instant (invariant 1), which covers the Ceilings of K's Resources (invariant 4). A Job X blocked only by K's retained Resources has Priority at most their Ceiling, so below the executing Job's Priority, and is not eligible while any Job above K is in progress. When the last Job above K ends, the unwind reaches K and releases its entries in the same Kernel entry (`epilogue`). The retained entries therefore never delay a Job that the Jobs above K would not delay anyway. Assumes A1 and the unwind order of the stubs (UJ-023, review).
 
+**Mechanized 2026-10-22 (task 4.13):** `Sched::lemma_lazy_release_delays_nothing`, the logic content of the argument as a theorem over any state satisfying `Sched::inv`: with Job K at stack position `k` killed and some Job in progress above it, a pending Task X that the System_Ceiling blocks although no entry of a holder other than K blocks it has Priority below every Job above K, the executing one included, so X is not eligible whether or not K's entries are released. The proof uses the attained maximum of the mirror (`lemma_max_ceiling_attained`), invariant 4 (K's entries have Ceilings at most the start ceiling of each Job above K), and invariant 1. The mutation `lazy-release-no-job-above` (dropping the Job above K) fails it. What stays outside the theorem: that the unwind to K releases the entries in the same Kernel entry, which is `epilogue_core` (Verification_Plan section 4) and the stub order UJ-023.
+
 ### 5.3 Ceiling restore across preemptions (R8.2)
 
 `Sched::unlock` proves that after an unlock the ceiling is the maximum over the remaining entries. The remaining entries are exactly those present before the matching lock:
@@ -129,7 +131,9 @@ So J waits for at most one outermost Critical_Section (with its nested sections)
 - entries are ordered by holder (invariant 3), so a Job that preempts and later ends removes only its own entries (`complete` and `end_job` leave `lock_res` and `lock_depth` unchanged and shrink `lock_len` only by the top's entries, proven);
 - an unlock succeeds only on the top entry owned by the executing Job (proven).
 
-Hence the ceiling after the unlock equals its value before the matching lock. Mechanizing it needs a ghost lock history.
+Hence the ceiling after the unlock equals its value before the matching lock.
+
+**Mechanized 2026-10-22 (task 4.13):** `logic::history::lemma_ceiling_restored`. Every step of the ghost history carries a snapshot of the lock stack and the System_Ceiling after it; `history_wf` relates consecutive snapshots by the step's kind (`step_rel`: a lock pushes one entry, an unlock pops the top one, a Job end drops a suffix, the rest keep the stack) and ties each ceiling to its snapshot (`ceiling_of`); `Kernel::inv` ties the last snapshot to the scheduler (`locks_match`), which every entry point maintains and `record` re-establishes from the `Sched` postconditions (`lemma_rel_shrink`, `lemma_rel_lock`, `lemma_rel_unlock`). The theorem: for a lock step `i` and the matching unlock `j` (the first later step at which the stack is back to its depth before `i`, the stack never having gone below the locked entry in between), the stack after `j` is the stack before `i` and the ceiling after `j` equals the ceiling before `i`, whatever other Jobs locked, unlocked, started, or ended in between. The mutation `history-end-forgets-prefix` (a Job end allowed to change entries below the released suffix) fails it. This row of section 3 is now proof evidence at the logic level.
 
 ### 5.4 MIT spacing over a run (R10.1, R10.2)
 
@@ -339,7 +343,7 @@ The project does not hold the DO-178C or DO-333 texts. The Gap_Register (`docs/g
 
 | Analysis | Complete | Partial, with the remainder |
 |---|---|---|
-| Verus, Kernel | R7.1, R7.2, R7.3, R20.3; R8.1 (per step), R8.3, R8.10; R9.3, R9.4; R10.1, R10.2, R10.3 (within the threshold), R10.7 (attribution to the given Partition); R12.3 (tables); R14.5 (effects), R14.6, R14.7, R14.9 (no Endpoints yet); R16.1, R16.3, R16.5, R16.6 (validated layouts); R18.1; R18.2 (level part); R44.1 and R44.7 (logic) | R7.5 (registers: review, HIL); R8.2, R8.4, R8.5 (arguments 5.3, 5.1, 5.5); R8.9 (lazy release 5.2; one event with a count instead of one per Resource); R9.1, R9.5 (slot-to-Release link open); R9.6 to R9.8; R10.4 (counting proven, the windowed form is ORQ-26); R10.9, R19.1, R19.2 (local masking only; the bound is open); R16.2 (Kernel-owned peripherals: Generator, Config_Checker); R44.8 |
+| Verus, Kernel | R7.1, R7.2, R7.3, R20.3; R8.1 (per step), R8.2 (restore across preemptions over the history, task 4.13), R8.3, R8.9 (a killed Job's retained entries delay nothing, task 4.13), R8.10; R9.3, R9.4; R10.1, R10.2, R10.3 (within the threshold), R10.7 (attribution to the given Partition); R12.3 (tables); R14.5 (effects), R14.6, R14.7, R14.9 (no Endpoints yet); R16.1, R16.3, R16.5, R16.6 (validated layouts); R18.1; R18.2 (level part); R44.1 and R44.7 (logic) | R7.5 (registers: review, HIL); R8.4, R8.5 (arguments 5.1, 5.5); R8.9 (one event with a count instead of one per Resource; the unwind releasing in the same entry is Kernel_Arch, section 4); R9.1, R9.5 (slot-to-Release link open); R9.6 to R9.8; R10.4 (counting proven, the windowed form is ORQ-26); R10.9, R19.1, R19.2 (local masking only; the bound is open); R16.2 (Kernel-owned peripherals: Generator, Config_Checker); R44.8 |
 | Verus, Analyzer core | R32.1 (least fixed point, termination, overflow) | R29 (term derivation unproven: tests, task 15.4) |
 | Kani | none on its own | R45.1, R45.2, R45.3 within the bounds of 6.3 |
 
