@@ -20,7 +20,7 @@ schema = 1
 [[mutation]]
 id = "dispatch-vector-order"
 kills = "lemma_dispatch_selects_srp_choice (DD-03 tie order)"
-file = "crates/rsk-kernel/src/hw_model.rs"
+file = "crates/rsk-logic/src/hw_model.rs"
 find = "    &&& forall|t: int, u: int| 0 <= t < u < NT ==> #[trigger] vector(t) < #[trigger] vector(u)\n"
 replace = "    &&& forall|t: int, u: int| 0 <= t < u < NT ==> #[trigger] vector(t) > #[trigger] vector(u)\n"
 expect = ["hw_model.rs"]
@@ -28,7 +28,7 @@ expect = ["hw_model.rs"]
 [[mutation]]
 id = "kernel-level-encoding"
 kills = "lemma_encoding_order, lemma_kernel_level_never_masked (encode_level(0) must be 0x00)"
-file = "crates/rsk-kernel/src/hw_model.rs"
+file = "crates/rsk-logic/src/hw_model.rs"
 find = "pub open spec fn encode_level(level: int) -> int {\n    if level == 0 { 0 } else { (8 - level) * 32 }\n"
 replace = "pub open spec fn encode_level(level: int) -> int {\n    if level == 0 { 256 } else { (8 - level) * 32 }\n"
 expect = ["hw_model.rs", "encode_level"]
@@ -36,7 +36,7 @@ expect = ["hw_model.rs", "encode_level"]
 [[mutation]]
 id = "shared-code-writable"
 kills = "lemma_view_within_layout (a writable address lies in the Partition's RAM or a window; Property 12)"
-file = "crates/rsk-kernel/src/logic/mpu.rs"
+file = "crates/rsk-logic/src/logic/mpu.rs"
 find = "        if i == 0 {\n            Region { enabled: true, interval: self.shared_code, srd: 0, write: false, xn: false, device: false }\n"
 replace = "        if i == 0 {\n            Region { enabled: true, interval: self.shared_code, srd: 0, write: true, xn: false, device: false }\n"
 expect = ["mpu.rs"]
@@ -44,7 +44,7 @@ expect = ["mpu.rs"]
 [[mutation]]
 id = "mpu-grants-every-write"
 kills = "lemma_mpu_grant_covered (the hardware grant implies the view's over-approximation)"
-file = "crates/rsk-kernel/src/hw_model.rs"
+file = "crates/rsk-logic/src/hw_model.rs"
 find = "    match deciding_region(view, a) {\n        None => false,\n"
 replace = "    match deciding_region(view, a) {\n        None => true,\n"
 # Verus reports the failing assertion inside the lemma body, not the lemma name.
@@ -53,7 +53,7 @@ expect = ["hw_model.rs", "view.regions[s].covers(a)"]
 [[mutation]]
 id = "restart-kills-one-job"
 kills = "end_partition_jobs: partition_ended (every Job of the Partition is ended or killed)"
-file = "crates/rsk-kernel/src/logic/kernel.rs"
+file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
 replace = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE && i == 0 {\n                self.sched.kill(cfg, i);\n"
 expect = ["kernel.rs"]
@@ -61,7 +61,7 @@ expect = ["kernel.rs"]
 [[mutation]]
 id = "kill-other-partitions"
 kills = "others_unchanged (R14.9: a response leaves every other Partition as it was)"
-file = "crates/rsk-kernel/src/logic/kernel.rs"
+file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
 replace = "            if self.sched.job[u as usize] != JOB_NONE {\n                self.sched.kill(cfg, i);\n"
 expect = ["kernel.rs", "others_unchanged"]
@@ -69,7 +69,7 @@ expect = ["kernel.rs", "others_unchanged"]
 [[mutation]]
 id = "discard-clears-release"
 kills = "intake: violation_applied (a discarded event leaves the existing Release unchanged, R10.3)"
-file = "crates/rsk-kernel/src/logic/kernel.rs"
+file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "            // The violation may trip the threshold and stop or restart the\n            // Partition, which then suppresses the Release just deferred.\n            let ghost before = *self;\n"
 replace = "            self.sched.release[t as usize] = REL_NONE;\n            let ghost before = *self;\n"
 expect = ["kernel.rs"]
@@ -89,3 +89,19 @@ file = "crates/rsk-kernel/src/arch/bound.rs"
 find = "    basepri_for_ceiling(if top > ceiling { top } else { ceiling })\n"
 replace = "    basepri_for_ceiling(if top > ceiling { ceiling } else { top })\n"
 expect = ["bound.rs", "basepri_for"]
+
+[[mutation]]
+id = "frame-overlaps-floor"
+kills = "plan_frame (HW-06, R16.5: the new frame lies wholly below the floor)"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    let top = floor - FRAME_BYTES;\n"
+replace = "    let top = floor - 8;\n"
+expect = ["plan.rs", "FRAME_BYTES <= floor"]
+
+[[mutation]]
+id = "compare-ignores-near-counter"
+kills = "compare_target (HW-12: the compare is never closer than MIN_COMPARE_DISTANCE to the counter)"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    if at < now + MIN_COMPARE_DISTANCE { now + MIN_COMPARE_DISTANCE } else { at }\n"
+replace = "    at\n"
+expect = ["plan.rs", "compare_for"]

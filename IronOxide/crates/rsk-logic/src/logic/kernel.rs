@@ -1306,10 +1306,6 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     }
 
     /// Ends the executing Job by force (R8.9) and resumes the preempted one.
-    // The proof is near Z3's default resource limit and tips over it when the
-    // crate's context grows (seen when `arch::bound` was added); the limit is
-    // raised rather than the proof weakened.
-    #[verifier::rlimit(40)]
     fn end_top(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
         ensures final(self).inv(cfg),

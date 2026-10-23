@@ -85,6 +85,29 @@ pub fn verified_crates(ws: &Workspace) -> Vec<String> {
     names
 }
 
+/// The verified crates in dependency order: a crate comes after every
+/// verified crate it depends on. cargo-verus verifies a dependency that
+/// opts into Verus together with the crate that depends on it, and a later
+/// run on the dependency alone is then fully cached and prints no results
+/// line; verifying dependencies first gives every crate its own line.
+pub fn verified_crates_in_dependency_order(ws: &Workspace) -> Vec<String> {
+    let names = verified_crates(ws);
+    let mut ordered: Vec<String> = Vec::new();
+    let mut remaining = names.clone();
+    while !remaining.is_empty() {
+        let next = remaining.iter().position(|n| {
+            ws.package_named(n).is_none_or(|pkg| {
+                !pkg.dependencies.iter().any(|d| d.kind.is_none() && remaining.contains(&d.name) && d.name != *n)
+            })
+        });
+        // A dependency cycle cannot occur among Cargo packages; take the first
+        // crate if the search finds nothing, so the loop always ends.
+        let i = next.unwrap_or(0);
+        ordered.push(remaining.remove(i));
+    }
+    ordered
+}
+
 /// Scans the verified crates for assumption constructs.
 pub fn find_assumptions(ws: &Workspace) -> Vec<Assumption> {
     let mut out = Vec::new();
@@ -269,7 +292,7 @@ pub fn run_verus(
     let mut all_ok = true;
     let mut commands = Vec::new();
     let mut notes = Vec::new();
-    let names = verified_crates(ws);
+    let names = verified_crates_in_dependency_order(ws);
     for name in names.iter().map(String::as_str) {
         let Some(pkg) = ws.package_named(name) else { continue };
         if !pkg.dir.join("Cargo.toml").exists() {
@@ -552,6 +575,15 @@ pub fn name_failed_obligations(verus_ok: bool, kani_ok: bool, report: &mut Repor
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn kernel_crates_are_verified_dependencies_first() {
+        let mut report = crate::diag::Report::default();
+        let ws = crate::workspace::Workspace::load(&crate::repository_root(), &mut report).expect("workspace");
+        let order = super::verified_crates_in_dependency_order(&ws);
+        let pos = |n: &str| order.iter().position(|x| x == n).expect(n);
+        assert!(pos("rsk-logic") < pos("rsk-kernel"), "{order:?}");
+    }
+
     use super::*;
 
     #[test]

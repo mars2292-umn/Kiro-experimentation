@@ -1,5 +1,7 @@
-//! rsk Kernel (Component B): the portable Kernel logic, the Hardware_Model
-//! specifications, and the Kernel_Arch for the Cortex-M4F.
+//! rsk Kernel (Component B): the Kernel_Arch for the Cortex-M4F, bound to
+//! the portable Kernel logic and the Hardware_Model specifications of the
+//! `rsk-logic` crate, which this crate re-exports as `logic` and `hw_model`
+//! (one Verus crate per side, so the proofs share no SMT context).
 //!
 //! Unsafe-code confinement (PR-20, R6.3): `unsafe` code and assembly may appear
 //! only in `arch::cm4::unsafe_module`, which together with the `rsk-entry`
@@ -20,6 +22,6 @@
 use vstd::prelude::*;
 
 pub mod arch;
-pub mod hw_model;
-pub mod logic;
 pub mod profile_version;
+
+pub use rsk_logic::{hw_model, logic};

@@ -16,13 +16,13 @@ From the local `cargo xtask verify` run of 2026-10-22 (evidence store `target/ev
 
 | Evidence_Item | Result |
 |---|---|
-| `proof-kernel-verus` | rsk-kernel 286 items verified, 0 errors (56 new in `arch::bound`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
-| `check-static-checks` | 0 assumption constructs in the verified crates rsk-entry, rsk-kernel, and rsk-analyzer (R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,589 executable Kernel lines (PAR-01); 9 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
-| `proof-kernel-kani` | 12 harnesses, every check passed (the `intake` cross-check added); Kani 0.68.0, CBMC 6.11.0 |
+| `proof-kernel-verus` | rsk-logic 230 items verified, 0 errors; rsk-kernel 67 items verified, 0 errors (56 in `arch::bound`, 11 in `arch::cm4::plan`); rsk-analyzer 17 verified, 0 errors; Verus 0.2026.10.04.426d8b0, Z3 4.16.0 |
+| `check-static-checks` | 0 assumption constructs in the verified crates rsk-entry, rsk-kernel, and rsk-analyzer (R50.2); 43 `unsafe` constructs, 5 linked to Kani, 38 to review (R6.4); 2,610 executable Kernel lines (PAR-01: rsk-logic 1,182, rsk-kernel 1,339, rsk-entry 89); 11 proof mutations registered (R52.2); Trust_Base_Register 24 entries with 21 of 21 R48.1 items mapped (R48); Gap_Register 71 Annex A objectives, 19 gaps, 32 ORQs matching design.md (R54) |
+| `proof-kernel-kani` | 12 harnesses, every check passed (6 in rsk-logic, the `intake` cross-check among them; 6 in rsk-kernel); Kani 0.68.0, CBMC 6.11.0 |
 | `test-qemu-spike-p1-demo` | `RSK-OK` on QEMU mps2-an386 (not the Target) |
 | `test-workspace-tests`, builds, sandbox, `check-evidence` | pass |
 
-CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 9 of 9 mutants killed on 2026-10-22.
+CI has the same entry point but does not install QEMU, so a CI run carries no QEMU item. `cargo xtask mutations` (section 9.2) is run separately: 11 of 11 mutants killed on 2026-10-22.
 
 ## 2. What the type system gives (R43.3)
 
@@ -95,6 +95,10 @@ Status is as of 2026-10-14. "By inspection" points to the Kernel_Arch facts of s
 | A11 | `placeholder_kernel` is replaced by `init` before the first transition | `inv` at the first call | Narrowed: every `KernelOps` method but `validate` and `init` requires `inv`, which only `init` establishes; that `boot` calls `validate` and `init` before any other method, and that no fault handler runs before `boot`: by inspection (`arch::cm4::boot`) |
 
 A12, the ascending dispatch-vector order (DD-03, `dispatch_vectors_ok`), is checked by the rsk-gen test `dispatch_irqs_ascend_for_dd03` for every built-in Target, not by inspection.
+
+Task 5.7, first increment (2026-10-22, `arch/cm4/plan.rs` inside `verus!`): the new Job's frame address is proven 8-byte aligned (HW-06), at or above the Partition stack's bottom and wholly below the floor (R16.5: a Job never starts on a frame that already overflows), and the highest such address (`plan_frame`; the overflow case raises the Kernel fault instead of writing below the region, which the old `& !7` arithmetic did not guard); the TIMER compare value is proven equal to `hw_model::compare_for` and at least `MIN_COMPARE_DISTANCE` ahead of the counter (HW-12, `compare_target`); the unwind's level lookup is proven to return the greatest matching level (`find_level`). The level records and `ArchState` now live inside `verus!` so that later increments can specify the entry points over them.
+
+Crate layout for proof stability (2026-10-22): the proof core (`logic`, `hw_model`) is the crate `rsk-logic`, and Kernel_Arch (`arch::bound`, `arch::cm4`, the Kernel_Unsafe_Module) is `rsk-kernel`, which re-exports it. Verus verifies each crate's items in its own SMT context and imports the other's specifications only, so a change on one side cannot destabilize the other's proofs; the `rlimit` raise that `end_top` needed in the single crate was removed after the split and the proof passes at the default limit. The explicit array-fill axiom applications in `Slots::new` and `Layout::view` are kept as cheap robustness.
 
 Remaining mitigation: move the rest of the planning code (`arch::cm4`) into `verus!` with a `KernelArch::apply` specification tied to the Hardware_Model, which needs trusted specifications for the register-access functions of the Kernel_Unsafe_Module (R44.5, each listed in `docs/proof_assumptions.toml`); that would turn the "by inspection" halves of A1 to A8 and A11 into proof obligations. The HIL tests of section 11 test them on the Target. Trust_Base_Register entry TBR-24 lists the remaining facts as trusted, and Gap_Register entry GAP-10 records the gap; until it closes, `arch::cm4` is a deviation from R44.5.
 
@@ -408,6 +412,6 @@ Open items for v2:
 - R43.5 per-criterion list (task 8.4);
 - App_Prover pinning and the facts marked "to confirm" in section 7 (task 17.1);
 - the Kani flight-path restructuring (6.1);
-- moving `arch::cm4` into `verus!` (section 4, GAP-10), after `arch::bound`;
+- moving the rest of `arch::cm4` into `verus!` (section 4, GAP-10, task 5.7): the entry points and the register writes, which need trusted specifications for the register-access functions;
 - confirmation of the Gap_Register's Annex A applicability, independence, and DO-333 and DO-330 items against the standards' texts (OPEN-01, OPEN-02);
 - every hardware-pending item of section 11.

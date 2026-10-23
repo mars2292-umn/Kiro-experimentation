@@ -59,10 +59,12 @@
 // so this module denies `unsafe_code` and contains none (R6.3).
 #![deny(unsafe_code)]
 
+pub mod plan;
 pub mod unsafe_module;
 
+pub use plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, FRAME_BYTES, MAX_INSTANT};
+
 use crate::arch::{Binding, KernelOps, System};
-use crate::hw_model::MIN_COMPARE_DISTANCE;
 use crate::logic::log::{EV_BUSFAULT, EV_HARDFAULT, EV_MEMMANAGE, EV_PANIC, EV_UNBOUND_IRQ, EV_USAGEFAULT};
 pub use unsafe_module::KernelCell;
 use unsafe_module::hw;
@@ -117,63 +119,6 @@ pub const EXC_RETURN_THREAD_MSP: u32 = 0xFFFF_FFF9;
 pub const EXC_RETURN_THREAD_PSP: u32 = 0xFFFF_FFFD;
 /// xPSR with the Thumb bit for a new frame.
 pub const XPSR_THUMB: u32 = 1 << 24;
-/// Basic exception frame size (HW-06).
-pub const FRAME_BYTES: u32 = 32;
-
-/// The saved context of the Job that a level's stub preempted.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct LevelRecord {
-    pub exception_number: u16,
-    pub task: u8,
-    pub partition: u8,
-    pub psp: u32,
-    pub control: u32,
-    pub exc_return: u32,
-    /// The Partition stack floor before this Job's frame was placed.
-    pub floor_before: u32,
-    /// The partition of the preempted Job whose view was loaded, 0xFF for the Kernel/idle.
-    pub previous_partition: u8,
-}
-
-/// Per-level records (one Job in progress per level) and per-Partition
-/// stack floors.
-#[derive(Clone, Copy, Debug)]
-pub struct ArchState {
-    pub levels: [LevelRecord; 8],
-    pub floor: [u32; 16],
-    /// The loaded MPU view's Partition, 0xFF for the Kernel map.
-    pub current_partition: u8,
-    /// DWT CYCCNT at the last context switch.
-    pub last_switch: u32,
-    /// 64-bit extension of the time-base counter (DD-05).
-    pub time_hi: u32,
-    pub time_last_lo: u32,
-    pub booted: bool,
-}
-
-impl ArchState {
-    pub const fn new() -> ArchState {
-        ArchState {
-            levels: [LevelRecord {
-                exception_number: 0,
-                task: 0,
-                partition: 0,
-                psp: 0,
-                control: 0,
-                exc_return: 0,
-                floor_before: 0,
-                previous_partition: 0xFF,
-            }; 8],
-            floor: [0; 16],
-            current_partition: 0xFF,
-            last_switch: 0,
-            time_hi: 0,
-            time_last_lo: 0,
-            booted: false,
-        }
-    }
-}
-
 /// The plan the dispatch stub executes after [`irq_entry`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DispatchPlan {
@@ -249,7 +194,10 @@ fn apply<S: System>(k: &mut S::K) {
 /// MIN_COMPARE_DISTANCE ticks (HW-12).
 fn arm_compare(at: u64) {
     let now = hw::timebase_now();
-    let target = if at < now + MIN_COMPARE_DISTANCE { now + MIN_COMPARE_DISTANCE } else { at };
+    // `compare_target` requires `now <= MAX_INSTANT`: the time base counts
+    // from instant 0 and the operating duration is below 2^62 (R9.5,
+    // `Config::wf`); the guard keeps the call total.
+    let target = if now <= MAX_INSTANT { compare_target(now, at) } else { at };
     trace(b"arm", target as u32);
     hw::timebase_arm(target);
 }
@@ -357,14 +305,18 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
             let info = k.job_info(t);
             let level = info.priority as usize;
             let floor_before = state.floor[info.partition as usize];
-            let frame = (floor_before - FRAME_BYTES) & !7;
-            if frame < S::stack_bottom(info.partition) {
-                // The Link_Checker's stack bound (R37.2) excludes this; the
-                // backstop is a Kernel fault into the safe state (R16.5).
-                k.fault(EV_HARDFAULT, true);
-                apply::<S>(k);
-                return no_change;
-            }
+            // The frame is 8-byte aligned and inside the Partition's stack
+            // region (proven, `plan_frame`); the Link_Checker's stack bound
+            // (R37.2) excludes the overflow case, and the backstop is a
+            // Kernel fault into the safe state (R16.5).
+            let frame = match plan_frame(floor_before, S::stack_bottom(info.partition)) {
+                Some(frame) => frame,
+                None => {
+                    k.fault(EV_HARDFAULT, true);
+                    apply::<S>(k);
+                    return no_change;
+                }
+            };
             state.levels[level] = LevelRecord {
                 exception_number: n,
                 task: t,
@@ -497,15 +449,8 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     let state = unsafe_module::arch_state();
     let n = (n & 0x1FF) as u16;
     trace(b"epilogue", n as u32);
-    // Find the level record of this vector.
-    let mut level = 0usize;
-    let mut i = 1usize;
-    while i < 8 {
-        if state.levels[i].exception_number == n {
-            level = i;
-        }
-        i += 1;
-    }
+    // The level record of this vector (proven lookup, `find_level`).
+    let level = find_level(&state.levels, n);
     let rec = state.levels[level];
     state.floor[rec.partition as usize] = rec.floor_before;
     state.last_switch = hw::dwt_cyccnt();

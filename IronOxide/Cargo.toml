@@ -12,6 +12,7 @@
 # Edition 2021 implies resolver 2 (R55.5; rationale in toolchain/decision.toml).
 resolver = "2"
 members = [
+    "crates/rsk-logic",
     "crates/rsk-kernel",
     "crates/rsk-entry",
     "crates/rsk",
@@ -55,6 +56,7 @@ debug = 2
 
 [workspace.dependencies]
 # Workspace crates.
+rsk-logic = { path = "crates/rsk-logic" }
 rsk-kernel = { path = "crates/rsk-kernel", default-features = false }
 rsk-gen = { path = "crates/rsk-gen" }
 rsk-macros = { path = "crates/rsk-macros" }
@@ -99,6 +101,9 @@ verus_builtin_macros = { version = "=0.0.0-2026-09-20-0158" }
 target = "thumbv7em-none-eabihf"
 
 [workspace.metadata.rsk.crates]
+# The Kernel is rsk-logic (proof core: logic, hw_model; no unsafe code),
+# rsk-kernel (Kernel_Arch with the Kernel_Unsafe_Module), and rsk-entry.
+rsk-logic = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true }
 rsk-kernel = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-module = "src/arch/cm4/unsafe_module" }
 rsk-entry = { targets = ["thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-crate = true }
 rsk = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }

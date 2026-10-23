@@ -145,6 +145,7 @@ version = "0.0.0"
 name = "rsk-kernel"
 version = "0.0.0"
 dependencies = [
+ "rsk-logic",
  "verus_builtin",
  "verus_builtin_macros",
  "vstd",
@@ -153,6 +154,15 @@ dependencies = [
 [[package]]
 name = "rsk-link"
 version = "0.0.0"
+
+[[package]]
+name = "rsk-logic"
+version = "0.0.0"
+dependencies = [
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
+]
 
 [[package]]
 name = "rsk-macros"
