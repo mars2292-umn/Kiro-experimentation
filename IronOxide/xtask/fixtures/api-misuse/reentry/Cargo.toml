@@ -1,0 +1,9 @@
+[package]
+name = "api_reentry"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+rsk = { path = "../../../../crates/rsk" }
+api_decl = { path = "../decl" }

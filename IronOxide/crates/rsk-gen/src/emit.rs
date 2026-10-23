@@ -189,6 +189,22 @@ pub fn system_source(g: &Generated) -> String {
         let _ = writeln!(s, "    {d}");
     }
     let _ = writeln!(s, "];");
+    // Release_Signals (R10.5): one entry per signal in Partition then
+    // declaration order (the order of the Task_Model), with the declaring
+    // Partition and the bound Sporadic_Task.
+    let sigs = signals(g);
+    let _ = writeln!(s, "pub const NSIG: usize = {};", sigs.len());
+    let _ = writeln!(s, "const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg {{ partition: 0xFF, task: 0xFF }};");
+    let _ = writeln!(s, "pub const SIGNALS: [::rsk_kernel::arch::SignalCfg; NSIG] = [");
+    for (p, name, task) in &sigs {
+        let _ = writeln!(
+            s,
+            "    ::rsk_kernel::arch::SignalCfg {{ partition: {p}, task: {} }}, // {}.{name}",
+            task.map_or("0xFF".to_string(), |t| t.to_string()),
+            g.partitions[*p].name
+        );
+    }
+    let _ = writeln!(s, "];");
     let _ = writeln!(s, "pub struct Sys;");
     let _ = writeln!(s, "impl ::rsk_kernel::arch::System for Sys {{");
     let _ = writeln!(s, "    type K = K;");
@@ -201,6 +217,8 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    const TICK_HZ: u64 = {};", g.target.tick_hz);
     let _ = writeln!(s, "    const DMA_COUNT: usize = ND;");
     let _ = writeln!(s, "    fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg {{ if i < ND {{ DMA[i] }} else {{ NO_DMA }} }}");
+    let _ = writeln!(s, "    const SIGNAL_COUNT: usize = NSIG;");
+    let _ = writeln!(s, "    fn signal(i: usize) -> ::rsk_kernel::arch::SignalCfg {{ if i < NSIG {{ SIGNALS[i] }} else {{ NO_SIGNAL }} }}");
     let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
     let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
     let _ = writeln!(s, "    fn task_entry(t: u8) -> fn() {{");
@@ -260,6 +278,10 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
             let res = &g.resources[r];
             let _ = writeln!(s, "        pub {}: ::rsk::Shared<'static, {}>,", res.name, res.ty);
         }
+        for sg in &task.raises {
+            let _ = writeln!(s, "        /// Release_Signal `{}.{sg}` (R10.5).", part.name);
+            let _ = writeln!(s, "        pub {sg}: ::rsk::Signal,");
+        }
         let _ = writeln!(s, "    }}");
     }
     let _ = writeln!(s, "}}");
@@ -269,16 +291,40 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         let sites = cs_sites(g, t);
         let _ = writeln!(s, "    /// Job wrapper of `{}` (vector {}; Critical_Section sites: {}).", task.id, task.vector(), if sites.is_empty() { "none".to_string() } else { sites.join(", ") });
         let _ = writeln!(s, "    pub fn {}() {{", task.name);
-        let _ = writeln!(s, "        super::{}(super::rsk_ctx::{} {{", task.name, ctx_name(&task.name));
+        // `let () =`: the body is a synchronous function returning `()` (an
+        // `async fn` returns a future and fails to compile here, PR-09).
+        let _ = writeln!(s, "        let () = super::{}(super::rsk_ctx::{} {{", task.name, ctx_name(&task.name));
         for &r in &task.resources {
             let res = &g.resources[r];
             let _ = writeln!(s, "            {}: ::rsk::Shared::new(&super::rsk_resources::{}, {}),", res.name, res.name.to_uppercase(), r);
         }
-        let _ = writeln!(s, "        }})");
+        let sigs = signals(g);
+        for sg in &task.raises {
+            let idx = sigs.iter().position(|(sp, n, _)| *sp == task.partition && n == sg).unwrap_or(0xFF);
+            let _ = writeln!(s, "            {sg}: ::rsk::Signal::new({idx}),");
+        }
+        let _ = writeln!(s, "        }});");
         let _ = writeln!(s, "    }}");
     }
     let _ = writeln!(s, "}}");
     s
+}
+
+/// The Release_Signals in Generated_Config order: (declaring Partition
+/// index, name, bound Task index).
+fn signals(g: &Generated) -> Vec<(usize, String, Option<usize>)> {
+    let mut out = Vec::new();
+    for (p, part) in g.partitions.iter().enumerate() {
+        for name in &part.signals {
+            let bound = g
+                .tasks
+                .iter()
+                .find(|t| matches!(&t.source, Some(ReleaseSource::Signal(x)) if x == name))
+                .map(|t| t.index);
+            out.push((p, name.clone(), bound));
+        }
+    }
+    out
 }
 
 /// `control` -> `Control`, `imu_read` -> `ImuRead`.

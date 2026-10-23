@@ -319,6 +319,16 @@ pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
     out == 0
 }
 
+/// The Release_Signal raise SVC (R10.5): `true` when the Kernel took the
+/// raise as a Release_Source event of the bound Task.
+#[inline(always)]
+pub fn svc_raise(signal: u8) -> bool {
+    let out: u32;
+    // SAFETY (UJ-038): as UJ-030; r0 in, r0 out (0 accepted, 1 refused).
+    unsafe { core::arch::asm!("svc #7", inout("r0") signal as u32 => out, options(nostack)) };
+    out == 0
+}
+
 /// The panic SVC of unprivileged Jobs (PR-19).
 #[inline(always)]
 pub fn svc_panic() {

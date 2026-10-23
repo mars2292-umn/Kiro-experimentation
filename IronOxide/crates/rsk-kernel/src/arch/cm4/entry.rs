@@ -50,10 +50,10 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg};
+use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE};
 use crate::logic::mpu::View;
 
 verus! {
@@ -69,6 +69,8 @@ pub const SVC_NOW: u8 = 4;
 pub const SVC_PANIC: u8 = 5;
 /// EasyDMA request (DD-08, R17.2): r0 channel, r1 buffer address, r2 length; r0 out 0 accepted, 1 refused.
 pub const SVC_DMA: u8 = 6;
+/// Release_Signal raise (R10.5): r0 signal; r0 out 0 accepted as an event, 1 refused.
+pub const SVC_RAISE: u8 = 7;
 
 /// EXC_RETURN values (HW-07).
 pub const EXC_RETURN_HANDLER_MSP: u32 = 0xFFFF_FFF1;
@@ -301,6 +303,9 @@ pub trait Tables {
     /// The EasyDMA channels (DD-08).
     fn dma_count(&self) -> usize;
     fn dma(&self, i: usize) -> DmaCfg;
+    /// The Release_Signals (R10.5).
+    fn signal_count(&self) -> usize;
+    fn signal(&self, i: usize) -> SignalCfg;
 }
 
 // ------------------------------------------------ the Cortex-M4F hardware
@@ -719,6 +724,39 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
     accepted
 }
 
+/// A Release_Signal raise (R10.5, R10.7): signal `i` of the executing Job's
+/// own Partition is a Release_Source event of its bound Sporadic_Task,
+/// attributed to that Partition; a signal of another Partition, an unbound
+/// one, or an index beyond the table is API misuse (the Context exposes a
+/// Job only its Partition's signals, PR-06) and a fault of the Partition.
+fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize) -> (ok: bool)
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+{
+    let accepted = if i < tables.signal_count() {
+        let sg = tables.signal(i);
+        match k.top() {
+            Some(t) => {
+                let info = k.job_info(t);
+                info.partition == sg.partition && (sg.task as usize) < k.task_count()
+            }
+            None => false,
+        }
+    } else {
+        false
+    };
+    if accepted {
+        let sg = tables.signal(i);
+        let now = hw.now();
+        k.intake(sg.task, sg.partition, now);
+    } else {
+        k.fault(EV_API_MISUSE, false);
+    }
+    accepted
+}
+
 /// Instant 0: enables Releases (PR-34) and the compare of the first event,
 /// under PRIMASK. Returns whether the Kernel entered the safe state (the
 /// shell then enters `System::safe_state` with PRIMASK still set).
@@ -940,6 +978,15 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
             let hop = end_plan_core(k, state, top_before);
             (hop, safe)
         }
+    } else if number == SVC_RAISE {
+        let ok = raise_core(k, hw, tables, frame[0] as usize);
+        frame[0] = if ok { 0 } else { 1 };
+        // The released Task is pended if eligible; a refusal applied the
+        // Partition's fault response, which may have ended the Job.
+        let top_before = k.top();
+        let safe = apply_core(k, hw, tables);
+        let hop = end_plan_core(k, state, top_before);
+        (hop, safe)
     } else if number == SVC_JOB_END {
         let elapsed = charge_point(hw, state);
         let top_before = k.top();

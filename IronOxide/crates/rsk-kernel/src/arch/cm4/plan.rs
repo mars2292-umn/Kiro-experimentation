@@ -44,6 +44,15 @@ pub struct DmaCfg {
     pub lists: [u32; 2],
 }
 
+/// One Release_Signal (R10.5): the Partition that declares it (the raising
+/// Tasks' Partition, R10.7) and the index of the Sporadic_Task it releases
+/// (0xFF when it is bound to none).
+#[derive(Clone, Copy)]
+pub struct SignalCfg {
+    pub partition: u8,
+    pub task: u8,
+}
+
 /// What the boot checks of R12.1 compare the hardware against: the values
 /// Generated_Config records for the Target (ASM-01, ASM-03, ASM-05) and
 /// whether any Task uses the FPU (R11.2).

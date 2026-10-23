@@ -178,6 +178,12 @@ impl<S: System> Tables for SysTables<S> {
     fn dma(&self, i: usize) -> plan::DmaCfg {
         S::dma(i)
     }
+    fn signal_count(&self) -> usize {
+        S::SIGNAL_COUNT
+    }
+    fn signal(&self, i: usize) -> plan::SignalCfg {
+        S::signal(i)
+    }
 }
 
 // The shells below are the only Kernel_Arch code outside `verus!` besides

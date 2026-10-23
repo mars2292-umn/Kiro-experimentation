@@ -21,7 +21,7 @@ pub mod cm4;
 
 pub use bound::{config_crc, Bound, Crc32, JobInfo, KernelOps};
 pub use cm4::entry::Binding;
-pub use cm4::plan::DmaCfg;
+pub use cm4::plan::{DmaCfg, SignalCfg};
 
 use crate::logic::kernel::Kernel;
 use crate::logic::mpu::View;
@@ -133,4 +133,7 @@ pub trait System: 'static {
     /// The EasyDMA channels of every Partition's peripherals (DD-08, R17).
     const DMA_COUNT: usize;
     fn dma(i: usize) -> DmaCfg;
+    /// The Release_Signals (R10.5), in Generated_Config order.
+    const SIGNAL_COUNT: usize;
+    fn signal(i: usize) -> SignalCfg;
 }

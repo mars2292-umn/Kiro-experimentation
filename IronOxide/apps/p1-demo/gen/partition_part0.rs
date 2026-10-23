@@ -16,14 +16,14 @@ pub mod rsk_ctx {
 pub mod rsk_jobs {
     /// Job wrapper of `part0.control` (vector 36; Critical_Section sites: part0.control#cs:state).
     pub fn control() {
-        super::control(super::rsk_ctx::Control {
+        let () = super::control(super::rsk_ctx::Control {
             state: ::rsk::Shared::new(&super::rsk_resources::STATE, 0),
-        })
+        });
     }
     /// Job wrapper of `part0.sensor` (vector 37; Critical_Section sites: part0.sensor#cs:state).
     pub fn sensor() {
-        super::sensor(super::rsk_ctx::Sensor {
+        let () = super::sensor(super::rsk_ctx::Sensor {
             state: ::rsk::Shared::new(&super::rsk_resources::STATE, 0),
-        })
+        });
     }
 }

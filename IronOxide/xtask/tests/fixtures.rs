@@ -298,6 +298,45 @@ fn kani_run_with_a_failed_unwinding_assertion_is_rejected() {
     assert!(!verdict.ok);
 }
 
+/// Task 5.6 (R8.6, R8.7, R8.10; PR-06, PR-07, PR-09): the `rsk` API's rules
+/// are compile errors. The `api-misuse` fixture workspace holds a valid
+/// App_Declaration, a Partition crate that compiles, and one crate per
+/// rule that must not: re-entry of a Resource (E0499), a `&mut T` escaping
+/// its Critical_Section (a lifetime error), an undeclared Resource in a
+/// Task's Context (E0609), and an `async` Task body (E0308 at the Job
+/// wrapper's `let () =`). Each member is checked with `cargo check` from the
+/// vendored sources.
+#[test]
+fn api_misuse_is_rejected_by_the_type_system() {
+    let root = fixture_root("api-misuse");
+    let target = std::env::temp_dir().join(format!("rsk-api-misuse-{}", std::process::id()));
+    let check = |member: &str| -> (bool, String) {
+        let out = std::process::Command::new("cargo")
+            .args(["check", "--frozen", "--offline", "-p", member, "--target-dir"])
+            .arg(&target)
+            .current_dir(&root)
+            .output()
+            .expect("cargo check runs");
+        (out.status.success(), String::from_utf8_lossy(&out.stderr).into_owned())
+    };
+    let (ok, text) = check("api_ok");
+    assert!(ok, "the rule-abiding Partition crate must compile:\n{text}");
+    let cases: &[(&str, &[&str])] = &[
+        ("api_reentry", &["error[E0499]", "cannot borrow `cx.state` as mutable more than once"]),
+        ("api_escape", &["lifetime may not live long enough"]),
+        ("api_undeclared", &["error[E0609]", "no field `other` on type `Beta`"]),
+        ("api_asyncbody", &["error[E0308]", "mismatched types"]),
+    ];
+    for (member, expected) in cases {
+        let (ok, text) = check(member);
+        assert!(!ok, "{member} must fail to compile:\n{text}");
+        for fragment in *expected {
+            assert!(text.contains(fragment), "{member}: expected `{fragment}` in:\n{text}");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&target);
+}
+
 /// R50.2: an assumption construct that the register does not list fails the
 /// static checks and is named, in a Kernel crate and in any other crate that
 /// opts into Verus; a listed construct is accepted.

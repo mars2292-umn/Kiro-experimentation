@@ -1,0 +1,13 @@
+# Fixture: the `rsk` API's type-system rules (task 5.6; R8.6, R8.7, R8.10,
+# PR-06, PR-07, PR-09). `decl` is a valid App_Declaration; `ok` is a
+# Partition crate that compiles; each other member breaks one rule and must
+# fail to compile (checked by xtask/tests/fixtures.rs, which runs
+# `cargo check` on each member).
+[workspace]
+resolver = "2"
+members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false

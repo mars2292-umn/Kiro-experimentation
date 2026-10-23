@@ -7,7 +7,11 @@
 //! Every operation is a safe wrapper over the Kernel's SVC services. The
 //! closure of `lock` receives `&mut T` and nothing that can wait (PR-08);
 //! `lock` takes `&mut self`, so a Job cannot enter the same Resource twice
-//! (R8.10); the reference cannot leave the closure (R8.6).
+//! (R8.10); the reference cannot leave the closure (R8.6). A Task body sees
+//! only its generated Context: one `Shared` proxy per declared Resource and
+//! one `Signal` per Release_Signal it may raise (PR-06, R8.7), and the Job
+//! wrapper requires it to return `()` (no `async` body, PR-09). The
+//! compile-fail fixtures of `xtask/fixtures/api-misuse` check each rule.
 #![no_std]
 #![forbid(unsafe_code)]
 
@@ -17,6 +21,14 @@
 pub use rsk_macros::app;
 pub use rsk_kernel::arch::cm4::unsafe_module::ResourceCell;
 use rsk_kernel::arch::cm4::unsafe_module::{hw, stubs};
+
+/// The lock operation of a Resource proxy (design.md "Application API",
+/// the shape RTIC uses): a lexically scoped Critical_Section whose
+/// `&mut T` cannot outlive the closure (R8.6).
+pub trait Mutex {
+    type T;
+    fn lock<R>(&mut self, f: impl FnOnce(&mut Self::T) -> R) -> R;
+}
 
 /// The proxy of one declared Resource in a Task's Context (R8.7).
 pub struct Shared<'a, T: 'static> {
@@ -42,6 +54,35 @@ impl<'a, T: 'static> Shared<'a, T> {
         let r = self.cell.with(f);
         let _ = stubs::svc_unlock(self.id);
         r
+    }
+}
+
+impl<'a, T: 'static> Mutex for Shared<'a, T> {
+    type T = T;
+    fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
+        Shared::lock(self, f)
+    }
+}
+
+/// A Release_Signal a Task may raise (R10.5), held in its Context (PR-06).
+pub struct Signal {
+    id: u8,
+}
+
+impl Signal {
+    /// Constructed by generated code only: the identifier is the one of
+    /// Generated_Config's signal table.
+    pub fn new(id: u8) -> Signal {
+        Signal { id }
+    }
+
+    /// Raises the Release_Signal: a Release_Source event of the bound
+    /// Sporadic_Task at the current instant (R10.1 to R10.3), attributed to
+    /// this Partition (R10.7). Never waits (PR-08). Returns whether the
+    /// Kernel took the event (a refusal is API misuse and a fault of the
+    /// Partition; the Kernel decides what the event does).
+    pub fn raise(&self) -> bool {
+        stubs::svc_raise(self.id)
     }
 }
 

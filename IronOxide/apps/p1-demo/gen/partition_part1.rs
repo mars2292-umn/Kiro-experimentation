@@ -12,12 +12,12 @@ pub mod rsk_ctx {
 pub mod rsk_jobs {
     /// Job wrapper of `part1.log` (vector 38; Critical_Section sites: none).
     pub fn log() {
-        super::log(super::rsk_ctx::Log {
-        })
+        let () = super::log(super::rsk_ctx::Log {
+        });
     }
     /// Job wrapper of `part1.pulse` (vector 39; Critical_Section sites: none).
     pub fn pulse() {
-        super::pulse(super::rsk_ctx::Pulse {
-        })
+        let () = super::pulse(super::rsk_ctx::Pulse {
+        });
     }
 }

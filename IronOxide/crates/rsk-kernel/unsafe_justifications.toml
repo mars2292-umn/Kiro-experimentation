@@ -300,6 +300,14 @@ reviewed_by = "rsk kernel review (task 5.4)"
 reviewed_on = "2026-10-23"
 
 [[justification]]
+id = "UJ-038"
+summary = "svc_raise: the SVC #7 wrapper of the rsk Release_Signal raise (R10.5)"
+kind = "review"
+why_no_machine_check = "An SVC with r0 in and r0 out; the Kernel side is the verified `raise_core` (R10.5, R10.7). Kani does not model SVC."
+reviewed_by = "rsk kernel review (task 5.6)"
+reviewed_on = "2026-10-23"
+
+[[justification]]
 id = "UJ-040"
 summary = "sim::Store: Sync for the simulated register file (host and Kani only)"
 kind = "review"

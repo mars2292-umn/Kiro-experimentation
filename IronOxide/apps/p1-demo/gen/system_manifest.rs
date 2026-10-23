@@ -61,6 +61,10 @@ pub const ND: usize = 0;
 const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0] };
 pub const DMA: [::rsk_kernel::arch::DmaCfg; ND] = [
 ];
+pub const NSIG: usize = 0;
+const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg { partition: 0xFF, task: 0xFF };
+pub const SIGNALS: [::rsk_kernel::arch::SignalCfg; NSIG] = [
+];
 pub struct Sys;
 impl ::rsk_kernel::arch::System for Sys {
     type K = K;
@@ -73,6 +77,8 @@ impl ::rsk_kernel::arch::System for Sys {
     const TICK_HZ: u64 = 25000000;
     const DMA_COUNT: usize = ND;
     fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg { if i < ND { DMA[i] } else { NO_DMA } }
+    const SIGNAL_COUNT: usize = NSIG;
+    fn signal(i: usize) -> ::rsk_kernel::arch::SignalCfg { if i < NSIG { SIGNALS[i] } else { NO_SIGNAL } }
     const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;
     fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> { &KERNEL }
     fn task_entry(t: u8) -> fn() {
