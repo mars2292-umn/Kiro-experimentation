@@ -29,6 +29,17 @@
 //! `Timing::accept` and the deferral clause of `Kernel::inv`;
 //! `lemma_mit_spacing_over_run` reads it back for any two steps.
 //!
+//! Bounded blocking (task 4.12, argument 5.1): each step also records the
+//! executing Task after it (`top`, -1 when none). `history_wf` relates
+//! consecutive tops by the step's kind (`top_rel`: a dispatch makes its
+//! Task the top and, as `Kernel::dispatch` requires, that Task was
+//! eligible after the previous step; a lock or unlock is by the top and
+//! keeps it; a Release or a kill mark keeps it; a Job end leaves it to the
+//! resumed Job). `lemma_no_new_blocking_section` and
+//! `lemma_no_lower_dispatch_while_waiting` are the run-level halves of
+//! the argument; `Sched::lemma_low_locker_nested` and
+//! `Sched::lemma_one_low_blocker` the state-level halves.
+//!
 //! Theorems over the history (task 4.13): `lemma_ceiling_restored`
 //! (Verification_Plan argument 5.3, R8.2): after an unlock the
 //! System_Ceiling equals its value before the matching lock, whatever
@@ -72,6 +83,46 @@ pub struct Step {
     pub locks: Seq<int>,
     /// The System_Ceiling after the step.
     pub ceiling: int,
+    /// The executing Task after the step (`Sched::top`), -1 when no Job is
+    /// in progress.
+    pub top: int,
+}
+
+/// The state before the first step: nothing held, nothing executing.
+pub open spec fn init_step() -> Step {
+    Step { kind: 0, task: -1, at: 0, arg: 0, locks: Seq::<int>::empty(), ceiling: IDLE_CEILING as int, top: -1 }
+}
+
+/// The step before step `k` of `h` (`init_step` before the first).
+pub open spec fn before(h: Seq<Step>, k: int) -> Step {
+    if k == 0 { init_step() } else { h[k - 1] }
+}
+
+/// Whether the pending Job of Task `t` is eligible after step `s` (R7.1
+/// on the recorded ceiling and top; the Release and Job states are the
+/// caller's premise).
+pub open spec fn eligible_after<const NT: usize, const NR: usize, const NP: usize>(s: Step, cfg: &Config<NT, NR, NP>, t: int) -> bool {
+    cfg.priority(t) > s.ceiling && (s.top == -1 || cfg.priority(t) > cfg.priority(s.top))
+}
+
+/// How a step's top follows from the previous step's (`prev`).
+pub open spec fn top_rel<const NT: usize, const NR: usize, const NP: usize>(prev: Step, s: Step, cfg: &Config<NT, NR, NP>) -> bool {
+    if s.kind == ST_DISPATCH {
+        // The dispatched Task executes, and was eligible (`Kernel::dispatch`
+        // requires it): above the ceiling and above the executing Job.
+        &&& s.top == s.task
+        &&& prev.ceiling < cfg.priority(s.task)
+        &&& prev.top == -1 || cfg.priority(prev.top) < cfg.priority(s.task)
+    } else if s.kind == ST_LOCK || s.kind == ST_UNLOCK {
+        // Only the executing Job locks and unlocks; the stack is unchanged.
+        &&& s.top == prev.top
+        &&& s.task == s.top
+    } else if s.kind == ST_RELEASE || (s.kind == ST_KILL && s.arg == 0) {
+        s.top == prev.top
+    } else {
+        // A Job end resumes the Job below: the top is whatever it is.
+        true
+    }
 }
 
 /// The maximum Ceiling over a lock snapshot (`Sched::max_ceiling` on a
@@ -127,12 +178,13 @@ pub open spec fn step_wf<const NT: usize, const NR: usize, const NP: usize>(s: S
     &&& (s.kind == ST_LOCK || s.kind == ST_UNLOCK) ==> s.arg < NR
     &&& forall|e: int| 0 <= e < s.locks.len() ==> 0 <= #[trigger] s.locks[e] < NR
     &&& s.ceiling == ceiling_of(cfg, s.locks)
+    &&& s.top == -1 || 0 <= s.top < NT
 }
 
 /// The lock snapshot before step `k` of `h`: the previous step's, or
 /// nothing held before the first step (`Sched::new`).
 pub open spec fn locks_before(h: Seq<Step>, k: int) -> Seq<int> {
-    if k == 0 { Seq::<int>::empty() } else { h[k - 1].locks }
+    before(h, k).locks
 }
 
 /// Two Release steps of one Sporadic_Task are due at least one MIT apart
@@ -165,6 +217,7 @@ pub open spec fn history_wf<const NT: usize, const NR: usize, const NP: usize>(h
     &&& forall|i: int| 0 <= i < h.len() ==> step_wf(#[trigger] h[i], cfg) && h[i].at <= now
     &&& forall|i: int, j: int| 0 <= i < j < h.len() ==> #[trigger] h[i].at <= #[trigger] h[j].at
     &&& forall|k: int| 0 <= k < h.len() ==> step_rel(locks_before(h, k), #[trigger] h[k])
+    &&& forall|k: int| 0 <= k < h.len() ==> top_rel(before(h, k), #[trigger] h[k], cfg)
     &&& releases_spaced(h, cfg)
 }
 
@@ -188,11 +241,23 @@ pub proof fn lemma_history_later<const NT: usize, const NR: usize, const NP: usi
 /// snapshot follows from the last one, keeps the history well formed.
 pub proof fn lemma_history_push<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, s: Step, cfg: &Config<NT, NR, NP>, now: int)
     requires history_wf(h, cfg, now), step_wf(s, cfg), s.at == now, step_rel(locks_before(h.push(s), h.len() as int), s),
+        top_rel(before(h.push(s), h.len() as int), s, cfg),
         release_spaced_after(h, s, cfg),
     ensures history_wf(h.push(s), cfg, now),
 {
     reveal(history_wf);
     let p = h.push(s);
+    assert forall|k: int| 0 <= k < p.len() implies top_rel(before(p, k), #[trigger] p[k], cfg) by {
+        if k < h.len() {
+            assert(p[k] == h[k]);
+            if k > 0 {
+                assert(p[k - 1] == h[k - 1]);
+            }
+            assert(before(p, k) == before(h, k));
+        } else {
+            assert(p[k] == s);
+        }
+    }
     assert forall|i: int, j: int| 0 <= i < j < p.len()
         && #[trigger] p[i].kind == ST_RELEASE && #[trigger] p[j].kind == ST_RELEASE
         && p[i].task == p[j].task && cfg.tasks[p[i].task].kind == KIND_SPORADIC
@@ -279,6 +344,51 @@ pub proof fn lemma_ceiling_of_array<const NT: usize, const NR: usize, const NP: 
     }
 }
 
+// ---------------------------------------------- Theorem: bounded blocking (5.1)
+
+/// Verification_Plan argument 5.1, step 4 (R8.4, Property 5), over the
+/// history: while the pending Job of Task `t` waits (its Release at step
+/// `r`, never eligible after any step before its dispatch at `d`), a
+/// lock by a Job of lower Priority never opens a new blocking section:
+/// at the step before the lock the System_Ceiling already blocked `t`.
+/// With `Sched::lemma_low_locker_nested` (the locker itself holds the
+/// entry that blocks `t`) and `Sched::lemma_one_low_blocker` (at most one
+/// lower-Priority Job holds such an entry), the Job waits for at most one
+/// outermost Critical_Section of one lower-Priority Job, the one open at
+/// its Release. The premise "never eligible before its dispatch" is the
+/// Kernel_Arch promptness of A4 (an eligible Job is pended at once) and
+/// is the caller's.
+pub proof fn lemma_no_new_blocking_section<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, t: int, r: int, d: int, k: int)
+    requires history_wf(h, cfg, now), 0 <= t < NT,
+        0 <= r < d <= h.len(), h[r].kind == ST_RELEASE, h[r].task == t,
+        forall|m: int| r <= m < d - 1 ==> !eligible_after(#[trigger] h[m], cfg, t),
+        r < k < d, h[k].kind == ST_LOCK, cfg.priority(h[k].task) < cfg.priority(t),
+    ensures h[k - 1].ceiling >= cfg.priority(t),
+        // The locker was already executing before the lock.
+        h[k - 1].top == h[k].task,
+{
+    reveal(history_wf);
+    assert(top_rel(before(h, k), h[k], cfg));
+    assert(before(h, k) == h[k - 1]);
+    assert(!eligible_after(h[k - 1], cfg, t));
+}
+
+/// Verification_Plan argument 5.1, step 1: while the pending Job of Task
+/// `t` waits, no Job of lower Priority starts (such a Job would be
+/// eligible only when `t` is).
+pub proof fn lemma_no_lower_dispatch_while_waiting<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, t: int, r: int, d: int, k: int)
+    requires history_wf(h, cfg, now), 0 <= t < NT,
+        0 <= r < d <= h.len(), h[r].kind == ST_RELEASE, h[r].task == t,
+        forall|m: int| r <= m < d - 1 ==> !eligible_after(#[trigger] h[m], cfg, t),
+        r < k < d, h[k].kind == ST_DISPATCH,
+    ensures cfg.priority(h[k].task) >= cfg.priority(t),
+{
+    reveal(history_wf);
+    assert(top_rel(before(h, k), h[k], cfg));
+    assert(before(h, k) == h[k - 1]);
+    assert(!eligible_after(h[k - 1], cfg, t));
+}
+
 // ------------------------------------------- Theorem: MIT spacing over a run (5.4)
 
 /// Verification_Plan argument 5.4 (R10.1, R10.2, Property 8), over the
@@ -308,12 +418,14 @@ pub proof fn lemma_prefix_kept<const NT: usize, const NR: usize, const NP: usize
     ensures same_below(h[i].locks, h[k].locks, n),
     decreases k - i,
 {
-    reveal(history_wf);
     if k > i {
         lemma_prefix_kept(h, cfg, now, i, k - 1, n);
         let prev = h[k - 1].locks;
         let s = h[k];
-        assert(step_rel(locks_before(h, k), s));
+        // Only this one conjunct of the (opaque) invariant is needed.
+        assert(step_rel(locks_before(h, k), s)) by {
+            reveal(history_wf);
+        }
         assert(locks_before(h, k) == prev);
         assert(prev.len() >= n);
         assert(s.locks.len() >= n);
@@ -354,15 +466,17 @@ pub proof fn lemma_ceiling_restored<const NT: usize, const NR: usize, const NP: 
         h[j].ceiling == ceiling_of(cfg, locks_before(h, i)),
         h[j].ceiling == (if i == 0 { IDLE_CEILING as int } else { h[i - 1].ceiling }),
 {
-    reveal(history_wf);
     let n = h[i].locks.len() as int;
     let before = locks_before(h, i);
-    assert(step_rel(before, h[i]));
+    // Only these conjuncts of the (opaque) invariant are needed.
+    assert(step_rel(before, h[i]) && step_rel(locks_before(h, j), h[j]) && step_wf(h[j], cfg)
+        && (i > 0 ==> step_wf(h[i - 1], cfg))) by {
+        reveal(history_wf);
+    }
     assert(before.len() == n - 1);
     // Up to the step before the unlock, the locked entry and everything
     // below it are in place.
     lemma_prefix_kept(h, cfg, now, i, j - 1, n);
-    assert(step_rel(locks_before(h, j), h[j]));
     assert(locks_before(h, j) == h[j - 1].locks);
     assert(h[j - 1].locks.len() == n);
     assert forall|e: int| 0 <= e < n - 1 implies #[trigger] h[j].locks[e] == before[e] by {

@@ -329,6 +329,62 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
         }
     }
 
+    /// Verification_Plan argument 5.1, step 3 (task 4.12): at most one Job
+    /// of Priority below `p` holds a Resource whose Ceiling is at least `p`.
+    /// Two such entries at different stack positions would put the upper
+    /// holder above the lower entry's Ceiling (invariants 4 and 1), so its
+    /// Priority would exceed `p`.
+    pub proof fn lemma_one_low_blocker<const NP: usize>(&self, cfg: &Config<NT, NR, NP>, p: int)
+        requires self.inv(cfg),
+        ensures forall|e: int, f: int| 0 <= e < self.lock_len && 0 <= f < self.lock_len
+            && cfg.ceiling(self.lock_res[e] as int) >= p && cfg.ceiling(self.lock_res[f] as int) >= p
+            && cfg.priority(self.stack[#[trigger] self.lock_depth[e] as int] as int) < p
+            && cfg.priority(self.stack[#[trigger] self.lock_depth[f] as int] as int) < p
+            ==> self.lock_depth[e] == self.lock_depth[f],
+    {
+        assert forall|e: int, f: int| 0 <= e < self.lock_len && 0 <= f < self.lock_len
+            && cfg.ceiling(self.lock_res[e] as int) >= p && cfg.ceiling(self.lock_res[f] as int) >= p
+            && cfg.priority(self.stack[#[trigger] self.lock_depth[e] as int] as int) < p
+            && cfg.priority(self.stack[#[trigger] self.lock_depth[f] as int] as int) < p
+            implies self.lock_depth[e] == self.lock_depth[f] by {
+            if self.lock_depth[e] < self.lock_depth[f] {
+                let j = self.lock_depth[f] as int;
+                assert(cfg.ceiling(self.lock_res[e] as int) <= self.start_ceiling[j]);
+                assert(cfg.priority(self.stack[j] as int) > self.start_ceiling[j]);
+            } else if self.lock_depth[f] < self.lock_depth[e] {
+                let j = self.lock_depth[e] as int;
+                assert(cfg.ceiling(self.lock_res[f] as int) <= self.start_ceiling[j]);
+                assert(cfg.priority(self.stack[j] as int) > self.start_ceiling[j]);
+            }
+        }
+    }
+
+    /// Verification_Plan argument 5.1, step 4, state half (task 4.12): when
+    /// the executing Job has Priority below `p` and the System_Ceiling is
+    /// at least `p`, the executing Job itself holds an entry with Ceiling
+    /// at least `p`: a lock it performs now is nested in a blocking section
+    /// it already has open, not a new one.
+    pub proof fn lemma_low_locker_nested<const NP: usize>(&self, cfg: &Config<NT, NR, NP>, p: int)
+        requires self.inv(cfg), self.depth > 0, cfg.priority(self.top()) < p, self.ceiling >= p,
+        ensures exists|e: int| 0 <= e < self.lock_len && #[trigger] self.entry_of_top(e) && cfg.ceiling(self.lock_res[e] as int) >= p,
+    {
+        if self.lock_len == 0 {
+            assert(self.ceiling == IDLE_CEILING);
+            assert(cfg.task_ok(self.top()));
+            assert(false);
+        }
+        Self::lemma_max_ceiling_attained(cfg, self.lock_res, self.lock_len as int);
+        let e = choose|e: int| 0 <= e < self.lock_len && #[trigger] cfg.ceiling(self.lock_res[e] as int) == max_ceiling(cfg, self.lock_res, self.lock_len as int);
+        let i = self.lock_depth[e] as int;
+        if i < self.depth - 1 {
+            // Invariant 4 then 1: the executing Job started above this Ceiling.
+            assert(cfg.ceiling(self.lock_res[e] as int) <= self.start_ceiling[self.depth - 1]);
+            assert(cfg.priority(self.top()) > self.start_ceiling[self.depth - 1]);
+            assert(false);
+        }
+        assert(self.entry_of_top(e));
+    }
+
     pub proof fn lemma_max_ceiling_mono<const NP: usize>(cfg: &Config<NT, NR, NP>, lock_res: [u8; NL], a: int, b: int)
         requires 0 <= a <= b,
         ensures max_ceiling(cfg, lock_res, a) <= max_ceiling(cfg, lock_res, b),

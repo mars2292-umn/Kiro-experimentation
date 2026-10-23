@@ -117,6 +117,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // (task 4.13): every lock change is recorded by the entry point
         // that makes it.
         &&& self.locks_match()
+        // The last recorded top is the executing Task (task 4.12).
+        &&& self.top_match()
         // The link from the Release steps to the MIT state (task 4.14):
         // every accepted Release of a Sporadic_Task is recorded, due at
         // the instant `Timing::last_due` then holds. A function of the
@@ -670,6 +672,36 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         &&& forall|e: int| 0 <= e < self.sched.lock_len ==> #[trigger] self.locks_recorded()[e] == self.sched.lock_res[e]
     }
 
+    /// The executing Task, -1 when no Job is in progress.
+    pub open spec fn top_now(&self) -> int {
+        if self.sched.depth == 0 { -1 } else { self.sched.top() }
+    }
+
+    /// The last recorded step's top is the executing Task.
+    pub open spec fn top_match(&self) -> bool {
+        super::history::before(self.history@, self.history@.len() as int).top == self.top_now()
+    }
+
+    /// The last recorded step's ceiling is the scheduler's mirror (from
+    /// `locks_match` and invariant 2).
+    pub proof fn lemma_ceiling_recorded(&self, cfg: &Config<NT, NR, NP>)
+        requires self.inv(cfg),
+        ensures super::history::before(self.history@, self.history@.len() as int).ceiling == self.sched.ceiling as int,
+    {
+        reveal(super::history::history_wf);
+        let h = self.history@;
+        let n = h.len() as int;
+        super::history::lemma_ceiling_of_array(cfg, self.sched.lock_res, self.sched.lock_len as int);
+        if n == 0 {
+            assert(self.sched.lock_len == 0);
+            assert(self.locks_now() =~= Seq::<int>::empty());
+        } else {
+            assert(super::history::step_wf(h[n - 1], cfg));
+            assert(h[n - 1].locks == self.locks_recorded());
+            super::history::lemma_ceiling_of_ext(cfg, self.locks_recorded(), self.locks_now());
+        }
+    }
+
     /// `inv` without `locks_match`: the state between a lock change and
     /// the `record` that reports it.
     pub open spec fn inv_unrecorded(&self, cfg: &Config<NT, NR, NP>) -> bool {
@@ -687,7 +719,15 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     /// The step `record` would append now.
     pub open spec fn step_now(&self, kind: u8, task: int, arg: int) -> Step {
-        Step { kind, task, at: self.now as int, arg, locks: self.locks_now(), ceiling: self.sched.ceiling as int }
+        Step { kind, task, at: self.now as int, arg, locks: self.locks_now(), ceiling: self.sched.ceiling as int, top: self.top_now() }
+    }
+
+    /// The last recorded top, from a state `before` with the same history
+    /// and the same executing Task (the Sched operation kept the stack).
+    pub proof fn lemma_top_kept(&self, before: &Self, cfg: &Config<NT, NR, NP>)
+        requires before.inv(cfg), self.history@ == before.history@, self.top_now() == before.top_now(),
+        ensures super::history::before(self.history@, self.history@.len() as int).top == self.top_now(),
+    {
     }
 
     // The lock-snapshot relation `record` requires, from the scheduler
@@ -750,6 +790,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg@ < NR,
             // The lock change since the last step is the one this kind reports.
             super::history::step_rel(old(self).locks_recorded(), old(self).step_now(kind, task@, arg@)),
+            // The top follows from the last recorded one by this kind (task 4.12).
+            super::history::top_rel(super::history::before(old(self).history@, old(self).history@.len() as int), old(self).step_now(kind, task@, arg@), cfg),
             // The MIT state of every Task this step does not release is linked
             // to the history (task 4.14) ...
             forall|u: int| 0 <= u < NT && !(kind == ST_RELEASE && u == task@) ==> #[trigger] old(self).release_match(cfg, u),
@@ -853,6 +895,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 assert forall|j: int| !(#[trigger] Self::release_step_in(h, j, u)) by {}
             }
             reveal(Kernel::releases_linked);
+            assert(k.top_now() == -1);
         }
         k
     }
@@ -1001,11 +1044,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.sched.start(cfg, t);
         self.timing.job_started(cfg, t);
         self.budget.reset(t);
-        self.arm_budget(cfg, t);
         proof {
             self.lemma_release_match_kept(old(self), cfg, -1);
+            // `top_rel` for a dispatch: `t` was eligible in `old(self)`.
+            old(self).lemma_ceiling_recorded(cfg);
+            assert(self.top_now() == t as int);
         }
+        // Recorded before the Budget event is armed: `arm_budget` requires
+        // the full invariant, which the step re-establishes.
         self.record(cfg, ST_DISPATCH, Ghost(t as int), Ghost(0));
+        self.arm_budget(cfg, t);
     }
 
     /// Arms the Budget event of the executing Job of `t` for its remaining Budget.
@@ -1145,6 +1193,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             proof {
                 self.lemma_rel_lock(old(self), self.sched.top(), r as int);
                 self.lemma_release_match_kept(old(self), cfg, -1);
+                self.lemma_top_kept(old(self), cfg);
             }
             self.record(cfg, ST_LOCK, Ghost(self.sched.top()), Ghost(r as int));
         }
@@ -1178,6 +1227,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             proof {
                 self.lemma_rel_unlock(old(self), self.sched.top(), r as int);
                 self.lemma_release_match_kept(old(self), cfg, -1);
+                self.lemma_top_kept(old(self), cfg);
             }
             self.record(cfg, ST_UNLOCK, Ghost(self.sched.top()), Ghost(r as int));
         }
@@ -1250,6 +1300,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             proof {
                 self.lemma_release_match_kept(old(self), cfg, t as int);
                 self.lemma_release_spaced(old(self), cfg, t as int, now as int);
+                self.lemma_top_kept(old(self), cfg);
             }
             self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(now as int));
         } else {
@@ -1420,6 +1471,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
                 proof {
                     self.lemma_release_match_kept(old(self), cfg, -1);
+                    self.lemma_top_kept(old(self), cfg);
                 }
                 self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nominal as int));
             } else {
@@ -1492,6 +1544,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             self.lemma_release_match_kept(old(self), cfg, t as int);
             self.lemma_release_spaced(old(self), cfg, t as int, at as int);
+            self.lemma_top_kept(old(self), cfg);
         }
         self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(at as int));
     }
@@ -1718,6 +1771,31 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// history is kept. Other Partitions are untouched (R14.9,
     /// `others_unchanged`): only the Partition's own Jobs are ended or
     /// killed, and only its own Releases, events, and Budget accounts change.
+    /// Marks the preempted Job at stack position `i` killed (R14.5) and
+    /// records the step. Its own function so that the kill loop of
+    /// `end_partition_jobs` sees only this specification.
+    fn kill_at(&mut self, cfg: &Config<NT, NR, NP>, i: usize)
+        requires old(self).inv(cfg), i < old(self).sched.depth,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).sched.job[old(self).sched.stack[i as int] as int] == JOB_KILLED,
+            forall|u: int| 0 <= u < NT && u != old(self).sched.stack[i as int] ==> final(self).sched.job[u] == old(self).sched.job[u],
+            final(self).sched.release == old(self).sched.release,
+            final(self).sched.depth == old(self).sched.depth, final(self).sched.stack == old(self).sched.stack,
+            final(self).sched.ceiling == old(self).sched.ceiling, final(self).sched.lock_len == old(self).sched.lock_len,
+            final(self).sched.lock_res == old(self).sched.lock_res, final(self).sched.lock_depth == old(self).sched.lock_depth,
+            final(self).sched.start_ceiling == old(self).sched.start_ceiling,
+            final(self).timing == old(self).timing, final(self).slots == old(self).slots, final(self).budget == old(self).budget,
+            final(self).log == old(self).log, final(self).flags_eq(old(self)),
+    {
+        let u = self.sched.stack[i];
+        self.sched.kill(cfg, i);
+        proof {
+            self.lemma_release_match_kept(old(self), cfg, -1);
+            self.lemma_top_kept(old(self), cfg);
+        }
+        self.record(cfg, ST_KILL, Ghost(u as int), Ghost(0));
+    }
+
     fn end_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
@@ -1754,12 +1832,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 assert forall|j: int| 0 <= j < i implies self.sched.stack[j] != u by {}
             }
             if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {
-                let ghost before = *self;
-                self.sched.kill(cfg, i);
-                proof {
-                    self.lemma_release_match_kept(&before, cfg, -1);
-                }
-                self.record(cfg, ST_KILL, Ghost(u as int), Ghost(0));
+                self.kill_at(cfg, i);
             }
             i = i + 1;
         }

@@ -55,16 +55,16 @@ expect = ["hw_model.rs", "view.regions[s].covers(a)"]
 id = "restart-kills-one-job"
 kills = "end_partition_jobs: partition_ended (every Job of the Partition is ended or killed)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                let ghost before = *self;\n"
-replace = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE && i == 0 {\n                let ghost before = *self;\n"
+find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.kill_at(cfg, i);\n"
+replace = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE && i == 0 {\n                self.kill_at(cfg, i);\n"
 expect = ["kernel.rs"]
 
 [[mutation]]
 id = "kill-other-partitions"
 kills = "others_unchanged (R14.9: a response leaves every other Partition as it was)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                let ghost before = *self;\n"
-replace = "            if self.sched.job[u as usize] != JOB_NONE {\n                let ghost before = *self;\n"
+find = "            if cfg.tasks[u as usize].partition == partition && self.sched.job[u as usize] != JOB_NONE {\n                self.kill_at(cfg, i);\n"
+replace = "            if self.sched.job[u as usize] != JOB_NONE {\n                self.kill_at(cfg, i);\n"
 expect = ["kernel.rs", "others_unchanged"]
 
 [[mutation]]
@@ -136,7 +136,7 @@ id = "history-step-after-now"
 kills = "record: lemma_history_push requires s.at == now (no step beyond the observed instant; task 4.11)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "        let ghost s = self.step_now(kind, task@, arg@);\n"
-replace = "        let ghost s0 = self.step_now(kind, task@, arg@);\n        let ghost s = Step { kind: s0.kind, task: s0.task, at: s0.at + 1, arg: s0.arg, locks: s0.locks, ceiling: s0.ceiling };\n"
+replace = "        let ghost s0 = self.step_now(kind, task@, arg@);\n        let ghost s = Step { kind: s0.kind, task: s0.task, at: s0.at + 1, arg: s0.arg, locks: s0.locks, ceiling: s0.ceiling, top: s0.top };\n"
 expect = ["kernel.rs", "s.at == now"]
 package = "rsk-logic"
 
@@ -146,7 +146,8 @@ kills = "record: the history left is the one found with the step appended (task 
 file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "        self.history = Ghost(self.history@.push(s));\n"
 replace = "        self.history = Ghost(self.history@);\n"
-expect = ["kernel.rs", "push(old(self).step_now"]
+# The dropped step is caught inside `record`: the new Release step it promises is not there.
+expect = ["kernel.rs", "release_step_in(p, h.len() as int, u)"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -183,4 +184,22 @@ file = "crates/rsk-logic/src/logic/sched.rs"
 find = "        &&& (i == self.depth - 1 && cfg.priority(self.top()) >= cfg.priority(t))\n"
 replace = "        &&& (i == self.depth - 1 && cfg.priority(self.top()) > cfg.priority(t))\n"
 expect = ["sched.rs"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "lock-by-other-than-top"
+kills = "lemma_no_new_blocking_section (argument 5.1, step 4): a lock step is by the executing Job; task 4.12"
+file = "crates/rsk-logic/src/logic/history.rs"
+find = "        &&& s.top == prev.top\n        &&& s.task == s.top\n"
+replace = "        &&& s.top == prev.top\n"
+expect = ["history.rs", "lemma_no_new_blocking_section"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "dispatch-below-ceiling"
+kills = "lemma_no_lower_dispatch_while_waiting (argument 5.1, step 1): a dispatched Task was above the ceiling; task 4.12"
+file = "crates/rsk-logic/src/logic/history.rs"
+find = "        &&& prev.ceiling < cfg.priority(s.task)\n"
+replace = "        &&& prev.ceiling <= 7\n"
+expect = ["history.rs", "lemma_no_lower_dispatch_while_waiting"]
 package = "rsk-logic"
