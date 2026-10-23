@@ -7,6 +7,20 @@
 //! | `control` | `part0` (level A) | 7 | 10 ms | `state` |
 //! | `sensor` | `part0` (level A) | 5 | 20 ms, offset 5 ms | `state` (held for 8 ms) |
 //! | `log` | `part1` (level C) | 2 | 40 ms | none |
+//! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER | none |
+//!
+//! `pulse` is the sporadic Task (DD-06, task 5.4): `log`'s first Job starts
+//! the Partition's dual timer at an 18 ms period through the peripheral
+//! window (`rsk::mmio`), each interrupt is a Release_Source event taken by
+//! the Kernel's intake handler, and `pulse` clears the interrupt. The 18 ms
+//! period exceeds the 15 ms MIT, so every event is accepted and the source
+//! is masked and unmasked once per event (the unmask event of DD-06). The
+//! 15 ms deadline covers sensor's 8.8 ms Budget (a higher Priority: it
+//! interferes with pulse in full, and its 8 ms Critical_Section blocks a
+//! Release that lands inside it, R8.4) plus two control Jobs, as the
+//! Analyzer computes (R = 11.5 ms); with a 2 ms deadline the Kernel
+//! reported a deadline miss at every Release that coincided with sensor's
+//! Critical_Section, and with 10 ms the Analyzer rejected the set.
 //!
 //! Budgets (1 ms, 8.8 ms, 6 ms) bound the Jobs' real execution on the board
 //! (QEMU's DWT does not count cycles, so they are not enforced there). The
@@ -44,6 +58,9 @@ rsk::app! {
     partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
                      fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
+        peripherals = [CMSDK_DUALTIMER];
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
+        task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
+                    budget = 200.us(), priority = 4);
     }
 }

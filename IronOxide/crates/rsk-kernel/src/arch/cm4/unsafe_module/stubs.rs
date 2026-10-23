@@ -309,6 +309,16 @@ pub fn svc_now() -> u64 {
     ((hi as u64) << 32) | lo as u64
 }
 
+/// The EasyDMA request SVC (DD-08): channel `i`, buffer `ptr` of `len`
+/// bytes; `true` when the Kernel accepted and programmed the transfer.
+#[inline(always)]
+pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
+    let out: u32;
+    // SAFETY (UJ-035): as UJ-030; r0 to r2 in, r0 out (0 accepted, 1 refused).
+    unsafe { core::arch::asm!("svc #6", inout("r0") i as u32 => out, in("r1") ptr, in("r2") len, options(nostack)) };
+    out == 0
+}
+
 /// The panic SVC of unprivileged Jobs (PR-19).
 #[inline(always)]
 pub fn svc_panic() {

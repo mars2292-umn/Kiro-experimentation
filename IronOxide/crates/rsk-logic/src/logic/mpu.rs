@@ -248,7 +248,102 @@ pub struct PartitionLayout {
     pub window_count: u8,
 }
 
+/// Subregion-disable bit `s` of an SRD byte.
+pub open spec fn srd_bit(srd: u8, s: int) -> u8 {
+    (srd >> (s as u8)) & 1
+}
+
 impl PartitionLayout {
+    /// R17.1 (DD-08): an EasyDMA buffer `[ptr, ptr + len)` is permitted when
+    /// it lies in the Partition's RAM above its stack region and touches
+    /// only enabled subregions (the RAM the Partition can address itself).
+    /// Endpoint storage does not exist yet (P4).
+    pub open spec fn dma_permitted(&self, ptr: int, len: int) -> bool {
+        let base = self.ram.base as int;
+        let size = self.ram.size();
+        let sub = size / 8;
+        &&& len > 0
+        &&& ptr >= base + self.stack_size
+        &&& ptr + len <= base + size
+        &&& forall|s: int| 0 <= s < 8 && base + s * sub < ptr + len && ptr < base + (s + 1) * sub
+            ==> #[trigger] srd_bit(self.ram_srd, s) == 0
+    }
+
+    /// The executable check of `dma_permitted` (task 5.5): the Kernel's
+    /// DMA mediation service refuses a request unless this holds (R17.2).
+    pub fn dma_permitted_exec(&self, ptr: u32, len: u32) -> (ok: bool)
+        requires self.wf(),
+        ensures ok == self.dma_permitted(ptr as int, len as int),
+    {
+        if len == 0 {
+            return false;
+        }
+        let size: u64 = pow2_u32(self.ram.size_log2) as u64;
+        let base: u64 = self.ram.base as u64;
+        let p: u64 = ptr as u64;
+        let l: u64 = len as u64;
+        if p < base + self.stack_size as u64 || p + l > base + size {
+            return false;
+        }
+        let sub: u64 = size / 8;
+        let mut s: u8 = 0;
+        let mut ok = true;
+        // The current subregion's base, kept by addition (no multiplication
+        // in the executable: Verus reasons about `s * sub` only on request).
+        let mut lo: u64 = base;
+        while s < 8
+            invariant s <= 8, size == self.ram.size(), size <= 0xFFFF_FFFF, base <= 0xFFFF_FFFF, sub == size / 8, sub <= 0x2000_0000,
+                base == self.ram.base as int, p == ptr as int, l == len as int,
+                lo == base + (s as int) * (sub as int),
+                ok == forall|q: int| 0 <= q < s && base + q * sub < p + l && p < base + (q + 1) * sub ==> #[trigger] srd_bit(self.ram_srd, q) == 0,
+            decreases 8 - s,
+        {
+            proof {
+                assert((s as int) * (sub as int) <= 8 * (sub as int)) by (nonlinear_arith)
+                    requires s <= 8, sub >= 0 {}
+                assert(base + ((s + 1) as int) * (sub as int) == lo + sub) by (nonlinear_arith)
+                    requires lo == base + (s as int) * (sub as int) {}
+            }
+            let hi = lo + sub;
+            let ghost ok0 = ok;
+            let hit = lo < p + l && p < hi && (self.ram_srd >> s) & 1 == 1;
+            if hit {
+                ok = false;
+            }
+            proof {
+                let s0 = s as int;
+                let subi = sub as int;
+                assert(base + s0 * subi == lo as int);
+                assert(base + (s0 + 1) * subi == hi as int);
+                assert(srd_bit(self.ram_srd, s0) == (self.ram_srd >> s) & 1);
+                let srd = self.ram_srd;
+                assert((srd >> s) & 1 == 0 || (srd >> s) & 1 == 1) by (bit_vector);
+                if ok {
+                    // Nothing failed so far, and subregion `s` is clear or untouched.
+                    assert forall|q: int| 0 <= q < s0 + 1 && base + q * subi < p + l && p < base + (q + 1) * subi
+                        implies #[trigger] srd_bit(self.ram_srd, q) == 0 by {
+                        if q == s0 {
+                            assert(!hit);
+                        }
+                    }
+                } else if ok0 {
+                    // Subregion `s` is the witness.
+                    assert(hit);
+                    assert(0 <= s0 < s0 + 1 && base + s0 * subi < p + l && p < base + (s0 + 1) * subi
+                        && srd_bit(self.ram_srd, s0) != 0);
+                } else {
+                    // A witness below `s` remains one below `s + 1`.
+                    let q = choose|q: int| 0 <= q < s0 && base + q * subi < p + l && p < base + (q + 1) * subi
+                        && #[trigger] srd_bit(self.ram_srd, q) != 0;
+                    assert(0 <= q < s0 + 1 && base + q * subi < p + l && p < base + (q + 1) * subi && srd_bit(self.ram_srd, q) != 0);
+                }
+            }
+            lo = hi;
+            s = s + 1;
+        }
+        ok
+    }
+
     pub open spec fn in_window(&self, a: int) -> bool {
         exists|w: int| 0 <= w < self.window_count && self.windows[w].contains(a)
     }

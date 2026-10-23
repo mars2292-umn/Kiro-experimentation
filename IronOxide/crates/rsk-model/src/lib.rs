@@ -152,7 +152,8 @@ mod tests {
     #[test]
     fn the_generated_demo_model_conforms_and_round_trips() {
         let model = read_task_model(DEMO).unwrap_or_else(|e| panic!("{e}"));
-        assert_eq!(model.tasks.len(), 3);
+        // Three periodic Tasks and the sporadic `pulse` (task 5.4).
+        assert_eq!(model.tasks.len(), 4);
         assert_eq!(model.resources[0].ceiling, 7);
         let printed = print(&model);
         let again = read_task_model(&printed).unwrap();

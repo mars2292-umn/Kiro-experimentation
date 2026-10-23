@@ -283,3 +283,51 @@ fn intake_outcomes_match_r10() {
     assert!(k.sched.release[0] == REL_NONE && k.sched.release[2] == REL_NONE);
     assert!(k.mit_violations[1] == 0);
 }
+
+/// Task 5.5 (R17.1, R17.2): the executable DMA buffer check agrees with a
+/// direct recomputation of its specification for every layout of a 1 KiB
+/// to 64 KiB Partition RAM and every buffer, as a cross-check of the Verus
+/// proof `dma_permitted_exec` on the erased code.
+#[kani::proof]
+#[kani::unwind(33)]
+fn dma_permitted_matches_recomputation() {
+    use super::mpu::{Interval, PartitionLayout, MAX_WINDOWS};
+    let size_log2: u8 = kani::any();
+    kani::assume(size_log2 >= 10 && size_log2 <= 16);
+    let size: u32 = 1u32 << size_log2;
+    let base: u32 = kani::any();
+    kani::assume(base % size == 0 && base >= 0x2000_0000 && base < 0x2004_0000);
+    let stack: u32 = kani::any();
+    kani::assume(stack > 0 && stack <= size);
+    let srd: u8 = kani::any();
+    let no_window = Interval { base: 0, size_log2: 5 };
+    let pl = PartitionLayout {
+        code: Interval { base: 0x0002_0000, size_log2: 15 },
+        code_srd: 0,
+        ram: Interval { base, size_log2 },
+        ram_srd: srd,
+        stack_size: stack,
+        windows: [no_window; MAX_WINDOWS],
+        window_count: 0,
+    };
+    let ptr: u32 = kani::any();
+    let len: u32 = kani::any();
+    kani::assume(len <= 0x2_0000);
+    let got = pl.dma_permitted_exec(ptr, len);
+    let p = ptr as u64;
+    let l = len as u64;
+    let b = base as u64;
+    let sz = size as u64;
+    let sub = sz / 8;
+    let mut want = len > 0 && p >= b + stack as u64 && p + l <= b + sz;
+    let mut s = 0u64;
+    while s < 8 {
+        let lo = b + s * sub;
+        let hi = lo + sub;
+        if lo < p + l && p < hi && (srd >> s) & 1 == 1 {
+            want = false;
+        }
+        s += 1;
+    }
+    assert!(got == want);
+}

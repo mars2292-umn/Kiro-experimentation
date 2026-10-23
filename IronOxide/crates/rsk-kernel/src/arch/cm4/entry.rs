@@ -50,10 +50,10 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect};
+use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED};
 use crate::logic::mpu::View;
 
 verus! {
@@ -67,6 +67,8 @@ pub const SVC_JOB_END: u8 = 3;
 pub const SVC_NOW: u8 = 4;
 /// A panic in an unprivileged Job (the panic handler's SVC, PR-19).
 pub const SVC_PANIC: u8 = 5;
+/// EasyDMA request (DD-08, R17.2): r0 channel, r1 buffer address, r2 length; r0 out 0 accepted, 1 refused.
+pub const SVC_DMA: u8 = 6;
 
 /// EXC_RETURN values (HW-07).
 pub const EXC_RETURN_HANDLER_MSP: u32 = 0xFFFF_FFF1;
@@ -180,6 +182,17 @@ pub enum Action {
     KernelExceptionPriorities,
     MpuEnableBackground,
     ClearFaultStatus,
+    /// NVIC ICPR: clear the pending state of exception `n` (an intake source
+    /// unmasked after its MIT window drops the events of the window, DD-06).
+    ClearPending(u16),
+    /// EasyDMA (DD-08): write the pointer register and, when non-zero, the count register.
+    DmaProgram(u32, u32, u32, u32),
+    /// EasyDMA: trigger a stop task register (R17.6).
+    DmaStop(u32),
+    /// EasyDMA: clear a list-mode register (list mode forbidden, DD-08).
+    DmaListOff(u32),
+    /// PPI: disable every channel (Kernel-owned, DD-08).
+    PpiDisableAll,
     /// Start the Kernel-owned watchdog with a reload value (ORQ-31).
     WatchdogStart(u32),
     /// Feed the watchdog (every time-base event).
@@ -239,6 +252,11 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::KernelExceptionPriorities => HwModel { kernel_exceptions_level0: true, ..h },
         Action::MpuEnableBackground => HwModel { mpu_enabled: true, ..h },
         Action::ClearFaultStatus => h,
+        Action::ClearPending(n) => HwModel { pending: h.pending.remove(n as int), ..h },
+        Action::DmaProgram(_, _, _, _) => h,
+        Action::DmaStop(_) => h,
+        Action::DmaListOff(_) => h,
+        Action::PpiDisableAll => h,
         Action::WatchdogStart(_) => HwModel { watchdog_running: true, ..h },
         Action::WatchdogFeed => HwModel { watchdog_fed: true, ..h },
         Action::Trace(_, _) => h,
@@ -280,6 +298,9 @@ pub trait Tables {
     fn boot_expect(&self) -> BootExpect;
     /// Time-base ticks per second (R21.2), for the watchdog reload.
     fn tick_hz(&self) -> u64;
+    /// The EasyDMA channels (DD-08).
+    fn dma_count(&self) -> usize;
+    fn dma(&self, i: usize) -> DmaCfg;
 }
 
 // ------------------------------------------------ the Cortex-M4F hardware
@@ -335,6 +356,11 @@ impl KernelArch for Cm4Hw {
             Action::KernelExceptionPriorities => hw::set_kernel_exception_priorities(),
             Action::MpuEnableBackground => hw::mpu_enable_background(),
             Action::ClearFaultStatus => hw::clear_fault_status(),
+            Action::ClearPending(n) => hw::nvic_clear_pending(n),
+            Action::DmaProgram(ptr_reg, ptr, cnt_reg, len) => hw::dma_program(ptr_reg, ptr, cnt_reg, len),
+            Action::DmaStop(reg) => hw::dma_stop(reg),
+            Action::DmaListOff(reg) => hw::dma_list_off(reg),
+            Action::PpiDisableAll => hw::ppi_disable_all(),
             Action::WatchdogStart(reload) => hw::watchdog_start(reload),
             Action::WatchdogFeed => hw::watchdog_feed(),
             Action::Trace(tag, v) => super::trace(super::trace_tag(tag), v),
@@ -463,9 +489,16 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     {
         match tables.intake_vector(t as u8) {
             Some(v) => {
-                if k.source_masked(t as u8) {
+                let partition = k.job_info(t as u8).partition;
+                if k.source_masked(t as u8) || k.partition_stopped(partition) {
+                    // DD-06: masked for the rest of the MIT window; R14.5: a
+                    // stopped Partition's sources stay disabled.
                     hw.apply(Action::Disable(v));
                 } else {
+                    // Events that arrived while masked belong to the window
+                    // and are dropped (R19.1); a level still asserted pends
+                    // again at once.
+                    hw.apply(Action::ClearPending(v));
                     hw.apply(Action::Enable(v));
                 }
             }
@@ -482,10 +515,12 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
         decreases np - p,
     {
-        // EasyDMA stop (DD-08) and the Partition image re-initialization
-        // are performed by the system crate (tasks 5.5, 10.5); the requests
-        // are consumed here so that the flags are cleared.
-        let _ = k.take_stop_dma(p as u8);
+        // R17.6: a stopped or restarted Partition's EasyDMA transfers are
+        // stopped before its memory is re-initialized (DD-08). The image
+        // re-initialization itself is the system crate's (task 10.5).
+        if k.take_stop_dma(p as u8) {
+            dma_stop_partition(hw, tables, p as u8);
+        }
         let _ = k.take_reinit(p as u8);
         p += 1;
     }
@@ -542,6 +577,7 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         k.boot_failed(failed);
         return false;
     }
+    dma_boot(k, hw, tables);
     hw.apply(Action::PrigroupAllPreempt);
     // No Job executes with an exception active (DD-01 as revised), so
     // NONBASETHRDENA stays at its reset value 0 and every exception return
@@ -600,6 +636,87 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     state.booted = true;
     hw.apply(Action::Trace(TR_BOOTED, 1));
     true
+}
+
+/// Triggers the stop tasks of every EasyDMA channel of Partition `p` (R17.6).
+fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
+    ensures
+        final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+{
+    let ghost h0 = hw.hw();
+    let n = tables.dma_count();
+    let mut i: usize = 0;
+    while i < n
+        invariant hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
+        decreases n - i,
+    {
+        let d = tables.dma(i);
+        if d.partition == p {
+            if d.stops[0] != 0 {
+                hw.apply(Action::DmaStop(d.stops[0]));
+            }
+            if d.stops[1] != 0 {
+                hw.apply(Action::DmaStop(d.stops[1]));
+            }
+        }
+        i += 1;
+    }
+}
+
+/// Clears every EasyDMA list-mode register and every PPI channel at boot
+/// (DD-08: list mode forbidden, PPI Kernel-owned).
+fn dma_boot<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T)
+    requires k.inv(),
+{
+    hw.apply(Action::PpiDisableAll);
+    let n = tables.dma_count();
+    let mut i: usize = 0;
+    while i < n
+        decreases n - i,
+    {
+        let d = tables.dma(i);
+        if d.lists[0] != 0 {
+            hw.apply(Action::DmaListOff(d.lists[0]));
+        }
+        if d.lists[1] != 0 {
+            hw.apply(Action::DmaListOff(d.lists[1]));
+        }
+        i += 1;
+    }
+}
+
+/// The EasyDMA mediation service (DD-08; R17.1, R17.2): channel `i` of
+/// the executing Job's own Partition, with a buffer in that Partition's
+/// DMA-permitted memory, is programmed; anything else is refused before
+/// any register is written, and the refusal is a spatial violation of the
+/// Partition (R14.3). Returns whether the request was accepted.
+fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, ptr: u32, len: u32) -> (ok: bool)
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        ok ==> *final(k) == *old(k),
+        final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+{
+    let accepted = if i < tables.dma_count() {
+        let d = tables.dma(i);
+        match k.top() {
+            Some(t) => {
+                let info = k.job_info(t);
+                info.partition == d.partition && k.dma_permitted(d.partition, ptr, len)
+            }
+            None => false,
+        }
+    } else {
+        false
+    };
+    if accepted {
+        let d = tables.dma(i);
+        hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));
+    } else {
+        k.fault(EV_DMA_REJECTED, false);
+    }
+    accepted
 }
 
 /// Instant 0: enables Releases (PR-34) and the compare of the first event,
@@ -811,6 +928,18 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         frame[0] = now as u32;
         frame[1] = (now >> 32) as u32;
         (0, false)
+    } else if number == SVC_DMA {
+        let ok = dma_request_core(k, hw, tables, frame[0] as usize, frame[1], frame[2]);
+        frame[0] = if ok { 0 } else { 1 };
+        if ok {
+            (0, false)
+        } else {
+            // The refusal applied the Partition's fault response (R17.2).
+            let safe = apply_core(k, hw, tables);
+            let top_before = k.top();
+            let hop = end_plan_core(k, state, top_before);
+            (hop, safe)
+        }
     } else if number == SVC_JOB_END {
         let elapsed = charge_point(hw, state);
         let top_before = k.top();

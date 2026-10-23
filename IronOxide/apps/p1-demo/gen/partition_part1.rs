@@ -5,11 +5,19 @@ pub mod rsk_ctx {
     /// The Context of Task `part1.log` (Priority 2).
     pub struct Log {
     }
+    /// The Context of Task `part1.pulse` (Priority 4).
+    pub struct Pulse {
+    }
 }
 pub mod rsk_jobs {
     /// Job wrapper of `part1.log` (vector 38; Critical_Section sites: none).
     pub fn log() {
         super::log(super::rsk_ctx::Log {
+        })
+    }
+    /// Job wrapper of `part1.pulse` (vector 39; Critical_Section sites: none).
+    pub fn pulse() {
+        super::pulse(super::rsk_ctx::Pulse {
         })
     }
 }

@@ -83,7 +83,7 @@ pub fn version() -> Option<String> {
 
 pub fn command_line(elf: &Path) -> String {
     format!(
-        "qemu-system-arm -M {MACHINE} -cpu cortex-m4 -nographic -semihosting-config enable=on,target=native,userspace=on -kernel {}",
+        "qemu-system-arm -M {MACHINE} -cpu cortex-m4 -icount shift=auto,sleep=off -nographic -semihosting-config enable=on,target=native,userspace=on -kernel {}",
         elf.display()
     )
 }
@@ -93,7 +93,14 @@ pub fn command_line(elf: &Path) -> String {
 pub fn run_elf(elf: &Path, timeout_secs: u64) -> Result<Run, String> {
     let qemu = locate().ok_or("qemu-system-arm is not installed (brew install qemu)")?;
     let mut cmd = Command::new(qemu);
-    cmd.args(["-M", MACHINE, "-cpu", "cortex-m4", "-nographic", "-semihosting-config", "enable=on,target=native,userspace=on", "-kernel"])
+    // Guest time follows the instruction count (`-icount`), not the wall
+    // clock: a semihosting write or a busy host then stalls the guest's
+    // time base along with its execution instead of eating into the
+    // Jobs' deadlines, which made the spike fail under load (2026-10-23).
+    cmd.args([
+        "-M", MACHINE, "-cpu", "cortex-m4", "-icount", "shift=auto,sleep=off", "-nographic",
+        "-semihosting-config", "enable=on,target=native,userspace=on", "-kernel",
+    ])
         .arg(elf)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

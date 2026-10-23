@@ -68,7 +68,7 @@ use super::log::{Event, Log, EV_BOOT_CHECK, EV_DEBUGGER, EV_WATCHDOG_RESET, EV_D
 // Spec and proof items of `history` are named by path: ghost erasure removes them from the stable build.
 use super::history::{Step, ST_DISPATCH, ST_END, ST_KILL, ST_LOCK, ST_RELEASE, ST_UNLOCK};
 use super::sched::{Sched, JOB_KILLED, JOB_NONE, JOB_RUNNING, REL_DEFERRED, REL_NONE, REL_PENDING};
-use super::time::{Slots, Timing, INTAKE_ACCEPT, INTAKE_DEFER, SLOT_BUDGET, SLOT_DEADLINE, SLOT_DEFER, SLOT_END,
+use super::time::{Slots, Timing, INTAKE_ACCEPT, INTAKE_DEFER, SLOT_BUDGET, SLOT_DEADLINE, SLOT_DEFER, SLOT_END, SLOT_UNMASK,
     SLOT_HOUSEKEEPING, SLOT_RELEASE};
 use super::{Config, KIND_PERIODIC, KIND_SPORADIC, MIT_DEFER, NO_SLOT, RESP_END_JOB, RESP_RECORD_AND_CONTINUE,
     RESP_RECORD_ONLY, RESP_RESTART_PARTITION, RESP_SAFE_STATE, RESP_STOP_PARTITION};
@@ -1094,7 +1094,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             forall|u: int| 0 <= u < NT && u != old(self).sched.top() ==> final(self).budget.used[u] == old(self).budget.used[u],
             // R9.6, R18.2: the ended Job's deadline and Budget events are
             // disarmed; the resumed Job's Budget event is armed.
-            !final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int),
+            // The deadline slot is disarmed, or holds the unmask event of the
+            // Task's MIT window (DD-06), never a deadline.
+            final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int)
+                ==> final(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int].kind == SLOT_UNMASK,
             !final(self).slots.armed(cfg.slot_budget[old(self).sched.top()] as int),
             final(self).sched.depth > 0 ==> final(self).slots.armed(cfg.slot_budget[final(self).sched.top()] as int),
             final(self).flags_eq(old(self)),
@@ -1127,8 +1130,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.slots.disarm(cfg.slot_budget[t as usize] as usize);
         self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
         if cfg.tasks[t as usize].kind == KIND_SPORADIC {
-            let now = self.now;
-            let _ = self.timing.try_unmask(cfg, t, now, true);
+            self.end_mit_window(cfg, t);
         }
         if self.sched.depth > 0 {
             let resumed = self.sched.stack[self.sched.depth - 1];
@@ -1160,6 +1162,50 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             e = e + 1;
         }
         all
+    }
+
+    /// The instant the MIT window of `t` is over (`last_due + MIT`, within
+    /// the operating duration), for the unmask event (DD-06).
+    fn unmask_instant(&self, cfg: &Config<NT, NR, NP>, t: u8) -> (at: u64)
+        requires self.inv(cfg), (t as int) < NT,
+        ensures at <= cfg.operating_duration,
+    {
+        proof {
+            assert(cfg.task_ok(t as int));
+        }
+        let end = self.timing.last_due[t as usize] + cfg.tasks[t as usize].period;
+        if end > cfg.operating_duration { cfg.operating_duration } else { end }
+    }
+
+    /// The Job of Sporadic_Task `t` ended (DD-06): the source is unmasked
+    /// if the MIT window is over; otherwise, with no Release pending, the
+    /// unmask event is armed on the Task's deadline slot (free until its
+    /// next Release) for the end of the window. With a deferred Release the
+    /// deferral event fires first and that Job's end re-arms the window.
+    fn end_mit_window(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
+        requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
+            !old(self).slots.armed(cfg.slot_deadline[t as int] as int),
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+            final(self).sched == old(self).sched, final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
+            final(self).log == old(self).log,
+            final(self).timing.has_last == old(self).timing.has_last, final(self).timing.last_due == old(self).timing.last_due,
+            final(self).timing.k == old(self).timing.k, final(self).timing.nominal == old(self).timing.nominal,
+            final(self).timing.deferred_until == old(self).timing.deferred_until, final(self).timing.due == old(self).timing.due,
+            final(self).timing.job_due == old(self).timing.job_due,
+            forall|j: int| 0 <= j < NS && j != cfg.slot_deadline[t as int] ==> final(self).slots.slots[j] == old(self).slots.slots[j],
+            final(self).slots.armed(cfg.slot_deadline[t as int] as int)
+                ==> final(self).slots.slots[cfg.slot_deadline[t as int] as int].kind == SLOT_UNMASK,
+    {
+        proof {
+            assert(cfg.task_ok(t as int));
+            assert(cfg.slot_ok(t as int));
+        }
+        let now = self.now;
+        let unmasked = self.timing.try_unmask(cfg, t, now, true);
+        if !unmasked && self.sched.release[t as usize] == REL_NONE {
+            let at = self.unmask_instant(cfg, t);
+            self.slots.arm(cfg.slot_deadline[t as usize] as usize, at, SLOT_UNMASK, t);
+        }
     }
 
     // ------------------------------------------------------------ SVC services
@@ -1419,6 +1465,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.deadline_miss(cfg, t, i);
             } else if slot.kind == SLOT_BUDGET {
                 self.budget_event(cfg, t, i, running_cycles);
+            } else if slot.kind == SLOT_UNMASK {
+                // DD-06: the MIT window is over; Kernel_Arch re-enables the
+                // source from `masked` at the next `apply`.
+                self.slots.disarm(i);
+                self.timing.unmask(cfg, t);
             } else {
                 self.slots.disarm(i);
             }
@@ -1893,7 +1944,15 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     assert(cfg.task_ok(t as int));
                 }
                 self.sched.clear_release(cfg, t as u8);
-                self.slots.disarm(cfg.slot_deadline[t] as usize);
+                if cfg.tasks[t].kind == KIND_SPORADIC && self.timing.masked[t] {
+                    // A masked source keeps an unmask event (on the deadline
+                    // slot, whose deadline is cleared with the Release) so that
+                    // the MIT window still ends (DD-06; R14.5 keeps the MIT state).
+                    let at = self.unmask_instant(cfg, t as u8);
+                    self.slots.arm(cfg.slot_deadline[t] as usize, at, SLOT_UNMASK, t as u8);
+                } else {
+                    self.slots.disarm(cfg.slot_deadline[t] as usize);
+                }
                 if cfg.tasks[t].kind == KIND_SPORADIC && cfg.tasks[t].mit_policy == MIT_DEFER {
                     self.slots.disarm(cfg.slot_release[t] as usize);
                 }

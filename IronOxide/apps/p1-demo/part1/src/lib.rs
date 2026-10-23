@@ -9,12 +9,35 @@ use rsk::ResourceCell;
 
 p1_demo_decl::rsk_partition_part1!();
 
-/// Demo counter (a plain static of the Partition, read by the safe state).
+/// Demo counters (plain statics of the Partition, read by the safe state).
 pub static COUNT_LOG: ResourceCell<u32> = ResourceCell::new(0);
+pub static COUNT_PULSE: ResourceCell<u32> = ResourceCell::new(0);
+
+/// The CMSDK dual timer of the QEMU mps2-an386 (the Partition's peripheral,
+/// window 0x4000_2000): Timer1 load, control (bit 7 enable, bit 6 periodic,
+/// bit 5 interrupt, bit 1 32-bit) and interrupt clear, clocked at 25 MHz.
+const DUALTIMER: u32 = 0x4000_2000;
+const TIMER1_LOAD: u32 = DUALTIMER + 0x00;
+const TIMER1_CONTROL: u32 = DUALTIMER + 0x08;
+const TIMER1_INTCLR: u32 = DUALTIMER + 0x0C;
+/// 18 ms at 25 MHz: longer than `pulse`'s 15 ms MIT, so every event is accepted.
+const PULSE_PERIOD_TICKS: u32 = 450_000;
 
 /// Task `log`: busy for about 5 ms (bounded iterations, PR-16), then counts.
+/// Its first Job starts the dual timer that releases `pulse` (task 5.4).
 pub fn log(_cx: rsk_ctx::Log) {
+    if COUNT_LOG.peek_unprivileged() == 0 {
+        rsk::mmio::write(TIMER1_LOAD, PULSE_PERIOD_TICKS);
+        rsk::mmio::write(TIMER1_CONTROL, (1 << 7) | (1 << 6) | (1 << 5) | (1 << 1));
+    }
     rsk::spin(250_000);
     COUNT_LOG.with_unprivileged(|c| *c += 1);
     rsk::debug(b"C");
+}
+
+/// Task `pulse` (sporadic): clears the timer interrupt and counts.
+pub fn pulse(_cx: rsk_ctx::Pulse) {
+    rsk::mmio::write(TIMER1_INTCLR, 1);
+    COUNT_PULSE.with_unprivileged(|c| *c += 1);
+    rsk::debug(b"D");
 }

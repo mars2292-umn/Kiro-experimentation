@@ -30,6 +30,20 @@ use crate::hw_model::{self, MIN_COMPARE_DISTANCE};
 
 verus! {
 
+/// One EasyDMA channel of a Partition's peripheral (DD-08, R17): the
+/// absolute addresses of its pointer register and (0 when the peripheral
+/// has none) its count register, the peripheral's stop task registers, and
+/// its list-mode registers (0 for none). Generated_Config lists one per
+/// channel of every EasyDMA-capable peripheral a Partition owns.
+#[derive(Clone, Copy)]
+pub struct DmaCfg {
+    pub partition: u8,
+    pub ptr: u32,
+    pub maxcnt: u32,
+    pub stops: [u32; 2],
+    pub lists: [u32; 2],
+}
+
 /// What the boot checks of R12.1 compare the hardware against: the values
 /// Generated_Config records for the Target (ASM-01, ASM-03, ASM-05) and
 /// whether any Task uses the FPU (R11.2).

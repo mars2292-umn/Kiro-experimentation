@@ -160,10 +160,10 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                     iref,
                     format!("peripheral `{per}` is owned by the Kernel (R15.6: the time base and the core peripherals cannot be assigned to a Partition)"),
                 )),
-                Some(t) if t.easy_dma => d.push(Diagnostic::new(
+                Some(t) if t.easy_dma && t.dma.is_none() => d.push(Diagnostic::new(
                     "DD-08",
                     iref,
-                    format!("peripheral `{per}` is EasyDMA-capable; the Kernel's DMA mediation service (task 5.5) is not implemented yet, so it cannot be assigned to a Partition"),
+                    format!("peripheral `{per}` is EasyDMA-capable but its DMA registers are not described in the Target table, so the Kernel cannot mediate it"),
                 )),
                 Some(_) => match peripheral_owner.insert(per.as_str(), p.name.as_str()) {
                     Some(other) => d.push(Diagnostic::new(

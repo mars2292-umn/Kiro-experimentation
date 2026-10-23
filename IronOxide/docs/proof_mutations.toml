@@ -203,3 +203,12 @@ find = "        &&& prev.ceiling < cfg.priority(s.task)\n"
 replace = "        &&& prev.ceiling <= 7\n"
 expect = ["history.rs", "lemma_no_lower_dispatch_while_waiting"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "dma-buffer-in-stack"
+kills = "PartitionLayout::dma_permitted_exec (R17.1): a buffer inside the stack region is refused; task 5.5"
+file = "crates/rsk-logic/src/logic/mpu.rs"
+find = "        if p < base + self.stack_size as u64 || p + l > base + size {\n"
+replace = "        if p < base || p + l > base + size {\n"
+expect = ["mpu.rs", "dma_permitted"]
+package = "rsk-logic"

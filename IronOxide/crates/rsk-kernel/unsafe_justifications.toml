@@ -276,6 +276,30 @@ reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
 
 [[justification]]
+id = "UJ-035"
+summary = "svc_dma: the SVC #6 wrapper of the rsk EasyDMA request (DD-08)"
+kind = "review"
+why_no_machine_check = "An SVC with r0 to r2 in and r0 out; the Kernel side is the verified `dma_request_core` (R17.1, R17.2). Kani does not model SVC."
+reviewed_by = "rsk kernel review (task 5.5)"
+reviewed_on = "2026-10-23"
+
+[[justification]]
+id = "UJ-036"
+summary = "peripheral_read: a Partition's volatile read of an owned peripheral register (rsk API)"
+kind = "review"
+why_no_machine_check = "Inlined into the Partition's code and executed under its MPU view: an address outside its windows faults and the fault is the Partition's (R16.4, R14.3); a permitted address is device memory, not Rust memory. The HIL access matrix (task 7.4) exercises the fault; Kani cannot model the MPU."
+reviewed_by = "rsk kernel review (task 5.4)"
+reviewed_on = "2026-10-23"
+
+[[justification]]
+id = "UJ-037"
+summary = "peripheral_write: a Partition's volatile write of an owned peripheral register (rsk API)"
+kind = "review"
+why_no_machine_check = "As UJ-036; EasyDMA peripherals' windows are read-only (DD-08), so DMA pointer registers are not reachable through it."
+reviewed_by = "rsk kernel review (task 5.4)"
+reviewed_on = "2026-10-23"
+
+[[justification]]
 id = "UJ-040"
 summary = "sim::Store: Sync for the simulated register file (host and Kani only)"
 kind = "review"

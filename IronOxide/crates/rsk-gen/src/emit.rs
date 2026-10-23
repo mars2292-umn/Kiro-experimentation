@@ -160,6 +160,35 @@ pub fn system_source(g: &Generated) -> String {
         })
         .collect();
     let _ = writeln!(s, "const INTAKE_IRQ: [u16; NT] = [{}];", intake.join(", "));
+    // EasyDMA channels (DD-08): one entry per channel of every EasyDMA
+    // peripheral a Partition owns, in Partition order then peripheral name
+    // order (the order of the summary), for `rsk::dma_request`.
+    let mut dma: Vec<String> = Vec::new();
+    for (pi, p) in g.plan.partitions.iter().enumerate() {
+        for w in &p.windows {
+            for name in &w.peripherals {
+                let Some(per) = g.target.peripheral(name) else { continue };
+                let Some(regs) = per.dma else { continue };
+                let stop = |k: usize| regs.stops.get(k).map_or(0, |o| per.window_base + o);
+                let list = |k: usize| regs.lists.get(k).map_or(0, |o| per.window_base + o);
+                for (ptr, cnt) in regs.channels {
+                    dma.push(format!(
+                        "::rsk_kernel::arch::DmaCfg {{ partition: {pi}, ptr: 0x{:08x}, maxcnt: 0x{:08x}, stops: [0x{:08x}, 0x{:08x}], lists: [0x{:08x}, 0x{:08x}] }}, // {name}",
+                        per.window_base + ptr,
+                        if *cnt == 0 { 0 } else { per.window_base + cnt },
+                        stop(0), stop(1), list(0), list(1)
+                    ));
+                }
+            }
+        }
+    }
+    let _ = writeln!(s, "pub const ND: usize = {};", dma.len());
+    let _ = writeln!(s, "const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg {{ partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0] }};");
+    let _ = writeln!(s, "pub const DMA: [::rsk_kernel::arch::DmaCfg; ND] = [");
+    for d in &dma {
+        let _ = writeln!(s, "    {d}");
+    }
+    let _ = writeln!(s, "];");
     let _ = writeln!(s, "pub struct Sys;");
     let _ = writeln!(s, "impl ::rsk_kernel::arch::System for Sys {{");
     let _ = writeln!(s, "    type K = K;");
@@ -170,6 +199,8 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    const HFCLK_XTAL: bool = {};", g.target.hfclk_xtal);
     let _ = writeln!(s, "    const FPU_NEEDED: bool = {};", g.tasks.iter().any(|t| t.fpu));
     let _ = writeln!(s, "    const TICK_HZ: u64 = {};", g.target.tick_hz);
+    let _ = writeln!(s, "    const DMA_COUNT: usize = ND;");
+    let _ = writeln!(s, "    fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg {{ if i < ND {{ DMA[i] }} else {{ NO_DMA }} }}");
     let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
     let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
     let _ = writeln!(s, "    fn task_entry(t: u8) -> fn() {{");

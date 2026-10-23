@@ -53,6 +53,8 @@ pub mod addr {
     pub const NRF_ICACHECNF: u32 = 0x4001_E540;
     /// nRF52840 WDT (PS 6.36), Kernel-owned (ORQ-31).
     pub const NRF_WDT: u32 = 0x4001_0000;
+    /// nRF52840 PPI.CHENCLR (PS 6.19): Kernel-owned (DD-08), every channel cleared at boot.
+    pub const NRF_PPI_CHENCLR: u32 = 0x4001_F504;
     /// QEMU mps2-an386 CMSDK APB timers.
     pub const CMSDK_TIMER0: u32 = 0x4000_0000;
     pub const CMSDK_TIMER1: u32 = 0x4000_1000;
@@ -60,7 +62,7 @@ pub mod addr {
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
         SHCSR, CFSR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
-        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, CMSDK_TIMER0,
+        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHENCLR, CMSDK_TIMER0,
         CMSDK_TIMER1,
     ];
 
@@ -307,11 +309,20 @@ pub fn rbar_encode(number: u32, r: &crate::logic::mpu::Region) -> u32 {
     (r.interval.base & !0x1F) | (1 << 4) | (number & 0xF)
 }
 
-/// Loads a Partition view into the eight regions (DD-07).
+/// Loads a Partition view into the eight regions (DD-07). Each region is
+/// disabled (RNR, RASR = 0) before its base and attributes are written:
+/// rebasing an enabled region would, for the instant between the RBAR and
+/// RASR writes, apply the old size and attributes at the new base, and a
+/// Partition window region (device, execute-never) rebased to the disabled
+/// region's base 0 then covers the Kernel's own code while the Kernel
+/// executes it (found 2026-10-23 on QEMU when the first Partition window
+/// appeared: an IACCVIOL escalated to HardFault inside this function).
 pub fn mpu_load(view: &View) {
     let mut i = 0;
     while i < MPU_REGIONS {
         let r = &view.regions[i];
+        mmio_write(addr::MPU_RNR, i as u32);
+        mmio_write(addr::MPU_RASR, 0);
         mmio_write(addr::MPU_RBAR, rbar_encode(i as u32, r));
         mmio_write(addr::MPU_RASR, rasr_encode(r));
         i += 1;
@@ -456,6 +467,82 @@ pub fn watchdog_start(reload: u32) {
 /// Feeds the watchdog (reload request on RR[0]).
 pub fn watchdog_feed() {
     mmio_write(addr::NRF_WDT + wdt::RR0, wdt::RELOAD);
+}
+
+// ------------------------------------------------------------- EasyDMA (DD-08)
+
+/// Writes an EasyDMA pointer register and, when `cnt_reg` is non-zero, the
+/// count register (R17.1; the caller, `dma_request_core`, has validated the
+/// buffer). The register addresses come from Generated_Config's DMA table;
+/// an address outside the peripheral region is refused here as defence in
+/// depth (UJ-002: every address written is plausible).
+pub fn dma_program(ptr_reg: u32, ptr: u32, cnt_reg: u32, len: u32) {
+    if addr::plausible(ptr_reg) {
+        mmio_write(ptr_reg, ptr);
+    }
+    if cnt_reg != 0 && addr::plausible(cnt_reg) {
+        mmio_write(cnt_reg, len);
+    }
+}
+
+/// Triggers a stop task (R17.6).
+pub fn dma_stop(reg: u32) {
+    if addr::plausible(reg) {
+        mmio_write(reg, 1);
+    }
+}
+
+/// Clears a list-mode register (DD-08: list mode forbidden).
+pub fn dma_list_off(reg: u32) {
+    if addr::plausible(reg) {
+        mmio_write(reg, 0);
+    }
+}
+
+/// Disables every PPI channel (DD-08: PPI is Kernel-owned; no Partition
+/// routes events). The QEMU board has no PPI.
+pub fn ppi_disable_all() {
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    mmio_write(addr::NRF_PPI_CHENCLR, 0xFFFF_FFFF);
+}
+
+// ------------------------------------------- Partition peripheral access
+
+/// A Partition's read of one of its peripheral registers (through the
+/// `rsk` API). Inlined into the Partition's code, so it executes from the
+/// Partition's region under its MPU view: an address outside the
+/// Partition's windows is a MemManage fault of that Partition (R16.4),
+/// which is the isolation argument.
+#[inline(always)]
+pub fn peripheral_read(a: u32) -> u32 {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        // SAFETY (UJ-036): a volatile word read of an address the MPU view
+        // of the executing Partition either permits (an owned peripheral
+        // window, strongly-ordered device memory) or faults on; the fault is
+        // attributed to the Partition (R14.3). No Rust memory is involved.
+        unsafe { core::ptr::read_volatile(a as usize as *const u32) }
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    {
+        super::sim::read(a)
+    }
+}
+
+/// A Partition's write of one of its peripheral registers (see `peripheral_read`).
+#[inline(always)]
+pub fn peripheral_write(a: u32, v: u32) {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        // SAFETY (UJ-037): as UJ-036, for a volatile word write; EasyDMA
+        // peripherals' windows are read-only, so their pointer registers
+        // cannot be reached this way (DD-08).
+        unsafe { core::ptr::write_volatile(a as usize as *mut u32, v) }
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    {
+        super::sim::write(a, v)
+    }
 }
 
 /// The number of implemented NVIC priority bits, by writing 0xFF to an

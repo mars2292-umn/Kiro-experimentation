@@ -68,11 +68,13 @@ pub fn report_and_exit() -> ! {
     let a = p1_demo_part0::COUNT_CONTROL.peek();
     let b = p1_demo_part0::COUNT_SENSOR.peek();
     let c = p1_demo_part1::COUNT_LOG.peek();
+    let d = p1_demo_part1::COUNT_PULSE.peek();
     let blocked = p1_demo_part0::BLOCKED_SEEN.peek();
     hw::semihosting_write(b"\nRSK-SAFE-STATE\n");
     print_kv(b"control", a);
     print_kv(b"sensor", b);
     print_kv(b"log", c);
+    print_kv(b"pulse", d);
     print_kv(b"blocked_releases", blocked);
     let len = k.log_len();
     print_kv(b"events", len as u32);
@@ -95,8 +97,14 @@ pub fn report_and_exit() -> ! {
         i += 1;
     }
     // 200 ms: 20 control, 10 sensor, 5 log Releases; at least one blocked
-    // control Release observed while sensor held the Resource.
-    let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1;
+    // control Release observed while sensor held the Resource; the dual
+    // timer started by log's first Job releases pulse every 18 ms (about 11
+    // accepted events, none inside an MIT window: no MIT_Violation among
+    // the faults, and none missed: the 15 ms deadline covers sensor's
+    // interference and blocking). Every accepted event needs the source
+    // unmasked again after the previous window (DD-06), so a low count
+    // means the unmask event failed.
+    let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9;
     hw::semihosting_write(if ok { b"RSK-OK\n" } else { b"RSK-FAIL\n" });
     hw::semihosting_exit(if ok { 0 } else { 1 })
 }

@@ -50,6 +50,38 @@ pub fn now() -> u64 {
     stubs::svc_now()
 }
 
+/// Requests an EasyDMA transfer on `channel` (a channel index of the
+/// calling Partition's peripherals, in the order of the summary) over
+/// `buf` (DD-08, R17.1). The Kernel programs the peripheral's pointer and
+/// count registers only when `buf` lies in the Partition's DMA-permitted
+/// memory; otherwise the request is refused before any register is
+/// written, the refusal is a spatial violation of the Partition (R17.2),
+/// and `false` is returned (if the Partition's fault response lets the Job
+/// continue).
+pub fn dma_request(channel: u8, buf: &[u8]) -> bool {
+    let len = if buf.len() > u32::MAX as usize { u32::MAX } else { buf.len() as u32 };
+    stubs::svc_dma(channel, buf.as_ptr() as usize as u32, len)
+}
+
+/// Register access to the calling Partition's peripherals (R16.2): a
+/// read or write of a word at `addr`. The MPU view confines the access to
+/// the Partition's peripheral windows; any other address is a MemManage
+/// fault of the Partition (R16.4). EasyDMA peripherals are read-only
+/// here; their transfers go through [`dma_request`] (DD-08).
+pub mod mmio {
+    use rsk_kernel::arch::cm4::unsafe_module::hw;
+
+    #[inline(always)]
+    pub fn read(addr: u32) -> u32 {
+        hw::peripheral_read(addr)
+    }
+
+    #[inline(always)]
+    pub fn write(addr: u32, value: u32) {
+        hw::peripheral_write(addr, value)
+    }
+}
+
 /// Writes to the debug console (semihosting). Not for Flight_Builds
 /// without a debugger (the Link_Checker reports it there).
 pub fn debug(s: &[u8]) {

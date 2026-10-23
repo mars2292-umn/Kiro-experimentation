@@ -16,7 +16,31 @@ pub struct Peripheral {
     pub kernel_owned: bool,
     /// EasyDMA-capable: unprivileged access is read-only (DD-08).
     pub easy_dma: bool,
+    /// The EasyDMA registers (DD-08), for EasyDMA-capable peripherals.
+    pub dma: Option<&'static DmaRegs>,
 }
+
+/// The EasyDMA registers of a peripheral class, as offsets from its base
+/// (nRF52840 PS): `channels` are (pointer, count) pairs (count 0 when the
+/// peripheral has none), `stops` the stop task registers, `lists` the
+/// list-mode registers (cleared at boot and never set, DD-08).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DmaRegs {
+    pub channels: &'static [(u32, u32)],
+    pub stops: &'static [u32],
+    pub lists: &'static [u32],
+}
+
+/// RADIO (PS 6.20): PACKETPTR, length from PCNF1; DISABLE stops.
+pub const RADIO_DMA: DmaRegs = DmaRegs { channels: &[(0x504, 0)], stops: &[0x010], lists: &[] };
+/// UARTE (PS 6.34): RXD and TXD; STOPRX and STOPTX.
+pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014, 0x01C], lists: &[] };
+/// SPIM (PS 6.26): RXD and TXD with LIST registers; STOP.
+pub const SPIM_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014], lists: &[0x53C, 0x54C] };
+/// SAADC (PS 6.23): RESULT; STOP.
+pub const SAADC_DMA: DmaRegs = DmaRegs { channels: &[(0x62C, 0x630)], stops: &[0x004], lists: &[] };
+/// PWM (PS 6.17): SEQ[0] and SEQ[1]; STOP.
+pub const PWM_DMA: DmaRegs = DmaRegs { channels: &[(0x500, 0x504), (0x520, 0x524)], stops: &[0x004], lists: &[] };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryRegion {
@@ -60,22 +84,22 @@ pub struct Target {
 }
 
 const NRF52840_PERIPHERALS: &[Peripheral] = &[
-    Peripheral { name: "CLOCK", window_base: 0x4000_0000, window_size: 0x1000, irq: Some(0), kernel_owned: true, easy_dma: false },
-    Peripheral { name: "RADIO", window_base: 0x4000_1000, window_size: 0x1000, irq: Some(1), kernel_owned: false, easy_dma: true },
-    Peripheral { name: "UARTE0", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: true },
-    Peripheral { name: "SPIM0", window_base: 0x4000_3000, window_size: 0x1000, irq: Some(3), kernel_owned: false, easy_dma: true },
-    Peripheral { name: "SPIM1", window_base: 0x4000_4000, window_size: 0x1000, irq: Some(4), kernel_owned: false, easy_dma: true },
-    Peripheral { name: "GPIOTE", window_base: 0x4000_6000, window_size: 0x1000, irq: Some(6), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "SAADC", window_base: 0x4000_7000, window_size: 0x1000, irq: Some(7), kernel_owned: false, easy_dma: true },
-    Peripheral { name: "TIMER0", window_base: 0x4000_8000, window_size: 0x1000, irq: Some(8), kernel_owned: true, easy_dma: false },
-    Peripheral { name: "TIMER1", window_base: 0x4000_9000, window_size: 0x1000, irq: Some(9), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "TIMER2", window_base: 0x4000_A000, window_size: 0x1000, irq: Some(10), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "RTC0", window_base: 0x4000_B000, window_size: 0x1000, irq: Some(11), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "WDT", window_base: 0x4001_0000, window_size: 0x1000, irq: Some(16), kernel_owned: true, easy_dma: false },
-    Peripheral { name: "RTC1", window_base: 0x4001_1000, window_size: 0x1000, irq: Some(17), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "PWM0", window_base: 0x4001_C000, window_size: 0x1000, irq: Some(28), kernel_owned: false, easy_dma: true },
-    Peripheral { name: "PPI", window_base: 0x4001_F000, window_size: 0x1000, irq: None, kernel_owned: true, easy_dma: false },
-    Peripheral { name: "P0", window_base: 0x5000_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false },
+    Peripheral { name: "CLOCK", window_base: 0x4000_0000, window_size: 0x1000, irq: Some(0), kernel_owned: true, easy_dma: false, dma: None },
+    Peripheral { name: "RADIO", window_base: 0x4000_1000, window_size: 0x1000, irq: Some(1), kernel_owned: false, easy_dma: true, dma: Some(&RADIO_DMA) },
+    Peripheral { name: "UARTE0", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: true, dma: Some(&UARTE_DMA) },
+    Peripheral { name: "SPIM0", window_base: 0x4000_3000, window_size: 0x1000, irq: Some(3), kernel_owned: false, easy_dma: true, dma: Some(&SPIM_DMA) },
+    Peripheral { name: "SPIM1", window_base: 0x4000_4000, window_size: 0x1000, irq: Some(4), kernel_owned: false, easy_dma: true, dma: Some(&SPIM_DMA) },
+    Peripheral { name: "GPIOTE", window_base: 0x4000_6000, window_size: 0x1000, irq: Some(6), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "SAADC", window_base: 0x4000_7000, window_size: 0x1000, irq: Some(7), kernel_owned: false, easy_dma: true, dma: Some(&SAADC_DMA) },
+    Peripheral { name: "TIMER0", window_base: 0x4000_8000, window_size: 0x1000, irq: Some(8), kernel_owned: true, easy_dma: false, dma: None },
+    Peripheral { name: "TIMER1", window_base: 0x4000_9000, window_size: 0x1000, irq: Some(9), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "TIMER2", window_base: 0x4000_A000, window_size: 0x1000, irq: Some(10), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "RTC0", window_base: 0x4000_B000, window_size: 0x1000, irq: Some(11), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "WDT", window_base: 0x4001_0000, window_size: 0x1000, irq: Some(16), kernel_owned: true, easy_dma: false, dma: None },
+    Peripheral { name: "RTC1", window_base: 0x4001_1000, window_size: 0x1000, irq: Some(17), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "PWM0", window_base: 0x4001_C000, window_size: 0x1000, irq: Some(28), kernel_owned: false, easy_dma: true, dma: Some(&PWM_DMA) },
+    Peripheral { name: "PPI", window_base: 0x4001_F000, window_size: 0x1000, irq: None, kernel_owned: true, easy_dma: false, dma: None },
+    Peripheral { name: "P0", window_base: 0x5000_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false, dma: None },
 ];
 
 /// nRF52840 (Cortex-M4F r0p1): 64 MHz CPU, TIMER0 at 16 MHz as the time
@@ -103,12 +127,12 @@ pub const NRF52840: Target = Target {
 };
 
 const MPS2_PERIPHERALS: &[Peripheral] = &[
-    Peripheral { name: "CMSDK_TIMER0", window_base: 0x4000_0000, window_size: 0x1000, irq: Some(8), kernel_owned: true, easy_dma: false },
-    Peripheral { name: "CMSDK_TIMER1", window_base: 0x4000_1000, window_size: 0x1000, irq: Some(9), kernel_owned: true, easy_dma: false },
-    Peripheral { name: "CMSDK_DUALTIMER", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(10), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "CMSDK_UART0", window_base: 0x4000_4000, window_size: 0x1000, irq: Some(0), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "CMSDK_UART1", window_base: 0x4000_5000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: false },
-    Peripheral { name: "CMSDK_GPIO0", window_base: 0x4001_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false },
+    Peripheral { name: "CMSDK_TIMER0", window_base: 0x4000_0000, window_size: 0x1000, irq: Some(8), kernel_owned: true, easy_dma: false, dma: None },
+    Peripheral { name: "CMSDK_TIMER1", window_base: 0x4000_1000, window_size: 0x1000, irq: Some(9), kernel_owned: true, easy_dma: false, dma: None },
+    Peripheral { name: "CMSDK_DUALTIMER", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(10), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "CMSDK_UART0", window_base: 0x4000_4000, window_size: 0x1000, irq: Some(0), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "CMSDK_UART1", window_base: 0x4000_5000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: false, dma: None },
+    Peripheral { name: "CMSDK_GPIO0", window_base: 0x4001_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false, dma: None },
 ];
 
 /// QEMU `mps2-an386` (Cortex-M4 model): 25 MHz CPU and time base (CMSDK

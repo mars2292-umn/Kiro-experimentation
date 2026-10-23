@@ -172,6 +172,12 @@ impl<S: System> Tables for SysTables<S> {
     fn tick_hz(&self) -> u64 {
         S::TICK_HZ
     }
+    fn dma_count(&self) -> usize {
+        S::DMA_COUNT
+    }
+    fn dma(&self, i: usize) -> plan::DmaCfg {
+        S::dma(i)
+    }
 }
 
 // The shells below are the only Kernel_Arch code outside `verus!` besides
@@ -276,6 +282,8 @@ pub fn usage_fault<S: System>(in_kernel: bool) -> ReturnPlan {
 
 pub fn hard_fault<S: System>() -> ! {
     trace(b"hardfault", hw::mmio_read(unsafe_module::hw::addr::CFSR));
+    trace(b"hfsr", hw::mmio_read(0xE000_ED2C));
+    trace(b"mmfar", hw::mmio_read(0xE000_ED34));
     let k = S::kernel().get();
     k.fault(EV_HARDFAULT, true);
     S::safe_state()
@@ -300,7 +308,27 @@ pub fn panic<S: System>(in_kernel: bool) -> ! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::sync::atomic::{AtomicBool, Ordering};
     use unsafe_module::{hw, sim};
+
+    /// The simulated register file is one static; tests that use it run
+    /// one at a time (a spin lock: the Kernel crate links no `std`, R6.1).
+    static SIM_BUSY: AtomicBool = AtomicBool::new(false);
+
+    struct SimGuard;
+
+    impl Drop for SimGuard {
+        fn drop(&mut self) {
+            SIM_BUSY.store(false, Ordering::Release);
+        }
+    }
+
+    fn sim_lock() -> SimGuard {
+        while SIM_BUSY.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
+            core::hint::spin_loop();
+        }
+        SimGuard
+    }
 
     fn expected_board() -> plan::BootExpect {
         plan::BootExpect { priority_bits: 3, cpuid: 0x410F_C241, hfclk_xtal: true, fpu_needed: true }
@@ -325,6 +353,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "board-qemu-mps2"))]
     fn boot_checks_pass_on_the_expected_board_and_fail_one_bit_per_check() {
+        let _sim = sim_lock();
         let expect = expected_board();
         simulate_expected_board();
         assert_eq!(hw::boot_checks(&expect), 0);
@@ -374,6 +403,7 @@ mod tests {
     #[test]
     #[cfg(not(feature = "board-qemu-mps2"))]
     fn boot_info_reports_the_debugger_and_a_watchdog_reset_and_clears_the_reason() {
+        let _sim = sim_lock();
         sim::reset();
         assert_eq!(hw::boot_info(), 0);
         sim::write(hw::addr::DHCSR, 1);
@@ -388,6 +418,7 @@ mod tests {
     /// and fed with the reload request.
     #[test]
     fn watchdog_start_and_feed_write_the_wdt_registers() {
+        let _sim = sim_lock();
         sim::reset();
         hw::watchdog_start(16_384);
         let w = hw::addr::NRF_WDT;

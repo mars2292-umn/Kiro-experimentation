@@ -112,7 +112,8 @@ fn mpu_load_writes_every_region() {
     let view = View { regions };
     let before = super::sim::write_count();
     hw::mpu_load(&view);
-    assert!(super::sim::write_count() == before + 2 * MPU_REGIONS as u32);
+    // Four writes per region: select, disable, base, attributes.
+    assert!(super::sim::write_count() == before + 4 * MPU_REGIONS as u32);
     // The last pair written is region 7 (disabled): RASR 0.
     assert!(super::sim::read(hw::addr::MPU_RASR) == 0);
 }

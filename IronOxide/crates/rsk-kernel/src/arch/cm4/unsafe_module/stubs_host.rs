@@ -19,4 +19,10 @@ pub fn svc_now() -> u64 {
     0
 }
 
+pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
+    sim::write(0xFFFF_FFF8, i as u32);
+    sim::write(0xFFFF_FFFC, ptr.wrapping_add(len));
+    true
+}
+
 pub fn svc_panic() {}

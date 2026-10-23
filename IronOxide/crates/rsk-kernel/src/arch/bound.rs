@@ -334,6 +334,15 @@ pub trait KernelOps: Sized {
     fn boot_info(&mut self, debugger: bool, watchdog_reset: bool)
         requires old(self).inv(),
         ensures final(self).inv();
+    /// Whether Partition `p` is stopped (R14.5): its interrupt sources stay disabled.
+    fn partition_stopped(&self, p: u8) -> bool
+        requires self.inv();
+    /// R17.1: whether `[ptr, ptr + len)` is DMA-permitted memory of Partition `p`.
+    spec fn dma_permitted_spec(&self, p: int, ptr: int, len: int) -> bool;
+    fn dma_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool)
+        requires self.inv(),
+        ensures ok == ((p as int) < self.partition_count_spec() && self.dma_permitted_spec(p as int, ptr as int, len as int));
+    spec fn partition_count_spec(&self) -> int;
 }
 
 impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const NS: usize, const NE: usize> KernelOps
@@ -370,6 +379,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn task_eligible(&self, t: int) -> bool {
         self.kernel.sched.eligible(&self.cfg, t)
+    }
+
+    open spec fn dma_permitted_spec(&self, p: int, ptr: int, len: int) -> bool {
+        self.layout.partitions[p].dma_permitted(ptr, len)
+    }
+
+    open spec fn partition_count_spec(&self) -> int {
+        NP as int
     }
 
     fn task_count(&self) -> (n: usize) {
@@ -605,6 +622,20 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn boot_info(&mut self, debugger: bool, watchdog_reset: bool) {
         self.kernel.boot_info(&self.cfg, debugger, watchdog_reset);
+    }
+
+    fn partition_stopped(&self, p: u8) -> bool {
+        if (p as usize) < NP { self.kernel.stopped[p as usize] } else { true }
+    }
+
+    fn dma_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool) {
+        if (p as usize) >= NP {
+            return false;
+        }
+        proof {
+            assert(self.layout.partition_ok(p as int));
+        }
+        self.layout.partitions[p as usize].dma_permitted_exec(ptr, len)
     }
 }
 

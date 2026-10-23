@@ -41,6 +41,8 @@ pub const SLOT_DEFER: u8 = 3;
 pub const SLOT_BUDGET: u8 = 4;
 pub const SLOT_HOUSEKEEPING: u8 = 5;
 pub const SLOT_END: u8 = 6;
+/// DD-06: the MIT window of a Sporadic_Task whose Job ended inside it is over; its source is unmasked.
+pub const SLOT_UNMASK: u8 = 7;
 
 /// Intake decisions (R10.1 to R10.3).
 pub const INTAKE_ACCEPT: u8 = 0;
@@ -394,6 +396,20 @@ impl<const NT: usize> Timing<NT> {
     /// Property 9 (source masking): the source is unmasked only once its
     /// MIT window has elapsed and its Job has ended (DD-06). Returns
     /// whether it was unmasked.
+    /// Unmasks the source of `t` (DD-06): the MIT window is over and its
+    /// Job has ended (`SLOT_UNMASK`), or the Partition is restarted and the
+    /// window is re-armed from the kept MIT state.
+    pub fn unmask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
+        requires old(self).inv(cfg), (t as int) < NT,
+        ensures final(self).inv(cfg), !final(self).masked[t as int],
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).masked[u] == old(self).masked[u],
+            final(self).k == old(self).k, final(self).nominal == old(self).nominal,
+            final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
+            final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
+    {
+        self.masked[t as usize] = false;
+    }
+
     pub fn try_unmask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64, job_ended: bool) -> (unmasked: bool)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
         ensures final(self).inv(cfg),

@@ -21,6 +21,7 @@ pub mod cm4;
 
 pub use bound::{config_crc, Bound, Crc32, JobInfo, KernelOps};
 pub use cm4::entry::Binding;
+pub use cm4::plan::DmaCfg;
 
 use crate::logic::kernel::Kernel;
 use crate::logic::mpu::View;
@@ -129,4 +130,7 @@ pub trait System: 'static {
     const FPU_NEEDED: bool;
     /// Time-base ticks per second (R21.2), for the watchdog reload (ORQ-31).
     const TICK_HZ: u64;
+    /// The EasyDMA channels of every Partition's peripherals (DD-08, R17).
+    const DMA_COUNT: usize;
+    fn dma(i: usize) -> DmaCfg;
 }
