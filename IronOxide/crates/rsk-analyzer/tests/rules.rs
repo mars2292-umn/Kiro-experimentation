@@ -321,10 +321,13 @@ fn r29_2_blocking_is_the_longest_lower_priority_critical_section_with_a_ceiling_
     // work 5,000 of R14.10, whichever is larger).
     assert_eq!((by("part0.sensor").b, by("part0.sensor").b_source.as_str()), (5_000, "Partition stop/restart work (R14.10)"));
     assert_eq!(by("part1.log").b, 5_000);
-    // The cross-Partition clause of R29.2 (a site of another Partition that
-    // stops overrunning Jobs) has no instance in the Ravenscar variant:
-    // a Resource is accessed by one Partition only (PR-30), so a lower
-    // locker is always of the same Partition.
+    // The cross-Partition clause of R29.2 (a site of a lower Task of another
+    // Partition that stops overrunning Jobs: Budget_l + Δ_detect + Δ_enforce)
+    // has no instance in the demo: the only Resource's Ceiling (7) blocks
+    // Tasks below it, but every lower Task that is not an accessor (pulse,
+    // filter, log, sampler) has a Priority below sensor's, so sensor's site
+    // is never a lower locker of another Partition's Task. The clause is
+    // exercised by the simulator (tests/properties.rs, R32.5).
     assert!(m.resources.iter().all(|r| r.accessors.iter().all(|a| a.starts_with(&format!("{}.", r.partition)))));
 }
 

@@ -137,6 +137,7 @@ pub fn analyze(
                 vec![],
                 rejections.iter().map(ToString::to_string).collect(),
                 &[],
+                &[],
             );
             return Analysis {
                 report,
@@ -204,6 +205,7 @@ pub fn analyze(
         prepared.omitted_terms.clone(),
         rejections,
         &prepared.placeholders,
+        &unprotected_partitions(model),
     );
     Analysis {
         report,
@@ -211,6 +213,20 @@ pub fn analyze(
         uppaal_query,
         exit: if all_ok { EXIT_PASS } else { EXIT_FAIL },
     }
+}
+
+/// R18.9: when more than one Partition has the highest Criticality_Level
+/// (A before B before C) and any of them declares an Overrun_Response that
+/// lets an overrunning Job continue, those Partitions, each marked
+/// `(continues)` or `(stops)`, are not protected from one another by
+/// R18.7; the report must say so.
+pub fn unprotected_partitions(model: &TaskModel) -> Vec<String> {
+    let Some(top) = model.partitions.iter().map(|p| p.level.as_str()).min() else { return vec![] };
+    let highest: Vec<&rsk_model::task_model::Partition> = model.partitions.iter().filter(|p| p.level == top).collect();
+    if highest.len() < 2 || !highest.iter().any(|p| p.overrun == "RECORD_AND_CONTINUE") {
+        return vec![];
+    }
+    highest.iter().map(|p| format!("{} ({})", p.id, if p.overrun == "RECORD_AND_CONTINUE" { "continues" } else { "stops" })).collect()
 }
 
 /// Placeholder timing inputs for a binary without measurements (pre-

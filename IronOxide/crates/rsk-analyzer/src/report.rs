@@ -28,12 +28,20 @@ pub fn build(
     omitted_terms: Vec<String>,
     rejections: Vec<String>,
     placeholders: &[String],
+    unprotected_partitions: &[String],
 ) -> Report {
     let mut statements = vec![
         "This analysis assumes a single core (R27.5): it is no evidence for a multi-core configuration.".to_string(),
         "Interference bounds assume the Overrun handling of R18 (R18.9): a Task of a Partition whose Overrun_Response stops overrunning Jobs is charged Budget + Δ_detect + Δ_enforce + its longest Critical_Section; other Tasks are charged their Budget.".to_string(),
         "Every offset is treated as zero (synchronous release, R29.1); release jitter J_rel applies to every Task.".to_string(),
     ];
+    if !unprotected_partitions.is_empty() {
+        statements.push(format!(
+            "R18.9: more than one Partition has the highest Criticality_Level and {} let(s) an overrunning Job continue (RECORD_AND_CONTINUE): R18.7 does not protect the Partitions {} from one another's Overruns.",
+            unprotected_partitions.iter().filter(|p| p.ends_with(" (continues)")).count(),
+            unprotected_partitions.join(", ")
+        ));
+    }
     if !placeholders.is_empty() {
         statements.push(format!(
             "PLACEHOLDER TIMING DATA: {} input value(s) carry the method `placeholder` (no measurement or analysis): {}. This report is not timing evidence.",
