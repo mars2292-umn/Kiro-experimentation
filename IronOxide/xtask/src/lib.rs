@@ -47,6 +47,7 @@ pub mod rebuild;
 pub mod sandbox;
 pub mod tokens;
 pub mod tools;
+pub mod trace;
 pub mod units;
 pub mod verify;
 pub mod workspace;

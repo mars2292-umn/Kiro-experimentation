@@ -57,6 +57,11 @@ commands:
       board with semihosting; the exit status is the binary's semihosting
       exit code (0 = the demo's safe-state report found every expectation
       met). Output is printed and saved under target/qemu/.
+  trace [--check] [--evidence-dir <dir>]
+      Write docs/traceability_matrix.md: every acceptance criterion with its
+      design, tasks, allocation rows, code, and Evidence_Items (R50.5), the
+      criteria without an Evidence_Item (R50.6), and the per-criterion list
+      of R43.5. The evidence store defaults to target/xtask-verify/evidence.
   conformance [--only <case id>]
       Run the Profile_Conformance_Suite (docs/conformance_suite.toml) against
       the P1 demo built into target/conformance (R3.6, R3.7, R3.11).
@@ -78,6 +83,7 @@ fn main() -> ExitCode {
         "mutations" => mutations_command(rest),
         "confcheck-mutations" => confcheck_mutations_command(rest),
         "conformance" => conformance_command(rest),
+        "trace" => trace_command(rest),
         "gen" => gen_command(rest),
         "qemu" => qemu_command(rest),
         "probe-network" => match probe_network() {
@@ -264,6 +270,32 @@ fn conformance_command(args: &[String]) -> ExitCode {
     }
     println!("Evidence_Items in {}", target_dir.join("evidence").display());
     if ok && report.diagnostics.is_empty() { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+}
+
+fn trace_command(args: &[String]) -> ExitCode {
+    let mut check_only = false;
+    let mut evidence_dir: Option<PathBuf> = None;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--check" => check_only = true,
+            "--evidence-dir" => match args.next() {
+                Some(d) => evidence_dir = Some(PathBuf::from(d)),
+                None => return usage_error("--evidence-dir takes a directory"),
+            },
+            other => return usage_error(&format!("unknown trace option `{other}`")),
+        }
+    }
+    let root = xtask::repository_root();
+    let evidence_dir = evidence_dir.unwrap_or_else(|| root.join("target").join("xtask-verify").join("evidence"));
+    let mut report = Report::default();
+    match xtask::trace::run(&root, &evidence_dir, check_only, &mut report) {
+        Ok(_) => print_report(&report, if check_only { "traceability matrix is current" } else { "traceability matrix written" }),
+        Err(e) => {
+            eprintln!("trace: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn mutations_command(args: &[String]) -> ExitCode {

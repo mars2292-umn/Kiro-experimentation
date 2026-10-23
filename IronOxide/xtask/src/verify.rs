@@ -581,7 +581,25 @@ pub fn run(root: &Path, options: Options) -> bool {
     // ------------------------------------------------------- 11. evidence
     job.heading("Evidence_Items (R50.3)");
     write_step_evidence(&ws, &mut store, &manifest_id, &job.outcomes, manifest.as_ref(), &mut report);
-    job.flush(&mut report, "check-evidence", "Evidence_Items", &["R50.3"], vec![]);
+    // R50.6: the criteria without an Evidence_Item in this store, and the
+    // matrix of R50.5 as an artifact (the committed docs/traceability_matrix.md
+    // is written by `cargo xtask trace` from the same sources).
+    match crate::trace::build(root, &store.dir) {
+        Ok(m) => {
+            let text = crate::trace::render(&m, &ws.rel(&store.dir));
+            let _ = store.write_artifact("traceability_matrix.md", &text);
+            let missing = m.without_evidence();
+            let early: Vec<&str> = missing.iter().filter(|c| c.phase.starts_with("P1") || c.phase.starts_with("P2")).map(|c| c.id.as_str()).collect();
+            report.note(format!(
+                "R50.6: {} of {} acceptance criteria have no Evidence_Item in this store ({} of Phase P1 or P2; traceability_matrix.md lists them with their tasks)",
+                missing.len(),
+                m.criteria.len(),
+                early.len()
+            ));
+        }
+        Err(e) => report.warn(format!("traceability matrix not built: {e}")),
+    }
+    job.flush(&mut report, "check-evidence", "Evidence_Items", &["R50.3", "R50.5", "R50.6"], vec!["cargo xtask trace".to_string()]);
     // This step's own item exists only once its outcome is recorded, so it is
     // written last, after the items of the steps above.
     if let Some(step) = job.outcomes.last() {
