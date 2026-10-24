@@ -1,0 +1,5 @@
+# Local tool checkouts next to the projects, not part of the repository:
+# the Creusot build that `cargo creusot` runs from (toolchain/decision.toml
+# [creusot] in IronOxide records its commit) and an earlier duplicate clone.
+/creusot/
+/JSON-Schema-Infer/creusot/
