@@ -90,6 +90,8 @@ mod tests {
         Time { value, unit }
     }
 
+    /// R21.2: times convert to ticks and cycles, and an exact conversion is not
+    /// reported as a changed value.
     #[test]
     fn exact_conversions_are_not_reported_as_changes() {
         assert_eq!(to_ticks(t(10, TimeUnit::Ms), 16_000_000, 64_000_000, Rounding::Down), Some((160_000, false)));
@@ -97,6 +99,8 @@ mod tests {
         assert_eq!(to_ticks(t(5, TimeUnit::Ticks), 1, 1, Rounding::Down), Some((5, false)));
     }
 
+    /// R21.2: inexact conversions round Budgets up, periods and deadlines down,
+    /// offsets to the nearest tick, and are reported as changed.
     #[test]
     fn rounding_follows_property_14() {
         // 1 ns at 16 MHz is 0.016 ticks: a period rounds down to 0, a budget rounds up.

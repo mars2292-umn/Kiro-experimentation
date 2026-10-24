@@ -212,7 +212,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R15.3 | — | — | ○10.2 | crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs; profile/profile.toml | — |
 | R15.4 | — | — | ○10.6 | — | — |
 | R15.5 | — | — | ○10.5 | — | — |
-| R15.6 | — | Reuse and Deviation Record | ○10.2 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/target.rs; +3 | check-config-p1-demo |
+| R15.6 | — | Reuse and Deviation Record | ○10.2 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/lib.rs; +4 | check-config-p1-demo |
 | R15.7 | — | — | ○10.2 | crates/rsk-gen/src/validate.rs | — |
 
 ### Requirement 16: Spatial isolation (Phase P1)
@@ -292,7 +292,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R22.1 | — | — | ○10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs; +1 | — |
-| R22.2 | — | Design decisions; Priority and privilege model (DD-01, DD-02) | ○10.2 | crates/rsk-gen/src/validate.rs; profile/profile.toml | — |
+| R22.2 | — | Design decisions; Priority and privilege model (DD-01, DD-02) | ○10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; profile/profile.toml | — |
 | R22.3 | — | — | ○10.2 | crates/rsk-gen/src/validate.rs; profile/profile.toml | — |
 | R22.4 | — | — | ○10.2 | crates/rsk-gen/src/syntax.rs; profile/profile.toml | — |
 | R22.5 | — | — | ○10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs | — |
@@ -303,10 +303,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R23.1 | — | Reuse and Deviation Record | ○10.3 | crates/rsk-gen/src/derive.rs; crates/rsk-logic/src/logic/mod.rs; profile/profile.toml | — |
-| R23.2 | — | Property 13 | ○10.3 | crates/rsk-gen/src/derive.rs | — |
+| R23.1 | — | Reuse and Deviation Record | ○10.3 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; +2 | — |
+| R23.2 | — | Property 13 | ○10.3 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/lib.rs | — |
 | R23.3 | — | — | ○10.3 | crates/rsk-logic/src/logic/sched.rs; profile/profile.toml | — |
-| R23.4 | — | — | ○10.3 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-logic/src/logic/mod.rs; +2 | — |
+| R23.4 | — | — | ○10.3 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/lib.rs; +4 | — |
 | R23.5 | — | Task_Model (excerpt) | ○10.3 | crates/rsk-gen/src/model.rs | — |
 | R23.6 | — | Property 13 | ○10.3 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/lib.rs; xtask/src/verify.rs | check-static-checks |
 
@@ -329,7 +329,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R25.2 | — | — | ○10.6 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/derive.rs; +2 | check-config-p1-demo; check-config-step |
 | R25.3 | — | — | ○10.6 | crates/rsk-gen/src/model.rs | — |
 | R25.4 | — | Task_Model (excerpt) | ○10.1 | crates/rsk-gen/src/json.rs; crates/rsk-gen/src/model.rs; crates/rsk-model/src/lib.rs | — |
-| R25.5 | — | Module boundaries; Property 15 | ○10.1; ✓13.1 | crates/rsk-model/src/task_model.rs; xtask/src/verify.rs | test-workspace-tests |
+| R25.5 | — | Module boundaries; Property 15 | ○10.1; ✓13.1 | crates/rsk-model/src/lib.rs; crates/rsk-model/src/task_model.rs; xtask/src/verify.rs | test-workspace-tests |
 | R25.6 | — | — | ○10.1 | crates/rsk-analyzer/src/lib.rs; crates/rsk-model/src/lib.rs; crates/rsk-model/src/schema.rs | — |
 
 ### Requirement 26: Independent configuration check (Phase P2)
@@ -349,7 +349,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R27.1 | — | — | ○10.7 | crates/rsk-gen/src/decl.rs | — |
-| R27.2 | — | — | ○10.7 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-gen/src/validate.rs | — |
+| R27.2 | — | — | ○10.7 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs | — |
 | R27.3 | — | — | ○10.7 | profile/profile.toml; xtask/src/lib.rs; xtask/src/profile_gen.rs; +1 | check-static-checks |
 | R27.4 | — | Trust-Base Analysis | ○10.7 | crates/rsk-logic/src/logic/mod.rs | — |
 | R27.5 | — | — | ○10.7 | crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs | — |
@@ -385,7 +385,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R30.1 | — | — | ✓15.3 | crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs; crates/rsk-model/src/lib.rs | test-workspace-tests |
+| R30.1 | — | — | ✓15.3 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs; +1 | test-workspace-tests |
 | R30.2 | — | — | ✓15.3 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/src/report.rs; +2 | test-workspace-tests |
 | R30.3 | — | — | ✓15.3 | crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs; crates/rsk-model/src/wcet.rs | test-workspace-tests |
 | R30.4 | — | Error Handling | ✓15.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/main.rs; +1 | test-workspace-tests |
@@ -413,7 +413,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R32.2 | — | Property 17 | ✓15.4 | crates/rsk-analyzer/tests/properties.rs | test-workspace-tests |
 | R32.3 | — | Property 17 | ✓15.4 | crates/rsk-analyzer/tests/properties.rs | test-workspace-tests |
 | R32.4 | — | — | ✓15.4 | crates/rsk-analyzer/tests/properties.rs | test-workspace-tests |
-| R32.5 | — | Property 18; Property 5 | ✓15.4 | crates/rsk-analyzer/tests/properties.rs; crates/rsk-analyzer/tests/rules.rs | test-workspace-tests |
+| R32.5 | — | Property 18; Property 5 | ✓15.4 | crates/rsk-analyzer/tests/properties.rs | test-workspace-tests |
 | R32.6 | — | Property 18 | ○16.2 | — | — |
 | R32.7 | — | — | ✓15.4 | crates/rsk-analyzer/tests/properties.rs | test-workspace-tests |
 
@@ -422,7 +422,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R33.1 | — | — | ○10.1; ○19.3 | crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/lib.rs; crates/rsk-model/src/wcet.rs; +1 | — |
-| R33.2 | — | Module boundaries; Property 15 | ○10.1 | xtask/src/verify.rs | test-workspace-tests |
+| R33.2 | — | Module boundaries; Property 15 | ○10.1 | crates/rsk-model/src/lib.rs; xtask/src/verify.rs | test-workspace-tests |
 | R33.3 | — | — | ✓1.3 | crates/rsk-digest/Cargo.toml; crates/rsk-digest/src/lib.rs; crates/rsk-elf/src/lib.rs; +4 | check-build-manifest; test-workspace-tests |
 | R33.4 | — | — | ○19.3 | crates/rsk-analyzer/src/inputs.rs; xtask/src/manifest.rs | — |
 | R33.5 | — | WCET and structural coverage | ○24.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs | test-workspace-tests |
@@ -445,7 +445,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R35.1 | — | — | ✓11.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; profile/profile.toml; +1 | check-profile-lint |
+| R35.1 | — | — | ✓11.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-lint/tests/ui.rs; +2 | check-profile-lint |
 | R35.2 | — | — | ○17.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-lint/src/verus.rs; +2 | check-profile-lint; proof-app-creusot; proof-app-step |
 | R35.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | crates/rsk-lint/src/lib.rs; crates/rsk-macros/src/lib.rs; profile/profile.toml; +1 | check-profile-lint |
 | R35.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | — | — |
@@ -561,9 +561,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R46.1 | — | — | ○8.1 | — | — |
-| R46.2 | — | — | ○8.1 | xtask/src/verify.rs | proof-app-creusot; proof-app-step |
+| R46.2 | — | Application prover: Creusot (R46, ORQ-10) | ○8.1 | xtask/src/manifest.rs; xtask/src/tools.rs; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
 | R46.3 | P-23 | — | ○17.1 | profile/core_subset.toml; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
-| R46.4 | P-23 | Application prover: Creusot (R46, ORQ-10) | ○17.1 | xtask/src/verify.rs | proof-app-creusot; proof-app-step |
+| R46.4 | P-23 | App_Declaration and generation pipeline (Component C); Application prover: Creusot (R46, ORQ-10) | ○17.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen/partition_part0.rs; apps/p1-demo/gen/partition_part2.rs; +8 | proof-app-creusot; proof-app-step; test-workspace-tests |
 | R46.5 | — | — | ○17.1; ○17.3 | — | — |
 
 ### Requirement 47: Interleaving tests with Loom and Shuttle (Phase P2)
@@ -671,7 +671,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R57.1 | — | — | ✓2.2 | profile/core_subset.toml; profile/profile.toml; xtask/src/profile_gen.rs; +1 | check-static-checks |
-| R57.2 | — | — | ✓11.1 | crates/rsk-lint/src/core_subset.rs; crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; +2 | check-profile-lint |
+| R57.2 | — | — | ✓11.1 | crates/rsk-lint/src/core_subset.rs; crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; +3 | check-profile-lint |
 | R57.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓12.3 | crates/rsk-link/src/scan.rs; crates/rsk-lint/src/lib.rs; profile/core_subset.toml; +2 | analysis-stack-p1-demo |
 | R57.4 | — | — | ✓2.2 | profile/core_subset.toml; xtask/src/checks/registers.rs | — |
 | R57.5 | — | — | ✓2.2 | profile/core_subset.toml; xtask/src/profile_gen.rs; xtask/src/verify.rs | check-static-checks |

@@ -149,6 +149,8 @@ mod tests {
         }
     }
 
+    /// R25.1, R25.5: the Generator's Task_Model conforms to the published schema
+    /// and reads back into an equal model that prints byte-identically.
     #[test]
     fn the_generated_demo_model_conforms_and_round_trips() {
         let model = read_task_model(DEMO).unwrap_or_else(|e| panic!("{e}"));
@@ -163,6 +165,8 @@ mod tests {
         assert_eq!(printed, DEMO);
     }
 
+    /// R25.6: a document that fails the schema is rejected with the JSON path of
+    /// each violation, and an unsupported schema version is rejected as such.
     #[test]
     fn schema_violations_name_their_path_and_versions_are_checked() {
         let bad = DEMO.replace("\"priority\": 7", "\"priority\": 9");
@@ -176,6 +180,8 @@ mod tests {
         assert!(matches!(read_task_model(&extra), Err(Rejection::Schema(_))));
     }
 
+    /// R33.2: a printed WCET_Record set (and Kernel_Timing_Parameters set) reads
+    /// back equal to the original.
     #[test]
     fn wcet_and_timing_documents_round_trip() {
         let set = WcetSet {

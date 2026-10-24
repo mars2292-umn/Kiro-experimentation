@@ -617,6 +617,8 @@ mod tests {
         }
     "#;
 
+    /// R21.1: the surface syntax declares the Target, Profile_Variant,
+    /// Partitions, Tasks and Resources, and the result generates.
     #[test]
     fn parses_the_demo_declaration() {
         let parsed = parse_app(DEMO.parse().unwrap()).unwrap();
@@ -631,6 +633,7 @@ mod tests {
         }
     }
 
+    /// R21.2: a time quantity without an explicit unit is rejected.
     #[test]
     fn a_time_without_unit_is_rejected() {
         let src = DEMO.replace("period = 10.ms()", "period = 10");
@@ -638,6 +641,9 @@ mod tests {
         assert!(e.to_string().contains("explicit unit"), "{e}");
     }
 
+    /// R21.1, R21.2, R23.1, R23.4: sporadic Tasks with interrupt and signal
+    /// Release_Sources, MIT policy and FPU use are accepted; the Budget is
+    /// converted to cycles, the Ceiling and the timer-slot count are derived.
     #[test]
     fn parses_sporadic_tasks_and_signals() {
         let src = r#"

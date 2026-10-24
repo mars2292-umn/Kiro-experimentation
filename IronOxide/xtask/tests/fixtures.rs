@@ -70,6 +70,7 @@ fn assert_diagnostics(diagnostics: &[Diagnostic], rules: &[Rule], expected: &[&[
     }
 }
 
+/// PR-20/R6.3, R6.4: the checks accept a workspace whose `unsafe` code and assembly lie in the Kernel_Unsafe_Module with every construct justified (no false rejection).
 #[test]
 fn positive_fixture_passes_every_workspace_check() {
     let found = diagnostics("positive");

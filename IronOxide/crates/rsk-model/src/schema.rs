@@ -203,6 +203,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// R25.6: the validator reports each violated schema rule with its JSON path.
     #[test]
     fn reports_each_violation_with_its_path() {
         let schema = json!({

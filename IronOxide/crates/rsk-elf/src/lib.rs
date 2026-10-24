@@ -496,6 +496,8 @@ mod tests {
         assert!(elf.read_at(0x3000_0000, 1).is_err());
     }
 
+    /// R33.3: the hash input is the loadable sections only, so symbol names and
+    /// other metadata do not change the binary hash.
     #[test]
     fn loadable_image_follows_physical_addresses_and_excludes_metadata() {
         let elf = Elf::parse(sample()).expect("parses");

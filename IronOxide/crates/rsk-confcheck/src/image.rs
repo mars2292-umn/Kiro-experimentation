@@ -299,6 +299,8 @@ mod tests {
         assert_eq!(crc32(b""), 0);
     }
 
+    /// R26.4: the CONFIG tables are decoded from their binary image encoding,
+    /// and an image with bytes beyond the tables is rejected.
     #[test]
     fn a_synthetic_image_decodes_and_rejects_trailing_bytes() {
         let mut img = Vec::new();

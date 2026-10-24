@@ -23,6 +23,7 @@ members = [
     "crates/rsk-lint",
     "crates/rsk-confcheck",
     "crates/rsk-analyzer",
+    "crates/rsk-loom",
     "crates/rsk-wcet",
     "crates/rsk-wcet-agent",
     "crates/rsk-hil",
@@ -120,6 +121,8 @@ rsk-link = { targets = ["host"] }
 rsk-lint = { targets = ["host"] }
 rsk-confcheck = { targets = ["host"] }
 rsk-analyzer = { targets = ["host"] }
+# Host_Test_Harness (R47): the Loom and Shuttle model of the Kernel logic; host only.
+rsk-loom = { targets = ["host"] }
 rsk-wcet = { targets = ["host"] }
 # WCET_Harness target agent: runs on the Target in measurement builds only.
 rsk-wcet-agent = { targets = ["host", "thumbv7em-none-eabihf"] }

@@ -488,6 +488,9 @@ mod tests {
         assert!(v.is_empty(), "{v:?}");
     }
 
+    /// R6.6, PR-31: a floating-point arithmetic instruction or an FPSCR write
+    /// in Kernel code is reported (a data move is not), and a floating-point
+    /// instruction reachable from an FPU-free Task is reported.
     #[test]
     fn floating_point_classes_in_kernel_and_fpu_free_tasks() {
         let (_, mut f, r) = fixture(vec![("Reset", Realm::Kernel, vec![0x200]), ("_ZN10rsk_kernel4boot17h0000000000000000E", Realm::Kernel, vec![]), ("_ZN13p1_demo_part08rsk_jobs7control17h0000000000000000E", Realm::Partition, vec![0x400]), ("_ZN3rsk5debug17h0000000000000000E", Realm::Shared, vec![])]);
@@ -499,6 +502,9 @@ mod tests {
         assert!(v[0].message.contains("arithmetic") && v[1].message.contains("FPSCR") && v[2].message.contains("FPU-free Task `control`"));
     }
 
+    /// R16.3, R16.10, PR-22: a Task reaching Kernel code other than through an
+    /// SVC, a privileged instruction (msr BASEPRI, cpsid) reachable from a Task
+    /// body, and a materialised Private Peripheral Bus address are each reported.
     #[test]
     fn privileged_instructions_ppb_addresses_and_kernel_code_reached_by_tasks() {
         let (_, mut f, r) = fixture(vec![("Reset", Realm::Kernel, vec![]), ("_ZN10rsk_kernel4boot17h0000000000000000E", Realm::Kernel, vec![]), ("_ZN13p1_demo_part08rsk_jobs7control17h0000000000000000E", Realm::Partition, vec![0x400, 0x200]), ("_ZN3rsk5debug17h0000000000000000E", Realm::Shared, vec![])]);
@@ -510,6 +516,8 @@ mod tests {
         assert!(v[3].message.contains("0xe000ed08"));
     }
 
+    /// PR-18: an indirect call site in Kernel code is reported, naming the
+    /// function; shared code is not subject to the Kernel check.
     #[test]
     fn indirect_call_in_kernel_code() {
         let (_, mut f, r) = fixture(vec![("rsk_svc_rust", Realm::Kernel, vec![]), ("_ZN3rsk5debug17h0000000000000000E", Realm::Shared, vec![])]);
@@ -529,6 +537,9 @@ mod tests {
         assert_eq!(v.iter().map(|x| x.rule).collect::<Vec<_>>(), vec!["ORQ-32", "ORQ-32"], "{v:?}");
     }
 
+    /// R14.1, R55.4, PR-15, PR-19, PR-35: allocator symbols, unwinding symbols
+    /// and a second panic handler, a `vstd` symbol, and a disallowed crate's
+    /// symbols in the image are each reported with their restriction.
     #[test]
     fn allocator_unwinding_panic_handler_vstd_and_disallowed_crate_symbols() {
         let (_, f, r) = fixture(vec![("Reset", Realm::Kernel, vec![])]);
@@ -540,6 +551,8 @@ mod tests {
         assert!(v.iter().any(|x| x.message.contains("2 panic handlers")));
     }
 
+    /// R57.3, PR-21: a core symbol that maps to no Core_Subset item, and a
+    /// reachable symbol of an item scoped `unreachable`, are reported.
     #[test]
     fn core_symbols_map_to_the_core_subset_and_unreachable_items_stay_dead() {
         let (_, f, r) = fixture(vec![("Reset", Realm::Kernel, vec![0x200, 0x300, 0x400]), ("_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check", Realm::Shared, vec![]), ("_RNvMsa_NtCs7ldSeZOOJos_4core3fmtNtB5_9Formatter3pad", Realm::Shared, vec![]), ("_RNvNtCs7ldSeZOOJos_4core5slice5index", Realm::Shared, vec![])]);
@@ -550,6 +563,8 @@ mod tests {
         assert!(v[1].message.contains("core::slice::index") && v[1].message.contains("no Core_Subset item"));
     }
 
+    /// PR-19: Kernel code that panics explicitly, reachable from a Kernel entry
+    /// point, is reported; the compiler's implicit checks are notes, not violations.
     #[test]
     fn explicit_kernel_panics_are_violations_and_implicit_checks_are_notes() {
         let (_, f, r) = fixture(vec![("Reset", Realm::Kernel, vec![0x200, 0x300]), ("_ZN10rsk_kernel4boot17h0000000000000000E", Realm::Kernel, vec![0x400]), ("_RNvNtCs7ldSeZOOJos_4core9panicking18panic_bounds_check", Realm::Shared, vec![]), ("_RNvNtCs7ldSeZOOJos_4core9panicking9panic_fmt", Realm::Shared, vec![])]);

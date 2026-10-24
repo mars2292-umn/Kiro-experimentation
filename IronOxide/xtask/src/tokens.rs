@@ -737,6 +737,7 @@ mod tests {
             .collect()
     }
 
+    /// PR-20/R6.3: only an unconditional `#![forbid(unsafe_code)]` at the top of the module satisfies the rule; a `cfg_attr`-conditional or late attribute does not.
     #[test]
     fn detects_unconditional_forbid_only() {
         let attrs = leading_inner_attrs(&lex(
@@ -752,12 +753,14 @@ mod tests {
         assert!(!has_lint_level(&late, &["forbid"], "unsafe_code"));
     }
 
+    /// PR-20/R6.3: an `unsafe` block inside a macro invocation body (`verus!`) is found by the confinement scan.
     #[test]
     fn finds_unsafe_inside_macro_bodies() {
         let found = whats("verus! { pub fn f() { unsafe { core::ptr::null::<u8>().read() }; } }");
         assert_eq!(found, vec!["`unsafe` keyword"]);
     }
 
+    /// PR-20/R6.3: unsafe attributes (`no_mangle`, `export_name`, `link_section`, `naked`), global and naked assembly, and `allow(unsafe_code)` are found by the confinement scan.
     #[test]
     fn finds_unsafe_attributes_and_assembly() {
         let found = whats(
@@ -790,6 +793,7 @@ mod tests {
         assert!(found.is_empty(), "{found:?}");
     }
 
+    /// PR-36/R55.1: `#![feature]` attributes are found, including those nested inside `cfg_attr`, with their conditions.
     #[test]
     fn finds_feature_attributes_including_nested_cfg_attr() {
         let metas = feature_metas(&lex(
@@ -810,6 +814,7 @@ mod tests {
         );
     }
 
+    /// R6.1: `extern crate std` and `extern crate alloc` declarations are found with their `cfg` conditions, including inside modules.
     #[test]
     fn finds_extern_crates_with_their_cfg() {
         let found = extern_crates(&lex(
@@ -822,6 +827,7 @@ mod tests {
         assert_eq!(names, vec![("std", 1), ("alloc", 0), ("core", 0)]);
     }
 
+    /// PR-20/R6.3: `#[path]` and `include!` source inclusions, which bring in text the confinement scan does not cover, are found.
     #[test]
     fn finds_source_inclusions() {
         let found = source_inclusions(&lex(
@@ -845,6 +851,7 @@ mod tests {
         );
     }
 
+    /// PR-20/R6.4: the `unsafe` constructs that a Flight_Build compiles are found by kind and line; items under `cfg(kani)` or `cfg(test)` are not among them.
     #[test]
     fn finds_flight_unsafe_items_and_skips_cfg_gated_ones() {
         let cfg = CfgSet::from_rustc_print("target_os=\"none\"\n");
@@ -875,6 +882,7 @@ mod tests {
         assert_eq!(found[0].name.as_deref(), Some("a"));
     }
 
+    /// PR-20/R6.4: the `#[kani::proof]` harnesses and `verus!` functions that justification identifiers may link to are found by name.
     #[test]
     fn finds_kani_harnesses_and_verus_functions() {
         let src = "#[cfg(kani)] mod h { #[kani::proof] fn uj_001() {} #[kani::proof_for_contract(f)] fn uj_002() {} fn helper() {} }\n\

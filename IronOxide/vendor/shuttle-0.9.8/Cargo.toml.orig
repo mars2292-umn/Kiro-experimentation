@@ -1,0 +1,76 @@
+[package]
+name = "shuttle"
+version = "0.9.8"
+edition = "2021"
+license = "Apache-2.0"
+description = "A library for testing concurrent Rust code"
+repository = "https://github.com/awslabs/shuttle"
+keywords = ["concurrency", "lock", "thread", "async"]
+categories = ["asynchronous", "concurrency", "development-tools::testing"]
+readme = "../README.md"
+
+[dependencies]
+shuttle-engine = { path = "../shuttle-engine", version = "0.1.6" }
+shuttle-schedulers = { path = "../shuttle-schedulers", version = "0.1.1" }
+shuttle-std = { path = "../shuttle-std", version = "0.1.4" }
+bitvec = "1.0.1"
+cfg-if = "1.0"
+hex = "0.4.2"
+owo-colors = "4.3.0"
+rand_core = "0.6.4"
+rand = "0.8.6"
+rand_pcg = "0.3.1"
+scoped-tls = "1.0.0"
+tracing = { version = "0.1.36", default-features = false, features = ["std"] }
+corosensei = "0.3.1"
+
+# for annotation only
+regex = { version = "1.10.6", optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+const-siphasher = "1.0.2"
+
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+futures = "0.3.15"
+proptest = "1.0.0"
+proptest-derive = "0.5.0"
+regex = "1.5.5"
+rustversion = "1"
+tempfile = "3.2.0"
+test-log = { version = "0.2.8", default-features = false, features = ["trace"] }
+tracing-subscriber = { version = "0.3.9", features = ["env-filter"] }
+trybuild = "1.0"
+pin-project = "1.1.3"
+# The following line is necessary to ensure vector-clocks are used for integration tests
+# To run performance tests without vector clocks using `cargo bench`, this line must be commented out
+shuttle = { path = ".", features = ["vector-clocks"] }
+
+[lib]
+bench = false
+
+[features]
+default = []
+vector-clocks = ["shuttle-engine/vector-clocks"]
+annotation = ["vector-clocks", "shuttle-engine/annotation", "shuttle-schedulers/annotation", "dep:serde", "dep:serde_json", "dep:regex"]
+# The following feature overrides the `vector-clocks` feature. It SHOULD NOT be used in production.
+# Its purpose is solely to allow `cargo bench` to be run without vector clocks enabled, as they
+# are otherwise always enabled via a dev-dependency to ensure all *test* assertions utilizing vector
+# clocks behave correctly during testing
+bench-no-vector-clocks = ["shuttle-engine/bench-no-vector-clocks"]
+
+[[bench]]
+name = "lock"
+harness = false
+
+[[bench]]
+name = "buffer"
+harness = false
+
+[[bench]]
+name = "counter"
+harness = false
+
+[[bench]]
+name = "create"
+harness = false

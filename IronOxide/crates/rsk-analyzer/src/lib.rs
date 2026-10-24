@@ -311,6 +311,9 @@ mod tests {
         })
     }
 
+    /// R30.4, R30.1, R29.1: exit 0 only on PASS and a distinct status for
+    /// rejected input; the JSON report conforms to its schema and round-trips;
+    /// the lower-Priority Task suffers interference from the higher one's Jobs.
     #[test]
     fn the_demo_passes_with_placeholders_and_is_rejected_without() {
         let model = rsk_model::read_task_model(DEMO).unwrap();

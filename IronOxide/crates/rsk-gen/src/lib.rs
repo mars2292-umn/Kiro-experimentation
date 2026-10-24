@@ -144,6 +144,9 @@ mod tests {
         }
     }
 
+    /// R21.2, R23.1, R23.4, R24.5: the demo's declared times become ticks, the
+    /// Resource Ceiling is the maximum accessing Priority, the timer-slot and
+    /// lock capacities follow from the declarations, and the MPU layout is placed.
     #[test]
     fn the_demo_generates_the_hand_written_tables() {
         let g = generate(&demo()).expect("valid");
@@ -163,6 +166,9 @@ mod tests {
         assert!(out.task_model_json.contains("\"schema\": \"rsk-task-model/1\""));
     }
 
+    /// R24.4, R23.6, R23.2: two runs give byte-identical outputs and identical
+    /// derived values, and reordering the Tasks leaves Ceilings, capacities and
+    /// the layout unchanged.
     #[test]
     fn outputs_are_deterministic_and_ceilings_order_independent() {
         let a = outputs(&demo(), "rsk-system").unwrap();
@@ -179,6 +185,9 @@ mod tests {
         assert_eq!(g.plan, g0.plan);
     }
 
+    /// R22.2 (PR-33), R22.1, R15.6 (PR-29), R22.5: a Priority beyond the
+    /// hardware levels, a deadline over the period, a Kernel-owned peripheral and
+    /// an unaccessed Resource are each rejected naming the rule and the item.
     #[test]
     fn violations_name_the_rule_and_the_item() {
         let mut d = demo();
@@ -202,6 +211,7 @@ mod tests {
         assert!(errs.iter().any(|e| e.rule == "PR-30"), "{errs:?}");
     }
 
+    /// R27.2: a Task on a core other than 0 is rejected citing NG-01.
     #[test]
     fn multi_core_is_rejected_citing_ng01() {
         let mut d = demo();
@@ -210,6 +220,8 @@ mod tests {
         assert!(errs.iter().any(|e| e.rule == "NG-01"), "{errs:?}");
     }
 
+    /// R20.4, R24.5: a layout that does not fit the Target is rejected naming
+    /// the Partition whose region fails.
     #[test]
     fn layouts_that_do_not_fit_are_rejected_naming_the_partition() {
         let mut d = demo();

@@ -235,6 +235,9 @@ fn which(name: &str) -> Option<std::path::PathBuf> {
 mod tests {
     use super::*;
 
+    /// R31.8, R31.3: the reader recovers each Task's Priority, period, deadline
+    /// and execution-time bound from the export, and the query is the
+    /// no-deadline-miss query.
     #[test]
     fn export_round_trips_the_parameters() {
         let tasks = vec![

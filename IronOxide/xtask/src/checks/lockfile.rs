@@ -243,6 +243,7 @@ fn pinned_vendored_git(root: &Path, source: &str) -> bool {
 mod tests {
     use super::is_exact_req;
 
+    /// R58.1: only an exact `=x.y.z` version requirement is accepted; caret, tilde, wildcard, range, and partial requirements are rejected.
     #[test]
     fn accepts_only_exact_requirements() {
         for ok in ["=1.0.107", "= 1.2.3", "=1.1.7+spec-1.1.0", "=2.0.0-rc.1"] {

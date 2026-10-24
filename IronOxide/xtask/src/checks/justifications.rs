@@ -364,6 +364,7 @@ pub fn check(ws: &Workspace, report: &mut Report) {
 mod tests {
     use super::*;
 
+    /// PR-20/R6.4: a justification identifier `UJ-nnn` is recognized on the line of the `unsafe` construct or in the comment block directly above it (attributes between); a construct without one has no marker.
     #[test]
     fn finds_markers_on_the_line_or_in_the_comment_block_above() {
         let src = "\

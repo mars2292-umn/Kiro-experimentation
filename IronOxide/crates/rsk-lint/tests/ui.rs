@@ -40,6 +40,9 @@ fn pr09_async() {
     expect("async_task.rs", &[("PR-09", 3), ("PR-09", 6), ("PR-09", 8), ("PR-09", 9)]);
 }
 
+/// R35.1: each loop with neither a Loop_Bound_Annotation nor an iteration
+/// count derivable from compile-time constants is reported naming PR-16;
+/// annotated and derived loops are accepted.
 #[test]
 fn pr16_loops() {
     let r = expect("loops.rs", &[("PR-16", 7), ("PR-16", 10), ("PR-16", 11), ("PR-16", 55), ("PR-16", 59), ("PR-16", 69)]);
@@ -49,6 +52,8 @@ fn pr16_loops() {
     assert_eq!(kinds.iter().filter(|(k, _)| *k == "exempt").count(), 3);
 }
 
+/// R35.1: a loop inside `verus!` in a Kernel function without a `decreases`
+/// clause is reported naming PR-16; `decreases` and a range `for` are bounds.
 #[test]
 fn pr16_verus_decreases() {
     let r = expect("verus_loops.rs", &[("PR-16", 22)]);
@@ -56,6 +61,8 @@ fn pr16_verus_decreases() {
     assert!(r.loops.iter().all(|l| l.function == "ok"));
 }
 
+/// R57.2: each use of a core item outside the Core_Subset, in Application
+/// and Kernel_Unsafe_Module scope, is reported naming PR-21.
 #[test]
 fn pr21_core_subset_scopes() {
     expect("core_subset.rs", &[("PR-21", 3), ("PR-21", 5), ("PR-21", 8)]);
@@ -77,6 +84,8 @@ fn pr05_pr17_pr18() {
     expect("statics_recursion_dyn.rs", &[("PR-21", 3), ("PR-05", 5), ("PR-05", 6), ("PR-05", 8), ("PR-17", 11), ("PR-18", 18), ("PR-18", 22), ("PR-17", 28)]);
 }
 
+/// PR-16: loops under `cfg(test)` and `cfg(kani)` are outside the
+/// Flight_Build and not reported; loops in feature-gated code are.
 #[test]
 fn cfg_gated_code() {
     expect("cfg_gated.rs", &[("PR-16", 19), ("PR-16", 30)]);

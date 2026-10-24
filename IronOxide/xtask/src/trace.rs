@@ -572,6 +572,7 @@ mod tests {
         assert_eq!(reqs.iter().map(|c| (c.id.as_str(), c.phase.as_str())).collect::<Vec<_>>(), vec![("R3.1", "P2"), ("R3.2", "P2"), ("R4.1", "P1 plan")]);
     }
 
+    /// R50.5: the matrix links criteria to the tests and harnesses that name them, by function name and by doc comment.
     #[test]
     fn criteria_named_by_tests_are_found_in_names_and_doc_comments() {
         assert_eq!(criteria_in_name("kernel_violations_are_rejected_naming_r6_1_and_pr20_r6_3"), vec!["R6.1", "PR-20", "R6.3"]);
@@ -585,6 +586,7 @@ mod tests {
         assert!(!harnesses.is_empty(), "{harnesses:?}");
     }
 
+    /// R50.5: the repository's matrix has a row for every acceptance criterion of requirements.md, and every criterion a task lists exists there.
     #[test]
     fn the_repository_matrix_covers_every_criterion_of_the_requirements() {
         let root = crate::repository_root();

@@ -211,6 +211,8 @@ pub fn plan(decl: &Declaration, target: &Target) -> Result<Plan, Vec<Diagnostic>
 mod tests {
     use super::*;
 
+    /// R24.5: a region is power-of-two sized within the Armv7-M rules and a
+    /// smaller request is trimmed with subregion disables.
     #[test]
     fn regions_round_up_to_powers_of_two_and_trim_with_subregions() {
         assert_eq!(region_for(32 * 1024, 5), (15, 0, 32 * 1024));

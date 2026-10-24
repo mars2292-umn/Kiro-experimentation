@@ -275,18 +275,21 @@ mod tests {
         }
     }
 
+    /// R52.2: a mutant that Verus accepts is a surviving mutant (a vacuity finding against the specification).
     #[test]
     fn a_passing_run_is_a_surviving_mutant() {
         let text = "verification results:: 10 verified, 0 errors\n";
         assert_eq!(classify(&mutation(&["x"]), true, text), Verdict::Survived { verified: 10 });
     }
 
+    /// R52.2: a mutant that Verus rejects with the expected diagnostic text is killed.
     #[test]
     fn a_failing_run_with_the_expected_text_kills_the_mutant() {
         let text = "error: postcondition not satisfied\n  --> a.rs:1:1\nensures basepri_for\nverification results:: 9 verified, 1 errors\n";
         assert!(matches!(classify(&mutation(&["basepri_for", "a.rs"]), false, text), Verdict::Killed { .. }));
     }
 
+    /// R52.2: a mutant that Verus rejects for another reason than the expected one is reported as unexpected, not as killed.
     #[test]
     fn a_failing_run_without_the_expected_text_is_unexpected() {
         let text = "error: expected `{`\nverification results:: 0 verified, 0 errors\n";
@@ -296,6 +299,7 @@ mod tests {
         );
     }
 
+    /// R52.2: every mutation of `docs/proof_mutations.toml` applies to the current sources (its `find` occurs exactly once in an existing file).
     #[test]
     fn the_register_applies_to_the_current_sources() {
         let root = crate::repository_root();

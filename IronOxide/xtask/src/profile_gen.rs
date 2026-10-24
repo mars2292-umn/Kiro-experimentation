@@ -914,6 +914,7 @@ pub fn generate(root: &Path, check_only: bool, report: &mut Report) -> bool {
 mod tests {
     use super::*;
 
+    /// R1.4: the Profile's content hash covers the content and not the recorded hash itself, so the hash a change-log entry carries is stable and changes with the content.
     #[test]
     fn content_hash_ignores_recorded_hashes() {
         let a = "x = 1\n[[change]]\ncontent_hash = \"\"\n";

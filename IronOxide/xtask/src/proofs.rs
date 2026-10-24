@@ -669,6 +669,7 @@ mod tests {
         assert_eq!(package_verus_results(&[(17, 0)], 0), None);
     }
 
+    /// R50.2: the assumption constructs (`#[verifier::external_body]`, `assume`, `admit`) are found and attributed to their enclosing item; `kani::assume` is not one.
     #[test]
     fn scans_assumption_constructs() {
         let tokens = crate::tokens::lex_str(
@@ -695,6 +696,7 @@ mod tests {
         assert!(harness.is_empty(), "{harness:?}");
     }
 
+    /// R45.5: a Kani run with a failed unwinding assertion is a failed run, even when Kani exits 0 and prints SUCCESSFUL.
     #[test]
     fn a_failed_unwinding_assertion_fails_the_run() {
         let log = include_str!("../fixtures/kani-unwind/expected.log");

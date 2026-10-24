@@ -558,6 +558,7 @@ pub fn mutate(bytes: &[u8], kind: &CaseKind) -> Result<Vec<u8>, String> {
 mod tests {
     use super::*;
 
+    /// R3.6, R3.11: the conformance register has a case for every active restriction and each of its TS, MC, LN, LK, and RT categories, and maps every proof artifact of the Profile's PO evidence.
     #[test]
     fn the_register_loads_and_covers_every_category() {
         let root = crate::repository_root();

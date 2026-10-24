@@ -816,6 +816,7 @@ note = "n"
         assert!(text.contains("robust partitioning evidence"), "{text}");
     }
 
+    /// R54.1: the Gap_Register's Level A and Level B objective tallies must equal DO-178C's published counts; a Level C mismatch is a note only while an objective declares its Level C applicability unconfirmed.
     #[test]
     fn level_tallies_must_match_the_published_counts() {
         // The base register marks 68 objectives at Level C; making A-7.5 apply
