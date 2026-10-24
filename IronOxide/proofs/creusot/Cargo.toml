@@ -1,0 +1,17 @@
+# The App_Prover's proof workspace (task 17.1, Verification_Plan section 7).
+# Each member compiles a Partition crate's real source file (`[lib] path`)
+# under Creusot, with `rsk` built with its `creusot` feature (the trusted
+# contracts of the API) and `creusot-std` from the vendored, pinned checkout
+# (toolchain/decision.toml [creusot]). Run from this directory:
+#     cargo creusot -- --offline
+# The Flight_Build never sees this workspace (root Cargo.toml excludes it);
+# cargo reads ../../.cargo/config.toml, so every dependency comes from the
+# vendored sources offline.
+[workspace]
+resolver = "2"
+members = ["part0", "part2"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+publish = false

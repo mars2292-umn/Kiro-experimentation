@@ -74,7 +74,7 @@ fn r3_4_lint_lowering_attributes_are_rejected() {
 
 #[test]
 fn pr05_pr17_pr18() {
-    expect("statics_recursion_dyn.rs", &[("PR-21", 3), ("PR-05", 5), ("PR-05", 6), ("PR-17", 10), ("PR-18", 17), ("PR-18", 21), ("PR-17", 27)]);
+    expect("statics_recursion_dyn.rs", &[("PR-21", 3), ("PR-05", 5), ("PR-05", 6), ("PR-05", 8), ("PR-17", 11), ("PR-18", 18), ("PR-18", 22), ("PR-17", 28)]);
 }
 
 #[test]

@@ -215,6 +215,7 @@ rsk::app! {
                    deadline_miss = RECORD_ONLY, mit_threshold = 10) {
         peripherals = [SPIM0, GPIOTE];
         resource state: nav::State = nav::State::new();
+        state control.cycles: u32 = 0;   // per-Task state (PR-25): a `PerTask` field of control's Context
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(),
                       budget = 120.us(), priority = 5, fpu, resources = [state],
                       endpoints = [telemetry.nav]);
@@ -631,6 +632,15 @@ It does not give deadlock freedom, bounded blocking, timing, schedulability, pan
 - Kani, its stubs, and its verification-job step are set up before the first Kernel_Unsafe_Module code exists. Each change that adds a justification identifier also adds the linked harness, proof, lemma, or review, so the R6.4 gate passes after every change.
 
 ### Application prover: Creusot (R46, ORQ-10)
+
+**How a Partition reaches the prover (task 17.1, 2026-10-23).** Creusot rejects `static` items, and every Partition crate holds the cells the Generator emits (Resources, per-Task state). Two decisions make the Task bodies provable without changing what the Flight_Build runs:
+
+- The Generator emits the cells (`rsk_resources`, `rsk_state`) and the Job wrappers (`rsk_jobs`) under `#[cfg(not(creusot))]`; the Context types stay. Under the App_Prover's compiler, which sets `cfg(creusot)`, a Task body takes its Context by value and never sees a static.
+- The `rsk` API carries contracts behind the `creusot` feature, with `trusted` bodies: `Shared::lock` and `PerTask::with` run their closure once on a value satisfying its type invariant and return its result; `PerTask::get`/`set`, `Signal::raise`, `now`, `spin`, `dma_request`, `debug`, and `mmio` are trusted without a value specification. The Kernel's guarantees enter the proof as these contracts (TBR-08), the same shape as the Verus trust boundary at `Cm4Hw`.
+
+The proof workspace `proofs/creusot` (excluded from the Flight_Build workspace, its own lock file over the same vendored sources) compiles each Partition crate's real source file under Creusot with `rsk`'s `creusot` feature; `cargo creusot -- --offline` there is the job's App_Prover step (`proof-app-creusot`). Per-Task state exists for the same reason (PR-25, PR-05): the demo's counters were interior-mutable statics in Partition code, which PR-05 forbids, and are now declared `state task.name: T = init;`, emitted by the Generator and reached through a `PerTask` Context field; the Profile_Lint flags a hand-written `ResourceCell` static in Application code.
+
+What the first proofs required of the bodies, and keep requiring of any Partition: counters saturate rather than overflow, casts are made lossless before `as`, byte-string literals (`b"A"`) give way to byte arrays, array slices are unsizing coercions rather than `Index<RangeFull>`, and every loop carries a `cfg_attr(creusot, ...invariant(..))`. Floating-point bodies are `trusted` until Creusot's float support matures (RN-10).
 
 Creusot is the recommended App_Prover:
 

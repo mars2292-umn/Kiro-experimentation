@@ -518,7 +518,11 @@ impl<'ast, 'a> Visit<'ast> for Linter<'a> {
                 self.err("PR-05", line_of(&s.ident), format!("`static mut {}`: shared state outside the Kernel is a declared Resource (R15)", s.ident));
             } else {
                 let ty = s.ty.to_token_stream().to_string();
-                let interior = ["Cell", "RefCell", "UnsafeCell", "OnceCell"].iter().any(|n| ty.split(|c: char| !c.is_alphanumeric() && c != '_').any(|w| w == *n)) || ty.contains("Atomic");
+                // `ResourceCell` is the Kernel's cell: in Application code it is
+                // emitted by the Generator only (Resources and per-Task state,
+                // `Generated` scope); a hand-written one is shared state outside
+                // a Resource (PR-05, PR-25).
+                let interior = ["Cell", "RefCell", "UnsafeCell", "OnceCell", "ResourceCell"].iter().any(|n| ty.split(|c: char| !c.is_alphanumeric() && c != '_').any(|w| w == *n)) || ty.contains("Atomic");
                 if interior {
                     self.err("PR-05", line_of(&s.ident), format!("`static {}` has an interior-mutable type (`{ty}`); shared state outside the Kernel is a declared Resource (R15)", s.ident));
                 }

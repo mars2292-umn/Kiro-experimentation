@@ -40,6 +40,9 @@
 //!     `qemu-system-arm -M mps2-an386`; the run passes when the binary
 //!     exits through semihosting with code 0 (it prints `RSK-OK`). Skipped
 //!     with a warning when QEMU is not installed.
+//! 10b'. App_Prover (R46): `cargo creusot` over proofs/creusot, the
+//!     Partition sources against the rsk API's trusted contracts; skipped
+//!     with a warning when Creusot is not installed.
 //! 10c. Profile_Conformance_Suite (R3.6, R3.7, R3.11): every case of
 //!     docs/conformance_suite.toml, one Evidence_Item each (`conf-PR-nn-cc`,
 //!     `fi-PR-nn`, `accepted-<variant>`), and the PO proof-artifact check
@@ -255,7 +258,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 17,
+        total_steps: 18,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -568,6 +571,11 @@ pub fn run(root: &Path, options: Options) -> bool {
         qemu_cmds,
     );
 
+    // ------------------------------------------------ 10b'. App_Prover
+    job.heading("App_Prover (Creusot, R46.3, R46.4)");
+    let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "proof-app-step", "App_Prover step", &["R46.2", "R46.3", "R46.4", "R35.2"], creusot_cmds);
+
     // ------------------------------------ 10c. Profile_Conformance_Suite
     job.heading("Profile_Conformance_Suite (R3.6, R3.7, R3.11)");
     let conf_cmds = {
@@ -796,6 +804,68 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(p);
         }
     }
+}
+
+/// R46: the App_Prover (Creusot) over the proof workspace `proofs/creusot`,
+/// which compiles the Partition crates' real sources with the `rsk` API's
+/// trusted contracts (task 17.1). The prover is located like QEMU: when
+/// `cargo creusot` is not installed the step warns and writes no item; when
+/// it runs, `proof-app-creusot` records its version line and the pin of
+/// toolchain/decision.toml, and passes only on `Proved (...)`.
+fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let dir = ws.root.join("proofs").join("creusot");
+    if !dir.join("Cargo.toml").is_file() {
+        report.note("App_Prover: no proof workspace at proofs/creusot");
+        return vec![];
+    }
+    let version = Cmd::cargo().args(["creusot", "version"]).cwd(&dir).output(None).ok().filter(|o| o.status.success()).map(|o| {
+        let text = String::from_utf8_lossy(&o.stdout).into_owned();
+        text.lines().filter(|l| l.starts_with("cargo-creusot") || l.starts_with("Rust toolchain") || l.starts_with("Why3") || l.starts_with("why3find") || l.starts_with("alt-ergo") || l.starts_with("z3") || l.starts_with("cvc")).map(|l| {
+                // cvc5 prints a banner that cargo creusot reports as "bad CVC5 version: cvc5 1.4.1 [git ...]": keep "cvc5 1.4.1".
+                if l.starts_with("cvc5") {
+                    let v = l.split_whitespace().find(|w| w.chars().next().is_some_and(|c| c.is_ascii_digit()) && w.contains('.')).unwrap_or("");
+                    format!("cvc5 {v}")
+                } else {
+                    l.split(" [").next().unwrap_or(l).trim().to_string()
+                }
+            }).collect::<Vec<_>>().join("; ")
+    });
+    let Some(version) = version else {
+        report.warn("cargo-creusot is not installed: the App_Prover proofs were not run (toolchain/decision.toml [creusot] records the pinned installation)");
+        return vec![];
+    };
+    let cmd = Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir);
+    let command = format!("(cd proofs/creusot && {})", cmd.display());
+    let (ok, text) = match cmd.output(Some(sandbox)) {
+        Ok(o) => {
+            let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
+            (o.status.success() && text.contains("Proved ("), text)
+        }
+        Err(e) => (false, format!("cannot run cargo creusot: {e}")),
+    };
+    let _ = store.write_artifact("creusot.log", &text);
+    let verdict = text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string();
+    if ok {
+        report.note(format!("R46.3: App_Prover: {verdict} ({version})"));
+    } else {
+        report.error(Rule::Step, None, format!("App_Prover: {verdict} (see creusot.log)"));
+    }
+    let mut item = Item::new(
+        "proof-app-creusot",
+        Kind::Proof,
+        "App_Prover (Creusot): the Partition crates' Task bodies against the trusted contracts of the rsk API",
+        Tool { name: "Creusot".to_string(), version: version.clone(), solvers: vec![] },
+        Verdict::from_bool(ok),
+    )
+    .covers(&["R46.2", "R46.3", "R46.4", "R35.2", "PR-19"]);
+    item.command_lines = vec![command.clone()];
+    item.notes = vec![verdict, "trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, and mmio (TBR-08); the Generator's glue is excluded under cfg(creusot); filter (f32) is trusted (verification_plan.md section 7)".to_string()];
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = vec!["creusot.log".to_string()];
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    vec![command]
 }
 
 /// R29: the Analyzer on every Flight_Build binary with a Task_Model, with

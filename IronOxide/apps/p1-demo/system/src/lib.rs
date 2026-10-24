@@ -68,15 +68,17 @@ fn print_kv(key: &[u8], v: u32) {
 #[rsk::bounds('events = NE)]
 pub fn report_and_exit() -> ! {
     let k = Sys::kernel().get();
-    let a = p1_demo_part0::COUNT_CONTROL.peek();
-    let b = p1_demo_part0::COUNT_SENSOR.peek();
-    let c = p1_demo_part1::COUNT_LOG.peek();
-    let d = p1_demo_part1::COUNT_PULSE.peek();
-    let e = p1_demo_part0::COUNT_ECHO.peek();
-    let blocked = p1_demo_part0::BLOCKED_SEEN.peek();
-    let f = p1_demo_part2::COUNT_FILTER.peek();
-    let g = p1_demo_part2::COUNT_SAMPLER.peek();
-    let dma_ok = p1_demo_part2::COUNT_DMA_OK.peek();
+    // The per-Task state cells the Generator emits (PR-25), read at the
+    // Kernel level once every Job has ended.
+    let a = p1_demo_part0::rsk_state::CONTROL_COUNT.peek();
+    let b = p1_demo_part0::rsk_state::SENSOR_COUNT.peek();
+    let c = p1_demo_part1::rsk_state::LOG_COUNT.peek();
+    let d = p1_demo_part1::rsk_state::PULSE_COUNT.peek();
+    let e = p1_demo_part0::rsk_state::ECHO_COUNT.peek();
+    let blocked = p1_demo_part0::rsk_state::CONTROL_BLOCKED.peek();
+    let f = p1_demo_part2::rsk_state::FILTER_COUNT.peek();
+    let g = p1_demo_part2::rsk_state::SAMPLER_COUNT.peek();
+    let dma_ok = p1_demo_part2::rsk_state::SAMPLER_DMA_OK.peek();
     // After 8 filter Jobs the state is 100 * (1 - 0.875^8) = 65.7; after 7,
     // 60.8: a state above 60 shows the FP context survived every Job
     // (R11.2; a lost context would restart from 0 or hold garbage).
@@ -84,7 +86,7 @@ pub fn report_and_exit() -> ! {
     // bits): the safe state is Kernel-reachable code, which executes no
     // floating-point comparison (R6.6, PR-31). 60.0 = 0x4270_0000,
     // 100.0 = 0x42C8_0000.
-    let filter_bits = p1_demo_part2::FILTER_STATE.peek().to_bits();
+    let filter_bits = p1_demo_part2::rsk_state::FILTER_Y.peek().to_bits();
     let filter_ok = filter_bits > 0x4270_0000 && filter_bits < 0x42C8_0000;
     hw::semihosting_write(b"\nRSK-SAFE-STATE\n");
     print_kv(b"control", a);

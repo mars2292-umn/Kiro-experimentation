@@ -1,0 +1,1018 @@
+use crate::creusot::{constant::ConstantArg, doc::DocItemName};
+use proc_macro::{Diagnostic, Level, TokenStream as TS1};
+use proc_macro2::{Group, Span, TokenStream, TokenTree};
+use quote::{ToTokens, quote, quote_spanned};
+use syn::{
+    parse::{Parse, Parser as _},
+    punctuated::{Pair, Punctuated},
+    spanned::Spanned,
+    token::{Brace, Colon, Comma, For, Impl, Paren, Plus, Semi, Trait, Unsafe},
+    visit_mut::VisitMut,
+    *,
+};
+
+mod display;
+
+/// The `extern_spec!` macro.
+pub fn extern_spec(tokens: TS1) -> TS1 {
+    let externs: ExternSpecs = parse_macro_input!(tokens);
+    match extern_spec_(externs) {
+        Ok(specs) => TS1::from(quote! { #(#specs)* }),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+fn extern_spec_(externs: ExternSpecs) -> Result<Vec<TokenStream>> {
+    let mut specs = Vec::new();
+    for item in externs.0 {
+        match item {
+            ExternSpecItem::Fun(f) => {
+                for spec in f.flatten()? {
+                    specs.push(spec.into_tokens())
+                }
+            }
+            ExternSpecItem::Type(ty) => specs.push(ty.to_token_stream()),
+        }
+    }
+    Ok(specs)
+}
+
+#[derive(Debug)]
+struct ExternSpecs(Vec<ExternSpecItem>);
+
+#[derive(Debug)]
+enum ExternSpecItem {
+    Fun(ExternSpec),
+    Type(ExternType),
+}
+
+/// An extern spec is either:
+/// - A module of extern specs
+/// - A trait spec defining a subset of a trait's methods
+/// - An impl spec defining a subset of a type or trait impl's methods
+/// - A bare function spec defining a single non-trait or impl function
+#[derive(Debug)]
+enum ExternSpec {
+    Mod(ExternMod),
+    Trait(ExternTrait),
+    Impl(ExternImpl),
+    Fn(ExternMethod),
+    Const(ExternConst),
+}
+
+#[derive(Debug)]
+struct ExternMod {
+    ident: Ident,
+    content: Vec<ExternSpec>,
+}
+
+#[derive(Debug)]
+struct ExternTrait {
+    _unsafety: Option<Unsafe>,
+    _trait_token: Trait,
+    ident: Ident,
+    generics: Generics,
+    _colon_token: Option<Colon>,
+    supertraits: Punctuated<TypeParamBound, Plus>,
+    _brace_token: Brace,
+    items: Vec<ExternMethod>,
+}
+
+/// An 'impl' block, either for a trait or standalone
+#[derive(Debug)]
+struct ExternImpl {
+    _attrs: Vec<Attribute>,
+    _defaultness: Option<Token![default]>,
+    _unsafety: Option<Unsafe>,
+    _impl_token: Impl,
+    generics: Generics,
+    trait_: Option<(Path, For)>,
+    self_ty: Box<Type>,
+    brace_token: Brace,
+    items: Vec<ExternMethod>,
+}
+
+#[derive(Debug)]
+struct ExternMethod {
+    span: Span,
+    attrs: Vec<Attribute>,
+    sig: Signature,
+    body: Option<Group>,
+    _semicolon: Option<Token![;]>,
+}
+
+#[derive(Debug)]
+struct ExternConst {
+    span: Span,
+    attrs: Vec<Attribute>,
+    _const: Token![const],
+    path: ExprPath,
+    _semi: Semi,
+}
+
+// Information related to desugaring.
+
+#[derive(Clone, Debug)]
+enum TraitOrImpl {
+    Trait {
+        ident: Ident,
+        generics: Punctuated<GenericArgument, Comma>,
+        supertraits: Punctuated<TypeParamBound, Plus>,
+    },
+    Impl(Box<Type>),
+}
+
+#[derive(Clone, Debug)]
+struct ImplData {
+    self_ty: TraitOrImpl,
+    params: Punctuated<GenericParam, Comma>,
+    where_clause: Option<Punctuated<WherePredicate, Comma>>,
+}
+
+#[derive(Clone, Debug)]
+struct FlatSpec {
+    span: Span,
+    signature: Signature,
+    attrs: Vec<Attribute>,
+    /// Path to the function or const being specified
+    path: ExprPath,
+    kind: FlatSpecKind,
+}
+
+#[derive(Clone, Debug)]
+enum FlatSpecKind {
+    Fn {
+        doc_item_name: DocItemName,
+        impl_data: Option<ImplData>,
+        /// Body to check against the extern spec, with a name for the fake function.
+        body: Option<Group>,
+    },
+    Const,
+}
+
+impl ExternSpec {
+    fn flatten(self) -> Result<Vec<FlatSpec>> {
+        let mut specs = Vec::new();
+        flatten(
+            self,
+            ExprPath {
+                attrs: Vec::new(),
+                qself: None,
+                path: Path { leading_colon: None, segments: Punctuated::new() },
+            },
+            DocItemName(String::from("extern_spec")),
+            None,
+            &mut specs,
+        )?;
+        Ok(specs)
+    }
+}
+
+fn self_escape<T: Parse>(span: Span) -> T {
+    parse_quote_spanned! { span.resolved_at(Span::mixed_site()) => self_ }
+}
+
+fn self_type_escape<T: Parse>(span: Span) -> T {
+    parse_quote_spanned! { span.resolved_at(Span::mixed_site()) => Self_ }
+}
+
+impl FlatSpec {
+    fn into_tokens(mut self) -> TokenStream {
+        if let Err(e) = self.replace_self() {
+            return e;
+        }
+        let args: Punctuated<Expr, Comma> = self
+            .signature
+            .inputs
+            .clone()
+            .into_pairs()
+            .map(|inp| {
+                let (inp, comma) = inp.into_tuple();
+                let exp: Expr = if let FnArg::Typed(PatType { pat, .. }) = inp {
+                    Expr::Verbatim(pat.to_token_stream())
+                } else {
+                    Expr::Verbatim(self_escape(inp.span()))
+                };
+                Pair::new(exp, comma)
+            })
+            .collect();
+
+        let ident = crate::creusot::generate_unique_ident("extern_spec", self.span);
+
+        let sig = Signature {
+            constness: None,
+            asyncness: None,
+            unsafety: self.signature.unsafety,
+            abi: None,
+            fn_token: Token![fn](self.signature.span()),
+            ident,
+            generics: self.signature.generics,
+            paren_token: Paren::default(),
+            inputs: self.signature.inputs,
+            variadic: None,
+            output: self.signature.output,
+        };
+        let mut attrs = filter_erasure(&self.attrs);
+        let has_erasure = attrs.len() < self.attrs.len();
+        attrs.push(parse_quote! { #[allow(dead_code, non_snake_case)] });
+
+        let call = Expr::Call(ExprCall {
+            attrs: Vec::new(),
+            func: Box::new(Expr::Path(self.path.clone())),
+            paren_token: Paren::default(),
+            args,
+        });
+        // Rust intrinsics marked with `#[rustc_comptime]` can only be used in `const` blocks
+        let call = if has_comptime(&attrs) {
+            Expr::Const(ExprConst {
+                attrs: Vec::new(),
+                const_token: Token![const](self.span),
+                block: Block {
+                    brace_token: Default::default(),
+                    stmts: vec![Stmt::Expr(call, None)],
+                },
+            })
+        } else {
+            call
+        };
+
+        match self.kind {
+            FlatSpecKind::Fn { body, doc_item_name, .. } => {
+                // If the function was given a body to check, it is generated here.
+                let f_with_body = if let Some(b) = body {
+                    let b = b.stream();
+                    let attrs = attrs.clone();
+                    let erasure_stmt = if has_erasure {
+                        quote! {
+                            let _ =
+                                #[creusot::no_translate]
+                                #[creusot::spec::erasure]
+                                || #call;
+                        }
+                    } else {
+                        quote! {}
+                    };
+                    let mut sig = sig.clone();
+                    sig.ident = Ident::new(&format!("{}_body", doc_item_name.0), sig.ident.span());
+                    quote_spanned! { b.span() =>
+                        #(#attrs)*
+                        #sig {
+                            #erasure_stmt
+                            #b
+                        }
+                    }
+                } else {
+                    quote! {}
+                };
+
+                let doc = {
+                    let path = if let Some(qself) = &self.path.qself {
+                        if let Type::Reference(_) = *qself.ty {
+                            // Unsupported self types by rustdoc, we might as well print out the fully qualified path.
+                            let trait_ = display::DisplayPath(&Path {
+                                leading_colon: None,
+                                segments: self
+                                    .path
+                                    .path
+                                    .segments
+                                    .iter()
+                                    .take(qself.position)
+                                    .cloned()
+                                    .collect(),
+                            });
+                            format!(
+                                "`<{} as {}>::{}`",
+                                display::DisplayType(&qself.ty),
+                                trait_,
+                                self.path.path.segments[qself.position].ident
+                            )
+                        } else {
+                            format!(
+                                "[`{}::{}`]",
+                                display::DisplayType(&qself.ty),
+                                self.path.path.segments[qself.position].ident
+                            )
+                        }
+                    } else {
+                        format!("[`{}`]", display::DisplayPath(&self.path.path))
+                    };
+                    format!("extern spec for {path}")
+                };
+
+                let mut sig_doc = sig.clone();
+                sig_doc.ident = Ident::new(&doc_item_name.0.to_string(), sig.ident.span());
+
+                quote_spanned! { self.span =>
+                    #[creusot::no_translate]
+                    #[creusot::extern_spec]
+                    #(#attrs)*
+                    #sig { #call }
+
+                    #[cfg(doc)]
+                    #[doc = #doc]
+                    #[doc = ""]
+                    #[doc = "This is not a real function: its only use is for documentation."]
+                    #[doc = ""]
+                    #(#attrs)*
+                    pub #sig_doc { loop {} }
+
+                    #f_with_body
+                }
+            }
+            FlatSpecKind::Const => {
+                let path = self.path;
+                quote_spanned! { self.span =>
+                    #[creusot::no_translate]
+                    #[creusot::extern_spec]
+                    #[allow(unused)]
+                    #(#attrs)*
+                    #sig { let _ = #path; }
+                }
+            }
+        }
+    }
+
+    fn replace_self(&mut self) -> std::result::Result<(), TokenStream> {
+        let FlatSpecKind::Fn { impl_data, body, .. } = &mut self.kind else { return Ok(()) };
+        let Some(data) = std::mem::take(impl_data) else {
+            return Ok(());
+        };
+
+        let inner_params = std::mem::replace(&mut self.signature.generics.params, data.params);
+        self.signature.generics.params.extend(inner_params);
+
+        if self.signature.generics.where_clause.is_none() {
+            self.signature.generics.where_clause = Some(WhereClause {
+                where_token: Default::default(),
+                predicates: Default::default(),
+            });
+        }
+
+        let where_clause = self.signature.generics.where_clause.as_mut().unwrap();
+
+        if let Some(p) = data.where_clause {
+            where_clause.predicates.extend(p)
+        };
+
+        let escape = match &data.self_ty {
+            TraitOrImpl::Trait { .. } => SelfTypeKind::Self_,
+            TraitOrImpl::Impl(ty) => SelfTypeKind::Type(ty.clone()),
+        };
+        let mut replacer = SelfEscaper { escape, err: vec![] };
+
+        self.signature.inputs.iter_mut().for_each(|input| match input {
+            FnArg::Receiver(Receiver { self_token, ty, .. }) => {
+                // An `impl` block may have a `self` reciever, but we should replace it with the actual
+                // underlying type. This constructs the correct replacement for those cases.
+
+                let mut ty = ty.clone();
+                replacer.visit_type_mut(&mut ty);
+
+                let self_: Ident = self_escape(self_token.span());
+
+                *input = FnArg::Typed(PatType {
+                    attrs: Vec::new(),
+                    pat: parse_quote!(#self_),
+                    colon_token: Default::default(),
+                    ty,
+                });
+            }
+            FnArg::Typed(PatType { ty, .. }) => replacer.visit_type_mut(ty),
+        });
+
+        replacer.visit_return_type_mut(&mut self.signature.output);
+
+        if let TraitOrImpl::Trait { ident, generics, supertraits } = data.self_ty {
+            let selfty = self_type_escape(self.span);
+            where_clause.predicates.push(parse_quote_spanned! {self.span=>
+                #selfty : ?::core::marker::Sized + #ident<#generics> + #supertraits
+            });
+
+            self.signature.generics.params.insert(0, selfty);
+
+            where_clause.predicates.iter_mut().for_each(|pred| {
+                replacer.visit_where_predicate_mut(pred);
+            });
+        }
+
+        replacer.visit_generics_mut(&mut self.signature.generics);
+
+        if let Some(group) = body {
+            replacer.escape_self_in_group(group)
+        }
+        if let Err(e) = escape_self_in_contracts(&mut self.attrs, &mut replacer) {
+            return Err(e.into_compile_error());
+        }
+        if !replacer.err.is_empty() {
+            return Err(replacer.err.into_iter().map(|e| e.into_compile_error()).collect());
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn filter_erasure(attrs: &[Attribute]) -> Vec<Attribute> {
+    attrs
+        .iter()
+        .filter(|attr| {
+            let is_erasure = attr.path().is_ident("erasure");
+            if is_erasure && attr.meta.require_path_only().is_err() {
+                Diagnostic::spanned(
+                    attr.span().unwrap(),
+                    Level::Error,
+                    "#[erasure] inside `extern_spec!` must not have arguments",
+                )
+                .emit();
+            }
+            !is_erasure
+        })
+        .cloned()
+        .collect::<Vec<_>>()
+}
+
+fn has_comptime(attrs: &[Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("rustc_comptime"))
+}
+
+enum SelfTypeKind {
+    Self_,
+    Type(Box<Type>),
+}
+
+struct SelfEscaper {
+    escape: SelfTypeKind,
+    err: Vec<Error>,
+}
+
+impl SelfEscaper {
+    fn escape_self_in_token_stream(&self, stream: TokenStream) -> TokenStream {
+        let mut res = TokenStream::new();
+        for tree in stream {
+            match tree {
+                TokenTree::Group(mut group) => {
+                    self.escape_self_in_group(&mut group);
+                    res.extend_one(TokenTree::Group(group));
+                }
+                TokenTree::Ident(i) if i == "Self" => match self.escape {
+                    SelfTypeKind::Self_ => {
+                        res.extend_one(TokenTree::Ident(self_type_escape(i.span())))
+                    }
+                    SelfTypeKind::Type(ref ty) => res.extend(ty.to_token_stream()),
+                },
+                TokenTree::Ident(i) if i == "self" => {
+                    res.extend_one(TokenTree::Ident(self_escape(i.span())))
+                }
+                TokenTree::Ident(_) | TokenTree::Punct(_) | TokenTree::Literal(_) => {
+                    res.extend_one(tree)
+                }
+            }
+        }
+        res
+    }
+
+    fn escape_self_in_group(&self, group: &mut Group) {
+        let stream = self.escape_self_in_token_stream(group.stream());
+        let span = group.span();
+        *group = Group::new(group.delimiter(), stream);
+        group.set_span(span);
+    }
+}
+
+impl VisitMut for SelfEscaper {
+    fn visit_type_mut(&mut self, ty: &mut Type) {
+        if let Type::Path(TypePath { path, .. }) = ty
+            && path.segments[0].ident == "Self"
+            && path.segments.len() == 1
+            && let SelfTypeKind::Type(box escty) = &self.escape
+        {
+            *ty = escty.clone();
+        }
+        visit_mut::visit_type_mut(self, ty);
+    }
+
+    fn visit_path_mut(&mut self, path: &mut Path) {
+        if path.segments[0].ident == "Self" {
+            match &self.escape {
+                SelfTypeKind::Type(box Type::Path(TypePath { path: pathty, .. }))
+                    if path.segments.len() == 1 =>
+                {
+                    *path = pathty.clone()
+                }
+                SelfTypeKind::Type(_) => {
+                    self.err.push(Error::new(path.segments[0].span(), "Cannot use Self here."));
+                }
+                SelfTypeKind::Self_ => path.segments[0] = self_type_escape(path.segments[0].span()),
+            }
+        } else if path.segments[0].ident == "self" {
+            path.segments[0] = self_escape(path.segments[0].span());
+        }
+        visit_mut::visit_path_mut(self, path);
+    }
+}
+
+fn escape_self_in_contracts(attrs: &mut Vec<Attribute>, replacer: &mut SelfEscaper) -> Result<()> {
+    for attr in attrs {
+        if let Meta::List(l) = &mut attr.meta {
+            let tokens = std::mem::take(&mut l.tokens);
+            l.tokens = replacer.escape_self_in_token_stream(tokens.into());
+        }
+    }
+    Ok(())
+}
+
+fn flatten(
+    ex: ExternSpec,
+    mut prefix: ExprPath,
+    // Generated name for the extern spec body/the docmentation
+    mut item_name: DocItemName,
+    impl_data: Option<ImplData>,
+    flat: &mut Vec<FlatSpec>,
+) -> Result<()> {
+    match ex {
+        ExternSpec::Mod(modl) => {
+            if prefix.path.leading_colon.is_none() {
+                prefix.path.leading_colon = Some(Default::default());
+            }
+            item_name.add_ident(&modl.ident);
+            prefix
+                .path
+                .segments
+                .push(PathSegment { ident: modl.ident, arguments: PathArguments::None });
+            for item in modl.content {
+                flatten(item, prefix.clone(), item_name.clone(), None, flat)?;
+            }
+        }
+        ExternSpec::Trait(trait_) => {
+            if prefix.path.leading_colon.is_none() {
+                prefix.path.leading_colon = Some(Default::default());
+            }
+            prefix
+                .path
+                .segments
+                .push(PathSegment { ident: trait_.ident.clone(), arguments: PathArguments::None });
+
+            item_name.add_ident(&trait_.ident);
+            item_name.add_generics(&trait_.generics);
+
+            let mut generics: Punctuated<GenericArgument, Comma> = Punctuated::new();
+            for (gparam, p) in trait_.generics.params.clone().into_pairs().map(Pair::into_tuple) {
+                let span = gparam.span();
+                let garg = match gparam {
+                    GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                        parse_quote_spanned! {span => #lifetime}
+                    }
+                    GenericParam::Type(TypeParam { ident, .. }) => {
+                        parse_quote_spanned! {span => #ident}
+                    }
+                    GenericParam::Const(ConstParam { ident, .. }) => {
+                        parse_quote_spanned! {span => const #ident}
+                    }
+                };
+                generics.push(garg);
+                if let Some(punct) = p {
+                    generics.push_punct(punct);
+                }
+            }
+
+            let impl_data = Some(ImplData {
+                self_ty: TraitOrImpl::Trait {
+                    ident: trait_.ident,
+                    generics,
+                    supertraits: trait_.supertraits,
+                },
+                params: trait_.generics.params,
+                where_clause: trait_.generics.where_clause.map(|w| w.predicates),
+            });
+
+            for item in trait_.items {
+                flatten(
+                    ExternSpec::Fn(item),
+                    prefix.clone(),
+                    item_name.clone(),
+                    impl_data.clone(),
+                    flat,
+                )?;
+            }
+        }
+        ExternSpec::Impl(impl_) => {
+            // `impl $ty { fn f }`            --> `<$ty>::f` (path = `::f`)
+            // `impl $ty for $trait { fn f }` --> `<$ty as $trait>::f` (path = `$trait::f`)
+            if prefix.path.segments.len() != 0 {
+                return Err(Error::new(
+                    impl_.brace_token.span.join(),
+                    "extern_spec no longer supports impl inside mod. Suggestion: move the impl out of the mod.",
+                ));
+            }
+            let mut ty = impl_.self_ty;
+            while let Type::Group(TypeGroup { elem, .. }) | Type::Paren(TypeParen { elem, .. }) =
+                *ty
+            {
+                ty = elem
+            }
+            item_name.add_generics(&impl_.generics);
+            if let Some((trait_, _)) = &impl_.trait_ {
+                item_name.add_path(trait_);
+                prefix.path = trait_.clone();
+            } else {
+                prefix.path =
+                    Path { leading_colon: Some(Default::default()), segments: Default::default() };
+            }
+            item_name.add_type(&ty);
+            // Write `$ty` in prefix.qself
+            prefix.qself = Some(QSelf {
+                lt_token: Default::default(),
+                ty: ty.clone(),
+                position: prefix.path.segments.len(),
+                as_token: None,
+                gt_token: Default::default(),
+            });
+            for item in impl_.items {
+                flatten(
+                    ExternSpec::Fn(item),
+                    prefix.clone(),
+                    item_name.clone(),
+                    Some(ImplData {
+                        self_ty: TraitOrImpl::Impl(ty.clone()),
+                        params: impl_.generics.params.clone(),
+                        where_clause: impl_.generics.where_clause.clone().map(|w| w.predicates),
+                    }),
+                    flat,
+                )?;
+            }
+        }
+        ExternSpec::Fn(fun) => {
+            prefix.path.segments.push(PathSegment {
+                ident: fun.sig.ident.clone(),
+                arguments: generic_arguments(&fun.sig),
+            });
+            item_name.add_ident(&fun.sig.ident);
+            flat.push(FlatSpec {
+                span: fun.span,
+                signature: fun.sig,
+                attrs: fun.attrs,
+                path: prefix,
+                kind: FlatSpecKind::Fn { impl_data, body: fun.body, doc_item_name: item_name },
+            })
+        }
+        ExternSpec::Const(cnst) => {
+            assert!(prefix.path.segments.is_empty());
+            let signature = Signature {
+                constness: None,
+                asyncness: None,
+                unsafety: None,
+                abi: None,
+                fn_token: Token![fn](cnst.span),
+                ident: cnst.path.path.segments.last().unwrap().ident.clone(),
+                generics: Default::default(),
+                paren_token: Paren::default(),
+                inputs: Default::default(),
+                variadic: None,
+                output: ReturnType::Default,
+            };
+            flat.push(FlatSpec {
+                span: cnst.span,
+                attrs: parse_const_attrs(cnst.attrs)?,
+                signature,
+                path: cnst.path,
+                kind: FlatSpecKind::Const,
+            })
+        }
+    }
+    Ok(())
+}
+
+// Accept only `#[ensures]` and `#[constant]`
+fn parse_const_attrs(attrs: Vec<Attribute>) -> Result<Vec<Attribute>> {
+    let mut r = vec![];
+    attrs.into_iter().try_for_each(|attr: Attribute| match attr.meta {
+        Meta::List(ref list)
+            if list.path.segments.len() == 1 && list.path.segments[0].ident == "ensures" =>
+        {
+            r.push(attr);
+            Ok(())
+        }
+        Meta::List(list)
+            if list.path.segments.len() == 1 && list.path.segments[0].ident == "constant" =>
+        {
+            let args =
+                Punctuated::<_, Token![,]>::parse_separated_nonempty.parse(list.tokens.into())?;
+            r.extend(args.into_iter().map(ConstantArg::to_attr));
+            Ok(())
+        }
+        _ => Err(Error::new(attr.span(), "unrecognized attribute in extern spec for const")),
+    })?;
+    Ok(r)
+}
+
+fn generic_arguments(sig: &Signature) -> PathArguments {
+    generic_arguments_opt(&sig.generics).unwrap_or(PathArguments::None)
+}
+
+fn generic_arguments_opt(generics: &Generics) -> Option<PathArguments> {
+    Some(PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+        colon2_token: None,
+        lt_token: generics.lt_token?,
+        args: generics.params.iter().filter_map(param_to_argument).collect(),
+        gt_token: generics.gt_token?,
+    }))
+}
+
+fn param_to_argument(t: &GenericParam) -> Option<GenericArgument> {
+    match t {
+        GenericParam::Lifetime(_) => None, // cannot specify lifetime arguments explicitly if late bound lifetime parameters are present
+        GenericParam::Type(t) => Some(GenericArgument::Type(Type::Path(TypePath {
+            qself: None,
+            path: t.ident.clone().into(),
+        }))),
+        GenericParam::Const(c) => Some(GenericArgument::Const(Expr::Path(ExprPath {
+            attrs: vec![],
+            qself: None,
+            path: c.ident.clone().into(),
+        }))),
+    }
+}
+
+impl ExternSpecItem {
+    fn set_attrs(&mut self, attrs: Vec<Attribute>) {
+        use ExternSpecItem::*;
+        match self {
+            Type(t) => t.attrs = attrs,
+            Fun(f) => f.set_attrs(attrs),
+        }
+    }
+}
+
+impl ExternSpec {
+    fn set_attrs(&mut self, attrs: Vec<Attribute>) {
+        use ExternSpec::*;
+        match self {
+            Fn(m) => m.attrs = attrs,
+            Const(c) => c.attrs = attrs,
+            Mod(_) | Trait(_) | Impl(_) => {}
+        }
+    }
+}
+
+impl Parse for ExternSpecs {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let mut externs = Vec::new();
+        while !input.is_empty() {
+            externs.push(input.parse()?)
+        }
+
+        Ok(ExternSpecs(externs))
+    }
+}
+
+impl Parse for ExternSpecItem {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+
+        let lookahead = input.lookahead1();
+        let mut item = if lookahead.peek(Token![type]) {
+            ExternSpecItem::Type(input.call(ExternType::parse)?)
+        } else {
+            ExternSpecItem::Fun(input.call(ExternSpec::parse)?)
+        };
+        item.set_attrs(attrs);
+        Ok(item)
+    }
+}
+
+impl Parse for ExternSpec {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+
+        let lookahead = input.lookahead1();
+        let mut item = if lookahead.peek(Token![mod]) {
+            ExternSpec::Mod(input.parse()?)
+        } else if lookahead.peek(Token![impl]) {
+            ExternSpec::Impl(input.parse()?)
+        } else if lookahead.peek(Token![trait]) {
+            ExternSpec::Trait(input.parse()?)
+        } else if lookahead.peek(Token![fn])
+            || (lookahead.peek(Token![unsafe]) && input.peek2(Token![fn]))
+        {
+            ExternSpec::Fn(input.parse()?)
+        } else if lookahead.peek(Token![const]) {
+            ExternSpec::Const(input.parse()?)
+        } else {
+            return Err(lookahead.error());
+        };
+        item.set_attrs(attrs);
+        Ok(item)
+    }
+}
+
+impl Parse for ExternMod {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let _mod_token: Token![mod] = input.parse()?;
+        let ident: Ident = input.parse()?;
+        let content;
+        let _brace_token = braced!(content in input);
+        let mut items = Vec::new();
+        while !content.is_empty() {
+            items.push(content.parse()?);
+        }
+
+        Ok(ExternMod { ident, content: items })
+    }
+}
+
+impl Parse for ExternTrait {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let unsafety: Option<Token![unsafe]> = input.parse()?;
+        let trait_token: Token![trait] = input.parse()?;
+        let ident: Ident = input.parse()?;
+        let mut generics: Generics = input.parse()?;
+
+        let colon_token: Option<Token![:]> = input.parse()?;
+
+        let mut supertraits = Punctuated::new();
+        if colon_token.is_some() {
+            loop {
+                if input.peek(Token![where]) || input.peek(Brace) {
+                    break;
+                }
+                supertraits.push_value(input.parse()?);
+                if input.peek(Token![where]) || input.peek(Brace) {
+                    break;
+                }
+                supertraits.push_punct(input.parse()?);
+            }
+        }
+
+        generics.where_clause = input.parse()?;
+
+        let content;
+        let brace_token = braced!(content in input);
+        let mut items = Vec::new();
+        while !content.is_empty() {
+            items.push(content.parse()?);
+        }
+
+        Ok(ExternTrait {
+            _unsafety: unsafety,
+            _trait_token: trait_token,
+            ident,
+            generics,
+            _colon_token: colon_token,
+            supertraits,
+            _brace_token: brace_token,
+            items,
+        })
+    }
+}
+
+impl Parse for ExternImpl {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let defaultness: Option<Token![default]> = input.parse()?;
+        let unsafety: Option<Token![unsafe]> = input.parse()?;
+        let impl_token: Token![impl] = input.parse()?;
+
+        let has_generics = input.peek(Token![<])
+            && (input.peek2(Token![>])
+                || input.peek2(Token![#])
+                || (input.peek2(Ident) || input.peek2(Lifetime))
+                    && (input.peek3(Token![:])
+                        || input.peek3(Token![,])
+                        || input.peek3(Token![>])
+                        || input.peek3(Token![=]))
+                || input.peek2(Token![const]));
+        let mut generics: Generics =
+            if has_generics { input.parse()? } else { Generics::default() };
+
+        let is_const_impl =
+            input.peek(Token![const]) || input.peek(Token![?]) && input.peek2(Token![const]);
+        if is_const_impl {
+            return Err(Error::new(input.span(), "cannot use const impls in `extern_spec!`"));
+        }
+
+        if input.peek(Token![!]) && !input.peek2(Brace) {
+            return Err(Error::new(input.span(), "cannot use negative impls in `extern_spec!`"));
+        };
+
+        let first_ty_span = input.span();
+        let mut first_ty: Type = input.parse()?;
+        let self_ty: Box<Type>;
+        let trait_;
+
+        let is_impl_for = input.peek(Token![for]);
+        if is_impl_for {
+            let for_token: Token![for] = input.parse()?;
+            let mut first_ty_ref = &first_ty;
+            while let Type::Group(TypeGroup { elem, .. }) | Type::Paren(TypeParen { elem, .. }) =
+                first_ty_ref
+            {
+                first_ty_ref = elem;
+            }
+            if let Type::Path(_) = first_ty_ref {
+                while let Type::Group(TypeGroup { elem, .. })
+                | Type::Paren(TypeParen { elem, .. }) = first_ty
+                {
+                    first_ty = *elem;
+                }
+                if let Type::Path(TypePath { qself: None, path }) = first_ty {
+                    trait_ = Some((path, for_token));
+                } else {
+                    unreachable!();
+                }
+            } else {
+                trait_ = None;
+            }
+            self_ty = input.parse()?;
+        } else {
+            trait_ = None;
+            self_ty = Box::new(first_ty);
+        }
+
+        generics.where_clause = input.parse()?;
+
+        let content;
+        let brace_token = braced!(content in input);
+
+        let mut items = Vec::new();
+        while !content.is_empty() {
+            items.push(content.parse()?);
+        }
+        if is_impl_for && trait_.is_none() {
+            return Err(Error::new(first_ty_span, "unexpected type in trait declaration"));
+        }
+
+        Ok(ExternImpl {
+            _attrs: attrs,
+            _defaultness: defaultness,
+            _unsafety: unsafety,
+            _impl_token: impl_token,
+            generics,
+            trait_,
+            self_ty,
+            brace_token,
+            items,
+        })
+    }
+}
+
+impl Parse for ExternMethod {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let span = input.span();
+        let attrs = input.call(Attribute::parse_outer)?;
+        let sig: Signature = input.parse()?;
+
+        let (body, _semicolon) = if let Ok(semi) = input.parse::<Token![;]>() {
+            (None, Some(semi))
+        } else {
+            (Some(input.parse()?), None)
+        };
+
+        Ok(ExternMethod { span, attrs, sig, body, _semicolon })
+    }
+}
+
+#[derive(Debug)]
+struct ExternType {
+    attrs: Vec<Attribute>,
+    path: Path,
+}
+
+impl Parse for ExternType {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        input.parse::<Token![type]>()?;
+        let path = input.parse()?;
+        input.parse::<Token![;]>()?;
+        Ok(Self { attrs, path })
+    }
+}
+
+impl ToTokens for ExternType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let span = self.path.span();
+        let ident = crate::creusot::generate_unique_ident("extern_type", span);
+        let attrs = &self.attrs;
+        let path = &self.path;
+        let generics = match self.path.segments.last().unwrap().arguments {
+            syn::PathArguments::AngleBracketed(ref generics) => Some(generics),
+            _ => None,
+        };
+        tokens.extend(quote_spanned! { span=>
+            #[allow(dead_code, non_camel_case_types)]
+            #[creusot::extern_type]
+            #[doc(hidden)]
+            #(#attrs)*
+            struct #ident #generics (#path);
+        })
+    }
+}
+
+impl Parse for ExternConst {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let span = input.span();
+        let attrs = vec![];
+        let _const = input.parse()?;
+        let path = input.parse()?;
+        let _semi = input.parse()?;
+        Ok(ExternConst { span, attrs, _const, path, _semi })
+    }
+}

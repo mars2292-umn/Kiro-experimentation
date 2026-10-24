@@ -1160,7 +1160,7 @@ id = "ORQ-10"
 status = "resolved"
 certification = true
 gaps = ["GAP-03"]
-note = "Creusot designated; unqualified and not yet pinned."
+note = "Creusot designated and pinned (toolchain/decision.toml [creusot], 2026-10-23); unqualified; the first Task bodies proven (task 17.1)."
 
 [[orq]]
 id = "ORQ-11"

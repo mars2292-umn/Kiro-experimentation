@@ -10,7 +10,7 @@
 //! directory with the checksum the lock file records.
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use toml::{Table, Value};
 
@@ -88,12 +88,17 @@ fn check_requirements(ws: &Workspace, report: &mut Report) {
                         );
                     }
                 }
+                (Some(source), _) if pinned_vendored_git(&ws.root, source) => {
+                    registry += 1;
+                    exact += 1;
+                }
                 (Some(source), _) => report.error(
                     Rule::Locked,
                     location.clone(),
                     format!(
-                        "dependency `{}` comes from `{source}`; only vendored crates.io packages and \
-                         workspace paths are allowed",
+                        "dependency `{}` comes from `{source}`; only vendored crates.io packages, workspace \
+                         paths, and git sources pinned to a commit and replaced by the vendored directory \
+                         in .cargo/config.toml are allowed",
                         dep.name
                     ),
                 ),
@@ -154,10 +159,25 @@ fn check_vendored_lock_entries(ws: &Workspace, report: &mut Report) {
             continue; // a path package
         }
         if source != CRATES_IO {
+            // A git source pinned to a commit (`?rev=<40 hex>#<the same>`) and
+            // replaced by the vendored directory is vendored like a registry
+            // package (R58.1: lock-file-only resolution from vendored sources);
+            // its vendored copy carries no checksum, so its presence is checked.
+            let (base, fragment) = source.split_once('#').unwrap_or((source.as_str(), ""));
+            let rev_ok = base.rsplit("?rev=").next().is_some_and(|r| r.len() == 40 && r.chars().all(|c| c.is_ascii_hexdigit()) && r == fragment);
+            if rev_ok && pinned_vendored_git(&ws.root, base) {
+                let present = vendor.as_ref().is_some_and(|v| v.join(format!("{name}-{version}")).join(".cargo-checksum.json").is_file());
+                if present {
+                    vendored += 1;
+                } else {
+                    report.error(Rule::Locked, location.clone(), format!("lock entry `{name} {version}` (git, pinned) is not present in the vendored sources"));
+                }
+                continue;
+            }
             report.error(
                 Rule::Locked,
                 location.clone(),
-                format!("lock entry `{name} {version}` comes from `{source}`, not from vendored crates.io"),
+                format!("lock entry `{name} {version}` comes from `{source}`, not from vendored crates.io nor a pinned, vendored git source"),
             );
             continue;
         }
@@ -199,6 +219,24 @@ fn check_vendored_lock_entries(ws: &Workspace, report: &mut Report) {
         "R58.1: {} lock entries, {vendored} registry packages vendored with matching checksums",
         packages.len()
     ));
+}
+
+/// Whether `source` (`git+<url>?rev=<40 hex>`) names a commit and
+/// `.cargo/config.toml` replaces that exact source with the vendored
+/// directory (task 17.1: the App_Prover's specification library).
+fn pinned_vendored_git(root: &Path, source: &str) -> bool {
+    let Some(rev) = source.strip_prefix("git+").and_then(|s| s.rsplit("?rev=").next()) else { return false };
+    if rev.len() != 40 || !rev.chars().all(|c| c.is_ascii_hexdigit()) {
+        return false;
+    }
+    let Ok(text) = std::fs::read_to_string(root.join(".cargo").join("config.toml")) else { return false };
+    let Ok(table) = text.parse::<Table>() else { return false };
+    table
+        .get("source")
+        .and_then(Value::as_table)
+        .and_then(|s| s.get(source))
+        .and_then(Value::as_table)
+        .is_some_and(|t| t.get("replace-with").and_then(Value::as_str) == Some("vendored-sources") && t.get("rev").and_then(Value::as_str) == Some(rev))
 }
 
 #[cfg(test)]

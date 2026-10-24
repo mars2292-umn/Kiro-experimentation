@@ -1,0 +1,144 @@
+//! Definition of [`Snapshot`]
+
+use crate::{ghost::Plain, logic::ops::Fin, prelude::*};
+
+#[cfg(creusot)]
+use crate::ghost::Objective;
+#[cfg(creusot)]
+use crate::logic::ops::{DerefLogic, DerefMutLogic};
+use core::marker::PhantomData;
+#[cfg(creusot)]
+use core::ops::{Deref, DerefMut};
+
+/// A copyable snapshot, usable in pearlite.
+///
+/// The `Snapshot` type contains the logical value of some data, in a purely immutable way.
+/// It is zero sized.
+///
+/// Creating a snapshot does _not_ move the ownership of a value.
+///
+/// # Pearlite syntax
+///
+/// In executable code, you may create a snapshot with the [`snapshot!`] macro. Inside
+/// this macro, you may write _pearlite_ code; this code will not run during the normal
+/// execution of the program.
+///
+/// ## Example
+///
+/// ```
+/// # use creusot_std::{logic::Mapping, prelude::*};
+/// let x: Snapshot<Int> = snapshot!(1);
+/// let m: Snapshot<Mapping<Int, Int>> = snapshot!(|x| x + 1);
+/// ```
+#[intrinsic("snapshot")]
+pub struct Snapshot<T: ?Sized>(PhantomData<T>);
+
+#[cfg(creusot)]
+impl<T: ?Sized> Deref for Snapshot<T> {
+    type Target = T;
+
+    #[check(ghost)]
+    #[requires(false)]
+    #[logic_alias(self.deref_logic())]
+    fn deref(&self) -> &Self::Target {
+        panic!("Snapshot values cannot be dereferenced in program")
+    }
+}
+
+#[cfg(creusot)]
+impl<T: ?Sized> DerefMut for Snapshot<T> {
+    #[check(ghost)]
+    #[requires(false)]
+    #[logic_alias(self.deref_mut_logic())]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        panic!("Snapshot values cannot be dereferenced in program")
+    }
+}
+
+#[cfg(creusot)]
+impl<T: ?Sized> DerefLogic for Snapshot<T> {
+    #[logic]
+    #[builtin("identity")]
+    fn deref_logic(&self) -> &T {
+        dead
+    }
+}
+
+#[cfg(creusot)]
+impl<T: ?Sized> DerefMutLogic for Snapshot<T> {
+    #[logic]
+    #[builtin("identity")]
+    fn deref_mut_logic(&mut self) -> &mut T {
+        dead
+    }
+}
+
+impl<T: ?Sized + Fin> Fin for Snapshot<T> {
+    type Target = T::Target;
+
+    #[logic(open, prophetic, inline)]
+    fn fin<'a>(self) -> &'a Self::Target {
+        pearlite! { &^*self }
+    }
+}
+
+impl<T: ?Sized> Clone for Snapshot<T> {
+    #[check(ghost)]
+    #[ensures(result == *self)]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: ?Sized> Copy for Snapshot<T> {}
+
+#[cfg(creusot)]
+#[trusted]
+impl<T> Objective for Snapshot<T> {}
+
+impl<T: ?Sized> Snapshot<T> {
+    /// Create a new snapshot in logic code.
+    #[logic]
+    #[builtin("identity")]
+    pub fn new(value: T) -> Snapshot<T> {
+        let _ = value;
+        dead
+    }
+}
+
+impl<T> Snapshot<T> {
+    /// Get the value of the snapshot.
+    ///
+    /// When possible, you should instead use the dereference operator.
+    ///
+    /// # Example
+    /// ```
+    /// # use creusot_std::prelude::*;
+    /// let x = snapshot!(1);
+    /// proof_assert!(x.inner() == 1);
+    /// proof_assert!(*x == 1); // prefer this
+    /// ```
+    #[logic]
+    #[builtin("identity")]
+    pub fn inner(self) -> T {
+        dead
+    }
+
+    /// Internal function used in the `snapshot!` macro.
+    #[doc(hidden)]
+    #[cfg(not(creusot))]
+    pub fn from_fn(_: fn() -> T) -> Self {
+        Snapshot(PhantomData)
+    }
+
+    /// Extract a plain value from a snapshot in ghost code.
+    #[requires(inv(*self))]
+    #[ensures(*result == *self)]
+    #[check(ghost)]
+    pub fn into_ghost(self) -> Ghost<T>
+    where
+        T: Plain,
+    {
+        T::into_ghost(self)
+    }
+}

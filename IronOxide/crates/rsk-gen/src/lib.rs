@@ -90,6 +90,7 @@ mod tests {
             fpu: false,
             resources: resources.iter().map(|s| s.to_string()).collect(),
             raises: vec![],
+            state: vec![],
         }
     }
 

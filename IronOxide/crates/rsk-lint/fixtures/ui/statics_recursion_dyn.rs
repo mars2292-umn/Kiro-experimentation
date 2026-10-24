@@ -5,6 +5,7 @@ use core::cell::Cell;
 static mut COUNTER: u32 = 0;
 static FLAG: Cell<u32> = Cell::new(0);
 static TABLE: [u8; 4] = [0; 4];
+static COUNTER_CELL: rsk::ResourceCell<u32> = rsk::ResourceCell::new(0);
 
 fn fact(n: u32) -> u32 {
     if n == 0 { 1 } else { n * fact(n - 1) }

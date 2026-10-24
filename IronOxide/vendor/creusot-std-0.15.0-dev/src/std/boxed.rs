@@ -1,0 +1,162 @@
+#[cfg(feature = "nightly")]
+use crate::logic::ops::{DerefLogic, DerefMutLogic};
+#[cfg(creusot)]
+use crate::resolve::structural_resolve;
+use crate::{invariant::*, prelude::*};
+#[cfg(feature = "nightly")]
+use std::alloc::Allocator;
+
+#[cfg(creusot)]
+use std::ops::{Deref, DerefMut};
+
+#[cfg(feature = "nightly")]
+impl<T: DeepModel + ?Sized, A: Allocator> DeepModel for Box<T, A> {
+    type DeepModelTy = Box<T::DeepModelTy>;
+    #[logic(open, inline)]
+    fn deep_model(self) -> Self::DeepModelTy {
+        Box::new((*self).deep_model())
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<T: View + ?Sized, A: Allocator> View for Box<T, A> {
+    type ViewTy = T::ViewTy;
+    #[logic(open, inline)]
+    fn view(self) -> Self::ViewTy {
+        (*self).view()
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<T: ?Sized, A: Allocator> Resolve for Box<T, A> {
+    #[logic(open, prophetic, inline)]
+    #[creusot::trusted_trivial_if_param_trivial]
+    fn resolve(self) -> bool {
+        true
+    }
+
+    #[trusted]
+    #[logic(prophetic)]
+    #[requires(structural_resolve(self))]
+    #[ensures(self.resolve())]
+    fn resolve_coherence(self) {}
+}
+
+#[cfg(feature = "nightly")]
+impl<T: ?Sized, A: Allocator> Invariant for Box<T, A> {
+    #[logic(open, prophetic)]
+    #[creusot::trusted_trivial_if_param_trivial]
+    fn invariant(self) -> bool {
+        inv(*self)
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<T, A: Allocator> DerefLogic for Box<T, A> {
+    #[logic]
+    #[builtin("identity")]
+    fn deref_logic(&self) -> &T {
+        dead
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<T, A: Allocator> DerefMutLogic for Box<T, A> {
+    #[logic]
+    #[builtin("identity")]
+    fn deref_mut_logic(&mut self) -> &mut T {
+        dead
+    }
+}
+
+#[logic]
+#[builtin("identity")]
+pub fn new_box_logic<T>(val: T) -> Box<T> {
+    let _ = val;
+    dead
+}
+
+extern_spec! {
+    impl<T> Box<T> {
+        #[check(ghost)]
+        #[logic_alias(new_box_logic(val))]
+        fn new(val: T) -> Self;
+    }
+
+    impl<T: ?Sized> Box<T> {
+        // Postulate `check(ghost)`.
+        // It is used in a `#[trusted]` primitive in `ptr`.
+        #[check(ghost)]
+        #[requires(false)]
+        unsafe fn from_raw(raw: *mut T) -> Box<T>;
+
+        #[check(ghost)]
+        fn into_raw(self) -> *const T;
+    }
+
+    impl<T, A: Allocator> Box<T, A> {
+        #[check(ghost)]
+        #[ensures(**self == *result)]
+        #[ensures(*^self == ^result)]
+        fn as_mut(&mut self) -> &mut T;
+
+        #[check(ghost)]
+        #[ensures(**self == *result)]
+        fn as_ref(&self) -> &T;
+
+        #[check(ghost)]
+        #[ensures(*result == *b)]
+        fn leak<'a>(b: Box<T, A>) -> &'a mut T
+        where
+            A: 'a;
+    }
+
+    impl<T: Clone, A: Allocator + Clone> Clone for Box<T, A> {
+        #[ensures(T::clone.postcondition((&**self,), *result))]
+        fn clone(&self) -> Box<T, A>;
+    }
+
+    impl<T, A: Allocator> Deref for Box<T, A> {
+        #[check(ghost)]
+        #[logic_alias(self.deref_logic())]
+        fn deref(&self) -> &T {
+            &**self
+        }
+    }
+
+    impl<T, A: Allocator> DerefMut for Box<T, A> {
+        #[check(ghost)]
+        #[logic_alias(self.deref_mut_logic())]
+        fn deref_mut(&mut self) -> &mut T {
+            &mut **self
+        }
+    }
+
+    impl<T, const N: usize> TryFrom<Box<[T]>> for Box<[T; N]> {
+        #[ensures(match result {
+            Ok(arr) => slice@.len() == N@ && arr@ == slice@,
+            Err(orig) => slice@.len() != N@ && orig@ == slice@
+        })]
+        fn try_from(slice: Box<[T]>) -> Result<Self, Box<[T]>>;
+    }
+
+    impl<T, const N: usize> TryFrom<Vec<T>> for Box<[T; N]> {
+        #[ensures(match result {
+            Ok(arr) => slice@.len() == N@ && arr@ == slice@,
+            Err(orig) => slice@.len() != N@ && orig@ == slice@,
+        })]
+        fn try_from(slice: Vec<T>) -> Result<Self, Vec<T>>;
+    }
+}
+
+/// Dummy impls that don't use the unstable trait Allocator
+#[cfg(not(feature = "nightly"))]
+impl<T: DeepModel + ?Sized> DeepModel for Box<T> {
+    type DeepModelTy = Box<T::DeepModelTy>;
+}
+
+#[cfg(not(feature = "nightly"))]
+impl<T: ?Sized> Invariant for Box<T> {}
+
+#[cfg(not(feature = "nightly"))]
+impl<T: ?Sized> Resolve for Box<T> {}

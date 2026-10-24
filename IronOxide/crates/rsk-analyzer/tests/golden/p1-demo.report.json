@@ -5,7 +5,7 @@
     "This analysis assumes a single core (R27.5): it is no evidence for a multi-core configuration.",
     "Interference bounds assume the Overrun handling of R18 (R18.9): a Task of a Partition whose Overrun_Response stops overrunning Jobs is charged Budget + Δ_detect + Δ_enforce + its longest Critical_Section; other Tasks are charged their Budget.",
     "Every offset is treated as zero (synchronous release, R29.1); release jitter J_rel applies to every Task.",
-    "PLACEHOLDER TIMING DATA: 30 input value(s) carry the method `placeholder` (no measurement or analysis): part0.control, part0.control#cs:state, part0.echo, part0.sensor, part0.sensor#cs:state, part1.log, part1.pulse, part2.filter, part2.sampler, delta_lock_in, delta_lock_out, delta_release, delta_dispatch, delta_complete, delta_timer, delta_irq, delta_stamp, l_kernel, delta_fp_save, delta_fp_restore, delta_detect, delta_enforce, delta_hm, delta_wake, j_rel, delta_svc, delta_dma_write, delta_view, delta_restart, delta_stop. This report is not timing evidence."
+    "PLACEHOLDER TIMING DATA: 32 input value(s) carry the method `placeholder` (no measurement or analysis): part0.control, part0.control#cs:state, part0.control#cs:in_cs, part0.echo, part0.sensor, part0.sensor#cs:state, part0.sensor#cs:in_cs, part1.log, part1.pulse, part2.filter, part2.sampler, delta_lock_in, delta_lock_out, delta_release, delta_dispatch, delta_complete, delta_timer, delta_irq, delta_stamp, l_kernel, delta_fp_save, delta_fp_restore, delta_detect, delta_enforce, delta_hm, delta_wake, j_rel, delta_svc, delta_dma_write, delta_view, delta_restart, delta_stop. This report is not timing evidence."
   ],
   "inputs": {
     "task_model": "task_model.json (fnv:0001)",
@@ -29,15 +29,16 @@
       "c_cycles": 25000,
       "b_cycles": 220000,
       "b_source": "part0.sensor#cs:state",
-      "o_cycles": 3600,
+      "o_cycles": 4200,
       "j_cycles": 500,
       "interference": [],
-      "r_cycles": 249100,
+      "r_cycles": 249700,
       "schedulable": true,
-      "slack_cycles": 900,
+      "slack_cycles": 300,
       "wcet_provenance": [
         "part0.control: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
-        "part0.control#cs:state: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
+        "part0.control#cs:state: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
+        "part0.control#cs:in_cs: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
     },
     {
@@ -55,14 +56,14 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 28600,
+          "e_cycles": 29200,
           "jobs": 2,
-          "cycles": 57200
+          "cycles": 58400
         }
       ],
-      "r_cycles": 286300,
+      "r_cycles": 287500,
       "schedulable": true,
-      "slack_cycles": 213700,
+      "slack_cycles": 212500,
       "wcet_provenance": [
         "part0.echo: 5000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -77,14 +78,14 @@
       "c_cycles": 220000,
       "b_cycles": 5000,
       "b_source": "Partition stop/restart work (R14.10)",
-      "o_cycles": 3600,
+      "o_cycles": 4200,
       "j_cycles": 500,
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 28600,
+          "e_cycles": 29200,
           "jobs": 2,
-          "cycles": 57200
+          "cycles": 58400
         },
         {
           "task": "part0.echo",
@@ -93,12 +94,13 @@
           "cycles": 8600
         }
       ],
-      "r_cycles": 294900,
+      "r_cycles": 296700,
       "schedulable": true,
-      "slack_cycles": 205100,
+      "slack_cycles": 203300,
       "wcet_provenance": [
         "part0.sensor: 220000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
-        "part0.sensor#cs:state: 220000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
+        "part0.sensor#cs:state: 220000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
+        "part0.sensor#cs:in_cs: 220000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
     },
     {
@@ -116,9 +118,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 28600,
+          "e_cycles": 29200,
           "jobs": 2,
-          "cycles": 57200
+          "cycles": 58400
         },
         {
           "task": "part0.echo",
@@ -128,9 +130,9 @@
         },
         {
           "task": "part0.sensor",
-          "e_cycles": 223600,
+          "e_cycles": 224200,
           "jobs": 1,
-          "cycles": 223600
+          "cycles": 224200
         },
         {
           "task": "part1.pulse",
@@ -145,9 +147,9 @@
           "cycles": 16100
         }
       ],
-      "r_cycles": 482400,
+      "r_cycles": 484200,
       "schedulable": true,
-      "slack_cycles": 517600,
+      "slack_cycles": 515800,
       "wcet_provenance": [
         "part1.log: 150000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -167,9 +169,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 28600,
+          "e_cycles": 29200,
           "jobs": 2,
-          "cycles": 57200
+          "cycles": 58400
         },
         {
           "task": "part0.echo",
@@ -179,14 +181,14 @@
         },
         {
           "task": "part0.sensor",
-          "e_cycles": 223600,
+          "e_cycles": 224200,
           "jobs": 1,
-          "cycles": 223600
+          "cycles": 224200
         }
       ],
-      "r_cycles": 303500,
+      "r_cycles": 305300,
       "schedulable": true,
-      "slack_cycles": 71500,
+      "slack_cycles": 69700,
       "wcet_provenance": [
         "part1.pulse: 5000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -206,9 +208,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 28600,
+          "e_cycles": 29200,
           "jobs": 2,
-          "cycles": 57200
+          "cycles": 58400
         },
         {
           "task": "part0.echo",
@@ -218,9 +220,9 @@
         },
         {
           "task": "part0.sensor",
-          "e_cycles": 223600,
+          "e_cycles": 224200,
           "jobs": 1,
-          "cycles": 223600
+          "cycles": 224200
         },
         {
           "task": "part1.pulse",
@@ -229,9 +231,9 @@
           "cycles": 9200
         }
       ],
-      "r_cycles": 319600,
+      "r_cycles": 321400,
       "schedulable": true,
-      "slack_cycles": 305400,
+      "slack_cycles": 303600,
       "wcet_provenance": [
         "part2.filter: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -251,21 +253,21 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 28600,
-          "jobs": 2,
-          "cycles": 57200
+          "e_cycles": 29200,
+          "jobs": 4,
+          "cycles": 116800
         },
         {
           "task": "part0.echo",
           "e_cycles": 8600,
-          "jobs": 1,
-          "cycles": 8600
+          "jobs": 2,
+          "cycles": 17200
         },
         {
           "task": "part0.sensor",
-          "e_cycles": 223600,
-          "jobs": 1,
-          "cycles": 223600
+          "e_cycles": 224200,
+          "jobs": 2,
+          "cycles": 448400
         },
         {
           "task": "part1.log",
@@ -276,25 +278,25 @@
         {
           "task": "part1.pulse",
           "e_cycles": 9200,
-          "jobs": 2,
-          "cycles": 18400
+          "jobs": 3,
+          "cycles": 27600
         },
         {
           "task": "part2.filter",
           "e_cycles": 16100,
-          "jobs": 1,
-          "cycles": 16100
+          "jobs": 2,
+          "cycles": 32200
         }
       ],
-      "r_cycles": 498500,
+      "r_cycles": 816800,
       "schedulable": true,
-      "slack_cycles": 2001500,
+      "slack_cycles": 1683200,
       "wcet_provenance": [
         "part2.sampler: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
     }
   ],
-  "utilization_percent": 79,
+  "utilization_percent": 80,
   "cross_check": {
     "status": "not_run",
     "detail": "run the UPPAAL cross-check with --uppaal"

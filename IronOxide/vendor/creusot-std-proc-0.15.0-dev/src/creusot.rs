@@ -1,0 +1,276 @@
+mod constant;
+mod derive;
+pub(crate) mod doc;
+mod erasure;
+mod extern_spec;
+mod invariant;
+mod logic;
+pub(crate) mod pretyping;
+mod proof;
+mod specs;
+
+pub(crate) use self::{
+    constant::constant,
+    derive::*,
+    erasure::erasure,
+    extern_spec::extern_spec,
+    logic::{logic, pearlite},
+    proof::{ghost, ghost_let, invariant, proof_assert, proof_assert_, snapshot},
+    specs::{
+        bitwise_proof, check, ensures, logic_alias, maintains, prophetic_alias, requires, variant,
+    },
+};
+
+use crate::common::{ContractSubject, FnOrMethod};
+use proc_macro::TokenStream as TS1;
+use proc_macro2::{Span, TokenStream};
+use quote::{TokenStreamExt as _, quote};
+use syn::{
+    Error, FnArg, Ident, LitStr, Macro, Result, Token, parse,
+    parse::{Parse, ParseStream},
+    parse_macro_input, parse_quote,
+    punctuated::Punctuated,
+    spanned::Spanned as _,
+};
+
+pub fn open_inv_result(_: TS1, tokens: TS1) -> TS1 {
+    let tokens = TokenStream::from(tokens);
+    TS1::from(quote! {
+        #[creusot::decl::open_inv_result]
+        #tokens
+    })
+}
+
+pub fn trusted(arg: TS1, tokens: TS1) -> TS1 {
+    match from_proof_assert(tokens.clone()) {
+        Ok(Some(assertion)) => proof_assert_(assertion, true),
+        Ok(None) => {
+            if arg.is_empty() {
+                let tokens = TokenStream::from(tokens);
+                TS1::from(quote! {
+                    #[creusot::decl::trusted]
+                    #[allow(creusot::experimental)]
+                    #tokens
+                })
+            } else {
+                let args = parse_macro_input!(
+                    arg with Punctuated::<TrustedArg, Token![,]>::parse_separated_nonempty
+                );
+                let mut tokens = tokens.into();
+                for arg in args {
+                    tokens = quote! { #arg #tokens };
+                }
+                TS1::from(tokens)
+            }
+        }
+        Err(e) => e.into_compile_error().into(),
+    }
+}
+
+enum TrustedArg {
+    /// #[trusted(ghost)]
+    Ghost,
+    /// #[trusted(terminates)]
+    Terminates,
+    /// #[trusted(positive(T, U))]
+    Positive(Punctuated<Ident, Token![,]>),
+}
+
+impl Parse for TrustedArg {
+    fn parse(src: ParseStream) -> syn::Result<Self> {
+        use TrustedArg::*;
+        let ident = src.parse::<Ident>()?;
+        if ident == "ghost" {
+            Ok(Ghost)
+        } else if ident == "terminates" {
+            Ok(Terminates)
+        } else if ident == "positive" {
+            let content;
+            syn::parenthesized!(content in src);
+            let params = Punctuated::<Ident, Token![,]>::parse_separated_nonempty(&content)?;
+            Ok(Positive(params))
+        } else {
+            Err(Error::new(
+                ident.span(),
+                "Unexpected `#[trusted]` argument: expected `ghost`, `terminates`, `positive(PARAM)`, or nothing",
+            ))
+        }
+    }
+}
+
+impl quote::ToTokens for TrustedArg {
+    fn to_tokens(&self, stream: &mut TokenStream) {
+        use TrustedArg::*;
+        stream.append_all(match self {
+            Ghost => quote! { #[creusot::decl::trusted_ghost] },
+            Terminates => quote! { #[creusot::decl::trusted_terminates] },
+            Positive(params) => quote! { #[creusot::decl::trusted_positive(#params)] },
+        })
+    }
+}
+
+/// Try to extract the body of a `proof_assert!`.
+/// Error if it is a macro different from `proof_assert!`.
+fn from_proof_assert(tokens: TS1) -> Result<Option<TS1>> {
+    let Ok(MacroSemicolon(m)) = parse(tokens.into()) else { return Ok(None) };
+    if m.path.is_ident("proof_assert") {
+        Ok(Some(m.tokens.into()))
+    } else {
+        Err(Error::new(
+            m.path.span(),
+            "Unexpected `#[trusted]` item: expected `proof_assert!` or a declaration or a closure",
+        ))
+    }
+}
+
+/// Macro with an optional semicolon for `#[trusted] proof_assert!()`
+struct MacroSemicolon(Macro);
+
+impl Parse for MacroSemicolon {
+    fn parse(src: ParseStream) -> Result<Self> {
+        let m = src.parse::<Macro>()?;
+        let _ = src.parse::<Option<Token![;]>>()?;
+        Ok(Self(m))
+    }
+}
+
+pub fn opaque(_: TS1, tokens: TS1) -> TS1 {
+    let tokens = TokenStream::from(tokens);
+    TS1::from(quote! {
+        #[creusot::decl::opaque]
+        #tokens
+    })
+}
+
+struct Builtin {
+    str: TokenStream,
+    ascription: bool,
+}
+
+impl Parse for Builtin {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let str = if input.fork().parse::<Macro>().is_ok() {
+            let mac: Macro = input.parse().unwrap();
+            quote! { #mac }
+        } else {
+            let str: LitStr = input.parse()?;
+            quote! { #str }
+        };
+
+        if input.peek(Token![,]) {
+            let _: Token![,] = input.parse()?;
+            let asc: Ident = input.parse()?;
+            if asc != "ascription" {
+                Result::Err(Error::new(
+                    asc.span(),
+                    "The second parameter of #[builtin], if present, should be `ascription`.",
+                ))?
+            }
+            Ok(Builtin { str, ascription: true })
+        } else {
+            Ok(Builtin { str, ascription: false })
+        }
+    }
+}
+
+pub fn builtin(params: TS1, tokens: TS1) -> TS1 {
+    let builtin = parse_macro_input!(params as Builtin);
+    let asc = if builtin.ascription {
+        quote! { #[creusot::builtin_ascription] }
+    } else {
+        quote! {}
+    };
+    let str = builtin.str;
+
+    let tokens = TokenStream::from(tokens);
+    TS1::from(quote! {
+        #[creusot::builtin = #str]
+        #asc
+        #tokens
+    })
+}
+
+pub fn intrinsic(params: TS1, tokens: TS1) -> TS1 {
+    let params = TokenStream::from(params);
+    let tokens = TokenStream::from(tokens);
+    TS1::from(quote! {
+        #[creusot::intrinsic = #params]
+        #tokens
+    })
+}
+
+pub fn declare_namespace(namespace: TS1) -> TS1 {
+    let ident = parse_macro_input!(namespace as Ident);
+    quote! {
+        #[logic(opaque)]
+        #[creusot::decl::new_namespace]
+        #[allow(nonstandard_style)]
+        pub fn #ident() -> ::creusot_std::ghost::invariant::Namespace {
+            dead
+        }
+    }
+    .into()
+}
+
+impl FnOrMethod {
+    fn is_trait_signature(&self) -> bool {
+        self.semi_token.is_some()
+    }
+}
+
+impl ContractSubject {
+    fn name(&self) -> String {
+        use ContractSubject::*;
+        match self {
+            FnOrMethod(tr) => tr.sig.ident.to_string(),
+            Closure(_) => "closure".to_string(),
+            Const(item) => item.ident.to_string(),
+        }
+    }
+
+    fn mark_unused(&mut self) {
+        if let ContractSubject::FnOrMethod(sig) = self {
+            for arg in sig.sig.inputs.iter_mut() {
+                let attrs = match arg {
+                    FnArg::Receiver(r) => &mut r.attrs,
+                    FnArg::Typed(r) => &mut r.attrs,
+                };
+                attrs.push(parse_quote! { #[allow(unused)]});
+            }
+        }
+    }
+}
+
+fn generate_unique_ident(prefix: &str, span: Span) -> Ident {
+    Ident::new(&generate_unique_string(prefix), span)
+}
+
+fn generate_unique_string(prefix: &str) -> String {
+    let uuid = uuid::Uuid::new_v4();
+    format!("{}_{}", prefix, uuid).replace('-', "_")
+}
+
+// Utilities for debugging
+
+#[allow(unused)]
+pub(crate) fn dump_tokens(tokens: &TokenStream) {
+    eprintln! {"{}", tokens};
+    eprint_tokens(tokens);
+}
+
+pub(crate) fn eprint_tokens(tokens: &TokenStream) {
+    for t in tokens.clone().into_iter() {
+        if let proc_macro2::TokenTree::Group(g) = t {
+            eprintln! {"Group {:?} {:?}", g.delimiter(), pretty_span(&g.span())};
+            eprint_tokens(&g.stream());
+        } else {
+            eprintln! {"{} {:?}", t, pretty_span(&t.span())};
+        }
+    }
+}
+
+pub(crate) fn pretty_span(span: &Span) -> String {
+    let start = span.start();
+    let end = span.end();
+    format! {"{:?}:{:?}:{:?}-{:?}:{:?}", span.unwrap().file(), start.line, start.column, end.line, end.column}
+}

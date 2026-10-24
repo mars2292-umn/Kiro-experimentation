@@ -19,6 +19,15 @@
 /// pipeline"): validates the declaration and exports the `rsk_system!` and
 /// `rsk_partition_<name>!` manifests (R21 to R24).
 pub use rsk_macros::app;
+/// The App_Prover's specification library (task 17.1), for Partition code
+/// compiled under Creusot (`cfg(creusot)`): `#[cfg_attr(creusot,
+/// rsk::creusot_std::macros::trusted)]` and the like. Absent from every
+/// Flight_Build (the `creusot` feature is off).
+#[cfg(feature = "creusot")]
+pub use creusot_std;
+#[cfg(feature = "creusot")]
+#[allow(unused_imports)]
+use creusot_std::{invariant::inv, std::ops::FnOnceExt};
 /// `#[rsk::bounds('label = N)]`: the Loop_Bound_Annotation of a function's
 /// labelled loops (R35, PR-16).
 pub use rsk_macros::bounds;
@@ -42,6 +51,7 @@ pub struct Shared<'a, T: 'static> {
 impl<'a, T: 'static> Shared<'a, T> {
     /// Constructed by generated code only (PR-06): the Resource identifier
     /// is the one of Generated_Config.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn new(cell: &'a ResourceCell<T>, id: u8) -> Shared<'a, T> {
         Shared { cell, id }
     }
@@ -50,6 +60,12 @@ impl<'a, T: 'static> Shared<'a, T> {
     /// exits it (R8.2). A refused lock means the type-system guarantees
     /// were bypassed; the Kernel has logged the misuse, and the Job panics
     /// into its Partition's fault response (PR-19).
+    // App_Prover contract (task 17.1, trusted: the body is the Kernel's SVC
+    // pair, R8.1 to R8.3): the closure runs once on the Resource's value and
+    // its result is returned; the closure must be ready for any value.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) ==> f.precondition((v,))))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && f.postcondition_once((v,), result)))]
     pub fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
         if !stubs::svc_lock(self.id) {
             panic!("rsk: lock refused");
@@ -62,8 +78,50 @@ impl<'a, T: 'static> Shared<'a, T> {
 
 impl<'a, T: 'static> Mutex for Shared<'a, T> {
     type T = T;
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
         Shared::lock(self, f)
+    }
+}
+
+/// Per-Task state (PR-25): declared `state <task>.<name>: T = init;` in
+/// the App_Declaration and held in the Task's Context. Only this Task's
+/// Jobs touch the cell, and one Job of a Task is in progress at a time
+/// (Property 2), so no lock is needed; the Generator emits the cell, so
+/// Partition code declares no interior-mutable `static` (PR-05).
+pub struct PerTask<'a, T: 'static> {
+    cell: &'a ResourceCell<T>,
+}
+
+impl<'a, T: 'static> PerTask<'a, T> {
+    /// Constructed by generated code only.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn new(cell: &'a ResourceCell<T>) -> PerTask<'a, T> {
+        PerTask { cell }
+    }
+
+    /// Runs `f` on the state. App_Prover contract (task 17.1, trusted): the
+    /// closure runs once on the state and its result is returned.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) ==> f.precondition((v,))))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && f.postcondition_once((v,), result)))]
+    pub fn with<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
+        self.cell.with_unprivileged(f)
+    }
+
+    /// A copy of the state.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn get(&self) -> T
+    where
+        T: Copy,
+    {
+        self.cell.peek_unprivileged()
+    }
+
+    /// Replaces the state.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn set(&mut self, value: T) {
+        self.with(|v| *v = value)
     }
 }
 
@@ -75,6 +133,7 @@ pub struct Signal {
 impl Signal {
     /// Constructed by generated code only: the identifier is the one of
     /// Generated_Config's signal table.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn new(id: u8) -> Signal {
         Signal { id }
     }
@@ -84,12 +143,14 @@ impl Signal {
     /// this Partition (R10.7). Never waits (PR-08). Returns whether the
     /// Kernel took the event (a refusal is API misuse and a fault of the
     /// Partition; the Kernel decides what the event does).
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn raise(&self) -> bool {
         stubs::svc_raise(self.id)
     }
 }
 
 /// The Kernel time base in ticks (PR-26).
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 pub fn now() -> u64 {
     stubs::svc_now()
 }
@@ -102,6 +163,7 @@ pub fn now() -> u64 {
 /// written, the refusal is a spatial violation of the Partition (R17.2),
 /// and `false` is returned (if the Partition's fault response lets the Job
 /// continue).
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 pub fn dma_request(channel: u8, buf: &[u8]) -> bool {
     let len = if buf.len() > u32::MAX as usize { u32::MAX } else { buf.len() as u32 };
     stubs::svc_dma(channel, buf.as_ptr() as usize as u32, len)
@@ -116,11 +178,13 @@ pub mod mmio {
     use rsk_kernel::arch::cm4::unsafe_module::hw;
 
     #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn read(addr: u32) -> u32 {
         hw::peripheral_read(addr)
     }
 
     #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn write(addr: u32, value: u32) {
         hw::peripheral_write(addr, value)
     }
@@ -128,12 +192,14 @@ pub mod mmio {
 
 /// Writes to the debug console (semihosting). Not for Flight_Builds
 /// without a debugger (the Link_Checker reports it there).
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 pub fn debug(s: &[u8]) {
     hw::semihosting_write(s);
 }
 
 /// A bounded busy loop of `N` iterations, for the demo Tasks (PR-16: the
 /// bound is the constant argument, which the Profile_Lint derives).
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 pub fn spin<const N: u32>() {
     let mut i = 0u32;
     while i < N {

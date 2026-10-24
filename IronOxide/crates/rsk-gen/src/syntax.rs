@@ -358,8 +358,10 @@ impl Parse for Parsed {
             braced!(body in input);
             let mut peripherals = Vec::new();
             let mut resources = Vec::new();
-            let mut tasks = Vec::new();
+            let mut tasks: Vec<TaskDecl> = Vec::new();
             let mut signals = Vec::new();
+            // (task name, state, span of the task name): attached after the loop.
+            let mut states: Vec<(String, StateDecl, Span)> = Vec::new();
             while !body.is_empty() {
                 let kw: Ident = body.parse()?;
                 match kw.to_string().as_str() {
@@ -390,6 +392,19 @@ impl Parse for Parsed {
                             init: tokens_to_string(&init),
                             placement: ResourcePlacement::Core(0),
                         });
+                    }
+                    "state" => {
+                        // PR-25: `state <task>.<name>: <type> = <init>;`
+                        let tname: Ident = body.parse()?;
+                        body.parse::<Token![.]>()?;
+                        let sname: Ident = body.parse()?;
+                        spans.add(ItemRef::TaskField(pname.clone(), tname.to_string(), sname.to_string()), sname.span());
+                        body.parse::<Token![:]>()?;
+                        let ty: syn::Type = body.parse()?;
+                        body.parse::<Token![=]>()?;
+                        let init: syn::Expr = body.parse()?;
+                        body.parse::<Token![;]>()?;
+                        states.push((tname.to_string(), StateDecl { name: sname.to_string(), ty: tokens_to_string(&ty), init: tokens_to_string(&init) }, tname.span()));
                     }
                     "signal" => {
                         let sname: Ident = body.parse()?;
@@ -479,9 +494,16 @@ impl Parse for Parsed {
                             fpu,
                             resources,
                             raises,
+                            state: vec![],
                         });
                     }
-                    other => return err(kw.span(), format!("unknown item `{other}` in a partition (peripherals, resource, task, signal)")),
+                    other => return err(kw.span(), format!("unknown item `{other}` in a partition (peripherals, resource, state, task, signal)")),
+                }
+            }
+            for (tname, state, span) in states {
+                match tasks.iter_mut().find(|t| t.name == tname) {
+                    Some(t) => t.state.push(state),
+                    None => return err(span, format!("`state {tname}.{}` names no task `{tname}` of partition `{pname}` (PR-25: per-Task state belongs to a declared Task)", state.name)),
                 }
             }
             partitions.push(PartitionDecl {

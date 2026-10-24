@@ -1,0 +1,26 @@
+[package]
+name = "p1-demo-part0-proof"
+description = "Creusot proof of the P1 demo's Partition 0 Task bodies (the real source, compiled under the App_Prover)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "../../../apps/p1-demo/part0/src/lib.rs"
+
+[dependencies]
+p1-demo-decl = { path = "../../../apps/p1-demo/decl" }
+rsk = { path = "../../../crates/rsk", features = ["creusot"] }
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]
+
+# The fault-injection features of the Partition (never enabled here): named so
+# that the `cfg(feature = ..)` checks are known to the compiler.
+[features]
+fi-pr12 = []
+fi-pr19 = []
+fi-pr22 = []
+fi-pr29 = []

@@ -3,8 +3,8 @@ Target: qemu_mps2_an386 (qemu), CPU 25000000 Hz, time base 25000000 Hz, 8 priori
 Profile: 0.6 Ravenscar
 Operating duration: 5000000 ticks
 Safe state: crate::report_and_exit
-Config checksum (CRC-32): 0x8fdd868f
-Capacities: lock stack 2, timer slots 23, event log 32
+Config checksum (CRC-32): 0x5616d942
+Capacities: lock stack 4, timer slots 23, event log 32
 Kernel levels: [0]; Task levels (level -> NVIC byte): 1 -> 0xe0, 2 -> 0xc0, 3 -> 0xa0, 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
 Kernel-owned peripherals: CMSDK_TIMER0, CMSDK_TIMER1
 Timer: IRQ 9 (vector 25)
@@ -20,13 +20,14 @@ Partitions:
     window 0x40010000 (2^12, srd 0x00, read-only): CMSDK_GPIO0
 
 Tasks:
-  part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 250000 ticks, deadline 250000 ticks, Budget 25000 cycles, fpu false, Resources [state], nesting depth 1, slots release 0 deadline 1 budget 2
-  part0.echo (#1, Partition part0, Priority 6, vector 37): sporadic, MIT 500000 ticks, policy defer, source signal tick, deadline 500000 ticks, Budget 5000 cycles, fpu false, Resources [], nesting depth 0, slots release 3 deadline 4 budget 5
-  part0.sensor (#2, Partition part0, Priority 5, vector 38): periodic, offset 125000 ticks, period 500000 ticks, deadline 500000 ticks, Budget 220000 cycles, fpu false, Resources [state], nesting depth 1, slots release 6 deadline 7 budget 8
-  part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], nesting depth 0, slots release 9 deadline 10 budget 11
-  part1.pulse (#4, Partition part1, Priority 4, vector 40): sporadic, MIT 375000 ticks, policy defer, source interrupt CMSDK_DUALTIMER (IRQ 10), deadline 375000 ticks, Budget 5000 cycles, fpu false, Resources [], nesting depth 0, slots release 12 deadline 13 budget 14
-  part2.filter (#5, Partition part2, Priority 3, vector 41): periodic, offset 0 ticks, period 625000 ticks, deadline 625000 ticks, Budget 12500 cycles, fpu true, Resources [], nesting depth 0, slots release 15 deadline 16 budget 17
-  part2.sampler (#6, Partition part2, Priority 1, vector 42): periodic, offset 0 ticks, period 2500000 ticks, deadline 2500000 ticks, Budget 12500 cycles, fpu false, Resources [], nesting depth 0, slots release 18 deadline 19 budget 20
+  part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 250000 ticks, deadline 250000 ticks, Budget 25000 cycles, fpu false, Resources [state, in_cs], state [count: u32, blocked: u32], nesting depth 2, slots release 0 deadline 1 budget 2
+  part0.echo (#1, Partition part0, Priority 6, vector 37): sporadic, MIT 500000 ticks, policy defer, source signal tick, deadline 500000 ticks, Budget 5000 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 3 deadline 4 budget 5
+  part0.sensor (#2, Partition part0, Priority 5, vector 38): periodic, offset 125000 ticks, period 500000 ticks, deadline 500000 ticks, Budget 220000 cycles, fpu false, Resources [state, in_cs], state [count: u32], nesting depth 2, slots release 6 deadline 7 budget 8
+  part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 9 deadline 10 budget 11
+  part1.pulse (#4, Partition part1, Priority 4, vector 40): sporadic, MIT 375000 ticks, policy defer, source interrupt CMSDK_DUALTIMER (IRQ 10), deadline 375000 ticks, Budget 5000 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 12 deadline 13 budget 14
+  part2.filter (#5, Partition part2, Priority 3, vector 41): periodic, offset 0 ticks, period 625000 ticks, deadline 625000 ticks, Budget 12500 cycles, fpu true, Resources [], state [count: u32, y: f32], nesting depth 0, slots release 15 deadline 16 budget 17
+  part2.sampler (#6, Partition part2, Priority 1, vector 42): periodic, offset 0 ticks, period 2500000 ticks, deadline 2500000 ticks, Budget 12500 cycles, fpu false, Resources [], state [count: u32, dma_ok: u32, buf: [u8 ; 16]], nesting depth 0, slots release 18 deadline 19 budget 20
 
 Resources:
   part0.state (#0, Partition part0, type u32): Ceiling 7, accessors [control, sensor]
+  part0.in_cs (#1, Partition part0, type u32): Ceiling 7, accessors [control, sensor]

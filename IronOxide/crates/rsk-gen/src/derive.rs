@@ -7,7 +7,7 @@
 //! capacities do not depend on the declaration order (R23.2, Property 13).
 
 use crate::convert::{to_cycles, to_ticks, Change, Rounding};
-use crate::decl::{Declaration, Diagnostic, ItemRef, Level, MitPolicy, Release, Response, Source};
+use crate::decl::{Declaration, Diagnostic, ItemRef, Level, MitPolicy, Release, Response, Source, StateDecl};
 use crate::layout::{self, Plan};
 use crate::target::Target;
 
@@ -63,6 +63,8 @@ pub struct GenTask {
     /// Global Resource indices, ascending.
     pub resources: Vec<usize>,
     pub raises: Vec<String>,
+    /// Per-Task state (PR-25), emitted as cells of the Partition's glue.
+    pub state: Vec<StateDecl>,
     /// PR-07: at most the number of declared Resources.
     pub nesting_depth: u8,
     pub dispatch_irq: u16,
@@ -242,6 +244,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                 source,
                 resources: res,
                 raises: t.raises.clone(),
+                state: t.state.clone(),
                 nesting_depth,
                 dispatch_irq: target.dispatch_irqs[index],
                 slot_release: NO_SLOT,

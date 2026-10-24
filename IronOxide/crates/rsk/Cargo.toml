@@ -10,3 +10,15 @@ publish.workspace = true
 rsk-kernel.workspace = true
 # The `rsk::app!` front end (a host proc-macro; PR-36 applies to it).
 rsk-macros.workspace = true
+# The App_Prover's specification library (task 17.1): optional, never in a
+# Flight_Build; `cargo creusot` builds with `--features creusot`.
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00", optional = true }
+
+[features]
+creusot = ["dep:creusot-std"]
+
+# `cfg(creusot)` is set by the App_Prover's compiler (task 17.1): the glue
+# the Generator emits is excluded under it.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

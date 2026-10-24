@@ -222,6 +222,19 @@ pub enum Source {
     Signal(String),
 }
 
+/// Per-Task state (PR-25): `state <task>.<name>: <type> = <init>;` in a
+/// Partition. Only the named Task's Jobs touch it, through a `PerTask`
+/// field of the Task's Context; the Generator emits the cell, so no
+/// Partition crate declares an interior-mutable `static` (PR-05).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StateDecl {
+    pub name: String,
+    /// The Rust type, as written.
+    pub ty: String,
+    /// The initial value, as written.
+    pub init: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TaskDecl {
     pub name: String,
@@ -235,6 +248,8 @@ pub struct TaskDecl {
     pub fpu: bool,
     /// Names of the Resources of the Partition the Task accesses (R8.7).
     pub resources: Vec<String>,
+    /// Per-Task state (PR-25), in declaration order.
+    pub state: Vec<StateDecl>,
     /// Release_Signals the Task may raise.
     pub raises: Vec<String>,
 }

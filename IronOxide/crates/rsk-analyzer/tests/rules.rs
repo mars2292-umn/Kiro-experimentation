@@ -338,10 +338,10 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
     let by = |id: &str| p.tasks.iter().find(|x| x.id == id).unwrap();
     // Placeholders: every Δ is 300 cycles. control: release + dispatch +
-    // complete + wake (1,200), three timed events (900), one Critical_Section
-    // lock in + out (600), Δ_hm (300), FP save + restore because the set has
-    // an FPU-using Task (600): 3,600.
-    assert_eq!(by("part0.control").o, 3_600);
+    // complete + wake (1,200), three timed events (900), two Critical_Section
+    // sites' lock in + out (1,200), Δ_hm (300), FP save + restore because the
+    // set has an FPU-using Task (600): 4,200.
+    assert_eq!(by("part0.control").o, 4_200);
     // echo (sporadic, deferral policy, no Critical_Section): the same
     // without the lock terms plus Δ_irq and Δ_stamp: 3,600.
     assert_eq!(by("part0.echo").o, 3_600);
@@ -399,7 +399,7 @@ fn r29_9_over_utilization_fails_without_iteration() {
     // Budgets are the placeholders' WCETs; a huge Budget cannot be declared
     // here, so the set is driven over 100 % through the records: no. The
     // Budget is the model's: raise control's to its whole period.
-    let m = model_with("\"budget_cycles\": 25000,\n      \"fpu\": false,\n      \"resources\": [\n        \"part0.state\"\n      ],\n      \"raises\"", "\"budget_cycles\": 250000,\n      \"fpu\": false,\n      \"resources\": [\n        \"part0.state\"\n      ],\n      \"raises\"");
+    let m = model_with("\"budget_cycles\": 25000,\n      \"fpu\": false,\n      \"resources\": [\n        \"part0.state\",\n        \"part0.in_cs\"\n      ],\n      \"raises\"", "\"budget_cycles\": 250000,\n      \"fpu\": false,\n      \"resources\": [\n        \"part0.state\",\n        \"part0.in_cs\"\n      ],\n      \"raises\"");
     w.records.iter_mut().filter(|r| r.item.starts_with("part0.control")).for_each(|r| r.wcet_cycles = 250_000);
     let a = analyze(&m, &w, &t, &manifest(&m), names(), &dev());
     assert_eq!(a.exit, EXIT_FAIL);

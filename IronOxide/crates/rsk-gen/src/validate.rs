@@ -357,6 +357,22 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
             }
         }
     }
+    // PR-25, PR-28: per-Task state names are unique per Task and distinct
+    // from the Task's Resource and Release_Signal fields of its Context.
+    for p in &decl.partitions {
+        for t in &p.tasks {
+            let mut seen = BTreeSet::new();
+            for s in &t.state {
+                let field = || ItemRef::TaskField(p.name.clone(), t.name.clone(), s.name.clone());
+                if !seen.insert(s.name.as_str()) {
+                    d.push(Diagnostic::new("PR-28", field(), format!("state `{}` of Task `{}` is declared twice", s.name, t.name)));
+                }
+                if t.resources.iter().any(|r| r == &s.name) || t.raises.iter().any(|r| r == &s.name) {
+                    d.push(Diagnostic::new("R21.3", field(), format!("state `{}` of Task `{}` has the name of one of its Resources or Release_Signals; the Context has one field per item", s.name, t.name)));
+                }
+            }
+        }
+    }
     for (irq, users) in &irq_users {
         if users.len() > 1 {
             d.push(Diagnostic::new(

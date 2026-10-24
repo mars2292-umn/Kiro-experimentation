@@ -37,7 +37,10 @@ members = [
     "xtask",
 ]
 # Fixture workspaces carry their own [workspace] tables and lock files.
-exclude = ["xtask/fixtures"]
+# xtask/fixtures: fixture workspaces of the Build_System tests; proofs/creusot:
+# the App_Prover's proof workspace, which compiles the Partition sources under
+# Creusot with its own lock file (task 17.1).
+exclude = ["xtask/fixtures", "proofs/creusot"]
 
 [workspace.package]
 version = "0.0.0"

@@ -21,8 +21,8 @@ schema = 1
 id = "ceiling-lowered"
 class = "ceilings"
 kind = "model"
-find = "\"ceiling\": 7,\n      \"accessors\""
-replace = "\"ceiling\": 5,\n      \"accessors\""
+find = "\"id\": \"part0.state\",\n      \"core\": 0,\n      \"partition\": \"part0\",\n      \"ceiling\": 7"
+replace = "\"id\": \"part0.state\",\n      \"core\": 0,\n      \"partition\": \"part0\",\n      \"ceiling\": 5"
 expect = ["part0.state.ceiling: expected 7, found 5"]
 
 # --- Priority-to-hardware mapping ---
@@ -39,18 +39,18 @@ expect = ["priority_map"]
 id = "nesting-depth-raised"
 class = "nesting-depths"
 kind = "model"
-find = "\"nesting_depth\": 1,\n      \"slots\": {\n        \"release\": 0"
-replace = "\"nesting_depth\": 2,\n      \"slots\": {\n        \"release\": 0"
-expect = ["part0.control.nesting_depth: expected 1, found 2"]
+find = "\"nesting_depth\": 2,\n      \"slots\": {\n        \"release\": 0"
+replace = "\"nesting_depth\": 3,\n      \"slots\": {\n        \"release\": 0"
+expect = ["part0.control.nesting_depth: expected 2, found 3"]
 
 # --- Capacities (R23.4, the timer-queue rule of R9.4) ---
 [[mutation]]
 id = "lock-stack-capacity"
 class = "capacities"
 kind = "model"
-find = "\"lock_stack\": 2"
-replace = "\"lock_stack\": 3"
-expect = ["capacities.lock_stack: expected 2, found 3"]
+find = "\"lock_stack\": 4"
+replace = "\"lock_stack\": 5"
+expect = ["capacities.lock_stack: expected 4, found 5"]
 
 [[mutation]]
 id = "timer-slots-capacity"

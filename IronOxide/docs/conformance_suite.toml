@@ -51,8 +51,8 @@ id = "conf-PR-03-mc"
 restriction = "PR-03"
 category = "MC"
 kind = "generator"
-find = "priority = 7, resources = [state], raises = [tick]);"
-replace = "priority = 7, priority = 6, resources = [state], raises = [tick]);"
+find = "priority = 7, resources = [state, in_cs], raises = [tick]);"
+replace = "priority = 7, priority = 6, resources = [state, in_cs], raises = [tick]);"
 expect = ["PR-03"]
 
 [[case]]
@@ -154,8 +154,8 @@ id = "conf-PR-28-mc"
 restriction = "PR-28"
 category = "MC"
 kind = "generator"
-find = "task sensor (periodic, period = 20.ms()"
-replace = "task control (periodic, period = 20.ms()"
+find = "resource in_cs: u32 = 0;"
+replace = "resource state: u32 = 0;"
 expect = ["PR-28"]
 
 [[case]]
@@ -195,8 +195,8 @@ id = "conf-PR-33-mc"
 restriction = "PR-33"
 category = "MC"
 kind = "generator"
-find = "priority = 7, resources = [state], raises = [tick]);"
-replace = "priority = 8, resources = [state], raises = [tick]);"
+find = "priority = 7, resources = [state, in_cs], raises = [tick]);"
+replace = "priority = 8, resources = [state, in_cs], raises = [tick]);"
 expect = ["PR-33"]
 
 # ======================================================== TS (type system)

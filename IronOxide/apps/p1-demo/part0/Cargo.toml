@@ -21,3 +21,9 @@ fi-pr12 = []
 fi-pr19 = []
 fi-pr22 = []
 fi-pr29 = []
+
+# `cfg(creusot)` is set by the App_Prover's compiler (task 17.1): the glue
+# the Generator emits is excluded under it.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

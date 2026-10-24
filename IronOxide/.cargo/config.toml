@@ -6,6 +6,14 @@
 [source.crates-io]
 replace-with = "vendored-sources"
 
+# The App_Prover's specification library (task 17.1): an optional git
+# dependency of `rsk` on the local Creusot checkout pinned in
+# toolchain/decision.toml [creusot], vendored like every registry crate.
+[source."git+file:///Users/mars2292/repos/Kiro-experimentation/creusot?rev=18f2d371ecb0019d37ecbd25e67f474bed2dda00"]
+git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot"
+rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00"
+replace-with = "vendored-sources"
+
 [source.vendored-sources]
 directory = "vendor"
 
