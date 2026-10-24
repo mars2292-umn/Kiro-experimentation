@@ -412,6 +412,25 @@ pub fn verus_covers(root: &Path) -> Vec<String> {
     out
 }
 
+/// Kani's optional checks per Kernel crate (Verification_Plan 6.1,
+/// evaluated 2026-10-23 with Kani 0.68.0): rsk-logic passes every harness
+/// with the invalid-value checks, the uninitialized-memory checks, and the
+/// extra pointer checks; rsk-kernel passes with the extra pointer checks,
+/// while `-Z valid-value-checks` crashes Kani's compiler on a `NonNull`
+/// pattern type (an internal compiler error in `check_values.rs`) and
+/// `-Z uninit-checks` reports two harnesses as failed because Kani cannot
+/// determine the layout of `[MaybeUninit<u32>; 12]` and
+/// `UnsafeCell<Option<u32>>` ("not supported", a tool limitation, not a
+/// defect). The flags of each crate are the ones it passes with; the two
+/// unusable ones are recorded in the plan, not silently dropped.
+pub fn kani_extra_checks(crate_name: &str) -> &'static [&'static str] {
+    match crate_name {
+        "rsk-logic" => &["-Z", "valid-value-checks", "-Z", "uninit-checks", "-Z", "unstable-options", "--extra-pointer-checks"],
+        "rsk-kernel" => &["-Z", "unstable-options", "--extra-pointer-checks"],
+        _ => &[],
+    }
+}
+
 /// The criteria the Kani Evidence_Item covers: the harness requirements and
 /// the criteria the harnesses name in their doc comments and names.
 pub fn kani_covers(root: &Path) -> Vec<String> {
@@ -512,9 +531,13 @@ pub fn run_kani(
             notes.push(format!("{name}: no #[kani::proof] harness"));
             continue;
         }
-        let cmd = Cmd::new("cargo")
+        let mut cmd = Cmd::new("cargo")
             .args(["kani", "-p", name, "--target-dir"])
-            .arg(target_dir.join("kani"))
+            .arg(target_dir.join("kani"));
+        for flag in kani_extra_checks(name) {
+            cmd = cmd.arg(flag);
+        }
+        let cmd = cmd
             .cwd(&ws.root);
         println!("   $ {}", cmd.display());
         commands.push(cmd.display());
