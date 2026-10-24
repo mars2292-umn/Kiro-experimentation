@@ -1,9 +1,22 @@
 # Kani: internal compiler error with `-Z valid-value-checks` on slice iteration
 
-Prepared 2026-10-23 for https://github.com/model-checking/kani/issues (the
-development machine has no GitHub CLI; file by hand from this text). Kept
-here as the record behind Verification_Plan section 6.1, which leaves the
-invalid-value checks off for `rsk-kernel` until this is fixed.
+**Already reported and fixed upstream (checked 2026-10-23).** This is
+model-checking/kani issue #4829, "panic: `-Z valid-value-checks` ICEs on
+any allocating function: fat-pointer pattern type in `NonNull<[u8]>`", opened
+2026-09-22 and closed 2026-09-30 by PR #4856 ("Fix ICE on pattern types over
+wide pointers under -Z valid-value-checks"). Same assertion
+(`check_values.rs:959`, "expected pattern type to have a scalar ABI"), same
+cause (the non-null pattern over a wide slice pointer has a `ScalarPair`
+layout, not a scalar). The fix is on `main` but in no release: the latest
+release is kani-0.68.0 of 2026-09-16, the version pinned here. Nothing to
+file; the invalid-value checks return to `rsk-kernel` when a release past
+0.68.0 is pinned (toolchain/decision.toml [kani]). Issue #5056 (spurious
+"Invalid value" reports during initialization, open) is a different defect of
+the same experimental check and may affect `rsk-kernel`'s cells once the
+check runs; to be watched at that upgrade.
+
+The text below is the reproduction as found here, kept as the record behind
+Verification_Plan section 6.1.
 
 ## Summary
 
