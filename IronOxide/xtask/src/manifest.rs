@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use crate::cmd::{stdout_of, Cmd};
-use crate::tools::{Kani, Revision, Verus};
+use crate::tools::{Creusot, Kani, Revision, Verus};
 use crate::workspace::Workspace;
 
 pub const SCHEMA: &str = "rsk-build-manifest/1";
@@ -71,6 +71,8 @@ pub struct Manifest {
     pub cargo: String,
     pub verus: Option<Verus>,
     pub kani: Option<Kani>,
+    /// The App_Prover (R46.2), when installed.
+    pub creusot: Option<Creusot>,
     pub profile_version: String,
     pub profile_variant: String,
     pub target: String,
@@ -81,7 +83,7 @@ pub struct Manifest {
 
 impl Manifest {
     /// Collects everything that does not depend on a particular binary.
-    pub fn collect(ws: &Workspace, verus: Option<Verus>, kani: Option<Kani>) -> Result<Manifest, String> {
+    pub fn collect(ws: &Workspace, verus: Option<Verus>, kani: Option<Kani>, creusot: Option<Creusot>) -> Result<Manifest, String> {
         let root = &ws.root;
         let lock_file_hash = rsk_digest::sha256_file(&root.join("Cargo.lock"))
             .map_err(|e| format!("cannot hash Cargo.lock: {e}"))?;
@@ -99,6 +101,7 @@ impl Manifest {
             cargo,
             verus,
             kani,
+            creusot,
             profile_version,
             profile_variant,
             target: ws.policy.target.clone(),
@@ -123,6 +126,20 @@ impl Manifest {
             "kani".into(),
             match &self.kani {
                 Some(k) => json!({ "version": k.version, "cbmc": k.cbmc_version }),
+                None => Value::Null,
+            },
+        );
+        toolchain.insert(
+            "creusot".into(),
+            match &self.creusot {
+                Some(c) => json!({
+                    "version": c.version,
+                    "commit": c.pinned_commit,
+                    "toolchain": c.toolchain,
+                    "why3": c.why3,
+                    "why3find": c.why3find,
+                    "solvers": c.solvers.iter().map(|(n, v)| (n.clone(), json!(v))).collect::<Map<String, Value>>(),
+                }),
                 None => Value::Null,
             },
         );

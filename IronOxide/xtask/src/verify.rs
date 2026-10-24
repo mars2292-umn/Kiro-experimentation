@@ -73,7 +73,7 @@ use crate::evidence::{self, Item, Kind, Store, Tool, Verdict};
 use crate::manifest::{flight_binaries, Manifest};
 use crate::proofs;
 use crate::sandbox::{Mechanism, Mode, Sandbox};
-use crate::tools::{Kani, Revision, Verus};
+use crate::tools::{Creusot, Kani, Revision, Verus};
 use crate::units::{parse_messages, CfgContext, Outcome};
 use crate::workspace::Workspace;
 
@@ -419,7 +419,24 @@ pub fn run(root: &Path, options: Options) -> bool {
             None
         }
     };
-    let manifest = build_manifest(&ws, &target_dir, verus.clone(), kani.clone(), &mut report);
+    // R46.2: the App_Prover's versions in the Build_Manifest; an installation
+    // other than the pinned one is an error, its absence a warning (the
+    // proofs are then skipped with one in step 10b').
+    let creusot = match Creusot::locate(root, &root.join("proofs").join("creusot")) {
+        Ok(c) => {
+            report.note(format!("Creusot: {}", c.summary()));
+            Some(c)
+        }
+        Err(e) if e.contains("(R46.2)") => {
+            report.error(Rule::Proof, None, e);
+            None
+        }
+        Err(e) => {
+            report.warn(format!("{e}; the App_Prover proofs will be skipped"));
+            None
+        }
+    };
+    let manifest = build_manifest(&ws, &target_dir, verus.clone(), kani.clone(), creusot.clone(), &mut report);
     let (manifest_id, profile_version) = match &manifest {
         Some(m) => {
             let file = evidence_dir.join("build-manifest.json");
@@ -573,7 +590,7 @@ pub fn run(root: &Path, options: Options) -> bool {
 
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
-    let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, &mut report);
+    let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
     job.flush(&mut report, "proof-app-step", "App_Prover step", &["R46.2", "R46.3", "R46.4", "R35.2"], creusot_cmds);
 
     // ------------------------------------ 10c. Profile_Conformance_Suite
@@ -812,28 +829,18 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
 /// `cargo creusot` is not installed the step warns and writes no item; when
 /// it runs, `proof-app-creusot` records its version line and the pin of
 /// toolchain/decision.toml, and passes only on `Proved (...)`.
-fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, creusot: Option<&Creusot>, report: &mut Report) -> Vec<String> {
     let dir = ws.root.join("proofs").join("creusot");
     if !dir.join("Cargo.toml").is_file() {
         report.note("App_Prover: no proof workspace at proofs/creusot");
         return vec![];
     }
-    let version = Cmd::cargo().args(["creusot", "version"]).cwd(&dir).output(None).ok().filter(|o| o.status.success()).map(|o| {
-        let text = String::from_utf8_lossy(&o.stdout).into_owned();
-        text.lines().filter(|l| l.starts_with("cargo-creusot") || l.starts_with("Rust toolchain") || l.starts_with("Why3") || l.starts_with("why3find") || l.starts_with("alt-ergo") || l.starts_with("z3") || l.starts_with("cvc")).map(|l| {
-                // cvc5 prints a banner that cargo creusot reports as "bad CVC5 version: cvc5 1.4.1 [git ...]": keep "cvc5 1.4.1".
-                if l.starts_with("cvc5") {
-                    let v = l.split_whitespace().find(|w| w.chars().next().is_some_and(|c| c.is_ascii_digit()) && w.contains('.')).unwrap_or("");
-                    format!("cvc5 {v}")
-                } else {
-                    l.split(" [").next().unwrap_or(l).trim().to_string()
-                }
-            }).collect::<Vec<_>>().join("; ")
-    });
-    let Some(version) = version else {
-        report.warn("cargo-creusot is not installed: the App_Prover proofs were not run (toolchain/decision.toml [creusot] records the pinned installation)");
+    let Some(creusot) = creusot else {
+        report.warn("cargo-creusot is not installed or not the pinned one: the App_Prover proofs were not run (toolchain/decision.toml [creusot] records the pinned installation)");
         return vec![];
     };
+    let version = creusot.summary();
+    let solvers = creusot.solvers.clone();
     let cmd = Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir);
     let command = format!("(cd proofs/creusot && {})", cmd.display());
     let (ok, text) = match cmd.output(Some(sandbox)) {
@@ -854,12 +861,12 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         "proof-app-creusot",
         Kind::Proof,
         "App_Prover (Creusot): the Partition crates' Task bodies against the trusted contracts of the rsk API",
-        Tool { name: "Creusot".to_string(), version: version.clone(), solvers: vec![] },
+        Tool { name: "Creusot".to_string(), version: version.clone(), solvers },
         Verdict::from_bool(ok),
     )
     .covers(&["R46.2", "R46.3", "R46.4", "R35.2", "PR-19"]);
     item.command_lines = vec![command.clone()];
-    item.notes = vec![verdict, "trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, and mmio (TBR-08); the Generator's glue is excluded under cfg(creusot); filter (f32) is trusted (verification_plan.md section 7)".to_string()];
+    item.notes = vec![verdict, "trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, and mmio (TBR-08); the Generator's glue is excluded under cfg(creusot); the f32 step `lowpass` of part2 is trusted (verification_plan.md section 7)".to_string()];
     item.build_manifest = Some(manifest_id.to_string());
     item.artifacts = vec!["creusot.log".to_string()];
     if let Err(e) = store.write(&item) {
@@ -1171,9 +1178,10 @@ fn build_manifest(
     target_dir: &Path,
     verus: Option<Verus>,
     kani: Option<Kani>,
+    creusot: Option<Creusot>,
     report: &mut Report,
 ) -> Option<Manifest> {
-    let mut manifest = match Manifest::collect(ws, verus, kani) {
+    let mut manifest = match Manifest::collect(ws, verus, kani, creusot) {
         Ok(m) => m,
         Err(e) => {
             report.error(Rule::Evidence, None, e);

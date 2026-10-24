@@ -320,14 +320,20 @@ fn r29_2_blocking_is_the_longest_lower_priority_critical_section_with_a_ceiling_
     // locker: the Kernel-level terms (L_kernel 2,000 or the stop/restart
     // work 5,000 of R14.10, whichever is larger).
     assert_eq!((by("part0.sensor").b, by("part0.sensor").b_source.as_str()), (5_000, "Partition stop/restart work (R14.10)"));
-    assert_eq!(by("part1.log").b, 5_000);
-    // The cross-Partition clause of R29.2 (a site of a lower Task of another
-    // Partition that stops overrunning Jobs: Budget_l + Δ_detect + Δ_enforce)
-    // has no instance in the demo: the only Resource's Ceiling (7) blocks
-    // Tasks below it, but every lower Task that is not an accessor (pulse,
-    // filter, log, sampler) has a Priority below sensor's, so sensor's site
-    // is never a lower locker of another Partition's Task. The clause is
-    // exercised by the simulator (tests/properties.rs, R32.5).
+    // The cross-Partition clause of R29.2: a site of a lower Task of another
+    // Partition whose Partition stops overrunning Jobs (part2: `overrun =
+    // END_JOB`) blocks for Budget_l + Δ_detect + Δ_enforce. sampler (part2,
+    // P1) holds `stats` (Ceiling 3), which reaches log (part1, P2): 12,500 +
+    // 300 + 300.
+    assert_eq!((by("part1.log").b, by("part1.log").b_source.as_str()), (13_100, "part2.sampler#cs:stats"));
+    // Within part2 the same site blocks filter (P3) for its placeholder
+    // WCET, the Budget of 500 us = 12,500 cycles.
+    assert_eq!((by("part2.filter").b, by("part2.filter").b_source.as_str()), (12_500, "part2.sampler#cs:stats"));
+    // pulse (part1, P4) is above every Ceiling that a lower Task of another
+    // Partition can raise (part2's is 3); sampler is the lowest Task.
+    assert_eq!(by("part1.pulse").b, 5_000);
+    assert_eq!(by("part2.sampler").b, 5_000);
+    // Every accessor of a Resource is a Task of the declaring Partition (PR-03).
     assert!(m.resources.iter().all(|r| r.accessors.iter().all(|a| a.starts_with(&format!("{}.", r.partition)))));
 }
 

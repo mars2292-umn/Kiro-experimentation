@@ -48,9 +48,9 @@ expect = ["part0.control.nesting_depth: expected 2, found 3"]
 id = "lock-stack-capacity"
 class = "capacities"
 kind = "model"
-find = "\"lock_stack\": 4"
-replace = "\"lock_stack\": 5"
-expect = ["capacities.lock_stack: expected 4, found 5"]
+find = "\"lock_stack\": 6"
+replace = "\"lock_stack\": 7"
+expect = ["capacities.lock_stack: expected 6, found 7"]
 
 [[mutation]]
 id = "timer-slots-capacity"

@@ -28,6 +28,15 @@
         "kani": {
           "type": ["object", "null"], "additionalProperties": false, "required": ["version", "cbmc"],
           "properties": { "version": { "type": "string" }, "cbmc": { "type": "string" } }
+        },
+        "creusot": {
+          "description": "The App_Prover (R46.2): Creusot as installed, with the commit pinned in toolchain/decision.toml [creusot] and its back ends; null when not installed.",
+          "type": ["object", "null"], "additionalProperties": false, "required": ["version", "toolchain", "why3", "why3find", "solvers"],
+          "properties": {
+            "version": { "type": "string" }, "commit": { "type": ["string", "null"] }, "toolchain": { "type": "string" },
+            "why3": { "type": "string" }, "why3find": { "type": "string" },
+            "solvers": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
         }
       }
     },

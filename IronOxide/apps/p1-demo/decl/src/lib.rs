@@ -96,13 +96,17 @@ rsk::app! {
                      fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
         peripherals = [CMSDK_GPIO0];
+        // A Resource of the Partition's own type with a relational invariant
+        // (R46.4, task 17.1): accepted transfers never exceed requested ones.
+        resource stats: crate::Stats = crate::Stats::new() invariant |s: crate::Stats| s.ok@ <= s.total@;
         state filter.count: u32 = 0;
         state filter.y: f32 = 0.0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
-        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 500.us(), priority = 3, fpu);
+        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 500.us(), priority = 3, fpu,
+                     resources = [stats]);
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
-                      priority = 1);
+                      priority = 1, resources = [stats]);
     }
 }

@@ -299,7 +299,7 @@ mod tests {
             ("\"ceiling\": 7", "\"ceiling\": 5", "part0.state.ceiling"),
             ("\"nvic\": 32", "\"nvic\": 64", "priority_map"),
             ("\"nesting_depth\": 2,\n      \"slots\": {\n        \"release\": 0", "\"nesting_depth\": 3,\n      \"slots\": {\n        \"release\": 0", "part0.control.nesting_depth"),
-            ("\"lock_stack\": 4", "\"lock_stack\": 5", "capacities.lock_stack"),
+            ("\"lock_stack\": 6", "\"lock_stack\": 7", "capacities.lock_stack"),
             ("\"timer_slots\": 23", "\"timer_slots\": 22", "capacities.timer_slots"),
             ("\"peripherals\": [\n        \"CMSDK_DUALTIMER\"\n      ],\n      \"mpu\"", "\"peripherals\": [\n        \"CMSDK_DUALTIMER\",\n        \"CMSDK_TIMER0\"\n      ],\n      \"mpu\"", "part1.peripherals (CMSDK_TIMER0)"),
             ("\"read_only\": false", "\"read_only\": true", "read_only"),
