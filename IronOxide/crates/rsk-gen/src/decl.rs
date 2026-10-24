@@ -257,6 +257,10 @@ pub struct TaskDecl {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResourceDecl {
     pub name: String,
+    /// The Resource invariant (R46.4): a closure over the value, as written
+    /// (`|v: u32| v <= 1`), that every Critical_Section must preserve and
+    /// the initial value must satisfy; `None` is the trivial invariant.
+    pub invariant: Option<String>,
     /// The Rust type, as written.
     pub ty: String,
     /// The initializer expression, as written.

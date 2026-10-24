@@ -318,6 +318,49 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         let _ = writeln!(s, "    }}");
     }
     let _ = writeln!(s, "}}");
+    // The App_Prover's view of the Partition (task 17.1, R46.4), compiled
+    // under `cfg(creusot)` only: one logical invariant per Resource (the
+    // declared closure, or `true`), a check that the initial value satisfies
+    // it, and per Task the precondition that its Context's Resources carry
+    // their invariants, which a Task body states with
+    // `#[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::<task>_pre(&cx)))]`.
+    let _ = writeln!(s, "#[cfg(creusot)]");
+    let _ = writeln!(s, "#[allow(unused_imports, unused_variables)]");
+    let _ = writeln!(s, "pub mod rsk_spec {{");
+    let _ = writeln!(s, "    use ::rsk::creusot_std::prelude::*;");
+    for &r in &part.resources {
+        let res = &g.resources[r];
+        let (param, body) = match &res.invariant {
+            Some(closure) => split_closure(closure).unwrap_or(("_v".to_string(), "true".to_string())),
+            None => ("_v".to_string(), "true".to_string()),
+        };
+        let _ = writeln!(s, "    /// The invariant of Resource `{}` (R46.4).", res.id);
+        let _ = writeln!(s, "    #[logic(open)]");
+        let param = if param.contains(':') { param } else { format!("{}: {}", param, res.ty) };
+        let _ = writeln!(s, "    pub fn {}_inv({}) -> bool {{ pearlite! {{ {} }} }}", res.name, param, body);
+        let _ = writeln!(s, "    /// The initial value of `{}` satisfies its invariant.", res.id);
+        let _ = writeln!(s, "    pub fn {}_init_ok() {{", res.name);
+        let _ = writeln!(s, "        let init: {} = {};", res.ty, res.init);
+        let _ = writeln!(s, "        proof_assert!({}_inv(init));", res.name);
+        let _ = writeln!(s, "    }}");
+    }
+    for &t in &part.tasks {
+        let task = &g.tasks[t];
+        let _ = writeln!(s, "    /// The precondition of `{}`'s body: its Resources carry their invariants.", task.id);
+        let _ = writeln!(s, "    #[logic(open)]");
+        let _ = writeln!(s, "    pub fn {}_pre(cx: &super::rsk_ctx::{}) -> bool {{", task.name, ctx_name(&task.name));
+        let mut terms: Vec<String> = Vec::new();
+        for &r in &task.resources {
+            let res = &g.resources[r];
+            terms.push(format!("(forall<x: {}> (*cx).{}@[x] == {}_inv(x))", res.ty, res.name, res.name));
+        }
+        if terms.is_empty() {
+            terms.push("true".to_string());
+        }
+        let _ = writeln!(s, "        pearlite! {{ {} }}", terms.join(" && "));
+        let _ = writeln!(s, "    }}");
+    }
+    let _ = writeln!(s, "}}");
     let _ = writeln!(s, "#[cfg(not(creusot))]");
     let _ = writeln!(s, "pub mod rsk_jobs {{");
     for &t in &part.tasks {
@@ -345,6 +388,18 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     }
     let _ = writeln!(s, "}}");
     s
+}
+
+/// `|v: u32| v <= 1` -> ("v: u32", "v <= 1").
+fn split_closure(closure: &str) -> Option<(String, String)> {
+    let rest = closure.trim().strip_prefix('|')?;
+    let (param, body) = rest.split_once('|')?;
+    let param = param.trim();
+    let body = body.trim();
+    if param.is_empty() || body.is_empty() {
+        return None;
+    }
+    Some((param.to_string(), body.to_string()))
 }
 
 /// The Release_Signals in Generated_Config order: (declaring Partition

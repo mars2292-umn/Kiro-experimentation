@@ -66,7 +66,7 @@ rsk::app! {
         resource state: u32 = 0;
         // Set by sensor around its Critical_Section on `state`, read by control:
         // shared between two Tasks, so a Resource (PR-05), not per-Task state.
-        resource in_cs: u32 = 0;
+        resource in_cs: u32 = 0 invariant |v: u32| v@ <= 1;
         signal tick;
         // Per-Task state (PR-25): the demo's counters, read by the safe state.
         state control.count: u32 = 0;

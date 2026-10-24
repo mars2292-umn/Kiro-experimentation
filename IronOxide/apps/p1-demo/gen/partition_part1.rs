@@ -21,6 +21,21 @@ pub mod rsk_ctx {
         pub count: ::rsk::PerTask<'static, u32>,
     }
 }
+#[cfg(creusot)]
+#[allow(unused_imports, unused_variables)]
+pub mod rsk_spec {
+    use ::rsk::creusot_std::prelude::*;
+    /// The precondition of `part1.log`'s body: its Resources carry their invariants.
+    #[logic(open)]
+    pub fn log_pre(cx: &super::rsk_ctx::Log) -> bool {
+        pearlite! { true }
+    }
+    /// The precondition of `part1.pulse`'s body: its Resources carry their invariants.
+    #[logic(open)]
+    pub fn pulse_pre(cx: &super::rsk_ctx::Pulse) -> bool {
+        pearlite! { true }
+    }
+}
 #[cfg(not(creusot))]
 pub mod rsk_jobs {
     /// Job wrapper of `part1.log` (vector 39; Critical_Section sites: none).

@@ -154,7 +154,7 @@ id = "conf-PR-28-mc"
 restriction = "PR-28"
 category = "MC"
 kind = "generator"
-find = "resource in_cs: u32 = 0;"
+find = "resource in_cs: u32 = 0 invariant |v: u32| v@ <= 1;"
 replace = "resource state: u32 = 0;"
 expect = ["PR-28"]
 

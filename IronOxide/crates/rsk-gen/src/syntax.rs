@@ -385,9 +385,36 @@ impl Parse for Parsed {
                         let ty: syn::Type = body.parse()?;
                         body.parse::<Token![=]>()?;
                         let init: syn::Expr = body.parse()?;
+                        // R46.4: `invariant |v: T| <predicate>` (a Rust closure, read
+                        // by the App_Prover as the Resource's invariant).
+                        // The body is Pearlite (`v@ <= 1`), not Rust, so it is kept
+                        // as tokens up to the `;`.
+                        let invariant = if body.peek(Ident) && body.fork().parse::<Ident>().is_ok_and(|k| k == "invariant") {
+                            let _: Ident = body.parse()?;
+                            body.parse::<Token![|]>()?;
+                            let param: Ident = body.parse()?;
+                            body.parse::<Token![:]>()?;
+                            let pty: syn::Type = body.parse()?;
+                            body.parse::<Token![|]>()?;
+                            let mut pred = TokenStream::new();
+                            while !body.peek(Token![;]) {
+                                if body.is_empty() {
+                                    return err(rname.span(), "a Resource invariant is `|v: TYPE| PREDICATE;` (R46.4)");
+                                }
+                                let tt: proc_macro2::TokenTree = body.parse()?;
+                                pred.extend(std::iter::once(tt));
+                            }
+                            if pred.is_empty() {
+                                return err(rname.span(), "a Resource invariant is `|v: TYPE| PREDICATE;` (R46.4)");
+                            }
+                            Some(format!("|{}: {}| {}", param, tokens_to_string(&pty), pred))
+                        } else {
+                            None
+                        };
                         body.parse::<Token![;]>()?;
                         resources.push(ResourceDecl {
                             name: rname.to_string(),
+                            invariant,
                             ty: tokens_to_string(&ty),
                             init: tokens_to_string(&init),
                             placement: ResourcePlacement::Core(0),
@@ -631,6 +658,31 @@ mod tests {
         assert_eq!(g.tasks[0].budget_cycles, 2560);
         assert_eq!(g.resources[0].ceiling, 6);
         assert_eq!(g.slot_count, 3 * 3 + 2);
+    }
+
+    /// R46.4: a Resource invariant is declared with the Resource and reaches
+    /// the App_Prover as an open logic function and each Task's precondition.
+    #[test]
+    fn parses_a_resource_invariant_for_the_app_prover_r46_4() {
+        let src = DEMO.replace(
+            "resource state: u32 = 0;",
+            "resource state: u32 = 0 invariant |v: u32| v@ <= 1 && v@ >= 0;",
+        );
+        let parsed = parse_app(src.parse().unwrap()).unwrap();
+        let inv = parsed.decl.partitions[0].resources[0].invariant.clone().expect("invariant");
+        assert_eq!(inv.replace(' ', ""), "|v:u32|v@<=1&&v@>=0");
+        let g = crate::generate(&parsed.decl).unwrap();
+        let part0 = crate::emit::partition_source(&g, 0);
+        assert!(part0.contains("#[cfg(creusot)]\n#[allow(unused_imports, unused_variables)]\npub mod rsk_spec {"), "{part0}");
+        assert!(part0.contains("pub fn state_inv(v: u32) -> bool { pearlite! { v @ <= 1 && v @ >= 0 } }"), "{part0}");
+        assert!(part0.contains("proof_assert!(state_inv(init));"), "{part0}");
+        assert!(part0.contains("(forall<x: u32> (*cx).state@[x] == state_inv(x))"), "{part0}");
+        // Without a declared invariant, the trivial one.
+        let g = crate::generate(&parse_app(DEMO.parse().unwrap()).unwrap().decl).unwrap();
+        assert!(crate::emit::partition_source(&g, 0).contains("pub fn state_inv(_v: u32) -> bool { pearlite! { true } }"));
+        // A malformed invariant is a declaration error.
+        let bad = DEMO.replace("resource state: u32 = 0;", "resource state: u32 = 0 invariant |v: u32|;");
+        assert!(parse_app(bad.parse().unwrap()).is_err());
     }
 
     #[test]

@@ -28,6 +28,35 @@ pub use creusot_std;
 #[cfg(feature = "creusot")]
 #[allow(unused_imports)]
 use creusot_std::{invariant::inv, std::ops::FnOnceExt};
+
+/// The App_Prover's logical models (task 17.1): a `PerTask<T>` is viewed
+/// as its current value, which `with`, `get`, and `set` relate exactly
+/// (only this Task's Jobs touch it); a `Shared<T>` is viewed as the
+/// Resource's invariant, a predicate on `T` (R46.4): what a Critical_Section
+/// finds is any value satisfying it, and what it leaves must satisfy it.
+/// Other Tasks change the value between Critical_Sections, so no stronger
+/// model is sound for a Resource.
+#[cfg(feature = "creusot")]
+mod spec {
+    use creusot_std::logic::Mapping;
+    use creusot_std::prelude::*;
+
+    impl<'a, T: 'static> View for super::PerTask<'a, T> {
+        type ViewTy = T;
+        #[logic(opaque)]
+        fn view(self) -> T {
+            dead
+        }
+    }
+
+    impl<'a, T: 'static> View for super::Shared<'a, T> {
+        type ViewTy = Mapping<T, bool>;
+        #[logic(opaque)]
+        fn view(self) -> Mapping<T, bool> {
+            dead
+        }
+    }
+}
 /// `#[rsk::bounds('label = N)]`: the Loop_Bound_Annotation of a function's
 /// labelled loops (R35, PR-16).
 pub use rsk_macros::bounds;
@@ -64,8 +93,10 @@ impl<'a, T: 'static> Shared<'a, T> {
     // pair, R8.1 to R8.3): the closure runs once on the Resource's value and
     // its result is returned; the closure must be ready for any value.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) ==> f.precondition((v,))))]
-    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && f.postcondition_once((v,), result)))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) && (*self)@[*v] ==> f.precondition((v,))))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T, r: R> inv(v) && (*self)@[*v] && f.postcondition_once((v,), r) ==> (*self)@[^v]))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == (*self)@))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && (*self)@[*v] && (*self)@[^v] && f.postcondition_once((v,), result)))]
     pub fn lock<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
         if !stubs::svc_lock(self.id) {
             panic!("rsk: lock refused");
@@ -103,14 +134,15 @@ impl<'a, T: 'static> PerTask<'a, T> {
     /// Runs `f` on the state. App_Prover contract (task 17.1, trusted): the
     /// closure runs once on the state and its result is returned.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) ==> f.precondition((v,))))]
-    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && f.postcondition_once((v,), result)))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(forall<v: &mut T> inv(v) && *v == (*self)@ ==> f.precondition((v,))))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(exists<v: &mut T> inv(v) && *v == (*self)@ && ^v == (^self)@ && f.postcondition_once((v,), result)))]
     pub fn with<R>(&mut self, f: impl FnOnce(&mut T) -> R) -> R {
         self.cell.with_unprivileged(f)
     }
 
     /// A copy of the state.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result == self@))]
     pub fn get(&self) -> T
     where
         T: Copy,
@@ -120,6 +152,7 @@ impl<'a, T: 'static> PerTask<'a, T> {
 
     /// Replaces the state.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == value))]
     pub fn set(&mut self, value: T) {
         self.with(|v| *v = value)
     }

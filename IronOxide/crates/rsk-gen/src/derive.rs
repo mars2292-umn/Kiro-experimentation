@@ -92,6 +92,8 @@ pub struct GenResource {
     pub accessors: Vec<usize>,
     pub ty: String,
     pub init: String,
+    /// The Resource invariant closure, as declared (R46.4).
+    pub invariant: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -179,6 +181,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                 accessors: Vec::new(),
                 ty: r.ty.clone(),
                 init: r.init.clone(),
+                invariant: r.invariant.clone(),
             });
         }
         let first_task = tasks.len();

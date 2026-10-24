@@ -35,6 +35,8 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
 /// Task `sampler`: fills its buffer (in the Partition's RAM, so
 /// DMA-permitted) and requests the transfer.
 pub fn sampler(mut cx: rsk_ctx::Sampler) {
+    #[cfg(creusot)]
+    let before = rsk::creusot_std::macros::snapshot!(cx.count@);
     // The low byte of the counter: a reduction before the cast, so that the
     // cast is lossless (the App_Prover checks every `as`).
     let n = (cx.count.get() % 256) as u8;
@@ -49,5 +51,8 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
         cx.dma_ok.with(|c| *c = c.saturating_add(1));
     }
     cx.count.with(|c| *c = c.saturating_add(1));
+    // Functional property (task 17.1): the Job advances the sampler count by one.
+    #[cfg(creusot)]
+    rsk::creusot_std::macros::proof_assert!(cx.count@@ >= (*before)@ && cx.count@@ <= (*before)@ + 1);
     rsk::debug(&[b'G']);
 }

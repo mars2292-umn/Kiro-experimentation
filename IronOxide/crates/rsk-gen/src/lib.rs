@@ -117,6 +117,7 @@ mod tests {
     fn resource(name: &str) -> ResourceDecl {
         ResourceDecl {
             name: name.into(),
+            invariant: None,
             ty: "u32".into(),
             init: "0".into(),
             placement: ResourcePlacement::Core(0),

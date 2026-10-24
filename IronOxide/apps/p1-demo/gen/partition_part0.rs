@@ -42,6 +42,42 @@ pub mod rsk_ctx {
         pub count: ::rsk::PerTask<'static, u32>,
     }
 }
+#[cfg(creusot)]
+#[allow(unused_imports, unused_variables)]
+pub mod rsk_spec {
+    use ::rsk::creusot_std::prelude::*;
+    /// The invariant of Resource `part0.state` (R46.4).
+    #[logic(open)]
+    pub fn state_inv(_v: u32) -> bool { pearlite! { true } }
+    /// The initial value of `part0.state` satisfies its invariant.
+    pub fn state_init_ok() {
+        let init: u32 = 0;
+        proof_assert!(state_inv(init));
+    }
+    /// The invariant of Resource `part0.in_cs` (R46.4).
+    #[logic(open)]
+    pub fn in_cs_inv(v: u32) -> bool { pearlite! { v @ <= 1 } }
+    /// The initial value of `part0.in_cs` satisfies its invariant.
+    pub fn in_cs_init_ok() {
+        let init: u32 = 0;
+        proof_assert!(in_cs_inv(init));
+    }
+    /// The precondition of `part0.control`'s body: its Resources carry their invariants.
+    #[logic(open)]
+    pub fn control_pre(cx: &super::rsk_ctx::Control) -> bool {
+        pearlite! { (forall<x: u32> (*cx).state@[x] == state_inv(x)) && (forall<x: u32> (*cx).in_cs@[x] == in_cs_inv(x)) }
+    }
+    /// The precondition of `part0.echo`'s body: its Resources carry their invariants.
+    #[logic(open)]
+    pub fn echo_pre(cx: &super::rsk_ctx::Echo) -> bool {
+        pearlite! { true }
+    }
+    /// The precondition of `part0.sensor`'s body: its Resources carry their invariants.
+    #[logic(open)]
+    pub fn sensor_pre(cx: &super::rsk_ctx::Sensor) -> bool {
+        pearlite! { (forall<x: u32> (*cx).state@[x] == state_inv(x)) && (forall<x: u32> (*cx).in_cs@[x] == in_cs_inv(x)) }
+    }
+}
 #[cfg(not(creusot))]
 pub mod rsk_jobs {
     /// Job wrapper of `part0.control` (vector 36; Critical_Section sites: part0.control#cs:state, part0.control#cs:in_cs).
