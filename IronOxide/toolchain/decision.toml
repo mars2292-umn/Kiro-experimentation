@@ -68,9 +68,11 @@ pinned_rustc = "nightly-2026-08-03"
 why3 = "1.8.2+git"
 why3find = "1.3.0+dev"
 solvers = { alt-ergo = "2.6.4", z3 = "5.1.0", cvc4 = "1.8", cvc5 = "1.4.1" }
-# creusot-std is patched to the checkout in ~/.cargo/config.toml
-# ([patch.crates-io]); a dependency on it must name the path or the
-# `0.15.0-dev` prerelease, since `*` does not match a prerelease.
+# A Creusot project depends on creusot-std by path (the `cargo creusot
+# config` global `[patch.crates-io]` entry was removed from
+# ~/.cargo/config.toml on 2026-10-23: cargo records an unused global patch
+# in every project's Cargo.lock, which broke this workspace's `--frozen`
+# builds). A `*` requirement does not match the 0.15.0-dev prerelease.
 creusot_std = "path: <checkout>/creusot-std (0.15.0-dev, edition 2024)"
 # Confirmed on 2026-10-23 with a scratch crate: a `#![no_std]` crate with
 # `requires`, `ensures`, and a loop `invariant` proves ("Proved (2 files)")
