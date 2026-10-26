@@ -304,7 +304,9 @@
     "detail": "run the UPPAAL cross-check with --uppaal"
   },
   "omitted_terms": [
-    "Endpoint operations (Phase P4) are not modelled"
+    "Endpoint operations (Phase P4) are not modelled",
+    "UPPAAL export: Critical_Sections and the System_Ceiling are approximated by the blocking interval B_i spent before each Job starts, not by locations that raise the ceiling",
+    "UPPAAL export: the Kernel overheads of R29.3 are folded into each Task's execution-time bound E_i, not modelled as locations"
   ],
   "rejections": []
 }

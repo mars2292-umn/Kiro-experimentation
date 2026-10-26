@@ -227,6 +227,7 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         j: 0,
         e: c,
         stops_overruns: false,
+        sporadic: false,
         longest_cs: 0,
         wcet_provenance: vec![],
         wcet: c,

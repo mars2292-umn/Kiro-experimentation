@@ -202,7 +202,8 @@ pub fn analyze(
             status: "not_run".into(),
             detail: "run the UPPAAL cross-check with --uppaal".into(),
         },
-        prepared.omitted_terms.clone(),
+        // The RTA's omitted terms and the UPPAAL export's approximations (R31.2).
+        prepared.omitted_terms.iter().cloned().chain(uppaal::omissions()).collect(),
         rejections,
         &prepared.placeholders,
         &unprotected_partitions(model),

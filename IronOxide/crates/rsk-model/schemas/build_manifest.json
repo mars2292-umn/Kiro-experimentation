@@ -37,7 +37,9 @@
             "why3": { "type": "string" }, "why3find": { "type": "string" },
             "solvers": { "type": "object", "additionalProperties": { "type": "string" } }
           }
-        }
+        },
+        "loom": { "description": "The Host_Test_Harness's Loom version as pinned in Cargo.lock (R47).", "type": "string" },
+        "shuttle": { "description": "The Host_Test_Harness's Shuttle version as pinned in Cargo.lock (R47).", "type": "string" }
       }
     },
     "profile": {

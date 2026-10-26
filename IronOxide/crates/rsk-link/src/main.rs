@@ -12,6 +12,7 @@ fn main() {
     let mut profile: Option<String> = None;
     let mut core_subset: Option<String> = None;
     let mut verified: Vec<String> = Vec::new();
+    let mut system_crate: Option<String> = None;
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -19,11 +20,12 @@ fn main() {
             "--profile" => profile = it.next(),
             "--core-subset" => core_subset = it.next(),
             "--verified" => verified.extend(it.next()),
+            "--system-crate" => system_crate = it.next(),
             _ => positional.push(a),
         }
     }
     let [elf_path, model_path] = positional.as_slice() else {
-        eprintln!("usage: rsk-link <flight-build.elf> <task_model.json> [--out <stack_bounds.json>] [--profile <profile.toml> --core-subset <core_subset.toml>]");
+        eprintln!("usage: rsk-link <flight-build.elf> <task_model.json> [--out <stack_bounds.json>] [--profile <profile.toml> --core-subset <core_subset.toml> [--system-crate <name>]]");
         std::process::exit(2);
     };
     let elf = match std::fs::read(elf_path) {
@@ -45,6 +47,7 @@ fn main() {
             (Ok(pt), Ok(ct)) => {
                 let mut p = rsk_link::ProfileInputs::parse(&pt, &ct);
                 p.verified = verified.clone();
+                p.system_crate = system_crate.clone();
                 Some(p)
             }
             (Err(e), _) | (_, Err(e)) => {

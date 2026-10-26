@@ -73,6 +73,8 @@ pub struct AnalysedTask {
     /// E_i: the interference bound this Task imposes on lower ones (R29.4).
     pub e: u64,
     pub stops_overruns: bool,
+    /// A Sporadic_Task (its period is the MIT), for the UPPAAL release generator (R31.2).
+    pub sporadic: bool,
     pub longest_cs: u64,
     pub wcet_provenance: Vec<String>,
     /// The WCET used for the Task entry (R28.4: at most C_i).
@@ -299,6 +301,7 @@ pub fn prepare(
             j: ticks_to_cycles_up(0, tick_hz, cpu_hz).unwrap_or(0).max(j_rel),
             e,
             stops_overruns,
+            sporadic: !t.is_periodic(),
             longest_cs,
             wcet_provenance: provenance,
             wcet: entry.wcet_cycles,

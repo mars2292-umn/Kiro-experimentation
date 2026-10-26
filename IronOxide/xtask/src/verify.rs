@@ -258,7 +258,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 18,
+        total_steps: 19,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -534,6 +534,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let rta_cmds = analyzer_run(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "analysis-rta-step", "Analyzer step", &["R29.5", "R28.1", "R3.5"], rta_cmds);
 
+    // ------------------------------------------- 8c'. UPPAAL cross-check corpus
+    job.heading("UPPAAL cross-check corpus (R32.6, PAR-03)");
+    let corpus_cmds = uppaal_corpus(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "check-uppaal-corpus-step", "UPPAAL corpus step", &["R32.6"], corpus_cmds);
+
     // --------------------------------------------------- 8d. Profile_Lint
     job.heading("Profile_Lint (R3.2, R3.4, R3.5)");
     let lint_cmds = profile_lint(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
@@ -736,7 +741,9 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
             .arg("--profile")
             .arg(ws.root.join("profile").join("profile.toml"))
             .arg("--core-subset")
-            .arg(ws.root.join("profile").join("core_subset.toml"));
+            .arg(ws.root.join("profile").join("core_subset.toml"))
+            // DD-11: the system crate of the Generator's binding (gen.rs).
+            .args(["--system-crate", "rsk-system"]);
         for prefix in verified_modules(ws) {
             cmd = cmd.args(["--verified", &prefix]);
         }
@@ -873,6 +880,62 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         report.error(Rule::Evidence, None, e);
     }
     vec![command]
+}
+
+/// R32.6, PAR-03: the UPPAAL cross-check corpus (`corpus.rs`): 50 generated
+/// Task_Models analysed and, where `verifyta` is installed, cross-checked.
+/// Evidence_Item `check-uppaal-corpus`: pass when no cross-check is a
+/// discrepancy without a disposition, inconclusive when the verifier is
+/// absent or a run hit its limits, fail on an undisposed discrepancy. The
+/// committed report `docs/uppaal_corpus_report.md` must equal the
+/// regenerated one.
+fn uppaal_corpus(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let work = crate::corpus::work_dir(target_dir);
+    let outcome = match crate::corpus::run(ws, target_dir, &work, Some(sandbox), report) {
+        Ok(o) => o,
+        Err(e) => {
+            report.error(Rule::Step, None, format!("UPPAAL corpus: {e}"));
+            return vec![];
+        }
+    };
+    let _ = store.write_artifact("uppaal-corpus-report.md", &outcome.report);
+    let committed = crate::corpus::report_path(&ws.root);
+    match std::fs::read_to_string(&committed) {
+        Ok(text) if text == outcome.report => {}
+        Ok(_) => report.error(Rule::Step, Some(ws.rel(&committed)), "differs from the regenerated UPPAAL corpus report; run `cargo xtask uppaal-corpus`"),
+        Err(_) => report.error(Rule::Step, Some(ws.rel(&committed)), "missing; run `cargo xtask uppaal-corpus`"),
+    }
+    let not_run = outcome.by_status.get("not_run").copied().unwrap_or(0);
+    let inconclusive = outcome.by_status.get("inconclusive").copied().unwrap_or(0);
+    let verdict = if !outcome.undisposed.is_empty() {
+        report.error(Rule::Step, None, format!("UPPAAL corpus: discrepancy without a disposition in {} (R31.5, R32.6)", outcome.undisposed.join(", ")));
+        Verdict::Fail
+    } else if outcome.verifier.is_none() {
+        report.warn(format!("UPPAAL corpus: verifyta is not installed; {} models exported, no cross-check run (ORQ-22): the item is inconclusive", outcome.rows.len()));
+        Verdict::Inconclusive
+    } else if not_run + inconclusive > 0 {
+        report.warn(format!("UPPAAL corpus: {} of {} cross-checks not run or inconclusive (R31.9)", not_run + inconclusive, outcome.rows.len()));
+        Verdict::Inconclusive
+    } else {
+        report.note(format!("R32.6: UPPAAL corpus: {} models, statuses {:?} ({})", outcome.rows.len(), outcome.by_status, outcome.verifier.clone().unwrap_or_default()));
+        Verdict::Pass
+    };
+    let mut item = Item::new(
+        "check-uppaal-corpus",
+        Kind::Analysis,
+        "UPPAAL cross-check corpus (PAR-03): generated Task_Models analysed with placeholder timing and cross-checked against their exported timed automata where verifyta is installed",
+        Tool { name: "rsk-analyzer".to_string(), version: format!("{} ({})", env!("CARGO_PKG_VERSION"), outcome.verifier.clone().unwrap_or_else(|| "verifyta absent".into())), solvers: vec![] },
+        verdict,
+    )
+    .covers(&["R32.6", "R31.4", "R31.5", "R31.6", "R31.9"]);
+    item.command_lines = vec!["cargo xtask uppaal-corpus".to_string()];
+    item.notes = vec![format!("{} models; cross-check statuses {:?}; dispositions in docs/uppaal_dispositions.toml", outcome.rows.len(), outcome.by_status)];
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = vec!["uppaal-corpus-report.md".to_string()];
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    vec!["cargo xtask uppaal-corpus".to_string()]
 }
 
 /// R29: the Analyzer on every Flight_Build binary with a Task_Model, with

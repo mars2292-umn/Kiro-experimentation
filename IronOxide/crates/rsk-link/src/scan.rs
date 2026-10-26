@@ -173,6 +173,9 @@ pub fn map_core_symbol<'a>(path: &str, items: &'a [CoreItem]) -> Option<&'a Core
 
 pub struct ScanInputs<'a> {
     pub disallowed_crates: Vec<String>,
+    /// The system crate's name (`rsk-system`), when given: enables the
+    /// DD-11 template check of the image's crates.
+    pub system_crate: Option<String>,
     pub core_items: Vec<CoreItem>,
     pub model: &'a ModelInputs,
     /// Module prefixes (`rsk_logic`, `rsk_kernel::arch::bound`) whose
@@ -376,6 +379,32 @@ pub fn scan(g: &CallGraph, facts: &Facts, inputs: &ScanInputs, violations: &mut 
     }
     notes.push(format!("crates with executable symbols: {}", crates.iter().cloned().collect::<Vec<_>>().join(", ")));
 
+    // --- DD-11 (R24.2, R6.3): the binary crate has no symbols of its own and
+    // the vector table is rsk-entry's. The executable crates of a
+    // Flight_Build are the Kernel's (rsk_entry, rsk_kernel, rsk_logic), the
+    // `rsk` API, the system crate, the Partition crates (the crates of the
+    // Task entry wrappers), and the compiler's (core, compiler_builtins,
+    // __rustc); any other crate's symbol is a link-level addition DD-11
+    // forbids. Every vector table entry resolves into the Kernel realm.
+    if let Some(system) = &inputs.system_crate {
+        let system = system.replace('-', "_");
+        let partition_crates: BTreeSet<String> = facts.task_entries.iter().filter_map(|(_, i, _)| crate_of(&g.functions[*i].name)).collect();
+        let allowed = ["rsk_entry", "rsk_kernel", "rsk_logic", "rsk", "core", "compiler_builtins", "__rustc"];
+        for c in &crates {
+            // Crates PR-35 and R55.4 already report are not repeated here.
+            let reported = c == "vstd" || c == "std" || c == "alloc" || inputs.disallowed_crates.iter().any(|d| d.replace('-', "_") == *c);
+            if !reported && !allowed.contains(&c.as_str()) && *c != system && !partition_crates.contains(c) {
+                violations.push(Violation { rule: "DD-11", message: format!("crate `{c}` has executable symbols in the Flight_Build; only the Kernel crates, `rsk`, the system crate `{system}`, and the Partition crates may (the binary crate has no symbols of its own, DD-11, R24.2)") });
+            }
+        }
+        for &i in &facts.kernel_entries {
+            if facts.realm[i] != Realm::Kernel {
+                violations.push(Violation { rule: "DD-11", message: format!("vector table entry `{}` is outside the Kernel realm: the vector table and its handlers are rsk-entry's (DD-11)", demangle(&g.functions[i].name)) });
+            }
+        }
+        notes.push(format!("DD-11: {} executable crates, all Kernel, `rsk`, `{system}`, or Partition crates; {} vector table entries in the Kernel realm", crates.len(), facts.kernel_entries.len()));
+    }
+
     // --- R57.3: every core symbol maps to a Core_Subset item.
     let mut mapped: BTreeMap<String, usize> = BTreeMap::new();
     for f in &g.functions {
@@ -469,7 +498,7 @@ mod tests {
         let g = CallGraph::from_functions(functions);
         let facts = Facts { realm, task_entries, kernel_entries, func_symbols, exidx_size: 0 };
         let model = ModelInputs { tasks: vec![], partitions: vec![], kernel_ram_base: 0, kernel_ram_size: 0 };
-        let inputs = ScanInputs { disallowed_crates: disallowed.iter().map(|s| s.to_string()).collect(), core_items: core_subset(core_toml), model: &model, verified: vec![] };
+        let inputs = ScanInputs { disallowed_crates: disallowed.iter().map(|s| s.to_string()).collect(), system_crate: Some("rsk-system".into()), core_items: core_subset(core_toml), model: &model, verified: vec![] };
         let mut v = Vec::new();
         let mut notes = Vec::new();
         scan(&g, &facts, &inputs, &mut v, &mut notes);
@@ -486,6 +515,22 @@ mod tests {
         let (_, f, r) = fixture(vec![("Reset", Realm::Kernel, vec![0x200]), ("_ZN10rsk_kernel4boot17h0000000000000000E", Realm::Kernel, vec![]), ("_ZN13p1_demo_part08rsk_jobs7control17h0000000000000000E", Realm::Partition, vec![0x400]), ("_ZN3rsk5debug17h0000000000000000E", Realm::Shared, vec![])]);
         let v = scan_fixture(f, r, vec![("control".into(), 2, false)], vec![0], &[HANDLER], &["cortex-m"], CORE);
         assert!(v.is_empty(), "{v:?}");
+    }
+
+    /// DD-11, R24.2: a crate other than the Kernel's, `rsk`, the system
+    /// crate, and the Partition crates with executable symbols in the image
+    /// (the binary crate's own, or a stray dependency) is reported, and so
+    /// is a vector table entry outside the Kernel realm.
+    #[test]
+    fn foreign_crates_and_non_kernel_vector_entries_violate_dd11() {
+        let (_, f, r) = fixture(vec![("Reset", Realm::Kernel, vec![0x200]), ("_ZN10rsk_kernel4boot17h0000000000000000E", Realm::Kernel, vec![]), ("_ZN13p1_demo_part08rsk_jobs7control17h0000000000000000E", Realm::Partition, vec![0x400]), ("_ZN3rsk5debug17h0000000000000000E", Realm::Shared, vec![]), ("_ZN10rsk_system10safe_state17h0000000000000000E", Realm::Shared, vec![])]);
+        let v = scan_fixture(f.clone(), r.clone(), vec![("control".into(), 2, false)], vec![0], &[HANDLER, "_ZN7p1_demo4main17h0000000000000000E", "_RNvCs0_8cortex_m5delay"], &[], CORE);
+        let dd11: Vec<&str> = v.iter().filter(|x| x.rule == "DD-11").map(|x| x.message.as_str()).collect();
+        assert_eq!(dd11.len(), 2, "{v:?}");
+        assert!(dd11.iter().any(|m| m.contains("`p1_demo`")) && dd11.iter().any(|m| m.contains("`cortex_m`")), "{dd11:?}");
+        // A vector table entry in Partition code.
+        let v = scan_fixture(f, r, vec![("control".into(), 2, false)], vec![0, 2], &[HANDLER], &[], CORE);
+        assert!(v.iter().any(|x| x.rule == "DD-11" && x.message.contains("vector table entry")), "{v:?}");
     }
 
     /// R6.6, PR-31: a floating-point arithmetic instruction or an FPSCR write
@@ -543,7 +588,7 @@ mod tests {
     #[test]
     fn allocator_unwinding_panic_handler_vstd_and_disallowed_crate_symbols() {
         let (_, f, r) = fixture(vec![("Reset", Realm::Kernel, vec![])]);
-        let extra = [HANDLER, "_ZN8rsk_entry17rust_begin_unwind17h0000000000000000E", "__rust_alloc", "__rg_oom", "_Unwind_Resume", "rust_eh_personality", "_ZN4vstd3seq3Seq3len17h0000000000000000E", "_ZN8cortex_m10peripheral4take17h0000000000000000E", "_ZN5alloc3vec3Vec3new17h0000000000000000E"];
+        let extra = [HANDLER, "_ZN9rsk_entry17rust_begin_unwind17h0000000000000000E", "__rust_alloc", "__rg_oom", "_Unwind_Resume", "rust_eh_personality", "_ZN4vstd3seq3Seq3len17h0000000000000000E", "_ZN8cortex_m10peripheral4take17h0000000000000000E", "_ZN5alloc3vec3Vec3new17h0000000000000000E"];
         let v = scan_fixture(f, r, vec![], vec![0], &extra, &["cortex-m"], CORE);
         let mut rules: Vec<&str> = v.iter().map(|x| x.rule).collect();
         rules.sort();

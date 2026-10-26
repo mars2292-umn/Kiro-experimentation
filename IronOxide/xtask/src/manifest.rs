@@ -73,6 +73,9 @@ pub struct Manifest {
     pub kani: Option<Kani>,
     /// The App_Prover (R46.2), when installed.
     pub creusot: Option<Creusot>,
+    /// The Host_Test_Harness explorers (R47), as pinned in Cargo.lock:
+    /// `(crate, version)` for `loom` and `shuttle`.
+    pub host_test: Vec<(String, String)>,
     pub profile_version: String,
     pub profile_variant: String,
     pub target: String,
@@ -94,6 +97,11 @@ impl Manifest {
             .to_string();
         let cargo = stdout_of(&Cmd::cargo().arg("-V").cwd(root))?.trim().to_string();
         let (profile_version, profile_variant) = crate::profile::version_of(root);
+        let lock_text = std::fs::read_to_string(root.join("Cargo.lock")).unwrap_or_default();
+        let host_test = ["loom", "shuttle"]
+            .iter()
+            .filter_map(|name| locked_version(&lock_text, name).map(|v| (name.to_string(), v)))
+            .collect();
         Ok(Manifest {
             revision: Revision::of(root),
             lock_file_hash,
@@ -102,6 +110,7 @@ impl Manifest {
             verus,
             kani,
             creusot,
+            host_test,
             profile_version,
             profile_variant,
             target: ws.policy.target.clone(),
@@ -143,6 +152,9 @@ impl Manifest {
                 None => Value::Null,
             },
         );
+        for (name, version) in &self.host_test {
+            toolchain.insert(name.clone(), json!(version));
+        }
         json!({
             "schema": SCHEMA,
             "source": {
@@ -183,6 +195,18 @@ impl Manifest {
         let text = serde_json::to_string_pretty(&self.to_json()).map_err(|e| e.to_string())?;
         std::fs::write(path, text + "\n").map_err(|e| format!("cannot write {}: {e}", path.display()))
     }
+}
+
+/// The version of `name` in a Cargo.lock text (`[[package]]` blocks with
+/// `name = ".."` then `version = ".."`), or `None`.
+pub fn locked_version(lock: &str, name: &str) -> Option<String> {
+    let mut lines = lock.lines().map(str::trim);
+    while let Some(l) = lines.next() {
+        if l == format!("name = \"{name}\"") {
+            return lines.next().and_then(|v| v.strip_prefix("version = \"")).map(|v| v.trim_end_matches('"').to_string());
+        }
+    }
+    None
 }
 
 /// The Flight_Build binaries of a Target build: every `bin` target of a

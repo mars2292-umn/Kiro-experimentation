@@ -26,7 +26,7 @@ rsk keeps RTIC's central idea: the Cortex-M interrupt controller is the schedule
 | DD-08 | EasyDMA-capable peripherals are mapped read-only to their Partition; writes go through a Kernel service that validates DMA pointer and length registers; EasyDMA list mode is forbidden; PPI is Kernel-owned and configured at Init. | ORQ-03 | R17 |
 | DD-09 | Endpoint buffers are Kernel-owned and operated inside SVC at the Kernel level, so their effective Ceiling is the Kernel level; payloads are copied. | ORQ-11 (partly) | R39, R40, R42 |
 | DD-10 | Closed response sets: END_JOB, RESTART_PARTITION, STOP_PARTITION, SAFE_STATE, RECORD_ONLY (deadline misses only), RECORD_AND_CONTINUE (Overruns of highest-criticality Partitions only). | — | R14.5, R15.1, R18.5 |
-| DD-11 | One crate per Partition; a generated linker script places each Partition crate's sections; Applications contain no link-level attributes; the Kernel's `rsk-entry` crate binds vectors. | — | PR-20, R6.3, R24.2 |
+| DD-11 | One crate per Partition; a generated linker script places each Partition crate's sections; Applications contain no link-level attributes; the Kernel's `rsk-entry` crate binds vectors. The Link_Checker checks the template since 2026-10-26: only the Kernel crates, `rsk`, the system crate, and the Partition crates have executable symbols (the binary crate has none of its own), and every vector table entry resolves into the Kernel realm. | — | PR-20, R6.3, R24.2 |
 | DD-12 | Precise BusFaults: ACTLR.DISDEFWBUF = 1 for Kernel accesses and Strongly-ordered MPU attributes for Partition peripheral windows. | ORQ-27 | R14.3 |
 | DD-13 | App_Prover: Creusot; Analyzer core and Kernel proved in Verus; Kani for the Kernel_Unsafe_Module and cross-checks. | ORQ-10 | R44–R46, R32.1 |
 
@@ -822,7 +822,7 @@ The requirements say each ORQ is resolved or deferred, with a rationale, in the 
 | ORQ-19 | Deferred to P5; includes confirming NONBASETHRDENA on Armv8-M | Architecture fallback |
 | ORQ-20 | Deferred to P5 | R56.4 |
 | ORQ-21 | Resolved: Partitions use rsk drivers over the PAC; third-party `unsafe` allowed in Partitions with TBR entries, confined by the MPU; EasyDMA through the Kernel | Trust-Base Analysis |
-| ORQ-22 | Partly resolved: corpus limits, inconclusive verdicts (R31.9); fidelity remains open | Testing Strategy |
+| ORQ-22 | Partly resolved: corpus limits, inconclusive verdicts (R31.9); the exporter, the corpus of 50 models, and the disposition record exist (task 16, Verification_Plan 8.7); fidelity remains open until a verifier runs the corpus | Testing Strategy |
 | ORQ-23 | Resolved: the source is masked during the MIT window; events coalesce in the peripheral and are deferred; discard is not offered for interrupts | DD-06 |
 | ORQ-24 | Partly resolved: the Core_Subset is derived (task 2.2) from Ferrocene's public statements of its certified subset; the per-item list is customer-only (ASM-17), so the mapping is confirmed in P5; Gap_Register GAP-07 | R57 |
 | ORQ-25 | Resolved: the idle activity is Kernel-only (WFI); no Application idle code | Runtime structure |

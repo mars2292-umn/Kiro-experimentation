@@ -81,6 +81,8 @@ pub struct ProfileInputs {
     pub core_subset_toml: String,
     /// `--verified` module prefixes (see `scan::ScanInputs::verified`).
     pub verified: Vec<String>,
+    /// The system crate's name, for the DD-11 template check (`--system-crate`).
+    pub system_crate: Option<String>,
 }
 
 impl ProfileInputs {
@@ -102,7 +104,7 @@ impl ProfileInputs {
                 }
             }
         }
-        ProfileInputs { disallowed_crates: disallowed, core_subset_toml: core_subset_toml.to_string(), verified: Vec::new() }
+        ProfileInputs { disallowed_crates: disallowed, core_subset_toml: core_subset_toml.to_string(), verified: Vec::new(), system_crate: None }
     }
 }
 
@@ -114,7 +116,7 @@ pub fn check_with_profile(elf_bytes: &[u8], model_text: &str, profile: Option<&P
         let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
         let model = stack::ModelInputs::parse(model_text)?;
         let g = graph::CallGraph::build(&elf)?;
-        let inputs = scan::ScanInputs { disallowed_crates: p.disallowed_crates.clone(), core_items: scan::core_subset(&p.core_subset_toml), model: &model, verified: p.verified.clone() };
+        let inputs = scan::ScanInputs { disallowed_crates: p.disallowed_crates.clone(), system_crate: p.system_crate.clone(), core_items: scan::core_subset(&p.core_subset_toml), model: &model, verified: p.verified.clone() };
         scan::run(&elf, &g, &inputs, &mut out.violations, &mut out.notes)?;
     } else {
         out.notes.push("no Profile given (--profile, --core-subset): the instruction-class, symbol, and Core_Subset scans of task 12.3 were not run".to_string());

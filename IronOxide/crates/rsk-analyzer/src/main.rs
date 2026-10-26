@@ -3,7 +3,7 @@
 //! ```text
 //! rsk-analyzer --model task_model.json --wcet wcet.json --timing kernel_timing.json \
 //!              --manifest build-manifest.json --out <dir> [--allow-placeholders] \
-//!              [--prefer measured|static] [--uppaal [--uppaal-timeout <s>]]
+//!              [--prefer measured|static] [--uppaal [--uppaal-timeout <s>] [--uppaal-memory <MiB>]]
 //! ```
 //!
 //! Writes `report.json`, `report.txt`, `model.xml` and `model.q` into the
@@ -37,6 +37,7 @@ fn main() -> ExitCode {
     let mut run_uppaal = false;
     let mut placeholders = false;
     let mut uppaal_timeout = 300u64;
+    let mut uppaal_memory = 4096u64;
     let mut i = 0;
     while i < args.len() {
         let next = |i: &mut usize| -> Option<String> {
@@ -60,6 +61,7 @@ fn main() -> ExitCode {
             "--prefer" => options.prefer_method = next(&mut i),
             "--uppaal" => run_uppaal = true,
             "--uppaal-timeout" => uppaal_timeout = next(&mut i).and_then(|s| s.parse().ok()).unwrap_or(300),
+            "--uppaal-memory" => uppaal_memory = next(&mut i).and_then(|s| s.parse().ok()).unwrap_or(4096),
             _ => return usage(),
         }
         i += 1;
@@ -134,7 +136,7 @@ fn main() -> ExitCode {
         let _ = std::fs::write(&xml_path, &analysis.uppaal_xml);
         let _ = std::fs::write(&q_path, &analysis.uppaal_query);
         if run_uppaal {
-            let cc = rsk_analyzer::uppaal::cross_check(&xml_path, &q_path, analysis.report.result == "PASS", uppaal_timeout);
+            let cc = rsk_analyzer::uppaal::cross_check(&xml_path, &q_path, analysis.report.result == "PASS", uppaal_timeout, uppaal_memory);
             analysis.report.cross_check = rsk_model::report::CrossCheck {
                 status: cc.status.to_string(),
                 detail: cc.detail,

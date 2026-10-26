@@ -1,0 +1,13 @@
+# Dispositions of UPPAAL cross-check discrepancies (R32.6, R31.5): one entry
+# per corpus model whose verifier found a reachable deadline miss while the
+# RTA reports PASS. The trace requires confirmation, because stopwatch
+# models are verified by over-approximation; the disposition records what
+# the confirmation found (a real RTA defect, fixed in ...; a spurious trace
+# of the over-approximation; a modelling approximation of the export).
+#
+# [[discrepancy]]
+# model = "m07"
+# disposition = "..."
+#
+# None recorded: no machine with UPPAAL has run the corpus yet (the
+# Verification_Plan, section 8, records this; ORQ-22).

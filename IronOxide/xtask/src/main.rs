@@ -46,6 +46,7 @@ commands:
       diagnostic (a surviving mutant is a vacuous specification). --check
       only validates the register against the sources, without Verus.
   gen [--check]
+  uppaal-corpus
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -85,6 +86,7 @@ fn main() -> ExitCode {
         "conformance" => conformance_command(rest),
         "trace" => trace_command(rest),
         "gen" => gen_command(rest),
+        "uppaal-corpus" => uppaal_corpus_command(rest),
         "qemu" => qemu_command(rest),
         "probe-network" => match probe_network() {
             ProbeResult::Denied(detail) => {
@@ -342,6 +344,32 @@ fn gen_command(args: &[String]) -> ExitCode {
     } else {
         ExitCode::FAILURE
     }
+}
+
+/// `cargo xtask uppaal-corpus`: regenerates `docs/uppaal_corpus_report.md`
+/// (R32.6, PAR-03), running UPPAAL's verifier where installed.
+fn uppaal_corpus_command(args: &[String]) -> ExitCode {
+    if !args.is_empty() {
+        return usage_error("uppaal-corpus takes no arguments");
+    }
+    let root = xtask::repository_root();
+    let mut report = Report::default();
+    let Some(ws) = xtask::workspace::Workspace::load(&root, &mut report) else {
+        return print_report(&report, "corpus");
+    };
+    let target_dir = root.join("target").join("xtask-corpus");
+    match xtask::corpus::run(&ws, &target_dir, &xtask::corpus::work_dir(&target_dir), None, &mut report) {
+        Ok(outcome) => {
+            let path = xtask::corpus::report_path(&root);
+            if let Err(e) = std::fs::write(&path, &outcome.report) {
+                report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", path.display()));
+            } else {
+                report.note(format!("{} models; statuses {:?}; report written to docs/uppaal_corpus_report.md", outcome.rows.len(), outcome.by_status));
+            }
+        }
+        Err(e) => report.error(xtask::diag::Rule::Step, None, e),
+    }
+    print_report(&report, "UPPAAL corpus report written")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {
