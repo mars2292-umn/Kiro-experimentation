@@ -176,3 +176,25 @@ text = "The release-specific 26.05 User Manual (target list and qualified host) 
 
 [[unverified]]
 text = "Whether the upcoming Ferrocene 26.08 changes the base rustc, and whether its Safety Manual adds constraints on editions."
+
+[aeneas]
+# Task 17.3 (2026-10-26): Aeneas, evaluated on one pure control law as a
+# Lean-level alternative to the App_Prover for small computations
+# (Verification_Plan section 7). Installed from a local checkout next to the
+# repository (`../aeneas`, with Charon in `../aeneas/charon`), as Creusot
+# is; neither is a release, so the pins are commits. Charon drives its own
+# pinned rustc nightly; the Lean library requires Mathlib at the revision
+# its lake-manifest records. The translation of `proofs/aeneas/controllaw`
+# is committed (`proofs/aeneas/lean/ControlLaw/ControlLaw.lean`), so the
+# verification job needs only Lean (elan) and the checkout's Lean library
+# to check the proofs (step "Aeneas evaluation").
+aeneas_commit = "472b3d5"
+aeneas_describe = "Merge pull request #1476 from oliver-butterley/ci-warning-check"
+charon_commit = "40ca4ab6c10ecb7629320d6eccc0f41423fbe889"
+charon_rustc = "nightly-2026-09-17"
+lean = "leanprover/lean4:v4.35.0"
+mathlib = "56a005855ea17e0b0958f73ec801ae140b0a1679"
+checkout = "/Users/mars2292/repos/Kiro-experimentation/aeneas"
+# Result (Verification_Plan 7.1): the PI step's translation and its Lean
+# proofs check; no floating point; evaluation only, no credit claimed.
+result = "proofs/aeneas/lean builds; proof-app-aeneas passes"

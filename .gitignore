@@ -3,3 +3,5 @@
 # [creusot] in IronOxide records its commit) and an earlier duplicate clone.
 /creusot/
 /JSON-Schema-Infer/creusot/
+# Aeneas (App_Prover alternative evaluated in task 17.3) and its Charon checkout.
+/aeneas/

@@ -1,0 +1,12 @@
+[package]
+name = "controllaw"
+description = "rsk task 17.3: one pure control law (a fixed-point PI step with anti-windup and output saturation) for the Aeneas evaluation; the shape of a Task body's computation, no rsk dependency"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "controllaw"
+
+# Translated by Charon (Aeneas's front end) with `charon cargo --preset=aeneas`
+# from this directory (proofs/aeneas/README.md).
