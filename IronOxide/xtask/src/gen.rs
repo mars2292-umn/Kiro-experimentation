@@ -58,6 +58,12 @@ pub fn generate_all(ws: &Workspace, report: &mut Report) -> Vec<App> {
                 continue;
             }
         };
+        // R25.1: the Task_Model is validated against the published schema
+        // before it is written.
+        if let Err(e) = rsk_model::read_task_model(&outputs.task_model_json) {
+            report.error(Rule::Generator, Some(ws.rel(&decl_source)), format!("the Task_Model does not conform to its schema (R25.1): {e}"));
+            continue;
+        }
         let mut files = vec![
             ("task_model.json".to_string(), outputs.task_model_json),
             ("memory.x".to_string(), outputs.memory_x),

@@ -10,6 +10,7 @@ publish.workspace = true
 rsk-digest.workspace = true
 rsk-elf.workspace = true
 rsk-gen = { workspace = true, features = ["syntax"] }
+rsk-model = { path = "../crates/rsk-model" }
 proc-macro2.workspace = true
 serde_json.workspace = true
 toml.workspace = true

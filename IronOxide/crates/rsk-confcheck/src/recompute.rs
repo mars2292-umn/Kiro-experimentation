@@ -291,6 +291,23 @@ mod tests {
         assert!(out.checked > 40);
     }
 
+    /// R27.2: a Task on a core other than 0, a Resource marked global, or
+    /// an Endpoint spanning another core is rejected by the Config_Checker
+    /// as unusable input, naming the item and citing NG-01.
+    #[test]
+    fn a_core_other_than_zero_is_rejected_citing_ng01_r27_2() {
+        assert!(crate::check(DEMO, None).is_ok());
+        let task = DEMO.replacen("\"core\": 0", "\"core\": 1", 1);
+        let e = crate::check(&task, None).err().expect("rejected");
+        assert!(e.starts_with("NG-01") && e.contains("part0.") && e.contains("core 1"), "{e}");
+        // The first Resource's `core` field, after the Tasks' ones.
+        let first_resource = DEMO.find("\"resources\"").unwrap();
+        let (head, tail) = DEMO.split_at(first_resource);
+        let global = format!("{head}{}", tail.replacen("\"core\": 0", "\"core\": \"global\"", 1));
+        let e = crate::check(&global, None).err().expect("rejected");
+        assert!(e.starts_with("NG-01") && e.contains("global"), "{e}");
+    }
+
     /// Altered derived values are reported with the item, the expected and
     /// the found value (R26.3): one case per value class.
     #[test]

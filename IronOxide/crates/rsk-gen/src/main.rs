@@ -70,6 +70,12 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    // R25.1: the Task_Model is validated against the published schema
+    // before it is written (or compared).
+    if let Err(e) = rsk_model::read_task_model(&outputs.task_model_json) {
+        eprintln!("rsk-gen: the Task_Model does not conform to its schema (R25.1): {e}");
+        return ExitCode::from(1);
+    }
     let mut files: Vec<(String, String)> = vec![
         ("task_model.json".to_string(), outputs.task_model_json.clone()),
         ("memory.x".to_string(), outputs.memory_x.clone()),

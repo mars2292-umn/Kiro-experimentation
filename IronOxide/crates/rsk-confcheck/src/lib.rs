@@ -81,10 +81,40 @@ pub fn check_with_bounds(model_text: &str, elf: Option<&[u8]>, bounds: Option<&s
     Ok(out)
 }
 
+/// R27.2: a Task_Model that assigns any item to a core other than 0, or
+/// marks a Resource global, is rejected naming the item and citing NG-01
+/// (v1 is single-core; the fields exist for the partitioned multi-core
+/// extension, R27.1).
+fn reject_other_cores(json: &Value) -> Result<(), String> {
+    let items = |key: &str| json.get(key).and_then(Value::as_array).into_iter().flatten();
+    let id = |v: &Value| v.get("id").and_then(Value::as_str).unwrap_or("?").to_string();
+    for t in items("tasks") {
+        if t.get("core").and_then(Value::as_u64) != Some(0) {
+            return Err(format!("NG-01: Task `{}` is assigned to core {} (R27.2: v1 is single-core)", id(t), t.get("core").cloned().unwrap_or(Value::Null)));
+        }
+    }
+    for r in items("resources") {
+        match r.get("core") {
+            Some(Value::Number(n)) if n.as_u64() == Some(0) => {}
+            other => {
+                return Err(format!("NG-01: Resource `{}` is not on core 0 but `{}` (R27.2: v1 is single-core)", id(r), other.cloned().unwrap_or(Value::Null)));
+            }
+        }
+    }
+    for e in items("endpoints") {
+        let cores: Vec<u64> = e.get("cores").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_u64).collect();
+        if cores.iter().any(|&c| c != 0) {
+            return Err(format!("NG-01: Endpoint `{}` spans cores {:?} (R27.2: v1 is single-core)", id(e), cores));
+        }
+    }
+    Ok(())
+}
+
 /// Checks `model_text` (the Task_Model JSON) and, when given, the linked
 /// binary. Errors are unusable inputs; discrepancies are in the outcome.
 pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
     let json: Value = serde_json::from_str(model_text).map_err(|e| format!("Task_Model is not JSON: {e}"))?;
+    reject_other_cores(&json)?;
     let model = model::Model::parse(&json)?;
     let mut out = Outcome::default();
     recompute::check_model(&model, &mut out);

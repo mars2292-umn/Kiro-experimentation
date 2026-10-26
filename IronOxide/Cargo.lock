@@ -485,6 +485,7 @@ name = "rsk-gen"
 version = "0.0.0"
 dependencies = [
  "proc-macro2",
+ "rsk-model",
  "syn 2.0.119",
 ]
 
@@ -1138,6 +1139,7 @@ dependencies = [
  "rsk-digest",
  "rsk-elf",
  "rsk-gen",
+ "rsk-model",
  "serde_json",
  "toml",
 ]
