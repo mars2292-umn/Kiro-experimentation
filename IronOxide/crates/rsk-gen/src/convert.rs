@@ -90,30 +90,6 @@ mod tests {
         Time { value, unit }
     }
 
-    /// R21.2: times convert to ticks and cycles, and an exact conversion is not
-    /// reported as a changed value.
-    #[test]
-    fn exact_conversions_are_not_reported_as_changes() {
-        assert_eq!(to_ticks(t(10, TimeUnit::Ms), 16_000_000, 64_000_000, Rounding::Down), Some((160_000, false)));
-        assert_eq!(to_cycles(t(120, TimeUnit::Us), 16_000_000, 64_000_000, Rounding::Up), Some((7_680, false)));
-        assert_eq!(to_ticks(t(5, TimeUnit::Ticks), 1, 1, Rounding::Down), Some((5, false)));
-    }
-
-    /// R21.2: inexact conversions round Budgets up, periods and deadlines down,
-    /// offsets to the nearest tick, and are reported as changed.
-    #[test]
-    fn rounding_follows_property_14() {
-        // 1 ns at 16 MHz is 0.016 ticks: a period rounds down to 0, a budget rounds up.
-        assert_eq!(to_ticks(t(1, TimeUnit::Ns), 16_000_000, 64_000_000, Rounding::Down), Some((0, true)));
-        assert_eq!(to_cycles(t(1, TimeUnit::Ns), 16_000_000, 64_000_000, Rounding::Up), Some((1, true)));
-        // 100 ns at 16 MHz = 1.6 ticks: nearest is 2 (offsets), down is 1.
-        assert_eq!(to_ticks(t(100, TimeUnit::Ns), 16_000_000, 64_000_000, Rounding::Nearest), Some((2, true)));
-        assert_eq!(to_ticks(t(100, TimeUnit::Ns), 16_000_000, 64_000_000, Rounding::Down), Some((1, true)));
-        // Cycles to ticks at a 4:1 ratio: 7 cycles = 1.75 ticks.
-        assert_eq!(to_ticks(t(7, TimeUnit::Cycles), 16_000_000, 64_000_000, Rounding::Down), Some((1, true)));
-        assert_eq!(to_ticks(t(7, TimeUnit::Cycles), 16_000_000, 64_000_000, Rounding::Up), Some((2, true)));
-    }
-
     #[test]
     fn overflow_is_reported() {
         assert_eq!(to_cycles(t(u64::MAX, TimeUnit::H), 16_000_000, 64_000_000, Rounding::Up), None);

@@ -23,6 +23,8 @@ pub mod profile_version;
 pub mod syntax;
 pub mod target;
 pub mod validate;
+#[cfg(feature = "arbitrary")]
+pub mod arbitrary;
 
 pub use decl::{Declaration, Diagnostic, ItemRef};
 pub use derive::Generated;
@@ -164,25 +166,6 @@ mod tests {
         assert!(out.system_source.contains("pub const NS: usize = 11;"));
         assert!(out.link_x.contains("*libdemo_part0-*:*(.text .text.* .rodata .rodata.*)"));
         assert!(out.task_model_json.contains("\"schema\": \"rsk-task-model/1\""));
-    }
-
-    /// R24.4, R23.6, R23.2: two runs give byte-identical outputs and identical
-    /// derived values, and reordering the Tasks leaves Ceilings, capacities and
-    /// the layout unchanged.
-    #[test]
-    fn outputs_are_deterministic_and_ceilings_order_independent() {
-        let a = outputs(&demo(), "rsk-system").unwrap();
-        let b = outputs(&demo(), "rsk-system").unwrap();
-        assert_eq!(a, b);
-        // Reverse the declaration order of the Tasks: same Ceiling, same
-        // capacities, same layout (Property 13).
-        let mut d = demo();
-        d.partitions[0].tasks.reverse();
-        let g = generate(&d).unwrap();
-        let g0 = generate(&demo()).unwrap();
-        assert_eq!(g.resources[0].ceiling, g0.resources[0].ceiling);
-        assert_eq!((g.slot_count, g.lock_capacity), (g0.slot_count, g0.lock_capacity));
-        assert_eq!(g.plan, g0.plan);
     }
 
     /// R22.2 (PR-33), R22.1, R15.6 (PR-29), R22.5: a Priority beyond the

@@ -9,3 +9,8 @@ publish.workspace = true
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+# Declarations generated for the round-trip property come from the Generator.
+rsk-gen = { workspace = true, features = ["arbitrary"] }

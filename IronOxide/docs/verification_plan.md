@@ -467,5 +467,6 @@ Open items for v2:
 - the doc comments of tests that establish a criterion without naming it: 55 of the 109 tests that named none were given their criteria on 2026-10-24 (the remaining 54 are tests of helpers with no criterion behind them: tokenizers, decoders, hash vectors, parsers); the test and Kani items' `covers` lists are derived from these names since 2026-10-23;
 - App_Prover pinning and the facts marked "to confirm" in section 7 (task 17.1);
 - the Kani flight-path restructuring (6.1);
+- property-based tests now exist for Properties 12 to 15 (proptest, 2026-10-26: `rsk-gen`, `rsk-model`, `rsk-analyzer` test suites); the Analyzer's Properties 16 to 18 still use the fixed-seed generator of `tests/properties.rs`, which proptest could replace;
 - confirmation of the Gap_Register's Annex A applicability, independence, and DO-333 and DO-330 items against the standards' texts (OPEN-01, OPEN-02);
 - every hardware-pending item of section 11.
