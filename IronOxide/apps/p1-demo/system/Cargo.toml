@@ -6,9 +6,19 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# The board: the QEMU spike's by default, the nRF52840-DK with `nrf52840`
+# (`--no-default-features --features nrf52840`): the Kernel's board support,
+# the declaration's variant, and Partition 1's timer follow.
+default = ["qemu-mps2"]
+qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
+nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
+# HIL builds only: the debug port stays open across resets (see rsk-kernel).
+debug-port = ["rsk-kernel/debug-port"]
+
 [dependencies]
 p1-demo-decl = { path = "../decl" }
-rsk-kernel = { workspace = true, default-features = false, features = ["board-qemu-mps2"] }
+rsk-kernel = { workspace = true, default-features = false }
 rsk = { path = "../../../crates/rsk" }
 p1-demo-part0 = { path = "../part0" }
 p1-demo-part1 = { path = "../part1" }

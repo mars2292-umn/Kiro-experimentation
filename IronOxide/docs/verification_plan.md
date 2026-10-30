@@ -428,7 +428,14 @@ Work that can proceed without boards, so these items stay ready:
 
 - write each test's procedure and the outcome the Hardware_Model predicts, so the tests are defined before the rig exists;
 - implement the `rsk-hil` orchestration and dry-run it against QEMU where QEMU models the behaviour;
-- record here the date boards become available, and re-run section 1 on the Target.
+- record here the date boards become available, and re-run section 1 on the Target. **2026-10-29: the first nRF52840-DK is connected** (one board; the stimulus board is missing). probe-rs 0.32.0 flashes and runs the demo's `nrf52840` declaration variant (`cargo xtask hil`; job step "HIL: dispatch spike", item `hil-spike-p1-demo`). Status: the Kernel boots, its boot checks and its watchdog-reset path have run on silicon (section 11.1), `RSK-OK` is pending a core lockup still to diagnose and the board's access-port setting (the operator writes UICR.APPROTECT = HwDisabled once; the HIL build writes APPROTECT.DISABLE at every boot).
+
+### 11.1 First results on the nRF52840-DK (2026-10-29)
+
+- **HFCLK.** The Kernel starts the crystal oscillator at boot (DD-05: the time base runs from it); the RC oscillator's HFCLKSTAT.STATE already reads running, so the boot waits on EVENTS_HFCLKSTARTED. Before the fix, boot check bit 10 (R12.1, ASM-05) failed and the safe state reported it: the check does its job.
+- **Access port protection.** This silicon enables APPROTECT at every reset. A HIL build (feature `debug-port`, never a Flight_Build feature) writes APPROTECT.DISABLE first thing at boot; the persistent UICR.APPROTECT = HwDisabled is the operator's one-time setting. A Flight_Build leaves the port protected, which is the production setting.
+- **Watchdog path.** The first full run locked up and the Kernel-owned watchdog reset the chip; the next boot logged EV_WATCHDOG_RESET, boot check bit 7, EV_SAFE_STATE, and reported through the semihosting console as ORQ-31 specifies. `hil-watchdog`'s claim is observed, not yet as a designed test.
+- **Open.** The lockup's cause (the debug port must stay open to catch the fault); `RSK-OK`; the Build_Manifest entry for the HIL build, which differs from the Flight_Build by its features.
 
 ### HIL frequency (R50.1)
 

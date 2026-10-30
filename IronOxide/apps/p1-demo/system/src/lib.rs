@@ -110,6 +110,8 @@ pub fn report_and_exit() -> ! {
         print_kv(b"event", kind as u32);
         print_kv(b"  task", k.log_task(i) as u32);
         print_kv(b"  at_ms", (k.log_instant(i) / MS) as u32);
+        // The event's detail word: for a boot check, the failed checks (R12.2).
+        print_kv(b"  detail", k.log_detail(i));
         // R3.9: the restriction identifiers of the event (bit n = PR-n).
         let prs = k.log_prs(i);
         print_kv(b"  prs_lo", prs as u32);

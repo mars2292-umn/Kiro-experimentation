@@ -198,3 +198,13 @@ checkout = "/Users/mars2292/repos/Kiro-experimentation/aeneas"
 # Result (Verification_Plan 7.1): the PI step's translation and its Lean
 # proofs check; no floating point; evaluation only, no credit claimed.
 result = "proofs/aeneas/lean builds; proof-app-aeneas passes"
+
+[probe-rs]
+# The HIL flashing and run tool (Verification_Plan section 8: no credit; the
+# read-back hash check of R48.4 is the mitigation). Installed with
+# `cargo install probe-rs-tools` on 2026-10-29 (`probe-rs`, `cargo-embed`,
+# `cargo-flash`); the board is an nRF52840-DK (J-Link OB) seen as
+# `J-Link -- 1366:1060`.
+version = "0.32.0"
+chip = "nRF52840_xxAA"
+board = "nRF52840-DK, Cortex-M4 r0p1 (CPUID 0x410FC241)"

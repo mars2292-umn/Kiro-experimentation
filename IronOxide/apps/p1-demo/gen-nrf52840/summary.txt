@@ -1,0 +1,34 @@
+rsk Generated_Config summary (R24.3)
+Target: nrf52840 (r0p1), CPU 64000000 Hz, time base 16000000 Hz, 3 priority bits, 8 MPU regions
+Profile: 0.6 Ravenscar
+Operating duration: 3200000 ticks
+Safe state: crate::report_and_exit
+Config checksum (CRC-32): 0x56b460fc
+Capacities: lock stack 6, timer slots 23, event log 32
+Kernel levels: [0]; Task levels (level -> NVIC byte): 1 -> 0xe0, 2 -> 0xc0, 3 -> 0xa0, 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
+Kernel-owned peripherals: CLOCK, TIMER0, WDT, PPI
+Timer: IRQ 8 (vector 24)
+
+Partitions:
+  part0 (crate p1_demo_part0, level A): fault RESTART_PARTITION, overrun RECORD_AND_CONTINUE, deadline miss RECORD_ONLY, MIT threshold 10
+    code 32768 bytes at 0x00020000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+  part1 (crate p1_demo_part1, level C): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
+    code 32768 bytes at 0x00028000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20010000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+    window 0x40009000 (2^12, srd 0x00, read-write): TIMER1
+  part2 (crate p1_demo_part2, level B): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
+    code 32768 bytes at 0x00030000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20018000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+    window 0x40003000 (2^12, srd 0x00, read-only): SPIM0
+
+Tasks:
+  part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 160000 ticks, deadline 160000 ticks, Budget 64000 cycles, fpu false, Resources [state, in_cs], state [count: u32, blocked: u32], nesting depth 2, slots release 0 deadline 1 budget 2
+  part0.echo (#1, Partition part0, Priority 6, vector 37): sporadic, MIT 320000 ticks, policy defer, source signal tick, deadline 320000 ticks, Budget 12800 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 3 deadline 4 budget 5
+  part0.sensor (#2, Partition part0, Priority 5, vector 38): periodic, offset 80000 ticks, period 320000 ticks, deadline 320000 ticks, Budget 563200 cycles, fpu false, Resources [state, in_cs], state [count: u32], nesting depth 2, slots release 6 deadline 7 budget 8
+  part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 640000 ticks, deadline 640000 ticks, Budget 384000 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 9 deadline 10 budget 11
+  part1.pulse (#4, Partition part1, Priority 4, vector 40): sporadic, MIT 240000 ticks, policy defer, source interrupt TIMER1 (IRQ 9), deadline 240000 ticks, Budget 12800 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 12 deadline 13 budget 14
+  part2.filter (#5, Partition part2, Priority 3, vector 41): periodic, offset 0 ticks, period 400000 ticks, deadline 400000 ticks, Budget 32000 cycles, fpu true, Resources [stats], state [count: u32, y: f32], nesting depth 1, slots release 15 deadline 16 budget 17
+  part2.sampler (#6, Partition part2, Priority 1, vector 56): periodic, offset 0 ticks, period 1600000 ticks, deadline 1600000 ticks, Budget 32000 cycles, fpu false, Resources [stats], state [count: u32, dma_ok: u32, buf: [u8 ; 16]], nesting depth 1, slots release 18 deadline 19 budget 20
+
+Resources:
+  part0.state (#0, Partition part0, type u32): Ceiling 7, accessors [control, sensor]
+  part0.in_cs (#1, Partition part0, type u32): Ceiling 7, accessors [control, sensor]
+  part2.stats (#2, Partition part2, type crate :: Stats): Ceiling 3, accessors [filter, sampler]

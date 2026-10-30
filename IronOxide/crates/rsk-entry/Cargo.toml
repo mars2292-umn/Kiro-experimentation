@@ -9,6 +9,13 @@ publish.workspace = true
 # R6.1: part of the Kernel. The system crate of the Application is a path
 # dependency that the Build_System points at the generated system crate
 # (DD-11); in Phase 1 it is the hand-written system crate of the P1 demo.
+[features]
+# The board, forwarded from the Flight_Build binary to the system crate.
+qemu-mps2 = ["rsk-system/qemu-mps2"]
+nrf52840 = ["rsk-system/nrf52840"]
+# HIL builds only: the debug port stays open across resets (see rsk-kernel).
+debug-port = ["rsk-system/debug-port"]
+
 [dependencies]
 rsk-kernel.workspace = true
-rsk-system = { path = "../../apps/p1-demo/system" }
+rsk-system = { path = "../../apps/p1-demo/system", default-features = false }

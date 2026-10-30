@@ -258,7 +258,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 20,
+        total_steps: 21,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -593,6 +593,11 @@ pub fn run(root: &Path, options: Options) -> bool {
         qemu_cmds,
     );
 
+    // ------------------------------------------- 10b-hil. HIL spike on the board
+    job.heading("HIL: dispatch spike on the nRF52840-DK (task 3.1, hil-spike)");
+    let hil_cmds = hil_spike(&ws, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-spike-step", "HIL spike step", &["R7.7", "R11.1", "R16.4"], hil_cmds);
+
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
     let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
@@ -885,6 +890,59 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         report.error(Rule::Evidence, None, e);
     }
     vec![command]
+}
+
+/// Task 3.1's hardware half (Verification_Plan section 11, `hil-spike`): the
+/// demo's nRF52840 variant flashed and run on the attached DK through
+/// probe-rs (`hil.rs`). Skipped with a warning when no probe is attached.
+/// Evidence_Item `hil-spike`: pass on `RSK-OK` and exit 0, with the console
+/// as artifact; a HIL build carries the `debug-port` feature, so it is not
+/// the Flight_Build binary the other items describe (its own Build_Manifest
+/// entry is a follow-up).
+fn hil_spike(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let spikes: Vec<&str> = ws.policy.qemu_spikes().collect();
+    let Some(probe) = crate::hil::probe() else {
+        report.warn("no debug probe attached (probe-rs list): the HIL spike was not run; the board's results stay hardware-pending (section 11)");
+        return vec![];
+    };
+    let mut commands = Vec::new();
+    for bin in spikes {
+        let Some(run) = crate::hil::run(ws, bin, 90, Some(sandbox), report) else { continue };
+        commands.push(run.command.clone());
+        let log_name = format!("hil-{bin}.log");
+        let _ = store.write_artifact(&log_name, &run.log);
+        // A locked access port (nRF52840 APPROTECT after a reset without the
+        // UICR setting that keeps it open) is the bench's state, not the
+        // Kernel's: the run is inconclusive, and the operator unlocks the
+        // chip (docs: Verification_Plan section 11).
+        let locked = run.log.contains("Core is locked");
+        let verdict = if run.ok {
+            report.note(format!("HIL spike `{bin}` passed on {} ({}; {:.1}s)", crate::hil::CHIP, probe.probe, run.seconds));
+            Verdict::Pass
+        } else if locked {
+            report.warn(format!("HIL spike `{bin}`: the board's access port is locked (APPROTECT); unlock it and set UICR.APPROTECT to HwDisabled for HIL use (see {log_name})"));
+            Verdict::Inconclusive
+        } else {
+            report.error(Rule::Step, None, format!("HIL spike `{bin}` failed on {} (see {log_name})", crate::hil::CHIP));
+            Verdict::Fail
+        };
+        let mut item = Item::new(
+            &format!("hil-spike-{bin}"),
+            Kind::Test,
+            &format!("dispatch spike on the nRF52840-DK ({bin}, declaration variant {}, features {})", crate::hil::VARIANT, crate::hil::FEATURES),
+            Tool { name: "probe-rs".to_string(), version: format!("{} ({})", probe.version, probe.probe), solvers: vec![] },
+            verdict,
+        )
+        .covers(&["R7.7", "R11.1", "R16.4", "R12.1", "R12.6"]);
+        item.command_lines = vec![run.command.clone()];
+        item.notes = vec!["the HIL build enables `debug-port` (the access port stays open across resets) and is not the Flight_Build binary; the Kernel's semihosting console and exit are carried by probe-rs".to_string()];
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = vec![log_name];
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    commands
 }
 
 /// Task 17.3 (R46.1): the Aeneas evaluation. `proofs/aeneas/lean` holds the

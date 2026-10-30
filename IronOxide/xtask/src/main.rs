@@ -47,6 +47,7 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
+  hil [--bin <crate>] [--timeout <s>]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -88,6 +89,7 @@ fn main() -> ExitCode {
         "gen" => gen_command(rest),
         "uppaal-corpus" => uppaal_corpus_command(rest),
         "qemu" => qemu_command(rest),
+        "hil" => hil_command(rest),
         "probe-network" => match probe_network() {
             ProbeResult::Denied(detail) => {
                 println!("denied: {detail}");
@@ -370,6 +372,50 @@ fn uppaal_corpus_command(args: &[String]) -> ExitCode {
         Err(e) => report.error(xtask::diag::Rule::Step, None, e),
     }
     print_report(&report, "UPPAAL corpus report written")
+}
+
+/// `cargo xtask hil`: builds the nRF52840-DK variant of the demo, flashes
+/// and runs it on the attached board through probe-rs, and prints its
+/// console (task 3.1's hardware half; the job's step "HIL spike").
+fn hil_command(args: &[String]) -> ExitCode {
+    let mut bin = "p1-demo".to_string();
+    let mut timeout = 60u64;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--bin" => match args.next() {
+                Some(b) => bin = b.clone(),
+                None => return usage_error("--bin takes a crate name"),
+            },
+            "--timeout" => match args.next().and_then(|t| t.parse().ok()) {
+                Some(t) => timeout = t,
+                None => return usage_error("--timeout takes seconds"),
+            },
+            other => return usage_error(&format!("unknown option `{other}`")),
+        }
+    }
+    let root = xtask::repository_root();
+    let mut report = Report::default();
+    let Some(ws) = xtask::workspace::Workspace::load(&root, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let Some(probe) = xtask::hil::probe() else {
+        report.error(xtask::diag::Rule::Step, None, "no debug probe: probe-rs is not installed or `probe-rs list` shows none");
+        return print_report(&report, "hil");
+    };
+    report.note(format!("{} ; {}", probe.version, probe.probe));
+    match xtask::hil::run(&ws, &bin, timeout, None, &mut report) {
+        Some(run) => {
+            print!("{}", run.log);
+            if run.ok {
+                report.note(format!("HIL run of `{bin}` on {}: RSK-OK after {:.1}s", xtask::hil::CHIP, run.seconds));
+            } else {
+                report.error(xtask::diag::Rule::Step, None, format!("HIL run of `{bin}` failed after {:.1}s (console above)", run.seconds));
+            }
+        }
+        None => {}
+    }
+    print_report(&report, "HIL run passed")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

@@ -6,6 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# The nRF52840-DK variant: TIMER1 releases `pulse` (with the declaration's variant).
+nrf52840 = ["p1-demo-decl/nrf52840"]
+
 [dependencies]
 p1-demo-decl = { path = "../decl" }
 rsk = { path = "../../../crates/rsk" }

@@ -13,16 +13,18 @@ use std::path::{Path, PathBuf};
 use crate::diag::{Report, Rule};
 use crate::workspace::Workspace;
 
-/// The generated files of one application.
+/// The generated files of one application (one per declaration variant).
 pub struct App {
     pub decl_crate: String,
+    /// The variant (a cargo feature of the declaration crate), `None` for the default.
+    pub variant: Option<String>,
     pub decl_source: PathBuf,
     pub out_dir: PathBuf,
     pub files: Vec<(String, String)>,
 }
 
-/// Runs the Generator on every declaration crate; returns the applications
-/// (with their outputs) or records the diagnostics.
+/// Runs the Generator on every declaration crate and each of its variants;
+/// returns the applications (with their outputs) or records the diagnostics.
 pub fn generate_all(ws: &Workspace, report: &mut Report) -> Vec<App> {
     let mut apps = Vec::new();
     for (name, policy) in &ws.policy.crates {
@@ -33,62 +35,73 @@ pub fn generate_all(ws: &Workspace, report: &mut Report) -> Vec<App> {
             report.error(Rule::Step, None, format!("declaration crate `{name}` is not a workspace package"));
             continue;
         };
-        let decl_source = pkg.dir.join("src").join("lib.rs");
-        let out_dir = pkg.dir.parent().map(|p| p.join("gen")).unwrap_or_else(|| pkg.dir.join("gen"));
-        let source = match std::fs::read_to_string(&decl_source) {
-            Ok(s) => s,
-            Err(e) => {
-                report.error(Rule::Step, Some(ws.rel(&decl_source)), format!("cannot read the declaration: {e}"));
-                continue;
-            }
-        };
-        let parsed = match rsk_gen::syntax::parse_source(&source) {
-            Ok(p) => p,
-            Err(e) => {
-                report.error(Rule::Generator, Some(ws.rel(&decl_source)), e);
-                continue;
-            }
-        };
-        let outputs = match rsk_gen::outputs(&parsed.decl, "rsk-system") {
-            Ok(o) => o,
-            Err(errors) => {
-                for e in errors {
-                    report.error(Rule::Generator, Some(ws.rel(&decl_source)), e.to_string());
-                }
-                continue;
-            }
-        };
-        // R25.1: the Task_Model is validated against the published schema
-        // before it is written.
-        if let Err(e) = rsk_model::read_task_model(&outputs.task_model_json) {
-            report.error(Rule::Generator, Some(ws.rel(&decl_source)), format!("the Task_Model does not conform to its schema (R25.1): {e}"));
-            continue;
+        let app_dir = pkg.dir.parent().map(Path::to_path_buf).unwrap_or_else(|| pkg.dir.clone());
+        let mut variants: Vec<(Option<String>, PathBuf, PathBuf)> = vec![(None, pkg.dir.join("src").join("lib.rs"), app_dir.join("gen"))];
+        for v in &policy.variants {
+            variants.push((Some(v.clone()), pkg.dir.join("src").join(format!("{v}.rs")), app_dir.join(format!("gen-{v}"))));
         }
-        let mut files = vec![
-            ("task_model.json".to_string(), outputs.task_model_json),
-            ("memory.x".to_string(), outputs.memory_x),
-            ("link.x".to_string(), outputs.link_x),
-            ("summary.txt".to_string(), outputs.summary),
-            ("system_manifest.rs".to_string(), outputs.system_source),
-        ];
-        for (pname, src) in outputs.partition_sources {
-            files.push((format!("partition_{pname}.rs"), src));
+        for (variant, decl_source, out_dir) in variants {
+            if let Some(app) = generate_one(ws, name, variant, decl_source, out_dir, report) {
+                apps.push(app);
+            }
         }
-        report.note(format!(
-            "Generator: `{name}` accepted ({} Tasks, {} Resources, {} Partitions; Generated_Config checksum 0x{:08x})",
-            outputs.generated.tasks.len(),
-            outputs.generated.resources.len(),
-            outputs.generated.partitions.len(),
-            outputs.generated.checksum
-        ));
-        apps.push(App {
-            decl_crate: name.clone(),
-            decl_source,
-            out_dir,
-            files,
-        });
     }
     apps
+}
+
+fn generate_one(ws: &Workspace, name: &str, variant: Option<String>, decl_source: PathBuf, out_dir: PathBuf, report: &mut Report) -> Option<App> {
+    let label = match &variant {
+        Some(v) => format!("{name} (variant {v})"),
+        None => name.to_string(),
+    };
+    let source = match std::fs::read_to_string(&decl_source) {
+        Ok(s) => s,
+        Err(e) => {
+            report.error(Rule::Step, Some(ws.rel(&decl_source)), format!("cannot read the declaration: {e}"));
+            return None;
+        }
+    };
+    let parsed = match rsk_gen::syntax::parse_source(&source) {
+        Ok(p) => p,
+        Err(e) => {
+            report.error(Rule::Generator, Some(ws.rel(&decl_source)), e);
+            return None;
+        }
+    };
+    let outputs = match rsk_gen::outputs(&parsed.decl, "rsk-system") {
+        Ok(o) => o,
+        Err(errors) => {
+            for e in errors {
+                report.error(Rule::Generator, Some(ws.rel(&decl_source)), e.to_string());
+            }
+            return None;
+        }
+    };
+    // R25.1: the Task_Model is validated against the published schema
+    // before it is written.
+    if let Err(e) = rsk_model::read_task_model(&outputs.task_model_json) {
+        report.error(Rule::Generator, Some(ws.rel(&decl_source)), format!("the Task_Model does not conform to its schema (R25.1): {e}"));
+        return None;
+    }
+    let mut files = vec![
+        ("task_model.json".to_string(), outputs.task_model_json),
+        ("memory.x".to_string(), outputs.memory_x),
+        ("link.x".to_string(), outputs.link_x),
+        ("summary.txt".to_string(), outputs.summary),
+        ("system_manifest.rs".to_string(), outputs.system_source),
+    ];
+    for (pname, src) in outputs.partition_sources {
+        files.push((format!("partition_{pname}.rs"), src));
+    }
+    report.note(format!(
+        "Generator: `{label}` accepted ({} Tasks, {} Resources, {} Partitions; Target {}; Generated_Config checksum 0x{:08x})",
+        outputs.generated.tasks.len(),
+        outputs.generated.resources.len(),
+        outputs.generated.partitions.len(),
+        outputs.generated.target.name,
+        outputs.generated.checksum
+    ));
+    Some(App { decl_crate: name.to_string(), variant, decl_source, out_dir, files })
 }
 
 /// Writes the outputs (or, with `check`, compares them with the files on

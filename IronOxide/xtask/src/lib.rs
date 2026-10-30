@@ -37,6 +37,7 @@ pub mod confcheck_mutations;
 pub mod diag;
 pub mod evidence;
 pub mod gen;
+pub mod hil;
 pub mod manifest;
 pub mod mutations;
 pub mod policy;

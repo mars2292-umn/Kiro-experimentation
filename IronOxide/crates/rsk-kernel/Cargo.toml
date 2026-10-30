@@ -25,6 +25,11 @@ board-qemu-mps2 = []
 # Semihosting trace of every Kernel_Arch entry point (QEMU and HIL debugging
 # only; never a Flight_Build feature).
 trace = []
+# Keeps the nRF52840's debug access port open across resets by writing
+# APPROTECT.DISABLE at boot (recent silicon locks the port at every reset
+# unless the firmware does so). HIL builds only; a Flight_Build leaves the
+# port protected (R16, ORQ-30).
+debug-port = []
 
 # Verified by `cargo verus verify` (R44.6; xtask step "Kernel_Proofs").
 [package.metadata.verus]

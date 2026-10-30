@@ -135,7 +135,7 @@ rsk-digest = { targets = ["host"] }
 rsk-elf = { targets = ["host"] }
 # The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
 # binds, two Partition crates, and the Flight_Build binary (Target only).
-p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true }
+p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840"] }
 rsk-system = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo-part0 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo-part1 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }

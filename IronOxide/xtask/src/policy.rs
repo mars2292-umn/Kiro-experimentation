@@ -37,6 +37,10 @@ pub struct CratePolicy {
     /// runs the Generator on it (R24.3) and the verification job checks
     /// that the generated files next to it are current (R24.4).
     pub declaration: bool,
+    /// The declaration's Target variants: for each name `v`, a second
+    /// `rsk::app!` in `src/<v>.rs` (compiled under the cargo feature `v`)
+    /// whose outputs go to `gen-<v>/` next to the default's `gen/`.
+    pub variants: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,6 +157,16 @@ fn parse_crate(name: &str, entry: &Value, target: &str) -> Result<CratePolicy, S
             "flight" => policy.flight = value.as_bool().ok_or_else(bad)?,
             "qemu-spike" => policy.qemu_spike = value.as_bool().ok_or_else(bad)?,
             "declaration" => policy.declaration = value.as_bool().ok_or_else(bad)?,
+            "variants" => {
+                let list = value.as_array().ok_or_else(bad)?;
+                for v in list {
+                    let v = v.as_str().ok_or_else(bad)?;
+                    if v.is_empty() || !v.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                        return Err(format!("policy entry `{name}`: variant `{v}` must be an identifier"));
+                    }
+                    policy.variants.push(v.to_string());
+                }
+            }
             "unsafe-crate" => policy.unsafe_crate = value.as_bool().ok_or_else(bad)?,
             "unsafe-module" => {
                 let path = value.as_str().ok_or_else(bad)?;

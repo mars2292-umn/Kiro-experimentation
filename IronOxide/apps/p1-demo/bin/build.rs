@@ -6,9 +6,12 @@
 
 fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
-    println!("cargo:rustc-link-search={dir}/../gen");
+    // The declaration variant's generated files (`gen-<variant>/`), the
+    // default's otherwise.
+    let gen = if std::env::var_os("CARGO_FEATURE_NRF52840").is_some() { "gen-nrf52840" } else { "gen" };
+    println!("cargo:rustc-link-search={dir}/../{gen}");
     println!("cargo:rustc-link-arg-bins=-Tlink.x");
     println!("cargo:rustc-link-arg-bins=--nmagic");
-    println!("cargo:rerun-if-changed=../gen/link.x");
-    println!("cargo:rerun-if-changed=../gen/memory.x");
+    println!("cargo:rerun-if-changed=../{gen}/link.x");
+    println!("cargo:rerun-if-changed=../{gen}/memory.x");
 }

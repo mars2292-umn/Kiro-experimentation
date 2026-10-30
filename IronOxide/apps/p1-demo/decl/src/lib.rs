@@ -55,6 +55,15 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
+// The Target variant: the default declaration targets the QEMU board of
+// the pre-hardware spike; with the cargo feature `nrf52840` the declaration
+// of `nrf52840.rs` (the same Application on the nRF52840-DK, with that
+// board's peripherals) is compiled instead. `cargo xtask gen` generates
+// both (`gen/` and `gen-nrf52840/`; policy `variants`).
+#[cfg(feature = "nrf52840")]
+mod nrf52840;
+
+#[cfg(not(feature = "nrf52840"))]
 rsk::app! {
     target = qemu_mps2_an386, profile = Ravenscar, operating_duration = 200.ms(),
     safe_state = crate::report_and_exit, log_capacity = 32;

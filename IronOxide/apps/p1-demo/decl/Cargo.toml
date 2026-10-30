@@ -6,5 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# The nRF52840-DK variant of the declaration (`src/nrf52840.rs`).
+nrf52840 = []
+
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

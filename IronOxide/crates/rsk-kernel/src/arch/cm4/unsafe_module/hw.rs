@@ -47,6 +47,13 @@ pub mod addr {
     pub const NRF_TIMER0: u32 = 0x4000_8000;
     /// nRF52840 POWER.RESETREAS (PS 5.3.6): bit 1 DOG, a watchdog reset.
     pub const NRF_RESETREAS: u32 = 0x4000_0400;
+    /// nRF52840 APPROTECT.DISABLE (PS 4.3, build codes with hardware access
+    /// port protection): 0x5A keeps the debug port open until the next reset.
+    pub const NRF_APPROTECT_DISABLE: u32 = 0x4000_0558;
+    /// nRF52840 CLOCK.TASKS_HFCLKSTART (PS 6.5): starts the 64 MHz crystal oscillator.
+    pub const NRF_HFCLKSTART: u32 = 0x4000_0000;
+    /// nRF52840 CLOCK.EVENTS_HFCLKSTARTED (PS 6.5): the crystal oscillator is running and is the source.
+    pub const NRF_HFCLKSTARTED: u32 = 0x4000_0100;
     /// nRF52840 CLOCK.HFCLKSTAT (PS 6.5): bit 0 SRC (1 = crystal), bit 16 STATE (running).
     pub const NRF_HFCLKSTAT: u32 = 0x4000_040C;
     /// nRF52840 NVMC.ICACHECNF (PS 6.17): bit 0 CACHEEN.
@@ -62,7 +69,7 @@ pub mod addr {
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
         SHCSR, CFSR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
-        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHENCLR, CMSDK_TIMER0,
+        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHENCLR, CMSDK_TIMER0,
         CMSDK_TIMER1,
     ];
 
@@ -393,8 +400,29 @@ pub fn boot_checks(expect: &BootExpect) -> u32 {
     if (mmio_read(addr::AIRCR) >> 8) & 0x7 != 0 {
         failed |= 1 << 9;
     }
+    // HIL builds keep the debug port open across resets (feature
+    // `debug-port`): the first write of the boot, before anything that can
+    // reset the chip (the watchdog, a fault response).
+    #[cfg(all(not(feature = "board-qemu-mps2"), feature = "debug-port"))]
+    mmio_write(addr::NRF_APPROTECT_DISABLE, 0x5A);
     #[cfg(not(feature = "board-qemu-mps2"))]
     {
+        // The crystal oscillator is the Kernel's to start (DD-05: the time
+        // base and the CPU run from it); after reset the chip runs on the
+        // RC oscillator, whose HFCLKSTAT.STATE already reads "running".
+        // Started here, before the check that follows, and waited for on
+        // EVENTS_HFCLKSTARTED (set once the crystal is the source) over a
+        // bounded number of polls (the crystal settles in well under a
+        // millisecond; PR-16). Seen on the DK on 2026-10-29: waiting on
+        // STATE alone let the check run before the source switched.
+        if mmio_read(addr::NRF_HFCLKSTAT) & 1 == 0 {
+            mmio_write(addr::NRF_HFCLKSTARTED, 0);
+            mmio_write(addr::NRF_HFCLKSTART, 1);
+            let mut polls: u32 = 0;
+            while polls < 1_000_000 && mmio_read(addr::NRF_HFCLKSTARTED) == 0 {
+                polls += 1;
+            }
+        }
         let hf = mmio_read(addr::NRF_HFCLKSTAT);
         let running = (hf >> 16) & 1 == 1;
         let xtal = hf & 1 == 1;
