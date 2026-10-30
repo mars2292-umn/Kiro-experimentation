@@ -110,14 +110,14 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
     let leave = |v: &mut u32| *v = 0;
     cx.in_cs.lock(enter);
     cx.state.lock(|s| {
-        // 8 ms by the Kernel time base (25 MHz), bounded in iterations too
-        // (PR-16).
+        // 8 ms by the Kernel time base (`rsk_target::ms`), bounded in
+        // iterations too (PR-16).
         let start = rsk::now();
         let mut i = 0u32;
         // `wrapping_sub`: the time base is monotone, but the App_Prover knows
         // nothing of `now()` beyond its type (task 17.1).
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
-        while rsk::now().wrapping_sub(start) < 8 * 25_000 && i < 10_000_000 {
+        while rsk::now().wrapping_sub(start) < rsk_target::ms(8) && i < 10_000_000 {
             i += 1;
         }
         *s = s.saturating_add(1);

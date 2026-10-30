@@ -104,6 +104,11 @@ pub struct ArchState {
     pub time_hi: u32,
     pub time_last_lo: u32,
     pub booted: bool,
+    /// The first MemManage fault since boot (R14.3 diagnosis on the HIL
+    /// bench): CFSR with bit 31 set as the record mark, and the faulting
+    /// address (MMFAR when valid, else the stacked PC); zero until a fault.
+    pub first_fault_cfsr: u32,
+    pub first_fault_addr: u32,
 }
 
 impl ArchState {
@@ -125,6 +130,8 @@ impl ArchState {
             time_hi: 0,
             time_last_lo: 0,
             booted: false,
+            first_fault_cfsr: 0,
+            first_fault_addr: 0,
         }
     }
 }

@@ -161,8 +161,8 @@ pub extern "C" fn rsk_timer_rust() -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn rsk_memmanage_rust(in_kernel: u32) -> u32 {
-    arch::mem_manage::<Sys>(in_kernel != 0)
+pub extern "C" fn rsk_memmanage_rust(in_kernel: u32, pc: u32) -> u32 {
+    arch::mem_manage::<Sys>(in_kernel != 0, pc)
 }
 
 #[no_mangle]

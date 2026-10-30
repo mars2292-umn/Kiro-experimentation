@@ -17,6 +17,14 @@ pub mod rsk_state {
     /// Per-Task state `part2.sampler.buf` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_BUF: ::rsk::ResourceCell<[u8 ; 16]> = ::rsk::ResourceCell::new([0 ; 16]);
 }
+/// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
+pub mod rsk_target {
+    pub const TICK_HZ: u64 = 25000000;
+    pub const CPU_HZ: u64 = 25000000;
+    /// Time-base ticks in `ms` milliseconds.
+    /// Saturating, so the App_Prover has no overflow obligation (task 17.1).
+    pub const fn ms(ms: u64) -> u64 { (TICK_HZ / 1000).saturating_mul(ms) }
+}
 pub mod rsk_ctx {
     /// The Context of Task `part2.filter` (Priority 3).
     pub struct Filter {
@@ -63,6 +71,7 @@ pub mod rsk_spec {
 #[cfg(not(creusot))]
 pub mod rsk_jobs {
     /// Job wrapper of `part2.filter` (vector 41; Critical_Section sites: part2.filter#cs:stats).
+    #[inline(never)]
     pub fn filter() {
         let () = super::filter(super::rsk_ctx::Filter {
             stats: ::rsk::Shared::new(&super::rsk_resources::STATS, 2),
@@ -71,6 +80,7 @@ pub mod rsk_jobs {
         });
     }
     /// Job wrapper of `part2.sampler` (vector 42; Critical_Section sites: part2.sampler#cs:stats).
+    #[inline(never)]
     pub fn sampler() {
         let () = super::sampler(super::rsk_ctx::Sampler {
             stats: ::rsk::Shared::new(&super::rsk_resources::STATS, 2),

@@ -15,6 +15,10 @@ qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
 nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-kernel/debug-port"]
+# Debugging only: the Kernel's semihosting trace of every entry point.
+trace = ["rsk-kernel/trace"]
+# HIL builds: the Tasks' debug prints are silent (see the rsk crate).
+quiet = ["rsk/quiet"]
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

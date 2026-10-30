@@ -22,7 +22,7 @@ use crate::workspace::Workspace;
 pub const CHIP: &str = "nRF52840_xxAA";
 /// The declaration variant and the features of the HIL build.
 pub const VARIANT: &str = "nrf52840";
-pub const FEATURES: &str = "nrf52840,debug-port";
+pub const FEATURES: &str = "nrf52840,debug-port,quiet";
 
 /// The probe-rs installation and the probe it sees.
 pub struct Probe {

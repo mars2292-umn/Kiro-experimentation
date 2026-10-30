@@ -208,3 +208,7 @@ result = "proofs/aeneas/lean builds; proof-app-aeneas passes"
 version = "0.32.0"
 chip = "nRF52840_xxAA"
 board = "nRF52840-DK, Cortex-M4 r0p1 (CPUID 0x410FC241)"
+# Bench procedure (Verification_Plan 11.1): after a power cycle the access
+# port is locked; unlock once with `probe-rs run --allow-erase-all` of the
+# HIL build, after which `cargo xtask hil` attaches without erasing.
+hil_features = "nrf52840,debug-port,quiet"

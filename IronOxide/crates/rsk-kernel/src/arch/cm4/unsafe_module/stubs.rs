@@ -28,7 +28,7 @@ extern "C" {
     fn rsk_epilogue_rust(level: u32, out: *mut [u32; 4]);
     /// `timer` -> ReturnPlan.
     fn rsk_timer_rust() -> u32;
-    fn rsk_memmanage_rust(in_kernel: u32) -> u32;
+    fn rsk_memmanage_rust(in_kernel: u32, pc: u32) -> u32;
     fn rsk_busfault_rust(in_kernel: u32) -> u32;
     fn rsk_usagefault_rust(in_kernel: u32) -> u32;
 }
@@ -203,7 +203,12 @@ pub unsafe extern "C" fn rsk_timer_entry() {
 
 /// Fault entries: `in_kernel` is 1 when the fault was taken from Handler
 /// mode (EXC_RETURN bit 3 clear) or with PRIMASK set (R14.3).
-// SAFETY (UJ-026): as UJ-022.
+// SAFETY (UJ-026): as UJ-022; in addition the stacked PC of the faulting
+// context is read (word 6 of the exception frame: on the PSP when
+// EXC_RETURN bit 2 is set, else on the MSP above the two words pushed
+// here) for the fault record (R14.3). The frame was stacked by this
+// exception's entry, so the word is readable; a stacking failure would
+// have raised MSTKERR before this handler ran.
 #[unsafe(naked)]
 #[no_mangle]
 pub unsafe extern "C" fn rsk_memmanage_entry() {
@@ -213,6 +218,11 @@ pub unsafe extern "C" fn rsk_memmanage_entry() {
         "tst lr, #8",
         "it eq",
         "moveq r0, #1",
+        "tst lr, #4",
+        "ite ne",
+        "mrsne r1, psp",
+        "addeq r1, sp, #8",
+        "ldr r1, [r1, #24]",
         "bl {f}",
         "pop {{r4, lr}}",
         "cbz r0, 1f",

@@ -478,10 +478,12 @@ impl<'ast, 'a> Visit<'ast> for Linter<'a> {
     }
 
     fn visit_expr_loop(&mut self, e: &'ast syn::ExprLoop) {
-        // `loop {}` after a diverging call, and the idle loop (R7.6).
+        // `loop {}` after a diverging call, the idle loop (R7.6), and the
+        // safe-state loop that feeds the watchdog (ORQ-31): the unbounded
+        // loops PR-16 admits.
         let exempt = e.body.stmts.is_empty()
             || (e.body.stmts.len() == 1
-                && matches!(&e.body.stmts[0], syn::Stmt::Expr(Expr::Call(c), _) if matches!(&*c.func, Expr::Path(p) if p.path.segments.last().is_some_and(|s| s.ident == "wait_for_interrupt"))));
+                && matches!(&e.body.stmts[0], syn::Stmt::Expr(Expr::Call(c), _) if matches!(&*c.func, Expr::Path(p) if p.path.segments.last().is_some_and(|s| s.ident == "wait_for_interrupt" || s.ident == "safe_state_idle"))));
         self.record_loop("loop", e.label.as_ref(), None, exempt, line_of(&e.loop_token));
         visit::visit_expr_loop(self, e);
     }

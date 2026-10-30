@@ -28,6 +28,8 @@ pub mod addr {
     pub const SHPR3: u32 = 0xE000_ED20;
     pub const SHCSR: u32 = 0xE000_ED24;
     pub const CFSR: u32 = 0xE000_ED28;
+    /// MemManage Fault Address Register (valid when CFSR.MMARVALID).
+    pub const MMFAR: u32 = 0xE000_ED34;
     pub const CPACR: u32 = 0xE000_ED88;
     pub const MPU_TYPE: u32 = 0xE000_ED90;
     pub const MPU_CTRL: u32 = 0xE000_ED94;
@@ -68,7 +70,7 @@ pub mod addr {
 
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
-        SHCSR, CFSR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
+        SHCSR, CFSR, MMFAR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
         DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHENCLR, CMSDK_TIMER0,
         CMSDK_TIMER1,
     ];
@@ -254,6 +256,22 @@ pub fn set_kernel_exception_priorities() {
     mmio_write(addr::SHPR3, 0);
     let v = mmio_read(addr::SHCSR);
     mmio_write(addr::SHCSR, v | (1 << 16) | (1 << 17) | (1 << 18));
+}
+
+/// The configurable fault status and the MemManage fault address, for the
+/// HIL trace (R14.3 diagnosis; `trace` builds only read them).
+pub fn fault_status() -> (u32, u32) {
+    (mmio_read(addr::CFSR), mmio_read(addr::MMFAR))
+}
+
+/// The safe state's idle step (ORQ-31): the Kernel-owned watchdog is fed,
+/// then the core waits for an interrupt. The Profile_Lint accepts
+/// `loop { safe_state_idle() }` beside the idle loop as the two unbounded
+/// loops (PR-16); the QEMU board has no watchdog.
+pub fn safe_state_idle() {
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    watchdog_feed();
+    wait_for_interrupt();
 }
 
 /// Clears the configurable fault status (write one to clear).
@@ -661,10 +679,23 @@ mod timebase {
         super::super::extend(low)
     }
 
+    /// TIMER0's interrupt line (nRF52840 IRQ 8), for a compare already due.
+    const TIMER0_VECTOR: u16 = 16 + 8;
+
     pub fn arm(at: u64) {
         let t = addr::NRF_TIMER0;
         mmio_write(t + CC0, at as u32);
         mmio_write(t + INTENSET, 1 << 16);
+        // The compare is absolute: an instant the counter has already passed
+        // matches only after the 32-bit wrap (268 s at 16 MHz), so a due or
+        // past instant pends the time-base interrupt instead; the handler
+        // serves every due slot by `now`, not by the event. Seen on the DK on
+        // 2026-10-29: the first release (instant 0) was armed after the
+        // counter started and no tick ever came, so the watchdog reset the
+        // chip. The QEMU timer is armed with a relative distance (HW-12).
+        if now() >= at {
+            super::nvic_set_pending(TIMER0_VECTOR);
+        }
     }
 
     pub fn ack() {
@@ -713,17 +744,23 @@ pub fn semihosting_write(s: &[u8]) {
     }
 }
 
-/// Semihosting SYS_EXIT_EXTENDED: ends the QEMU run with `code`.
+/// Semihosting SYS_EXIT_EXTENDED: ends the QEMU run with `code`. On a
+/// board the probe resumes the core afterwards; the loop that follows then
+/// keeps the Kernel-owned watchdog fed, so the reported safe state is a
+/// stable state and not a reset every half second that the next boot would
+/// log as a watchdog reset (seen on the DK, 2026-10-29). A hung Kernel
+/// never reaches this loop, which is what the watchdog is for (ORQ-31).
 pub fn semihosting_exit(code: u32) -> ! {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
         let block: [u32; 2] = [0x20026, code];
-        // SAFETY (UJ-017): as UJ-016; the call does not return.
+        // SAFETY (UJ-017): as UJ-016; the call returns only when a debugger
+        // resumes the core, into the loop below.
         unsafe {
             core::arch::asm!("bkpt #0xAB", inout("r0") 0x20u32 => _, in("r1") block.as_ptr(), options(nostack, preserves_flags));
         }
         loop {
-            wait_for_interrupt();
+            safe_state_idle();
         }
     }
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]

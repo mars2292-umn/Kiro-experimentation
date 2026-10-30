@@ -298,6 +298,18 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         }
     }
     let _ = writeln!(s, "}}");
+    // The Target's clocks, so that a Task body states durations in time, not
+    // in a board's ticks (the demo's busy waits; found on the nRF52840-DK,
+    // 2026-10-29, where constants tuned for the QEMU board's 25 MHz time base
+    // ran 1.6 times longer).
+    let _ = writeln!(s, "/// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.");
+    let _ = writeln!(s, "pub mod rsk_target {{");
+    let _ = writeln!(s, "    pub const TICK_HZ: u64 = {};", g.target.tick_hz);
+    let _ = writeln!(s, "    pub const CPU_HZ: u64 = {};", g.target.cpu_hz);
+    let _ = writeln!(s, "    /// Time-base ticks in `ms` milliseconds.");
+    let _ = writeln!(s, "    /// Saturating, so the App_Prover has no overflow obligation (task 17.1).");
+    let _ = writeln!(s, "    pub const fn ms(ms: u64) -> u64 {{ (TICK_HZ / 1000).saturating_mul(ms) }}");
+    let _ = writeln!(s, "}}");
     let _ = writeln!(s, "pub mod rsk_ctx {{");
     for &t in &part.tasks {
         let task = &g.tasks[t];
@@ -367,6 +379,11 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         let task = &g.tasks[t];
         let sites = cs_sites(g, t);
         let _ = writeln!(s, "    /// Job wrapper of `{}` (vector {}; Critical_Section sites: {}).", task.id, task.vector(), if sites.is_empty() { "none".to_string() } else { sites.join(", ") });
+        // Never inlined across crates: a small wrapper would otherwise be copied
+        // into the system crate's object and placed in the Kernel's text, where
+        // the unprivileged Job cannot fetch it (seen on the nRF52840-DK, 2026-10-29;
+        // the Link_Checker reports it as R16.3).
+        let _ = writeln!(s, "    #[inline(never)]");
         let _ = writeln!(s, "    pub fn {}() {{", task.name);
         // `let () =`: the body is a synchronous function returning `()` (an
         // `async fn` returns a future and fails to compile here, PR-09).

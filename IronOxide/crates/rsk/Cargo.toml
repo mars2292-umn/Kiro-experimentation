@@ -16,6 +16,10 @@ creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot
 
 [features]
 creusot = ["dep:creusot-std"]
+# HIL builds: `debug` prints nothing. A semihosting call halts the core while
+# the probe services it, with the time base running, so the demo's per-Job
+# prints would cost Budgets and deadlines on a real board (2026-10-29).
+quiet = []
 
 # `cfg(creusot)` is set by the App_Prover's compiler (task 17.1): the glue
 # the Generator emits is excluded under it.

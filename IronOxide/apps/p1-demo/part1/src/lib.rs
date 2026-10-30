@@ -65,14 +65,18 @@ mod pulse_timer {
     }
 }
 
-/// Task `log`: busy for a few milliseconds (bounded iterations, PR-16),
-/// then counts. Its first Job starts the timer that releases `pulse`
-/// (task 5.4).
+/// Task `log`: busy for 3 ms by the time base (bounded in iterations too,
+/// PR-16; within its 6 ms Budget on any Target), then counts. Its first Job
+/// starts the timer that releases `pulse` (task 5.4).
 pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
         pulse_timer::start();
     }
-    rsk::spin::<250_000>();
+    let start = rsk::now();
+    let mut i = 0u32;
+    while rsk::now().wrapping_sub(start) < rsk_target::ms(3) && i < 10_000_000 {
+        i += 1;
+    }
     cx.count.with(|c| *c += 1);
     rsk::debug(b"C");
 }

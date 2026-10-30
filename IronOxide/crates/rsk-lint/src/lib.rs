@@ -13,8 +13,9 @@
 //!   a constant `N`; inside `verus!` a loop carries `decreases` (R35.2);
 //!   a bound is an integer constant or an expression over compile-time and
 //!   Generated_Config constants (R35.5); every annotation is exported with
-//!   its location and function (R35.3). A `loop {}` after a diverging call
-//!   and the idle loop (`loop { wait_for_interrupt() }`, R7.6) are the two
+//!   its location and function (R35.3). A `loop {}` after a diverging call,
+//!   the idle loop (`loop { wait_for_interrupt() }`, R7.6), and the
+//!   safe-state loop (`loop { safe_state_idle() }`, ORQ-31) are the
 //!   non-terminating loops the Profile admits, reported as such.
 //! - PR-21: every explicit `core::` path (a `use` or an inline path) maps
 //!   to a Core_Subset item of the file's scope (R57.2). Items the prelude

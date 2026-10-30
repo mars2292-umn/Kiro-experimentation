@@ -15,6 +15,10 @@ qemu-mps2 = ["rsk-system/qemu-mps2"]
 nrf52840 = ["rsk-system/nrf52840"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-system/debug-port"]
+# Debugging only: the Kernel's semihosting trace of every entry point.
+trace = ["rsk-system/trace"]
+# HIL builds: the Tasks' debug prints are silent (see the rsk crate).
+quiet = ["rsk-system/quiet"]
 
 [dependencies]
 rsk-kernel.workspace = true

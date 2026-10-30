@@ -9,6 +9,14 @@ pub mod rsk_state {
     /// Per-Task state `part1.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
     pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
+/// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
+pub mod rsk_target {
+    pub const TICK_HZ: u64 = 16000000;
+    pub const CPU_HZ: u64 = 64000000;
+    /// Time-base ticks in `ms` milliseconds.
+    /// Saturating, so the App_Prover has no overflow obligation (task 17.1).
+    pub const fn ms(ms: u64) -> u64 { (TICK_HZ / 1000).saturating_mul(ms) }
+}
 pub mod rsk_ctx {
     /// The Context of Task `part1.log` (Priority 2).
     pub struct Log {
@@ -39,12 +47,14 @@ pub mod rsk_spec {
 #[cfg(not(creusot))]
 pub mod rsk_jobs {
     /// Job wrapper of `part1.log` (vector 39; Critical_Section sites: none).
+    #[inline(never)]
     pub fn log() {
         let () = super::log(super::rsk_ctx::Log {
             count: ::rsk::PerTask::new(&super::rsk_state::LOG_COUNT),
         });
     }
     /// Job wrapper of `part1.pulse` (vector 40; Critical_Section sites: none).
+    #[inline(never)]
     pub fn pulse() {
         let () = super::pulse(super::rsk_ctx::Pulse {
             count: ::rsk::PerTask::new(&super::rsk_state::PULSE_COUNT),

@@ -276,7 +276,26 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     hop
 }
 
-pub fn mem_manage<S: System>(in_kernel: bool) -> ReturnPlan {
+/// The first MemManage fault since boot (`ArchState::first_fault_*`): CFSR
+/// with bit 31 set as the record mark, and the faulting address (MMFAR when
+/// valid, else the stacked PC of the faulting context), for the HIL report
+/// (R14.3 diagnosis; the event log keeps the kind, task, and instant).
+pub fn first_memmanage() -> (u32, u32) {
+    let state = unsafe_module::arch_state();
+    (state.first_fault_cfsr, state.first_fault_addr)
+}
+
+pub fn mem_manage<S: System>(in_kernel: bool, pc: u32) -> ReturnPlan {
+    {
+        let (cfsr, mmfar) = hw::fault_status();
+        let state = unsafe_module::arch_state();
+        if state.first_fault_cfsr == 0 {
+            state.first_fault_cfsr = cfsr | 0x8000_0000;
+            state.first_fault_addr = if cfsr & (1 << 7) != 0 { mmfar } else { pc };
+        }
+        trace(b"cfsr", cfsr);
+        trace(b"pc", pc);
+    }
     Cm4Hw::new().apply(Action::ClearFaultStatus);
     fault::<S>(EV_MEMMANAGE, in_kernel)
 }

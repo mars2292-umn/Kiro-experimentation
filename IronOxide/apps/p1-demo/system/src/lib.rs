@@ -13,7 +13,7 @@
 
 use rsk_kernel::arch::cm4::unsafe_module::hw;
 use rsk_kernel::arch::{KernelOps, System};
-use rsk_kernel::logic::log::{EV_DEADLINE_MISS, EV_OPERATING_END, EV_SAFE_STATE};
+use rsk_kernel::logic::log::{EV_DEADLINE_MISS, EV_OPERATING_END, EV_SAFE_STATE, EV_DEBUGGER};
 
 p1_demo_decl::rsk_system!();
 
@@ -99,6 +99,10 @@ pub fn report_and_exit() -> ! {
     print_kv(b"filter_state_bits", filter_bits);
     print_kv(b"sampler", g);
     print_kv(b"dma_ok", dma_ok);
+    // The first MemManage fault's status and address (HIL diagnosis, R14.3).
+    let (cfsr, mmfar) = rsk_kernel::arch::cm4::first_memmanage();
+    print_kv(b"first_memmanage_cfsr", cfsr);
+    print_kv(b"first_memmanage_mmfar", mmfar);
     let len = k.log_len();
     print_kv(b"events", len as u32);
     let mut faults = 0u32;
@@ -120,7 +124,9 @@ pub fn report_and_exit() -> ! {
             ended = true;
         } else if kind == EV_DEADLINE_MISS {
             misses += 1;
-        } else if kind != 0 && kind != EV_SAFE_STATE {
+        } else if kind != 0 && kind != EV_SAFE_STATE && kind != EV_DEBUGGER {
+            // EV_DEBUGGER is information (ORQ-30): a probe is attached on the
+            // HIL bench, never on QEMU.
             faults += 1;
         }
         i += 1;

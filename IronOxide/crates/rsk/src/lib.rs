@@ -227,7 +227,10 @@ pub mod mmio {
 /// without a debugger (the Link_Checker reports it there).
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 pub fn debug(s: &[u8]) {
+    #[cfg(not(feature = "quiet"))]
     hw::semihosting_write(s);
+    #[cfg(feature = "quiet")]
+    let _ = s;
 }
 
 /// A bounded busy loop of `N` iterations, for the demo Tasks (PR-16: the
