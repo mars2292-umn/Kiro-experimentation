@@ -63,6 +63,11 @@ pub struct Rig {
 }
 
 impl Rig {
+    /// The analyzer configuration at another sample rate.
+    pub fn analyzer_at(&self, samplerate_hz: u32) -> Analyzer {
+        Analyzer { samplerate_hz, ..self.analyzer.clone() }
+    }
+
     pub fn load(path: &Path) -> Result<Rig, String> {
         let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
         Rig::parse(&text).map_err(|e| format!("{}: {e}", path.display()))

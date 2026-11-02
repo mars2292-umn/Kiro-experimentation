@@ -1,0 +1,33 @@
+  1270    36299.727 overrun              3   1 0x0005df5f
+  1271    36299.727 end_job              3   1 0x00000006
+  1272    36301.406 overrun              6   2 0x00007eab
+  1273    36301.406 end_job              6   2 0x00000006
+  1274    36340.759 overrun              3   1 0x0005ddfd
+  1275    36340.759 end_job              3   1 0x00000006
+  1276    36375.577 overrun              5   2 0x00008048
+  1277    36375.577 partition_restart  255   2 0x00000006
+  1278    36375.577 resource_released    5   2 0x00000001
+  1279    36501.344 overrun              6   2 0x00007ef4
+  1280    36501.344 end_job              6   2 0x00000006
+  1281    36540.756 overrun              3   1 0x0005de15
+  1282    36540.756 end_job              3   1 0x00000006
+  1283    36575.570 overrun              5   2 0x00007eec
+  1284    36575.570 partition_restart  255   2 0x00000006
+  1285    36575.570 resource_released    5   2 0x00000001
+  1286    36701.226 overrun              6   2 0x00008054
+  1287    36701.226 end_job              6   2 0x00000006
+  1288    36775.569 overrun              5   2 0x00007fbf
+  1289    36775.569 partition_restart  255   2 0x00000006
+  1290    36775.569 resource_released    5   2 0x00000001
+  1291    36899.725 overrun              3   1 0x0005df5f
+  1292    36899.725 end_job              3   1 0x00000006
+  1293    36901.185 overrun              6   2 0x00007ef4
+  1294    36901.185 end_job              6   2 0x00000006
+  1295    36940.406 overrun              3   1 0x0005ddeb
+  1296    36940.406 end_job              3   1 0x00000006
+  1297    36940.406 panic              255 255 0x00000000  <- unexpected
+  1298    36940.406 safe_state         255 255 0x00000000
+  1299        0.000 debugger           255 255 0x00000001  (after the run: the reboot on detach)
+  1300        0.000 watchdog_reset     255 255 0x00000001  (after the run: the reboot on detach)
+  1301        0.000 boot_check         255 255 0x00000080  (after the run: the reboot on detach)
+  1302        0.000 safe_state         255 255 0x00000000  (after the run: the reboot on detach)

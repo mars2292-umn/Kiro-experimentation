@@ -8,6 +8,9 @@ publish.workspace = true
 
 [features]
 nrf52840 = ["hil-stimulus-decl/nrf52840"]
+# The interrupt storm of task 7.5 (R19.3): the stimulus line toggled at the
+# highest rate the board can generate for 16 of every 18 ms, the mirror quiet.
+storm = []
 
 [dependencies]
 hil-stimulus-decl = { path = "../decl" }

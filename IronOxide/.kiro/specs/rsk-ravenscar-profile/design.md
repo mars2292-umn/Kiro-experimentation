@@ -568,11 +568,11 @@ Errors are caught at the earliest stage that can see them. Every diagnostic or e
 | Response | Effect on the Partition | Usable as | Constraint |
 |---|---|---|---|
 | END_JOB | Ends the current Job (R8.9); the Task's next Release follows the normal schedule. If the Job held a Resource, the response escalates to RESTART_PARTITION, so no Job ever observes a half-updated Resource (R18.4). | fault, Overrun | none |
-| RESTART_PARTITION | Ends every Job of the Partition and stops its EasyDMA transfers (R17.6). Disables its peripherals' interrupts, re-initializes its RAM image (`.data` copy, `.bss` zero, Resources to their declared initial values), and resets its Endpoint roles, whose peers see a peer-state error (R42.3). Re-runs the Partition Init. Releases resume at each Task's next nominal instant. MIT history is kept (R14.5). | fault, Overrun, deadline miss | Bound recorded in Generated_Config (R14.10) |
+| RESTART_PARTITION | Ends every Job of the Partition and stops its EasyDMA transfers (R17.6). Disables its peripherals' interrupts, re-initializes its RAM image (every Partition static is zero-initialized by construction and lives in the Partition's `.bss` range of the linker's table, which `Action::ReinitPartition` zeroes; task 7.5 found the request acknowledged and nothing done, so that a restarted Partition kept its state and its `pulse` source never restarted), and resets its Endpoint roles, whose peers see a peer-state error (R42.3). Re-runs the Partition Init (not built: the demo's Partitions initialize in their first Jobs). Releases resume at each Task's next nominal instant. MIT history is kept (R14.5). | fault, Overrun, deadline miss | Bound recorded in Generated_Config (R14.10) |
 | STOP_PARTITION | Like RESTART_PARTITION up to the re-initialization; then suppresses every Release of the Partition until reset. | fault, Overrun, deadline miss | none |
 | SAFE_STATE | Applies the declared system safe state and stops all Releases. | fault, Overrun, deadline miss | Always used for Kernel faults (R14.4) |
 | RECORD_ONLY | Logs the event; the Job continues. | deadline miss only | none |
-| RECORD_AND_CONTINUE | Logs the Overrun and lets the Job complete. | Overrun only | Only for Partitions at the highest Criticality_Level (R18.5, R18.6) |
+| RECORD_AND_CONTINUE | Logs the Overrun once per Job and lets the Job complete (its Budget compare is re-armed with no remainder at every resume; the record is not repeated, task 7.5). | Overrun only | Only for Partitions at the highest Criticality_Level (R18.5, R18.6) |
 
 **Fault attribution (R14.3).** A MemManage fault, a UsageFault, or a precise BusFault raised while a Job runs is attributed to that Job's Partition. DD-12 makes BusFaults precise: ACTLR.DISDEFWBUF = 1 covers Kernel accesses, which use the default memory map, and peripheral windows use the Strongly-ordered memory type. Arm documents that DISDEFWBUF makes every BusFault precise at a performance cost ([Arm Developer](https://developer.arm.com/docs/dui0553/a/cortex-m4-peripherals/system-control-block/auxiliary-control-register)). The following are attributed to the Kernel and lead to the system safe state:
 
@@ -580,7 +580,7 @@ Errors are caught at the earliest stage that can see them. Every diagnostic or e
 - any fault during exception entry or return from a Kernel stub;
 - any HardFault.
 
-A stacking fault while entering an exception from a Job is an overflow of that Partition's stack, and is attributed to the Partition (R11.5, R16.5).
+A stacking fault while entering an exception from a Job is an overflow of that Partition's stack, and is attributed to the Partition (R11.5, R16.5). An SVC entry whose frame's return address does not follow an SVC instruction is the late-arriving SVC of a Job that the Kernel exception served first killed and unwound (the pending SVC tail-chains onto the resumed context); it is ignored, not a fault (`SVC_STALE`; found by the fault-injection suite, task 7.5, as a panic that ended a run).
 
 **Watchdog.** The nRF52840 WDT is Kernel-owned: `boot_core` starts it (reload: four housekeeping periods in 32.768 kHz ticks, `watchdog_reload`) before the time base, and every run of the time-base handler feeds it as its last action, so the handler runs at least once per housekeeping period or the Target resets. The boot sequence reads RESETREAS, logs a watchdog reset (`EV_WATCHDOG_RESET`), clears the reason, and enters the system safe state (boot-check bit 7, ORQ-31). A declaration-level override ("run again after a watchdog reset") is not offered; the design's "unless the declaration says otherwise" is dropped in favour of the safe state always.
 
@@ -666,8 +666,8 @@ The Kernel `logic` module is compiled for the host and driven by a Loom model (`
 - **HIL_Rig.** Two nRF52840-DK boards, one under test and one generating stimuli, a logic analyzer, and a host running probe-rs and sigrok-cli (built 2026-11-01, task 7.1: `hil-rig.toml` names the boards by probe serial and the analyzer's channels; `rsk-hil` is the orchestration; the stimulus board runs an rsk Application, `apps/hil-stimulus`, bound by the entry crate's `app-hil-stimulus` feature, so that no bench firmware has unsafe code outside the Kernel; the rig self-test is the job's step `hil-rig`; Verification_Plan 11.2 has the wiring and the findings; the HIL build's `trace-ram` feature keeps the Kernel's entry-point trace, its release-timing record of R9.10, and a mirror of every Health_Monitor event in no-init RAM, cleared at instant 0 so that they survive the reboot on probe detach, with the trace frozen at the first event outside the run's expected set, and `trace-pins` puts the executing Task's index and a Kernel-active flag on the target's spare analyzer lines, Verification_Plan 11.3). The rig runs:
   - the release-timing run (R9.10) and the boot-check suite (R12.6);
   - the MPU access matrix (R16.8) and the DMA cases (R17.7);
-  - Overrun and storm fault injection (R18.8, R19.3);
-  - the response suite (R14.11);
+  - Overrun and storm fault injection (R18.8, R19.3): the stress configuration (`cargo xtask hil --stress [--short]`, task 7.5, Verification_Plan 11.4);
+  - the response suite (R14.11): the response configuration, the job's step `hil-response` (task 7.5, Verification_Plan 11.4);
   - Hardware_Model differential tests (R49.3);
   - WCET measurement (R34).
 

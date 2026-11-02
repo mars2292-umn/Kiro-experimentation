@@ -29,6 +29,10 @@ trace-pins = ["rsk-system?/trace-pins", "hil-stimulus-system?/trace-pins"]
 # The P1 demo's release-timing configurations (task 7.3).
 timing = ["rsk-system?/timing"]
 timing-short = ["rsk-system?/timing-short"]
+response = ["rsk-system?/response"]
+stress = ["rsk-system?/stress"]
+stress-short = ["rsk-system?/stress-short"]
+storm = ["hil-stimulus-system?/storm"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-system?/quiet", "hil-stimulus-system?/quiet"]
 

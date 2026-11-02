@@ -295,6 +295,11 @@ pub trait KernelOps: Sized {
     /// `(periodic, due instant, offset, period)` of `t`: the instant its
     /// current Release became due, for the HIL release-timing record (R9.10).
     fn release_info(&self, t: u8) -> (bool, u64, u64, u64);
+    /// The due instant of the Release whose Job of `t` is in progress (the
+    /// nominal instant of a Periodic_Task, the accepted or deferred event
+    /// instant of a Sporadic_Task), for the response-time record of the
+    /// HIL build (R18.8).
+    fn job_due(&self, t: u8) -> u64;
     fn top(&self) -> Option<u8>
         requires self.inv();
     /// The Priority of the executing Job, 0 when none.
@@ -516,6 +521,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         } else {
             (false, 0, 0, 0)
         }
+    }
+
+    fn job_due(&self, t: u8) -> u64 {
+        if (t as usize) < NT { self.kernel.timing.job_due[t as usize] } else { 0 }
     }
 
     fn top(&self) -> Option<u8> {

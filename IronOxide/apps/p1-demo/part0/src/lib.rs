@@ -11,6 +11,33 @@
 
 p1_demo_decl::rsk_partition_part0!();
 
+/// The fault-injection suite (task 7.5): whether the time base is inside
+/// `[from, from + len)` milliseconds, and a busy wait of `ms` milliseconds
+/// by the time base (bounded in iterations too, PR-16). Injections are
+/// placed by instant, not by Job count, so that a restarted Partition
+/// (its counts back to 0) does not repeat them.
+#[cfg(feature = "response")]
+mod inject {
+    pub fn window(from_ms: u64, len_ms: u64) -> bool {
+        let now = rsk::now();
+        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
+    }
+
+    pub fn spin_ms(ms: u64) {
+        let start = rsk::now();
+        let mut i = 0u32;
+        while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+            i += 1;
+        }
+    }
+
+    /// A write into the Kernel's RAM, outside every Partition's view: a
+    /// MemManage fault attributed to the Partition (R14.3).
+    pub fn fault() {
+        rsk::mmio::write(0x2000_0000, 1);
+    }
+}
+
 /// Task `control`: reads the state under the lock, counts, and raises
 /// `tick` on every third Job (R10.5; every 30 ms, so every raise is
 /// accepted against echo's 20 ms MIT). `in_cs` says whether this Release
@@ -21,6 +48,18 @@ p1_demo_decl::rsk_partition_part0!();
 // the Job advances its counter by one (saturating).
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::control_pre(&cx)))]
 pub fn control(mut cx: rsk_ctx::Control) {
+    // The response configuration (task 7.5, R14.11): the Job of 200 ms
+    // exceeds its 1 ms Budget (RECORD_AND_CONTINUE, R18.6, so it still
+    // counts), and the Job of 1,900 ms faults into the declared SAFE_STATE.
+    #[cfg(feature = "response")]
+    {
+        if inject::window(200, 10) {
+            inject::spin_ms(2);
+        }
+        if inject::window(1900, 10) {
+            inject::fault();
+        }
+    }
     #[cfg(creusot)]
     let count_before = rsk::creusot_std::macros::snapshot!(cx.count@);
     // A Critical_Section's closure carries its postcondition for the
@@ -139,6 +178,16 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
     // MIT_Violation (RECORD_AND_CONTINUE lets the Job complete, R18.6;
     // the Budget overrun and the deadline miss are the test's expected
     // events).
+    // The response configuration (task 7.5): the Job of 1,305 ms runs on
+    // for 120 ms outside the Critical_Section (its own Budget overrun and
+    // deadline miss recorded, RECORD_AND_CONTINUE and RECORD_ONLY) so that
+    // the lower-Priority Tasks of the other Partitions miss their deadlines
+    // while their Jobs are pending: the deadline-miss responses of part1
+    // (RECORD_ONLY) and part2 (STOP_PARTITION).
+    #[cfg(feature = "response")]
+    if inject::window(1300, 20) {
+        inject::spin_ms(120);
+    }
     #[cfg(feature = "timing")]
     if cx.count.get() % 1024 == 0 {
         let start = rsk::now();

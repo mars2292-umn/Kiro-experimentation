@@ -12,6 +12,12 @@ fn main() {
         "gen-nrf52840_timing"
     } else if std::env::var_os("CARGO_FEATURE_TIMING_SHORT").is_some() {
         "gen-nrf52840_timing_short"
+    } else if std::env::var_os("CARGO_FEATURE_RESPONSE").is_some() {
+        "gen-nrf52840_response"
+    } else if std::env::var_os("CARGO_FEATURE_STRESS").is_some() {
+        "gen-nrf52840_stress"
+    } else if std::env::var_os("CARGO_FEATURE_STRESS_SHORT").is_some() {
+        "gen-nrf52840_stress_short"
     } else if std::env::var_os("CARGO_FEATURE_NRF52840").is_some() {
         "gen-nrf52840"
     } else {

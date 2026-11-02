@@ -171,9 +171,12 @@ static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_
 /// (magic `0x52534b53`, the Task slots, the nominal mismatches: due
 /// instants that are not `O + k*T`), then per Task (8 slots) `count, max,
 /// sum_lo, sum_hi, hist[16]` (bucket b counts lags below `2^b` cycles,
-/// bucket 15 the rest), then a ring of the last 256 Releases as `(task,
-/// due_lo, due_hi, lag)` after a write index. The HIL_Rig reads it after
-/// a run.
+/// bucket 15 the rest), `resp_count, resp_max` (Jobs completed and the
+/// largest response time, Release due to Job end, in ticks; R18.8), and
+/// `intake_count, intake_max, intake_sum_lo, intake_sum_hi` (the intake
+/// handler's runs for the Task's interrupt source and their cycles;
+/// R19.3), then a ring of the last 256 Releases as `(task, due_lo,
+/// due_hi, lag)` after a write index. The HIL_Rig reads it after a run.
 #[cfg(feature = "trace-ram")]
 pub const STATS_TASKS: usize = 8;
 #[cfg(feature = "trace-ram")]
@@ -181,7 +184,7 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 20;
+const STATS_PER_TASK: usize = 26;
 #[cfg(feature = "trace-ram")]
 const STATS_WORDS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK + 1 + 4 * STATS_RING;
 #[cfg(feature = "trace-ram")]
@@ -244,6 +247,38 @@ pub fn stats_release(t: u8, due: u64, offset: u64, period: u64, lag: u32) {
     s[slot + 2] = (due >> 32) as u32;
     s[slot + 3] = lag;
     s[ring] = s[ring].wrapping_add(1);
+}
+
+/// A Job of Task `t` completed `response` ticks after its Release was due.
+#[cfg(feature = "trace-ram")]
+pub fn stats_response(t: u8, response: u64) {
+    let s = stats();
+    if t as usize >= STATS_TASKS {
+        return;
+    }
+    let v = STATS_HEADER + t as usize * STATS_PER_TASK + 20;
+    s[v] = s[v].saturating_add(1);
+    let r = if response > u32::MAX as u64 { u32::MAX } else { response as u32 };
+    if r > s[v + 1] {
+        s[v + 1] = r;
+    }
+}
+
+/// The intake handler of Task `t`'s interrupt source ran for `cycles`.
+#[cfg(feature = "trace-ram")]
+pub fn stats_intake(t: u8, cycles: u32) {
+    let s = stats();
+    if t as usize >= STATS_TASKS {
+        return;
+    }
+    let v = STATS_HEADER + t as usize * STATS_PER_TASK + 22;
+    s[v] = s[v].saturating_add(1);
+    if cycles > s[v + 1] {
+        s[v + 1] = cycles;
+    }
+    let sum = ((s[v + 3] as u64) << 32 | s[v + 2] as u64).saturating_add(cycles as u64);
+    s[v + 2] = sum as u32;
+    s[v + 3] = (sum >> 32) as u32;
 }
 
 /// Appends one trace entry, unless the trace is frozen (`events_push`).
@@ -413,14 +448,21 @@ pub fn build_frame(sp: u32, entry: u32, trampoline: u32) {
 }
 
 /// The SVC number of the instruction before the stacked return address
-/// (Thumb `SVC #imm8`: the low byte of the halfword at PC - 2).
+/// (Thumb `SVC #imm8`: the low byte of the halfword at PC - 2), or
+/// `SVC_STALE` when that halfword is not an SVC instruction: the entry is
+/// then a late-arriving SVC of a Job that the exception which preempted
+/// its entry killed (see `arch::cm4::svc`).
 pub fn svc_number(stacked_pc: u32) -> u8 {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
         // SAFETY (UJ-008): `stacked_pc` is the return address stacked by an
-        // SVC exception taken from Thumb code (HW-06), so `stacked_pc - 2`
-        // is the address of the SVC instruction, in executable memory.
+        // exception taken from Thumb code (HW-06), so `stacked_pc - 2` is
+        // the address of the last instruction executed, in executable
+        // memory (the SVC instruction when the frame is the SVC's own).
         let halfword = unsafe { core::ptr::read_volatile((stacked_pc - 2) as usize as *const u16) };
+        if halfword >> 8 != 0xDF {
+            return super::entry::SVC_STALE;
+        }
         (halfword & 0xFF) as u8
     }
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]

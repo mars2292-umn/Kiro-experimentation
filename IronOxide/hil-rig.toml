@@ -62,7 +62,10 @@ min_matched = 9
 # R9.10: the bound on the lag from a periodic nominal instant to the
 # Release becoming effective, in CPU cycles, as the Kernel's own record
 # measures it in a HIL build (with the trace instrumentation's cost).
-# The first short run measured 5,687 cycles at most (89 µs; the tick that
-# releases five Tasks at once); the job's placeholder of 500 cycles is far
-# below it (task 19.3 feeds the measured value to the Analyzer).
-j_rel_cycles = 8000
+# Measured: 5,687 cycles in the first short run (89 µs; the tick that
+# releases five Tasks at once), 6,789 over the PAR-05 hour (task 7.3), and
+# 8,103 under the stress configuration (task 7.5: the lower-criticality
+# Partitions restarting and the source stormed); the job's placeholder of
+# 500 cycles is far below it (task 19.3 feeds the measured value to the
+# Analyzer).
+j_rel_cycles = 10000

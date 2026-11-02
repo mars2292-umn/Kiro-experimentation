@@ -24,6 +24,7 @@ rsk::app! {
                     mit_threshold = 10) {
         peripherals = [P0];
         state pulse.count: u32 = 0;
-        task pulse (periodic, period = 18.ms(), deadline = 18.ms(), budget = 1.ms(), priority = 1);
+        // The Budget covers the `storm` feature's 16 ms of toggling (task 7.5).
+        task pulse (periodic, period = 18.ms(), deadline = 18.ms(), budget = 17.ms(), priority = 1);
     }
 }

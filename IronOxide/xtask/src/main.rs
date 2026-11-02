@@ -47,7 +47,7 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short]]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -385,6 +385,8 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut timeout = 60u64;
     let mut spike_only = false;
     let mut release_timing = false;
+    let mut stress = false;
+    let mut response = false;
     let mut short = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -399,6 +401,8 @@ fn hil_command(args: &[String]) -> ExitCode {
             },
             "--spike-only" => spike_only = true,
             "--release-timing" => release_timing = true,
+            "--stress" => stress = true,
+            "--response" => response = true,
             "--short" => short = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
@@ -445,8 +449,11 @@ fn hil_command(args: &[String]) -> ExitCode {
     let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
         return print_report(&report, "hil");
     };
-    if release_timing {
-        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, &target_dir, report);
+    if release_timing || stress {
+        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, stress, &target_dir, report);
+    }
+    if response {
+        return response_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
     }
     let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
@@ -484,17 +491,48 @@ fn hil_command(args: &[String]) -> ExitCode {
 /// (`timing`: 61 minutes, PAR-05; `--short`: `timing-short`, 3 minutes,
 /// the pipeline check). The report goes under target/xtask-hil/release-timing
 /// and, for the record, docs/hil/.
-fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let (feature, duration_secs, variant) = if short { ("timing-short", 3 * 60, "nrf52840_timing_short") } else { ("timing", 61 * 60, "nrf52840_timing") };
+///
+/// `cargo xtask hil --stress [--short]` (task 7.5, R18.8, R19.3): the same
+/// run over the stress configuration (`stress`: 61 minutes; `--short`: 3
+/// minutes), the stimulus board built with its `storm` feature, and the
+/// protected Partition's Jobs checked against the WCRTs the Analyzer
+/// computes for the configuration's Task_Model (placeholder timing).
+fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, stress: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let (feature, duration_secs, variant) = match (stress, short) {
+        (false, true) => ("timing-short", 3 * 60, "nrf52840_timing_short"),
+        (false, false) => ("timing", 61 * 60, "nrf52840_timing"),
+        (true, true) => ("stress-short", 3 * 60, "nrf52840_stress_short"),
+        (true, false) => ("stress", 61 * 60, "nrf52840_stress"),
+    };
+    let kind = if stress { "stress" } else { "release-timing" };
     let features = format!("{},{feature}", xtask::hil::FEATURES);
-    let dir = target_dir.join("release-timing").join(variant);
+    let dir = target_dir.join(kind).join(variant);
     let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
         return print_report(&report, "hil");
     };
-    let Some(stimulus) = xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report) else {
+    let stimulus = if stress {
+        xtask::hil::build_with(ws, stimulus_bin, &format!("{},storm", xtask::hil::FEATURES), &target_dir.join("stimulus-storm"), None, &mut report)
+    } else {
+        xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report)
+    };
+    let Some(stimulus) = stimulus else {
         return print_report(&report, "hil");
     };
-    report.note(format!("release-timing configuration `{variant}` ({features}): {} over {} loadable bytes; {} s", target.binary.hash, target.binary.loadable_bytes, duration_secs));
+    report.note(format!("{kind} configuration `{variant}` ({features}): {} over {} loadable bytes; {} s", target.binary.hash, target.binary.loadable_bytes, duration_secs));
+    let stress_spec = if stress {
+        let model = ws.root.join("apps").join(bin).join(format!("gen-{variant}")).join("task_model.json");
+        match analyzer_wcrt(ws, &model, target.binary.config_checksum.as_deref(), &dir, &mut report) {
+            Some(protected) => {
+                for (t, name, r) in &protected {
+                    report.note(format!("Analyzer WCRT of Task {t} ({name}): {r} cycles ({:.3} ms), placeholder timing", *r as f64 * 1000.0 / xtask::hil::CPU_HZ as f64));
+                }
+                Some(rsk_hil::release_timing::Stress { protected, storm_task: 4, mit_ms: 15 })
+            }
+            None => return print_report(&report, "hil"),
+        }
+    } else {
+        None
+    };
     let work = dir.join("run");
     let inputs = rsk_hil::release_timing::Inputs {
         rig,
@@ -507,6 +545,7 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         cpu_hz: xtask::hil::CPU_HZ,
         samplerate_hz: 100_000,
         flash_stimulus: true,
+        stress: stress_spec,
     };
     let out = rsk_hil::release_timing::run(&inputs);
     let text = rsk_hil::release_timing::render(rig, &inputs, &out);
@@ -518,13 +557,129 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
     }
     let record = ws.root.join("docs").join("hil");
     let _ = std::fs::create_dir_all(&record);
-    let name = format!("release_timing_{variant}.md");
+    let name = format!("{}_{variant}.md", kind.replace('-', "_"));
     let _ = std::fs::write(record.join(&name), &text);
     report.note(format!("report written to {} and docs/hil/{name}", ws.rel(&work)));
     if !out.ok() {
-        report.error(xtask::diag::Rule::Step, None, "the release-timing run failed (report above)");
+        report.error(xtask::diag::Rule::Step, None, format!("the {kind} run failed (report above)"));
     }
-    print_report(&report, "release-timing run passed")
+    print_report(&report, &format!("{kind} run passed"))
+}
+
+/// The Analyzer's WCRT of every Task of the highest-criticality Partition
+/// (R18.7) in `model` under placeholder timing. The Analyzer requires a
+/// Build_Manifest whose Generated_Config checksum is the model's (R28.8):
+/// the job's manifest (`cargo xtask verify` writes it) is copied with the
+/// checksum of the configuration's own HIL build, which is not a
+/// Flight_Build and has no manifest of its own.
+fn analyzer_wcrt(ws: &xtask::workspace::Workspace, model: &std::path::Path, config_checksum: Option<&str>, dir: &std::path::Path, report: &mut Report) -> Option<Vec<(u8, String, u64)>> {
+    let job_manifest = ws.root.join("target").join("xtask-verify").join("evidence").join("build-manifest.json");
+    if !job_manifest.is_file() {
+        report.error(xtask::diag::Rule::Step, None, format!("no Build_Manifest at {}: run `cargo xtask verify` first (the Analyzer requires one)", ws.rel(&job_manifest)));
+        return None;
+    }
+    if !model.is_file() {
+        report.error(xtask::diag::Rule::Step, None, format!("no Task_Model at {}: run `cargo xtask gen`", ws.rel(model)));
+        return None;
+    }
+    let out = dir.join("rta");
+    let _ = std::fs::create_dir_all(&out);
+    let manifest = out.join("build-manifest.json");
+    let mut value: serde_json::Value = match std::fs::read_to_string(&job_manifest).ok().and_then(|t| serde_json::from_str(&t).ok()) {
+        Some(v) => v,
+        None => {
+            report.error(xtask::diag::Rule::Step, None, format!("{} is not a JSON Build_Manifest", ws.rel(&job_manifest)));
+            return None;
+        }
+    };
+    value["generated_config_checksum"] = match config_checksum {
+        Some(c) => serde_json::Value::String(c.to_string()),
+        None => serde_json::Value::Null,
+    };
+    if let Err(e) = std::fs::write(&manifest, serde_json::to_string_pretty(&value).unwrap_or_default()) {
+        report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&manifest)));
+        return None;
+    }
+    let cmd = xtask::cmd::Cmd::cargo_frozen("run")
+        .args(["--quiet", "-p", "rsk-analyzer", "--manifest-path"])
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(ws.root.join("target"))
+        .arg("--")
+        .arg("--model")
+        .arg(model)
+        .arg("--manifest")
+        .arg(&manifest)
+        .arg("--placeholders")
+        .arg("--out")
+        .arg(&out);
+    match cmd.output(None) {
+        Ok(o) if o.status.success() => {}
+        Ok(o) => {
+            report.error(xtask::diag::Rule::Step, None, format!("the Analyzer rejected the configuration: {}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)));
+            return None;
+        }
+        Err(e) => {
+            report.error(xtask::diag::Rule::Step, None, format!("cannot run the Analyzer: {e}"));
+            return None;
+        }
+    }
+    let text = std::fs::read_to_string(out.join("report.json")).ok()?;
+    let rep = match rsk_model::read_report(&text) {
+        Ok(r) => r,
+        Err(e) => {
+            report.error(xtask::diag::Rule::Step, None, format!("the Analyzer's report: {e:?}"));
+            return None;
+        }
+    };
+    // The Tasks of the highest Criticality_Level, in Task_Model order (the
+    // Kernel's Task indices).
+    let top = rep.tasks.iter().map(|t| t.level.clone()).min()?;
+    Some(rep.tasks.iter().enumerate().filter(|(_, t)| t.level == top).map(|(i, t)| (i as u8, t.id.clone(), t.r_cycles)).collect())
+}
+
+/// `cargo xtask hil --response` (task 7.5, R14.11): the response suite
+/// over the response configuration (2 seconds): one injected fault per
+/// response of R14.5, judged from the event mirror, the counts, and the
+/// capture. The report goes under target/xtask-hil/response and docs/hil/.
+fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let features = format!("{},response", xtask::hil::FEATURES);
+    let dir = target_dir.join("response");
+    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let Some(stimulus) = xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    report.note(format!("response configuration `nrf52840_response` ({features}): {} over {} loadable bytes", target.binary.hash, target.binary.loadable_bytes));
+    let work = dir.join("run");
+    let inputs = rsk_hil::response::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        work_dir: &work,
+        // The report prints every event over semihosting, seconds each dozen.
+        timeout_secs: 90,
+        tick_hz: xtask::hil::TICK_HZ,
+        samplerate_hz: 100_000,
+        flash_stimulus: true,
+    };
+    let out = rsk_hil::response::run(&inputs);
+    let text = rsk_hil::response::render(rig, &inputs, &out);
+    print!("{text}");
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let _ = std::fs::write(work.join("trace.txt"), &out.trace_text);
+    if let Some(ev) = &out.events {
+        let _ = std::fs::write(work.join("events.txt"), ev.render(xtask::hil::TICK_HZ));
+    }
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::create_dir_all(&record);
+    let _ = std::fs::write(record.join("response_nrf52840_response.md"), &text);
+    report.note(format!("report written to {} and docs/hil/response_nrf52840_response.md", ws.rel(&work)));
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the response suite failed (report above)");
+    }
+    print_report(&report, "response suite passed")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

@@ -314,3 +314,11 @@ kind = "review"
 why_no_machine_check = "Host-test and Kani double, never compiled into a Flight_Build; both environments are single threaded."
 reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
+
+[[justification]]
+id = "UJ-041"
+summary = "partition_reinit: zeroing a Partition's linker-table range on RESTART_PARTITION (R14.5)"
+kind = "review"
+why_no_machine_check = "The table and ranges come from the linker script of this build; the walk is bounded (INIT_RANGES, RAM_WORDS; PR-16) and runs at the Kernel level with every Job of the Partition ended or killed, so nothing reads the range meanwhile. Kani does not model the linker image."
+reviewed_by = "rsk kernel review (task 7.5)"
+reviewed_on = "2026-11-02"

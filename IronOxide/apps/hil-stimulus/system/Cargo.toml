@@ -18,6 +18,8 @@ trace = ["rsk-kernel/trace"]
 # HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
 trace-ram = ["rsk-kernel/trace-ram"]
 trace-pins = ["rsk-kernel/trace-pins"]
+# The interrupt storm of task 7.5 (see hil-stimulus-part).
+storm = ["hil-stimulus-part/storm"]
 # The Tasks' debug prints are silent (see the rsk crate); the stimulus
 # Application prints nothing anyway.
 quiet = ["rsk/quiet"]

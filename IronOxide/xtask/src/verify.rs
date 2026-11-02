@@ -258,7 +258,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 22,
+        total_steps: 23,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -615,6 +615,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let hil_cmds = hil_spike(&ws, rig.as_ref(), &hil_builds, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-spike-step", "HIL spike step", &["R7.7", "R11.1", "R16.4"], hil_cmds);
 
+    // ------------------------------------------- 10b-hil'. HIL response suite
+    job.heading("HIL: response suite, one injected fault per response of R14.5 (task 7.5, hil-response)");
+    let resp_cmds = hil_response(&ws, rig.as_ref(), &hil_builds, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-response-step", "HIL response suite step", &["R14.11", "R14.5", "R14.9"], resp_cmds);
+
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
     let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
@@ -966,6 +971,91 @@ fn hil_spike(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[crate
         if let Err(e) = store.write(&item) {
             report.error(Rule::Evidence, None, e);
         }
+    }
+    commands
+}
+
+/// The response suite (task 7.5, R14.11): the Application in its response
+/// configuration (a HIL build with the `response` feature, 2 seconds) on
+/// the rig, judged by `rsk_hil::response`. Skipped with a warning without
+/// a rig or without its probes, like the self-test.
+#[allow(clippy::too_many_arguments)]
+fn hil_response(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[crate::hil::HilBuild], target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let Some(rig) = rig else { return vec![] };
+    let probes = match rsk_hil::probes::list() {
+        Ok(p) => p,
+        Err(e) => {
+            report.warn(format!("HIL response suite: {e}; not run"));
+            return vec![];
+        }
+    };
+    if !probes.iter().any(|p| p.id == rig.target.serial) || !probes.iter().any(|p| p.id == rig.stimulus.serial) {
+        report.warn("HIL response suite: the target or the stimulus board is not attached; not run".to_string());
+        return vec![];
+    }
+    let Some(bin) = ws.policy.qemu_spikes().next() else {
+        report.error(Rule::Step, None, "HIL response suite: no QEMU spike Application to build the response configuration of");
+        return vec![];
+    };
+    let Some(stimulus) = rig.stimulus.bin.as_deref().and_then(|b| builds.iter().find(|x| x.bin == b)) else {
+        report.error(Rule::Step, None, "HIL response suite: no HIL build of the stimulus binary");
+        return vec![];
+    };
+    let features = format!("{},response", crate::hil::FEATURES);
+    let dir = target_dir.join("hil").join("response");
+    let Some(target) = crate::hil::build_with(ws, &bin, &features, &dir, Some(sandbox), report) else {
+        return vec![];
+    };
+    let work = dir.join("run");
+    let inputs = rsk_hil::response::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        work_dir: &work,
+        timeout_secs: 90,
+        tick_hz: crate::hil::TICK_HZ,
+        samplerate_hz: 100_000,
+        flash_stimulus: true,
+    };
+    let out = rsk_hil::response::run(&inputs);
+    let text = rsk_hil::response::render(rig, &inputs, &out);
+    let mut artifacts = Vec::new();
+    if let Ok(name) = store.write_artifact("hil-response.md", &text) {
+        artifacts.push(name);
+    }
+    if let Some(ev) = &out.events {
+        if let Ok(name) = store.write_artifact("hil-response-events.txt", &ev.render(crate::hil::TICK_HZ)) {
+            artifacts.push(name);
+        }
+    }
+    if !out.trace_text.is_empty() {
+        if let Ok(name) = store.write_artifact("hil-response-trace.txt", &out.trace_text) {
+            artifacts.push(name);
+        }
+    }
+    for st in &out.steps {
+        if st.ok {
+            report.note(format!("HIL response suite: {}: {}", st.name, st.detail));
+        } else {
+            report.error(Rule::Step, None, format!("HIL response suite: {}: {}", st.name, st.detail));
+        }
+    }
+    let mut item = Item::new(
+        "hil-response",
+        Kind::Test,
+        &format!("HIL response suite: one injected fault per response of R14.5 on the response configuration of {} ({}; target {}, stimulus {})", bin, target.binary.hash, rig.target.serial, rig.stimulus.serial),
+        Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+        Verdict::from_bool(out.ok()),
+    )
+    .covers(&["R14.11", "R14.5", "R14.9", "R18.4"]);
+    let mut commands = vec![target.command.clone()];
+    commands.extend(out.commands.iter().cloned());
+    item.command_lines = commands.clone();
+    item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = artifacts;
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
     }
     commands
 }

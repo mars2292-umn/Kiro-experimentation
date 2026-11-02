@@ -13,6 +13,11 @@ nrf52840 = []
 # the nRF52840-DK variant with a long operating duration; one at a time.
 nrf52840_timing = ["nrf52840"]
 nrf52840_timing_short = ["nrf52840"]
+# The fault-injection configurations of task 7.5 (`src/nrf52840_response.rs`,
+# `src/nrf52840_stress*.rs`); one at a time.
+nrf52840_response = ["nrf52840"]
+nrf52840_stress = ["nrf52840"]
+nrf52840_stress_short = ["nrf52840"]
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

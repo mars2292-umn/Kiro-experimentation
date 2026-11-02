@@ -14,8 +14,10 @@
 use rsk_kernel::arch::cm4::unsafe_module::hw;
 use rsk_kernel::arch::{KernelOps, System};
 use rsk_kernel::logic::log::{EV_DEADLINE_MISS, EV_OPERATING_END, EV_SAFE_STATE, EV_DEBUGGER};
-#[cfg(any(feature = "timing", feature = "timing-short"))]
+#[cfg(any(feature = "timing", feature = "timing-short", feature = "stress", feature = "stress-short"))]
 use rsk_kernel::logic::log::{EV_MIT_VIOLATION, EV_OVERRUN, EV_RELEASE_OVERLAP};
+#[cfg(any(feature = "stress", feature = "stress-short"))]
+use rsk_kernel::logic::log::{EV_END_JOB, EV_PARTITION_RESTART, EV_RESOURCE_RELEASED};
 
 p1_demo_decl::rsk_system!();
 
@@ -28,7 +30,21 @@ p1_demo_decl::rsk_system!();
 #[cfg(any(feature = "timing", feature = "timing-short"))]
 pub const TRACE_EXPECT: (u32, u8) =
     (1 << EV_OVERRUN | 1 << EV_DEADLINE_MISS | 1 << EV_MIT_VIOLATION | 1 << EV_RELEASE_OVERLAP, 2);
-#[cfg(not(any(feature = "timing", feature = "timing-short")))]
+// The fault-injection suite (task 7.5): the response configuration's
+// events are all injected (the rig checks the exact sequence); the stress
+// configuration's are the lower-criticality Partitions' own (overruns,
+// ended Jobs, released Resources, restarts; held and discarded Releases
+// and misses of their delayed Jobs), and any event of part0 freezes the
+// trace (the rig checks part0 separately).
+#[cfg(feature = "response")]
+pub const TRACE_EXPECT: (u32, u8) = (u32::MAX, 0xFF);
+#[cfg(any(feature = "stress", feature = "stress-short"))]
+pub const TRACE_EXPECT: (u32, u8) = (
+    1 << EV_OVERRUN | 1 << EV_DEADLINE_MISS | 1 << EV_MIT_VIOLATION | 1 << EV_RELEASE_OVERLAP
+        | 1 << EV_END_JOB | 1 << EV_RESOURCE_RELEASED | 1 << EV_PARTITION_RESTART,
+    0xFF,
+);
+#[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short")))]
 pub const TRACE_EXPECT: (u32, u8) = (0, 0xFF);
 
 /// Time-base ticks per millisecond on the board.
@@ -79,7 +95,7 @@ fn print_kv(key: &[u8], v: u32) {
 }
 
 /// The system safe state of the demo (R14.4, R9.9): report and exit.
-#[rsk::bounds('events = NE)]
+#[rsk::bounds('events = NE, 'part0 = NE)]
 pub fn report_and_exit() -> ! {
     let k = Sys::kernel().get();
     // The per-Task state cells the Generator emits (PR-25), read at the
@@ -177,7 +193,7 @@ pub fn report_and_exit() -> ! {
     // ..., 18: six raises, each a Release of echo (R10.5).
     // part2 (task 14): 8 filter Jobs (25 ms) with the FP state converging,
     // and 2 sampler Jobs (0 ms, 100 ms), each an accepted EasyDMA request.
-    #[cfg(not(any(feature = "timing", feature = "timing-short")))]
+    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short")))]
     let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
         && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2;
     // The release-timing configuration: every count within two Jobs of
@@ -186,6 +202,35 @@ pub fn report_and_exit() -> ! {
     // (one per 1024 Jobs), `pulse` released by the stimulus board at 18 ms
     // (not counted here: it depends on the rig), no fault and no miss
     // other than the late Jobs' own, and the FP state converged.
+    // The fault-injection suite (task 7.5): the response configuration's
+    // verdict is the rig's, from the event mirror and the counts (every
+    // event here is injected; the run ends in SAFE_STATE by design); the
+    // stress configuration's own verdict covers part0 only (level A: its
+    // counts exact and no event of its Tasks; the rig adds the WCRT and
+    // the storm checks), the misbehaving Partitions' counts being theirs.
+    #[cfg(feature = "response")]
+    let ok = {
+        let _ = (ended, faults, misses, filter_ok);
+        true
+    };
+    #[cfg(any(feature = "stress", feature = "stress-short"))]
+    let ok = {
+        let duration = CONFIG.operating_duration;
+        let jobs = |t: usize| (duration / CONFIG.tasks[t].period) as u32;
+        print_kv(b"expected_control", jobs(0));
+        print_kv(b"expected_sensor", jobs(2));
+        let mut part0_events = 0u32;
+        let mut i = 0;
+        'part0: while i < len {
+            if k.log_task(i) <= 2 {
+                part0_events += 1;
+            }
+            i += 1;
+        }
+        print_kv(b"part0_events", part0_events);
+        let _ = (faults, misses, filter_ok);
+        ended && part0_events == 0 && a + 2 >= jobs(0) && a <= jobs(0) && b + 2 >= jobs(2) && b <= jobs(2) && blocked >= 1
+    };
     #[cfg(any(feature = "timing", feature = "timing-short"))]
     let ok = {
         let duration = CONFIG.operating_duration;

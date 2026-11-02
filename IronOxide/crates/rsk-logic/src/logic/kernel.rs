@@ -1667,7 +1667,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// R18.2, R18.3: the Budget compare of the executing Job fired. The
     /// cycles consumed since it last resumed are charged; an Overrun
     /// triggers the Partition's Overrun_Response, otherwise the compare is
-    /// re-armed for the remainder.
+    /// re-armed for the remainder. A Job that runs on after its Overrun
+    /// (RECORD_AND_CONTINUE, R18.6) has its compare re-armed with no
+    /// remainder at every resume, which fires at once: the Overrun is
+    /// recorded once per Job, not once per resume (the HIL response suite
+    /// found a dozen records of one Overrun, task 7.5).
     fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize, running_cycles: u32)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
@@ -1676,7 +1680,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.sched.depth == 0 || self.sched.stack[self.sched.depth - 1] != t {
             return;
         }
+        let recorded = self.budget.overrun(cfg, t);
         self.budget.charge(t, running_cycles);
+        if recorded {
+            return;
+        }
         if self.budget.overrun(cfg, t) {
             proof {
                 assert(cfg.task_ok(t as int));

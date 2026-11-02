@@ -9,6 +9,9 @@ publish.workspace = true
 [features]
 # The nRF52840-DK variant: the HIL_Rig's stimulus line on GPIOTE releases `pulse` (with the declaration's variant).
 nrf52840 = ["p1-demo-decl/nrf52840"]
+# The fault-injection suite (task 7.5): the response and stress configurations' injections.
+response = []
+stress = []
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

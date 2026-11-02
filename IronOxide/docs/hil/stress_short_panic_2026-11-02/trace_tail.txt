@@ -1,0 +1,60 @@
+ 36925.133 svc       0x000002 number=2
+ 36925.162 svc       0x000001 number=1
+ 36926.193 irq       0x000018 vector=24
+ 36926.198 tick      0x372f45
+ 36930.006 irq       0x000018 vector=24
+ 36930.011 tick      0x381d8d
+ 36933.182 svc       0x000002 number=2
+ 36933.213 irq       0x000024 vector=36
+ 36933.251 dispatch  0x008f80 task=0 frame=0x8f80
+ 36933.261 irq       0x000018 vector=24
+ 36933.266 tick      0x38e904
+ 36933.312 svc       0x000001 number=1
+ 36933.322 svc       0x000002 number=2
+ 36933.352 svc       0x000001 number=1
+ 36933.362 svc       0x000002 number=2
+ 36933.392 svc       0x000003 number=3
+ 36933.426 epilogue  0x000024
+ 36933.446 svc       0x000001 number=1
+ 36933.456 svc       0x000002 number=2
+ 36933.485 irq       0x000018 vector=24
+ 36933.491 tick      0x38f706
+ 36933.535 irq       0x000016 vector=22
+ 36933.573 svc       0x000003 number=3
+ 36933.607 epilogue  0x000026
+ 36933.629 irq       0x000028 vector=40
+ 36933.667 dispatch  0x010fac task=4 frame=0x10fa8
+ 36933.677 svc       0x000003 number=3
+ 36933.713 epilogue  0x000028
+ 36933.734 irq       0x000029 vector=41
+ 36933.772 dispatch  0x018fe5 task=5 frame=0x18fe0
+ 36933.782 svc       0x000001 number=1
+ 36934.045 irq       0x000018 vector=24
+ 36934.051 tick      0x391a07
+ 36934.101 svc       0x000002 number=2
+ 36934.130 svc       0x000001 number=1
+ 36934.140 svc       0x000002 number=2
+ 36934.170 svc       0x000003 number=3
+ 36934.202 epilogue  0x000029
+ 36939.953 irq       0x000018 vector=24
+ 36939.958 tick      0x3a8b40
+ 36940.008 irq       0x000018 vector=24
+ 36940.013 tick      0x3a8eb0
+ 36940.065 irq       0x000024 vector=36
+ 36940.102 dispatch  0x008fe0 task=0 frame=0x8fe0
+ 36940.112 irq       0x000018 vector=24
+ 36940.117 tick      0x3a952d
+ 36940.159 svc       0x000001 number=1
+ 36940.169 svc       0x000002 number=2
+ 36940.197 irq       0x000018 vector=24
+ 36940.203 tick      0x3a9a89
+ 36940.244 svc       0x000001 number=1
+ 36940.254 svc       0x000002 number=2
+ 36940.282 svc       0x000003 number=3
+ 36940.313 epilogue  0x000024
+ 36940.335 irq       0x000018 vector=24
+ 36940.340 tick      0x3aa322
+ 36940.402 irq       0x000018 vector=24
+ 36940.408 tick      0x3aa759
+ 36940.457 epilogue  0x000027
+ 36940.466 svc       0x000030 number=48

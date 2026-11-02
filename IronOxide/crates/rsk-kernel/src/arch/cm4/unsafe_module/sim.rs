@@ -69,6 +69,13 @@ pub fn reset() {
     write(super::hw::addr::DWT_CTRL, 0);
 }
 
+/// The host has no Partition image to zero (R14.5); the action is recorded
+/// as a write so that tests see the Kernel acted.
+pub fn partition_reinit(p: u8) {
+    let _ = p;
+    STORE.writes.set(STORE.writes.get().wrapping_add(1));
+}
+
 pub fn read(a: u32) -> u32 {
     match slot(a) {
         Some(i) => STORE.values[i].get(),

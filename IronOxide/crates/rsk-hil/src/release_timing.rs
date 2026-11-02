@@ -44,6 +44,23 @@ pub struct Inputs<'a> {
     pub samplerate_hz: u32,
     /// Flash and start the stimulus board first (it may already run).
     pub flash_stimulus: bool,
+    /// The stress configuration of the fault-injection suite (task 7.5,
+    /// R18.8, R19.3): the lower-criticality Partitions misbehave and the
+    /// stimulus board storms the source; the loopback step becomes the
+    /// storm step, and the protected Partition's Jobs are checked against
+    /// their computed WCRTs.
+    pub stress: Option<Stress>,
+}
+
+/// What the stress configuration expects (task 7.5).
+#[derive(Clone, Debug, Default)]
+pub struct Stress {
+    /// The Tasks of the highest-criticality Partition (R18.7) with the
+    /// WCRT the Analyzer computed for each, in CPU cycles.
+    pub protected: Vec<(u8, String, u64)>,
+    /// The Task whose source the stimulus board storms, and its MIT in ms.
+    pub storm_task: u8,
+    pub mit_ms: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -141,6 +158,49 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                     rig.expect.j_rel_cycles
                 ),
             );
+            if let Some(spec) = &inputs.stress {
+                // R18.8: every completed Job of the protected Partition
+                // within the WCRT the Analyzer computed for its Task.
+                let cycles_per_tick = inputs.cpu_hz / inputs.tick_hz;
+                let mut all_ok = true;
+                let mut parts = Vec::new();
+                for (t, name, wcrt) in &spec.protected {
+                    let ts = st.tasks.get(*t as usize);
+                    let (jobs, max_ticks) = ts.map(|x| (x.resp_count, x.resp_max_ticks as u64)).unwrap_or((0, 0));
+                    let max_cycles = max_ticks * cycles_per_tick;
+                    let ok = jobs > 0 && max_cycles <= *wcrt;
+                    all_ok &= ok;
+                    parts.push(format!(
+                        "{name}: {jobs} Jobs, response at most {:.3} ms ({} cycles) against WCRT {:.3} ms ({wcrt} cycles){}",
+                        max_ticks as f64 * 1000.0 / inputs.tick_hz as f64,
+                        max_cycles,
+                        *wcrt as f64 * 1000.0 / inputs.cpu_hz as f64,
+                        if ok { "" } else { " EXCEEDED" }
+                    ));
+                }
+                out.step("WCRT of the protected Partition (R18.8)", all_ok, parts.join("; "));
+                // R19.3: the stormed source costs one intake per MIT window
+                // (DD-06), whatever its event rate: the intake count over
+                // the run is at most ceil(t / MIT) plus the first.
+                let windows = inputs.duration_secs * 1000 / spec.mit_ms + 1;
+                let ts = st.tasks.get(spec.storm_task as usize);
+                let (n, max, sum) = ts.map(|x| (x.intake_count as u64, x.intake_max_cycles, x.intake_sum_cycles)).unwrap_or((0, 0, 0));
+                let ok = n > 0 && n <= windows + 1;
+                out.step(
+                    "interrupt storm (R19.3)",
+                    ok,
+                    format!(
+                        "Task {}'s source stormed for {} s: {n} intakes against at most {windows} MIT windows of {} ms ({:.1} % of the windows); intake handler at most {max} cycles ({:.1} µs), mean {:.0} cycles: the measured Δ_irq; processor time {:.4} % of the run",
+                        spec.storm_task,
+                        inputs.duration_secs,
+                        spec.mit_ms,
+                        n as f64 * 100.0 / windows as f64,
+                        max as f64 * 1e6 / inputs.cpu_hz as f64,
+                        if n == 0 { 0.0 } else { sum as f64 / n as f64 },
+                        sum as f64 * 100.0 / (inputs.duration_secs as f64 * inputs.cpu_hz as f64)
+                    ),
+                );
+            }
             out.stats = Some(st);
         }
         Ok(None) => out.step("release timing (R9.10)", false, "the build has no release-timing record (feature `trace-ram`)"),
@@ -163,7 +223,21 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                     .collect();
                 detail.push_str(&shown.join(", "));
             }
-            out.step("Kernel events", unexpected.is_empty() && ev.frozen_in_run().is_none(), detail);
+            let protected_events: Vec<String> = match &inputs.stress {
+                Some(st) => ev
+                    .run_entries()
+                    .iter()
+                    .filter(|e| st.protected.iter().any(|(t, _, _)| *t == e.task))
+                    .take(6)
+                    .map(|e| format!("{} of Task {} at {:.3} ms", crate::events::kind_name(e.kind), e.task, e.instant as f64 * 1000.0 / inputs.tick_hz as f64))
+                    .collect(),
+                None => Vec::new(),
+            };
+            if !protected_events.is_empty() {
+                detail.push_str("; events of the protected Partition's Tasks: ");
+                detail.push_str(&protected_events.join(", "));
+            }
+            out.step("Kernel events", unexpected.is_empty() && ev.frozen_in_run().is_none() && protected_events.is_empty(), detail);
             out.events = Some(ev);
         }
         Ok(None) => out.step("Kernel events", true, "the build has no event mirror"),
@@ -218,6 +292,17 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             let gap = inputs.samplerate_hz as usize;
             let a = capture::analyze(&samples, inputs.samplerate_hz, rig.analyzer.stimulus_channel, rig.analyzer.response_channel, pulses.map(|p| p as usize), gap);
             let late = a.late(rig.expect.response_deadline_ms as f64 * 1000.0);
+            if let Some(spec) = &inputs.stress {
+                // Under the storm the mirror is quiet and the response line
+                // toggles once per accepted Release: one per MIT window.
+                let windows = inputs.duration_secs * 1000 / spec.mit_ms + 1;
+                let edges = a.response_edges.saturating_sub(a.responses_before_run + a.responses_after_run);
+                out.step(
+                    "responses under the storm",
+                    edges as u64 + 2 >= windows * 9 / 10 && edges as u64 <= windows + 2,
+                    format!("{edges} response edges inside the run (target counted {}) against {windows} MIT windows; {} stimulus rises on the mirror", pulses.map(|p| p.to_string()).unwrap_or("?".into()), a.stimulus_rises),
+                );
+            } else {
             out.step(
                 "loopback over the run",
                 a.matched() >= rig.expect.min_matched && late == 0 && a.unanswered_in_window == 0,
@@ -240,6 +325,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                     }
                 ),
             );
+            }
             if !rig.analyzer.task_id_channels.is_empty() {
                 let (from, to) = a.window_s.map(|(f, t)| ((f * inputs.samplerate_hz as f64) as usize, (t * inputs.samplerate_hz as f64) as usize)).unwrap_or((0, samples.len()));
                 let tl = capture::timeline(&samples, &rig.analyzer.task_id_channels, rig.analyzer.kernel_channel, from, to);
@@ -268,7 +354,11 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
 /// The report (Markdown).
 pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome) -> String {
     let mut s = String::new();
-    s.push_str("# HIL release-timing run (task 7.3, R9.10)\n\n");
+    if inputs.stress.is_some() {
+        s.push_str("# HIL stress run: Overrun and interrupt-storm fault injection (task 7.5, R18.8, R19.3)\n\n");
+    } else {
+        s.push_str("# HIL release-timing run (task 7.3, R9.10)\n\n");
+    }
     s.push_str(&format!("Verdict: **{}**\n\n", if out.ok() { "pass" } else { "FAIL" }));
     s.push_str(&format!(
         "Operating duration {} s on the target {} with the stimulus board {}; analyzer {} at {} Hz; J_rel bound {} cycles.\n\n",

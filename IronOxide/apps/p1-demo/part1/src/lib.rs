@@ -8,6 +8,35 @@
 
 p1_demo_decl::rsk_partition_part1!();
 
+/// The fault-injection suite (task 7.5): whether the time base is inside
+/// `[from, from + len)` milliseconds, and a busy wait of `ms` milliseconds
+/// by the time base (bounded in iterations too, PR-16). Injections are
+/// placed by instant, not by Job count, so that a restarted Partition
+/// (its counts back to 0) does not repeat them.
+#[cfg(any(feature = "response", feature = "stress"))]
+mod inject {
+    #[cfg(feature = "response")]
+    pub fn window(from_ms: u64, len_ms: u64) -> bool {
+        let now = rsk::now();
+        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
+    }
+
+    pub fn spin_ms(ms: u64) {
+        let start = rsk::now();
+        let mut i = 0u32;
+        while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+            i += 1;
+        }
+    }
+
+    /// A write into the Kernel's RAM, outside every Partition's view: a
+    /// MemManage fault attributed to the Partition (R14.3).
+    #[cfg(feature = "response")]
+    pub fn fault() {
+        rsk::mmio::write(0x2000_0000, 1);
+    }
+}
+
 /// The Release_Source of `pulse` on each board, started by `log`'s first
 /// Job and acknowledged by every `pulse` Job. QEMU mps2-an386: the CMSDK
 /// dual timer (window 0x4000_2000), Timer1 load, control (bit 7 enable,
@@ -104,6 +133,30 @@ mod pulse_source {
 pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
         pulse_source::start();
+    }
+    // The response configuration (task 7.5, R14.11): the Job of 400 ms
+    // exceeds its 6 ms Budget outside any Critical_Section (END_JOB: this
+    // Job ends before it counts; 25 ms of busy wait, of which sensor's
+    // 8 ms Critical_Section and control's Jobs take their share, so that
+    // the Job's own execution passes 6 ms), and the Job of 800 ms faults
+    // (RESTART_PARTITION: the Partition's state returns to its initial
+    // values and this Task's next first Job restarts `pulse`'s source).
+    #[cfg(feature = "response")]
+    {
+        if inject::window(400, 40) {
+            inject::spin_ms(25);
+        }
+        if inject::window(800, 40) {
+            inject::fault();
+        }
+    }
+    // The stress configuration (task 7.5, R18.8): every fourth Job exceeds
+    // its 6 ms Budget outside a Critical_Section (END_JOB): 20 ms of busy
+    // wait, of which sensor's Critical_Section and control's Jobs take up
+    // to 10 ms (9 ms of wall time never reached 6 ms of execution).
+    #[cfg(feature = "stress")]
+    if cx.count.get() % 4 == 3 {
+        inject::spin_ms(20);
     }
     let start = rsk::now();
     let mut i = 0u32;

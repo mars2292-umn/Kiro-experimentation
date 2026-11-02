@@ -17,7 +17,11 @@
 //! - [`stats`]: the Kernel's release-timing record (R9.10), decoded.
 //! - [`events`]: the Kernel's event mirror (every Health_Monitor event of
 //!   the run) and the trace freeze at the first unexpected one.
-//! - [`release_timing`]: the release-timing run over PAR-05 (task 7.3).
+//! - [`release_timing`]: the release-timing run over PAR-05 (task 7.3),
+//!   and its stress mode (task 7.5: Overrun and interrupt-storm fault
+//!   injection, R18.8, R19.3).
+//! - [`response`]: the response suite (task 7.5, R14.11): one injected
+//!   fault per response of R14.5, judged from the event mirror.
 //! - [`selftest`]: the rig self-test (the evidence of task 7.1): the
 //!   boards identified, both images read back and hashed, the stimulus
 //!   board running, a loopback run of the Application under test, the
@@ -30,6 +34,7 @@ pub mod config;
 pub mod events;
 pub mod probes;
 pub mod release_timing;
+pub mod response;
 pub mod selftest;
 pub mod stats;
 pub mod trace;

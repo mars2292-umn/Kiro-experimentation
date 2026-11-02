@@ -19,6 +19,8 @@ rsk = { path = "../../../crates/rsk" }
 [features]
 # The release-timing test (task 7.3): every 1024th `sensor` Job runs 50 ms.
 timing = []
+# The fault-injection suite (task 7.5): the response configuration's injections.
+response = []
 fi-pr12 = []
 fi-pr19 = []
 fi-pr22 = []

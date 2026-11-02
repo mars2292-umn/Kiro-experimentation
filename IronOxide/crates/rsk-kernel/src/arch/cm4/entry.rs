@@ -71,6 +71,10 @@ pub const SVC_PANIC: u8 = 5;
 pub const SVC_DMA: u8 = 6;
 /// Release_Signal raise (R10.5): r0 signal; r0 out 0 accepted as an event, 1 refused.
 pub const SVC_RAISE: u8 = 7;
+/// Not an SVC number: an SVC entry whose frame's return address does not
+/// follow an SVC instruction (`unsafe_module::svc_number`): a stale,
+/// late-arriving SVC of a killed Job, ignored by `arch::cm4::svc`.
+pub const SVC_STALE: u8 = 0xFF;
 
 /// EXC_RETURN values (HW-07).
 pub const EXC_RETURN_HANDLER_MSP: u32 = 0xFFFF_FFF1;
@@ -197,6 +201,12 @@ pub enum Action {
     DmaListOff(u32),
     /// PPI: disable every channel (Kernel-owned, DD-08).
     PpiDisableAll,
+    /// R14.5: re-initializes the RAM image of a restarted or stopped
+    /// Partition (its `.bss`/`.data` range of the linker's table zeroed;
+    /// every Partition static is zero-initialized by construction, see
+    /// `hw::partition_reinit`). Every Job of the Partition has ended or
+    /// been killed when this is applied.
+    ReinitPartition(u8),
     /// Start the Kernel-owned watchdog with a reload value (ORQ-31).
     WatchdogStart(u32),
     /// Feed the watchdog (every time-base event).
@@ -261,6 +271,7 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::DmaStop(_) => h,
         Action::DmaListOff(_) => h,
         Action::PpiDisableAll => h,
+        Action::ReinitPartition(_) => h,
         Action::WatchdogStart(_) => HwModel { watchdog_running: true, ..h },
         Action::WatchdogFeed => HwModel { watchdog_fed: true, ..h },
         Action::Trace(_, _) => h,
@@ -369,6 +380,7 @@ impl KernelArch for Cm4Hw {
             Action::DmaStop(reg) => hw::dma_stop(reg),
             Action::DmaListOff(reg) => hw::dma_list_off(reg),
             Action::PpiDisableAll => hw::ppi_disable_all(),
+            Action::ReinitPartition(p) => hw::partition_reinit(p),
             Action::WatchdogStart(reload) => hw::watchdog_start(reload),
             Action::WatchdogFeed => hw::watchdog_feed(),
             Action::Trace(tag, v) => super::trace(super::trace_tag(tag), v),
@@ -465,6 +477,7 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
 /// (A4: only the selection of `KernelOps::select`), the intake source
 /// masks, and the Partition requests. Returns whether the Kernel is in the
 /// safe state; the shell then enters `System::safe_state`.
+#[verifier::rlimit(40)]
 pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T) -> (safe: bool)
     requires old(k).inv(),
     ensures
@@ -524,12 +537,16 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         decreases np - p,
     {
         // R17.6: a stopped or restarted Partition's EasyDMA transfers are
-        // stopped before its memory is re-initialized (DD-08). The image
-        // re-initialization itself is the system crate's (task 10.5).
+        // stopped before its memory is re-initialized (DD-08); then the
+        // image (R14.5: every static of the Partition back to its initial
+        // value; task 7.5 found the request acknowledged and nothing done,
+        // so that a restarted Partition kept its state).
         if k.take_stop_dma(p as u8) {
             dma_stop_partition(hw, tables, p as u8);
         }
-        let _ = k.take_reinit(p as u8);
+        if k.take_reinit(p as u8) {
+            hw.apply(Action::ReinitPartition(p as u8));
+        }
         p += 1;
     }
     if k.safe_state() {

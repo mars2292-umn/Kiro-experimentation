@@ -321,6 +321,14 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     );
     #[cfg(feature = "trace-ram")]
     {
+        // R19.3: the cycles of this intake handler run, attributed to the
+        // source's Task (the record the storm test reads).
+        if let crate::arch::Binding::Intake { task, .. } = S::binding((ipsr & 0x1FF) as u16) {
+            unsafe_module::stats_intake(task, hw::dwt_cyccnt().wrapping_sub(entry_cycles));
+        }
+    }
+    #[cfg(feature = "trace-ram")]
+    {
         // R9.10: every periodic Release this tick made effective (its due
         // instant moved; the Release may already be consumed by a dispatch
         // pended in the same tick), with the lag from its nominal instant
@@ -383,8 +391,32 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     let mut hw = Cm4Hw::new();
     let number = unsafe_module::svc_number(frame[6]);
     pins_enter();
+    // A late-arriving SVC of a killed Job (found by the fault-injection
+    // suite, task 7.5): a Job executes `SVC` and, during the exception
+    // entry, a higher-priority Kernel exception (the time base) arrives and
+    // is served first (late arrival, Armv7-M B1.5.11), kills the Job
+    // (Budget overrun, END_JOB) and unwinds its level; the pending SVC
+    // then tail-chains onto the resumed context, whose frame is not the
+    // SVC's (the idle activity's return address follows a WFI). The SVC's
+    // request died with its Job: the entry is ignored and the context
+    // resumes. Before this guard the handler read the number from the
+    // resumed frame (48, the low byte of WFI) and the Kernel's panic
+    // response took the Target to the safe state.
+    if number == entry::SVC_STALE {
+        trace(b"svc", entry::SVC_STALE as u32);
+        pins_running(k.top());
+        return 0;
+    }
+    // R18.8: the response time of the ending Job, from its Release's due
+    // instant to now (the record the fault-injection suites read).
+    #[cfg(feature = "trace-ram")]
+    let ending = if number == entry::SVC_JOB_END { k.top().map(|t| (t, k.job_due(t))) } else { None };
     let (hop, safe) =
         entry::svc_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number);
+    #[cfg(feature = "trace-ram")]
+    if let Some((t, due)) = ending {
+        unsafe_module::stats_response(t, hw::timebase_now().saturating_sub(due));
+    }
     mirror_events(k);
     if safe {
         S::safe_state();

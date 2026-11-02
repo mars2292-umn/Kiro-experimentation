@@ -12,6 +12,35 @@
 
 p1_demo_decl::rsk_partition_part2!();
 
+/// The fault-injection suite (task 7.5): whether the time base is inside
+/// `[from, from + len)` milliseconds, and a busy wait of `ms` milliseconds
+/// by the time base (bounded in iterations too, PR-16). Injections are
+/// placed by instant, not by Job count, so that a restarted Partition
+/// (its counts back to 0) does not repeat them.
+#[cfg(any(feature = "response", feature = "stress"))]
+mod inject {
+    #[cfg(feature = "response")]
+    pub fn window(from_ms: u64, len_ms: u64) -> bool {
+        let now = rsk::now();
+        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
+    }
+
+    pub fn spin_ms(ms: u64) {
+        let start = rsk::now();
+        let mut i = 0u32;
+        while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+            i += 1;
+        }
+    }
+
+    /// A write into the Kernel's RAM, outside every Partition's view: a
+    /// MemManage fault attributed to the Partition (R14.3).
+    #[cfg(feature = "response")]
+    pub fn fault() {
+        rsk::mmio::write(0x2000_0000, 1);
+    }
+}
+
 /// The channel index of CMSDK_GPIO0's stand-in channel in the system's DMA
 /// table (the only EasyDMA channel of the declaration).
 const DMA_CHANNEL: u8 = 0;
@@ -59,6 +88,36 @@ fn lowpass(y: &mut f32) {
 /// statistics inside a Critical_Section it leaves unchanged.
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::filter_pre(&cx)))]
 pub fn filter(mut cx: rsk_ctx::Filter) {
+    // The response configuration (task 7.5, R14.11): the Job of 250 ms
+    // faults (END_JOB as a fault response), and the Job of 500 ms exceeds
+    // its 500 µs Budget inside its Critical_Section on `stats` (END_JOB
+    // escalates to RESTART_PARTITION, R18.4).
+    #[cfg(feature = "response")]
+    {
+        if inject::window(250, 25) {
+            inject::fault();
+        }
+        if inject::window(500, 25) {
+            cx.stats.lock(|_s| inject::spin_ms(1));
+        }
+    }
+    // The stress configuration (task 7.5, R18.8): every Job holds `stats`
+    // for 250 µs, its maximal Critical_Section (half the 500 µs Budget:
+    // a 400 µs hold plus the body overran on every Job, which restarted
+    // the Partition every period), and every eighth exceeds the Budget
+    // inside it (the escalation above, once per 200 ms).
+    #[cfg(feature = "stress")]
+    {
+        let long = cx.count.get() % 8 == 7;
+        cx.stats.lock(|_s| {
+            let start = rsk::now();
+            let mut i = 0u32;
+            let hold = if long { rsk_target::ms(1) } else { rsk_target::TICK_HZ / 4000 };
+            while rsk::now().wrapping_sub(start) < hold && i < 10_000_000 {
+                i += 1;
+            }
+        });
+    }
     cx.y.with(|y| lowpass(y));
     #[cfg(creusot)]
     let read = #[rsk::creusot_std::macros::ensures(^s == *s && result == (*s).ok)] |s: &mut Stats| s.ok;
@@ -80,6 +139,12 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
 /// Resource `stats`, whose invariant the Critical_Section preserves.
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::sampler_pre(&cx)))]
 pub fn sampler(mut cx: rsk_ctx::Sampler) {
+    // The stress configuration (task 7.5, R18.8): every second Job exceeds
+    // its 500 µs Budget outside a Critical_Section (END_JOB).
+    #[cfg(feature = "stress")]
+    if cx.count.get() % 2 == 1 {
+        inject::spin_ms(2);
+    }
     #[cfg(creusot)]
     let before = rsk::creusot_std::macros::snapshot!(cx.count@);
     // The low byte of the counter: a reduction before the cast, so that the

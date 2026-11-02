@@ -100,6 +100,75 @@ pub fn mmio_read(a: u32) -> u32 {
     }
 }
 
+/// An entry of the linker-provided initialization tables (the layout of
+/// `rsk-entry`'s `Range`): `(start, end, load)`.
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[repr(C)]
+struct InitRange {
+    start: u32,
+    end: u32,
+    load: u32,
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+extern "C" {
+    /// `(start, end, 0)` triples of the RAM ranges zeroed at reset,
+    /// terminated by zeros: the Kernel's first, then one per Partition in
+    /// declaration order (the Generator's `link.x`, `.rsk.tables`).
+    static __rsk_bss_table: InitRange;
+}
+
+/// The most table entries walked and the most words zeroed (PR-16; the
+/// bounds of `rsk-entry`'s reset path).
+const INIT_RANGES: usize = 16;
+const RAM_WORDS: usize = 65_536;
+
+/// R14.5: re-initializes Partition `p`'s RAM image: its range of the
+/// linker's zero table (entry `p + 1`; the Kernel's is entry 0) is zeroed.
+/// The Generator places every Partition static (per-Task state, Resource
+/// cells) in that range as `.bss`/`.data` with no load image, so every
+/// static must be zero-initialized, which the generated cells are; a
+/// Partition static with another initial value would have been wrong
+/// since reset. Called from the Kernel level with every Job of the
+/// Partition ended or killed, so nothing reads the range meanwhile.
+pub fn partition_reinit(p: u8) {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        // SAFETY (UJ-041): the table is the linker's for this build (the
+        // reset path of rsk-entry walks the same table); the entry's range
+        // is Partition `p`'s own RAM
+        // above its stack, which no Job of `p` uses now (all ended or
+        // killed) and no other Partition can address (its MPU view).
+        unsafe {
+            let mut entry = &__rsk_bss_table as *const InitRange;
+            let mut i = 0;
+            while i < INIT_RANGES {
+                let (start, end) = ((*entry).start, (*entry).end);
+                if start == 0 && end == 0 {
+                    return;
+                }
+                if i == p as usize + 1 {
+                    let mut a = start as usize as *mut u32;
+                    let stop = end as usize as *mut u32;
+                    let mut words = 0;
+                    while a < stop && words < RAM_WORDS {
+                        core::ptr::write_volatile(a, 0);
+                        a = a.add(1);
+                        words += 1;
+                    }
+                    return;
+                }
+                entry = entry.add(1);
+                i += 1;
+            }
+        }
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    {
+        super::sim::partition_reinit(p)
+    }
+}
+
 /// Writes a memory-mapped register.
 pub fn mmio_write(a: u32, v: u32) {
     #[cfg(all(target_arch = "arm", target_os = "none"))]

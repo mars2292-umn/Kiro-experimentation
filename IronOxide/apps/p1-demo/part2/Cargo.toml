@@ -6,6 +6,11 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# The fault-injection suite (task 7.5): the response and stress configurations' injections.
+response = []
+stress = []
+
 [dependencies]
 p1-demo-decl = { path = "../decl" }
 rsk = { path = "../../../crates/rsk" }
