@@ -311,6 +311,87 @@ fn intake_outcomes_match_r10() {
     assert!(k.mit_violations[1] == 0);
 }
 
+/// R9.6 cross-check (KD-R9.6, the HIL_Rig finding of 2026-11-02, task
+/// 7.5): a Periodic_Task with deadline = period whose Job runs past its
+/// next nominal instant has its own deadline miss reported at that
+/// instant, and the held Release's (R9.7) at the one after, although the
+/// Task's release slot precedes its deadline slot in slot order (the fixed
+/// configuration's, as the Generator lays them out) and the Release that
+/// becomes due re-arms the deadline slot. Before the fix the timer served
+/// the slots in slot order and the Job's own miss was never reported.
+#[kani::proof]
+#[kani::unwind(13)]
+fn deadline_miss_of_the_running_job_is_reported_at_its_next_nominal_instant() {
+    let cfg = config();
+    assert!(cfg.validate());
+    assert!(cfg.slot_release[0] < cfg.slot_deadline[0]);
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    // Instant 0: every Task's first Release; the two higher-Priority Jobs
+    // run and end, Task 0's Job starts and runs on.
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.sched.release[0] == REL_PENDING && k.sched.release[1] == REL_PENDING && k.sched.release[2] == REL_PENDING);
+    assert!(k.select(&cfg) == Some(2));
+    k.dispatch(&cfg, 2, 0);
+    k.job_return(&cfg, 0);
+    assert!(k.select(&cfg) == Some(1));
+    k.dispatch(&cfg, 1, 0);
+    k.job_return(&cfg, 0);
+    assert!(k.select(&cfg) == Some(0));
+    k.dispatch(&cfg, 0, 0);
+    assert!(k.sched.depth == 1 && k.sched.stack[0] == 0 && k.sched.job[0] == JOB_RUNNING);
+    let d = cfg.slot_deadline[0] as usize;
+    assert!(k.slots.slots[d].armed && k.slots.slots[d].at == cfg.tasks[0].deadline);
+    let logged = k.log.len;
+    // The next nominal instant (= the running Job's absolute deadline): its
+    // own miss is reported (RECORD_ONLY: the Job runs on), the Release is
+    // held (R9.7) and the deadline slot holds the held Release's deadline.
+    k.timer_event(&cfg, cfg.tasks[0].period, 0);
+    assert!(k.sched.job[0] == JOB_RUNNING && k.sched.release[0] == REL_PENDING);
+    assert!(k.slots.slots[d].armed && k.slots.slots[d].at == 2 * cfg.tasks[0].period);
+    let mut misses = 0;
+    let mut overlaps = 0;
+    let mut i = logged;
+    while i < k.log.len {
+        let e = k.log.get(i);
+        if e.kind == super::log::EV_DEADLINE_MISS && e.task == 0 && e.instant == cfg.tasks[0].period {
+            misses += 1;
+        }
+        if e.kind == super::log::EV_RELEASE_OVERLAP && e.task == 0 {
+            overlaps += 1;
+        }
+        i += 1;
+    }
+    assert!(misses == 1 && overlaps == 1);
+    // The two higher-Priority Jobs of the instant run and end; Task 0's
+    // Job resumes and runs on.
+    assert!(k.select(&cfg) == Some(2));
+    k.dispatch(&cfg, 2, 0);
+    k.job_return(&cfg, 0);
+    assert!(k.select(&cfg) == Some(1));
+    k.dispatch(&cfg, 1, 0);
+    k.job_return(&cfg, 0);
+    assert!(k.select(&cfg) == None);
+    assert!(k.sched.depth == 1 && k.sched.stack[0] == 0 && k.sched.job[0] == JOB_RUNNING);
+    // One period later: the held Release's deadline is missed, and the
+    // nominal instant's Release is discarded (R9.8).
+    let logged = k.log.len;
+    k.timer_event(&cfg, 2 * cfg.tasks[0].period, 0);
+    assert!(k.sched.job[0] == JOB_RUNNING && k.sched.release[0] == REL_PENDING);
+    assert!(!k.slots.slots[d].armed);
+    let mut misses = 0;
+    let mut i = logged;
+    while i < k.log.len {
+        let e = k.log.get(i);
+        if e.kind == super::log::EV_DEADLINE_MISS && e.task == 0 && e.instant == 2 * cfg.tasks[0].period {
+            misses += 1;
+        }
+        i += 1;
+    }
+    assert!(misses == 1);
+    assert!(k.mit_violations[0] == 1);
+}
+
 /// Task 5.5 (R17.1, R17.2): the executable DMA buffer check agrees with a
 /// direct recomputation of its specification for every layout of a 1 KiB
 /// to 64 KiB Partition RAM and every buffer, as a cross-check of the Verus

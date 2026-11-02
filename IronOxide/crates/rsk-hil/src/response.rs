@@ -107,18 +107,30 @@ pub const REQUIRED: &[Expected] = &[
     ev(RESOURCE_RELEASED, 5, 2, 500, 526, "the Resource released by force (R8.9)"),
     ev(MEMMANAGE, 3, 1, 800, 845, "log's fault"),
     ev(PARTITION_RESTART, ANY, 1, 800, 845, "RESTART_PARTITION as part1's fault response"),
-    ev(OVERRUN, 2, 0, 1305, 1330, "sensor's Budget overrun, RECORD_AND_CONTINUE"),
-    // KD-R9.6 (open, found 2026-11-02): the running Job's own deadline
-    // (1,325 ms) is not reported when a Release of the same Task becomes
-    // due at that instant: the held Release re-arms the Task's single
-    // deadline slot for its own deadline (1,345 ms), which is the miss
-    // the Kernel reports. The suite expects the Kernel as it is and the
-    // plan records the defect.
-    ev(DEADLINE_MISS, 2, 0, 1340, 1350, "the deadline miss of sensor's held Release (KD-R9.6: the running Job's own, at 1,325 ms, is not reported), RECORD_ONLY"),
+    // KD-R9.6 (found 2026-11-02, fixed): the running Job's own deadline
+    // (1,325 ms) coincides with its Task's next nominal instant; the Kernel
+    // now serves the due deadline events before the Releases of an instant,
+    // so the Job's own miss is reported at 1,325 ms and the held Release's
+    // (R9.7) at its deadline, 1,345 ms. Before the fix the held Release
+    // re-armed the Task's single deadline slot over the unserved miss and
+    // only the 1,345 ms miss was reported.
+    ev(DEADLINE_MISS, 2, 0, 1320, 1335, "sensor's own deadline miss (R9.6; KD-R9.6 fixed), RECORD_ONLY"),
+    ev(DEADLINE_MISS, 2, 0, 1340, 1350, "the deadline miss of sensor's held Release (R9.7), RECORD_ONLY"),
     ev(DEADLINE_MISS, 5, 2, 1345, 1360, "filter's deadline missed while pending (its Release of 1,325 ms)"),
     ev(PARTITION_STOP, ANY, 2, 1345, 1360, "STOP_PARTITION as part2's deadline-miss response"),
     ev(MEMMANAGE, 0, 0, 1900, 1915, "control's fault"),
     ev(SAFE_STATE, ANY, ANY, 1900, 1915, "SAFE_STATE as part0's fault response"),
+];
+
+/// Events required somewhere in their window, in no order against the
+/// others: sensor's Budget overrun is charged in execution, which the
+/// higher-Priority Tasks preempt, and its compare is dropped while sensor
+/// is preempted (DD-10), so the overrun of the 120 ms Job of 1,305 ms is
+/// recorded between 14 and 35 ms after the Job started on the bench
+/// (1,319 ms and 1,338 ms observed), before or after the Job's own
+/// deadline miss at 1,325 ms.
+const REQUIRED_ANYWHERE: &[Expected] = &[
+    ev(OVERRUN, 2, 0, 1305, 1345, "sensor's Budget overrun, RECORD_AND_CONTINUE"),
 ];
 
 /// Events tolerated beside the required ones: the consequences of the
@@ -189,6 +201,17 @@ pub fn judge_events(events: &[EventRecMs]) -> (bool, Vec<String>) {
         }
         m
     };
+    for want in REQUIRED_ANYWHERE {
+        match events.iter().find(|e| {
+            e.kind == want.kind && (want.task == ANY || e.task == want.task) && (want.partition == ANY || e.partition == want.partition) && e.instant_ms >= want.from_ms && e.instant_ms <= want.to_ms
+        }) {
+            Some(e) => notes.push(format!("{} at {} ms: {}", kind_name(want.kind), e.instant_ms, want.what)),
+            None => {
+                ok = false;
+                notes.push(format!("MISSING {} of Task {} / Partition {} in [{}, {}] ms: {}", kind_name(want.kind), want.task, want.partition, want.from_ms, want.to_ms, want.what));
+            }
+        }
+    }
     for e in events {
         if matched.iter().any(|m| m.seq == e.seq) || tolerated(e) {
             continue;
@@ -373,13 +396,25 @@ mod tests {
             (OVERRUN, 0, 0, 201), (MEMMANAGE, 5, 2, 250), (END_JOB, 5, 2, 250), (OVERRUN, 3, 1, 406), (END_JOB, 3, 1, 406),
             (OVERRUN, 5, 2, 500), (PARTITION_RESTART, 0xFF, 2, 500), (RESOURCE_RELEASED, 5, 2, 500),
             (MEMMANAGE, 3, 1, 800), (PARTITION_RESTART, 0xFF, 1, 800),
-            (OVERRUN, 2, 0, 1313), (DEADLINE_MISS, 2, 0, 1345), (DEADLINE_MISS, 3, 1, 1320), (DEADLINE_MISS, 5, 2, 1350), (PARTITION_STOP, 0xFF, 2, 1350), (RELEASE_OVERLAP, 3, 1, 1360), (MEMMANAGE, 0, 0, 1900), (SAFE_STATE, 0xFF, 0xFF, 1900),
+            (OVERRUN, 2, 0, 1313), (DEADLINE_MISS, 2, 0, 1325), (DEADLINE_MISS, 2, 0, 1345), (DEADLINE_MISS, 3, 1, 1320), (DEADLINE_MISS, 5, 2, 1350), (PARTITION_STOP, 0xFF, 2, 1350), (RELEASE_OVERLAP, 3, 1, 1360), (MEMMANAGE, 0, 0, 1900), (SAFE_STATE, 0xFF, 0xFF, 1900),
         ];
         for (i, (k, t, p, ms)) in script.iter().enumerate() {
             events.push(e(i as u32 + 1, *k, *t, *p, *ms));
         }
         let (ok, notes) = judge_events(&events);
         assert!(ok, "{notes:?}");
+        // sensor's overrun after its own miss (1,338 ms observed) passes too;
+        // none at all fails.
+        let mut late = events.clone();
+        let i = late.iter().position(|e| e.kind == OVERRUN && e.task == 2).unwrap();
+        late[i].instant_ms = 1338;
+        late.swap(i, i + 1);
+        let (ok, notes) = judge_events(&late);
+        assert!(ok, "{notes:?}");
+        late.remove(i + 1);
+        let (ok, notes) = judge_events(&late);
+        assert!(!ok);
+        assert!(notes.iter().any(|n| n.starts_with("MISSING overrun of Task 2")));
         events.push(e(99, OVERRUN, 0, 0, 1000));
         let (ok, notes) = judge_events(&events);
         assert!(!ok);

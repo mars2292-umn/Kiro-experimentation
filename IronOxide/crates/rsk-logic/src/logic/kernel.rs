@@ -1118,6 +1118,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// resumed Job, and reports any Resources it still held (R8.9): as a
     /// forced release for a killed Job, as API misuse (PR-07) for a Job that
     /// returned holding one.
+    #[verifier::rlimit(40)]
     pub fn job_return(&mut self, cfg: &Config<NT, NR, NP>, elapsed_cycles: u32)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
@@ -1323,10 +1324,74 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     // --------------------------------------------------------- release events
 
+    /// R9.6 with R10 (KD-R9.6, task 7.5): `self` is `old` at the observed
+    /// instant with an overdue deadline event of Task `t` (its absolute
+    /// deadline reached with the Job not complete) served first, a
+    /// deadline miss and its response, or `old` unchanged when no deadline
+    /// of `t` was overdue; the Task's timing state is untouched either way.
+    pub open spec fn overdue_deadline_served(&self, old: &Self, cfg: &Config<NT, NR, NP>, t: int, now: u64) -> bool {
+        let s = old.slots.slots[cfg.slot_deadline[t] as int];
+        &&& self.inv(cfg) && self.history_extends(old) && self.timing == old.timing
+        &&& !(s.armed && s.kind == SLOT_DEADLINE && s.at as int <= Self::observed(old.now, now)) ==> self.unchanged_but_log(old)
+    }
+
+    /// The outcome of the Release_Source event of Sporadic_Task `t` at
+    /// `now`, from the state `old` it is taken in from (`intake_release`).
+    pub open spec fn intake_outcome(&self, old: &Self, cfg: &Config<NT, NR, NP>, t: int, source_partition: int, now: u64) -> bool {
+        let n = Self::observed(old.now, now);
+        &&& !old.intake_active(cfg, t, n) ==> self.unchanged_but_log(old) || self.unchanged_but_log_and_mask(old, t)
+        &&& !old.intake_active(cfg, t, n) && !old.safe_state && old.started && !old.stopped[cfg.tasks[t].partition as int]
+            ==> self.unchanged_but_log_and_mask(old, t)
+        &&& old.intake_active(cfg, t, n) && old.mit_accepts(cfg, t, n) ==> self.accepted(old, cfg, t, n)
+        &&& old.intake_active(cfg, t, n) && old.mit_defers(cfg, t, n)
+            ==> exists|d: Self| #[trigger] d.deferred(old, cfg, t) && self.violation_applied(&d, cfg, source_partition, t)
+        &&& old.intake_active(cfg, t, n) && !old.mit_accepts(cfg, t, n) && !old.mit_defers(cfg, t, n)
+            ==> self.timing == old.timing && self.violation_applied(old, cfg, source_partition, t)
+        &&& self.mit_spaced(old, cfg)
+    }
+
     /// A Release_Source event of Sporadic_Task `t` (R10.1 to R10.3, R10.7):
     /// an interrupt intake (DD-06) or a Release_Signal raise (R10.5).
     /// `source_partition` is the Partition the violation is attributed to.
+    ///
+    /// R9.6 (KD-R9.6, task 7.5): an overdue deadline event of `t` is served
+    /// before the event is taken in, so that the Release the event may make
+    /// cannot re-arm the Task's deadline slot over an unreported miss when
+    /// the event and the deadline fall at one instant (the deadline event
+    /// pending behind this entry). The event's outcome is then that of
+    /// `intake_release` from the state after the miss.
     pub fn intake(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64)
+        requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
+            (source_partition as int) < NP, now <= cfg.operating_duration,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            exists|m: Self| #[trigger] m.overdue_deadline_served(old(self), cfg, t as int, now)
+                && final(self).intake_outcome(&m, cfg, t as int, source_partition as int, now),
+            final(self).mit_spaced(old(self), cfg),
+    {
+        self.observe(cfg, now);
+        proof {
+            assert(cfg.slot_ok(t as int));
+        }
+        let sd = cfg.slot_deadline[t as usize] as usize;
+        let s = self.slots.slots[sd];
+        if s.armed && s.kind == SLOT_DEADLINE && s.at <= self.now {
+            self.deadline_miss(cfg, t, sd);
+        }
+        let ghost m = *self;
+        proof {
+            assert(m.overdue_deadline_served(old(self), cfg, t as int, now));
+        }
+        self.intake_release(cfg, t, source_partition, now);
+        proof {
+            assert(self.intake_outcome(&m, cfg, t as int, source_partition as int, now));
+            assert(m.mit_spaced(old(self), cfg));
+            Self::lemma_mit_spaced_trans(old(self), &m, self, cfg);
+        }
+    }
+
+    /// The Release_Source event of Sporadic_Task `t` taken in from the
+    /// current state: the MIT decision of R10.1 to R10.3 and its record.
+    fn intake_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
             (source_partition as int) < NP, now <= cfg.operating_duration,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
@@ -1454,8 +1519,20 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     // ------------------------------------------------------------ timer events
 
     /// The time base reached the armed compare instant: every due slot is
-    /// served once, in slot order (bounded by `NS`, PR-16). Kernel_Arch then
-    /// arms the compare at `slots.next()`.
+    /// served once (bounded by `NS`, PR-16): the due deadline events first,
+    /// then the rest in slot order. Kernel_Arch then arms the compare at
+    /// `slots.next()`.
+    ///
+    /// R9.6 (KD-R9.6, the HIL_Rig finding of 2026-11-02, task 7.5): a
+    /// Task's release slot precedes its deadline slot, and a Release that
+    /// becomes due re-arms the Task's single deadline slot for its own
+    /// deadline; served in slot order, a Release due at the instant of the
+    /// running Job's deadline (deadline = period, R9.7) replaced the miss
+    /// before it was served, and the Job's own miss was never reported.
+    /// With the deadline slot of a Task holding at most one deadline and
+    /// the Config_Checker bounding every deadline by the period or MIT, the
+    /// running Job's deadline is at or before the next Release's instant,
+    /// so serving the due deadlines first reports every miss.
     pub fn timer_event(&mut self, cfg: &Config<NT, NR, NP>, now: u64, running_cycles: u32)
         requires old(self).inv(cfg), now <= cfg.operating_duration,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
@@ -1467,6 +1544,22 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.observe(cfg, now);
         if self.safe_state {
             return;
+        }
+        let mut i: usize = 0;
+        while i < NS
+            invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
+                self.mit_spaced(old(self), cfg),
+            decreases NS - i,
+        {
+            let slot = self.slots.slots[i];
+            if slot.armed && slot.kind == SLOT_DEADLINE && slot.at <= self.now {
+                let ghost before = *self;
+                self.serve_slot(cfg, i, running_cycles);
+                proof {
+                    Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
+                }
+            }
+            i = i + 1;
         }
         let mut i: usize = 0;
         while i < NS
