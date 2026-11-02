@@ -435,3 +435,85 @@ fn r29_5_pass_only_when_every_task_meets_its_deadline_and_nothing_was_rejected()
     w.records.pop();
     assert_eq!(analyze(&m, &w, &t, &manifest(&m), names(), &dev()).exit, EXIT_REJECTED);
 }
+
+// ------------------------------------------------------------- task 19.3: measured Kernel_Timing_Parameters
+
+/// A measured `j_rel` record as the rig writes it, bound to `hash`.
+fn measured_j_rel(hash: &str, max: u64, cycles: u64) -> KernelTiming {
+    KernelTiming {
+        schema: rsk_model::wcet::KERNEL_TIMING_SCHEMA.into(),
+        binary_hash: hash.into(),
+        target: "nrf52840/r0p1".into(),
+        clock_hz: 64_000_000,
+        icache: "off".into(),
+        parameters: vec![rsk_model::wcet::KernelTimingParameter {
+            symbol: "j_rel".into(),
+            cycles,
+            method: "measured".into(),
+            tool: "rsk-hil release-timing record".into(),
+            conditions: vec!["HIL build".into()],
+            measured: Some(rsk_model::wcet::Measured { runs: 40_000, max_observed: max, margin_percent: 25, coverage_branch_percent: 0, scenarios: vec!["nrf52840_stress_short (180 s)".into()] }),
+        }],
+    }
+}
+
+/// R13.2, R33.4: a measured record bound to a HIL build the manifest lists
+/// (`hil_binaries`) is accepted over the placeholders, the report names
+/// the measurement binary and the provenance, and the measured symbol is
+/// no longer a placeholder; the same record bound to a binary the manifest
+/// does not list is rejected under R28.3. The demo's control Task has 300
+/// cycles of slack under placeholder WCETs (its blocking term is sensor's
+/// whole Budget), so a jitter of 800 cycles still passes and one of 6,250
+/// fails the analysis with the measured provenance stated either way.
+#[test]
+fn task_19_3_measured_parameters_of_a_listed_hil_build_replace_placeholders() {
+    let m = model();
+    let mut manifest = manifest(&m);
+    manifest["hil_binaries"] = serde_json::json!([{"package": "p1-demo", "target": "p1-demo (nrf52840, stress-short)", "file": "p1-demo", "hash": "sha256:hil", "loadable_bytes": 1, "config_checksum": "0x1"}]);
+    for (max, cycles, exit) in [(640u64, 800u64, EXIT_PASS), (5000, 6250, EXIT_FAIL)] {
+        let (w, mut t) = placeholders::make(&m, HASH, "off");
+        let taken = t.overlay(&measured_j_rel("sha256:hil", max, cycles));
+        assert_eq!(taken, vec!["j_rel".to_string()]);
+        t.binary_hash = "sha256:hil".into();
+        let a = analyze(&m, &w, &t, &manifest, names(), &dev());
+        assert_eq!(a.exit, exit, "{:?}", a.report.rejections);
+        assert!(a.report.statements.iter().any(|s| s.contains("MEASURED Kernel_Timing_Parameters") && s.contains(&format!("j_rel: {cycles} cycles")) && s.contains(&format!("max {max} +25%"))), "{:?}", a.report.statements);
+        assert!(a.report.statements.iter().any(|s| s.contains("HIL build `p1-demo (nrf52840, stress-short)`")), "{:?}", a.report.statements);
+        let placeholder_line = a.report.statements.iter().find(|s| s.starts_with("PLACEHOLDER")).unwrap();
+        assert!(!placeholder_line.contains("j_rel"), "{placeholder_line}");
+        assert!(a.report.tasks.iter().all(|task| task.j_cycles == cycles));
+        assert_eq!(a.report.tasks[0].schedulable, exit == EXIT_PASS);
+        // The same record of an unlisted binary is stale (R33.4): rejected.
+        let unlisted = manifest.as_object().map(|o| { let mut o = o.clone(); o.remove("hil_binaries"); serde_json::Value::Object(o) }).unwrap();
+        let r = rejections_of(&m, &w, &t, &unlisted, &dev());
+        assert_rejects(&r, "R28.3", "sha256:hil");
+    }
+}
+
+/// R13.4: a measured parameter whose maximum observed value exceeds its
+/// bound is rejected naming the symbol.
+#[test]
+fn r13_4_an_observed_value_above_the_bound_is_rejected() {
+    let m = model();
+    let (w, mut t) = placeholders::make(&m, HASH, "off");
+    t.overlay(&measured_j_rel(HASH, 11_000, 10_584));
+    let r = rejections_of(&m, &w, &t, &manifest(&m), &dev());
+    assert_rejects(&r, "R13.4", "j_rel");
+}
+
+/// The overlay keeps a larger existing bound (a measurement never lowers
+/// a measured or static bound) but replaces a placeholder whatever its
+/// size.
+#[test]
+fn task_19_3_overlay_never_lowers_a_bound_but_replaces_placeholders() {
+    let m = model();
+    let (_, mut t) = placeholders::make(&m, HASH, "off");
+    assert_eq!(t.get("j_rel"), Some(500));
+    assert_eq!(t.overlay(&measured_j_rel(HASH, 100, 125)), vec!["j_rel".to_string()]);
+    assert_eq!(t.get("j_rel"), Some(125));
+    assert!(t.overlay(&measured_j_rel(HASH, 80, 100)).is_empty());
+    assert_eq!(t.get("j_rel"), Some(125));
+    assert_eq!(t.overlay(&measured_j_rel(HASH, 8467, 10584)), vec!["j_rel".to_string()]);
+    assert_eq!(t.get("j_rel"), Some(10584));
+}
+

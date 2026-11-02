@@ -28,6 +28,7 @@ pub fn build(
     omitted_terms: Vec<String>,
     rejections: Vec<String>,
     placeholders: &[String],
+    measured_parameters: &[String],
     unprotected_partitions: &[String],
 ) -> Report {
     let mut statements = vec![
@@ -40,6 +41,12 @@ pub fn build(
             "R18.9: more than one Partition has the highest Criticality_Level and {} let(s) an overrunning Job continue (RECORD_AND_CONTINUE): R18.7 does not protect the Partitions {} from one another's Overruns.",
             unprotected_partitions.iter().filter(|p| p.ends_with(" (continues)")).count(),
             unprotected_partitions.join(", ")
+        ));
+    }
+    if !measured_parameters.is_empty() {
+        statements.push(format!(
+            "MEASURED Kernel_Timing_Parameters (task 19.3; measurement-based with a margin, not a guaranteed bound, R34.6): {}.",
+            measured_parameters.join("; ")
         ));
     }
     if !placeholders.is_empty() {

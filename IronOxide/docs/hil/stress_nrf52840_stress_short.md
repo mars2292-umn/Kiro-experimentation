@@ -8,16 +8,16 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 
 | Step | Result | Detail |
 |---|---|---|
-| stimulus running | pass | flashed in 4.5 s and reset |
-| target run | pass | RSK-OK after 202 s (operating duration 180 s) |
+| stimulus running | pass | flashed in 4.4 s and reset |
+| target run | pass | RSK-OK after 203 s (operating duration 180 s) |
 | release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 8467 cycles (132.3 µs) against J_rel 10000 cycles |
 | WCRT of the protected Partition (R18.8) | pass | part0.control: 18000 Jobs, response at most 3.573 ms (228700 cycles) against WCRT 9.873 ms (631900 cycles); part0.echo: 5999 Jobs, response at most 0.314 ms (20072 cycles) against WCRT 11.195 ms (716500 cycles); part0.sensor: 8999 Jobs, response at most 8.798 ms (563052 cycles) against WCRT 11.339 ms (725700 cycles) |
-| interrupt storm (R19.3) | pass | Task 4's source stormed for 180 s: 11953 intakes against at most 12001 MIT windows of 15 ms (99.6 % of the windows); intake handler at most 2068 cycles (32.3 µs), mean 1888 cycles: the measured Δ_irq; processor time 0.1959 % of the run |
+| interrupt storm (R19.3) | pass | Task 4's source stormed for 180 s: 11953 intakes against at most 12001 MIT windows of 15 ms (99.6 % of the windows); intake handler at most 2068 cycles (32.3 µs), mean 1888 cycles: the measured Δ_irq (bound 2600 cycles, R13.4); processor time 0.1959 % of the run |
 | Kernel events | pass | 5880 events mirrored (1024 held, 4 of them the post-detach reboot's): overrun of Task 3: 147, overrun of Task 5: 156, overrun of Task 6: 130, operating_end of Task none: 1, resource_released of Task 5: 152, partition_restart of Task none: 152, safe_state of Task none: 1, end_job of Task 3: 147, end_job of Task 5: 4, end_job of Task 6: 130; the trace never froze during the run |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
 | responses under the storm | pass | 11952 response edges inside the run (target counted 11952) against 12001 MIT windows; 0 stimulus rises on the mirror |
-| dispatch timeline | pass | Tasks executing 55.5 % of the run, the Kernel 53.7 % over 2936463 entries; runs per Task [18051, 6014, 20997, 12390, 12013, 7349, 1603] |
+| dispatch timeline | pass | Tasks executing 55.4 % of the run, the Kernel 53.8 % over 2940486 entries; runs per Task [18060, 6018, 20997, 12389, 12013, 7348, 1603] |
 
 ## The Kernel's release-timing record
 
@@ -64,14 +64,14 @@ The last recorded Releases (Task, nominal instant, lag):
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 282899 | 18051 | 0.320 |
-| 1 | 21367 | 6014 | 0.190 |
-| 2 | 7429862 | 20997 | 8.240 |
-| 3 | 3084167 | 12390 | 6.120 |
-| 4 | 63789 | 12013 | 0.140 |
-| 5 | 291450 | 7349 | 0.970 |
-| 6 | 46291 | 1603 | 0.630 |
-| none | 9012367 | 38102 | 15495.570 |
+| 0 | 282867 | 18060 | 0.320 |
+| 1 | 21382 | 6018 | 0.190 |
+| 2 | 7429860 | 20997 | 8.240 |
+| 3 | 3084157 | 12389 | 6.120 |
+| 4 | 63863 | 12013 | 0.140 |
+| 5 | 291487 | 7348 | 0.970 |
+| 6 | 46288 | 1603 | 0.630 |
+| none | 9044032 | 38102 | 15948.870 |
 
 ## Commands
 
@@ -295,5 +295,5 @@ expected_sensor=9000
 part0_events=0
 RSK-OK
 Firmware exited successfully
-     Finished in 6.67s
+     Finished in 6.62s
 ```

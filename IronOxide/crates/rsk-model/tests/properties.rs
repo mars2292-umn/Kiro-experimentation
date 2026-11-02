@@ -60,7 +60,7 @@ fn kernel_timing() -> impl Strategy<Value = KernelTiming> {
         icache(),
         prop::collection::vec(
             (prop::sample::select(SYMBOLS.to_vec()), any::<u64>(), method(), ident(), prop::collection::vec(ident(), 0..3))
-                .prop_map(|(symbol, cycles, method, tool, conditions)| KernelTimingParameter { symbol: symbol.to_string(), cycles, method, tool, conditions }),
+                .prop_map(|(symbol, cycles, method, tool, conditions)| KernelTimingParameter { symbol: symbol.to_string(), cycles, method, tool, conditions, measured: None }),
             0..8,
         ),
     )

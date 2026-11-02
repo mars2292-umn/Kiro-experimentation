@@ -680,6 +680,7 @@ version = "0.0.0"
 dependencies = [
  "rsk-digest",
  "rsk-elf",
+ "rsk-model",
  "toml",
 ]
 

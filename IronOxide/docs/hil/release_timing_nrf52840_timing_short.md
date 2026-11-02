@@ -8,51 +8,51 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 
 | Step | Result | Detail |
 |---|---|---|
-| stimulus running | pass | flashed in 4.4 s and reset |
+| stimulus running | pass | flashed in 4.3 s and reset |
 | target run | pass | RSK-OK after 189 s (operating duration 180 s) |
-| release timing (R9.10) | pass | 40487 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 8199 cycles (128.1 µs) against J_rel 10000 cycles |
+| release timing (R9.10) | pass | 40487 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 5739 cycles (89.7 µs) against J_rel 10000 cycles |
 | Kernel events | pass | 52 events mirrored (52 held, 4 of them the post-detach reboot's): overrun of Task 2: 5, deadline_miss of Task 2: 16, release_overlap of Task 2: 16, mit_violation of Task 2: 8, operating_end of Task none: 1, safe_state of Task none: 1, debugger of Task none: 1; the trace never froze during the run |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
-| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10520 rises and 10000 response edges in the capture); latency 80 to 12420 µs, median 2430 µs, 0 later than 15 ms; 0 unanswered inside the run |
-| dispatch timeline | pass | Tasks executing 71.7 % of the run, the Kernel 54.6 % over 3363808 entries; runs per Task [18140, 6002, 31698, 5080, 9998, 7231, 1820] |
+| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10523 rises and 10000 response edges in the capture); latency 80 to 12420 µs, median 2420 µs, 0 later than 15 ms; 0 unanswered inside the run |
+| dispatch timeline | pass | Tasks executing 71.6 % of the run, the Kernel 54.5 % over 3365407 entries; runs per Task [18162, 6002, 31718, 5291, 9998, 7200, 1801] |
 
 ## The Kernel's release-timing record
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 17999 | 8199 / 128.1 | 3540 | 2^12:17006 2^13:992 2^14:1 |
-| 2 | 8991 | 8199 / 128.1 | 3633 | 2^12:8055 2^13:935 2^14:1 |
-| 3 | 4499 | 8199 / 128.1 | 3777 | 2^12:3578 2^13:920 2^14:1 |
-| 5 | 7199 | 6259 / 97.8 | 3567 | 2^12:6282 2^13:917 |
-| 6 | 1799 | 6259 / 97.8 | 4083 | 2^12:892 2^13:907 |
+| 0 | 17999 | 5739 / 89.7 | 3522 | 2^12:17085 2^13:914 |
+| 2 | 8991 | 5739 / 89.7 | 3621 | 2^12:8088 2^13:903 |
+| 3 | 4499 | 5739 / 89.7 | 3764 | 2^12:3594 2^13:905 |
+| 5 | 7199 | 4871 / 76.1 | 3564 | 2^12:6296 2^13:903 |
+| 6 | 1799 | 4871 / 76.1 | 4071 | 2^12:896 2^13:903 |
 
 Releases recorded: 40487; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 18000 | 9.328 | 0 | 0 | 0 |
-| 1 | 5999 | 0.260 | 0 | 0 | 0 |
-| 2 | 8992 | 54.204 | 0 | 0 | 0 |
-| 3 | 4500 | 6.754 | 0 | 0 | 0 |
-| 4 | 9999 | 12.441 | 10000 | 2025 | 1830 |
+| 0 | 18000 | 9.326 | 0 | 0 | 0 |
+| 1 | 5999 | 0.266 | 0 | 0 | 0 |
+| 2 | 8992 | 54.202 | 0 | 0 | 0 |
+| 3 | 4500 | 6.742 | 0 | 0 | 0 |
+| 4 | 9999 | 12.441 | 10000 | 1993 | 1821 |
 | 5 | 7200 | 11.208 | 0 | 0 | 0 |
-| 6 | 1800 | 39.806 | 0 | 0 | 0 |
+| 6 | 1800 | 39.788 | 0 | 0 | 0 |
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 179940.000 ms, 3415 cycles
-- Task 2 at 179940.000 ms, 3415 cycles
-- Task 0 at 179950.000 ms, 3651 cycles
-- Task 5 at 179950.000 ms, 3651 cycles
-- Task 0 at 179960.000 ms, 4731 cycles
-- Task 2 at 179960.000 ms, 4731 cycles
-- Task 3 at 179960.000 ms, 4731 cycles
-- Task 0 at 179970.000 ms, 3495 cycles
-- Task 5 at 179975.000 ms, 3239 cycles
-- Task 0 at 179980.000 ms, 3375 cycles
-- Task 2 at 179980.000 ms, 3375 cycles
-- Task 0 at 179990.000 ms, 3187 cycles
+- Task 0 at 179940.000 ms, 3375 cycles
+- Task 2 at 179940.000 ms, 3375 cycles
+- Task 0 at 179950.000 ms, 3839 cycles
+- Task 5 at 179950.000 ms, 3839 cycles
+- Task 0 at 179960.000 ms, 3619 cycles
+- Task 2 at 179960.000 ms, 3619 cycles
+- Task 3 at 179960.000 ms, 3619 cycles
+- Task 0 at 179970.000 ms, 3327 cycles
+- Task 5 at 179975.000 ms, 3411 cycles
+- Task 0 at 179980.000 ms, 3415 cycles
+- Task 2 at 179980.000 ms, 3415 cycles
+- Task 0 at 179990.000 ms, 3191 cycles
 
 ## The Kernel's events
 
@@ -62,14 +62,14 @@ The last recorded Releases (Task, nominal instant, lag):
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 262034 | 18140 | 0.260 |
-| 1 | 21387 | 6002 | 0.080 |
-| 2 | 11103853 | 31698 | 12.190 |
-| 3 | 1367758 | 5080 | 3.100 |
-| 4 | 70286 | 9998 | 0.150 |
-| 5 | 53862 | 7231 | 0.180 |
-| 6 | 15744 | 1820 | 0.140 |
-| none | 5101365 | 33144 | 7.370 |
+| 0 | 264202 | 18162 | 0.270 |
+| 1 | 21528 | 6002 | 0.100 |
+| 2 | 11105806 | 31718 | 12.220 |
+| 3 | 1366880 | 5291 | 3.100 |
+| 4 | 66659 | 9998 | 0.140 |
+| 5 | 52544 | 7200 | 0.130 |
+| 6 | 14788 | 1801 | 0.140 |
+| none | 5105028 | 32963 | 7.390 |
 
 ## Commands
 
@@ -114,5 +114,5 @@ expected_late_jobs=8
 late_events_seen=30
 RSK-OK
 Firmware exited successfully
-     Finished in 6.67s
+     Finished in 6.70s
 ```

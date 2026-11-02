@@ -15,4 +15,5 @@ bench = false
 [dependencies]
 rsk-digest.workspace = true
 rsk-elf.workspace = true
+rsk-model = { path = "../rsk-model" }
 toml.workspace = true

@@ -3,6 +3,7 @@
 //! ```text
 //! rsk-analyzer --model task_model.json --wcet wcet.json --timing kernel_timing.json \
 //!              --manifest build-manifest.json --out <dir> [--allow-placeholders] \
+//!              (or --placeholders [--timing measured.json]...: measured Kernel_Timing_Parameters over placeholders) \
 //!              [--prefer measured|static] [--uppaal [--uppaal-timeout <s>] [--uppaal-memory <MiB>]]
 //! ```
 //!
@@ -18,7 +19,7 @@ use rsk_analyzer::{inputs::Options, EXIT_INTERNAL, EXIT_REJECTED};
 use rsk_model::report::Inputs;
 
 fn usage() -> ExitCode {
-    eprintln!("usage: rsk-analyzer --model <task_model.json> (--wcet <wcet.json> --timing <kernel_timing.json> | --placeholders) --manifest <build-manifest.json> --out <dir> [--allow-placeholders] [--prefer measured|static] [--uppaal] [--uppaal-timeout <seconds>]");
+    eprintln!("usage: rsk-analyzer --model <task_model.json> (--wcet <wcet.json> --timing <kernel_timing.json> | --placeholders [--timing <measured.json>]...) --manifest <build-manifest.json> --out <dir> [--allow-placeholders] [--prefer measured|static] [--uppaal] [--uppaal-timeout <seconds>]");
     ExitCode::from(EXIT_INTERNAL)
 }
 
@@ -30,7 +31,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut model = None;
     let mut wcet = None;
-    let mut timing = None;
+    let mut timing: Vec<PathBuf> = Vec::new();
     let mut manifest = None;
     let mut out = None;
     let mut options = Options::default();
@@ -47,7 +48,11 @@ fn main() -> ExitCode {
         match args[i].as_str() {
             "--model" => model = next(&mut i).map(PathBuf::from),
             "--wcet" => wcet = next(&mut i).map(PathBuf::from),
-            "--timing" => timing = next(&mut i).map(PathBuf::from),
+            "--timing" => {
+                if let Some(t) = next(&mut i).map(PathBuf::from) {
+                    timing.push(t);
+                }
+            }
             "--manifest" => manifest = next(&mut i).map(PathBuf::from),
             "--out" => out = next(&mut i).map(PathBuf::from),
             "--allow-placeholders" => options.allow_placeholders = true,
@@ -92,10 +97,39 @@ fn main() -> ExitCode {
         };
         let hash = manifest.get("binaries").and_then(|b| b.as_array()).and_then(|b| b.first()).and_then(|b| b.get("hash")).and_then(|h| h.as_str()).unwrap_or("sha256:unknown").to_string();
         let icache = manifest.pointer("/build/icache").and_then(|v| v.as_str()).unwrap_or("off").to_string();
-        let (w, t) = rsk_analyzer::placeholders::make(&model, &hash, &icache);
-        (PathBuf::from("<placeholders>"), PathBuf::from("<placeholders>"), rsk_model::print(&w), rsk_model::print(&t))
+        let (w, mut t) = rsk_analyzer::placeholders::make(&model, &hash, &icache);
+        // Task 19.3: measured Kernel_Timing_Parameters (`--timing`, one file
+        // or more) replace the placeholders of their symbols; the set keeps
+        // the measurement binary's hash so that R28.3/R33.4 apply to it.
+        let mut names = Vec::new();
+        for path in &timing {
+            let text = match read(path) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("rsk-analyzer: {e}");
+                    return ExitCode::from(EXIT_INTERNAL);
+                }
+            };
+            let measured = match rsk_model::read_kernel_timing(&text) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("rsk-analyzer: rejected input: {}: {e}", path.display());
+                    return ExitCode::from(EXIT_REJECTED);
+                }
+            };
+            let taken = t.overlay(&measured);
+            if !taken.is_empty() {
+                t.binary_hash = measured.binary_hash.clone();
+                t.target = measured.target.clone();
+                t.clock_hz = measured.clock_hz;
+                t.icache = measured.icache.clone();
+            }
+            names.push(format!("{} ({})", path.display(), if taken.is_empty() { "nothing taken".to_string() } else { taken.join(", ") }));
+        }
+        let timing_name = if names.is_empty() { "<placeholders>".to_string() } else { format!("<placeholders> + {}", names.join(" + ")) };
+        (PathBuf::from("<placeholders>"), PathBuf::from(timing_name), rsk_model::print(&w), rsk_model::print(&t))
     } else {
-        let (Some(wcet_p), Some(timing_p)) = (wcet, timing) else {
+        let (Some(wcet_p), Some(timing_p)) = (wcet, timing.into_iter().next()) else {
             return usage();
         };
         match (read(&wcet_p), read(&timing_p)) {

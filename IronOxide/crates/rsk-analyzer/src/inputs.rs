@@ -88,6 +88,9 @@ pub struct Prepared {
     /// Overhead terms the model omits or approximates (R31.2, reported).
     pub omitted_terms: Vec<String>,
     pub placeholders: Vec<String>,
+    /// The measured Kernel_Timing_Parameters used, with their provenance
+    /// (task 19.3), and the manifest entry their binary hash matched.
+    pub measured_parameters: Vec<String>,
 }
 
 /// Picks the WCET_Record for an item (R28.7).
@@ -193,9 +196,37 @@ pub fn prepare(
             }
         }
     }
-    // Kernel_Timing_Parameters (R13.3, R28.2).
+    // Kernel_Timing_Parameters (R13.3, R28.2). Their binary is the analysed
+    // Flight_Build or, for parameters the HIL_Rig measured (task 19.3), a
+    // HIL build the Build_Manifest lists (`hil_binaries`: the same source,
+    // toolchain, clock and cache setting with the rig's instrumentation,
+    // whose cost the measurement includes); the report names it.
+    let hil_binaries = manifest.get("hil_binaries").and_then(|b| b.as_array()).cloned().unwrap_or_default();
+    let hil_binary = hil_binaries.iter().find(|b| b.get("hash").and_then(|h| h.as_str()) == Some(timing.binary_hash.as_str()));
+    let mut measured_parameters = Vec::new();
     if !binary_hashes.contains(&timing.binary_hash) {
-        rejections.push(reject("R28.3", format!("the Kernel_Timing_Parameters' binary hash {} is not in the Build_Manifest", timing.binary_hash)));
+        match hil_binary {
+            Some(b) => {
+                let name = b.get("target").and_then(|t| t.as_str()).unwrap_or("?");
+                measured_parameters.push(format!("the Kernel_Timing_Parameters' binary {} is the HIL build `{name}` of the Build_Manifest, not the analysed Flight_Build", timing.binary_hash));
+            }
+            None => rejections.push(reject("R28.3", format!("the Kernel_Timing_Parameters' binary hash {} is not in the Build_Manifest", timing.binary_hash))),
+        }
+    }
+    if timing.icache != icache {
+        rejections.push(reject("R28.3", format!("the Kernel_Timing_Parameters' icache `{}` differs from the build's `{icache}`", timing.icache)));
+    }
+    // R13.4: a measured parameter's maximum observed value never exceeds its
+    // bound.
+    for p in &timing.parameters {
+        if let Some(m) = &p.measured {
+            if m.max_observed > p.cycles {
+                rejections.push(reject("R13.4", format!("Kernel_Timing_Parameter `{}`: observed {} cycles exceed its bound {} cycles", p.symbol, m.max_observed, p.cycles)));
+            }
+        }
+        if p.method == "measured" {
+            measured_parameters.push(p.provenance());
+        }
     }
     if timing.clock_hz != cpu_hz {
         rejections.push(reject("R28.3", format!("the Kernel_Timing_Parameters' clock {} Hz differs from the model's {cpu_hz} Hz", timing.clock_hz)));
@@ -352,6 +383,7 @@ pub fn prepare(
         tasks,
         omitted_terms,
         placeholders,
+        measured_parameters,
     })
 }
 

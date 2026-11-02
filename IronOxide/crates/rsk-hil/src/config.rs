@@ -46,8 +46,12 @@ pub struct Expect {
     pub pulse_us: u64,
     pub response_deadline_ms: u64,
     pub min_matched: usize,
-    /// R9.10: the bound on a periodic Release's lag, in CPU cycles.
+    /// R9.10: the bound on a periodic Release's lag, in CPU cycles: the
+    /// exported bound of the Kernel_Timing_Parameter J_rel (R13.4).
     pub j_rel_cycles: u32,
+    /// R19.3: the bound on one run of the intake handler, in CPU cycles:
+    /// the exported bound of Δ_irq (R13.4).
+    pub delta_irq_cycles: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -167,7 +171,7 @@ impl Rig {
         }
         let ex = table.get("expect").and_then(Value::as_table).ok_or("no [expect] table")?;
         for key in ex.keys() {
-            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles"].contains(&key.as_str()) {
+            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles", "delta_irq_cycles"].contains(&key.as_str()) {
                 return Err(format!("[expect]: unknown key `{key}`"));
             }
         }
@@ -177,6 +181,7 @@ impl Rig {
             response_deadline_ms: int_of(ex, "response_deadline_ms")?,
             min_matched: int_of(ex, "min_matched")? as usize,
             j_rel_cycles: ex.get("j_rel_cycles").map(|_| int_of(ex, "j_rel_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
+            delta_irq_cycles: ex.get("delta_irq_cycles").map(|_| int_of(ex, "delta_irq_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
         };
         if expect.period_ms == 0 || expect.response_deadline_ms == 0 {
             return Err("[expect]: period_ms and response_deadline_ms must be positive".into());
@@ -246,6 +251,7 @@ min_matched = 9
         assert_eq!(rig.analyzer.stimulus_channel, 6);
         assert!(rig.analyzer.task_id_channels.is_empty() && rig.analyzer.kernel_channel.is_none());
         assert_eq!(rig.expect.j_rel_cycles, u32::MAX);
+        assert_eq!(rig.expect.delta_irq_cycles, u32::MAX);
         let with_pins = RIG.replace("response_channel = 0", "response_channel = 0\ntask_id_channels = [1, 2, 3]\nkernel_channel = 4").replace("min_matched = 9", "min_matched = 9\nj_rel_cycles = 4000");
         let rig = Rig::parse(&with_pins).unwrap();
         assert_eq!(rig.analyzer.task_id_channels, vec![1, 2, 3]);

@@ -1,0 +1,28 @@
+{
+  "schema": "rsk-kernel-timing/1",
+  "binary_hash": "sha256:5129d14853fb44fd055dfe8942fcd649d2d6d65f1f37f34c6d60d072442aa65b",
+  "target": "nrf52840/r0p1",
+  "clock_hz": 64000000,
+  "icache": "off",
+  "parameters": [
+    {
+      "symbol": "j_rel",
+      "cycles": 7174,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 40487,
+        "max_observed": 5739,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    }
+  ]
+}

@@ -498,12 +498,11 @@ fn hil_command(args: &[String]) -> ExitCode {
 /// protected Partition's Jobs checked against the WCRTs the Analyzer
 /// computes for the configuration's Task_Model (placeholder timing).
 fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, stress: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let (feature, duration_secs, variant) = match (stress, short) {
-        (false, true) => ("timing-short", 3 * 60, "nrf52840_timing_short"),
-        (false, false) => ("timing", 61 * 60, "nrf52840_timing"),
-        (true, true) => ("stress-short", 3 * 60, "nrf52840_stress_short"),
-        (true, false) => ("stress", 61 * 60, "nrf52840_stress"),
+    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.stress == stress && (m.duration_secs < 10 * 60) == short) else {
+        report.error(xtask::diag::Rule::Step, None, "no measurement configuration for this run".to_string());
+        return print_report(&report, "hil");
     };
+    let (feature, duration_secs, variant) = (measurement.feature, measurement.duration_secs, measurement.variant);
     let kind = if stress { "stress" } else { "release-timing" };
     let features = format!("{},{feature}", xtask::hil::FEATURES);
     let dir = target_dir.join(kind).join(variant);
@@ -519,12 +518,12 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         return print_report(&report, "hil");
     };
     report.note(format!("{kind} configuration `{variant}` ({features}): {} over {} loadable bytes; {} s", target.binary.hash, target.binary.loadable_bytes, duration_secs));
+    let model = ws.root.join("apps").join(bin).join(format!("gen-{variant}")).join("task_model.json");
     let stress_spec = if stress {
-        let model = ws.root.join("apps").join(bin).join(format!("gen-{variant}")).join("task_model.json");
         match analyzer_wcrt(ws, &model, target.binary.config_checksum.as_deref(), &dir, &mut report) {
-            Some(protected) => {
+            Some((protected, timing_used)) => {
                 for (t, name, r) in &protected {
-                    report.note(format!("Analyzer WCRT of Task {t} ({name}): {r} cycles ({:.3} ms), placeholder timing", *r as f64 * 1000.0 / xtask::hil::CPU_HZ as f64));
+                    report.note(format!("Analyzer WCRT of Task {t} ({name}): {r} cycles ({:.3} ms), {}", *r as f64 * 1000.0 / xtask::hil::CPU_HZ as f64, timing_used));
                 }
                 Some(rsk_hil::release_timing::Stress { protected, storm_task: 4, mit_ms: 15 })
             }
@@ -562,6 +561,38 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
     report.note(format!("report written to {} and docs/hil/{name}", ws.rel(&work)));
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, format!("the {kind} run failed (report above)"));
+        return print_report(&report, "hil");
+    }
+    // Task 19.3: the Kernel_Timing_Parameter record of the passed run
+    // (J_rel; Δ_irq under the storm), bound to this HIL build, folded into
+    // the committed record of the configuration.
+    let target_name = std::fs::read_to_string(&model)
+        .ok()
+        .and_then(|t| rsk_model::read_task_model(&t).ok())
+        .map(|m| format!("{}/{}", m.target, m.core_revision))
+        .unwrap_or_else(|| "nrf52840/?".to_string());
+    let binding = rsk_hil::kernel_timing::Binding { binary_hash: &target.binary.hash, target: &target_name, icache: "off", configuration: variant };
+    match rsk_hil::kernel_timing::record(&inputs, &out, &binding, xtask::hil::MARGIN_PERCENT) {
+        Some(new) => {
+            let _ = std::fs::write(work.join("kernel_timing.json"), rsk_model::print(&new));
+            let path = xtask::hil::timing_record_path(&ws.root, variant);
+            let kept = std::fs::read_to_string(&path).ok().and_then(|t| rsk_model::read_kernel_timing(&t).ok());
+            let (folded, replaced) = rsk_hil::kernel_timing::fold(kept, new);
+            match std::fs::write(&path, rsk_model::print(&folded)) {
+                Ok(()) => {
+                    let what: Vec<String> = folded.parameters.iter().map(|p| p.provenance()).collect();
+                    report.note(format!(
+                        "Kernel_Timing_Parameters {} {} (margin {} %, R34.6): {}",
+                        if replaced { "written to" } else { "folded into" },
+                        ws.rel(&path),
+                        xtask::hil::MARGIN_PERCENT,
+                        what.join("; ")
+                    ));
+                }
+                Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&path))),
+            }
+        }
+        None => report.note("no Kernel_Timing_Parameter record: the run recorded no Release".to_string()),
     }
     print_report(&report, &format!("{kind} run passed"))
 }
@@ -572,7 +603,7 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
 /// the job's manifest (`cargo xtask verify` writes it) is copied with the
 /// checksum of the configuration's own HIL build, which is not a
 /// Flight_Build and has no manifest of its own.
-fn analyzer_wcrt(ws: &xtask::workspace::Workspace, model: &std::path::Path, config_checksum: Option<&str>, dir: &std::path::Path, report: &mut Report) -> Option<Vec<(u8, String, u64)>> {
+fn analyzer_wcrt(ws: &xtask::workspace::Workspace, model: &std::path::Path, config_checksum: Option<&str>, dir: &std::path::Path, report: &mut Report) -> Option<(Vec<(u8, String, u64)>, String)> {
     let job_manifest = ws.root.join("target").join("xtask-verify").join("evidence").join("build-manifest.json");
     if !job_manifest.is_file() {
         report.error(xtask::diag::Rule::Step, None, format!("no Build_Manifest at {}: run `cargo xtask verify` first (the Analyzer requires one)", ws.rel(&job_manifest)));
@@ -600,6 +631,12 @@ fn analyzer_wcrt(ws: &xtask::workspace::Workspace, model: &std::path::Path, conf
         report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&manifest)));
         return None;
     }
+    // The bench criterion stays the placeholder analysis (every WCET the
+    // Budget, nominal Kernel_Timing_Parameters): under the measured J_rel
+    // (task 19.3) the placeholder analysis of the demo is not schedulable
+    // (Verification_Plan 11.5), and the job's `analysis-rta-*-measured`
+    // items carry that result.
+    let timing_used = "placeholder timing".to_string();
     let cmd = xtask::cmd::Cmd::cargo_frozen("run")
         .args(["--quiet", "-p", "rsk-analyzer", "--manifest-path"])
         .arg(ws.root.join("Cargo.toml"))
@@ -635,7 +672,7 @@ fn analyzer_wcrt(ws: &xtask::workspace::Workspace, model: &std::path::Path, conf
     // The Tasks of the highest Criticality_Level, in Task_Model order (the
     // Kernel's Task indices).
     let top = rep.tasks.iter().map(|t| t.level.clone()).min()?;
-    Some(rep.tasks.iter().enumerate().filter(|(_, t)| t.level == top).map(|(i, t)| (i as u8, t.id.clone(), t.r_cycles)).collect())
+    Some((rep.tasks.iter().enumerate().filter(|(_, t)| t.level == top).map(|(i, t)| (i as u8, t.id.clone(), t.r_cycles)).collect(), timing_used))
 }
 
 /// `cargo xtask hil --response` (task 7.5, R14.11): the response suite

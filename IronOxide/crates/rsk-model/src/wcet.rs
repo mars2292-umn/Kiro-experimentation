@@ -1,5 +1,7 @@
 //! WCET_Records (`rsk-wcet/1`, R33.1) and Kernel_Timing_Parameters
-//! (`rsk-kernel-timing/1`, R13.1, R13.2) as serde types, plus the symbol
+//! (`rsk-kernel-timing/1`, R13.1, R13.2; a measured parameter carries its
+//! runs, maximum and margin like a measured WCET_Record, task 19.3) as
+//! serde types, plus the symbol
 //! table of Table 13-1 (with the Δ_svc, Δ_dma_write and Δ_view additions
 //! of design.md and the Partition stop/restart work of R14.10).
 
@@ -100,11 +102,62 @@ pub struct KernelTimingParameter {
     pub method: String,
     pub tool: String,
     pub conditions: Vec<String>,
+    /// R33.1: for a measured parameter, the runs, the maximum observed
+    /// value, the margin applied (R34.6), and the scenarios (task 19.3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub measured: Option<Measured>,
+}
+
+impl KernelTimingParameter {
+    /// Provenance for the report (R30.3).
+    pub fn provenance(&self) -> String {
+        let mut s = format!("{}: {} cycles ({}, {}", self.symbol, self.cycles, self.method, self.tool);
+        if let Some(m) = &self.measured {
+            s.push_str(&format!(", {} runs, max {} +{}%", m.runs, m.max_observed, m.margin_percent));
+            if !m.scenarios.is_empty() {
+                s.push_str(&format!(", scenarios: {}", m.scenarios.join("/")));
+            }
+        }
+        if !self.conditions.is_empty() {
+            s.push_str(&format!(", conditions: {}", self.conditions.join("/")));
+        }
+        s.push(')');
+        s
+    }
 }
 
 impl KernelTiming {
     pub fn get(&self, symbol: &str) -> Option<u64> {
         self.parameters.iter().find(|p| p.symbol == symbol).map(|p| p.cycles)
+    }
+
+    pub fn parameter(&self, symbol: &str) -> Option<&KernelTimingParameter> {
+        self.parameters.iter().find(|p| p.symbol == symbol)
+    }
+
+    /// Overlays `other`'s parameters on this set (task 19.3): a symbol
+    /// `other` carries replaces this set's entry for it when `other`'s
+    /// bound is at least as large, or when this set's entry is a
+    /// placeholder (a measurement replaces a nominal value whatever its
+    /// size); the set's binary hash and build settings stay this set's.
+    /// Returns the symbols taken from `other`.
+    pub fn overlay(&mut self, other: &KernelTiming) -> Vec<String> {
+        let mut taken = Vec::new();
+        for p in &other.parameters {
+            match self.parameters.iter_mut().find(|q| q.symbol == p.symbol) {
+                Some(q) => {
+                    if q.method == "placeholder" || p.cycles >= q.cycles {
+                        *q = p.clone();
+                        taken.push(p.symbol.clone());
+                    }
+                }
+                None => {
+                    self.parameters.push(p.clone());
+                    taken.push(p.symbol.clone());
+                }
+            }
+        }
+        taken
     }
 
     /// The symbols of Table 13-1 that the set lacks (R13.3).

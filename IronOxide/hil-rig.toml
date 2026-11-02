@@ -66,6 +66,16 @@ min_matched = 9
 # releases five Tasks at once), 6,789 over the PAR-05 hour (task 7.3), and
 # 8,103 under the stress configuration (task 7.5: the lower-criticality
 # Partitions restarting and the source stormed); the job's placeholder of
-# 500 cycles is far below it (task 19.3 feeds the measured value to the
-# Analyzer).
+# 500 cycles is far below it; the rig writes the measured value with the
+# margin of R34.6 to docs/hil/kernel_timing_<variant>.json for the Analyzer
+# (task 19.3), and fails a run whose observed maximum exceeds this bound
+# (R13.4).
 j_rel_cycles = 10000
+# R19.3, R13.4: the exported bound on one run of the intake handler for a
+# stormed source (Δ_irq), in CPU cycles, as the Kernel's own record
+# measures it in a HIL build: 2,025 to 2,068 cycles observed (31.6 to
+# 32.3 µs) over the short and hour-long stress runs of task 7.5. The rig
+# fails a run whose observed maximum exceeds it, and the record it writes
+# for the Analyzer (task 19.3) carries the observed maximum with the
+# margin of R34.6.
+delta_irq_cycles = 2600

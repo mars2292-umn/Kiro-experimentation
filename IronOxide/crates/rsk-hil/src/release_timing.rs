@@ -185,18 +185,22 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                 let windows = inputs.duration_secs * 1000 / spec.mit_ms + 1;
                 let ts = st.tasks.get(spec.storm_task as usize);
                 let (n, max, sum) = ts.map(|x| (x.intake_count as u64, x.intake_max_cycles, x.intake_sum_cycles)).unwrap_or((0, 0, 0));
-                let ok = n > 0 && n <= windows + 1;
+                // R13.4: no observed run of the handler above the exported
+                // bound of Δ_irq (the rig's `delta_irq_cycles`).
+                let within_bound = max <= rig.expect.delta_irq_cycles;
+                let ok = n > 0 && n <= windows + 1 && within_bound;
                 out.step(
                     "interrupt storm (R19.3)",
                     ok,
                     format!(
-                        "Task {}'s source stormed for {} s: {n} intakes against at most {windows} MIT windows of {} ms ({:.1} % of the windows); intake handler at most {max} cycles ({:.1} µs), mean {:.0} cycles: the measured Δ_irq; processor time {:.4} % of the run",
+                        "Task {}'s source stormed for {} s: {n} intakes against at most {windows} MIT windows of {} ms ({:.1} % of the windows); intake handler at most {max} cycles ({:.1} µs), mean {:.0} cycles: the measured Δ_irq{}; processor time {:.4} % of the run",
                         spec.storm_task,
                         inputs.duration_secs,
                         spec.mit_ms,
                         n as f64 * 100.0 / windows as f64,
                         max as f64 * 1e6 / inputs.cpu_hz as f64,
                         if n == 0 { 0.0 } else { sum as f64 / n as f64 },
+                        if within_bound { format!(" (bound {} cycles, R13.4)", rig.expect.delta_irq_cycles) } else { format!(" ABOVE THE EXPORTED BOUND of {} cycles (R13.4)", rig.expect.delta_irq_cycles) },
                         sum as f64 * 100.0 / (inputs.duration_secs as f64 * inputs.cpu_hz as f64)
                     ),
                 );

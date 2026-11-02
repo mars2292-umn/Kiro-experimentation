@@ -1320,7 +1320,7 @@ fn analyzer_run(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
         )
         .covers(&["R28.1", "R28.2", "R28.3", "R28.4", "R28.5", "R28.6", "R28.7", "R28.8", "R29.1", "R29.2", "R29.3", "R29.4", "R29.5", "R29.6", "R29.7", "R29.8", "R29.9", "R13.3", "R3.5"]);
         item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
-        item.notes = vec!["placeholder timing: every WCET_Record equals the Task's Budget and every Kernel_Timing_Parameter is nominal; the result is a check of the pipeline and of the Budgets' schedulability, not timing evidence (R33.1)".to_string()];
+        item.notes = vec!["placeholder timing: every WCET_Record equals the Task's Budget and every Kernel_Timing_Parameter is nominal; the result is a check of the pipeline and of the Budgets' schedulability, not timing evidence (R33.1); the HIL_Rig's measured Kernel_Timing_Parameters apply to the nRF52840 measurement configurations (`analysis-rta-*-measured`, task 19.3), not to this QEMU binary".to_string()];
         item.build_manifest = Some(manifest_id.to_string());
         item.artifacts = vec![log_name, format!("rta-{}/report.json", binary.target_name), format!("rta-{}/report.txt", binary.target_name), format!("rta-{}/model.xml", binary.target_name)];
         if let Err(e) = store.write(&item) {
@@ -1329,6 +1329,120 @@ fn analyzer_run(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
     }
     if commands.is_empty() {
         report.note("Analyzer: no Flight_Build binary with a Task_Model and a Build_Manifest");
+    }
+    commands.extend(analyzer_measured_runs(ws, target_dir, sandbox, store, manifest_id, &manifest_file, report));
+    commands
+}
+
+/// Task 19.3: the analyses that use the measured Kernel_Timing_Parameters.
+/// The rig's records are bound to the HIL builds of the measurement
+/// configurations (nRF52840, 64 MHz), so they apply to those
+/// configurations' Task_Models, not to the QEMU Flight_Build's (R28.3,
+/// R33.4: a record of another clock or binary is rejected). Each fresh
+/// record (its binary among this manifest's `hil_binaries`) drives one
+/// analysis of its configuration's model with placeholder WCET_Records
+/// and the measured parameters over the nominal ones, as its own
+/// Evidence_Item. While the WCET_Records are placeholders (every WCET the
+/// Budget, the most pessimistic blocking term), a FAIL verdict is recorded
+/// as a finding, not as a job violation; a rejected input or a tool error
+/// is a violation. A stale record (R33.4) is named and not used.
+fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, manifest_file: &Path, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    let manifest_value: serde_json::Value = std::fs::read_to_string(manifest_file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null);
+    let (fresh, stale) = crate::hil::fresh_timing_records(&ws.root, &manifest_value);
+    for s in &stale {
+        report.note(format!("R33.4: stale Kernel_Timing_Parameter record not used: {s}"));
+    }
+    for record in &fresh {
+        let Some(variant) = record.file_name().and_then(|f| f.to_str()).and_then(|f| f.strip_prefix("kernel_timing_")).and_then(|f| f.strip_suffix(".json")) else { continue };
+        let Some(bin) = ws.policy.qemu_spikes().next() else { continue };
+        let Some(app_dir) = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { continue };
+        let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
+        if !model.is_file() {
+            report.note(format!("task 19.3: no Task_Model for `{variant}` at {}: the record {} is not analysed", ws.rel(&model), ws.rel(record)));
+            continue;
+        }
+        // The record's binary and its Generated_Config checksum, from the manifest.
+        let hash = std::fs::read_to_string(record).ok().and_then(|t| rsk_model::read_kernel_timing(&t).ok()).map(|t| t.binary_hash).unwrap_or_default();
+        let checksum = manifest_value
+            .get("hil_binaries")
+            .and_then(|b| b.as_array())
+            .into_iter()
+            .flatten()
+            .find(|b| b.get("hash").and_then(|h| h.as_str()) == Some(hash.as_str()))
+            .and_then(|b| b.get("config_checksum").cloned())
+            .unwrap_or(serde_json::Value::Null);
+        let out_dir = store.dir.join(format!("rta-{variant}-measured"));
+        let _ = std::fs::create_dir_all(&out_dir);
+        let mut value = manifest_value.clone();
+        value["generated_config_checksum"] = checksum;
+        let manifest_copy = out_dir.join("build-manifest.json");
+        if let Err(e) = std::fs::write(&manifest_copy, serde_json::to_string_pretty(&value).unwrap_or_default()) {
+            report.error(Rule::Evidence, None, format!("cannot write {}: {e}", ws.rel(&manifest_copy)));
+            continue;
+        }
+        let cmd = Cmd::cargo_frozen("run")
+            .args(["--quiet", "-p", "rsk-analyzer", "--manifest-path"])
+            .arg(ws.root.join("Cargo.toml"))
+            .arg("--target-dir")
+            .arg(target_dir)
+            .arg("--")
+            .arg("--model")
+            .arg(&model)
+            .arg("--manifest")
+            .arg(&manifest_copy)
+            .arg("--placeholders")
+            .arg("--timing")
+            .arg(record)
+            .arg("--out")
+            .arg(&out_dir);
+        commands.push(cmd.display());
+        let (status, text) = match cmd.output(Some(sandbox)) {
+            Ok(o) => (o.status.code().unwrap_or(3), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+            Err(e) => (3, format!("cannot run rsk-analyzer: {e}")),
+        };
+        let log_name = format!("rta-{variant}-measured.log");
+        let _ = store.write_artifact(&log_name, &text);
+        let measured_line = text.lines().find(|l| l.contains("MEASURED Kernel_Timing_Parameters")).map(|l| l.trim().to_string()).unwrap_or_default();
+        let unschedulable: Vec<String> = text.lines().filter(|l| l.contains("NOT schedulable")).map(|l| l.trim().to_string()).collect();
+        let verdict = match status {
+            0 => Verdict::Pass,
+            1 => Verdict::Fail,
+            _ => Verdict::Inconclusive,
+        };
+        match status {
+            0 => report.note(format!("task 19.3: `{variant}`: schedulable with the measured Kernel_Timing_Parameters of {} over placeholder WCETs; {measured_line}", ws.rel(record))),
+            1 => report.note(format!(
+                "task 19.3 FINDING: `{variant}`: NOT schedulable with the measured Kernel_Timing_Parameters of {} over placeholder WCETs (every WCET the Budget: the blocking term is the whole Budget of the Critical_Section's Task); not a violation until the WCET_Records are measured (tasks 19.1, 19.2): {}; {measured_line}",
+                ws.rel(record),
+                unschedulable.join(" | ")
+            )),
+            _ => report.error(Rule::Step, None, format!("Analyzer: `{variant}` with measured Kernel_Timing_Parameters: exit {status} (see {log_name})")),
+        }
+        let mut item = Item::new(
+            &format!("analysis-rta-{variant}-measured"),
+            Kind::Analysis,
+            &format!("Analyzer: response-time analysis of the `{variant}` configuration with placeholder WCET_Records and the measured Kernel_Timing_Parameters of the HIL_Rig (task 19.3; not timing evidence while the WCET_Records are placeholders)"),
+            Tool { name: "rsk-analyzer".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+            verdict,
+        )
+        .covers(&["R13.2", "R13.3", "R28.3", "R29.1", "R29.3", "R33.4"]);
+        item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
+        item.notes = vec![format!(
+            "measured J_rel and Δ_irq from {} (the rig's runs on the HIL build {} of this manifest, margin {} %, R34.6) over nominal placeholders for the other Kernel_Timing_Parameters, with placeholder WCET_Records (every WCET the Task's Budget): {}",
+            ws.rel(record),
+            hash,
+            crate::hil::MARGIN_PERCENT,
+            if status == 1 { format!("NOT schedulable under these inputs, a finding of task 19.3 pending measured WCET_Records: {}", unschedulable.join(" | ")) } else { "schedulable".to_string() }
+        )];
+        if !stale.is_empty() {
+            item.notes.push(format!("stale Kernel_Timing_Parameter records not used (R33.4): {}", stale.join("; ")));
+        }
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = vec![log_name, format!("rta-{variant}-measured/report.json"), format!("rta-{variant}-measured/report.txt")];
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
     }
     commands
 }

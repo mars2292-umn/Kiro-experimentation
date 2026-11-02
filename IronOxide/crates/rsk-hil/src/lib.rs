@@ -32,6 +32,7 @@ pub mod board;
 pub mod capture;
 pub mod config;
 pub mod events;
+pub mod kernel_timing;
 pub mod probes;
 pub mod release_timing;
 pub mod response;

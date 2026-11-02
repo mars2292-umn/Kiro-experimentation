@@ -138,6 +138,7 @@ pub fn analyze(
                 rejections.iter().map(ToString::to_string).collect(),
                 &[],
                 &[],
+                &[],
             );
             return Analysis {
                 report,
@@ -206,6 +207,7 @@ pub fn analyze(
         prepared.omitted_terms.iter().cloned().chain(uppaal::omissions()).collect(),
         rejections,
         &prepared.placeholders,
+        &prepared.measured_parameters,
         &unprotected_partitions(model),
     );
     Analysis {
@@ -284,6 +286,7 @@ pub mod placeholders {
                     method: "placeholder".into(),
                     tool: TOOL.into(),
                     conditions: vec!["placeholder: nominal value".into()],
+                    measured: None,
                 })
                 .collect(),
         };

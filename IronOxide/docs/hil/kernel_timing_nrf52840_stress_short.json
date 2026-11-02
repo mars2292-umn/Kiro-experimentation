@@ -1,0 +1,47 @@
+{
+  "schema": "rsk-kernel-timing/1",
+  "binary_hash": "sha256:e254956483ccd725e1f97e337354bc2823c577455f71a524fbd7131a7aecff9d",
+  "target": "nrf52840/r0p1",
+  "clock_hz": 64000000,
+  "icache": "off",
+  "parameters": [
+    {
+      "symbol": "j_rel",
+      "cycles": 10584,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 40495,
+        "max_observed": 8467,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_irq",
+      "cycles": 2585,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one run of the intake handler for Task 4's source under the interrupt storm (R19.3), the Kernel's own record",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 11953,
+        "max_observed": 2068,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short (180 s), interrupt storm"
+        ]
+      }
+    }
+  ]
+}
