@@ -61,7 +61,9 @@ mod spec {
 /// labelled loops (R35, PR-16).
 pub use rsk_macros::bounds;
 pub use rsk_kernel::arch::cm4::unsafe_module::ResourceCell;
-use rsk_kernel::arch::cm4::unsafe_module::{hw, stubs};
+#[cfg(not(feature = "quiet"))]
+use rsk_kernel::arch::cm4::unsafe_module::hw;
+use rsk_kernel::arch::cm4::unsafe_module::stubs;
 
 /// The lock operation of a Resource proxy (design.md "Application API",
 /// the shape RTIC uses): a lexically scoped Critical_Section whose

@@ -744,20 +744,44 @@ pub fn semihosting_write(s: &[u8]) {
     }
 }
 
+/// Whether a debugger is attached (DHCSR.C_DEBUGEN, ORQ-30), for
+/// privileged callers (the PPB is privileged-only). On the QEMU board the
+/// bit stays clear while semihosting works regardless, so there the
+/// answer is always "yes". A board without a debugger must not execute a
+/// semihosting breakpoint: it escalates to HardFault, and the watchdog
+/// reset that follows would run the Application again every operating
+/// duration (seen on the HIL_Rig, 2026-11-01: the target restarted every
+/// 200 ms after probe-rs detached, and the next attach found the
+/// watchdog-reset boot check failed, as ORQ-31 specifies).
+pub fn debugger_attached() -> bool {
+    #[cfg(feature = "board-qemu-mps2")]
+    {
+        true
+    }
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    {
+        mmio_read(addr::DHCSR) & 1 != 0
+    }
+}
+
 /// Semihosting SYS_EXIT_EXTENDED: ends the QEMU run with `code`. On a
 /// board the probe resumes the core afterwards; the loop that follows then
 /// keeps the Kernel-owned watchdog fed, so the reported safe state is a
 /// stable state and not a reset every half second that the next boot would
 /// log as a watchdog reset (seen on the DK, 2026-10-29). A hung Kernel
 /// never reaches this loop, which is what the watchdog is for (ORQ-31).
+/// Without a debugger the breakpoint is skipped (see `debugger_attached`)
+/// and the loop is entered directly.
 pub fn semihosting_exit(code: u32) -> ! {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
-        let block: [u32; 2] = [0x20026, code];
-        // SAFETY (UJ-017): as UJ-016; the call returns only when a debugger
-        // resumes the core, into the loop below.
-        unsafe {
-            core::arch::asm!("bkpt #0xAB", inout("r0") 0x20u32 => _, in("r1") block.as_ptr(), options(nostack, preserves_flags));
+        if debugger_attached() {
+            let block: [u32; 2] = [0x20026, code];
+            // SAFETY (UJ-017): as UJ-016; the call returns only when a debugger
+            // resumes the core, into the loop below.
+            unsafe {
+                core::arch::asm!("bkpt #0xAB", inout("r0") 0x20u32 => _, in("r1") block.as_ptr(), options(nostack, preserves_flags));
+            }
         }
         loop {
             safe_state_idle();

@@ -25,6 +25,11 @@ board-qemu-mps2 = []
 # Semihosting trace of every Kernel_Arch entry point (QEMU and HIL debugging
 # only; never a Flight_Build feature).
 trace = []
+# A ring of the same entry-point trace in Kernel RAM (`TRACE_RING`: 256
+# entries of tag, value, time-base ticks), read by the HIL_Rig over the
+# probe after a run: no halts, no console, a few cycles per entry point.
+# HIL builds only; never a Flight_Build feature.
+trace-ram = []
 # Keeps the nRF52840's debug access port open across resets by writing
 # APPROTECT.DISABLE at boot (recent silicon locks the port at every reset
 # unless the firmware does so). HIL builds only; a Flight_Build leaves the

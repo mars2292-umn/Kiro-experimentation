@@ -569,6 +569,15 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
     let _ = writeln!(s, "    _ebss = .;");
     let _ = writeln!(s, "  }} > KRAM");
     let _ = writeln!(s);
+    // Kernel RAM the reset path does not zero (outside the bss table): the
+    // HIL trace ring, which the HIL_Rig reads after the run through the
+    // reset that follows the probe's detach (`trace-ram`); empty otherwise.
+    let _ = writeln!(s, "  .kernel.noinit (NOLOAD) : ALIGN(4)");
+    let _ = writeln!(s, "  {{");
+    let _ = writeln!(s, "    *(.rsk.noinit .rsk.noinit.*);");
+    let _ = writeln!(s, "    . = ALIGN(4);");
+    let _ = writeln!(s, "  }} > KRAM");
+    let _ = writeln!(s);
     let _ = writeln!(s, "  .rsk.tables : ALIGN(4)");
     let _ = writeln!(s, "  {{");
     let _ = writeln!(s, "    __rsk_bss_table = .;");

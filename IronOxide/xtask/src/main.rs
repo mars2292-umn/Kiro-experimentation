@@ -47,7 +47,7 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
-  hil [--bin <crate>] [--timeout <s>]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -374,12 +374,16 @@ fn uppaal_corpus_command(args: &[String]) -> ExitCode {
     print_report(&report, "UPPAAL corpus report written")
 }
 
-/// `cargo xtask hil`: builds the nRF52840-DK variant of the demo, flashes
-/// and runs it on the attached board through probe-rs, and prints its
-/// console (task 3.1's hardware half; the job's step "HIL spike").
+/// `cargo xtask hil`: the HIL_Rig self-test (task 7.1): builds the HIL
+/// variants of the demo and the stimulus Application, flashes the
+/// stimulus board, runs the demo on the target with the analyzer
+/// capturing, and prints the self-test report. `--spike-only` builds and
+/// runs one binary on the target alone and prints its console (task 3.1's
+/// hardware half); without `hil-rig.toml` that is all there is.
 fn hil_command(args: &[String]) -> ExitCode {
     let mut bin = "p1-demo".to_string();
     let mut timeout = 60u64;
+    let mut spike_only = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -391,6 +395,7 @@ fn hil_command(args: &[String]) -> ExitCode {
                 Some(t) => timeout = t,
                 None => return usage_error("--timeout takes seconds"),
             },
+            "--spike-only" => spike_only = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
@@ -399,23 +404,71 @@ fn hil_command(args: &[String]) -> ExitCode {
     let Some(ws) = xtask::workspace::Workspace::load(&root, &mut report) else {
         return print_report(&report, "hil");
     };
-    let Some(probe) = xtask::hil::probe() else {
-        report.error(xtask::diag::Rule::Step, None, "no debug probe: probe-rs is not installed or `probe-rs list` shows none");
+    let rig = match xtask::hil::rig(&root) {
+        Some(Ok(rig)) => Some(rig),
+        Some(Err(e)) => {
+            report.error(xtask::diag::Rule::Step, Some(rsk_hil::config::FILE.into()), e);
+            return print_report(&report, "hil");
+        }
+        None => None,
+    };
+    let target_dir = xtask::hil::target_dir(&root);
+    if spike_only || rig.is_none() {
+        if rig.is_none() {
+            report.note(format!("no {}: single-board run", rsk_hil::config::FILE));
+        }
+        let Some(probe) = xtask::hil::probe(rig.as_ref()) else {
+            report.error(xtask::diag::Rule::Step, None, "no debug probe for the target: probe-rs is not installed, or `probe-rs list` shows none, several without a rig, or not the rig's target");
+            return print_report(&report, "hil");
+        };
+        report.note(format!("{} ; {}", probe.version, probe.probe));
+        let Some(build) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
+            return print_report(&report, "hil");
+        };
+        let Some(serial) = xtask::hil::target_serial(rig.as_ref()) else {
+            return print_report(&report, "hil");
+        };
+        let run = xtask::hil::run_build(&build, &serial, timeout);
+        print!("{}", run.log);
+        if run.ok {
+            report.note(format!("HIL run of `{bin}` on {}: RSK-OK after {:.1}s", xtask::hil::CHIP, run.seconds));
+        } else {
+            report.error(xtask::diag::Rule::Step, None, format!("HIL run of `{bin}` failed after {:.1}s (console above)", run.seconds));
+        }
+        return print_report(&report, "HIL run passed");
+    }
+    let rig = rig.expect("a rig");
+    let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
         return print_report(&report, "hil");
     };
-    report.note(format!("{} ; {}", probe.version, probe.probe));
-    match xtask::hil::run(&ws, &bin, timeout, None, &mut report) {
-        Some(run) => {
-            print!("{}", run.log);
-            if run.ok {
-                report.note(format!("HIL run of `{bin}` on {}: RSK-OK after {:.1}s", xtask::hil::CHIP, run.seconds));
-            } else {
-                report.error(xtask::diag::Rule::Step, None, format!("HIL run of `{bin}` failed after {:.1}s (console above)", run.seconds));
-            }
-        }
-        None => {}
+    let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let Some(stimulus) = xtask::hil::build(&ws, &stimulus_bin, &target_dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let work = target_dir.join("rig");
+    let inputs = rsk_hil::selftest::Inputs {
+        rig: &rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        target_hash: Some(&target.binary.hash),
+        stimulus_hash: Some(&stimulus.binary.hash),
+        work_dir: &work,
+        timeout_secs: timeout,
+        tick_hz: xtask::hil::TICK_HZ,
+    };
+    let out = rsk_hil::selftest::run(&inputs);
+    let text = rsk_hil::selftest::render(&rig, &out);
+    print!("{text}");
+    let _ = std::fs::write(work.join("self-test.md"), &text);
+    let _ = std::fs::write(work.join("edges.txt"), &out.edges_text);
+    let _ = std::fs::write(work.join("trace.txt"), &out.trace_text);
+    report.note(format!("report and edge list written under {}", ws.rel(&work)));
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the HIL_Rig self-test failed (report above)");
     }
-    print_report(&report, "HIL run passed")
+    print_report(&report, "HIL_Rig self-test passed")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

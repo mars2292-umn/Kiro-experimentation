@@ -69,6 +69,20 @@
           "config_checksum": { "type": ["string", "null"], "pattern": "^0x" }
         }
       }
+    },
+    "hil_binaries": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["package", "target", "file", "hash", "loadable_bytes", "config_checksum"],
+        "properties": {
+          "package": { "type": "string" },
+          "target": { "type": "string" },
+          "file": { "type": "string" },
+          "hash": { "type": "string", "pattern": "^sha256:" },
+          "loadable_bytes": { "type": "integer", "minimum": 0 },
+          "config_checksum": { "type": ["string", "null"], "pattern": "^0x" }
+        }
+      }
     }
   }
 }

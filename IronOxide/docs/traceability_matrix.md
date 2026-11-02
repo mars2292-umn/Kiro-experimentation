@@ -135,7 +135,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R9.6 | — | — | ✓4.5 | crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs | — |
 | R9.7 | P-08 | Priority and privilege model (DD-01, DD-02); Property 8; Reuse and Deviation Record | ✓4.5 | crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/sched.rs; profile/profile.toml | — |
 | R9.8 | P-08 | Ceiling-Protocol State Machine; Property 8 | ✓4.5 | apps/p1-demo/part0/src/lib.rs; crates/rsk-logic/src/logic/kernel.rs; profile/profile.toml | — |
-| R9.9 | — | Generated_Config | ✓4.5 | apps/p1-demo/system/src/lib.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/mod.rs; +2 | — |
+| R9.9 | — | Generated_Config; Interrupt intake and MIT enforcement (DD-06) | ✓4.5 | apps/p1-demo/system/src/lib.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; +3 | — |
 | R9.10 | P-07 | Profile_Conformance_Suite and HIL_Rig; Property 7 | ○7.3 | — | — |
 
 ### Requirement 10: Sporadic release and MIT enforcement (Phase P1)
@@ -194,7 +194,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R14.1 | — | — | ✓12.3; ✓5.3 | crates/rsk-entry/src/lib.rs; crates/rsk-link/src/lib.rs; crates/rsk-link/src/scan.rs; +3 | analysis-stack-p1-demo; test-workspace-tests |
 | R14.2 | — | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; +1 | — |
 | R14.3 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Reuse and Deviation Record | ✓5.3 | apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; +6 | — |
-| R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; crates/rsk-kernel/src/arch/mod.rs; +4 | — |
+| R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/hil-stimulus/system/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; +5 | — |
 | R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | crates/rsk-analyzer/tests/properties.rs; crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/syntax.rs; +9 | proof-kernel-verus |
 | R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
 | R14.7 | P-09 | Health_Monitor event log entry | ✓4.8 | crates/rsk-logic/src/logic/log.rs; crates/rsk-logic/src/logic/mod.rs | proof-kernel-verus |
@@ -223,7 +223,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R16.2 | P-16 | Reuse and Deviation Record | ✓4.9 | crates/rsk-logic/src/logic/mpu.rs; crates/rsk/src/lib.rs; xtask/src/trace.rs | — |
 | R16.3 | P-16 | Design decisions | ✓4.9 | crates/rsk-gen/src/emit.rs; crates/rsk-link/src/scan.rs; crates/rsk-logic/src/hw_model.rs; +2 | proof-kernel-verus; test-workspace-tests |
 | R16.4 | P-16 | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/unsafe_justifications.toml; +2 | hil-spike-p1-demo; hil-spike-step |
-| R16.5 | P-16; P-21 | Closed response sets (DD-10, R14.5); Memory and MPU layout (DD-07, DD-11); Property 12 | ✓4.9 | apps/p1-demo/gen-nrf52840/link.x; apps/p1-demo/gen/link.x; crates/rsk-confcheck/src/recompute.rs; +8 | proof-kernel-verus |
+| R16.5 | P-16; P-21 | Closed response sets (DD-10, R14.5); Memory and MPU layout (DD-07, DD-11); Property 12 | ✓4.9 | apps/hil-stimulus/gen/link.x; apps/p1-demo/gen-nrf52840/link.x; apps/p1-demo/gen/link.x; +9 | proof-kernel-verus |
 | R16.6 | P-16 | Property 12 | ✓4.9 | crates/rsk-logic/src/hw_model.rs; crates/rsk-logic/src/logic/mod.rs; crates/rsk-logic/src/logic/mpu.rs | proof-kernel-verus |
 | R16.7 | — | Trust-Base Analysis | ✓13.1 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-entry/unsafe_justifications.toml; +2 | check-config-p1-demo |
 | R16.8 | P-16 | Profile_Conformance_Suite and HIL_Rig; Property 12 | ○7.4 | — | — |
@@ -260,7 +260,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R19.1 | P-08; P-17 | Interrupt intake and MIT enforcement (DD-06); Property 9; Requirements Impact | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/logic/time.rs | — |
+| R19.1 | P-08; P-17 | Interrupt intake and MIT enforcement (DD-06); Property 9; Requirements Impact | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs | — |
 | R19.2 | P-08; P-17 | Property 9 | ✓5.4 | — | — |
 | R19.3 | P-17 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Profile_Conformance_Suite and HIL_Rig; Property 9 | ○7.5 | — | — |
 | R19.4 | — | Interrupt intake and MIT enforcement (DD-06); Requirements Impact | ✓5.4 | — | — |
@@ -280,8 +280,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R21.1 | — | — | ✓10.2 | apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840/partition_part1.rs; apps/p1-demo/gen-nrf52840/partition_part2.rs; +9 | test-workspace-tests |
-| R21.2 | — | Property 14 | ✓10.3 | apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen/system_manifest.rs; crates/rsk-gen/src/convert.rs; +8 | test-workspace-tests |
+| R21.1 | — | — | ✓10.2 | apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840/partition_part1.rs; +10 | test-workspace-tests |
+| R21.2 | — | Property 14 | ✓10.3 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen/system_manifest.rs; +9 | test-workspace-tests |
 | R21.3 | — | — | ✓10.2 | crates/rsk-gen/src/syntax.rs; crates/rsk-gen/src/validate.rs; profile/profile.toml | — |
 | R21.4 | — | — | ✓10.2 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; +2 | — |
 | R21.5 | — | — | ✓10.2 | crates/rsk-gen/src/target.rs; crates/rsk-gen/src/validate.rs | — |
@@ -314,10 +314,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R24.1 | — | App_Declaration and generation pipeline (Component C) | ✓10.5 | apps/p1-demo/bin/build.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen/system_manifest.rs; +9 | — |
+| R24.1 | — | App_Declaration and generation pipeline (Component C) | ✓10.5 | apps/hil-stimulus/bin/build.rs; apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/bin/build.rs; +11 | — |
 | R24.2 | — | Design decisions; Reuse and Deviation Record | ✓10.5 | crates/rsk-entry/src/lib.rs; crates/rsk-gen/src/emit.rs; crates/rsk-link/src/scan.rs | test-workspace-tests |
 | R24.3 | — | App_Declaration and generation pipeline (Component C) | ✓10.6 | crates/rsk-gen/src/emit.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/main.rs; +4 | — |
-| R24.4 | P-15 | Property 13; Reuse and Deviation Record | ✓10.6 | apps/p1-demo/bin/build.rs; crates/rsk-gen/src/json.rs; crates/rsk-gen/src/lib.rs; +7 | check-static-checks; test-workspace-tests |
+| R24.4 | P-15 | Property 13; Reuse and Deviation Record | ✓10.6 | apps/hil-stimulus/bin/build.rs; apps/p1-demo/bin/build.rs; crates/rsk-gen/src/json.rs; +8 | check-static-checks; test-workspace-tests |
 | R24.5 | — | — | ✓10.4 | crates/rsk-gen/src/layout.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/tests/properties.rs | test-workspace-tests |
 | R24.6 | — | Generated_Config; Memory and MPU layout (DD-07, DD-11) | ✓10.5 | crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs; crates/rsk-logic/src/logic/mod.rs | — |
 
@@ -438,7 +438,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R34.5 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis | ○19.2 | — | — |
 | R34.6 | — | — | ○19.2 | — | — |
 | R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | — | — |
-| R34.8 | — | — | ○19.2; ○7.1 | — | — |
+| R34.8 | — | — | ○19.2; ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/lib.rs; crates/rsk-hil/src/selftest.rs; +1 | — |
 | R34.9 | — | WCET and structural coverage | ○19.2 | — | — |
 
 ### Requirement 35: Loop bounds (Phase P2)
@@ -582,7 +582,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R48.1 | — | Trust-Base Analysis | ✓8.2 | xtask/src/checks/registers.rs; xtask/src/lib.rs; xtask/src/verify.rs | check-static-checks; test-workspace-tests |
 | R48.2 | — | Trust-Base Analysis | ✓8.2 | xtask/src/checks/deps.rs; xtask/src/checks/registers.rs; xtask/src/lib.rs; +1 | check-static-checks; test-workspace-tests |
 | R48.3 | — | — | ✓8.2 | xtask/src/checks/registers.rs; xtask/src/verify.rs | check-static-checks |
-| R48.4 | — | Tool qualification proposal (R51); Trust-Base Analysis | ○7.1 | — | — |
+| R48.4 | — | Tool qualification proposal (R51); Trust-Base Analysis | ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/board.rs; crates/rsk-hil/src/lib.rs; +4 | — |
 
 ### Requirement 49: Hardware model (Phase P1)
 
@@ -736,7 +736,7 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R9.6 | ✓4.5 | — |
 | R9.7 | ✓4.5 | Priority and privilege model (DD-01, DD-02); Property 8; +1 |
 | R9.8 | ✓4.5 | Ceiling-Protocol State Machine; Property 8 |
-| R9.9 | ✓4.5 | Generated_Config |
+| R9.9 | ✓4.5 | Generated_Config; Interrupt intake and MIT enforcement (DD-06) |
 | R9.10 | ○7.3 | Profile_Conformance_Suite and HIL_Rig; Property 7 |
 | R10.4 | ✓4.6 | Open Research Question Dispositions; Property 8 |
 | R10.5 | ✓4.6 | Application API (`rsk`); Reuse and Deviation Record |
@@ -787,7 +787,7 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R44.8 | ✓4.5 | Property 7 |
 | R45.4 | ✓6.1 | Kani harnesses (R45); Reuse and Deviation Record; +1 |
 | R45.6 | ○6.3 | — |
-| R48.4 | ○7.1 | Tool qualification proposal (R51); Trust-Base Analysis |
+| R48.4 | ✓7.1 | Tool qualification proposal (R51); Trust-Base Analysis |
 | R49.1 | ✓3.2 | Kernel proofs (Verus, R44) |
 | R49.2 | ✓3.2 | Trust-Base Analysis |
 | R49.3 | ○3.3 | Profile_Conformance_Suite and HIL_Rig; Trust-Base Analysis |
@@ -896,7 +896,7 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R34.5 | ○19.2 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis |
 | R34.6 | ○19.2 | — |
 | R34.7 | ○19.1 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
-| R34.8 | ○19.2; ○7.1 | — |
+| R34.8 | ○19.2; ✓7.1 | — |
 | R34.9 | ○19.2 | WCET and structural coverage |
 | R53.1 | ○19.5 | — |
 | R53.2 | ○19.5 | Trust-Base Analysis |
@@ -1154,7 +1154,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R34.5 | P3 | ○19.2 | — |
 | R34.6 | P3 | ○19.2 | — |
 | R34.7 | P3 | ○19.1 | — |
-| R34.8 | P3 | ○19.2; ○7.1 | — |
+| R34.8 | P3 | ○19.2; ✓7.1 | — |
 | R34.9 | P3 | ○19.2 | — |
 | R35.1 | P2 | ✓11.1 | check-profile-lint; test-workspace-tests |
 | R35.2 | P2 | ○17.1 | check-profile-lint; proof-app-creusot; proof-app-step |
@@ -1218,7 +1218,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R48.1 | P1 | ✓8.2 | check-static-checks; test-workspace-tests |
 | R48.2 | P1 | ✓8.2 | check-static-checks; test-workspace-tests |
 | R48.3 | P1 | ✓8.2 | check-static-checks |
-| R48.4 | P1 | ○7.1 | — |
+| R48.4 | P1 | ✓7.1 | — |
 | R50.1 | P1 | ✓8.2 | — |
 | R50.2 | P1 | ✓5.7; ✓8.2 | check-static-checks; test-workspace-tests |
 | R50.3 | P1 | ✓1.3 | check-evidence |

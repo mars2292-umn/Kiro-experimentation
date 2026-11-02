@@ -1,41 +1,109 @@
-//! The HIL run of the P1 demo on the nRF52840-DK (task 3.1's hardware
-//! half, `hil-spike` of Verification_Plan section 11): builds the
-//! declaration variant `nrf52840` of the Flight_Build with the `debug-port`
-//! feature (the access port stays open across resets, HIL builds only),
-//! flashes and runs it through `probe-rs run`, which carries the Kernel's
-//! semihosting console and exit, and judges the run by `RSK-OK` and the
-//! exit code, as the QEMU spike does.
+//! The HIL builds and the HIL_Rig (tasks 3.1 and 7.1; Verification_Plan
+//! section 11). A HIL build is the declaration variant `nrf52840` of an
+//! Application with the `debug-port` and `quiet` features (the access
+//! port stays open across resets; the Tasks' semihosting prints are
+//! silent): the P1 demo for the target board and the stimulus Application
+//! (`apps/hil-stimulus`, policy `hil-stimulus = true`) for the stimulus
+//! board. Each is its own cargo invocation (rsk-entry binds one
+//! Application per build) and never the Flight_Build binary; the
+//! Build_Manifest records their hashes (`hil_binaries`), which the rig's
+//! read-back check compares against (R48.4).
 //!
-//! One board, one probe: `probe-rs list` names it; without one the job's
-//! step is skipped with a warning. `cargo xtask hil [--timeout <s>]` runs it
-//! by hand and prints the console.
+//! The rig itself (`hil-rig.toml`, `rsk-hil`) selects every board by
+//! serial. Without the file, a single attached probe is used, as before
+//! the rig existed.
 
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+
+use rsk_hil::config::Rig;
 
 use crate::cmd::Cmd;
 use crate::diag::{Report, Rule};
+use crate::manifest::Binary;
 use crate::sandbox::Sandbox;
 use crate::workspace::Workspace;
 
-/// probe-rs's chip name for the DK's part.
+/// probe-rs's chip name for the DK's part (the rig file names it too).
 pub const CHIP: &str = "nRF52840_xxAA";
-/// The declaration variant and the features of the HIL build.
+/// The declaration variant and the features of a HIL build.
 pub const VARIANT: &str = "nrf52840";
-pub const FEATURES: &str = "nrf52840,debug-port,quiet";
+pub const FEATURES: &str = "nrf52840,debug-port,quiet,trace-ram";
+/// The board's time base (the Target table's `tick_hz`), for the trace.
+pub const TICK_HZ: u64 = 16_000_000;
 
-/// The probe-rs installation and the probe it sees.
+/// The rig description at the workspace root, if there is one.
+pub fn rig(root: &Path) -> Option<Result<Rig, String>> {
+    let path = root.join(rsk_hil::config::FILE);
+    path.is_file().then(|| Rig::load(&path))
+}
+
+/// The probe-rs installation and the probe it sees (the rig-less case).
 pub struct Probe {
     pub version: String,
     pub probe: String,
 }
 
-/// Finds `probe-rs` and one attached debug probe.
-pub fn probe() -> Option<Probe> {
-    let version = Cmd::new("probe-rs").arg("--version").output(None).ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").trim().to_string())?;
-    let list = Cmd::new("probe-rs").arg("list").output(None).ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).into_owned())?;
-    let probe = list.lines().find(|l| l.trim_start().starts_with("[0]:")).map(|l| l.trim().to_string())?;
-    Some(Probe { version, probe })
+/// Finds `probe-rs` and one attached debug probe: the rig's target by
+/// serial when a rig is described, otherwise the only probe attached.
+pub fn probe(rig: Option<&Rig>) -> Option<Probe> {
+    let version = rsk_hil::probes::version().ok()?;
+    let list = rsk_hil::probes::list().ok()?;
+    let probe = match rig {
+        Some(rig) => list.iter().find(|p| p.id == rig.target.serial)?,
+        None if list.len() == 1 => &list[0],
+        None => return None,
+    };
+    Some(Probe { version, probe: format!("{} ({})", probe.id, probe.name) })
+}
+
+/// Where `cargo xtask hil` builds (its own target directory: a different
+/// feature set from the job's Flight_Build).
+pub fn target_dir(root: &Path) -> PathBuf {
+    root.join("target").join("xtask-hil")
+}
+
+/// One HIL build.
+pub struct HilBuild {
+    pub bin: String,
+    pub elf: PathBuf,
+    pub command: String,
+    pub binary: Binary,
+}
+
+/// Builds the HIL variant of `bin` for the Target under `target_dir`.
+pub fn build(ws: &Workspace, bin: &str, target_dir: &Path, sandbox: Option<&Sandbox>, report: &mut Report) -> Option<HilBuild> {
+    let cmd = Cmd::cargo_frozen("build")
+        .args(["--quiet", "-p", bin, "--release", "--target", &ws.policy.target, "--no-default-features", "--features", FEATURES, "--manifest-path"])
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(target_dir);
+    let command = cmd.display();
+    match cmd.output(sandbox) {
+        Ok(o) if o.status.success() => {}
+        Ok(o) => {
+            report.error(Rule::Step, None, format!("HIL build of `{bin}` failed:\n{}", String::from_utf8_lossy(&o.stderr)));
+            return None;
+        }
+        Err(e) => {
+            report.error(Rule::Step, None, format!("cannot run cargo: {e}"));
+            return None;
+        }
+    }
+    let elf = target_dir.join(&ws.policy.target).join("release").join(bin);
+    match Binary::of(bin, &format!("{bin} ({VARIANT}, {FEATURES})"), &elf) {
+        Ok(binary) => Some(HilBuild { bin: bin.to_string(), elf, command, binary }),
+        Err(e) => {
+            report.error(Rule::Step, None, format!("HIL build of `{bin}`: {e}"));
+            None
+        }
+    }
+}
+
+/// Every HIL build of the workspace: the QEMU spikes' Applications for the
+/// target board and the stimulus binaries for the stimulus board.
+pub fn build_all(ws: &Workspace, target_dir: &Path, sandbox: Option<&Sandbox>, report: &mut Report) -> Vec<HilBuild> {
+    let bins: Vec<String> = ws.policy.qemu_spikes().chain(ws.policy.hil_stimulus()).map(str::to_string).collect();
+    bins.iter().filter_map(|bin| build(ws, bin, target_dir, sandbox, report)).collect()
 }
 
 /// The outcome of one run on the board.
@@ -46,99 +114,27 @@ pub struct Run {
     pub command: String,
 }
 
-/// Where the HIL build goes (its own target directory: a different
-/// feature set from the job's Flight_Build).
-pub fn target_dir(root: &Path) -> PathBuf {
-    root.join("target").join("xtask-hil")
+/// Flashes and runs `elf` on the board `serial`; the console is the log.
+pub fn run_elf(elf: &Path, serial: &str, timeout_secs: u64) -> Run {
+    let r = rsk_hil::board::Target { chip: CHIP, serial }.run(elf, timeout_secs);
+    Run { ok: r.ok, seconds: r.seconds, log: r.log, command: r.command }
 }
 
-/// Builds the HIL variant of `bin` for the Target; returns the ELF path.
-pub fn build(ws: &Workspace, bin: &str, sandbox: Option<&Sandbox>, report: &mut Report) -> Option<(PathBuf, String)> {
-    let target_dir = target_dir(&ws.root);
-    let cmd = Cmd::cargo_frozen("build")
-        .args(["--quiet", "-p", bin, "--release", "--target", &ws.policy.target, "--no-default-features", "--features", FEATURES, "--manifest-path"])
-        .arg(ws.root.join("Cargo.toml"))
-        .arg("--target-dir")
-        .arg(&target_dir);
-    let command = cmd.display();
-    match cmd.output(sandbox) {
-        Ok(o) if o.status.success() => {}
-        Ok(o) => {
-            report.error(Rule::Step, None, format!("HIL build failed:\n{}", String::from_utf8_lossy(&o.stderr)));
-            return None;
-        }
-        Err(e) => {
-            report.error(Rule::Step, None, format!("cannot run cargo: {e}"));
-            return None;
-        }
-    }
-    Some((target_dir.join(&ws.policy.target).join("release").join(bin), command))
+/// The spike run for one built binary on the rig's target (or the only
+/// probe): run, judge.
+pub fn run_build(build: &HilBuild, serial: &str, timeout_secs: u64) -> Run {
+    let mut run = run_elf(&build.elf, serial, timeout_secs);
+    run.command = format!("{}; {}", build.command, run.command);
+    run
 }
 
-/// Flashes and runs `elf` on the attached board; the console is the log.
-/// The run is killed after `timeout_secs`.
-pub fn run_elf(elf: &Path, timeout_secs: u64) -> Run {
-    let args = ["run", "--chip", CHIP, "--disable-progressbars", "--catch-hardfault"];
-    let command = format!("probe-rs {} {}", args.join(" "), elf.display());
-    let start = Instant::now();
-    let mut child = match std::process::Command::new("probe-rs").args(args).arg(elf).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn() {
-        Ok(c) => c,
-        Err(e) => return Run { ok: false, seconds: 0.0, log: format!("cannot run probe-rs: {e}"), command },
-    };
-    let mut timed_out = false;
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if start.elapsed().as_secs() >= timeout_secs => {
-                let _ = child.kill();
-                timed_out = true;
-                break;
-            }
-            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(50)),
-            Err(_) => break,
+/// The serial the spike runs on: the rig's target, or the only probe.
+pub fn target_serial(rig: Option<&Rig>) -> Option<String> {
+    match rig {
+        Some(rig) => Some(rig.target.serial.clone()),
+        None => {
+            let list = rsk_hil::probes::list().ok()?;
+            (list.len() == 1).then(|| list[0].id.clone())
         }
     }
-    let output = child.wait_with_output();
-    let seconds = start.elapsed().as_secs_f64();
-    let (status, mut log) = match output {
-        Ok(o) => (o.status.code(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
-        Err(e) => (None, format!("probe-rs failed: {e}")),
-    };
-    // probe-rs colours its output; the log is kept plain.
-    log = strip_ansi(&log);
-    if timed_out {
-        log.push_str(&format!("\n[killed after {timeout_secs} s]\n"));
-    }
-    // probe-rs reports the firmware's semihosting exit code as its own.
-    let ok = !timed_out && status == Some(0) && log.contains("RSK-OK");
-    Run { ok, seconds, log, command }
-}
-
-fn strip_ansi(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\u{1b}' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                while let Some(&d) = chars.peek() {
-                    chars.next();
-                    if d.is_ascii_alphabetic() {
-                        break;
-                    }
-                }
-            }
-            continue;
-        }
-        out.push(c);
-    }
-    out
-}
-
-/// The whole run for one binary: build, flash, run, judge.
-pub fn run(ws: &Workspace, bin: &str, timeout_secs: u64, sandbox: Option<&Sandbox>, report: &mut Report) -> Option<Run> {
-    let (elf, build_cmd) = build(ws, bin, sandbox, report)?;
-    let mut run = run_elf(&elf, timeout_secs);
-    run.command = format!("{build_cmd}; {}", run.command);
-    Some(run)
 }

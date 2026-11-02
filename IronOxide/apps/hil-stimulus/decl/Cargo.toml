@@ -1,0 +1,16 @@
+[package]
+name = "hil-stimulus-decl"
+description = "HIL_Rig stimulus Application (task 7.1): the App_Declaration of the pulse generator that runs on the rig's stimulus nRF52840-DK"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# The stimulus Application has one board, the nRF52840-DK; the feature
+# exists so that the bin, rsk-entry, and the system crate forward one
+# board feature set as the P1 demo does.
+nrf52840 = []
+
+[dependencies]
+rsk = { path = "../../../crates/rsk" }

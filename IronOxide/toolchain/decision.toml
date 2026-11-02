@@ -208,6 +208,17 @@ result = "proofs/aeneas/lean builds; proof-app-aeneas passes"
 version = "0.32.0"
 chip = "nRF52840_xxAA"
 board = "nRF52840-DK, Cortex-M4 r0p1 (CPUID 0x410FC241)"
+# Since 2026-11-01 three boards are attached (hil-rig.toml names each by
+# serial): every probe-rs command of the rig passes `--probe VID:PID:SERIAL`.
+
+[sigrok-cli]
+# The HIL_Rig's logic analyzer driver (Verification_Plan 11.2; no credit:
+# the capture is cross-checked against the target's own console). Homebrew
+# sigrok-cli 0.7.2 at /opt/homebrew/bin with libsigrok's fx2lafw driver;
+# the analyzer is a Saleae Logic compatible fx2lafw device, 8 channels,
+# 24 MHz at most, captured at 2 MHz (500 ns) by the rig.
+version = "0.7.2"
+driver = "fx2lafw"
 # Bench procedure (Verification_Plan 11.1): after a power cycle the access
 # port is locked; unlock once with `probe-rs run --allow-erase-all` of the
 # HIL build, after which `cargo xtask hil` attaches without erasing.

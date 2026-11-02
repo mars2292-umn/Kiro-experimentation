@@ -1,0 +1,28 @@
+[package]
+name = "hil-stimulus-system"
+description = "HIL_Rig stimulus Application: the system crate (the Generated_Config tables through the declaration's manifest) and its safe state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+# One board, the nRF52840-DK; the same feature chain as the P1 demo's
+# system crate so that rsk-entry forwards one set of board features.
+default = ["nrf52840"]
+nrf52840 = ["rsk-kernel/board-nrf52840", "hil-stimulus-decl/nrf52840", "hil-stimulus-part/nrf52840"]
+# HIL builds only: the debug port stays open across resets (see rsk-kernel).
+debug-port = ["rsk-kernel/debug-port"]
+# Debugging only: the Kernel's semihosting trace of every entry point.
+trace = ["rsk-kernel/trace"]
+# HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
+trace-ram = ["rsk-kernel/trace-ram"]
+# The Tasks' debug prints are silent (see the rsk crate); the stimulus
+# Application prints nothing anyway.
+quiet = ["rsk/quiet"]
+
+[dependencies]
+hil-stimulus-decl = { path = "../decl" }
+rsk-kernel = { workspace = true, default-features = false }
+rsk = { path = "../../../crates/rsk" }
+hil-stimulus-part = { path = "../part" }

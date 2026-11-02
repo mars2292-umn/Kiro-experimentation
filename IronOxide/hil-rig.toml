@@ -1,0 +1,56 @@
+# The HIL_Rig (task 7.1; design.md "Profile_Conformance_Suite and HIL_Rig";
+# Verification_Plan section 11): the bench the HIL steps of the verification
+# job use. `rsk-hil` reads this file; `cargo xtask hil` and the job's step
+# "HIL: rig self-test" select every probe by serial (never by its position
+# in `probe-rs list`) and refuse to run when a role's board is absent.
+schema = "rsk-hil-rig/1"
+chip = "nRF52840_xxAA"
+
+# The boards: J-Link on-board probes as `VID:PID:SERIAL` (`probe-rs list`).
+[boards.target]
+serial = "1366:1060:001050217737"
+board = "PCA10056 v3.0.3, nRF52840 AAF0"
+
+[boards.stimulus]
+serial = "1366:1061:001050279833"
+board = "PCA10056 v3.0.3, nRF52840 AAF0"
+# The stimulus Application (an rsk Application, `apps/hil-stimulus`).
+bin = "hil-stimulus"
+
+[boards.spare]
+serial = "1366:1061:001050211852"
+board = "PCA10056 v3.0.3, nRF52840 AAF0"
+wired = false
+
+# The logic analyzer: an fx2lafw device (Saleae Logic compatible) through
+# sigrok-cli; its channels are D0 to D7. The self-test captures the
+# stimulus mirror and the response line.
+[analyzer]
+driver = "fx2lafw"
+samplerate_hz = 2000000
+stimulus_channel = 6
+response_channel = 0
+
+# The wiring, as the rig's discovery pass of 2026-11-01 measured it (each
+# board driving each header pin in turn while the other board's inputs and
+# the analyzer were read): Arduino-header names in parentheses.
+[wiring]
+# Board to board, the same pin number on both DKs.
+stimulus_line = "P1.01 (D0): stimulus -> target, the GPIOTE input of the target's `pulse` Task"
+board_spares = ["P1.02 (D1)", "P1.03 (D2)", "P1.04 (D3)"]
+# Stimulus board to the analyzer.
+stimulus_mirror = "stimulus P1.05 (D4) -> analyzer D6, driven in the same register write as the stimulus line"
+stimulus_spare = "stimulus P1.06 (D5) -> analyzer D7"
+# Target to the analyzer.
+response_line = "target P1.10 (D8) -> analyzer D0, toggled by every `pulse` Job"
+target_spares = ["P1.11 (D9) -> D1", "P1.12 (D10) -> D2", "P1.13 (D11) -> D3", "P1.14 (D12) -> D4", "P1.15 (D13) -> D5"]
+ground = "common ground across both boards and the analyzer"
+
+# What the self-test's loopback expects: the stimulus period and pulse
+# width (apps/hil-stimulus), the target's `pulse` deadline (15 ms) as the
+# bound on every response, and the least matched pulses of a 200 ms run.
+[expect]
+period_ms = 18
+pulse_us = 100
+response_deadline_ms = 15
+min_matched = 9

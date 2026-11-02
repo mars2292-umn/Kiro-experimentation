@@ -4,9 +4,11 @@
 //! reset path need link-level attributes and raw memory initialization.
 //!
 //! The crate binds the Kernel_Arch entry points to the system crate's
-//! `System` type (`rsk_system::Sys`, a path dependency that the
-//! Build_System points at the generated system crate of the Application).
-//! The Application never defines a link-level symbol (R24.2).
+//! `System` type (`Sys`, a path dependency on the generated system crate
+//! of the Application, selected by exactly one `app-*` cargo feature: the
+//! P1 demo's `rsk_system` by default, the HIL_Rig's stimulus Application
+//! with `app-hil-stimulus`, task 7.1). The Application never defines a
+//! link-level symbol (R24.2).
 //!
 //! The linker script provides the memory initialization tables
 //! (`__rsk_bss_table`, `__rsk_data_table`), which the reset path walks.
@@ -16,7 +18,14 @@
 use rsk_kernel::arch::cm4 as arch;
 use rsk_kernel::arch::cm4::unsafe_module::{hw, stubs};
 use rsk_kernel::arch::System;
+#[cfg(feature = "app-p1-demo")]
 use rsk_system::Sys;
+#[cfg(feature = "app-hil-stimulus")]
+use hil_stimulus_system::Sys;
+#[cfg(all(feature = "app-p1-demo", feature = "app-hil-stimulus"))]
+compile_error!("rsk-entry binds exactly one Application: enable one of `app-p1-demo` and `app-hil-stimulus`");
+#[cfg(not(any(feature = "app-p1-demo", feature = "app-hil-stimulus")))]
+compile_error!("rsk-entry binds exactly one Application: enable `app-p1-demo` (the default) or `app-hil-stimulus`");
 
 /// A vector-table entry: a handler or a reserved word.
 #[repr(C)]

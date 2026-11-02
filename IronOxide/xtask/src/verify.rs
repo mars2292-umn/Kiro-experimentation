@@ -186,7 +186,7 @@ pub fn target_crates(ws: &Workspace) -> Vec<String> {
     ws.policy
         .crates
         .iter()
-        .filter(|(_, c)| c.flight || c.targets.contains(&ws.policy.target))
+        .filter(|(_, c)| (c.flight || c.targets.contains(&ws.policy.target)) && !c.hil_stimulus)
         .map(|(name, _)| name.clone())
         .collect()
 }
@@ -258,7 +258,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 21,
+        total_steps: 22,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -436,7 +436,8 @@ pub fn run(root: &Path, options: Options) -> bool {
             None
         }
     };
-    let manifest = build_manifest(&ws, &target_dir, verus.clone(), kani.clone(), creusot.clone(), &mut report);
+    let mut hil_builds = Vec::new();
+    let manifest = build_manifest(&ws, &target_dir, &sandbox, verus.clone(), kani.clone(), creusot.clone(), &mut hil_builds, &mut report);
     let (manifest_id, profile_version) = match &manifest {
         Some(m) => {
             let file = evidence_dir.join("build-manifest.json");
@@ -593,9 +594,25 @@ pub fn run(root: &Path, options: Options) -> bool {
         qemu_cmds,
     );
 
+    // ------------------------------------------- 10b-rig. HIL_Rig self-test
+    job.heading("HIL: rig self-test (task 7.1, hil-rig)");
+    let rig = match crate::hil::rig(root) {
+        Some(Ok(rig)) => Some(rig),
+        Some(Err(e)) => {
+            report.error(Rule::Step, Some(rsk_hil::config::FILE.into()), e);
+            None
+        }
+        None => {
+            report.note(format!("no {} at the workspace root: no HIL_Rig is described; the HIL steps use a single attached probe, if any", rsk_hil::config::FILE));
+            None
+        }
+    };
+    let rig_cmds = hil_rig(&ws, rig.as_ref(), &hil_builds, &target_dir, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-rig-step", "HIL_Rig self-test step", &["R34.8", "R48.4"], rig_cmds);
+
     // ------------------------------------------- 10b-hil. HIL spike on the board
     job.heading("HIL: dispatch spike on the nRF52840-DK (task 3.1, hil-spike)");
-    let hil_cmds = hil_spike(&ws, &sandbox, &mut store, &manifest_id, &mut report);
+    let hil_cmds = hil_spike(&ws, rig.as_ref(), &hil_builds, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-spike-step", "HIL spike step", &["R7.7", "R11.1", "R16.4"], hil_cmds);
 
     // ------------------------------------------------ 10b'. App_Prover
@@ -899,15 +916,20 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
 /// as artifact; a HIL build carries the `debug-port` feature, so it is not
 /// the Flight_Build binary the other items describe (its own Build_Manifest
 /// entry is a follow-up).
-fn hil_spike(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+fn hil_spike(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[crate::hil::HilBuild], store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
     let spikes: Vec<&str> = ws.policy.qemu_spikes().collect();
-    let Some(probe) = crate::hil::probe() else {
-        report.warn("no debug probe attached (probe-rs list): the HIL spike was not run; the board's results stay hardware-pending (section 11)");
+    let Some(probe) = crate::hil::probe(rig) else {
+        report.warn("no debug probe for the target (probe-rs list; the rig's target serial when hil-rig.toml exists, otherwise exactly one probe): the HIL spike was not run; the board's results stay hardware-pending (section 11)");
         return vec![];
     };
+    let Some(serial) = crate::hil::target_serial(rig) else { return vec![] };
     let mut commands = Vec::new();
     for bin in spikes {
-        let Some(run) = crate::hil::run(ws, bin, 90, Some(sandbox), report) else { continue };
+        let Some(build) = builds.iter().find(|b| b.bin == bin) else {
+            report.error(Rule::Step, None, format!("HIL spike `{bin}`: no HIL build (see the Build_Manifest step)"));
+            continue;
+        };
+        let run = crate::hil::run_build(build, &serial, 90);
         commands.push(run.command.clone());
         let log_name = format!("hil-{bin}.log");
         let _ = store.write_artifact(&log_name, &run.log);
@@ -920,7 +942,7 @@ fn hil_spike(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: 
             report.note(format!("HIL spike `{bin}` passed on {} ({}; {:.1}s)", crate::hil::CHIP, probe.probe, run.seconds));
             Verdict::Pass
         } else if locked {
-            report.warn(format!("HIL spike `{bin}`: the board's access port is locked (APPROTECT); unlock it and set UICR.APPROTECT to HwDisabled for HIL use (see {log_name})"));
+            report.warn(format!("HIL spike `{bin}`: the board's access port is locked (APPROTECT); unlock it once with `probe-rs run --allow-erase-all` (see {log_name})"));
             Verdict::Inconclusive
         } else {
             report.error(Rule::Step, None, format!("HIL spike `{bin}` failed on {} (see {log_name})", crate::hil::CHIP));
@@ -935,7 +957,10 @@ fn hil_spike(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: 
         )
         .covers(&["R7.7", "R11.1", "R16.4", "R12.1", "R12.6"]);
         item.command_lines = vec![run.command.clone()];
-        item.notes = vec!["the HIL build enables `debug-port` (the access port stays open across resets) and is not the Flight_Build binary; the Kernel's semihosting console and exit are carried by probe-rs".to_string()];
+        item.notes = vec![
+            "the HIL build enables `debug-port` (the access port stays open across resets) and is not the Flight_Build binary; the Kernel's semihosting console and exit are carried by probe-rs".to_string(),
+            format!("HIL binary hash {} (Build_Manifest `hil_binaries`)", build.binary.hash),
+        ];
         item.build_manifest = Some(manifest_id.to_string());
         item.artifacts = vec![log_name];
         if let Err(e) = store.write(&item) {
@@ -943,6 +968,99 @@ fn hil_spike(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: 
         }
     }
     commands
+}
+
+/// Task 7.1 (R34.8, R48.4): the HIL_Rig self-test (`rsk-hil`): the boards
+/// by serial, the analyzer, the stimulus image flashed and read back, the
+/// target image run and read back against the Build_Manifest, and the
+/// capture agreeing with the console. Skipped with a warning without a
+/// rig description or without the rig's probes.
+fn hil_rig(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[crate::hil::HilBuild], target_dir: &Path, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let Some(rig) = rig else { return vec![] };
+    let probes = match rsk_hil::probes::list() {
+        Ok(p) => p,
+        Err(e) => {
+            report.warn(format!("HIL_Rig: {e}; the self-test was not run"));
+            return vec![];
+        }
+    };
+    if !probes.iter().any(|p| p.id == rig.target.serial) || !probes.iter().any(|p| p.id == rig.stimulus.serial) {
+        report.warn(format!(
+            "HIL_Rig: the target ({}) or the stimulus ({}) board is not attached ({} probes seen); the self-test was not run",
+            rig.target.serial,
+            rig.stimulus.serial,
+            probes.len()
+        ));
+        return vec![];
+    }
+    let targets: Vec<&crate::hil::HilBuild> = ws.policy.qemu_spikes().filter_map(|bin| builds.iter().find(|b| b.bin == bin)).collect();
+    let Some(target) = targets.first() else {
+        report.error(Rule::Step, None, "HIL_Rig: no HIL build of a QEMU spike Application to run on the target");
+        return vec![];
+    };
+    let Some(stimulus) = rig.stimulus.bin.as_deref().and_then(|bin| builds.iter().find(|b| b.bin == bin)) else {
+        report.error(Rule::Step, None, format!("HIL_Rig: no HIL build of the stimulus binary `{}`", rig.stimulus.bin.as_deref().unwrap_or("?")));
+        return vec![];
+    };
+    let work = target_dir.join("hil").join("rig");
+    let inputs = rsk_hil::selftest::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        target_hash: Some(&target.binary.hash),
+        stimulus_hash: Some(&stimulus.binary.hash),
+        work_dir: &work,
+        timeout_secs: 90,
+        tick_hz: crate::hil::TICK_HZ,
+    };
+    let out = rsk_hil::selftest::run(&inputs);
+    let text = rsk_hil::selftest::render(rig, &out);
+    let mut artifacts = Vec::new();
+    if let Ok(name) = store.write_artifact("hil-rig-self-test.md", &text) {
+        artifacts.push(name);
+    }
+    if !out.edges_text.is_empty() {
+        if let Ok(name) = store.write_artifact("hil-rig-edges.txt", &out.edges_text) {
+            artifacts.push(name);
+        }
+    }
+    if !out.trace_text.is_empty() {
+        if let Ok(name) = store.write_artifact("hil-rig-trace.txt", &out.trace_text) {
+            artifacts.push(name);
+        }
+    }
+    for st in &out.steps {
+        if st.ok {
+            report.note(format!("HIL_Rig: {}: {}", st.name, st.detail));
+        } else if out.locked {
+            report.warn(format!("HIL_Rig: {}: {}", st.name, st.detail));
+        } else {
+            report.error(Rule::Step, None, format!("HIL_Rig: {}: {}", st.name, st.detail));
+        }
+    }
+    let verdict = if out.ok() {
+        Verdict::Pass
+    } else if out.locked {
+        Verdict::Inconclusive
+    } else {
+        Verdict::Fail
+    };
+    let mut item = Item::new(
+        "hil-rig",
+        Kind::Test,
+        &format!("HIL_Rig self-test: target {}, stimulus {} ({}), analyzer {}", rig.target.serial, rig.stimulus.serial, stimulus.bin, rig.analyzer.driver),
+        Tool { name: "rsk-hil".to_string(), version: format!("{} ({}; {})", env!("CARGO_PKG_VERSION"), out.probe_rs, out.sigrok), solvers: vec![] },
+        verdict,
+    )
+    .covers(&["R34.8", "R48.4"]);
+    item.command_lines = out.commands.clone();
+    item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = artifacts;
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    out.commands
 }
 
 /// Task 17.3 (R46.1): the Aeneas evaluation. `proofs/aeneas/lean` holds the
@@ -1355,9 +1473,11 @@ fn kernel_line_total(ws: &Workspace) -> usize {
 fn build_manifest(
     ws: &Workspace,
     target_dir: &Path,
+    sandbox: &Sandbox,
     verus: Option<Verus>,
     kani: Option<Kani>,
     creusot: Option<Creusot>,
+    hil_builds: &mut Vec<crate::hil::HilBuild>,
     report: &mut Report,
 ) -> Option<Manifest> {
     let mut manifest = match Manifest::collect(ws, verus, kani, creusot) {
@@ -1381,6 +1501,14 @@ fn build_manifest(
     }
     if manifest.binaries.is_empty() {
         report.note("no Flight_Build binary crate yet: the manifest records no binary hash");
+    }
+    // Task 7.1: the HIL builds (the boards' images), each its own cargo
+    // invocation under the job's target directory; the rig's read-back
+    // check compares the loaded images against these hashes (R48.4).
+    *hil_builds = crate::hil::build_all(ws, &target_dir.join("hil"), Some(sandbox), report);
+    for b in hil_builds.iter() {
+        report.note(format!("HIL build `{}`: {} over {} loadable bytes", b.binary.target_name, b.binary.hash, b.binary.loadable_bytes));
+        manifest.hil_binaries.push(b.binary.clone());
     }
     // R33.3, R28.8: the Generated_Config checksum of the analysed binary.
     manifest.generated_config_checksum = manifest.binaries.iter().find_map(|b| b.config_checksum.clone());

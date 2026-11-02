@@ -8,7 +8,7 @@
 //! | `sensor` | `part0` (level A) | 5 | 20 ms, offset 5 ms | `state` (held for 8 ms) |
 //! | `echo` | `part0` (level A) | 6 | sporadic, MIT 20 ms, released by the signal `tick` | none |
 //! | `log` | `part1` (level C) | 2 | 40 ms | none |
-//! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER | none |
+//! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER (nRF52840: GPIOTE, the HIL_Rig's stimulus line) | none |
 //! | `filter` | `part2` (level B) | 3 | 25 ms; uses the FPU | none |
 //! | `sampler` | `part2` (level B) | 1 | 100 ms; EasyDMA requests on CMSDK_GPIO0 | none |
 //!

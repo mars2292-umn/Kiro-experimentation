@@ -76,9 +76,36 @@ use crate::arch::{KernelOps, System};
 use crate::logic::log::{EV_BUSFAULT, EV_HARDFAULT, EV_MEMMANAGE, EV_PANIC, EV_USAGEFAULT};
 use unsafe_module::hw;
 
-/// Trace one entry point with a tag and a value (feature `trace`).
+/// Trace one entry point with a tag and a value (feature `trace`: the
+/// semihosting console; feature `trace-ram`: the RAM ring the HIL_Rig
+/// reads, as `tag << 24 | value & 0xFF_FFFF` with the time base).
 #[inline(always)]
 fn trace(tag: &[u8], v: u32) {
+    #[cfg(feature = "trace-ram")]
+    {
+        let id = match tag {
+            b"boot" => entry::TR_BOOT,
+            b"invalid" => entry::TR_INVALID,
+            b"bootfail" => entry::TR_BOOTFAIL,
+            b"booted" => entry::TR_BOOTED,
+            b"start" => entry::TR_START,
+            b"irq" => entry::TR_IRQ,
+            b"dispatch" => entry::TR_DISPATCH,
+            b"tick" => entry::TR_TICK,
+            b"svc" => entry::TR_SVC,
+            b"epilogue" => entry::TR_EPILOGUE,
+            b"fault" => entry::TR_FAULT,
+            b"arm" => entry::TR_ARM,
+            b"cfsr" => 13,
+            b"pc" => 14,
+            _ => 0,
+        };
+        // `now()` calls are the Tasks' busy loops: thousands per run, which
+        // would flood the ring; the other SVCs and every other entry are kept.
+        if !(id == entry::TR_SVC && v == entry::SVC_NOW as u32) {
+            unsafe_module::trace_ram_push((id as u32) << 24 | (v & 0x00FF_FFFF), hw::timebase_now());
+        }
+    }
     #[cfg(feature = "trace")]
     {
         let mut buf = [0u8; 24];
@@ -104,7 +131,7 @@ fn trace(tag: &[u8], v: u32) {
         n += 1;
         hw::semihosting_write(&buf[..n]);
     }
-    #[cfg(not(feature = "trace"))]
+    #[cfg(not(any(feature = "trace", feature = "trace-ram")))]
     {
         let _ = (tag, v);
     }

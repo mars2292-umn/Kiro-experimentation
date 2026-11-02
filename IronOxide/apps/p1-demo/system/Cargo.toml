@@ -17,6 +17,8 @@ nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1
 debug-port = ["rsk-kernel/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.
 trace = ["rsk-kernel/trace"]
+# HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
+trace-ram = ["rsk-kernel/trace-ram"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk/quiet"]
 

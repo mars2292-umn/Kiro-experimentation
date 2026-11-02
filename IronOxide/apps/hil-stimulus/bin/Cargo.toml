@@ -1,0 +1,30 @@
+[package]
+name = "hil-stimulus"
+description = "HIL_Rig stimulus binary: no symbols of its own (DD-11); links rsk-entry bound to the stimulus system crate; runs on the rig's stimulus nRF52840-DK"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "hil-stimulus"
+path = "src/main.rs"
+test = false
+bench = false
+
+[features]
+default = ["nrf52840"]
+nrf52840 = ["rsk-entry/nrf52840"]
+# HIL builds only: the debug port stays open across resets (see rsk-kernel).
+debug-port = ["rsk-entry/debug-port"]
+# Debugging only: the Kernel's semihosting trace of every entry point.
+trace = ["rsk-entry/trace"]
+# HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
+trace-ram = ["rsk-entry/trace-ram"]
+quiet = ["rsk-entry/quiet"]
+
+[dependencies]
+# rsk-entry bound to this Application's system crate (its `app-*` features
+# select exactly one system crate; the P1 demo's is the default).
+rsk-entry = { path = "../../../crates/rsk-entry", default-features = false, features = ["app-hil-stimulus"] }

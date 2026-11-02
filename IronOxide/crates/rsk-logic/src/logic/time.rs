@@ -410,6 +410,24 @@ impl<const NT: usize> Timing<NT> {
         self.masked[t as usize] = false;
     }
 
+    /// Masks the source of `t` for good (DD-06, R9.9, R19.1): an event too
+    /// late for its Job to complete within the operating duration makes no
+    /// Release, and a level-triggered source whose event no Job will ever
+    /// clear would otherwise re-enter the Kernel at once, every time, until
+    /// the operating end (seen on the HIL_Rig, 2026-11-01: a GPIOTE storm
+    /// over the last 11 ms starved every Task). Only a Partition restart
+    /// unmasks it, and the next event masks it again.
+    pub fn mask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
+        requires old(self).inv(cfg), (t as int) < NT,
+        ensures final(self).inv(cfg), final(self).masked[t as int],
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).masked[u] == old(self).masked[u],
+            final(self).k == old(self).k, final(self).nominal == old(self).nominal,
+            final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
+            final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
+    {
+        self.masked[t as usize] = true;
+    }
+
     pub fn try_unmask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64, job_ended: bool) -> (unmasked: bool)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
         ensures final(self).inv(cfg),

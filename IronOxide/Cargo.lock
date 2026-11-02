@@ -282,6 +282,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hil-stimulus"
+version = "0.0.0"
+dependencies = [
+ "rsk-entry",
+]
+
+[[package]]
+name = "hil-stimulus-decl"
+version = "0.0.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "hil-stimulus-part"
+version = "0.0.0"
+dependencies = [
+ "hil-stimulus-decl",
+ "rsk",
+]
+
+[[package]]
+name = "hil-stimulus-system"
+version = "0.0.0"
+dependencies = [
+ "hil-stimulus-decl",
+ "hil-stimulus-part",
+ "rsk",
+ "rsk-kernel",
+]
+
+[[package]]
 name = "indexmap"
 version = "2.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -626,6 +658,7 @@ version = "0.0.0"
 name = "rsk-entry"
 version = "0.0.0"
 dependencies = [
+ "hil-stimulus-system",
  "rsk-kernel",
  "rsk-system",
 ]
@@ -644,6 +677,11 @@ dependencies = [
 [[package]]
 name = "rsk-hil"
 version = "0.0.0"
+dependencies = [
+ "rsk-digest",
+ "rsk-elf",
+ "toml",
+]
 
 [[package]]
 name = "rsk-kernel"
@@ -1314,6 +1352,7 @@ dependencies = [
  "rsk-digest",
  "rsk-elf",
  "rsk-gen",
+ "rsk-hil",
  "rsk-model",
  "serde_json",
  "toml",

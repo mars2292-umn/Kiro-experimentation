@@ -1,8 +1,11 @@
 //! The P1 demo on the nRF52840-DK (feature `nrf52840`): the declaration of
 //! `lib.rs` with the Target and its peripherals changed, nothing else:
-//! Partition 1's `pulse` is released by TIMER1 (its owned peripheral) and
-//! Partition 2 owns SPIM0 for the sampler's EasyDMA request. Kept in step
-//! with `lib.rs` by hand; the conformance suite's anchors live in `lib.rs`.
+//! Partition 1's `pulse` is released by GPIOTE (an edge on P1.01, driven by
+//! the HIL_Rig's stimulus board every 18 ms, task 7.1; before the rig,
+//! TIMER1 stood in) and answers on P1.10 for the logic analyzer; it owns
+//! GPIOTE and P0. Partition 2 owns SPIM0 for the sampler's EasyDMA
+//! request. Kept in step with `lib.rs` by hand; the conformance suite's
+//! anchors live in `lib.rs`.
 rsk::app! {
     target = nrf52840, profile = Ravenscar, operating_duration = 200.ms(),
     safe_state = crate::report_and_exit, log_capacity = 32;
@@ -32,11 +35,11 @@ rsk::app! {
     partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
                      fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
-        peripherals = [TIMER1];
+        peripherals = [GPIOTE, P0];
         state log.count: u32 = 0;
         state pulse.count: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
-        task pulse (sporadic, binds = TIMER1, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
+        task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 200.us(), priority = 4);
     }
 

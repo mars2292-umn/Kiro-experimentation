@@ -1,9 +1,18 @@
 [package]
 name = "rsk-hil"
-description = "rsk HIL_Rig orchestration: probe-rs control, fault injection, Hardware_Model differential tests"
+description = "rsk HIL_Rig orchestration (task 7.1): the rig description, probe selection by serial, flashing with the read-back hash check, the stimulus board, the logic analyzer capture, and the rig self-test"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[[bin]]
+name = "rsk-hil"
+path = "src/main.rs"
+test = false
+bench = false
+
 [dependencies]
+rsk-digest.workspace = true
+rsk-elf.workspace = true
+toml.workspace = true

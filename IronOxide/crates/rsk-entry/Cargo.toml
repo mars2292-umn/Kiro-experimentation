@@ -10,16 +10,25 @@ publish.workspace = true
 # dependency that the Build_System points at the generated system crate
 # (DD-11); in Phase 1 it is the hand-written system crate of the P1 demo.
 [features]
-# The board, forwarded from the Flight_Build binary to the system crate.
-qemu-mps2 = ["rsk-system/qemu-mps2"]
-nrf52840 = ["rsk-system/nrf52840"]
+# The Application: exactly one `app-*` feature selects the system crate
+# the entry binds (DD-11). The P1 demo is the default; the HIL_Rig's
+# stimulus Application (task 7.1) is built by the HIL step alone, in its
+# own cargo invocation, so the two are never unified into one build.
+default = ["app-p1-demo"]
+app-p1-demo = ["dep:rsk-system"]
+app-hil-stimulus = ["dep:hil-stimulus-system"]
+# The board, forwarded from the binary to the selected system crate.
+qemu-mps2 = ["rsk-system?/qemu-mps2"]
+nrf52840 = ["rsk-system?/nrf52840", "hil-stimulus-system?/nrf52840"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
-debug-port = ["rsk-system/debug-port"]
+debug-port = ["rsk-system?/debug-port", "hil-stimulus-system?/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.
-trace = ["rsk-system/trace"]
+trace = ["rsk-system?/trace", "hil-stimulus-system?/trace"]
+trace-ram = ["rsk-system?/trace-ram", "hil-stimulus-system?/trace-ram"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
-quiet = ["rsk-system/quiet"]
+quiet = ["rsk-system?/quiet", "hil-stimulus-system?/quiet"]
 
 [dependencies]
 rsk-kernel.workspace = true
-rsk-system = { path = "../../apps/p1-demo/system", default-features = false }
+rsk-system = { path = "../../apps/p1-demo/system", default-features = false, optional = true }
+hil-stimulus-system = { path = "../../apps/hil-stimulus/system", default-features = false, optional = true }

@@ -33,6 +33,11 @@ pub struct CratePolicy {
     /// A Flight_Build root whose binaries the verification job runs on
     /// QEMU (the dispatch spike of task 3.1).
     pub qemu_spike: bool,
+    /// The HIL_Rig's stimulus Application binary (task 7.1): built with the
+    /// HIL feature set in its own cargo invocation by the HIL steps, never
+    /// in the Target build (rsk-entry binds one Application per build) and
+    /// never a Flight_Build.
+    pub hil_stimulus: bool,
     /// An App_Declaration crate (`rsk::app!` at its root): `cargo xtask gen`
     /// runs the Generator on it (R24.3) and the verification job checks
     /// that the generated files next to it are current (R24.4).
@@ -124,6 +129,14 @@ impl Policy {
             .map(|(n, _)| n.as_str())
     }
 
+    /// The HIL_Rig's stimulus binary crates (`hil-stimulus = true`).
+    pub fn hil_stimulus(&self) -> impl Iterator<Item = &str> {
+        self.crates
+            .iter()
+            .filter(|(_, c)| c.hil_stimulus)
+            .map(|(n, _)| n.as_str())
+    }
+
     /// Flight_Build roots marked `qemu-spike = true`.
     pub fn qemu_spikes(&self) -> impl Iterator<Item = &str> {
         self.crates
@@ -156,6 +169,7 @@ fn parse_crate(name: &str, entry: &Value, target: &str) -> Result<CratePolicy, S
             "kernel" => policy.kernel = value.as_bool().ok_or_else(bad)?,
             "flight" => policy.flight = value.as_bool().ok_or_else(bad)?,
             "qemu-spike" => policy.qemu_spike = value.as_bool().ok_or_else(bad)?,
+            "hil-stimulus" => policy.hil_stimulus = value.as_bool().ok_or_else(bad)?,
             "declaration" => policy.declaration = value.as_bool().ok_or_else(bad)?,
             "variants" => {
                 let list = value.as_array().ok_or_else(bad)?;
@@ -194,6 +208,9 @@ fn parse_crate(name: &str, entry: &Value, target: &str) -> Result<CratePolicy, S
     }
     if policy.qemu_spike && !policy.flight {
         return Err(format!("policy entry `{name}`: only Flight_Build roots can be QEMU spikes"));
+    }
+    if policy.hil_stimulus && (policy.flight || policy.kernel || policy.targets.iter().any(|t| t == HOST)) {
+        return Err(format!("policy entry `{name}`: the HIL stimulus binary is Target-only and neither a Flight_Build root nor a Kernel crate"));
     }
     if policy.unsafe_module.is_some() && policy.unsafe_crate {
         return Err(format!(

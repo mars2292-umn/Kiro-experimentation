@@ -82,6 +82,10 @@ pub struct Manifest {
     pub cargo_profile: String,
     pub generated_config_checksum: Option<String>,
     pub binaries: Vec<Binary>,
+    /// The HIL builds (task 7.1): the declaration variant and feature set
+    /// the boards run, never a Flight_Build; the HIL_Rig's read-back
+    /// check compares against these hashes (R48.4).
+    pub hil_binaries: Vec<Binary>,
 }
 
 impl Manifest {
@@ -117,6 +121,7 @@ impl Manifest {
             cargo_profile: "release".to_string(),
             generated_config_checksum: None,
             binaries: Vec::new(),
+            hil_binaries: Vec::new(),
         })
     }
 
@@ -173,6 +178,14 @@ impl Manifest {
             },
             "generated_config_checksum": self.generated_config_checksum,
             "binaries": self.binaries.iter().map(|b| json!({
+                "package": b.package,
+                "target": b.target_name,
+                "file": b.path.file_name().map(|f| f.to_string_lossy().into_owned()),
+                "hash": b.hash,
+                "loadable_bytes": b.loadable_bytes,
+                "config_checksum": b.config_checksum,
+            })).collect::<Vec<_>>(),
+            "hil_binaries": self.hil_binaries.iter().map(|b| json!({
                 "package": b.package,
                 "target": b.target_name,
                 "file": b.path.file_name().map(|f| f.to_string_lossy().into_owned()),

@@ -13,7 +13,7 @@
     "tick_hz": 16000000
   },
   "config_checksum": "0x56b460fc",
-  "layout_checksum": "0xb05bdb73",
+  "layout_checksum": "0x86e339ac",
   "operating_duration_ticks": 3200000,
   "safe_state": "crate::report_and_exit",
   "kernel_levels": [
@@ -136,7 +136,8 @@
         "init_arena": 0
       },
       "peripherals": [
-        "TIMER1"
+        "GPIOTE",
+        "P0"
       ],
       "mpu": {
         "code": {
@@ -153,11 +154,20 @@
         },
         "windows": [
           {
-            "base": 1073778688,
+            "base": 1073766400,
             "size_log2": 12,
             "srd": 0,
             "peripherals": [
-              "TIMER1"
+              "GPIOTE"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1342177280,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "P0"
             ],
             "read_only": false
           }
@@ -371,8 +381,8 @@
       "mit_ticks": 240000,
       "mit_policy": "defer",
       "source": {
-        "interrupt": "TIMER1",
-        "irq": 9
+        "interrupt": "GPIOTE",
+        "irq": 6
       },
       "deadline_ticks": 240000,
       "budget_cycles": 12800,

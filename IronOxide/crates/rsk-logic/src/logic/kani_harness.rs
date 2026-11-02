@@ -224,6 +224,33 @@ fn sporadic_config(mit_policy: u8) -> Config<NT, NR, NP> {
 ///    `last_due + MIT` under the deferral policy or discarded under the
 ///    discard policy, in both cases counted as a violation and leaving the
 ///    previous accepted instant unchanged.
+/// R9.9 with DD-06 (the HIL_Rig finding of 2026-11-01): an event too late
+/// for its Job to complete within the operating duration makes no Release
+/// and leaves the source masked, so that a level-triggered source no Job
+/// will clear cannot re-enter the Kernel until the operating end; an event
+/// in time is accepted as before.
+#[kani::proof]
+#[kani::unwind(13)]
+fn intake_late_event_masks_source() {
+    let cfg = sporadic_config(super::MIT_DEFER);
+    assert!(cfg.validate());
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    let t: u8 = 1;
+    let n: u64 = kani::any();
+    kani::assume(n <= cfg.operating_duration);
+    k.intake(&cfg, t, 0, n);
+    if n + cfg.tasks[1].deadline > cfg.operating_duration {
+        assert!(k.sched.release[1] == REL_NONE);
+        assert!(k.timing.masked[1]);
+        assert!(!k.timing.has_last[1]);
+        assert!(k.mit_violations[0] == 0);
+    } else {
+        assert!(k.sched.release[1] == REL_PENDING);
+        assert!(k.timing.masked[1]);
+    }
+}
+
 #[kani::proof]
 #[kani::unwind(13)]
 fn intake_outcomes_match_r10() {

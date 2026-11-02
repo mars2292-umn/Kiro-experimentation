@@ -888,7 +888,9 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 None => {}
             }
             hw.apply(Action::FpuAccess(info.fpu));
-            hw.apply(Action::Trace(TR_DISPATCH, frame));
+            // The frame is 8-byte aligned (`plan_frame`); the Task index
+            // rides in its low bits for the trace.
+            hw.apply(Action::Trace(TR_DISPATCH, frame | (t as u32 & 7)));
             (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
         }
         Binding::Intake { task, partition } => {

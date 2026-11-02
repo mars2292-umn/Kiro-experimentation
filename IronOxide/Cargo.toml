@@ -35,6 +35,10 @@ members = [
     "apps/p1-demo/part1",
     "apps/p1-demo/part2",
     "apps/p1-demo/bin",
+    "apps/hil-stimulus/decl",
+    "apps/hil-stimulus/system",
+    "apps/hil-stimulus/part",
+    "apps/hil-stimulus/bin",
     "xtask",
 ]
 # Fixture workspaces carry their own [workspace] tables and lock files.
@@ -141,4 +145,12 @@ p1-demo-part0 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo-part1 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo-part2 = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 p1-demo = { targets = ["thumbv7em-none-eabihf"], flight = true, qemu-spike = true }
+# The HIL_Rig's stimulus Application (task 7.1): rsk on the rig's second
+# board, never a Flight_Build. Its binary is `hil-stimulus = true`: built by
+# the HIL step alone (its own cargo invocation, because rsk-entry binds one
+# Application per build), not in the Target build with the Flight_Build roots.
+hil-stimulus-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true }
+hil-stimulus-system = { targets = ["host", "thumbv7em-none-eabihf"] }
+hil-stimulus-part = { targets = ["host", "thumbv7em-none-eabihf"] }
+hil-stimulus = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 xtask = { targets = ["host"] }

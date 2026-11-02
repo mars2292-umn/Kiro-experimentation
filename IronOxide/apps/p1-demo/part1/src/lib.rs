@@ -8,13 +8,14 @@
 
 p1_demo_decl::rsk_partition_part1!();
 
-/// The timer that releases `pulse` every 18 ms (longer than its 15 ms MIT,
-/// so every event is accepted), the Partition's owned peripheral on each
-/// board. QEMU mps2-an386: the CMSDK dual timer (window 0x4000_2000),
-/// Timer1 load, control (bit 7 enable, bit 6 periodic, bit 5 interrupt,
-/// bit 1 32-bit) and interrupt clear, clocked at 25 MHz.
+/// The Release_Source of `pulse` on each board, started by `log`'s first
+/// Job and acknowledged by every `pulse` Job. QEMU mps2-an386: the CMSDK
+/// dual timer (window 0x4000_2000), Timer1 load, control (bit 7 enable,
+/// bit 6 periodic, bit 5 interrupt, bit 1 32-bit) and interrupt clear,
+/// clocked at 25 MHz, every 18 ms (longer than the 15 ms MIT, so every
+/// event is accepted); no response line.
 #[cfg(not(feature = "nrf52840"))]
-mod pulse_timer {
+mod pulse_source {
     const DUALTIMER: u32 = 0x4000_2000;
     const TIMER1_LOAD: u32 = DUALTIMER + 0x00;
     const TIMER1_CONTROL: u32 = DUALTIMER + 0x08;
@@ -29,48 +30,80 @@ mod pulse_timer {
     pub fn acknowledge() {
         rsk::mmio::write(TIMER1_INTCLR, 1);
     }
+
+    pub fn respond(_count: u32) {}
 }
 
-/// nRF52840-DK: TIMER1 (window 0x4000_9000, PS 6.30) as a 32-bit timer at
-/// 1 MHz (prescaler 4 of 16 MHz), CC[0] at 18 000 µs with the shortcut
-/// COMPARE[0] -> CLEAR, the COMPARE[0] interrupt enabled; `pulse` clears
-/// the event.
+/// nRF52840-DK on the HIL_Rig (task 7.1, `hil-rig.toml`): GPIOTE channel
+/// 0 (window 0x4000_6000, PS 6.9) in event mode on the rising edge of
+/// P1.01 (Arduino D0), the line the stimulus board pulses every 18 ms;
+/// the IN[0] interrupt is the Task's Release_Source. The response line
+/// P1.10 (D8, the analyzer's D0) toggles in every `pulse` Job against the
+/// stimulus mirror on the analyzer's D6, and LED1 (P0.13) toggles every
+/// 14 pulses as the visible sign. The Partition's `P0` window holds port 1.
 #[cfg(feature = "nrf52840")]
-mod pulse_timer {
-    const TIMER1: u32 = 0x4000_9000;
-    const TASKS_START: u32 = TIMER1 + 0x000;
-    const TASKS_CLEAR: u32 = TIMER1 + 0x00C;
-    const EVENTS_COMPARE0: u32 = TIMER1 + 0x140;
-    const SHORTS: u32 = TIMER1 + 0x200;
-    const INTENSET: u32 = TIMER1 + 0x304;
-    const MODE: u32 = TIMER1 + 0x504;
-    const BITMODE: u32 = TIMER1 + 0x508;
-    const PRESCALER: u32 = TIMER1 + 0x510;
-    const CC0: u32 = TIMER1 + 0x540;
-    const PERIOD_US: u32 = 18_000;
+mod pulse_source {
+    const GPIOTE: u32 = 0x4000_6000;
+    const EVENTS_IN0: u32 = GPIOTE + 0x100;
+    const INTENSET: u32 = GPIOTE + 0x304;
+    const CONFIG0: u32 = GPIOTE + 0x510;
+    const P0: u32 = 0x5000_0000;
+    const P1: u32 = 0x5000_0300;
+    const P0_OUT: u32 = P0 + 0x504;
+    const P0_OUTSET: u32 = P0 + 0x508;
+    const P0_OUTCLR: u32 = P0 + 0x50C;
+    const P0_PIN_CNF: u32 = P0 + 0x700;
+    const P1_OUT: u32 = P1 + 0x504;
+    const P1_OUTSET: u32 = P1 + 0x508;
+    const P1_OUTCLR: u32 = P1 + 0x50C;
+    const P1_PIN_CNF: u32 = P1 + 0x700;
+    /// The stimulus input, P1.01.
+    const INPUT: u32 = 1;
+    /// The response output, P1.10.
+    const RESPONSE: u32 = 10;
+    /// LED1 of the DK, P0.13, lit when low.
+    const LED1: u32 = 13;
 
     pub fn start() {
-        rsk::mmio::write(MODE, 0);
-        rsk::mmio::write(BITMODE, 3);
-        rsk::mmio::write(PRESCALER, 4);
-        rsk::mmio::write(CC0, PERIOD_US);
-        rsk::mmio::write(SHORTS, 1);
-        rsk::mmio::write(INTENSET, 1 << 16);
-        rsk::mmio::write(TASKS_CLEAR, 1);
-        rsk::mmio::write(TASKS_START, 1);
+        // Input connected with a pull-down (an unwired line reads low and
+        // raises nothing); response and LED as outputs, low and off.
+        rsk::mmio::write(P1_PIN_CNF + 4 * INPUT, 0b0100);
+        rsk::mmio::write(P1_OUTCLR, 1 << RESPONSE);
+        rsk::mmio::write(P0_OUTSET, 1 << LED1);
+        rsk::mmio::write(P1_PIN_CNF + 4 * RESPONSE, 0b11);
+        rsk::mmio::write(P0_PIN_CNF + 4 * LED1, 0b11);
+        // CONFIG[0]: MODE = Event (1), PSEL = INPUT, PORT = 1, POLARITY = LoToHi (1).
+        rsk::mmio::write(CONFIG0, 1 | (INPUT << 8) | (1 << 13) | (1 << 16));
+        rsk::mmio::write(EVENTS_IN0, 0);
+        rsk::mmio::write(INTENSET, 1);
     }
 
     pub fn acknowledge() {
-        rsk::mmio::write(EVENTS_COMPARE0, 0);
+        rsk::mmio::write(EVENTS_IN0, 0);
+    }
+
+    pub fn respond(count: u32) {
+        if rsk::mmio::read(P1_OUT) & (1 << RESPONSE) != 0 {
+            rsk::mmio::write(P1_OUTCLR, 1 << RESPONSE);
+        } else {
+            rsk::mmio::write(P1_OUTSET, 1 << RESPONSE);
+        }
+        if count % 14 == 0 {
+            if rsk::mmio::read(P0_OUT) & (1 << LED1) != 0 {
+                rsk::mmio::write(P0_OUTCLR, 1 << LED1);
+            } else {
+                rsk::mmio::write(P0_OUTSET, 1 << LED1);
+            }
+        }
     }
 }
 
 /// Task `log`: busy for 3 ms by the time base (bounded in iterations too,
 /// PR-16; within its 6 ms Budget on any Target), then counts. Its first Job
-/// starts the timer that releases `pulse` (task 5.4).
+/// starts the Release_Source of `pulse` (task 5.4).
 pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
-        pulse_timer::start();
+        pulse_source::start();
     }
     let start = rsk::now();
     let mut i = 0u32;
@@ -81,9 +114,11 @@ pub fn log(mut cx: rsk_ctx::Log) {
     rsk::debug(b"C");
 }
 
-/// Task `pulse` (sporadic): acknowledges the timer event and counts.
+/// Task `pulse` (sporadic): acknowledges the source's event, counts, and
+/// answers on the response line where the board has one.
 pub fn pulse(mut cx: rsk_ctx::Pulse) {
-    pulse_timer::acknowledge();
+    pulse_source::acknowledge();
     cx.count.with(|c| *c += 1);
+    pulse_source::respond(cx.count.get());
     rsk::debug(b"D");
 }

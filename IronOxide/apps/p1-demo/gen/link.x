@@ -109,6 +109,12 @@ SECTIONS
     _ebss = .;
   } > KRAM
 
+  .kernel.noinit (NOLOAD) : ALIGN(4)
+  {
+    *(.rsk.noinit .rsk.noinit.*);
+    . = ALIGN(4);
+  } > KRAM
+
   .rsk.tables : ALIGN(4)
   {
     __rsk_bss_table = .;

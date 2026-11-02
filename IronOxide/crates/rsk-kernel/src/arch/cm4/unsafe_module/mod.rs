@@ -142,6 +142,39 @@ unsafe impl Sync for ArchCell {}
 
 static ARCH_STATE: ArchCell = ArchCell(UnsafeCell::new(ArchState::new()));
 
+/// The RAM trace ring (feature `trace-ram`): `TRACE_RING[0]` is the count
+/// of entries written (the ring holds the last `TRACE_RING_LEN`), followed
+/// by triples (tag | value, time-base low word, time-base high word). The
+/// HIL_Rig reads it over the probe after a run. It lives in `.rsk.noinit`,
+/// Kernel RAM the reset path leaves alone, so it survives the reset the
+/// board takes when the probe detaches (the count is then stale on the
+/// first power-up, which the modulo tolerates).
+#[cfg(feature = "trace-ram")]
+pub const TRACE_RING_LEN: usize = 512;
+#[cfg(feature = "trace-ram")]
+struct TraceCell(UnsafeCell<[u32; 1 + 3 * TRACE_RING_LEN]>);
+// SAFETY (UJ-005a): as UJ-005; the ring is written only by Kernel-level
+// handlers and PRIMASK-held stub code, and read only over the debug port.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for TraceCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[link_section = ".rsk.noinit"]
+static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_LEN]));
+
+/// Appends one trace entry. Called only at the Kernel level or with PRIMASK held.
+#[cfg(feature = "trace-ram")]
+pub fn trace_ram_push(word: u32, now: u64) {
+    // SAFETY (UJ-006a): as UJ-006.
+    let ring = unsafe { &mut *TRACE_RING.0.get() };
+    let n = ring[0] as usize;
+    let slot = 1 + 3 * (n % TRACE_RING_LEN);
+    ring[slot] = word;
+    ring[slot + 1] = now as u32;
+    ring[slot + 2] = (now >> 32) as u32;
+    ring[0] = ring[0].wrapping_add(1);
+}
+
 /// The Kernel_Arch state. Called only at the Kernel level or with PRIMASK held.
 pub fn arch_state() -> &'static mut ArchState {
     // SAFETY (UJ-006): as UJ-004.

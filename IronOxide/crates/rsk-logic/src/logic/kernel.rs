@@ -318,6 +318,23 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         &&& self.safe_state == before.safe_state && self.started == before.started
     }
 
+    /// R9.9 with DD-06: `self` is `before` with the source of `t` masked
+    /// and nothing else changed but the log (an event too late for its Job
+    /// to complete within the operating duration).
+    pub open spec fn unchanged_but_log_and_mask(&self, before: &Self, t: int) -> bool {
+        &&& self.sched == before.sched
+        &&& self.slots == before.slots && self.budget == before.budget
+        &&& self.stopped == before.stopped && self.mit_violations == before.mit_violations
+        &&& self.reinit_partition == before.reinit_partition && self.stop_dma == before.stop_dma
+        &&& self.safe_state == before.safe_state && self.started == before.started
+        &&& self.timing.masked[t]
+        &&& forall|u: int| 0 <= u < NT && u != t ==> self.timing.masked[u] == before.timing.masked[u]
+        &&& self.timing.k == before.timing.k && self.timing.nominal == before.timing.nominal
+        &&& self.timing.has_last == before.timing.has_last && self.timing.last_due == before.timing.last_due
+        &&& self.timing.deferred_until == before.timing.deferred_until && self.timing.due == before.timing.due
+        &&& self.timing.job_due == before.timing.job_due
+    }
+
     /// R10.1, R10.7: `self` is `old` with the event of Task `t` accepted at
     /// `n`: its Release is pending and due at `n`, which becomes the
     /// previous accepted due instant; its source is masked for the MIT
@@ -1315,9 +1332,13 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             // R9.9, R12.4, R14.5: an event in the safe state, before instant 0,
             // for a stopped Partition, or too late for its Job to complete
-            // within the operating duration makes no Release.
+            // within the operating duration makes no Release; in the last
+            // case the source is masked (DD-06: no Job will clear its level).
             !old(self).intake_active(cfg, t as int, Self::observed(old(self).now, now))
-                ==> final(self).unchanged_but_log(old(self)),
+                ==> final(self).unchanged_but_log(old(self)) || final(self).unchanged_but_log_and_mask(old(self), t as int),
+            !old(self).intake_active(cfg, t as int, Self::observed(old(self).now, now))
+                && !old(self).safe_state && old(self).started && !old(self).stopped[cfg.tasks[t as int].partition as int]
+                ==> final(self).unchanged_but_log_and_mask(old(self), t as int),
             // R10.1: the event is accepted as a Release due now, at least one
             // MIT after the previous accepted one.
             old(self).intake_active(cfg, t as int, Self::observed(old(self).now, now))
@@ -1353,7 +1374,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             return;
         }
         if now + cfg.tasks[t as usize].deadline > cfg.operating_duration {
-            // R9.9: the Job could not complete within the operating duration.
+            // R9.9: the Job could not complete within the operating duration,
+            // and neither could any later one: the source is masked for good
+            // (DD-06, R19.1), else a level no Job clears re-enters at once.
+            self.timing.mask(cfg, t);
             return;
         }
         let release_none = self.sched.release[t as usize] == REL_NONE;

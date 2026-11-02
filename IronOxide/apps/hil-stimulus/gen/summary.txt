@@ -1,0 +1,20 @@
+rsk Generated_Config summary (R24.3)
+Target: nrf52840 (r0p1), CPU 64000000 Hz, time base 16000000 Hz, 3 priority bits, 8 MPU regions
+Profile: 0.6 Ravenscar
+Operating duration: 115200000000 ticks
+Safe state: crate::halt
+Config checksum (CRC-32): 0x3120b399
+Capacities: lock stack 1, timer slots 5, event log 16
+Kernel levels: [0]; Task levels (level -> NVIC byte): 1 -> 0xe0
+Kernel-owned peripherals: CLOCK, TIMER0, WDT, PPI
+Timer: IRQ 8 (vector 24)
+
+Partitions:
+  stim (crate hil_stimulus_part, level C): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
+    code 32768 bytes at 0x00020000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+    window 0x50000000 (2^12, srd 0x00, read-write): P0
+
+Tasks:
+  stim.pulse (#0, Partition stim, Priority 1, vector 36): periodic, offset 0 ticks, period 288000 ticks, deadline 288000 ticks, Budget 64000 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 0 deadline 1 budget 2
+
+Resources:

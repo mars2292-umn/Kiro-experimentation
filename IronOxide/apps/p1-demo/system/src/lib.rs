@@ -88,6 +88,12 @@ pub fn report_and_exit() -> ! {
     // 100.0 = 0x42C8_0000.
     let filter_bits = p1_demo_part2::rsk_state::FILTER_Y.peek().to_bits();
     let filter_ok = filter_bits > 0x4270_0000 && filter_bits < 0x42C8_0000;
+    // No debugger (a board left running after the probe detached): no
+    // console to report to, and a semihosting breakpoint would fault; the
+    // safe state is the idle loop alone (ORQ-30, ORQ-31).
+    if !hw::debugger_attached() {
+        hw::semihosting_exit(2);
+    }
     hw::semihosting_write(b"\nRSK-SAFE-STATE\n");
     print_kv(b"control", a);
     print_kv(b"sensor", b);
@@ -132,8 +138,9 @@ pub fn report_and_exit() -> ! {
         i += 1;
     }
     // 200 ms: 20 control, 10 sensor, 5 log Releases; at least one blocked
-    // control Release observed while sensor held the Resource; the dual
-    // timer started by log's first Job releases pulse every 18 ms (about 11
+    // control Release observed while sensor held the Resource; the source
+    // started by log's first Job (QEMU: the dual timer; the nRF52840-DK: the
+    // HIL_Rig's stimulus board on GPIOTE) releases pulse every 18 ms (about 11
     // accepted events, none inside an MIT window: no MIT_Violation among
     // the faults, and none missed: the 15 ms deadline covers sensor's
     // interference and blocking). Every accepted event needs the source
