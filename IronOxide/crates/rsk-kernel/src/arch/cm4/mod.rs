@@ -228,14 +228,73 @@ impl<S: System> Tables for SysTables<S> {
 pub fn boot<S: System>() -> bool {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
-    entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state())
+    let ok = entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    mirror_events(k);
+    ok
+}
+
+/// Feature `trace-ram`: the events the HIL_Rig's trace freeze treats as
+/// expected (`unsafe_module::events_expect`): kinds in `kinds` (bit k =
+/// kind k) of Task `task` (0xFF: any). Called by the entry crate before
+/// `boot`; a no-op without the feature.
+pub fn trace_expect(kinds: u32, task: u8) {
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::events_expect(kinds, task);
+    #[cfg(not(feature = "trace-ram"))]
+    let _ = (kinds, task);
+}
+
+/// Feature `trace-ram`: copies the events the Kernel logic pushed during
+/// this entry (the ones numbered from the mirror's seen sequence number
+/// to the log's) into the event mirror, which freezes the trace ring at
+/// the first unexpected one. Called after every `*_core` call.
+#[inline(always)]
+fn mirror_events<K: KernelOps>(k: &K) {
+    #[cfg(feature = "trace-ram")]
+    {
+        let seq = k.log_seq();
+        let new = seq.wrapping_sub(unsafe_module::events_seen_seq()) as usize;
+        if new == 0 {
+            return;
+        }
+        let len = k.log_len();
+        // More new events than the log holds: the oldest are lost to the
+        // mirror too (R14.7 counts them). The loop is bounded by the log's
+        // capacity (PR-16).
+        let new = if new > len { len } else { new };
+        let mut i = len - new;
+        let mut copied = 0;
+        while i < len && copied < unsafe_module::EVENTS_PER_ENTRY {
+            unsafe_module::events_push(
+                seq.wrapping_sub((len - i) as u32),
+                k.log_kind(i),
+                k.log_task(i),
+                k.log_partition(i),
+                k.log_instant(i),
+                k.log_detail(i),
+            );
+            i += 1;
+            copied += 1;
+        }
+    }
+    #[cfg(not(feature = "trace-ram"))]
+    let _ = k;
 }
 
 /// Instant 0: enables Releases (PR-34) and the compare of the first event.
 pub fn start<S: System>() {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
-    if entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state()) {
+    // The records are a run's own: cleared at instant 0, which the reboot
+    // the board takes when the probe detaches (a failed boot check into
+    // the safe state) never reaches, so the records of the run survive it.
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::stats_reset();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::events_reset();
+    let safe = entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    mirror_events(k);
+    if safe {
         S::safe_state();
     }
 }
@@ -244,23 +303,76 @@ pub fn start<S: System>() {
 pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) -> DispatchPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
+    pins_enter();
+    // The time-base vector is served here (`Binding::Kernel`), so the
+    // release-timing record of R9.10 is taken around this call.
+    #[cfg(feature = "trace-ram")]
+    let (entry_now, entry_cycles, due_before) = {
+        let mut due = [u64::MAX; unsafe_module::STATS_TASKS];
+        let mut t = 0;
+        while t < k.task_count() && t < unsafe_module::STATS_TASKS {
+            due[t] = k.release_info(t as u8).1;
+            t += 1;
+        }
+        (hw::timebase_now(), hw::dwt_cyccnt(), due)
+    };
     let (plan, safe) = entry::irq_entry_core(
         k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
     );
+    #[cfg(feature = "trace-ram")]
+    {
+        // R9.10: every periodic Release this tick made effective (its due
+        // instant moved; the Release may already be consumed by a dispatch
+        // pended in the same tick), with the lag from its nominal instant
+        // (now - due at entry, in cycles) plus the handler's own cycles.
+        let handler_cycles = hw::dwt_cyccnt().wrapping_sub(entry_cycles);
+        let mut t = 0;
+        while t < k.task_count() && t < unsafe_module::STATS_TASKS {
+            let (periodic, due, offset, period) = k.release_info(t as u8);
+            if due != due_before[t] {
+                if periodic {
+                    let lag = (entry_now.saturating_sub(due) as u32).saturating_mul(hw::CYCLES_PER_TICK).saturating_add(handler_cycles);
+                    unsafe_module::stats_release(t as u8, due, offset, period, lag);
+                }
+            }
+            t += 1;
+        }
+    }
+    mirror_events(k);
     if safe {
         S::safe_state();
     }
+    pins_running(k.top());
     plan
+}
+
+/// Trace pins (feature `trace-pins`): a Kernel handler begins.
+#[inline(always)]
+fn pins_enter() {
+    #[cfg(feature = "trace-pins")]
+    hw::trace_pins::kernel_enter();
+}
+
+/// Trace pins: a Kernel handler returns to `task`.
+#[inline(always)]
+fn pins_running(task: Option<u8>) {
+    #[cfg(feature = "trace-pins")]
+    hw::trace_pins::running(task);
+    #[cfg(not(feature = "trace-pins"))]
+    let _ = task;
 }
 
 /// The Kernel-level timer handler body.
 pub fn timer<S: System>() -> ReturnPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
+    pins_enter();
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    mirror_events(k);
     if safe {
         S::safe_state();
     }
+    pins_running(k.top());
     hop
 }
 
@@ -270,11 +382,14 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     let number = unsafe_module::svc_number(frame[6]);
+    pins_enter();
     let (hop, safe) =
         entry::svc_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number);
+    mirror_events(k);
     if safe {
         S::safe_state();
     }
+    pins_running(k.top());
     hop
 }
 
@@ -284,10 +399,13 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
 pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
+    pins_enter();
     let (r, safe) = entry::epilogue_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), n);
+    mirror_events(k);
     if safe {
         S::safe_state();
     }
+    pins_running(k.top());
     r
 }
 
@@ -295,11 +413,14 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
 pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
+    pins_enter();
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
+    mirror_events(k);
     if safe {
         S::safe_state();
     }
+    pins_running(k.top());
     hop
 }
 

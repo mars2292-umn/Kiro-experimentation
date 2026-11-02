@@ -47,7 +47,7 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
-  hil [--bin <crate>] [--timeout <s>] [--spike-only]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short]]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -384,6 +384,8 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut bin = "p1-demo".to_string();
     let mut timeout = 60u64;
     let mut spike_only = false;
+    let mut release_timing = false;
+    let mut short = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -396,6 +398,8 @@ fn hil_command(args: &[String]) -> ExitCode {
                 None => return usage_error("--timeout takes seconds"),
             },
             "--spike-only" => spike_only = true,
+            "--release-timing" => release_timing = true,
+            "--short" => short = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
@@ -441,6 +445,9 @@ fn hil_command(args: &[String]) -> ExitCode {
     let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
         return print_report(&report, "hil");
     };
+    if release_timing {
+        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, &target_dir, report);
+    }
     let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
     };
@@ -464,11 +471,60 @@ fn hil_command(args: &[String]) -> ExitCode {
     let _ = std::fs::write(work.join("self-test.md"), &text);
     let _ = std::fs::write(work.join("edges.txt"), &out.edges_text);
     let _ = std::fs::write(work.join("trace.txt"), &out.trace_text);
+    let _ = std::fs::write(work.join("events.txt"), &out.events_text);
     report.note(format!("report and edge list written under {}", ws.rel(&work)));
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, "the HIL_Rig self-test failed (report above)");
     }
     print_report(&report, "HIL_Rig self-test passed")
+}
+
+/// `cargo xtask hil --release-timing [--short]`: the release-timing run of
+/// task 7.3 (R9.10) over the Application's release-timing configuration
+/// (`timing`: 61 minutes, PAR-05; `--short`: `timing-short`, 3 minutes,
+/// the pipeline check). The report goes under target/xtask-hil/release-timing
+/// and, for the record, docs/hil/.
+fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let (feature, duration_secs, variant) = if short { ("timing-short", 3 * 60, "nrf52840_timing_short") } else { ("timing", 61 * 60, "nrf52840_timing") };
+    let features = format!("{},{feature}", xtask::hil::FEATURES);
+    let dir = target_dir.join("release-timing").join(variant);
+    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let Some(stimulus) = xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    report.note(format!("release-timing configuration `{variant}` ({features}): {} over {} loadable bytes; {} s", target.binary.hash, target.binary.loadable_bytes, duration_secs));
+    let work = dir.join("run");
+    let inputs = rsk_hil::release_timing::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        work_dir: &work,
+        duration_secs,
+        grace_secs: 90,
+        tick_hz: xtask::hil::TICK_HZ,
+        cpu_hz: xtask::hil::CPU_HZ,
+        samplerate_hz: 100_000,
+        flash_stimulus: true,
+    };
+    let out = rsk_hil::release_timing::run(&inputs);
+    let text = rsk_hil::release_timing::render(rig, &inputs, &out);
+    print!("{text}");
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let _ = std::fs::write(work.join("trace.txt"), rsk_hil::trace::render(&out.trace, xtask::hil::TICK_HZ));
+    if let Some(ev) = &out.events {
+        let _ = std::fs::write(work.join("events.txt"), ev.render(xtask::hil::TICK_HZ));
+    }
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::create_dir_all(&record);
+    let name = format!("release_timing_{variant}.md");
+    let _ = std::fs::write(record.join(&name), &text);
+    report.note(format!("report written to {} and docs/hil/{name}", ws.rel(&work)));
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the release-timing run failed (report above)");
+    }
+    print_report(&report, "release-timing run passed")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

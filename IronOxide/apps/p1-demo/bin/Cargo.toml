@@ -24,6 +24,10 @@ debug-port = ["rsk-entry/debug-port"]
 trace = ["rsk-entry/trace"]
 # HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
 trace-ram = ["rsk-entry/trace-ram"]
+trace-pins = ["rsk-entry/trace-pins"]
+# The release-timing configurations of task 7.3 (HIL builds with `nrf52840`).
+timing = ["rsk-entry/timing"]
+timing-short = ["rsk-entry/timing-short"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-entry/quiet"]
 

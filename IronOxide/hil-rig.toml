@@ -30,6 +30,11 @@ driver = "fx2lafw"
 samplerate_hz = 2000000
 stimulus_channel = 6
 response_channel = 0
+# The target's trace pins (rsk-kernel feature `trace-pins`): the executing
+# Task's index on three channels (bit 0 first; 7 = none) and the
+# Kernel-active flag.
+task_id_channels = [1, 2, 3]
+kernel_channel = 4
 
 # The wiring, as the rig's discovery pass of 2026-11-01 measured it (each
 # board driving each header pin in turn while the other board's inputs and
@@ -54,3 +59,10 @@ period_ms = 18
 pulse_us = 100
 response_deadline_ms = 15
 min_matched = 9
+# R9.10: the bound on the lag from a periodic nominal instant to the
+# Release becoming effective, in CPU cycles, as the Kernel's own record
+# measures it in a HIL build (with the trace instrumentation's cost).
+# The first short run measured 5,687 cycles at most (89 µs; the tick that
+# releases five Tasks at once); the job's placeholder of 500 cycles is far
+# below it (task 19.3 feeds the measured value to the Analyzer).
+j_rel_cycles = 8000

@@ -9,6 +9,10 @@ publish.workspace = true
 [features]
 # The nRF52840-DK variant of the declaration (`src/nrf52840.rs`).
 nrf52840 = []
+# The release-timing configurations of task 7.3 (`src/nrf52840_timing*.rs`),
+# the nRF52840-DK variant with a long operating duration; one at a time.
+nrf52840_timing = ["nrf52840"]
+nrf52840_timing_short = ["nrf52840"]
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

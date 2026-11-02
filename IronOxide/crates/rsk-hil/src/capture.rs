@@ -81,6 +81,56 @@ impl Capture {
     }
 }
 
+/// The target's dispatch timeline from the trace pins (rsk-kernel feature
+/// `trace-pins`): per Task index 0 to 7 (7 = none), the samples it was
+/// executing and the number of its runs (entries), and the Kernel-active
+/// samples and entries.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Timeline {
+    pub samples: [usize; 8],
+    pub runs: [usize; 8],
+    pub kernel_samples: usize,
+    pub kernel_entries: usize,
+    /// The longest run of each Task, in samples.
+    pub longest_run: [usize; 8],
+}
+
+/// Decodes the timeline over `samples[from..to]`.
+pub fn timeline(samples: &[u8], id_channels: &[u8], kernel: Option<u8>, from: usize, to: usize) -> Timeline {
+    let mut t = Timeline::default();
+    let id_of = |b: u8| id_channels.iter().enumerate().fold(0usize, |id, (bit, ch)| id | (((b >> ch) & 1) as usize) << bit);
+    let mut prev: Option<usize> = None;
+    let mut run = 0;
+    let mut prev_k = false;
+    for &b in &samples[from.min(samples.len())..to.min(samples.len())] {
+        let id = id_of(b).min(7);
+        t.samples[id] += 1;
+        if prev != Some(id) {
+            if let Some(p) = prev {
+                t.longest_run[p] = t.longest_run[p].max(run);
+            }
+            t.runs[id] += 1;
+            run = 0;
+        }
+        run += 1;
+        prev = Some(id);
+        if let Some(k) = kernel {
+            let active = (b >> k) & 1 == 1;
+            if active {
+                t.kernel_samples += 1;
+                if !prev_k {
+                    t.kernel_entries += 1;
+                }
+            }
+            prev_k = active;
+        }
+    }
+    if let Some(p) = prev {
+        t.longest_run[p] = t.longest_run[p].max(run);
+    }
+    t
+}
+
 /// The edges of one channel: `(sample index, level after the edge)`.
 pub fn edges(samples: &[u8], channel: u8) -> Vec<(usize, bool)> {
     let mut out = Vec::new();
@@ -121,6 +171,8 @@ pub struct Analysis {
     /// Stimulus rises inside the window (from the first answered rise to
     /// the last answered one) that no response followed before the next rise.
     pub unanswered_in_window: usize,
+    /// The first few unanswered rises, as seconds into the capture.
+    pub unanswered_at_s: Vec<f64>,
     /// Stimulus rises before the window (the stimulus board runs before
     /// the target) and after it (after the target's operating duration).
     pub stimulus_before: usize,
@@ -237,6 +289,7 @@ pub fn analyze(samples: &[u8], samplerate_hz: u32, stimulus: u8, response: u8, r
         a.stimulus_before = first;
         a.stimulus_after = rises.len() - 1 - last;
         a.unanswered_in_window = answered[first..=last].iter().filter(|x| !**x).count();
+        a.unanswered_at_s = (first..=last).filter(|k| !answered[*k]).take(8).map(|k| rises[k] as f64 / samplerate_hz as f64).collect();
         a.window_s = Some((rises[first] as f64 / samplerate_hz as f64, (resp.last().copied().unwrap_or(rises[last])) as f64 / samplerate_hz as f64));
     } else {
         a.stimulus_before = rises.len();
@@ -266,6 +319,21 @@ mod tests {
             }
         }
         s
+    }
+
+    #[test]
+    fn decodes_the_timeline() {
+        // Task ids on bits 1 to 3, the Kernel flag on bit 4: idle, Task 2
+        // for 3 samples, a Kernel entry, Task 2 again, idle.
+        let s = [0b1110u8, 0b0100, 0b0100, 0b0100, 0b10100, 0b0100, 0b1110];
+        let t = timeline(&s, &[1, 2, 3], Some(4), 0, s.len());
+        assert_eq!(t.samples[2], 5);
+        assert_eq!(t.runs[2], 1);
+        assert_eq!(t.longest_run[2], 5);
+        assert_eq!(t.samples[7], 2);
+        assert_eq!(t.runs[7], 2);
+        assert_eq!(t.kernel_samples, 1);
+        assert_eq!(t.kernel_entries, 1);
     }
 
     #[test]

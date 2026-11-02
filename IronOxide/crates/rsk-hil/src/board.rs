@@ -108,6 +108,34 @@ impl Target<'_> {
         Ok(Some(crate::trace::decode(&words)))
     }
 
+    /// Reads the Kernel's event mirror (`EVENT_MIRROR`, feature
+    /// `trace-ram`); `None` when the build has none.
+    pub fn read_events(&self, elf: &Path, scratch: &Path) -> Result<Option<crate::events::Events>, String> {
+        let image = rsk_elf::Elf::read(elf).map_err(|e| format!("{}: {e}", elf.display()))?;
+        let symbols = image.symbols().map_err(|e| e.to_string())?;
+        let Some(sym) = symbols.iter().find(|s| s.name == "EVENT_MIRROR" && s.is_object() && s.size >= 32) else {
+            return Ok(None);
+        };
+        let bytes = self.read(sym.address(), sym.size as usize, scratch)?;
+        let _ = std::fs::remove_file(scratch);
+        let words: Vec<u32> = bytes.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+        crate::events::Events::decode(&words).map(Some)
+    }
+
+    /// Reads the Kernel's release-timing record (`RELEASE_STATS`, feature
+    /// `trace-ram`); `None` when the build has none.
+    pub fn read_stats(&self, elf: &Path, scratch: &Path) -> Result<Option<crate::stats::Stats>, String> {
+        let image = rsk_elf::Elf::read(elf).map_err(|e| format!("{}: {e}", elf.display()))?;
+        let symbols = image.symbols().map_err(|e| e.to_string())?;
+        let Some(sym) = symbols.iter().find(|s| s.name == "RELEASE_STATS" && s.is_object() && s.size >= 16) else {
+            return Ok(None);
+        };
+        let bytes = self.read(sym.address(), sym.size as usize, scratch)?;
+        let _ = std::fs::remove_file(scratch);
+        let words: Vec<u32> = bytes.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+        crate::stats::Stats::decode(&words).map(Some)
+    }
+
     /// Flashes and runs `elf` with the console (`probe-rs run`, which
     /// carries the Kernel's semihosting output and exit code); the run is
     /// killed after `timeout_secs`. `ok` is a zero exit with `RSK-OK` on

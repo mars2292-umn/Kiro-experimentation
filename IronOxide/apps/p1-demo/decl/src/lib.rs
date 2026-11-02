@@ -60,8 +60,12 @@
 // of `nrf52840.rs` (the same Application on the nRF52840-DK, with that
 // board's peripherals) is compiled instead. `cargo xtask gen` generates
 // both (`gen/` and `gen-nrf52840/`; policy `variants`).
-#[cfg(feature = "nrf52840")]
+#[cfg(all(feature = "nrf52840", not(feature = "nrf52840_timing"), not(feature = "nrf52840_timing_short")))]
 mod nrf52840;
+#[cfg(feature = "nrf52840_timing")]
+mod nrf52840_timing;
+#[cfg(feature = "nrf52840_timing_short")]
+mod nrf52840_timing_short;
 
 #[cfg(not(feature = "nrf52840"))]
 rsk::app! {

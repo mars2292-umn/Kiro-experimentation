@@ -162,9 +162,97 @@ unsafe impl Sync for TraceCell {}
 #[link_section = ".rsk.noinit"]
 static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_LEN]));
 
-/// Appends one trace entry. Called only at the Kernel level or with PRIMASK held.
+/// The release-lag statistics (feature `trace-ram`; R9.10): for every
+/// periodic Release the time-base handler makes effective, the lag from
+/// the time base reaching the nominal instant to the Release becoming
+/// pending, in CPU cycles: `(now - due) * (CPU_HZ / TICK_HZ)` at handler
+/// entry plus the DWT cycles from entry to the point the Kernel logic has
+/// returned. `RELEASE_STATS` is a word array in `.rsk.noinit`: a header
+/// (magic `0x52534b53`, the Task slots, the nominal mismatches: due
+/// instants that are not `O + k*T`), then per Task (8 slots) `count, max,
+/// sum_lo, sum_hi, hist[16]` (bucket b counts lags below `2^b` cycles,
+/// bucket 15 the rest), then a ring of the last 256 Releases as `(task,
+/// due_lo, due_hi, lag)` after a write index. The HIL_Rig reads it after
+/// a run.
+#[cfg(feature = "trace-ram")]
+pub const STATS_TASKS: usize = 8;
+#[cfg(feature = "trace-ram")]
+pub const STATS_RING: usize = 256;
+#[cfg(feature = "trace-ram")]
+const STATS_HEADER: usize = 4;
+#[cfg(feature = "trace-ram")]
+const STATS_PER_TASK: usize = 20;
+#[cfg(feature = "trace-ram")]
+const STATS_WORDS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK + 1 + 4 * STATS_RING;
+#[cfg(feature = "trace-ram")]
+struct StatsCell(UnsafeCell<[u32; STATS_WORDS]>);
+// SAFETY (UJ-005b): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for StatsCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[link_section = ".rsk.noinit"]
+static RELEASE_STATS: StatsCell = StatsCell(UnsafeCell::new([0; STATS_WORDS]));
+
+#[cfg(feature = "trace-ram")]
+fn stats() -> &'static mut [u32; STATS_WORDS] {
+    // SAFETY (UJ-006b): as UJ-006.
+    let s = unsafe { &mut *RELEASE_STATS.0.get() };
+    if s[0] != 0x5253_4b53 {
+        *s = [0; STATS_WORDS];
+        s[0] = 0x5253_4b53;
+        s[1] = STATS_TASKS as u32;
+    }
+    s
+}
+
+/// Clears the statistics (at boot, so that a run's record is its own).
+#[cfg(feature = "trace-ram")]
+pub fn stats_reset() {
+    let s = stats();
+    *s = [0; STATS_WORDS];
+    s[0] = 0x5253_4b53;
+    s[1] = STATS_TASKS as u32;
+}
+
+/// A periodic Release of Task `t` became effective: due at `due` ticks
+/// (nominal `offset + k * period`), observed `lag` cycles after it.
+#[cfg(feature = "trace-ram")]
+pub fn stats_release(t: u8, due: u64, offset: u64, period: u64, lag: u32) {
+    let s = stats();
+    if t as usize >= STATS_TASKS {
+        return;
+    }
+    if period == 0 || due < offset || (due - offset) % period != 0 {
+        s[2] = s[2].saturating_add(1);
+    }
+    let v = STATS_HEADER + t as usize * STATS_PER_TASK;
+    s[v] = s[v].saturating_add(1);
+    if lag > s[v + 1] {
+        s[v + 1] = lag;
+    }
+    let sum = ((s[v + 3] as u64) << 32 | s[v + 2] as u64).saturating_add(lag as u64);
+    s[v + 2] = sum as u32;
+    s[v + 3] = (sum >> 32) as u32;
+    let bucket = (32 - lag.leading_zeros()).min(15) as usize;
+    s[v + 4 + bucket] = s[v + 4 + bucket].saturating_add(1);
+    let ring = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
+    let n = s[ring] as usize;
+    let slot = ring + 1 + 4 * (n % STATS_RING);
+    s[slot] = t as u32;
+    s[slot + 1] = due as u32;
+    s[slot + 2] = (due >> 32) as u32;
+    s[slot + 3] = lag;
+    s[ring] = s[ring].wrapping_add(1);
+}
+
+/// Appends one trace entry, unless the trace is frozen (`events_push`).
+/// Called only at the Kernel level or with PRIMASK held.
 #[cfg(feature = "trace-ram")]
 pub fn trace_ram_push(word: u32, now: u64) {
+    if trace_frozen() {
+        return;
+    }
     // SAFETY (UJ-006a): as UJ-006.
     let ring = unsafe { &mut *TRACE_RING.0.get() };
     let n = ring[0] as usize;
@@ -173,6 +261,111 @@ pub fn trace_ram_push(word: u32, now: u64) {
     ring[slot + 1] = now as u32;
     ring[slot + 2] = (now >> 32) as u32;
     ring[0] = ring[0].wrapping_add(1);
+}
+
+/// The event mirror (feature `trace-ram`): every Health_Monitor event the
+/// Kernel logic pushes, copied by Kernel_Arch after the entry that pushed
+/// it (`arch::cm4::mirror_events`) into a ring of the last `EVENTS_LEN`
+/// in `.rsk.noinit`, so that a run far longer than the 32-entry log can
+/// be judged afterwards (the hour of PAR-05 overwrites the log many times
+/// over); and the trace freeze: the first event outside the expected set
+/// (`events_expect`: a kind set and a Task, the run's known events, with
+/// EV_DEBUGGER, EV_OPERATING_END, and EV_SAFE_STATE always expected)
+/// stops the trace ring, which then holds the entries leading to it.
+/// Layout: header `magic 0x52534b45, capacity, written, seen_seq, frozen
+/// (0, or 1 + the event's index in the mirror), expect_kinds (bit k = kind
+/// k), expect_task (0xFF: any), 0`, then `(kind << 24 | task << 16 |
+/// partition << 8, instant_lo, instant_hi, detail)` per event.
+#[cfg(feature = "trace-ram")]
+pub const EVENTS_LEN: usize = 1024;
+/// The most events one Kernel entry can add to the mirror: the log's capacity.
+#[cfg(feature = "trace-ram")]
+pub const EVENTS_PER_ENTRY: usize = 32;
+#[cfg(feature = "trace-ram")]
+const EVENTS_HEADER: usize = 8;
+#[cfg(feature = "trace-ram")]
+const EVENTS_WORDS: usize = EVENTS_HEADER + 4 * EVENTS_LEN;
+#[cfg(feature = "trace-ram")]
+const EVENTS_MAGIC: u32 = 0x5253_4b45;
+#[cfg(feature = "trace-ram")]
+struct EventsCell(UnsafeCell<[u32; EVENTS_WORDS]>);
+// SAFETY (UJ-005c): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for EventsCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[link_section = ".rsk.noinit"]
+static EVENT_MIRROR: EventsCell = EventsCell(UnsafeCell::new([0; EVENTS_WORDS]));
+
+#[cfg(feature = "trace-ram")]
+fn events() -> &'static mut [u32; EVENTS_WORDS] {
+    // SAFETY (UJ-006c): as UJ-006.
+    let e = unsafe { &mut *EVENT_MIRROR.0.get() };
+    if e[0] != EVENTS_MAGIC {
+        *e = [0; EVENTS_WORDS];
+        e[0] = EVENTS_MAGIC;
+        e[1] = EVENTS_LEN as u32;
+        e[6] = 0xFF;
+    }
+    e
+}
+
+/// The expected events of the run: kinds in `kinds` (bit k = kind k) of
+/// Task `task` (0xFF: any) do not freeze the trace. Kept across `events_reset`.
+#[cfg(feature = "trace-ram")]
+pub fn events_expect(kinds: u32, task: u8) {
+    let e = events();
+    e[5] = kinds;
+    e[6] = task as u32;
+}
+
+/// Clears the mirror and the freeze (at boot, so that a run's record is
+/// its own); the expectation stays.
+#[cfg(feature = "trace-ram")]
+pub fn events_reset() {
+    let e = events();
+    let (kinds, task) = (e[5], e[6]);
+    *e = [0; EVENTS_WORDS];
+    e[0] = EVENTS_MAGIC;
+    e[1] = EVENTS_LEN as u32;
+    e[5] = kinds;
+    e[6] = task;
+}
+
+/// The sequence number the mirror has seen up to (the next event to copy).
+#[cfg(feature = "trace-ram")]
+pub fn events_seen_seq() -> u32 {
+    events()[3]
+}
+
+/// Whether the trace ring is frozen (an unexpected event was mirrored).
+#[cfg(feature = "trace-ram")]
+pub fn trace_frozen() -> bool {
+    events()[4] != 0
+}
+
+/// Mirrors event number `seq` of the log and freezes the trace at the
+/// first unexpected one.
+#[cfg(feature = "trace-ram")]
+pub fn events_push(seq: u32, kind: u8, task: u8, partition: u8, instant: u64, detail: u32) {
+    let e = events();
+    let n = e[2] as usize;
+    let slot = EVENTS_HEADER + 4 * (n % EVENTS_LEN);
+    e[slot] = (kind as u32) << 24 | (task as u32) << 16 | (partition as u32) << 8;
+    e[slot + 1] = instant as u32;
+    e[slot + 2] = (instant >> 32) as u32;
+    e[slot + 3] = detail;
+    e[2] = e[2].wrapping_add(1);
+    e[3] = seq.wrapping_add(1);
+    let informational = kind == crate::logic::log::EV_DEBUGGER
+        || kind == crate::logic::log::EV_OPERATING_END
+        || kind == crate::logic::log::EV_SAFE_STATE;
+    let expected = kind < 32 && (e[5] >> kind) & 1 == 1 && (e[6] == 0xFF || e[6] == task as u32);
+    if e[4] == 0 && !informational && !expected {
+        // The mirror's own index of the event (the log's sequence numbers
+        // restart at the reboot on probe detach; the mirror's do not).
+        e[4] = (n as u32).wrapping_add(1);
+    }
 }
 
 /// The Kernel_Arch state. Called only at the Kernel level or with PRIMASK held.

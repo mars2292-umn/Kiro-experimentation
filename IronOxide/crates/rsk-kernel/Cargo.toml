@@ -30,6 +30,10 @@ trace = []
 # probe after a run: no halts, no console, a few cycles per entry point.
 # HIL builds only; never a Flight_Build feature.
 trace-ram = []
+# The executing Task's index and the Kernel-active flag on GPIO pins the
+# HIL_Rig's analyzer reads (P1.11 to P1.14 of the nRF52840-DK). HIL builds
+# only; never a Flight_Build feature.
+trace-pins = []
 # Keeps the nRF52840's debug access port open across resets by writing
 # APPROTECT.DISABLE at boot (recent silicon locks the port at every reset
 # unless the firmware does so). HIL builds only; a Flight_Build leaves the

@@ -1029,6 +1029,11 @@ fn hil_rig(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[crate::
             artifacts.push(name);
         }
     }
+    if !out.events_text.is_empty() {
+        if let Ok(name) = store.write_artifact("hil-rig-events.txt", &out.events_text) {
+            artifacts.push(name);
+        }
+    }
     for st in &out.steps {
         if st.ok {
             report.note(format!("HIL_Rig: {}: {}", st.name, st.detail));

@@ -98,6 +98,14 @@ pub fn echo(mut cx: rsk_ctx::Echo) {
 /// updates it.
 // The two writes to `in_cs` preserve its invariant (R46.4), which the
 // App_Prover checks at each `lock`.
+/// The Critical_Section's length: 8 ms, or 12 ms in the release-timing
+/// configuration (task 7.3), so that it is in progress at `control`'s
+/// nominal instants (10 ms into every 20 ms period).
+#[cfg(not(feature = "timing"))]
+const CS_MS: u64 = 8;
+#[cfg(feature = "timing")]
+const CS_MS: u64 = 12;
+
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::sensor_pre(&cx)))]
 pub fn sensor(mut cx: rsk_ctx::Sensor) {
     #[cfg(creusot)]
@@ -117,12 +125,27 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
         // `wrapping_sub`: the time base is monotone, but the App_Prover knows
         // nothing of `now()` beyond its type (task 17.1).
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
-        while rsk::now().wrapping_sub(start) < rsk_target::ms(8) && i < 10_000_000 {
+        while rsk::now().wrapping_sub(start) < rsk_target::ms(CS_MS) && i < 10_000_000 {
             i += 1;
         }
         *s = s.saturating_add(1);
     });
     cx.in_cs.lock(leave);
     cx.count.with(|c| *c = c.saturating_add(1));
+    // The release-timing test (task 7.3, R9.10): every 1024th Job runs
+    // on for 38 ms outside the Critical_Section (50 ms in all, past two
+    // of the Task's 20 ms nominal instants and short of the third), so
+    // that R9.7 holds one Release and R9.8 discards the next with an
+    // MIT_Violation (RECORD_AND_CONTINUE lets the Job complete, R18.6;
+    // the Budget overrun and the deadline miss are the test's expected
+    // events).
+    #[cfg(feature = "timing")]
+    if cx.count.get() % 1024 == 0 {
+        let start = rsk::now();
+        let mut i = 0u32;
+        while rsk::now().wrapping_sub(start) < rsk_target::ms(38) && i < 50_000_000 {
+            i += 1;
+        }
+    }
     rsk::debug(&[b'B']);
 }

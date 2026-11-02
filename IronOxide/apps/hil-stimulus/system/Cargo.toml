@@ -17,6 +17,7 @@ debug-port = ["rsk-kernel/debug-port"]
 trace = ["rsk-kernel/trace"]
 # HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
 trace-ram = ["rsk-kernel/trace-ram"]
+trace-pins = ["rsk-kernel/trace-pins"]
 # The Tasks' debug prints are silent (see the rsk crate); the stimulus
 # Application prints nothing anyway.
 quiet = ["rsk/quiet"]

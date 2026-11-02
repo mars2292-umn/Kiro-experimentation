@@ -60,6 +60,9 @@ pub struct Outcome {
     pub edges_text: String,
     /// The Kernel's trace of the run, rendered (an evidence artifact).
     pub trace_text: String,
+    pub events_text: String,
+    /// The Kernel's release-timing record of the run (R9.10), rendered.
+    pub stats_text: String,
     /// The target's access port is locked: inconclusive, not failed.
     pub locked: bool,
 }
@@ -227,6 +230,15 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
 
     // 6. The Kernel's trace of the run (feature `trace-ram`): read back
     // after the run, and checked for an interrupt storm.
+    match target.read_events(inputs.target_elf, &scratch) {
+        Ok(Some(ev)) => {
+            out.events_text = ev.render(inputs.tick_hz);
+            let unexpected = ev.unexpected().len();
+            out.step("Kernel events", unexpected == 0, ev.summary(inputs.tick_hz))
+        }
+        Ok(None) => out.step("Kernel events", true, "the build has no event mirror (feature `trace-ram`)"),
+        Err(e) => out.step("Kernel events", false, e),
+    };
     match target.read_trace(inputs.target_elf, &scratch) {
         Ok(Some(entries)) => {
             out.trace_text = crate::trace::render(&entries, inputs.tick_hz);
@@ -254,11 +266,39 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         }
     }
 
+    // 6b. The Kernel's release-timing record (R9.10) of this short run:
+    // every nominal instant O + k*T and every lag below J_rel.
+    match target.read_stats(inputs.target_elf, &scratch) {
+        Ok(Some(st)) => {
+            let max = st.max_cycles();
+            let ok = st.nominal_mismatches == 0 && max <= rig.expect.j_rel_cycles;
+            out.step(
+                "release timing",
+                ok,
+                format!(
+                    "{} periodic Releases recorded; nominal instants O + k*T: {}; lag max {} cycles ({:.1} µs at 64 MHz) against J_rel {} cycles",
+                    st.total(),
+                    if st.nominal_mismatches == 0 { "all" } else { "NOT all" },
+                    max,
+                    max as f64 / 64.0,
+                    rig.expect.j_rel_cycles
+                ),
+            );
+            out.stats_text = st.render(64_000_000, inputs.tick_hz);
+        }
+        Ok(None) => {
+            out.step("release timing", true, "the build has no release-timing record (feature `trace-ram`)");
+        }
+        Err(e) => {
+            out.step("release timing", false, e);
+        }
+    }
+
     // 7. The capture against the console.
     match samples {
         Ok(samples) => {
-            // Edges of one run are a period apart; three periods separate bursts.
-            let gap = (rig.expect.period_ms * 3 * rig.analyzer.samplerate_hz as u64 / 1000) as usize;
+            // Bursts a second apart: flashing and the reset on detach are seconds.
+            let gap = rig.analyzer.samplerate_hz as usize;
             let a = capture::analyze(&samples, rig.analyzer.samplerate_hz, rig.analyzer.stimulus_channel, rig.analyzer.response_channel, pulses.map(|p| p as usize), gap);
             out.edges_text = a.edges_text(&samples, rig.analyzer.stimulus_channel, rig.analyzer.response_channel);
             let deadline_us = rig.expect.response_deadline_ms as f64 * 1000.0;
@@ -297,6 +337,28 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                     a.samples as f64 / a.samplerate_hz as f64
                 ),
             );
+            // The dispatch timeline from the trace pins over the run.
+            if !rig.analyzer.task_id_channels.is_empty() {
+                if let Some((f, t)) = a.window_s {
+                    let from = (f * rig.analyzer.samplerate_hz as f64) as usize;
+                    let to = (t * rig.analyzer.samplerate_hz as f64) as usize;
+                    let tl = capture::timeline(&samples, &rig.analyzer.task_id_channels, rig.analyzer.kernel_channel, from, to);
+                    let busy: usize = tl.samples[..7].iter().sum();
+                    let total = (to - from).max(1);
+                    out.step(
+                        "dispatch timeline",
+                        true,
+                        format!(
+                            "trace pins D{}: Tasks executing {:.1} % of the run, the Kernel {:.1} % over {} entries; runs per Task {:?}",
+                            rig.analyzer.task_id_channels.iter().map(|c| c.to_string()).collect::<Vec<_>>().join("/D"),
+                            busy as f64 * 100.0 / total as f64,
+                            tl.kernel_samples as f64 * 100.0 / total as f64,
+                            tl.kernel_entries,
+                            &tl.runs[..7]
+                        ),
+                    );
+                }
+            }
             out.analysis = Some(a);
         }
         Err(e) => {
@@ -348,6 +410,10 @@ pub fn render(rig: &Rig, out: &Outcome) -> String {
         for c in &out.commands {
             s.push_str(&format!("    {c}\n"));
         }
+    }
+    if !out.stats_text.is_empty() {
+        s.push_str("\n## Release timing (R9.10)\n\n");
+        s.push_str(&out.stats_text);
     }
     if let Some(run) = &out.run {
         s.push_str("\n## Target console\n\n```\n");

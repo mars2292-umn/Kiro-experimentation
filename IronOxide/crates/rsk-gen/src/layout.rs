@@ -147,6 +147,13 @@ pub fn plan(decl: &Declaration, target: &Target) -> Result<Plan, Vec<Diagnostic>
                 ),
             ));
         }
+        if p.stack > ram_usable {
+            errors.push(Diagnostic::new(
+                "R20.4",
+                ItemRef::PartitionField(p.name.clone(), "stack".into()),
+                format!("the stack ({} bytes) does not fit the Partition's RAM region ({} usable bytes)", p.stack, ram_usable),
+            ));
+        }
         code_cursor = code_base + code_size;
         ram_cursor = ram_base + ram_size;
 

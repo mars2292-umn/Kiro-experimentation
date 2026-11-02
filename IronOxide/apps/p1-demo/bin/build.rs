@@ -8,7 +8,15 @@ fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
     // The declaration variant's generated files (`gen-<variant>/`), the
     // default's otherwise.
-    let gen = if std::env::var_os("CARGO_FEATURE_NRF52840").is_some() { "gen-nrf52840" } else { "gen" };
+    let gen = if std::env::var_os("CARGO_FEATURE_TIMING").is_some() {
+        "gen-nrf52840_timing"
+    } else if std::env::var_os("CARGO_FEATURE_TIMING_SHORT").is_some() {
+        "gen-nrf52840_timing_short"
+    } else if std::env::var_os("CARGO_FEATURE_NRF52840").is_some() {
+        "gen-nrf52840"
+    } else {
+        "gen"
+    };
     println!("cargo:rustc-link-search={dir}/../{gen}");
     println!("cargo:rustc-link-arg-bins=-Tlink.x");
     println!("cargo:rustc-link-arg-bins=--nmagic");

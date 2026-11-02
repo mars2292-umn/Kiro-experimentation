@@ -34,6 +34,10 @@ pub struct Analyzer {
     pub stimulus_channel: u8,
     /// The channel carrying the target's response line.
     pub response_channel: u8,
+    /// The target's trace pins (rsk-kernel `trace-pins`): the executing
+    /// Task's index, bit 0 first (7 = none), and the Kernel-active flag.
+    pub task_id_channels: Vec<u8>,
+    pub kernel_channel: Option<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,6 +46,8 @@ pub struct Expect {
     pub pulse_us: u64,
     pub response_deadline_ms: u64,
     pub min_matched: usize,
+    /// R9.10: the bound on a periodic Release's lag, in CPU cycles.
+    pub j_rel_cycles: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,7 +120,7 @@ impl Rig {
         }
         let an = table.get("analyzer").and_then(Value::as_table).ok_or("no [analyzer] table")?;
         for key in an.keys() {
-            if !["driver", "samplerate_hz", "stimulus_channel", "response_channel"].contains(&key.as_str()) {
+            if !["driver", "samplerate_hz", "stimulus_channel", "response_channel", "task_id_channels", "kernel_channel"].contains(&key.as_str()) {
                 return Err(format!("[analyzer]: unknown key `{key}`"));
             }
         }
@@ -123,6 +129,19 @@ impl Rig {
             samplerate_hz: int_of(an, "samplerate_hz")? as u32,
             stimulus_channel: channel_of(an, "stimulus_channel")?,
             response_channel: channel_of(an, "response_channel")?,
+            task_id_channels: match an.get("task_id_channels") {
+                None => Vec::new(),
+                Some(v) => v
+                    .as_array()
+                    .ok_or("[analyzer]: task_id_channels is not an array")?
+                    .iter()
+                    .map(|c| c.as_integer().filter(|c| (0..=7).contains(c)).map(|c| c as u8).ok_or("[analyzer]: task_id_channels holds a value outside 0 to 7".to_string()))
+                    .collect::<Result<Vec<u8>, String>>()?,
+            },
+            kernel_channel: match an.get("kernel_channel") {
+                None => None,
+                Some(_) => Some(channel_of(an, "kernel_channel")?),
+            },
         };
         if analyzer.stimulus_channel == analyzer.response_channel {
             return Err("[analyzer]: the stimulus and response channels are the same".into());
@@ -143,7 +162,7 @@ impl Rig {
         }
         let ex = table.get("expect").and_then(Value::as_table).ok_or("no [expect] table")?;
         for key in ex.keys() {
-            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched"].contains(&key.as_str()) {
+            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles"].contains(&key.as_str()) {
                 return Err(format!("[expect]: unknown key `{key}`"));
             }
         }
@@ -152,6 +171,7 @@ impl Rig {
             pulse_us: int_of(ex, "pulse_us")?,
             response_deadline_ms: int_of(ex, "response_deadline_ms")?,
             min_matched: int_of(ex, "min_matched")? as usize,
+            j_rel_cycles: ex.get("j_rel_cycles").map(|_| int_of(ex, "j_rel_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
         };
         if expect.period_ms == 0 || expect.response_deadline_ms == 0 {
             return Err("[expect]: period_ms and response_deadline_ms must be positive".into());
@@ -219,6 +239,13 @@ min_matched = 9
         assert_eq!(rig.spares.len(), 1);
         assert!(!rig.spares[0].wired);
         assert_eq!(rig.analyzer.stimulus_channel, 6);
+        assert!(rig.analyzer.task_id_channels.is_empty() && rig.analyzer.kernel_channel.is_none());
+        assert_eq!(rig.expect.j_rel_cycles, u32::MAX);
+        let with_pins = RIG.replace("response_channel = 0", "response_channel = 0\ntask_id_channels = [1, 2, 3]\nkernel_channel = 4").replace("min_matched = 9", "min_matched = 9\nj_rel_cycles = 4000");
+        let rig = Rig::parse(&with_pins).unwrap();
+        assert_eq!(rig.analyzer.task_id_channels, vec![1, 2, 3]);
+        assert_eq!(rig.analyzer.kernel_channel, Some(4));
+        assert_eq!(rig.expect.j_rel_cycles, 4000);
         // Keys come out sorted (a TOML table).
         assert_eq!(rig.wiring[0], ("board_spares".to_string(), "P1.02, P1.03".to_string()));
         assert_eq!(rig.wiring[1], ("stimulus_line".to_string(), "P1.01".to_string()));

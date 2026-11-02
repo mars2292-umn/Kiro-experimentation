@@ -11,6 +11,10 @@ use rsk_kernel::arch::cm4::unsafe_module::hw;
 
 hil_stimulus_decl::rsk_system!();
 
+/// The stimulus Application expects no Health_Monitor event (the Kernel's
+/// event mirror, feature `trace-ram`).
+pub const TRACE_EXPECT: (u32, u8) = (0, 0xFF);
+
 /// The system safe state (R14.4): quiet, watchdog fed, forever.
 pub fn halt() -> ! {
     loop {

@@ -25,6 +25,10 @@ debug-port = ["rsk-system?/debug-port", "hil-stimulus-system?/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.
 trace = ["rsk-system?/trace", "hil-stimulus-system?/trace"]
 trace-ram = ["rsk-system?/trace-ram", "hil-stimulus-system?/trace-ram"]
+trace-pins = ["rsk-system?/trace-pins", "hil-stimulus-system?/trace-pins"]
+# The P1 demo's release-timing configurations (task 7.3).
+timing = ["rsk-system?/timing"]
+timing-short = ["rsk-system?/timing-short"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-system?/quiet", "hil-stimulus-system?/quiet"]
 

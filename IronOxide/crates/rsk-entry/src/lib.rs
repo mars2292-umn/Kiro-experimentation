@@ -132,6 +132,12 @@ pub unsafe extern "C" fn Reset() -> ! {
         entry = entry.add(1);
         ranges += 1;
     }
+    // The HIL build's trace freeze (feature `trace-ram`): the events the
+    // system crate declares as the run's own do not freeze the Kernel trace.
+    #[cfg(feature = "app-p1-demo")]
+    arch::trace_expect(rsk_system::TRACE_EXPECT.0, rsk_system::TRACE_EXPECT.1);
+    #[cfg(feature = "app-hil-stimulus")]
+    arch::trace_expect(hil_stimulus_system::TRACE_EXPECT.0, hil_stimulus_system::TRACE_EXPECT.1);
     if !arch::boot::<Sys>() {
         Sys::safe_state();
     }

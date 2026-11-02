@@ -95,6 +95,7 @@ fn self_test(args: &[String]) -> ExitCode {
     let _ = std::fs::write(work.join("self-test.md"), &report);
     let _ = std::fs::write(work.join("edges.txt"), &out.edges_text);
     let _ = std::fs::write(work.join("trace.txt"), &out.trace_text);
+    let _ = std::fs::write(work.join("events.txt"), &out.events_text);
     if out.ok() {
         ExitCode::SUCCESS
     } else {

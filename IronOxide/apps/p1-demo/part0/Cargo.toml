@@ -17,6 +17,8 @@ rsk = { path = "../../../crates/rsk" }
 # applies to the Kernel crates only; these are Application features that
 # `cargo xtask conformance` enables one at a time).
 [features]
+# The release-timing test (task 7.3): every 1024th `sensor` Job runs 50 ms.
+timing = []
 fi-pr12 = []
 fi-pr19 = []
 fi-pr22 = []

@@ -27,9 +27,11 @@ use crate::workspace::Workspace;
 pub const CHIP: &str = "nRF52840_xxAA";
 /// The declaration variant and the features of a HIL build.
 pub const VARIANT: &str = "nrf52840";
-pub const FEATURES: &str = "nrf52840,debug-port,quiet,trace-ram";
-/// The board's time base (the Target table's `tick_hz`), for the trace.
+pub const FEATURES: &str = "nrf52840,debug-port,quiet,trace-ram,trace-pins";
+/// The board's time base and CPU clock (the Target table), for the trace
+/// and the release-timing record.
 pub const TICK_HZ: u64 = 16_000_000;
+pub const CPU_HZ: u64 = 64_000_000;
 
 /// The rig description at the workspace root, if there is one.
 pub fn rig(root: &Path) -> Option<Result<Rig, String>> {
@@ -72,8 +74,14 @@ pub struct HilBuild {
 
 /// Builds the HIL variant of `bin` for the Target under `target_dir`.
 pub fn build(ws: &Workspace, bin: &str, target_dir: &Path, sandbox: Option<&Sandbox>, report: &mut Report) -> Option<HilBuild> {
+    build_with(ws, bin, FEATURES, target_dir, sandbox, report)
+}
+
+/// The HIL build of `bin` with `features` (the release-timing
+/// configurations add `timing` or `timing-short`, task 7.3).
+pub fn build_with(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, sandbox: Option<&Sandbox>, report: &mut Report) -> Option<HilBuild> {
     let cmd = Cmd::cargo_frozen("build")
-        .args(["--quiet", "-p", bin, "--release", "--target", &ws.policy.target, "--no-default-features", "--features", FEATURES, "--manifest-path"])
+        .args(["--quiet", "-p", bin, "--release", "--target", &ws.policy.target, "--no-default-features", "--features", features, "--manifest-path"])
         .arg(ws.root.join("Cargo.toml"))
         .arg("--target-dir")
         .arg(target_dir);
@@ -90,7 +98,7 @@ pub fn build(ws: &Workspace, bin: &str, target_dir: &Path, sandbox: Option<&Sand
         }
     }
     let elf = target_dir.join(&ws.policy.target).join("release").join(bin);
-    match Binary::of(bin, &format!("{bin} ({VARIANT}, {FEATURES})"), &elf) {
+    match Binary::of(bin, &format!("{bin} ({VARIANT}, {features})"), &elf) {
         Ok(binary) => Some(HilBuild { bin: bin.to_string(), elf, command, binary }),
         Err(e) => {
             report.error(Rule::Step, None, format!("HIL build of `{bin}`: {e}"));

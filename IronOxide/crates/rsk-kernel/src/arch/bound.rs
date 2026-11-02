@@ -292,6 +292,9 @@ pub trait KernelOps: Sized {
         requires self.inv(),
         ensures info.task == t, info.priority <= MAX_PRIORITY;
     fn depth(&self) -> usize;
+    /// `(periodic, due instant, offset, period)` of `t`: the instant its
+    /// current Release became due, for the HIL release-timing record (R9.10).
+    fn release_info(&self, t: u8) -> (bool, u64, u64, u64);
     fn top(&self) -> Option<u8>
         requires self.inv();
     /// The Priority of the executing Job, 0 when none.
@@ -363,6 +366,13 @@ pub trait KernelOps: Sized {
         requires self.inv();
     /// R3.9: the PR identifiers the event concerns, as a bit set (bit n = PR-n).
     fn log_prs(&self, i: usize) -> u64
+        requires self.inv();
+    /// The Partition of event `i` (0xFF: the Kernel).
+    fn log_partition(&self, i: usize) -> u8
+        requires self.inv();
+    /// The sequence number of the next event: the events ever pushed
+    /// (saturating), the ones the ring dropped included (R14.7).
+    fn log_seq(&self) -> u32
         requires self.inv();
     /// R12.2: records the failed boot checks (bit set) before the safe state.
     fn boot_failed(&mut self, failed: u32)
@@ -497,6 +507,15 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn depth(&self) -> usize {
         self.kernel.sched.depth
+    }
+
+    fn release_info(&self, t: u8) -> (bool, u64, u64, u64) {
+        if (t as usize) < NT {
+            let c = &self.cfg.tasks[t as usize];
+            (c.kind != KIND_SPORADIC, self.kernel.timing.due[t as usize], c.offset, c.period)
+        } else {
+            (false, 0, 0, 0)
+        }
     }
 
     fn top(&self) -> Option<u8> {
@@ -660,6 +679,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn log_prs(&self, i: usize) -> u64 {
         if i < self.kernel.log.len { self.kernel.log.get(i).prs } else { 0 }
+    }
+
+    fn log_partition(&self, i: usize) -> u8 {
+        if i < self.kernel.log.len { self.kernel.log.get(i).partition } else { 0xFF }
+    }
+
+    fn log_seq(&self) -> u32 {
+        self.kernel.log.seq
     }
 
     fn boot_failed(&mut self, failed: u32) {

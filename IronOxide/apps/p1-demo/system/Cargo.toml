@@ -13,12 +13,17 @@ publish.workspace = true
 default = ["qemu-mps2"]
 qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
 nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
+# The release-timing configurations of task 7.3 (with `nrf52840`): the
+# declaration variant, Partition 0's late Jobs, and this crate's report.
+timing = ["nrf52840", "p1-demo-decl/nrf52840_timing", "p1-demo-part0/timing"]
+timing-short = ["nrf52840", "p1-demo-decl/nrf52840_timing_short", "p1-demo-part0/timing"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-kernel/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.
 trace = ["rsk-kernel/trace"]
 # HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
 trace-ram = ["rsk-kernel/trace-ram"]
+trace-pins = ["rsk-kernel/trace-pins"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk/quiet"]
 

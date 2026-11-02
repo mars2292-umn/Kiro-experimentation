@@ -14,8 +14,22 @@
 use rsk_kernel::arch::cm4::unsafe_module::hw;
 use rsk_kernel::arch::{KernelOps, System};
 use rsk_kernel::logic::log::{EV_DEADLINE_MISS, EV_OPERATING_END, EV_SAFE_STATE, EV_DEBUGGER};
+#[cfg(any(feature = "timing", feature = "timing-short"))]
+use rsk_kernel::logic::log::{EV_MIT_VIOLATION, EV_OVERRUN, EV_RELEASE_OVERLAP};
 
 p1_demo_decl::rsk_system!();
+
+/// The events the HIL_Rig's trace freeze treats as the run's own (the
+/// Kernel's event mirror, feature `trace-ram`): in the release-timing
+/// configuration (task 7.3) the injected late Jobs of `sensor` (Task 2)
+/// produce Budget overruns, deadline misses, held Releases, and
+/// MIT_Violations; any other event freezes the Kernel trace at its cause.
+/// The plain demo expects no event at all.
+#[cfg(any(feature = "timing", feature = "timing-short"))]
+pub const TRACE_EXPECT: (u32, u8) =
+    (1 << EV_OVERRUN | 1 << EV_DEADLINE_MISS | 1 << EV_MIT_VIOLATION | 1 << EV_RELEASE_OVERLAP, 2);
+#[cfg(not(any(feature = "timing", feature = "timing-short")))]
+pub const TRACE_EXPECT: (u32, u8) = (0, 0xFF);
 
 /// Time-base ticks per millisecond on the board.
 const MS: u64 = TICK_HZ / 1000;
@@ -114,11 +128,25 @@ pub fn report_and_exit() -> ! {
     let mut faults = 0u32;
     let mut ended = false;
     let mut misses = 0u32;
+    // The release-timing configuration (task 7.3): the injected late
+    // Jobs of `sensor` (Task 2) produce its Budget overruns, its deadline
+    // misses, its held Releases (R9.7, EV_RELEASE_OVERLAP), and Partition
+    // 0's MIT_Violations for the discarded ones (R9.8); those are expected
+    // and counted apart, anything else is a fault.
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let mut expected_late = 0u32;
     let mut i = 0;
     'events: while i < len {
         let kind = k.log_kind(i);
+        let task = k.log_task(i);
+        #[cfg(any(feature = "timing", feature = "timing-short"))]
+        if task == 2 && (kind == EV_OVERRUN || kind == EV_DEADLINE_MISS || kind == EV_MIT_VIOLATION || kind == EV_RELEASE_OVERLAP) {
+            expected_late += 1;
+            i += 1;
+            continue;
+        }
         print_kv(b"event", kind as u32);
-        print_kv(b"  task", k.log_task(i) as u32);
+        print_kv(b"  task", task as u32);
         print_kv(b"  at_ms", (k.log_instant(i) / MS) as u32);
         // The event's detail word: for a boot check, the failed checks (R12.2).
         print_kv(b"  detail", k.log_detail(i));
@@ -149,8 +177,29 @@ pub fn report_and_exit() -> ! {
     // ..., 18: six raises, each a Release of echo (R10.5).
     // part2 (task 14): 8 filter Jobs (25 ms) with the FP state converging,
     // and 2 sampler Jobs (0 ms, 100 ms), each an accepted EasyDMA request.
+    #[cfg(not(any(feature = "timing", feature = "timing-short")))]
     let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
         && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2;
+    // The release-timing configuration: every count within two Jobs of
+    // the operating duration over the period (the last Jobs end with the
+    // duration), `sensor` short by the Releases its late Jobs discarded
+    // (one per 1024 Jobs), `pulse` released by the stimulus board at 18 ms
+    // (not counted here: it depends on the rig), no fault and no miss
+    // other than the late Jobs' own, and the FP state converged.
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let ok = {
+        let duration = CONFIG.operating_duration;
+        let jobs = |t: usize| (duration / CONFIG.tasks[t].period) as u32;
+        let late = jobs(2) / 1024;
+        print_kv(b"expected_control", jobs(0));
+        print_kv(b"expected_sensor", jobs(2) - late);
+        print_kv(b"expected_late_jobs", late);
+        print_kv(b"late_events_seen", expected_late);
+        ended && faults == 0 && misses == 0
+            && a + 2 >= jobs(0) && b + 2 >= jobs(2) - late && b <= jobs(2) - late
+            && c + 2 >= jobs(3) && f + 2 >= jobs(5) && filter_ok && g + 2 >= jobs(6) && dma_ok + 2 >= jobs(6)
+            && blocked >= 1 && d >= 9
+    };
     hw::semihosting_write(if ok { b"RSK-OK\n" } else { b"RSK-FAIL\n" });
     hw::semihosting_exit(if ok { 0 } else { 1 })
 }

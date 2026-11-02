@@ -405,6 +405,12 @@ pub fn boot_checks(expect: &BootExpect) -> u32 {
     if (mmio_read(addr::MPU_TYPE) >> 8) & 0xFF != 8 {
         failed |= 1 << 2;
     }
+    // The DWT is readable only with DEMCR.TRCENA set (Armv7-M ARM C1.6.5);
+    // `dwt_enable` sets it a step later, and a probe may have left it
+    // either way (seen on the HIL_Rig, 2026-11-02: NOCYCCNT read as set
+    // after a probe detach cleared TRCENA), so the check sets it first.
+    let demcr = mmio_read(addr::DEMCR);
+    mmio_write(addr::DEMCR, demcr | (1 << 24));
     if (mmio_read(addr::DWT_CTRL) >> 25) & 1 != 0 {
         failed |= 1 << 3;
     }
@@ -706,6 +712,73 @@ mod timebase {
 
 pub fn timebase_init() {
     timebase::init();
+    #[cfg(feature = "trace-pins")]
+    trace_pins::init();
+}
+
+/// CPU cycles per time-base tick (the Target table: 64 MHz over 16 MHz on
+/// the nRF52840; the QEMU board's 25 MHz timer runs at the CPU clock).
+#[cfg(not(feature = "board-qemu-mps2"))]
+pub const CYCLES_PER_TICK: u32 = 4;
+#[cfg(feature = "board-qemu-mps2")]
+pub const CYCLES_PER_TICK: u32 = 1;
+
+/// Trace pins (feature `trace-pins`, HIL builds on the nRF52840-DK only):
+/// the executing Task's index on P1.11 to P1.13 (7 = none), and P1.14
+/// high while a Kernel handler runs; the HIL_Rig's analyzer reads them on
+/// D1 to D4 (`hil-rig.toml`). Two register writes per transition.
+#[cfg(feature = "trace-pins")]
+pub mod trace_pins {
+    use super::{mmio_read, mmio_write};
+    const P1: u32 = 0x5000_0300;
+    const OUTSET: u32 = P1 + 0x508;
+    const OUTCLR: u32 = P1 + 0x50C;
+    const PIN_CNF: u32 = P1 + 0x700;
+    const ID_SHIFT: u32 = 11;
+    const ID_MASK: u32 = 0b111 << ID_SHIFT;
+    const KERNEL: u32 = 1 << 14;
+
+    pub fn init() {
+        #[cfg(not(feature = "board-qemu-mps2"))]
+        {
+            let mut p = 11;
+            while p <= 14 {
+                mmio_write(PIN_CNF + 4 * p, 0b11);
+                p += 1;
+            }
+            mmio_write(OUTSET, ID_MASK);
+            mmio_write(OUTCLR, KERNEL);
+        }
+    }
+
+    /// A Kernel handler runs.
+    pub fn kernel_enter() {
+        #[cfg(not(feature = "board-qemu-mps2"))]
+        mmio_write(OUTSET, KERNEL);
+    }
+
+    /// The handler returns to `task` (`None`: the idle activity).
+    pub fn running(task: Option<u8>) {
+        #[cfg(not(feature = "board-qemu-mps2"))]
+        {
+            let id = match task {
+                Some(t) if t < 7 => t as u32,
+                _ => 7,
+            };
+            let bits = id << ID_SHIFT;
+            mmio_write(OUTCLR, (ID_MASK & !bits) | KERNEL);
+            if bits != 0 {
+                mmio_write(OUTSET, bits);
+            }
+        }
+        #[cfg(feature = "board-qemu-mps2")]
+        let _ = task;
+    }
+
+    #[allow(dead_code)]
+    fn _unused() -> u32 {
+        mmio_read(OUTSET)
+    }
 }
 
 pub fn timebase_now() -> u64 {
