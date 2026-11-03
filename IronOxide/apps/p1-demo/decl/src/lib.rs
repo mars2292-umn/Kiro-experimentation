@@ -11,6 +11,9 @@
 //! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER (nRF52840: GPIOTE, the HIL_Rig's stimulus line) | none |
 //!
 //! `pulse`'s Budget is 500 µs (task 19.1, 2026-11-02): the HIL build's agent measured its Job at 0.278 ms with the Budget accounting charging the SVC handlers' time to the Job, over the 200 µs first declared, and under the storm the ended Jobs answered a third of the windows.
+//!
+//! `echo`'s Budget is 300 µs (200 first) and `filter`'s 800 µs (500 first) since the WCET_Records of task 19.1 (2026-11-02): the measured executions with the 25 % margin of R34.6 are 15,712 and 49,419 cycles, and R28.4 keeps every Budget at or above its WCET.
+//! `sensor`'s Budget stays 8.8 ms: its Critical_Section is 6 ms (8 first) since the same records, so that its measured Job (about 6.4 ms, 7.9 ms with the margin) fits the Budget and `control`'s measured blocking term (about 7.7 ms with the margin) fits its 10 ms deadline.
 //! | `filter` | `part2` (level B) | 3 | 25 ms; uses the FPU | none |
 //! | `sampler` | `part2` (level B) | 1 | 100 ms; EasyDMA requests on CMSDK_GPIO0 | none |
 //!
@@ -27,7 +30,7 @@
 //! period exceeds the 15 ms MIT, so every event is accepted and the source
 //! is masked and unmasked once per event (the unmask event of DD-06). The
 //! 15 ms deadline covers sensor's 8.8 ms Budget (a higher Priority: it
-//! interferes with pulse in full, and its 8 ms Critical_Section blocks a
+//! interferes with pulse in full, and its 6 ms Critical_Section blocks a
 //! Release that lands inside it, R8.4) plus two control Jobs, as the
 //! Analyzer computes (R = 11.5 ms); with a 2 ms deadline the Kernel
 //! reported a deadline miss at every Release that coincided with sensor's
@@ -100,7 +103,7 @@ rsk::app! {
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
-                   budget = 200.us(), priority = 6);
+                   budget = 300.us(), priority = 6);
         task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8800.us(),
                      priority = 5, resources = [state, in_cs]);
     }
@@ -128,7 +131,7 @@ rsk::app! {
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
-        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 500.us(), priority = 3, fpu,
+        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
                       priority = 1, resources = [stats]);

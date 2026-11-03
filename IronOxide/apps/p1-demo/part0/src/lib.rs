@@ -137,11 +137,16 @@ pub fn echo(mut cx: rsk_ctx::Echo) {
 /// updates it.
 // The two writes to `in_cs` preserve its invariant (R46.4), which the
 // App_Prover checks at each `lock`.
-/// The Critical_Section's length: 8 ms, or 12 ms in the release-timing
+/// The Critical_Section's length: 6 ms, or 12 ms in the release-timing
 /// configuration (task 7.3), so that it is in progress at `control`'s
-/// nominal instants (10 ms into every 20 ms period).
+/// nominal instants (10 ms into every 20 ms period; sensor's Jobs start
+/// at 5 ms). It was 8 ms until the WCET_Records of task 19.1 (2026-11-02):
+/// with the 25 % margin of R34.6 the measured section of 8.1 ms made
+/// `control`'s blocking term 10.1 ms against its 10 ms deadline and
+/// sensor's 8.35 ms Job exceed its 8.8 ms Budget; at 6 ms the measured
+/// analysis of the demo has a verdict (Verification_Plan 11.6).
 #[cfg(not(feature = "timing"))]
-const CS_MS: u64 = 8;
+const CS_MS: u64 = 6;
 #[cfg(feature = "timing")]
 const CS_MS: u64 = 12;
 

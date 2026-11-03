@@ -194,7 +194,7 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 28;
+const STATS_PER_TASK: usize = 45;
 #[cfg(feature = "trace-ram")]
 const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
 #[cfg(feature = "trace-ram")]
@@ -318,9 +318,12 @@ pub fn stats_calibrate() {
 }
 
 /// A Job of Task `t` completed having executed `cycles` (task 19.1: the
-/// Task-entry maximum from the Budget accounting, R34.7).
+/// Task-entry maximum from the Budget accounting, R34.7), `over` its
+/// Budget or not: the count, the maximum, the completions above the
+/// Budget, and a log2 histogram of the executions (bucket b counts
+/// executions below `2^b` cycles, bucket 15 the rest).
 #[cfg(feature = "trace-ram")]
-pub fn stats_exec(t: u8, cycles: u32) {
+pub fn stats_exec(t: u8, cycles: u32, over: bool) {
     let s = stats();
     if t as usize >= STATS_TASKS {
         return;
@@ -329,6 +332,36 @@ pub fn stats_exec(t: u8, cycles: u32) {
     s[v] = s[v].saturating_add(1);
     if cycles > s[v + 1] {
         s[v + 1] = cycles;
+    }
+    if over {
+        s[v + 2] = s[v + 2].saturating_add(1);
+    }
+    let bucket = (32 - cycles.leading_zeros()).min(15) as usize;
+    s[v + 3 + bucket] = s[v + 3 + bucket].saturating_add(1);
+}
+
+/// Diagnostic event kind of a HIL build: a Job completed above its Budget
+/// under an Overrun_Response that ends overrunning Jobs (R18.2). Never in
+/// a run's expected kinds, so the trace freezes at it (task 19.1).
+#[cfg(feature = "trace-ram")]
+pub const EV_DIAG_EXEC_OVER: u8 = 24;
+
+/// Mirrors a diagnostic event of the HIL build itself (not of the
+/// Kernel's log): it takes a mirror slot and leaves the mirror's view of
+/// the log (`seen_seq`) alone, so the log's next event is still
+/// mirrored; the trace freezes at it as at any unexpected kind.
+#[cfg(feature = "trace-ram")]
+pub fn events_push_diag(kind: u8, task: u8, partition: u8, instant: u64, detail: u32) {
+    let e = events();
+    let n = e[2] as usize;
+    let slot = EVENTS_HEADER + 4 * (n % EVENTS_LEN);
+    e[slot] = (kind as u32) << 24 | (task as u32) << 16 | (partition as u32) << 8;
+    e[slot + 1] = instant as u32;
+    e[slot + 2] = (instant >> 32) as u32;
+    e[slot + 3] = detail;
+    e[2] = e[2].wrapping_add(1);
+    if e[4] == 0 {
+        e[4] = (n as u32).wrapping_add(1);
     }
 }
 
@@ -432,10 +465,11 @@ fn events() -> &'static mut [u32; EVENTS_WORDS] {
 /// The expected events of the run: kinds in `kinds` (bit k = kind k) of
 /// Task `task` (0xFF: any) do not freeze the trace. Kept across `events_reset`.
 #[cfg(feature = "trace-ram")]
-pub fn events_expect(kinds: u32, task: u8) {
+pub fn events_expect(kinds: u32, task: u8, forbidden_partitions: u32) {
     let e = events();
     e[5] = kinds;
     e[6] = task as u32;
+    e[7] = forbidden_partitions;
 }
 
 /// Clears the mirror and the freeze (at boot, so that a run's record is
@@ -480,7 +514,11 @@ pub fn events_push(seq: u32, kind: u8, task: u8, partition: u8, instant: u64, de
         || kind == crate::logic::log::EV_OPERATING_END
         || kind == crate::logic::log::EV_SAFE_STATE;
     let expected = kind < 32 && (e[5] >> kind) & 1 == 1 && (e[6] == 0xFF || e[6] == task as u32);
-    if e[4] == 0 && !informational && !expected {
+    // An event attributed to a forbidden Partition (bit p of the header's
+    // eighth word) freezes whatever its kind: a Partition restart names no
+    // Task, so a Task-based expectation never saw one (task 19.1).
+    let forbidden = partition < 32 && (e[7] >> partition) & 1 == 1;
+    if e[4] == 0 && !informational && (!expected || forbidden) {
         // The mirror's own index of the event (the log's sequence numbers
         // restart at the reboot on probe detach; the mirror's do not).
         e[4] = (n as u32).wrapping_add(1);

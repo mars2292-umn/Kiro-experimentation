@@ -237,11 +237,11 @@ pub fn boot<S: System>() -> bool {
 /// expected (`unsafe_module::events_expect`): kinds in `kinds` (bit k =
 /// kind k) of Task `task` (0xFF: any). Called by the entry crate before
 /// `boot`; a no-op without the feature.
-pub fn trace_expect(kinds: u32, task: u8) {
+pub fn trace_expect(kinds: u32, task: u8, forbidden_partitions: u32) {
     #[cfg(feature = "trace-ram")]
-    unsafe_module::events_expect(kinds, task);
+    unsafe_module::events_expect(kinds, task, forbidden_partitions);
     #[cfg(not(feature = "trace-ram"))]
-    let _ = (kinds, task);
+    let _ = (kinds, task, forbidden_partitions);
 }
 
 /// Feature `trace-ram`: copies the events the Kernel logic pushed during
@@ -424,8 +424,15 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     #[cfg(feature = "trace-ram")]
     if let Some((t, due)) = ending {
         unsafe_module::stats_response(t, hw::timebase_now().saturating_sub(due));
-        // The Job's execution, charged in full by `job_return`.
-        unsafe_module::stats_exec(t, k.budget_used(t));
+        // The Job's execution, charged in full by `job_return`. A completion
+        // above the Budget under a response that ends overrunning Jobs is
+        // the diagnostic event of task 19.1: the trace freezes at it.
+        let used = k.budget_used(t);
+        let over = used > k.budget_of(t);
+        unsafe_module::stats_exec(t, used, over);
+        if over && !k.overrun_continues(t) {
+            unsafe_module::events_push_diag(unsafe_module::EV_DIAG_EXEC_OVER, t, k.partition_of(t), hw::timebase_now(), used);
+        }
     }
     #[cfg(feature = "trace-ram")]
     if let Some((t, r, at_entry)) = section {

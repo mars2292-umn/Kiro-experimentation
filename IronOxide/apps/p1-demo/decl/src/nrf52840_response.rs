@@ -33,7 +33,7 @@ rsk::app! {
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
-                   budget = 200.us(), priority = 6);
+                   budget = 300.us(), priority = 6);
         task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8800.us(),
                      priority = 5, resources = [state, in_cs]);
     }
@@ -61,7 +61,7 @@ rsk::app! {
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
-        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 500.us(), priority = 3, fpu,
+        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
                       priority = 1, resources = [stats]);

@@ -61,6 +61,7 @@ pub fn kind_name(kind: u8) -> &'static str {
         21 => "unbound_irq",
         22 => "api_misuse",
         23 => "debugger",
+        24 => "exec_over(diag)",
         _ => "?",
     }
 }

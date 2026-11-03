@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:01e1abfa1086f5ba62ef5a69c4cdae8a13a0ad9097ddacbe5137d44f9b0a8d86",
+  "binary_hash": "sha256:4ea29f9edfc88bae3d75357e42e30643f20aedcb62c5107534d06f2ee6420ca2",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 10442,
+      "cycles": 10894,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -16,7 +16,7 @@
       ],
       "measured": {
         "runs": 40495,
-        "max_observed": 8353,
+        "max_observed": 8715,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -26,7 +26,7 @@
     },
     {
       "symbol": "delta_irq",
-      "cycles": 2588,
+      "cycles": 2545,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -34,8 +34,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 11952,
-        "max_observed": 2070,
+        "runs": 11953,
+        "max_observed": 2036,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

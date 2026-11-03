@@ -305,6 +305,12 @@ pub trait KernelOps: Sized {
     /// 19.1); what the Job consumed since the last charge point is not
     /// included.
     fn budget_used(&self, t: u8) -> u32;
+    /// The Task's Budget in cycles, and whether its Partition's
+    /// Overrun_Response lets an overrunning Job continue (R18.6), for the
+    /// HIL build's diagnostic of a completion above the Budget (task 19.1).
+    fn budget_of(&self, t: u8) -> u32;
+    fn overrun_continues(&self, t: u8) -> bool;
+    fn partition_of(&self, t: u8) -> u8;
     fn top(&self) -> Option<u8>
         requires self.inv();
     /// The Priority of the executing Job, 0 when none.
@@ -534,6 +540,23 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn budget_used(&self, t: u8) -> u32 {
         if (t as usize) < NT { self.kernel.budget.used[t as usize] } else { 0 }
+    }
+
+    fn budget_of(&self, t: u8) -> u32 {
+        if (t as usize) < NT { self.cfg.tasks[t as usize].budget } else { 0 }
+    }
+
+    fn partition_of(&self, t: u8) -> u8 {
+        if (t as usize) < NT { self.cfg.tasks[t as usize].partition } else { 0xFF }
+    }
+
+    fn overrun_continues(&self, t: u8) -> bool {
+        if (t as usize) < NT {
+            let p = self.cfg.tasks[t as usize].partition as usize;
+            p < NP && self.cfg.partitions[p].overrun_response == rsk_logic::logic::RESP_RECORD_AND_CONTINUE
+        } else {
+            false
+        }
     }
 
     fn top(&self) -> Option<u8> {

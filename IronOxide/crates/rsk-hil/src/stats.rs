@@ -6,7 +6,7 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 28;
+const PER_TASK: usize = 45;
 /// Resource slots of the Critical_Section table (the Kernel's `STATS_RES`).
 const RES: usize = 16;
 const RING: usize = 256;
@@ -31,6 +31,10 @@ pub struct TaskStats {
     /// the Budget accounting (task 19.1).
     pub exec_count: u32,
     pub exec_max_cycles: u32,
+    /// Completions above the Task's Budget, and a log2 histogram of the
+    /// executions (bucket b counts executions below `2^b` cycles).
+    pub exec_over_count: u32,
+    pub exec_histogram: [u32; 16],
 }
 
 /// One Critical_Section site's record: Task, Resource, sections closed,
@@ -99,6 +103,12 @@ impl Stats {
                 intake_sum_cycles: (words[b + 25] as u64) << 32 | words[b + 24] as u64,
                 exec_count: words[b + 26],
                 exec_max_cycles: words[b + 27],
+                exec_over_count: words[b + 28],
+                exec_histogram: {
+                    let mut h = [0u32; 16];
+                    h.copy_from_slice(&words[b + 29..b + 45]);
+                    h
+                },
             });
         }
         let cs_at = HEADER + n * PER_TASK;
@@ -182,16 +192,26 @@ impl Stats {
         }
         if self.tasks.iter().any(|t| t.exec_count > 0) || !self.cs.is_empty() {
             s.push_str(&format!(
-                "\nExecution from the Budget accounting (task 19.1; cycle-counter read cost {} cycles, R34.3):\n\n| Item | Runs | Execution max (cycles / ms) |\n|---|---|---|\n",
+                "\nExecution from the Budget accounting (task 19.1; cycle-counter read cost {} cycles, R34.3):\n\n| Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |\n|---|---|---|---|\n",
                 self.calibration_cycles
             ));
             for (t, st) in self.tasks.iter().enumerate() {
                 if st.exec_count > 0 {
-                    s.push_str(&format!("| Task {t} entry | {} | {} / {:.3} |\n", st.exec_count, st.exec_max_cycles, st.exec_max_cycles as f64 * 1000.0 / cpu_hz as f64));
+                    let lo = st.exec_histogram.iter().position(|c| *c > 0).unwrap_or(0);
+                    let hi = st.exec_histogram.iter().rposition(|c| *c > 0).unwrap_or(0);
+                    let hist: Vec<String> = (lo..=hi).map(|b| format!("2^{b}:{}", st.exec_histogram[b])).collect();
+                    s.push_str(&format!(
+                        "| Task {t} entry | {} | {} / {:.3} | {} above the Budget; {} |\n",
+                        st.exec_count,
+                        st.exec_max_cycles,
+                        st.exec_max_cycles as f64 * 1000.0 / cpu_hz as f64,
+                        st.exec_over_count,
+                        hist.join(" ")
+                    ));
                 }
             }
             for c in &self.cs {
-                s.push_str(&format!("| Task {} on Resource {} | {} | {} / {:.3} |\n", c.task, c.resource, c.count, c.max_cycles, c.max_cycles as f64 * 1000.0 / cpu_hz as f64));
+                s.push_str(&format!("| Task {} on Resource {} | {} | {} / {:.3} | |\n", c.task, c.resource, c.count, c.max_cycles, c.max_cycles as f64 * 1000.0 / cpu_hz as f64));
             }
         }
         if !self.recent.is_empty() {
@@ -227,6 +247,8 @@ mod tests {
         w[b + 24] = 1500;
         w[b + 26] = 3;
         w[b + 27] = 20_000;
+        w[b + 28] = 1;
+        w[b + 29 + 15] = 3;
         w[3] = 2;
         let cs = HEADER + n * PER_TASK + (1 * RES + 2) * 2;
         w[cs] = 5;
@@ -254,7 +276,8 @@ mod tests {
         assert!(st.render(64_000_000, 16_000_000).contains("| 1 | 3 | 10.000 | 2 | 900 | 750 |"));
         assert_eq!((st.tasks[1].exec_count, st.tasks[1].exec_max_cycles, st.calibration_cycles), (3, 20_000, 2));
         assert_eq!(st.cs, vec![CsStats { task: 1, resource: 2, count: 5, max_cycles: 16_000 }]);
-        assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 entry | 3 | 20000 / 0.312 |"));
+        assert_eq!((st.tasks[1].exec_over_count, st.tasks[1].exec_histogram[15]), (1, 3));
+        assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 entry | 3 | 20000 / 0.312 | 1 above the Budget; 2^15:3 |"));
         assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 on Resource 2 | 5 | 16000 / 0.250 |"));
         assert!(Stats::decode(&[0, 0, 0, 0]).is_err());
     }

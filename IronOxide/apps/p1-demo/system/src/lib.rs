@@ -27,9 +27,12 @@ p1_demo_decl::rsk_system!();
 /// produce Budget overruns, deadline misses, held Releases, and
 /// MIT_Violations; any other event freezes the Kernel trace at its cause.
 /// The plain demo expects no event at all.
+/// The third member names the Partitions (bit p) whose events freeze the
+/// trace whatever their kind: a Partition restart names no Task, so a
+/// Task-based expectation never saw one of part0 (task 19.1).
 #[cfg(any(feature = "timing", feature = "timing-short"))]
-pub const TRACE_EXPECT: (u32, u8) =
-    (1 << EV_OVERRUN | 1 << EV_DEADLINE_MISS | 1 << EV_MIT_VIOLATION | 1 << EV_RELEASE_OVERLAP, 2);
+pub const TRACE_EXPECT: (u32, u8, u32) =
+    (1 << EV_OVERRUN | 1 << EV_DEADLINE_MISS | 1 << EV_MIT_VIOLATION | 1 << EV_RELEASE_OVERLAP, 2, 0);
 // The fault-injection suite (task 7.5): the response configuration's
 // events are all injected (the rig checks the exact sequence); the stress
 // configuration's are the lower-criticality Partitions' own (overruns,
@@ -37,15 +40,16 @@ pub const TRACE_EXPECT: (u32, u8) =
 // and misses of their delayed Jobs), and any event of part0 freezes the
 // trace (the rig checks part0 separately).
 #[cfg(feature = "response")]
-pub const TRACE_EXPECT: (u32, u8) = (u32::MAX, 0xFF);
+pub const TRACE_EXPECT: (u32, u8, u32) = (u32::MAX, 0xFF, 0);
 #[cfg(any(feature = "stress", feature = "stress-short"))]
-pub const TRACE_EXPECT: (u32, u8) = (
+pub const TRACE_EXPECT: (u32, u8, u32) = (
     1 << EV_OVERRUN | 1 << EV_DEADLINE_MISS | 1 << EV_MIT_VIOLATION | 1 << EV_RELEASE_OVERLAP
         | 1 << EV_END_JOB | 1 << EV_RESOURCE_RELEASED | 1 << EV_PARTITION_RESTART,
     0xFF,
+    1 << 0,
 );
 #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short")))]
-pub const TRACE_EXPECT: (u32, u8) = (0, 0xFF);
+pub const TRACE_EXPECT: (u32, u8, u32) = (0, 0xFF, 0);
 
 /// Time-base ticks per millisecond on the board.
 const MS: u64 = TICK_HZ / 1000;

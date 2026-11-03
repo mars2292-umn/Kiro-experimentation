@@ -173,6 +173,63 @@ impl Cmd {
             .output()
     }
 
+    /// Runs to completion, capturing stdout and stderr, but at most
+    /// `timeout_secs`: a command that has not completed by then is killed
+    /// (with the processes of the names in `also_kill`, for children that
+    /// outlive their parent) and the result is an error naming the
+    /// timeout. For tools that can hang without failing (why3find's
+    /// session lock, 2026-11-02).
+    pub fn output_timeout(&self, sandbox: Option<&Sandbox>, timeout_secs: u64, also_kill: &[&str]) -> io::Result<Output> {
+        use std::io::Read;
+        let mut child = self
+            .command(sandbox)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+        let mut stdout = child.stdout.take();
+        let mut stderr = child.stderr.take();
+        // Drain the pipes on threads so that a chatty child cannot block.
+        let out_thread = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            if let Some(mut s) = stdout.take() {
+                let _ = s.read_to_end(&mut buf);
+            }
+            buf
+        });
+        let err_thread = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            if let Some(mut s) = stderr.take() {
+                let _ = s.read_to_end(&mut buf);
+            }
+            buf
+        });
+        let start = std::time::Instant::now();
+        let status = loop {
+            if let Some(status) = child.try_wait()? {
+                break Some(status);
+            }
+            if start.elapsed().as_secs() >= timeout_secs {
+                let _ = child.kill();
+                let _ = child.wait();
+                for name in also_kill {
+                    let _ = Command::new("pkill").args(["-f", name]).status();
+                }
+                break None;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        };
+        let stdout = out_thread.join().unwrap_or_default();
+        let stderr = err_thread.join().unwrap_or_default();
+        match status {
+            Some(status) => Ok(Output { status, stdout, stderr }),
+            None => Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("`{}` did not complete within {timeout_secs} s and was killed", self.display()),
+            )),
+        }
+    }
+
     /// Runs to completion, capturing stdout and passing stderr through.
     pub fn output_stdout(&self, sandbox: Option<&Sandbox>) -> io::Result<Output> {
         self.command(sandbox)

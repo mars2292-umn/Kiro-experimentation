@@ -181,8 +181,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R13.1 | — | — | ○19.3 | crates/rsk-model/src/wcet.rs | — |
-| R13.2 | — | — | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; +2 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
-| R13.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/wcet.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
+| R13.2 | — | — | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; +2 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
+| R13.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/wcet.rs; +1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
 | R13.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/config.rs; +3 | test-workspace-tests |
 | R13.5 | — | — | ○19.3 | — | — |
 | R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ○19.3 | crates/rsk-model/src/wcet.rs | — |
@@ -247,11 +247,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R18.1 | P-17 | Property 10 | ✓4.7 | crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/bound.rs; crates/rsk-logic/src/logic/budget.rs; +2 | proof-kernel-kani; proof-kernel-verus |
-| R18.2 | P-17 | Design decisions; Overview; Priority and privilege model (DD-01, DD-02); +2 | ✓4.7 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-logic/src/hw_model.rs; crates/rsk-logic/src/logic/budget.rs; +1 | proof-kernel-kani; proof-kernel-verus |
+| R18.2 | P-17 | Design decisions; Overview; Priority and privilege model (DD-01, DD-02); +2 | ✓4.7 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-logic/src/hw_model.rs; +2 | proof-kernel-kani; proof-kernel-verus |
 | R18.3 | P-17 | — | ✓4.7 | crates/rsk-logic/src/logic/kernel.rs | — |
 | R18.4 | P-18 | Closed response sets (DD-10, R14.5) | ✓4.4 | apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/part2/src/lib.rs; crates/rsk-hil/src/response.rs; +4 | hil-response |
 | R18.5 | — | Closed response sets (DD-10, R14.5); Design decisions | ✓4.7 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs | — |
-| R18.6 | — | Closed response sets (DD-10, R14.5) | ✓4.7 | apps/p1-demo/part0/src/lib.rs; crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; +2 | — |
+| R18.6 | — | Closed response sets (DD-10, R14.5) | ✓4.7 | apps/p1-demo/part0/src/lib.rs; crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; +3 | — |
 | R18.7 | P-17 | Property 18 | ○19.4 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/properties.rs; +4 | test-workspace-tests |
 | R18.8 | P-17 | Profile_Conformance_Suite and HIL_Rig; Property 10 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/part1/src/lib.rs; +8 | — |
 | R18.9 | — | — | ✓15.3 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs | test-workspace-tests |
@@ -359,9 +359,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R28.1 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/tests/rules.rs; +4 | analysis-rta-p1-demo; analysis-rta-step; test-workspace-tests |
-| R28.2 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; xtask/src/verify.rs | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
-| R28.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +3 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
-| R28.4 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; xtask/src/verify.rs | analysis-rta-p1-demo; test-workspace-tests |
+| R28.2 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; xtask/src/verify.rs | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
+| R28.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +3 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
+| R28.4 | — | — | ✓15.1 | apps/p1-demo/decl/src/lib.rs; crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; +1 | analysis-rta-p1-demo; test-workspace-tests |
 | R28.5 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; xtask/src/trace.rs; +1 | analysis-rta-p1-demo; test-workspace-tests |
 | R28.6 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; xtask/src/verify.rs | analysis-rta-p1-demo; test-workspace-tests |
 | R28.7 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; xtask/src/verify.rs | analysis-rta-p1-demo; test-workspace-tests |
@@ -371,9 +371,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R29.1 | — | Property 16 | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; +7 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
-| R29.2 | P-05 | Property 5; Reuse and Deviation Record | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-analyzer/tests/rules.rs; +3 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
-| R29.3 | — | — | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/uppaal.rs; crates/rsk-analyzer/tests/properties.rs; +4 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
+| R29.1 | — | Property 16 | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; +7 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
+| R29.2 | P-05 | Property 5; Reuse and Deviation Record | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-analyzer/tests/rules.rs; +3 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
+| R29.3 | — | — | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/uppaal.rs; crates/rsk-analyzer/tests/properties.rs; +4 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
 | R29.4 | — | — | ✓15.2 | apps/p1-demo/decl/src/lib.rs; crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/rta.rs; +4 | analysis-rta-p1-demo; test-workspace-tests |
 | R29.5 | — | Property 18 | ○19.4; ✓15.2 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-analyzer/tests/rules.rs; +1 | analysis-rta-p1-demo; analysis-rta-step; test-workspace-tests |
 | R29.6 | — | Property 16 | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/rta.rs; +2 | analysis-rta-p1-demo; test-workspace-tests |
@@ -424,7 +424,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R33.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3; ✓10.1 | crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; crates/rsk-hil/src/wcet_records.rs; +3 | — |
 | R33.2 | — | Module boundaries; Property 15 | ✓10.1 | crates/rsk-model/tests/properties.rs; xtask/src/verify.rs | test-workspace-tests |
 | R33.3 | — | — | ✓1.3 | crates/rsk-digest/Cargo.toml; crates/rsk-digest/src/lib.rs; crates/rsk-elf/src/lib.rs; +4 | check-build-manifest; test-workspace-tests |
-| R33.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +4 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
+| R33.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +4 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
 | R33.5 | — | WCET and structural coverage | ○24.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs | test-workspace-tests |
 
 ### Requirement 34: Measurement-based WCET (Phase P3)
@@ -433,11 +433,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R34.1 | — | — | ○19.1 | — | — |
 | R34.2 | — | — | ○19.1 | — | — |
-| R34.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/stats.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/stats.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive) |
 | R34.4 | — | — | ○19.2 | — | — |
 | R34.5 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis | ○19.2 | — | — |
-| R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | crates/rsk-analyzer/src/report.rs; crates/rsk-hil/src/kernel_timing.rs; crates/rsk-hil/src/wcet_records.rs; +4 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
-| R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; xtask/src/verify.rs | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-analyzer/src/report.rs; +6 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; xtask/src/verify.rs | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured (inconclusive) |
 | R34.8 | — | — | ○19.2; ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/lib.rs; crates/rsk-hil/src/selftest.rs; +1 | hil-rig; hil-rig-step |
 | R34.9 | — | WCET and structural coverage | ○19.2 | — | — |
 

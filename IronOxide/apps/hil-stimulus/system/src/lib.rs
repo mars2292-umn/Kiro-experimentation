@@ -13,7 +13,7 @@ hil_stimulus_decl::rsk_system!();
 
 /// The stimulus Application expects no Health_Monitor event (the Kernel's
 /// event mirror, feature `trace-ram`).
-pub const TRACE_EXPECT: (u32, u8) = (0, 0xFF);
+pub const TRACE_EXPECT: (u32, u8, u32) = (0, 0xFF, 0);
 
 /// The system safe state (R14.4): quiet, watchdog fed, forever.
 pub fn halt() -> ! {

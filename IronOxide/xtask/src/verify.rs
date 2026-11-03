@@ -65,6 +65,7 @@
 //! Kani; the job then reports a warning and writes no proof Evidence_Item.
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use crate::checks::{self, deps, features, kernel_std};
 use crate::cmd::{overridden_incoming_env, Cmd};
@@ -868,6 +869,14 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
 /// `cargo creusot` is not installed the step warns and writes no item; when
 /// it runs, `proof-app-creusot` records its version line and the pin of
 /// toolchain/decision.toml, and passes only on `Proved (...)`.
+/// Removes why3find's session state under the proof workspace (both are
+/// ignored by git): a stale session is what the solver deadlocks on.
+fn creusot_session_clear(dir: &Path) {
+    for name in ["verif", ".why3find"] {
+        let _ = std::fs::remove_dir_all(dir.join(name));
+    }
+}
+
 fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, creusot: Option<&Creusot>, report: &mut Report) -> Vec<String> {
     let dir = ws.root.join("proofs").join("creusot");
     if !dir.join("Cargo.toml").is_file() {
@@ -880,15 +889,24 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
     };
     let version = creusot.summary();
     let solvers = creusot.solvers.clone();
+    // why3find keeps a session under proofs/creusot (`verif/`, `.why3find`)
+    // and has deadlocked on it at 0 % CPU more than once (2026-11-02, after
+    // a killed run and after a completed one): the session is cleared
+    // before and after every run, any why3find left from an earlier run is
+    // ended first, and the run is bounded (a fresh session proves the
+    // demo's 14 files in seconds; the bound is generous).
+    let _ = Command::new("pkill").args(["-f", "why3find"]).status();
+    creusot_session_clear(&dir);
     let cmd = Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir);
     let command = format!("(cd proofs/creusot && {})", cmd.display());
-    let (ok, text) = match cmd.output(Some(sandbox)) {
+    let (ok, text) = match cmd.output_timeout(Some(sandbox), 600, &["why3find", "cargo-creusot"]) {
         Ok(o) => {
             let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
             (o.status.success() && text.contains("Proved ("), text)
         }
         Err(e) => (false, format!("cannot run cargo creusot: {e}")),
     };
+    creusot_session_clear(&dir);
     let _ = store.write_artifact("creusot.log", &text);
     let verdict = text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string();
     if ok {
