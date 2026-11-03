@@ -209,6 +209,7 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
         .split(',')
         .find_map(|f| MEASUREMENTS.iter().find(|m| m.feature == f).map(|m| m.variant.to_string()))
         .or_else(|| features.split(',').any(|f| f == "response").then(|| format!("{VARIANT}_response")))
+        .or_else(|| features.split(',').any(|f| f == "isolation").then(|| format!("{VARIANT}_isolation")))
         .unwrap_or_else(|| VARIANT.to_string());
     let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
     let Ok(model_text) = std::fs::read_to_string(&model) else { return true };
@@ -228,6 +229,14 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
             false
         }
     }
+}
+
+/// The Task_Model of a declaration variant of `bin`'s Application
+/// (`gen-<variant>/task_model.json`), when generated.
+pub fn task_model(ws: &Workspace, bin: &str, variant: &str) -> Option<rsk_model::task_model::TaskModel> {
+    let app_dir = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf))?;
+    let text = std::fs::read_to_string(app_dir.join(format!("gen-{variant}")).join("task_model.json")).ok()?;
+    rsk_model::read_task_model(&text).ok()
 }
 
 /// Every HIL build of the workspace: the QEMU spikes' Applications for the

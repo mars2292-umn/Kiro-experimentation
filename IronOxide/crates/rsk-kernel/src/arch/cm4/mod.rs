@@ -98,6 +98,8 @@ fn trace(tag: &[u8], v: u32) {
             b"arm" => entry::TR_ARM,
             b"cfsr" => 13,
             b"pc" => 14,
+            b"dmastop" => 15,
+            b"reinit" => 16,
             _ => 0,
         };
         // `now()` calls are the Tasks' busy loops: thousands per run, which
@@ -228,6 +230,10 @@ impl<S: System> Tables for SysTables<S> {
 pub fn boot<S: System>() -> bool {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
+    // The HIL differential tests' early phase (task 3.3): before the
+    // Kernel configures anything.
+    #[cfg(feature = "hw-dt")]
+    unsafe_module::dt::early();
     let ok = entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     mirror_events(k);
     ok
@@ -294,6 +300,15 @@ pub fn start<S: System>() {
     unsafe_module::stats_calibrate();
     #[cfg(feature = "trace-ram")]
     unsafe_module::events_reset();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::faults_reset();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::actions_reset();
+    // The HIL differential tests' late phase (task 3.3): the Kernel's
+    // configuration read back and the time base's compare rule, before
+    // instant 0.
+    #[cfg(feature = "hw-dt")]
+    unsafe_module::dt::late();
     let safe = entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     mirror_events(k);
     if safe {
@@ -303,6 +318,12 @@ pub fn start<S: System>() {
 
 /// The Rust half of the dispatch stub, with PRIMASK held.
 pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) -> DispatchPlan {
+    // The HIL differential tests' probe vectors (task 3.3): served before
+    // any Kernel logic while a test phase is in progress.
+    #[cfg(feature = "hw-dt")]
+    if let Some(plan) = unsafe_module::dt::irq(ipsr, control) {
+        return plan;
+    }
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     pins_enter();
@@ -392,6 +413,11 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     let number = unsafe_module::svc_number(frame[6]);
+    // The HIL differential tests' probe SVCs (task 3.3).
+    #[cfg(feature = "hw-dt")]
+    if let Some(plan) = unsafe_module::dt::svc(number, frame) {
+        return plan;
+    }
     pins_enter();
     // A late-arriving SVC of a killed Job (found by the fault-injection
     // suite, task 7.5): a Job executes `SVC` and, during the exception
@@ -511,17 +537,31 @@ pub fn mem_manage<S: System>(in_kernel: bool, pc: u32) -> ReturnPlan {
         }
         trace(b"cfsr", cfsr);
         trace(b"pc", pc);
+        #[cfg(feature = "trace-ram")]
+        unsafe_module::fault_push(cfsr, if cfsr & (1 << 7) != 0 { mmfar } else { pc });
     }
     Cm4Hw::new().apply(Action::ClearFaultStatus);
     fault::<S>(EV_MEMMANAGE, in_kernel)
 }
 
 pub fn bus_fault<S: System>(in_kernel: bool) -> ReturnPlan {
+    #[cfg(feature = "trace-ram")]
+    {
+        // BFAR (0xE000_ED38) when CFSR.BFARVALID (bit 15).
+        let (cfsr, _) = hw::fault_status();
+        let bfar = if cfsr & (1 << 15) != 0 { hw::mmio_read(0xE000_ED38) } else { 0 };
+        unsafe_module::fault_push(cfsr, bfar);
+    }
     Cm4Hw::new().apply(Action::ClearFaultStatus);
     fault::<S>(EV_BUSFAULT, in_kernel)
 }
 
 pub fn usage_fault<S: System>(in_kernel: bool) -> ReturnPlan {
+    #[cfg(feature = "trace-ram")]
+    {
+        let (cfsr, _) = hw::fault_status();
+        unsafe_module::fault_push(cfsr, 0);
+    }
     Cm4Hw::new().apply(Action::ClearFaultStatus);
     fault::<S>(EV_USAGEFAULT, in_kernel)
 }

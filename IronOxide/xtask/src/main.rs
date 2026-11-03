@@ -47,7 +47,7 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -387,6 +387,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut release_timing = false;
     let mut stress = false;
     let mut response = false;
+    let mut isolation = false;
     let mut short = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -403,6 +404,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--release-timing" => release_timing = true,
             "--stress" => stress = true,
             "--response" => response = true,
+            "--isolation" => isolation = true,
             "--short" => short = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
@@ -454,6 +456,9 @@ fn hil_command(args: &[String]) -> ExitCode {
     }
     if response {
         return response_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
+    }
+    if isolation {
+        return isolation_command(&ws, &rig, &bin, &target_dir, report);
     }
     let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
@@ -739,6 +744,48 @@ fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
         report.error(xtask::diag::Rule::Step, None, "the response suite failed (report above)");
     }
     print_report(&report, "response suite passed")
+}
+
+/// `cargo xtask hil --isolation` (tasks 7.4 and 3.3): the isolation suite
+/// over the isolation configuration (3.6 seconds; the MPU access matrix
+/// of R16.8 and the EasyDMA cases of R17.7) and, from the same run, the
+/// Hardware_Model differential tests of R49.3. The reports go under
+/// target/xtask-hil/isolation and docs/hil/.
+fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let features = format!("{},isolation", xtask::hil::FEATURES);
+    let dir = target_dir.join("isolation");
+    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let Some(model) = xtask::hil::task_model(ws, bin, "nrf52840_isolation") else {
+        report.error(xtask::diag::Rule::Step, None, "no Task_Model for the isolation configuration (run `cargo xtask gen`)");
+        return print_report(&report, "hil");
+    };
+    report.note(format!("isolation configuration `nrf52840_isolation` ({features}): {} over {} loadable bytes", target.binary.hash, target.binary.loadable_bytes));
+    let work = dir.join("run");
+    let inputs = rsk_hil::isolation::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 60, tick_hz: xtask::hil::TICK_HZ, model: &model };
+    let out = rsk_hil::isolation::run(&inputs);
+    let text = rsk_hil::isolation::render(rig, &inputs, &out, &target.binary.hash);
+    print!("{text}");
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let _ = std::fs::write(work.join("trace.txt"), &out.trace_text);
+    if let Some(ev) = &out.events {
+        let _ = std::fs::write(work.join("events.txt"), ev.render(xtask::hil::TICK_HZ));
+    }
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::create_dir_all(&record);
+    let _ = std::fs::write(record.join("isolation_nrf52840_isolation.md"), &text);
+    if let Some(dt) = &out.dt {
+        let dt_text = rsk_hil::dt::render(dt, &out.dt_rows, &rig.target.serial, &target.binary.hash);
+        print!("{dt_text}");
+        let _ = std::fs::write(work.join("hw_model_differential.md"), &dt_text);
+        let _ = std::fs::write(record.join("hw_model_differential_nrf52840.md"), &dt_text);
+    }
+    report.note(format!("reports written to {} and docs/hil/isolation_nrf52840_isolation.md, docs/hil/hw_model_differential_nrf52840.md", ws.rel(&work)));
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the isolation suite failed (report above)");
+    }
+    print_report(&report, "isolation suite passed")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

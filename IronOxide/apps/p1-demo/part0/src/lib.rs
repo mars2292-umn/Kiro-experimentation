@@ -38,6 +38,28 @@ mod inject {
     }
 }
 
+/// The isolation suite (task 7.4, R16.8): the access matrix of this
+/// Partition, one attempt per Job of `control` (`rsk::matrix`, from the
+/// generated memory map). The attempt index advances before the access,
+/// since a refused access ends the Job (END_JOB) before anything after
+/// it runs; an access that returns sets the attempt's bit in `survived`.
+#[cfg(feature = "isolation")]
+fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_, u32>) {
+    use rsk_target::layout as l;
+    let layout = rsk::matrix::Layout {
+        this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
+        kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM,
+    };
+    let i = index.get();
+    if (i as usize) >= rsk::matrix::count(&layout) {
+        return;
+    }
+    index.set(i + 1);
+    if rsk::matrix::perform(&layout, i as usize) == rsk::matrix::Outcome::Survived {
+        survived.with(|m| *m |= 1 << i);
+    }
+}
+
 /// Task `control`: reads the state under the lock, counts, and raises
 /// `tick` on every third Job (R10.5; every 30 ms, so every raise is
 /// accepted against echo's 20 ms MIT). `in_cs` says whether this Release
@@ -60,6 +82,11 @@ pub fn control(mut cx: rsk_ctx::Control) {
             inject::fault();
         }
     }
+    // The isolation suite (task 7.4): one access attempt per Job, before
+    // any Resource is held (a fault inside a Critical_Section would
+    // escalate END_JOB to a restart, R18.4).
+    #[cfg(feature = "isolation")]
+    matrix_step(&mut cx.matrix, &mut cx.survived);
     #[cfg(creusot)]
     let count_before = rsk::creusot_std::macros::snapshot!(cx.count@);
     // A Critical_Section's closure carries its postcondition for the

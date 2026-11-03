@@ -245,3 +245,157 @@ pub fn spin<const N: u32>() {
         i = i.wrapping_add(1);
     }
 }
+
+/// The HIL differential tests' Task-side probes (task 3.3, R49.3;
+/// feature `hw-dt`, HIL builds only): the register patterns a Job keeps
+/// across preemptions (HW-06, HW-10, R7.5), the FPSCR a Job starts with
+/// (HW-10), an instruction fetch at an address (the isolation suite's
+/// fetch attempts, HW-09), and a DMA request by address (the isolation
+/// suite's refused buffers, R17.2). Each is inlined into the Partition's
+/// code and runs unprivileged under its MPU view.
+#[cfg(feature = "hw-dt")]
+pub mod hw_dt {
+    use rsk_kernel::arch::cm4::unsafe_module::dt;
+
+    /// Bit i set for the i-th of R2 to R5, R8, R10, R12 that changed over
+    /// `iterations` of a spin (0: every register preserved).
+    #[inline(always)]
+    pub fn register_patterns(iterations: u32) -> u32 {
+        dt::register_patterns(iterations)
+    }
+
+    /// As [`register_patterns`], with S0 to S31 (bits 8 to 23: S0 to S15;
+    /// bits 24 to 27: how many of S16 to S31 changed). FPU Tasks only.
+    #[inline(always)]
+    pub fn register_patterns_fp(iterations: u32) -> u32 {
+        dt::register_patterns_fp(iterations)
+    }
+
+    /// FPSCR as the Job finds it. FPU Tasks only.
+    #[inline(always)]
+    pub fn fpscr() -> u32 {
+        dt::fpscr_read()
+    }
+
+    /// An instruction fetch at `addr`: a call, which the MPU refuses
+    /// (IACCVIOL) when the address is outside the Partition's view.
+    #[inline(always)]
+    pub fn fetch(addr: u32) {
+        dt::fetch(addr)
+    }
+
+    /// An EasyDMA request over `len` bytes at `ptr` (any address: the
+    /// Kernel decides, R17.1, R17.2), as [`super::dma_request`] over a slice.
+    pub fn dma_request_raw(channel: u8, ptr: u32, len: u32) -> bool {
+        super::stubs::svc_dma(channel, ptr, len)
+    }
+}
+
+/// The access matrix of the HIL isolation suite (task 7.4, R16.8;
+/// feature `hw-dt`, HIL builds only): for the executing Partition, one
+/// access attempt per protected class of every other Partition and of
+/// the Kernel, enumerated from the generated memory map
+/// (`rsk_target::layout`) in a fixed order the rig mirrors
+/// (`rsk-hil::isolation`). Against each other Partition `q`, in order:
+/// a read, a write, and a fetch of its code; a read and a write of its
+/// data (above its stack); a write into its stack; a read and a write of
+/// its first peripheral window (skipped when it owns none). Then against
+/// the Kernel: a read and a write of its RAM, a read and a fetch of its
+/// flash, a read and a write of the Private Peripheral Bus (the NVIC),
+/// and a write to the word below this Partition's own stack (R16.5).
+/// Every attempt the MPU refuses is a MemManage fault of the Partition
+/// (R16.4), the PPB attempts a BusFault (unprivileged, HW-08, HW-11);
+/// an attempt that returns is recorded by the caller as a mismatch.
+/// Endpoint storage has no attempt: no Endpoint exists before Phase 4.
+#[cfg(feature = "hw-dt")]
+pub mod matrix {
+    /// The memory map, from `rsk_target::layout`.
+    pub struct Layout<'a> {
+        pub this: usize,
+        pub code: &'a [(u32, u32)],
+        pub ram: &'a [(u32, u32)],
+        pub stack: &'a [u32],
+        pub windows: &'a [[(u32, u32); 5]],
+        pub kernel_flash: (u32, u32),
+        pub kernel_ram: (u32, u32),
+    }
+
+    /// Attempts per other Partition and against the Kernel.
+    pub const PER_PARTITION: usize = 8;
+    pub const KERNEL: usize = 7;
+    /// The private peripheral bus address attempted (NVIC_ISER0).
+    pub const PPB: u32 = 0xE000_E100;
+
+    /// What an attempt did.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub enum Outcome {
+        /// No address for the class (the Partition owns no peripheral).
+        Skipped,
+        /// The access returned: the MPU granted it (a mismatch).
+        Survived,
+    }
+
+    /// The number of attempts of this Partition.
+    pub fn count(l: &Layout<'_>) -> usize {
+        (l.code.len() - 1) * PER_PARTITION + KERNEL
+    }
+
+    /// The address and class of attempt `i`: `(address, class)` with the
+    /// class 0 read, 1 write, 2 fetch; `None` when skipped.
+    pub fn target(l: &Layout<'_>, i: usize) -> Option<(u32, u8)> {
+        let others = l.code.len() - 1;
+        if i < others * PER_PARTITION {
+            let mut q = i / PER_PARTITION;
+            if q >= l.this {
+                q += 1;
+            }
+            let k = i % PER_PARTITION;
+            let code = l.code[q].0 + 0x100;
+            let data = l.ram[q].0 + l.stack[q] + 0x100;
+            let stack = l.ram[q].0 + 0x10;
+            let window = l.windows[q][0];
+            match k {
+                0 => Some((code, 0)),
+                1 => Some((code, 1)),
+                2 => Some((code, 2)),
+                3 => Some((data, 0)),
+                4 => Some((data, 1)),
+                5 => Some((stack, 1)),
+                6 => if window.1 == 0 { None } else { Some((window.0, 0)) },
+                _ => if window.1 == 0 { None } else { Some((window.0, 1)) },
+            }
+        } else {
+            match i - others * PER_PARTITION {
+                0 => Some((l.kernel_ram.0 + 0x100, 0)),
+                1 => Some((l.kernel_ram.0 + 0x100, 1)),
+                2 => Some((l.kernel_flash.0 + 0x100, 0)),
+                3 => Some((l.kernel_flash.0 + 0x100, 2)),
+                4 => Some((PPB, 0)),
+                5 => Some((PPB, 1)),
+                6 => Some((l.ram[l.this].0.wrapping_sub(4), 1)),
+                _ => None,
+            }
+        }
+    }
+
+    /// Performs attempt `i`. Returns only when the access was skipped or
+    /// granted: a refused access ends the Job (the Partition's fault
+    /// response) and never returns here.
+    pub fn perform(l: &Layout<'_>, i: usize) -> Outcome {
+        match target(l, i) {
+            None => Outcome::Skipped,
+            Some((a, 0)) => {
+                let _ = super::mmio::read(a);
+                Outcome::Survived
+            }
+            Some((a, 1)) => {
+                super::mmio::write(a, 0);
+                Outcome::Survived
+            }
+            Some((a, _)) => {
+                super::hw_dt::fetch(a);
+                Outcome::Survived
+            }
+        }
+    }
+}

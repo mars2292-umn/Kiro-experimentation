@@ -34,6 +34,8 @@ pub fn tag_name(tag: u8) -> &'static str {
         12 => "arm",
         13 => "cfsr",
         14 => "pc",
+        15 => "dmastop",
+        16 => "reinit",
         _ => "?",
     }
 }

@@ -9,6 +9,8 @@ publish.workspace = true
 [features]
 # The fault-injection suite (task 7.5): the response and stress configurations' injections.
 response = []
+# The isolation suite (task 7.4): the access matrix and the DMA cases.
+isolation = ["rsk/hw-dt"]
 stress = []
 
 [dependencies]

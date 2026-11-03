@@ -240,3 +240,18 @@ mod tests {
         assert!(!run.locked());
     }
 }
+
+impl Target<'_> {
+    /// Reads a word-array record of the build by symbol name (`DT_RECORD`,
+    /// `FAULT_RING`, `ARCH_ACTIONS`); `None` when the build has none.
+    pub fn read_words(&self, elf: &Path, symbol: &str, scratch: &Path) -> Result<Option<Vec<u32>>, String> {
+        let image = rsk_elf::Elf::read(elf).map_err(|e| format!("{}: {e}", elf.display()))?;
+        let symbols = image.symbols().map_err(|e| e.to_string())?;
+        let Some(sym) = symbols.iter().find(|s| s.name == symbol && s.is_object() && s.size >= 8) else {
+            return Ok(None);
+        };
+        let bytes = self.read(sym.address(), sym.size as usize, scratch)?;
+        let _ = std::fs::remove_file(scratch);
+        Ok(Some(bytes.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()))
+    }
+}

@@ -30,8 +30,12 @@
 //! state (DD-04). nRF52840 anomalies relevant to the Kernel: 219 (TWIM),
 //! 223 (USBD), and 230 (RADIO) concern peripherals that Partitions own and
 //! the MPU confines; none touches the TIMER, NVIC, or MPU behaviour used
-//! here. The applicability of 838869 to r0p1 and the TIMER near-counter
-//! rule are the two facts the P1 spike confirms on hardware (task 3.1).
+//! here. The applicability of 838869 to r0p1 is the fact the P1 spike
+//! confirms on hardware (task 3.1); the TIMER near-counter rule was
+//! measured by the differential tests of task 3.3 (`MIN_COMPARE_DISTANCE`,
+//! HW-12). Every rule has a differential test on the nRF52840-DK since
+//! 2026-11-02 (`hil-dt-hw-01` to `-14`, Verification_Plan 11.8: thirteen
+//! matched as stated, HW-12's constant was revised from the silicon).
 //!
 //! Behaviours deliberately not formalized (R49.6), with the reason no proof
 //! depends on them: lazy FP stacking (disabled by the policy, DD-04);
@@ -771,10 +775,21 @@ pub open spec fn bus_fault_precise(disdefwbuf: bool, strongly_ordered: bool) -> 
 // ------------------------------------------------------------------ HW-12
 
 /// HW-12 (ASM-19): a COMPARE event is guaranteed only when the compare
-/// value is at least this many ticks ahead of the counter at the time of
-/// the write; the Kernel never arms a compare closer than this and treats
-/// a slot whose instant is closer as already due.
-pub const MIN_COMPARE_DISTANCE: u64 = 2;
+/// value is at least this many ticks ahead of the counter as the Kernel
+/// read it before the write; the Kernel never arms a compare closer than
+/// this and treats a slot whose instant is closer as already due.
+///
+/// Measured on the nRF52840-DK (task 3.3, `hil-dt-hw-12`, 2026-11-02):
+/// with the value 2 the model was refuted. Compares written 0 to 7 ticks
+/// ahead of the counter as captured just before the write never fired
+/// (the capture, the addition, and the write take about 7 ticks of the
+/// 16 MHz counter, so the written value was already past); 8 ticks and
+/// more fired every time. The constant is 16 (1 µs): twice the smallest
+/// distance that fired. The Kernel's correctness does not rest on it
+/// alone: the nRF driver pends the time-base interrupt when the counter
+/// has passed the instant by the time the compare is written (DD-05,
+/// `hw::timebase::arm`), so a compare that lands late is served as due.
+pub const MIN_COMPARE_DISTANCE: u64 = 16;
 
 /// The 32-bit TIMER counter in 32-bit mode wraps at 2^32; the Kernel
 /// extends it to 64 bits by counting wraps from the overflow compare

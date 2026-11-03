@@ -8,7 +8,7 @@
 //!
 //! | Platform | Mechanism | Enforced | Not enforced or not verified |
 //! |---|---|---|---|
-//! | macOS | `sandbox-exec` with `(deny network*)` | the profile denies every network operation of the process tree; the probe confirms that `connect` fails with `EPERM` | `sandbox-exec` is deprecated by Apple; only `connect` is exercised by the probe; filesystem and IPC other than sockets are not restricted |
+//! | macOS | `sandbox-exec` with `(deny network*)` and Unix-domain sockets allowed (why3's solver socket) | the profile denies every network operation of the process tree but local sockets; the probe confirms that `connect` fails with `EPERM` | `sandbox-exec` is deprecated by Apple; only `connect` is exercised by the probe; filesystem and IPC other than sockets are not restricted |
 //! | Linux | `unshare --net --map-root-user` | the process tree runs in a new, empty network namespace (only a down loopback interface); the probe confirms `ENETUNREACH` | needs unprivileged user namespaces (on Ubuntu 24.04, `kernel.apparmor_restrict_unprivileged_userns=0`); filesystem and Unix sockets on the filesystem are not restricted |
 //! | other | none | nothing; the job fails unless `--network-sandbox off` is given | |
 //!
@@ -28,7 +28,13 @@ use crate::cmd::Cmd;
 /// Address used by the probe: TEST-NET-1, discard port.
 pub const PROBE_ADDR: &str = "192.0.2.1:9";
 
-const MACOS_PROFILE: &str = "(version 1)(allow default)(deny network*)";
+/// Network denied, Unix-domain sockets allowed: why3 schedules its solvers
+/// through a local socket, and under a profile that denied every socket
+/// why3find waited forever for solvers that never answered whenever the
+/// session had goals to prove (the "deadlock" of the App_Prover step,
+/// 2026-10 and 11-02: a replayed session never needed them, a cleared one
+/// always did). The probe still shows TCP `connect` denied.
+const MACOS_PROFILE: &str = "(version 1)(allow default)(deny network*)(allow network* (local unix-socket))(allow network* (remote unix-socket))";
 
 /// Whether the job must run with the network denied.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

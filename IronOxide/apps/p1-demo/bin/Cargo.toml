@@ -31,6 +31,8 @@ timing-short = ["rsk-entry/timing-short"]
 response = ["rsk-entry/response"]
 stress = ["rsk-entry/stress"]
 stress-short = ["rsk-entry/stress-short"]
+isolation = ["rsk-entry/isolation"]
+hw-dt = ["rsk-entry/hw-dt"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-entry/quiet"]
 

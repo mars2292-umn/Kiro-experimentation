@@ -58,6 +58,24 @@ impl<const NT: usize> Budget<NT> {
         self.used[t as usize] = v.saturating_add(cycles);
     }
 
+    /// R18.1 over an entry point: an account changes from `old`'s only by
+    /// a reset to 0 (a response that ended the Task's Partition, R14.5);
+    /// nothing is charged to any Task.
+    pub open spec fn only_reset_from(&self, old: &Self) -> bool {
+        forall|u: int| 0 <= u < NT ==> #[trigger] self.used[u] == old.used[u] || self.used[u] == 0
+    }
+
+    /// `only_reset_from` is transitive.
+    pub proof fn lemma_only_reset_trans(a: &Self, b: &Self, c: &Self)
+        requires b.only_reset_from(a), c.only_reset_from(b),
+        ensures c.only_reset_from(a),
+    {
+        assert forall|u: int| 0 <= u < NT implies #[trigger] c.used[u] == a.used[u] || c.used[u] == 0 by {
+            assert(b.used[u] == a.used[u] || b.used[u] == 0);
+            assert(c.used[u] == b.used[u] || c.used[u] == 0);
+        }
+    }
+
     /// R18.2: whether the Job of `t` has consumed more than its Budget.
     pub fn overrun<const NR: usize, const NP: usize>(&self, cfg: &Config<NT, NR, NP>, t: u8) -> (o: bool)
         requires (t as int) < NT,

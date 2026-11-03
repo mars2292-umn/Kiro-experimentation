@@ -1497,6 +1497,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (t as int) < NT, (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).violation_applied(old(self), cfg, partition as int, t as int),
+            final(self).budget.only_reset_from(&old(self).budget),
     {
         self.push_event(cfg, EV_MIT_VIOLATION, t, partition, PRS_RELEASE, 0);
         let count = self.mit_violations[partition as usize].saturating_add(1);
@@ -1537,9 +1538,25 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), now <= cfg.operating_duration,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             // R9.9, R14.4: in the safe state no timed event takes effect.
-            old(self).safe_state ==> final(self).sched == old(self).sched && final(self).slots == old(self).slots,
+            old(self).safe_state ==> final(self).sched == old(self).sched && final(self).slots == old(self).slots
+                && final(self).budget == old(self).budget,
             // Property 8: deferred Releases that become due keep the MIT spacing.
             final(self).mit_spaced(old(self), cfg),
+            // R18.1 (the accounting defect of task 19.1, 2026-11-02): the
+            // Job executing at entry is charged exactly the cycles it ran
+            // since the last charge point, whatever events this entry
+            // serves (a Release or deadline of another Task, its own
+            // Budget event), and nothing is charged to any other Task: the
+            // Budget measures the Job's own execution, and nothing a timed
+            // event does for another Task reaches an account. The one
+            // other change an account can take is a reset to 0, when a
+            // response of this entry ends the Task's Partition (R14.5).
+            !old(self).safe_state ==> forall|u: int| 0 <= u < NT ==>
+                #[trigger] final(self).budget.used[u] == (if old(self).sched.depth > 0 && u == old(self).sched.top() {
+                    super::budget::charged(old(self).budget.used[u], running_cycles)
+                } else {
+                    old(self).budget.used[u]
+                }) || final(self).budget.used[u] == 0,
     {
         self.observe(cfg, now);
         if self.safe_state {
@@ -1556,10 +1573,13 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             let t = self.sched.stack[self.sched.depth - 1];
             self.budget.charge(t, running_cycles);
         }
+        // The accounts after the entry charge: the served events change
+        // them only by the resets of a Partition-ending response (R18.1).
+        let ghost charged = self.budget;
         let mut i: usize = 0;
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
-                self.mit_spaced(old(self), cfg),
+                self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
             decreases NS - i,
         {
             let slot = self.slots.slots[i];
@@ -1568,6 +1588,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.serve_slot(cfg, i, running_cycles);
                 proof {
                     Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
+                    Budget::lemma_only_reset_trans(&charged, &before.budget, &self.budget);
                 }
             }
             i = i + 1;
@@ -1575,7 +1596,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let mut i: usize = 0;
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
-                self.mit_spaced(old(self), cfg),
+                self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
             decreases NS - i,
         {
             let slot = self.slots.slots[i];
@@ -1584,16 +1605,30 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.serve_slot(cfg, i, running_cycles);
                 proof {
                     Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
+                    Budget::lemma_only_reset_trans(&charged, &before.budget, &self.budget);
                 }
             }
             i = i + 1;
         }
+        proof {
+            assert forall|u: int| 0 <= u < NT implies
+                #[trigger] self.budget.used[u] == (if old(self).sched.depth > 0 && u == old(self).sched.top() {
+                    super::budget::charged(old(self).budget.used[u], running_cycles)
+                } else {
+                    old(self).budget.used[u]
+                }) || self.budget.used[u] == 0 by {
+                assert(self.budget.used[u] == charged.used[u] || self.budget.used[u] == 0);
+            }
+        }
     }
 
+    /// Serves one due slot. No account is charged (R18.1: the executing
+    /// Job's cycles were charged on entry); an account is reset only by a
+    /// response that ends its Task's Partition.
     fn serve_slot(&mut self, cfg: &Config<NT, NR, NP>, i: usize, running_cycles: u32)
         requires old(self).inv(cfg), i < NS, old(self).slots.slots[i as int].armed,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
-            final(self).mit_spaced(old(self), cfg),
+            final(self).mit_spaced(old(self), cfg), final(self).budget.only_reset_from(&old(self).budget),
     {
         let slot = self.slots.slots[i];
         let t = slot.task;
@@ -1632,6 +1667,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn periodic_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).budget.only_reset_from(&old(self).budget),
             // A periodic Release never touches the MIT history.
             final(self).timing.has_last == old(self).timing.has_last,
             final(self).timing.last_due == old(self).timing.last_due,
@@ -1699,6 +1735,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn deferred_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).budget == old(self).budget,
             // R10.2: the deferred Release becomes due, and pending, exactly one
             // MIT after the previous accepted Release, which it then replaces
             // as the previous accepted due instant.
@@ -1753,6 +1790,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn deadline_miss(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
+            final(self).budget.only_reset_from(&old(self).budget),
     {
         self.slots.disarm(i);
         proof {
@@ -1781,6 +1819,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize, running_cycles: u32)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
+            // R18.1: the event judges and responds; it charges nothing.
+            final(self).budget.only_reset_from(&old(self).budget),
     {
         self.slots.disarm(i);
         if self.sched.depth == 0 || self.sched.stack[self.sched.depth - 1] != t {
@@ -1857,6 +1897,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (partition as int) < NP, (t as int) < NT,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).response_applied(old(self), cfg, partition as int, response, t as int),
+            // R18.1: no response charges an account; a Partition-ending
+            // response resets its Tasks' accounts (an ended Job's account
+            // is otherwise reset by its Task's next dispatch).
+            final(self).budget.only_reset_from(&old(self).budget),
     {
         if response == RESP_RECORD_ONLY || response == RESP_RECORD_AND_CONTINUE {
             return;
@@ -2037,6 +2081,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn kill_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).budget == old(self).budget,
             forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> final(self).sched.job[u] != JOB_RUNNING,
             final(self).others_unchanged(old(self), cfg, partition as int),
             final(self).timing == old(self).timing,
@@ -2048,7 +2093,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 forall|j: int| 0 <= j < i && cfg.tasks[self.sched.stack[j] as int].partition == partition
                     ==> self.sched.job[self.sched.stack[j] as int] != JOB_RUNNING,
                 self.others_unchanged(old(self), cfg, partition as int),
-                self.timing == old(self).timing,
+                self.timing == old(self).timing, self.budget == old(self).budget,
                 self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases self.sched.depth - i,
         {
@@ -2084,6 +2129,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (partition as int) < NP,
             forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> old(self).sched.job[u] != JOB_RUNNING,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).stop_dma[partition as int],
             final(self).others_unchanged(old(self), cfg, partition as int),
@@ -2096,7 +2142,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> self.sched.job[u] != JOB_RUNNING,
                 forall|u: int| 0 <= u < t && cfg.tasks[u].partition == partition ==> self.sched.release[u] == REL_NONE,
                 self.others_unchanged(old(self), cfg, partition as int),
-                self.timing == old(self).timing,
+                self.timing == old(self).timing, self.budget.only_reset_from(&old(self).budget),
                 self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases NT - t,
         {
@@ -2139,6 +2185,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn end_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).stop_dma[partition as int],
             // R14.9: every other Partition is as it was; MIT history is kept.
@@ -2171,6 +2218,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn restart_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).reinit_partition[partition as int], final(self).stop_dma[partition as int],
             final(self).mit_violations[partition as int] == 0,
@@ -2190,6 +2238,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn stop_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).stopped[partition as int],
+            final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int), final(self).stop_dma[partition as int],
             final(self).others_unchanged(old(self), cfg, partition as int),
             final(self).timing == old(self).timing,

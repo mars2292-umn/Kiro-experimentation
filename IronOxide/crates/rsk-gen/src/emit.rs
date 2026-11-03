@@ -309,6 +309,37 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     let _ = writeln!(s, "    /// Time-base ticks in `ms` milliseconds.");
     let _ = writeln!(s, "    /// Saturating, so the App_Prover has no overflow obligation (task 17.1).");
     let _ = writeln!(s, "    pub const fn ms(ms: u64) -> u64 {{ (TICK_HZ / 1000).saturating_mul(ms) }}");
+    // The memory map (R16.8, task 7.4): the Kernel's, the shared code's,
+    // and every Partition's regions as `(base, size)` and each Partition's
+    // peripheral windows, so that the HIL isolation suite's access matrix
+    // is generated from the same layout the MPU views are, not written by
+    // hand. A Flight_Build's Task bodies have no use for it.
+    let _ = writeln!(s, "    /// The memory map the MPU views are computed from (DD-07), for the HIL");
+    let _ = writeln!(s, "    /// isolation suite (R16.8, task 7.4): `(base, size)` of each region.");
+    let _ = writeln!(s, "    pub mod layout {{");
+    let _ = writeln!(s, "        /// This Partition's index.");
+    let _ = writeln!(s, "        pub const SELF: usize = {};", p);
+    let _ = writeln!(s, "        pub const PARTITIONS: usize = {};", g.plan.partitions.len());
+    let pair = |r: &crate::layout::Region| format!("(0x{:08x}, 0x{:x})", r.base, 1u64 << r.size_log2);
+    let _ = writeln!(s, "        pub const KERNEL_FLASH: (u32, u32) = {};", pair(&g.plan.kernel_flash));
+    let _ = writeln!(s, "        pub const SHARED_CODE: (u32, u32) = {};", pair(&g.plan.shared_code));
+    let _ = writeln!(s, "        pub const KERNEL_RAM: (u32, u32) = {};", pair(&g.plan.kernel_ram));
+    let _ = writeln!(s, "        /// Each Partition's code and RAM region, and its stack size (the stack");
+    let _ = writeln!(s, "        /// is the bottom of its RAM; the word below it is outside every view, R16.5).");
+    let _ = writeln!(s, "        pub const CODE: [(u32, u32); PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| pair(&q.code)).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "        pub const RAM: [(u32, u32); PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| pair(&q.ram)).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "        pub const STACK: [u32; PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| q.stack.to_string()).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "        /// Each Partition's peripheral windows, `(0, 0)` past its count.");
+    let _ = writeln!(s, "        pub const WINDOWS: [[(u32, u32); {}]; PARTITIONS] = [", crate::layout::MAX_WINDOWS);
+    for q in &g.plan.partitions {
+        let mut w: Vec<String> = q.windows.iter().map(|w| format!("(0x{:08x}, 0x{:x})", w.base, 1u64 << w.size_log2)).collect();
+        while w.len() < crate::layout::MAX_WINDOWS {
+            w.push("(0, 0)".to_string());
+        }
+        let _ = writeln!(s, "            [{}],", w.join(", "));
+    }
+    let _ = writeln!(s, "        ];");
+    let _ = writeln!(s, "    }}");
     let _ = writeln!(s, "}}");
     let _ = writeln!(s, "pub mod rsk_ctx {{");
     for &t in &part.tasks {

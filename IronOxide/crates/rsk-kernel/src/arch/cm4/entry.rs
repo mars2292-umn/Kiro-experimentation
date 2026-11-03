@@ -377,10 +377,23 @@ impl KernelArch for Cm4Hw {
             Action::ClearFaultStatus => hw::clear_fault_status(),
             Action::ClearPending(n) => hw::nvic_clear_pending(n),
             Action::DmaProgram(ptr_reg, ptr, cnt_reg, len) => hw::dma_program(ptr_reg, ptr, cnt_reg, len),
-            Action::DmaStop(reg) => hw::dma_stop(reg),
+            Action::DmaStop(reg) => {
+                // Traced and recorded (HIL builds) so that the rig can see
+                // the stop precede the Partition's re-initialization
+                // (R17.6, task 7.4).
+                super::trace(b"dmastop", reg);
+                #[cfg(feature = "trace-ram")]
+                super::unsafe_module::action_push(1, reg);
+                hw::dma_stop(reg)
+            }
             Action::DmaListOff(reg) => hw::dma_list_off(reg),
             Action::PpiDisableAll => hw::ppi_disable_all(),
-            Action::ReinitPartition(p) => hw::partition_reinit(p),
+            Action::ReinitPartition(p) => {
+                super::trace(b"reinit", p as u32);
+                #[cfg(feature = "trace-ram")]
+                super::unsafe_module::action_push(2, p as u32);
+                hw::partition_reinit(p)
+            }
             Action::WatchdogStart(reload) => hw::watchdog_start(reload),
             Action::WatchdogFeed => hw::watchdog_feed(),
             Action::Trace(tag, v) => super::trace(super::trace_tag(tag), v),
@@ -992,23 +1005,34 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         frame[1] = (now >> 32) as u32;
         (0, false)
     } else if number == SVC_DMA {
+        // The executing Job is read before the request, as for the panic
+        // SVC below: a refusal applies the Partition's fault response
+        // (R17.2), and when that response ends the Job the end plan must
+        // unwind its level. Read after the refusal, the plan was 0 and the
+        // stub returned into the ended Job, which ran on with the Kernel
+        // holding no Job for it (the HIL isolation suite's first refused
+        // request, 2026-11-02, task 7.4: the next SVC was served with no
+        // executing Job and the Kernel entered the safe state).
+        let top_before = k.top();
         let ok = dma_request_core(k, hw, tables, frame[0] as usize, frame[1], frame[2]);
         frame[0] = if ok { 0 } else { 1 };
         if ok {
             (0, false)
         } else {
-            // The refusal applied the Partition's fault response (R17.2).
             let safe = apply_core(k, hw, tables);
-            let top_before = k.top();
             let hop = end_plan_core(k, state, top_before);
             (hop, safe)
         }
     } else if number == SVC_RAISE {
+        // As for the EasyDMA request: the executing Job is read before the
+        // raise, whose refusal applies the fault response (the same defect
+        // by inspection, fixed with it; never reached on the bench, since
+        // the demo's raises are all accepted).
+        let top_before = k.top();
         let ok = raise_core(k, hw, tables, frame[0] as usize);
         frame[0] = if ok { 0 } else { 1 };
         // The released Task is pended if eligible; a refusal applied the
         // Partition's fault response, which may have ended the Job.
-        let top_before = k.top();
         let safe = apply_core(k, hw, tables);
         let hop = end_plan_core(k, state, top_before);
         (hop, safe)

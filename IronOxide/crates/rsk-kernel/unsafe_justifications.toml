@@ -322,3 +322,51 @@ kind = "review"
 why_no_machine_check = "The table and ranges come from the linker script of this build; the walk is bounded (INIT_RANGES, RAM_WORDS; PR-16) and runs at the Kernel level with every Job of the Partition ended or killed, so nothing reads the range meanwhile. Kani does not model the linker image."
 reviewed_by = "rsk kernel review (task 7.5)"
 reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-042"
+summary = "dt::DtCell: Sync for the HIL differential-test record (feature hw-dt, HIL builds only)"
+kind = "review"
+why_no_machine_check = "As UJ-005: a word array in `.rsk.noinit` written by the two boot phases in Thread mode with nothing else running and by the probe handlers those phases trigger while they wait, read over the debug port. Never in a Flight_Build."
+reviewed_by = "rsk kernel review (task 3.3)"
+reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-043"
+summary = "dt::record: the mutable reference to the differential-test record"
+kind = "review"
+why_no_machine_check = "As UJ-006; the accesses are those of UJ-042."
+reviewed_by = "rsk kernel review (task 3.3)"
+reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-044"
+summary = "dt: MSR BASEPRI_MAX, MRS PRIMASK, MSR CONTROL in the differential-test phases and probe handler"
+kind = "review"
+why_no_machine_check = "Privileged system-register instructions with no memory effect (HW-03, HW-04, HW-08), executed in the boot phase's privileged Thread mode or in the probe handler (Handler mode); the CONTROL write only clears nPRIV for Thread mode. HIL builds only."
+reviewed_by = "rsk kernel review (task 3.3)"
+reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-045"
+summary = "dt::unprivileged_window, dt::svc_frame_probe: the boot phase's own privilege transition and SVC probes"
+kind = "review"
+why_no_machine_check = "The MPU is off during the early phase (the default map admits unprivileged accesses to the Kernel's flash and RAM), the stack is the MSP in both privilege states, every register the blocks touch is declared, and the probe SVCs and the probe handler restore every mode bit before the block ends. HIL builds only."
+reviewed_by = "rsk kernel review (task 3.3)"
+reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-046"
+summary = "dt::fpscr_read, dt::register_patterns, dt::register_patterns_fp: the Task-side register probes (rsk hw_dt API)"
+kind = "review"
+why_no_machine_check = "Inlined into the Partition's code and run unprivileged; every register the blocks touch is declared as an output, no memory is accessed, and the spin is bounded by the argument (PR-16). The FP variants are reachable from FPU Tasks only (PR-31). HIL builds only."
+reviewed_by = "rsk kernel review (task 3.3)"
+reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-047"
+summary = "dt::fetch: a call into an address outside the Partition's view (the isolation suite's fetch attempts)"
+kind = "review"
+why_no_machine_check = "The MPU's fetch decision (HW-09) precedes any execution at the address: under the Partition's view the call faults with IACCVIOL and the Partition's fault response applies. A granted fetch is the failure the suite exists to detect. HIL builds only, in the isolation configuration."
+reviewed_by = "rsk kernel review (task 7.4)"
+reviewed_on = "2026-11-02"

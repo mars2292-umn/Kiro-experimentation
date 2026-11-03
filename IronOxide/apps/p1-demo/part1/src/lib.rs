@@ -127,6 +127,25 @@ mod pulse_source {
     }
 }
 
+/// The isolation suite (task 7.4, R16.8): the access matrix of this
+/// Partition, one attempt per Job of `log` (see part0's `matrix_step`).
+#[cfg(feature = "isolation")]
+fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_, u32>) {
+    use rsk_target::layout as l;
+    let layout = rsk::matrix::Layout {
+        this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
+        kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM,
+    };
+    let i = index.get();
+    if (i as usize) >= rsk::matrix::count(&layout) {
+        return;
+    }
+    index.set(i + 1);
+    if rsk::matrix::perform(&layout, i as usize) == rsk::matrix::Outcome::Survived {
+        survived.with(|m| *m |= 1 << i);
+    }
+}
+
 /// Task `log`: busy for 3 ms by the time base (bounded in iterations too,
 /// PR-16; within its 6 ms Budget on any Target), then counts. Its first Job
 /// starts the Release_Source of `pulse` (task 5.4).
@@ -134,6 +153,11 @@ pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
         pulse_source::start();
     }
+    // The isolation suite (task 7.4): one access attempt per Job, after
+    // the source is started (the first Job's attempt would otherwise end
+    // the Job before it).
+    #[cfg(feature = "isolation")]
+    matrix_step(&mut cx.matrix, &mut cx.survived);
     // The response configuration (task 7.5, R14.11): the Job of 400 ms
     // exceeds its 6 ms Budget outside any Critical_Section (END_JOB: this
     // Job ends before it counts; 25 ms of busy wait, of which sensor's

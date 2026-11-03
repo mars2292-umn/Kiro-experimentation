@@ -39,6 +39,12 @@ trace-pins = []
 # unless the firmware does so). HIL builds only; a Flight_Build leaves the
 # port protected (R16, ORQ-30).
 debug-port = []
+# The HIL differential tests of the Hardware_Model (task 3.3, R49.3): two
+# boot phases probing the NVIC, BASEPRI, PRIMASK, CONTROL, the exception
+# frame, the DWT, and the TIMER compare rule into `DT_RECORD`, and the
+# Task-side register probes of the rsk `hw_dt` API. HIL builds only; never
+# a Flight_Build feature.
+hw-dt = []
 
 # Verified by `cargo verus verify` (R44.6; xtask step "Kernel_Proofs").
 [package.metadata.verus]

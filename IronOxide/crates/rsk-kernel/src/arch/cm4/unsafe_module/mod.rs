@@ -32,6 +32,9 @@ pub mod stubs_host;
 pub use stubs_host as stubs;
 #[cfg(kani)]
 pub mod kani;
+/// The HIL differential tests of the Hardware_Model (task 3.3; HIL builds only).
+#[cfg(feature = "hw-dt")]
+pub mod dt;
 
 use core::cell::UnsafeCell;
 
@@ -448,6 +451,113 @@ unsafe impl Sync for EventsCell {}
 #[no_mangle]
 #[link_section = ".rsk.noinit"]
 static EVENT_MIRROR: EventsCell = EventsCell(UnsafeCell::new([0; EVENTS_WORDS]));
+
+/// The fault record (feature `trace-ram`; task 7.4, R16.8, R49.3): for
+/// every MemManage, BusFault, and UsageFault the Kernel takes, the CFSR
+/// and the faulting address (MMFAR or BFAR when valid, else the stacked
+/// PC of the faulting context), in order, so that the HIL_Rig can match
+/// each fault event of the mirror with the access that caused it (the
+/// isolation suite's access matrix) and judge its class (precise or
+/// imprecise, HW-11). `FAULT_RING`: magic `0x52534b46`, count, then
+/// `(cfsr, address)` per fault, the last `FAULTS_LEN` kept.
+#[cfg(feature = "trace-ram")]
+pub const FAULTS_LEN: usize = 128;
+#[cfg(feature = "trace-ram")]
+const FAULTS_WORDS: usize = 2 + 2 * FAULTS_LEN;
+#[cfg(feature = "trace-ram")]
+const FAULTS_MAGIC: u32 = 0x5253_4b46;
+#[cfg(feature = "trace-ram")]
+struct FaultsCell(UnsafeCell<[u32; FAULTS_WORDS]>);
+// SAFETY (UJ-005d): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for FaultsCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
+static FAULT_RING: FaultsCell = FaultsCell(UnsafeCell::new([0; FAULTS_WORDS]));
+
+#[cfg(feature = "trace-ram")]
+fn faults() -> &'static mut [u32; FAULTS_WORDS] {
+    // SAFETY (UJ-006d): as UJ-006.
+    let f = unsafe { &mut *FAULT_RING.0.get() };
+    if f[0] != FAULTS_MAGIC {
+        *f = [0; FAULTS_WORDS];
+        f[0] = FAULTS_MAGIC;
+    }
+    f
+}
+
+/// Clears the fault record (at instant 0, so that a run's record is its own).
+#[cfg(feature = "trace-ram")]
+pub fn faults_reset() {
+    let f = faults();
+    *f = [0; FAULTS_WORDS];
+    f[0] = FAULTS_MAGIC;
+}
+
+/// Appends one fault's status and address.
+#[cfg(feature = "trace-ram")]
+pub fn fault_push(cfsr: u32, address: u32) {
+    let f = faults();
+    let n = f[1] as usize;
+    let s = 2 + 2 * (n % FAULTS_LEN);
+    f[s] = cfsr;
+    f[s + 1] = address;
+    f[1] = f[1].wrapping_add(1);
+}
+
+/// The actions record (feature `trace-ram`; task 7.4, R17.6): the EasyDMA
+/// stop tasks the Kernel triggers and the Partition re-initializations it
+/// performs, in order, so that the HIL_Rig can see every stop of a
+/// restarted Partition's channels precede the re-initialization of its
+/// memory. `ARCH_ACTIONS`: magic `0x52534b41`, count, then `(kind, value)`
+/// per action (kind 1: a stop task, value its register; kind 2: a
+/// re-initialization, value the Partition), the last `ACTIONS_LEN` kept.
+#[cfg(feature = "trace-ram")]
+pub const ACTIONS_LEN: usize = 32;
+#[cfg(feature = "trace-ram")]
+const ACTIONS_WORDS: usize = 2 + 2 * ACTIONS_LEN;
+#[cfg(feature = "trace-ram")]
+const ACTIONS_MAGIC: u32 = 0x5253_4b41;
+#[cfg(feature = "trace-ram")]
+struct ActionsCell(UnsafeCell<[u32; ACTIONS_WORDS]>);
+// SAFETY (UJ-005e): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for ActionsCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
+static ARCH_ACTIONS: ActionsCell = ActionsCell(UnsafeCell::new([0; ACTIONS_WORDS]));
+
+#[cfg(feature = "trace-ram")]
+fn actions() -> &'static mut [u32; ACTIONS_WORDS] {
+    // SAFETY (UJ-006e): as UJ-006.
+    let a = unsafe { &mut *ARCH_ACTIONS.0.get() };
+    if a[0] != ACTIONS_MAGIC {
+        *a = [0; ACTIONS_WORDS];
+        a[0] = ACTIONS_MAGIC;
+    }
+    a
+}
+
+/// Clears the actions record (at instant 0).
+#[cfg(feature = "trace-ram")]
+pub fn actions_reset() {
+    let a = actions();
+    *a = [0; ACTIONS_WORDS];
+    a[0] = ACTIONS_MAGIC;
+}
+
+/// Appends one action.
+#[cfg(feature = "trace-ram")]
+pub fn action_push(kind: u32, value: u32) {
+    let a = actions();
+    let n = a[1] as usize;
+    let s = 2 + 2 * (n % ACTIONS_LEN);
+    a[s] = kind;
+    a[s + 1] = value;
+    a[1] = a[1].wrapping_add(1);
+}
 
 #[cfg(feature = "trace-ram")]
 fn events() -> &'static mut [u32; EVENTS_WORDS] {

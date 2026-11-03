@@ -17,9 +17,9 @@ p1_demo_decl::rsk_partition_part2!();
 /// by the time base (bounded in iterations too, PR-16). Injections are
 /// placed by instant, not by Job count, so that a restarted Partition
 /// (its counts back to 0) does not repeat them.
-#[cfg(any(feature = "response", feature = "stress"))]
+#[cfg(any(feature = "response", feature = "stress", feature = "isolation"))]
 mod inject {
-    #[cfg(feature = "response")]
+    #[cfg(any(feature = "response", feature = "isolation"))]
     pub fn window(from_ms: u64, len_ms: u64) -> bool {
         let now = rsk::now();
         now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
@@ -44,6 +44,72 @@ mod inject {
 /// The channel index of CMSDK_GPIO0's stand-in channel in the system's DMA
 /// table (the only EasyDMA channel of the declaration).
 const DMA_CHANNEL: u8 = 0;
+
+/// The isolation suite (task 7.4): the EasyDMA cases of R17.7 (R17.1,
+/// R17.2), one per Job of `sampler`, then the access matrix of this
+/// Partition (R16.8). The case index advances before the request, since
+/// a refused request ends the Job (END_JOB; the Kernel's `dma_rejected`
+/// event) before anything after it runs.
+///
+/// | Case | Buffer | Expected |
+/// |---|---|---|
+/// | 0 | the Task's own buffer (Partition RAM above its stack) | accepted: the channel's pointer and count registers hold it |
+/// | 1 | a local array (the Partition's stack region) | refused (R17.1 excludes stacks) |
+/// | 2 | another Partition's RAM | refused |
+/// | 3 | the Kernel's RAM | refused |
+/// | 4 | 16 bytes starting 8 bytes before the Partition's RAM ends | refused (not wholly inside the RAM) |
+/// | 5 | the own buffer on channel 7 (no such channel) | refused |
+/// | 6 | the own buffer again | accepted |
+#[cfg(feature = "isolation")]
+const DMA_CASES: u32 = 7;
+
+#[cfg(feature = "isolation")]
+fn isolation_step(cx: &mut rsk_ctx::Sampler) {
+    use rsk_target::layout as l;
+    let case = cx.dma_case.get();
+    cx.dma_case.set(case + 1);
+    let other = if l::SELF == 0 { 1 } else { 0 };
+    match case {
+        0 | 6 => {
+            let accepted = cx.buf.with(|buf| {
+                let bytes: &[u8] = &*buf;
+                rsk::dma_request(DMA_CHANNEL, bytes)
+            });
+            if accepted {
+                cx.dma_ok.with(|c| *c = c.saturating_add(1));
+            }
+        }
+        1 => {
+            let local = [0u8; 16];
+            let _ = rsk::dma_request(DMA_CHANNEL, &local);
+        }
+        2 => {
+            let _ = rsk::hw_dt::dma_request_raw(DMA_CHANNEL, l::RAM[other].0 + 0x1000, 16);
+        }
+        3 => {
+            let _ = rsk::hw_dt::dma_request_raw(DMA_CHANNEL, l::KERNEL_RAM.0 + 0x100, 16);
+        }
+        4 => {
+            let _ = rsk::hw_dt::dma_request_raw(DMA_CHANNEL, l::RAM[l::SELF].0 + l::RAM[l::SELF].1 - 8, 16);
+        }
+        5 => {
+            let _ = cx.buf.with(|buf| {
+                let bytes: &[u8] = &*buf;
+                rsk::dma_request(7, bytes)
+            });
+        }
+        _ => {
+            let layout = rsk::matrix::Layout {
+                this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
+                kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM,
+            };
+            let i = (case - DMA_CASES) as usize;
+            if i < rsk::matrix::count(&layout) && rsk::matrix::perform(&layout, i) == rsk::matrix::Outcome::Survived {
+                cx.survived.with(|m| *m |= 1 << i);
+            }
+        }
+    }
+}
 
 /// The Resource `stats` (declared `resource stats: crate::Stats`): DMA
 /// transfers requested and accepted. Its declared invariant is
@@ -88,6 +154,29 @@ fn lowpass(y: &mut f32) {
 /// statistics inside a Critical_Section it leaves unchanged.
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::filter_pre(&cx)))]
 pub fn filter(mut cx: rsk_ctx::Filter) {
+    // The isolation suite (task 7.4) with the Hardware_Model differential
+    // tests (task 3.3, HW-06, HW-10): FPSCR as the first Job finds it,
+    // then the register-pattern probe across about 3 ms, during which
+    // control, echo, sensor, and pulse preempt the Job; and the Job of
+    // 50 ms exceeds its 15 ms Budget so that the Partition restarts
+    // (RESTART_PARTITION: the Kernel's EasyDMA stop before the
+    // re-initialization, R17.6; early, so that the probes' records and
+    // the EasyDMA cases that follow are those of one uninterrupted run).
+    #[cfg(feature = "isolation")]
+    {
+        if cx.pattern_runs.get() == 0 {
+            cx.fpscr.set(rsk::hw_dt::fpscr());
+        }
+        let mask = rsk::hw_dt::register_patterns_fp(50_000);
+        cx.pattern_runs.with(|c| *c = c.saturating_add(1));
+        if mask != 0 {
+            cx.pattern_fail.with(|c| *c = c.saturating_add(1));
+            cx.pattern_mask.with(|m| *m |= mask);
+        }
+        if inject::window(50, 25) {
+            inject::spin_ms(40);
+        }
+    }
     // The response configuration (task 7.5, R14.11): the Job of 250 ms
     // faults (END_JOB as a fault response), and the Job of 500 ms exceeds
     // its 500 µs Budget inside its Critical_Section on `stats` (END_JOB
@@ -145,11 +234,26 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
     if cx.count.get() % 2 == 1 {
         inject::spin_ms(2);
     }
+    // The isolation suite (task 7.4): the EasyDMA cases, then the access
+    // matrix; the buffer's address for the rig's register check.
+    #[cfg(feature = "isolation")]
+    {
+        cx.dma_ptr.set(cx.buf.with(|buf| buf.as_ptr() as usize as u32));
+        isolation_step(&mut cx);
+    }
     #[cfg(creusot)]
     let before = rsk::creusot_std::macros::snapshot!(cx.count@);
     // The low byte of the counter: a reduction before the cast, so that the
     // cast is lossless (the App_Prover checks every `as`).
     let n = (cx.count.get() % 256) as u8;
+    // The isolation suite's Jobs made their request in `isolation_step`
+    // (every Job of the plain demo requests; the suite's cases decide).
+    #[cfg(feature = "isolation")]
+    let accepted = {
+        let _ = n;
+        false
+    };
+    #[cfg(not(feature = "isolation"))]
     let accepted = cx.buf.with(|buf| {
         buf[0] = n;
         // An unsizing coercion, not `Index<RangeFull>`, which Creusot has no

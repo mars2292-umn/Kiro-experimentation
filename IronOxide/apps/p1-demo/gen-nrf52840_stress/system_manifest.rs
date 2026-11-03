@@ -78,8 +78,8 @@ const INTAKE_IRQ: [u16; NT] = [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 6, 0xFFFF, 0xFFFF
 pub const ND: usize = 2;
 const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0] };
 pub const DMA: [::rsk_kernel::arch::DmaCfg; ND] = [
-    ::rsk_kernel::arch::DmaCfg { partition: 2, ptr: 0x40003534, maxcnt: 0x40003538, stops: [0x40003014, 0x00000000], lists: [0x4000353c, 0x4000354c] }, // SPIM0
-    ::rsk_kernel::arch::DmaCfg { partition: 2, ptr: 0x40003544, maxcnt: 0x40003548, stops: [0x40003014, 0x00000000], lists: [0x4000353c, 0x4000354c] }, // SPIM0
+    ::rsk_kernel::arch::DmaCfg { partition: 2, ptr: 0x40003534, maxcnt: 0x40003538, stops: [0x40003014, 0x00000000], lists: [0x40003540, 0x40003550] }, // SPIM0
+    ::rsk_kernel::arch::DmaCfg { partition: 2, ptr: 0x40003544, maxcnt: 0x40003548, stops: [0x40003014, 0x00000000], lists: [0x40003540, 0x40003550] }, // SPIM0
 ];
 pub const NSIG: usize = 1;
 const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg { partition: 0xFF, task: 0xFF };

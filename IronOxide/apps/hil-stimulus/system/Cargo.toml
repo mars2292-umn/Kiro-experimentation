@@ -17,6 +17,8 @@ debug-port = ["rsk-kernel/debug-port"]
 trace = ["rsk-kernel/trace"]
 # HIL builds: the Kernel's entry-point trace in RAM, read by the HIL_Rig.
 trace-ram = ["rsk-kernel/trace-ram"]
+# HIL builds: the Hardware_Model differential tests (task 3.3; the stimulus board runs them too).
+hw-dt = ["rsk-kernel/hw-dt"]
 trace-pins = ["rsk-kernel/trace-pins"]
 # The interrupt storm of task 7.5 (see hil-stimulus-part).
 storm = ["hil-stimulus-part/storm"]

@@ -36,7 +36,15 @@ pub const RADIO_DMA: DmaRegs = DmaRegs { channels: &[(0x504, 0)], stops: &[0x010
 /// UARTE (PS 6.34): RXD and TXD; STOPRX and STOPTX.
 pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014, 0x01C], lists: &[] };
 /// SPIM (PS 6.26): RXD and TXD with LIST registers; STOP.
-pub const SPIM_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014], lists: &[0x53C, 0x54C] };
+/// SPIM (PS 6.26): RXD.PTR 0x534, RXD.MAXCNT 0x538, RXD.AMOUNT 0x53C,
+/// RXD.LIST 0x540; TXD.PTR 0x544, TXD.MAXCNT 0x548, TXD.AMOUNT 0x54C,
+/// TXD.LIST 0x550; TASKS_STOP 0x014. The list registers were given as
+/// 0x53C and 0x54C (the read-only AMOUNT registers) until task 7.4
+/// (2026-11-02) prepared the EasyDMA cases against the register map: the
+/// Kernel's list-mode clearing at boot (DD-08) then wrote a read-only
+/// register and left LIST at its reset value, 0, which is the value it
+/// writes, so no behaviour differed; the table is now the map's.
+pub const SPIM_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014], lists: &[0x540, 0x550] };
 /// SAADC (PS 6.23): RESULT; STOP.
 pub const SAADC_DMA: DmaRegs = DmaRegs { channels: &[(0x62C, 0x630)], stops: &[0x004], lists: &[] };
 /// PWM (PS 6.17): SEQ[0] and SEQ[1]; STOP.

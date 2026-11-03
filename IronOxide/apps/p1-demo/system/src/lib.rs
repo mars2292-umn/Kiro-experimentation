@@ -18,6 +18,8 @@ use rsk_kernel::logic::log::{EV_DEADLINE_MISS, EV_OPERATING_END, EV_SAFE_STATE, 
 use rsk_kernel::logic::log::{EV_MIT_VIOLATION, EV_OVERRUN, EV_RELEASE_OVERLAP};
 #[cfg(any(feature = "stress", feature = "stress-short"))]
 use rsk_kernel::logic::log::{EV_END_JOB, EV_PARTITION_RESTART, EV_RESOURCE_RELEASED};
+#[cfg(feature = "isolation")]
+use rsk_kernel::logic::log::{EV_BUSFAULT, EV_DMA_REJECTED, EV_END_JOB, EV_MEMMANAGE, EV_MIT_VIOLATION, EV_OVERRUN, EV_PARTITION_RESTART, EV_RELEASE_OVERLAP, EV_RESOURCE_RELEASED};
 
 p1_demo_decl::rsk_system!();
 
@@ -48,7 +50,20 @@ pub const TRACE_EXPECT: (u32, u8, u32) = (
     0xFF,
     1 << 0,
 );
-#[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short")))]
+// The isolation suite (task 7.4): every attempt of the access matrix is
+// a MemManage or BusFault with its END_JOB, every refused EasyDMA request
+// a `dma_rejected` with its END_JOB, and filter's injected overrun at
+// 3.3 s restarts part2 (its held Resource released, its delayed Jobs'
+// misses and held Releases); anything else freezes the trace.
+#[cfg(feature = "isolation")]
+pub const TRACE_EXPECT: (u32, u8, u32) = (
+    1 << EV_MEMMANAGE | 1 << EV_BUSFAULT | 1 << EV_END_JOB | 1 << EV_DMA_REJECTED | 1 << EV_OVERRUN
+        | 1 << EV_PARTITION_RESTART | 1 << EV_RESOURCE_RELEASED | 1 << EV_DEADLINE_MISS | 1 << EV_RELEASE_OVERLAP
+        | 1 << EV_MIT_VIOLATION,
+    0xFF,
+    0,
+);
+#[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation")))]
 pub const TRACE_EXPECT: (u32, u8, u32) = (0, 0xFF, 0);
 
 /// Time-base ticks per millisecond on the board.
@@ -139,6 +154,41 @@ pub fn report_and_exit() -> ! {
     print_kv(b"filter_state_bits", filter_bits);
     print_kv(b"sampler", g);
     print_kv(b"dma_ok", dma_ok);
+    // The isolation suite (task 7.4) and the differential tests (task
+    // 3.3): what the probes saw, judged by the rig (Verification_Plan 11.7).
+    #[cfg(feature = "isolation")]
+    {
+        print_kv(b"control_matrix", p1_demo_part0::rsk_state::CONTROL_MATRIX.peek());
+        print_kv(b"control_survived", p1_demo_part0::rsk_state::CONTROL_SURVIVED.peek());
+        print_kv(b"log_matrix", p1_demo_part1::rsk_state::LOG_MATRIX.peek());
+        print_kv(b"log_survived", p1_demo_part1::rsk_state::LOG_SURVIVED.peek());
+        print_kv(b"sampler_dma_case", p1_demo_part2::rsk_state::SAMPLER_DMA_CASE.peek());
+        print_kv(b"sampler_dma_ptr", p1_demo_part2::rsk_state::SAMPLER_DMA_PTR.peek());
+        print_kv(b"sampler_survived", p1_demo_part2::rsk_state::SAMPLER_SURVIVED.peek());
+        print_kv(b"filter_pattern_runs", p1_demo_part2::rsk_state::FILTER_PATTERN_RUNS.peek());
+        print_kv(b"filter_pattern_fail", p1_demo_part2::rsk_state::FILTER_PATTERN_FAIL.peek());
+        print_kv(b"filter_pattern_mask", p1_demo_part2::rsk_state::FILTER_PATTERN_MASK.peek());
+        print_kv(b"filter_fpscr", p1_demo_part2::rsk_state::FILTER_FPSCR.peek());
+        // SPIM0's EasyDMA registers (nRF52840 PS 6.25.7), read here because
+        // the reset the board takes when the probe detaches clears them:
+        // channel 0 (RXD) holds the last accepted request's buffer and
+        // count, channel 1 (TXD) was never programmed, the LIST registers
+        // are clear (DD-08), and no transfer was ever started (R17.2: the
+        // refused requests reached no register; the Kernel programs the
+        // pointer and count only).
+        const SPIM0: u32 = 0x4000_3000;
+        print_kv(b"spim0_rxd_ptr", hw::mmio_read(SPIM0 + 0x534));
+        print_kv(b"spim0_rxd_maxcnt", hw::mmio_read(SPIM0 + 0x538));
+        print_kv(b"spim0_rxd_amount", hw::mmio_read(SPIM0 + 0x53C));
+        print_kv(b"spim0_rxd_list", hw::mmio_read(SPIM0 + 0x540));
+        print_kv(b"spim0_txd_ptr", hw::mmio_read(SPIM0 + 0x544));
+        print_kv(b"spim0_txd_maxcnt", hw::mmio_read(SPIM0 + 0x548));
+        print_kv(b"spim0_txd_list", hw::mmio_read(SPIM0 + 0x550));
+        print_kv(b"spim0_enable", hw::mmio_read(SPIM0 + 0x500));
+        print_kv(b"spim0_events_started", hw::mmio_read(SPIM0 + 0x14C));
+        print_kv(b"spim0_events_end", hw::mmio_read(SPIM0 + 0x118));
+        print_kv(b"spim0_events_stopped", hw::mmio_read(SPIM0 + 0x104));
+    }
     // The first MemManage fault's status and address (HIL diagnosis, R14.3).
     let (cfsr, mmfar) = rsk_kernel::arch::cm4::first_memmanage();
     print_kv(b"first_memmanage_cfsr", cfsr);
@@ -197,7 +247,7 @@ pub fn report_and_exit() -> ! {
     // ..., 18: six raises, each a Release of echo (R10.5).
     // part2 (task 14): 8 filter Jobs (25 ms) with the FP state converging,
     // and 2 sampler Jobs (0 ms, 100 ms), each an accepted EasyDMA request.
-    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short")))]
+    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation")))]
     let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
         && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2;
     // The release-timing configuration: every count within two Jobs of
@@ -216,6 +266,14 @@ pub fn report_and_exit() -> ! {
     let ok = {
         let _ = (ended, faults, misses, filter_ok);
         true
+    };
+    // The isolation configuration: the verdict is the rig's (the event
+    // mirror, the fault record, the differential-test record, the
+    // registers); the target reports that the run ended.
+    #[cfg(feature = "isolation")]
+    let ok = {
+        let _ = (faults, misses, filter_ok);
+        ended
     };
     #[cfg(any(feature = "stress", feature = "stress-short"))]
     let ok = {

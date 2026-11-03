@@ -621,6 +621,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let resp_cmds = hil_response(&ws, rig.as_ref(), &hil_builds, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-response-step", "HIL response suite step", &["R14.11", "R14.5", "R14.9"], resp_cmds);
 
+    // ------------------------------------------- 10b-hil''. HIL isolation suite and the differential tests
+    job.heading("HIL: isolation suite, the MPU access matrix and the EasyDMA cases, with the Hardware_Model differential tests (tasks 7.4 and 3.3, hil-mpu-matrix, hil-dma, hil-dt-hw-NN)");
+    let iso_cmds = hil_isolation(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-isolation-step", "HIL isolation suite step", &["R16.8", "R17.7", "R49.3"], iso_cmds);
+
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
     let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
@@ -869,10 +874,16 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
 /// `cargo creusot` is not installed the step warns and writes no item; when
 /// it runs, `proof-app-creusot` records its version line and the pin of
 /// toolchain/decision.toml, and passes only on `Proved (...)`.
-/// Removes why3find's session state under the proof workspace (both are
-/// ignored by git): a stale session is what the solver deadlocks on.
+/// Removes why3find's session state under the proof workspace and the
+/// proof crates' build directory (all ignored by git), so that every run
+/// proves from nothing (the hang itself was the sandbox denying why3's
+/// local solver socket, `sandbox.rs`), and the translated files are emitted by
+/// the compilation, so a fresh cargo cache beside a cleared `verif` gives
+/// `cargo creusot` nothing to prove ("No files to prove", 2026-11-02, the
+/// first job run after a hand run of the prover). A fresh build and proof
+/// take about a minute.
 fn creusot_session_clear(dir: &Path) {
-    for name in ["verif", ".why3find"] {
+    for name in ["verif", ".why3find", "target"] {
         let _ = std::fs::remove_dir_all(dir.join(name));
     }
 }
@@ -899,13 +910,26 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
     creusot_session_clear(&dir);
     let cmd = Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir);
     let command = format!("(cd proofs/creusot && {})", cmd.display());
-    let (ok, text) = match cmd.output_timeout(Some(sandbox), 600, &["why3find", "cargo-creusot"]) {
+    let run_once = |cmd: &Cmd| match cmd.output_timeout(Some(sandbox), 600, &["why3find", "cargo-creusot"]) {
         Ok(o) => {
             let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
-            (o.status.success() && text.contains("Proved ("), text)
+            (o.status.success() && text.contains("Proved ("), text, false)
         }
-        Err(e) => (false, format!("cannot run cargo creusot: {e}")),
+        Err(e) => (false, format!("cannot run cargo creusot: {e}"), e.to_string().contains("did not complete")),
     };
+    let (mut ok, mut text, timed_out) = run_once(&cmd);
+    if timed_out {
+        // The why3find hang (0 % CPU, no solver running) reached the bound
+        // although the session was fresh (2026-11-02, with the HIL isolation
+        // suite's job): ended, cleared, and run once more; a fresh run proves
+        // the files in about a minute, so a second bound reached is the verdict.
+        report.warn("App_Prover: `cargo creusot` reached its bound once (why3find hung); the session was cleared and the run repeated".to_string());
+        let _ = Command::new("pkill").args(["-f", "why3find"]).status();
+        creusot_session_clear(&dir);
+        let (ok2, text2, _) = run_once(&cmd);
+        ok = ok2;
+        text = format!("{text}\n--- second run after the bound ---\n{text2}");
+    }
     creusot_session_clear(&dir);
     let _ = store.write_artifact("creusot.log", &text);
     let verdict = text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string();
@@ -1074,6 +1098,123 @@ fn hil_response(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[cr
     item.artifacts = artifacts;
     if let Err(e) = store.write(&item) {
         report.error(Rule::Evidence, None, e);
+    }
+    commands
+}
+
+/// The isolation suite (tasks 7.4 and 3.3): the isolation configuration
+/// (a HIL build with the `isolation` feature: the `hw-dt` probes and the
+/// matrix walkers) on the rig's target, judged by `rsk_hil::isolation`;
+/// the same run's `DT_RECORD` judged by `rsk_hil::dt`. Evidence_Items
+/// `hil-mpu-matrix` (R16.8), `hil-dma` (R17.7), and one `hil-dt-hw-NN`
+/// per Hardware_Model rule (R49.3). Skipped with a warning without a rig
+/// or its target.
+fn hil_isolation(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let Some(rig) = rig else { return vec![] };
+    let probes = match rsk_hil::probes::list() {
+        Ok(p) => p,
+        Err(e) => {
+            report.warn(format!("HIL isolation suite: {e}; not run"));
+            return vec![];
+        }
+    };
+    if !probes.iter().any(|p| p.id == rig.target.serial) {
+        report.warn("HIL isolation suite: the target board is not attached; not run".to_string());
+        return vec![];
+    }
+    let Some(bin) = ws.policy.qemu_spikes().next() else {
+        report.error(Rule::Step, None, "HIL isolation suite: no QEMU spike Application to build the isolation configuration of");
+        return vec![];
+    };
+    let Some(model) = crate::hil::task_model(ws, &bin, "nrf52840_isolation") else {
+        report.error(Rule::Step, None, "HIL isolation suite: no Task_Model for the isolation configuration");
+        return vec![];
+    };
+    let features = format!("{},isolation", crate::hil::FEATURES);
+    let dir = target_dir.join("hil").join("isolation");
+    let Some(target) = crate::hil::build_with(ws, &bin, &features, &dir, Some(sandbox), report) else {
+        return vec![];
+    };
+    let work = dir.join("run");
+    let inputs = rsk_hil::isolation::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 60, tick_hz: crate::hil::TICK_HZ, model: &model };
+    let out = rsk_hil::isolation::run(&inputs);
+    let text = rsk_hil::isolation::render(rig, &inputs, &out, &target.binary.hash);
+    let mut artifacts = Vec::new();
+    if let Ok(name) = store.write_artifact("hil-isolation.md", &text) {
+        artifacts.push(name);
+    }
+    if let Some(ev) = &out.events {
+        if let Ok(name) = store.write_artifact("hil-isolation-events.txt", &ev.render(crate::hil::TICK_HZ)) {
+            artifacts.push(name);
+        }
+    }
+    let mut dt_artifacts = Vec::new();
+    if let Some(dt) = &out.dt {
+        let dt_text = rsk_hil::dt::render(dt, &out.dt_rows, &rig.target.serial, &target.binary.hash);
+        if let Ok(name) = store.write_artifact("hil-hw-model-differential.md", &dt_text) {
+            dt_artifacts.push(name);
+        }
+    }
+    for st in &out.steps {
+        if st.ok {
+            report.note(format!("HIL isolation suite: {}: {}", st.name, st.detail));
+        } else {
+            report.error(Rule::Step, None, format!("HIL isolation suite: {}: {}", st.name, st.detail));
+        }
+    }
+    let tool = Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] };
+    let mut commands = vec![target.command.clone()];
+    commands.extend(out.commands.iter().cloned());
+    let step_ok = |prefix: &str| out.steps.iter().filter(|s| s.name.starts_with(prefix)).all(|s| s.ok) && out.steps.iter().any(|s| s.name.starts_with(prefix)) && out.steps.iter().any(|s| s.name == "target run" && s.ok);
+    let mut items = vec![
+        (
+            Item::new(
+                "hil-mpu-matrix",
+                Kind::Test,
+                &format!("HIL MPU access matrix (R16.8): every protected class of every other Partition and of the Kernel attempted by one Task per Partition on the isolation configuration of {} ({}; target {})", bin, target.binary.hash, rig.target.serial),
+                tool.clone(),
+                Verdict::from_bool(step_ok("MPU access matrix") && step_ok("walkers' counters") && step_ok("Kernel events")),
+            )
+            .covers(&["R16.8", "R16.4", "R16.1", "R16.2", "R16.3", "R16.5", "R14.3"]),
+            artifacts.clone(),
+        ),
+        (
+            Item::new(
+                "hil-dma",
+                Kind::Test,
+                &format!("HIL EasyDMA isolation (R17.7): refused requests before any register write, the accepted request's registers, and the stop before the re-initialization of a restarted Partition, on the isolation configuration of {} ({})", bin, target.binary.hash),
+                tool.clone(),
+                Verdict::from_bool(step_ok("EasyDMA cases") && step_ok("Partition restart stops")),
+            )
+            .covers(&["R17.7", "R17.2", "R17.6", "R17.1"]),
+            artifacts.clone(),
+        ),
+    ];
+    let verdicts = rsk_hil::dt::verdicts(&out.dt_rows);
+    for (rule, name, v) in &verdicts {
+        let id = format!("hil-dt-{}", rule.to_lowercase());
+        let verdict = match v {
+            rsk_hil::dt::Verdict::Match => Verdict::Pass,
+            rsk_hil::dt::Verdict::Mismatch => Verdict::Fail,
+            rsk_hil::dt::Verdict::NotTested => Verdict::Fail,
+        };
+        let mut item = Item::new(&id, Kind::Test, &format!("Hardware_Model differential test {rule} ({name}) on the nRF52840-DK, from the isolation configuration's run ({})", target.binary.hash), tool.clone(), verdict).covers(&["R49.3"]);
+        item.notes = out.dt_rows.iter().filter(|r| r.rule == *rule).map(|r| format!("{}: predicted {}; observed {}: {}", r.what, r.predicted, r.observed, match r.verdict { rsk_hil::dt::Verdict::Match => "match", rsk_hil::dt::Verdict::Mismatch => "MISMATCH", rsk_hil::dt::Verdict::NotTested => "not tested (disposition recorded)" })).collect();
+        items.push((item, dt_artifacts.clone()));
+    }
+    if out.dt.is_none() {
+        report.error(Rule::Step, None, "HIL isolation suite: no differential-test record; the hil-dt items are failed");
+    }
+    for (mut item, arts) in items {
+        item.command_lines = commands.clone();
+        if item.notes.is_empty() {
+            item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
+        }
+        item.build_manifest = Some(manifest_id.to_string());
+        item.artifacts = arts;
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
     }
     commands
 }

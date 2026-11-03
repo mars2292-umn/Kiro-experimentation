@@ -22,6 +22,13 @@
 //!   injection, R18.8, R19.3).
 //! - [`response`]: the response suite (task 7.5, R14.11): one injected
 //!   fault per response of R14.5, judged from the event mirror.
+//! - [`faults`]: the Kernel's fault record (CFSR and address per fault).
+//! - [`isolation`]: the isolation suite (task 7.4): the MPU access matrix
+//!   (R16.8) and the EasyDMA cases (R17.7), judged from the event mirror,
+//!   the fault record, the actions record, and the target's report.
+//! - [`dt`]: the Hardware_Model differential tests (task 3.3, R49.3): the
+//!   Kernel's `DT_RECORD` and the Task-side probes against the model's
+//!   predictions, rule by rule.
 //! - [`selftest`]: the rig self-test (the evidence of task 7.1): the
 //!   boards identified, both images read back and hashed, the stimulus
 //!   board running, a loopback run of the Application under test, the
@@ -31,7 +38,10 @@
 pub mod board;
 pub mod capture;
 pub mod config;
+pub mod dt;
 pub mod events;
+pub mod faults;
+pub mod isolation;
 pub mod kernel_timing;
 pub mod probes;
 pub mod release_timing;
