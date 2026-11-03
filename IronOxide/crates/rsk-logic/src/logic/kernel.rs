@@ -1545,6 +1545,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.safe_state {
             return;
         }
+        // R18.1: the executing Job is charged the cycles it ran since the
+        // last charge point at every timed event, not only at its Budget
+        // event: Kernel_Arch takes the charge point at each (the account's
+        // origin moves), so a Release or deadline of another Task dropped
+        // the segment from the account and Overruns were detected late by
+        // the dropped cycles (the Critical_Section measurements of task
+        // 19.1 found it, 2026-11-02).
+        if self.sched.depth > 0 {
+            let t = self.sched.stack[self.sched.depth - 1];
+            self.budget.charge(t, running_cycles);
+        }
         let mut i: usize = 0;
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
@@ -1764,7 +1775,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// (RECORD_AND_CONTINUE, R18.6) has its compare re-armed with no
     /// remainder at every resume, which fires at once: the Overrun is
     /// recorded once per Job, not once per resume (the HIL response suite
-    /// found a dozen records of one Overrun, task 7.5).
+    /// found a dozen records of one Overrun, task 7.5). The cycles of the
+    /// event were charged by `timer_event` on entry, as at every timed
+    /// event (task 19.1).
     fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize, running_cycles: u32)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
@@ -1773,8 +1786,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.sched.depth == 0 || self.sched.stack[self.sched.depth - 1] != t {
             return;
         }
-        let recorded = self.budget.overrun(cfg, t);
-        self.budget.charge(t, running_cycles);
+        // The Overrun is recorded once per Job: not again when the account
+        // was already past the Budget before this event's cycles, which
+        // `timer_event` charged on entry (a saturated account was past it).
+        let before_this_event = self.budget.used[t as usize].saturating_sub(running_cycles);
+        let recorded = before_this_event > cfg.tasks[t as usize].budget;
         if recorded {
             return;
         }

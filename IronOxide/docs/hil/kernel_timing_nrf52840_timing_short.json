@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:5129d14853fb44fd055dfe8942fcd649d2d6d65f1f37f34c6d60d072442aa65b",
+  "binary_hash": "sha256:e9ea33000c72f746d80a55e5e088267f63aaffb67af8f6c97a4057a4a4afcc4f",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 7174,
+      "cycles": 7750,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -15,8 +15,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 40487,
-        "max_observed": 5739,
+        "runs": 80974,
+        "max_observed": 6200,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

@@ -39,6 +39,7 @@ pub mod response;
 pub mod selftest;
 pub mod stats;
 pub mod trace;
+pub mod wcet_records;
 
 /// Removes ANSI colour sequences (probe-rs colours its output; logs are
 /// kept plain).

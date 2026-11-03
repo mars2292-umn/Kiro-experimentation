@@ -55,7 +55,7 @@ rsk::app! {
         state pulse.count: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
-                    budget = 200.us(), priority = 4);
+                    budget = 500.us(), priority = 4);
     }
 
     partition part2 (level = B, crate = p1_demo_part2, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),

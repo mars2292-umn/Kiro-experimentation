@@ -158,11 +158,25 @@ pub fn prepare(
     let binary_hashes: Vec<String> = binaries.iter().filter_map(|b| b.get("hash").and_then(|h| h.as_str()).map(str::to_string)).collect();
     let icache = manifest.pointer("/build/icache").and_then(|v| v.as_str()).unwrap_or("off").to_string();
     // R28.3 / R33.4: each record matches the binary and its configuration.
+    // A measured record of a HIL build the manifest lists (`hil_binaries`,
+    // task 19.1) is accepted as a Kernel_Timing_Parameter set of one is.
+    let hil_binaries = manifest.get("hil_binaries").and_then(|b| b.as_array()).cloned().unwrap_or_default();
+    let hil_hashes: Vec<String> = hil_binaries.iter().filter_map(|b| b.get("hash").and_then(|h| h.as_str()).map(str::to_string)).collect();
+    let mut measured_parameters = Vec::new();
+    let mut hil_wcet_named = false;
     let mut usable: Vec<WcetRecord> = Vec::new();
     for r in &wcet.records {
         let mut why = Vec::new();
         if !binary_hashes.contains(&r.binary_hash) {
-            why.push(format!("binary hash {} is not in the Build_Manifest", r.binary_hash));
+            if r.method == "measured" && hil_hashes.contains(&r.binary_hash) {
+                if !hil_wcet_named {
+                    let name = hil_binaries.iter().find(|b| b.get("hash").and_then(|h| h.as_str()) == Some(r.binary_hash.as_str())).and_then(|b| b.get("target")).and_then(|t| t.as_str()).unwrap_or("?");
+                    measured_parameters.push(format!("measured WCET_Records of the HIL build `{name}` ({}) of the Build_Manifest, not the analysed Flight_Build", r.binary_hash));
+                    hil_wcet_named = true;
+                }
+            } else {
+                why.push(format!("binary hash {} is not in the Build_Manifest", r.binary_hash));
+            }
         }
         if r.clock_hz != cpu_hz {
             why.push(format!("clock {} Hz differs from the model's {cpu_hz} Hz", r.clock_hz));
@@ -201,9 +215,7 @@ pub fn prepare(
     // HIL build the Build_Manifest lists (`hil_binaries`: the same source,
     // toolchain, clock and cache setting with the rig's instrumentation,
     // whose cost the measurement includes); the report names it.
-    let hil_binaries = manifest.get("hil_binaries").and_then(|b| b.as_array()).cloned().unwrap_or_default();
     let hil_binary = hil_binaries.iter().find(|b| b.get("hash").and_then(|h| h.as_str()) == Some(timing.binary_hash.as_str()));
-    let mut measured_parameters = Vec::new();
     if !binary_hashes.contains(&timing.binary_hash) {
         match hil_binary {
             Some(b) => {

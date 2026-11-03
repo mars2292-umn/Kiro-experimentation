@@ -291,6 +291,8 @@ pub fn start<S: System>() {
     #[cfg(feature = "trace-ram")]
     unsafe_module::stats_reset();
     #[cfg(feature = "trace-ram")]
+    unsafe_module::stats_calibrate();
+    #[cfg(feature = "trace-ram")]
     unsafe_module::events_reset();
     let safe = entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     mirror_events(k);
@@ -411,11 +413,31 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     // instant to now (the record the fault-injection suites read).
     #[cfg(feature = "trace-ram")]
     let ending = if number == entry::SVC_JOB_END { k.top().map(|t| (t, k.job_due(t))) } else { None };
+    // Task 19.1: the execution charged to the executing Job so far, the
+    // Budget account plus the cycles since the last charge point, at a lock
+    // or unlock (the Resource is the call's argument, before the result
+    // replaces it).
+    #[cfg(feature = "trace-ram")]
+    let section = if number == entry::SVC_LOCK || number == entry::SVC_UNLOCK { k.top().map(|t| (t, frame[0] as u8, consumed_now(k, t))) } else { None };
     let (hop, safe) =
         entry::svc_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number);
     #[cfg(feature = "trace-ram")]
     if let Some((t, due)) = ending {
         unsafe_module::stats_response(t, hw::timebase_now().saturating_sub(due));
+        // The Job's execution, charged in full by `job_return`.
+        unsafe_module::stats_exec(t, k.budget_used(t));
+    }
+    #[cfg(feature = "trace-ram")]
+    if let Some((t, r, at_entry)) = section {
+        if frame[0] == 1 {
+            if number == entry::SVC_LOCK {
+                // From the lock's return: the lock's own work is not the
+                // Critical_Section's.
+                unsafe_module::stats_cs_open(t, r, consumed_now(k, t));
+            } else {
+                unsafe_module::stats_cs_close(t, r, at_entry);
+            }
+        }
     }
     mirror_events(k);
     if safe {
@@ -423,6 +445,13 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     }
     pins_running(k.top());
     hop
+}
+
+/// The execution charged to the Job of `t` so far: the Budget account
+/// plus the DWT cycles since the last charge point (task 19.1).
+#[cfg(feature = "trace-ram")]
+fn consumed_now<K: crate::arch::bound::KernelOps>(k: &K, t: u8) -> u32 {
+    k.budget_used(t).wrapping_add(hw::dwt_cyccnt().wrapping_sub(unsafe_module::arch_state().last_switch))
 }
 
 /// The Rust half of the unwind of one level, named by its exception

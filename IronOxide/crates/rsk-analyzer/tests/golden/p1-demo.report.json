@@ -136,9 +136,9 @@
         },
         {
           "task": "part1.pulse",
-          "e_cycles": 9200,
+          "e_cycles": 16700,
           "jobs": 3,
-          "cycles": 27600
+          "cycles": 50100
         },
         {
           "task": "part2.filter",
@@ -147,9 +147,9 @@
           "cycles": 58400
         }
       ],
-      "r_cycles": 835000,
+      "r_cycles": 857500,
       "schedulable": true,
-      "slack_cycles": 165000,
+      "slack_cycles": 142500,
       "wcet_provenance": [
         "part1.log: 150000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -161,7 +161,7 @@
       "priority": 4,
       "period_cycles": 375000,
       "deadline_cycles": 375000,
-      "c_cycles": 5000,
+      "c_cycles": 12500,
       "b_cycles": 5000,
       "b_source": "Partition stop/restart work (R14.10)",
       "o_cycles": 3600,
@@ -186,11 +186,11 @@
           "cycles": 224200
         }
       ],
-      "r_cycles": 305300,
+      "r_cycles": 312800,
       "schedulable": true,
-      "slack_cycles": 69700,
+      "slack_cycles": 62200,
       "wcet_provenance": [
-        "part1.pulse: 5000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
+        "part1.pulse: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
     },
     {
@@ -226,14 +226,14 @@
         },
         {
           "task": "part1.pulse",
-          "e_cycles": 9200,
+          "e_cycles": 16700,
           "jobs": 1,
-          "cycles": 9200
+          "cycles": 16700
         }
       ],
-      "r_cycles": 329500,
+      "r_cycles": 337000,
       "schedulable": true,
-      "slack_cycles": 295500,
+      "slack_cycles": 288000,
       "wcet_provenance": [
         "part2.filter: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part2.filter#cs:stats: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
@@ -278,9 +278,9 @@
         },
         {
           "task": "part1.pulse",
-          "e_cycles": 9200,
+          "e_cycles": 16700,
           "jobs": 3,
-          "cycles": 27600
+          "cycles": 50100
         },
         {
           "task": "part2.filter",
@@ -289,16 +289,16 @@
           "cycles": 58400
         }
       ],
-      "r_cycles": 843600,
+      "r_cycles": 866100,
       "schedulable": true,
-      "slack_cycles": 1656400,
+      "slack_cycles": 1633900,
       "wcet_provenance": [
         "part2.sampler: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part2.sampler#cs:stats: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
     }
   ],
-  "utilization_percent": 82,
+  "utilization_percent": 84,
   "cross_check": {
     "status": "not_run",
     "detail": "run the UPPAAL cross-check with --uppaal"

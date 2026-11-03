@@ -517,3 +517,48 @@ fn task_19_3_overlay_never_lowers_a_bound_but_replaces_placeholders() {
     assert_eq!(t.get("j_rel"), Some(10584));
 }
 
+/// Task 19.1: a measured WCET_Record of a HIL build the manifest lists
+/// replaces the placeholder of its item (sensor's Critical_Section site,
+/// whose placeholder is sensor's whole Budget) and the blocking term of
+/// control falls to it; one of an unlisted binary is rejected.
+#[test]
+fn task_19_1_a_measured_critical_section_record_replaces_the_placeholder_blocking_term() {
+    let m = model();
+    let mut manifest = manifest(&m);
+    manifest["hil_binaries"] = serde_json::json!([{"package": "p1-demo", "target": "p1-demo (nrf52840, stress-short)", "file": "p1-demo", "hash": "sha256:hil", "loadable_bytes": 1, "config_checksum": "0x1"}]);
+    let (mut w, t) = placeholders::make(&m, HASH, "off");
+    let site = "part0.sensor#cs:state";
+    let cs = WcetRecord {
+        item: site.into(),
+        wcet_cycles: 20_000,
+        method: "measured".into(),
+        tool: "rsk-hil Budget-accounting record".into(),
+        binary_hash: "sha256:hil".into(),
+        target: "nrf52840/r0p1".into(),
+        clock_hz: m.clock.cpu_hz,
+        icache: "off".into(),
+        conditions: vec!["HIL build".into()],
+        measured: Some(rsk_model::wcet::Measured { runs: 9000, max_observed: 16_000, margin_percent: 25, coverage_branch_percent: 0, scenarios: vec!["nrf52840_stress_short (180 s)".into()] }),
+    };
+    // sensor's other site, `in_cs`, keeps its placeholder (the whole Budget)
+    // unless measured too: both sites are overlaid.
+    let mut in_cs = cs.clone();
+    in_cs.item = "part0.sensor#cs:in_cs".into();
+    in_cs.wcet_cycles = 8_000;
+    let measured = WcetSet { schema: rsk_model::wcet::WCET_SCHEMA.into(), records: vec![cs.clone(), in_cs] };
+    assert_eq!(placeholders::overlay_wcet(&mut w, &measured), 2);
+    assert!(!w.records.iter().any(|r| r.item == site && r.method == "placeholder"));
+    let a = analyze(&m, &w, &t, &manifest, names(), &dev());
+    assert_eq!(a.exit, EXIT_PASS, "{:?}", a.report.rejections);
+    let control = &a.report.tasks[0];
+    assert_eq!(control.b_cycles, 20_000, "{}", control.b_source);
+    assert!(a.report.statements.iter().any(|s| s.contains("measured WCET_Records of the HIL build `p1-demo (nrf52840, stress-short)`")), "{:?}", a.report.statements);
+    let sensor = a.report.tasks.iter().find(|t| t.id == "part0.sensor").unwrap();
+    assert!(sensor.wcet_provenance.iter().any(|p| p.starts_with(site) && p.contains("measured")), "{:?}", sensor.wcet_provenance);
+    // Unlisted: rejected under R28.3.
+    let mut w2 = w.clone();
+    w2.records.iter_mut().filter(|r| r.item == site).for_each(|r| r.binary_hash = "sha256:elsewhere".into());
+    let r = rejections_of(&m, &w2, &t, &manifest, &dev());
+    assert_rejects(&r, "R28.3", "sha256:elsewhere");
+}
+

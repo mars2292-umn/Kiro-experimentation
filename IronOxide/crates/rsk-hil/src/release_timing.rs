@@ -346,6 +346,28 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                         &tl.runs[..7]
                     ),
                 );
+                // Task 19.1: the agent (the Budget accounting's largest Job
+                // execution of Task 0, the highest Priority: nothing but the
+                // Kernel's entries interrupts its runs) against the trace pin's
+                // longest uninterrupted run, which includes those entries.
+                if let Some(st) = &out.stats {
+                    if let Some((agent, trace)) = crate::wcet_records::against_trace(st, tl.longest_run[0], inputs.samplerate_hz, inputs.cpu_hz, 0) {
+                        let sample = inputs.cpu_hz / inputs.samplerate_hz as u64;
+                        let ok = (agent as u64) <= trace + 2 * sample;
+                        out.step(
+                            "agent against the trace (task 19.1)",
+                            ok,
+                            format!(
+                                "Task 0: the Budget accounting's largest Job execution {agent} cycles ({:.3} ms, cycle-counter read cost {} cycles) against the trace pin's longest run {trace} cycles ({:.3} ms at {} samples/s){}",
+                                agent as f64 * 1000.0 / inputs.cpu_hz as f64,
+                                st.calibration_cycles,
+                                trace as f64 * 1000.0 / inputs.cpu_hz as f64,
+                                inputs.samplerate_hz,
+                                if ok { "" } else { ": the agent exceeds the trace" }
+                            ),
+                        );
+                    }
+                }
                 out.timeline = Some(tl);
             }
             out.analysis = Some(a);

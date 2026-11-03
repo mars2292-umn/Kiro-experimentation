@@ -175,18 +175,34 @@ static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_
 /// largest response time, Release due to Job end, in ticks; R18.8), and
 /// `intake_count, intake_max, intake_sum_lo, intake_sum_hi` (the intake
 /// handler's runs for the Task's interrupt source and their cycles;
-/// R19.3), then a ring of the last 256 Releases as `(task, due_lo,
-/// due_hi, lag)` after a write index. The HIL_Rig reads it after a run.
+/// R19.3), and `exec_count, exec_max` (Jobs completed and the largest
+/// execution of one Job in cycles, from the Budget accounting; task 19.1,
+/// R34.7); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
+/// closed and the largest execution of one, lock to unlock, from the
+/// Budget accounting at the two SVCs, less the counter read cost) and the
+/// consumed count at each open Critical_Section's lock; then a ring of
+/// the last 256 Releases as `(task, due_lo, due_hi, lag)` after a write
+/// index. The header's fourth word is the calibration of R34.3: the
+/// smallest cycle count between two consecutive reads of DWT_CYCCNT,
+/// measured at instant 0. The HIL_Rig reads it after a run.
 #[cfg(feature = "trace-ram")]
 pub const STATS_TASKS: usize = 8;
+#[cfg(feature = "trace-ram")]
+pub const STATS_RES: usize = 16;
 #[cfg(feature = "trace-ram")]
 pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 26;
+const STATS_PER_TASK: usize = 28;
 #[cfg(feature = "trace-ram")]
-const STATS_WORDS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK + 1 + 4 * STATS_RING;
+const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
+#[cfg(feature = "trace-ram")]
+const STATS_CS_OPEN: usize = STATS_CS + STATS_TASKS * STATS_RES * 2;
+#[cfg(feature = "trace-ram")]
+const STATS_RING_AT: usize = STATS_CS_OPEN + STATS_TASKS * STATS_RES;
+#[cfg(feature = "trace-ram")]
+const STATS_WORDS: usize = STATS_RING_AT + 1 + 4 * STATS_RING;
 #[cfg(feature = "trace-ram")]
 struct StatsCell(UnsafeCell<[u32; STATS_WORDS]>);
 // SAFETY (UJ-005b): as UJ-005.
@@ -239,7 +255,7 @@ pub fn stats_release(t: u8, due: u64, offset: u64, period: u64, lag: u32) {
     s[v + 3] = (sum >> 32) as u32;
     let bucket = (32 - lag.leading_zeros()).min(15) as usize;
     s[v + 4 + bucket] = s[v + 4 + bucket].saturating_add(1);
-    let ring = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
+    let ring = STATS_RING_AT;
     let n = s[ring] as usize;
     let slot = ring + 1 + 4 * (n % STATS_RING);
     s[slot] = t as u32;
@@ -281,6 +297,70 @@ pub fn stats_intake(t: u8, cycles: u32) {
     s[v + 3] = (sum >> 32) as u32;
 }
 
+/// R34.3: calibrates the cycle-counter read at instant 0: the smallest
+/// difference between two consecutive reads over 64 pairs (PR-16), kept
+/// in the header; the Critical_Section measurements subtract it.
+#[cfg(feature = "trace-ram")]
+pub fn stats_calibrate() {
+    let mut least = u32::MAX;
+    let mut i = 0;
+    while i < 64 {
+        let a = hw::dwt_cyccnt();
+        let b = hw::dwt_cyccnt();
+        let d = b.wrapping_sub(a);
+        if d < least {
+            least = d;
+        }
+        i += 1;
+    }
+    let s = stats();
+    s[3] = least;
+}
+
+/// A Job of Task `t` completed having executed `cycles` (task 19.1: the
+/// Task-entry maximum from the Budget accounting, R34.7).
+#[cfg(feature = "trace-ram")]
+pub fn stats_exec(t: u8, cycles: u32) {
+    let s = stats();
+    if t as usize >= STATS_TASKS {
+        return;
+    }
+    let v = STATS_HEADER + t as usize * STATS_PER_TASK + 26;
+    s[v] = s[v].saturating_add(1);
+    if cycles > s[v + 1] {
+        s[v + 1] = cycles;
+    }
+}
+
+/// Task `t` locked Resource `r` with `consumed` cycles of execution
+/// charged to its Job so far (task 19.1).
+#[cfg(feature = "trace-ram")]
+pub fn stats_cs_open(t: u8, r: u8, consumed: u32) {
+    let s = stats();
+    if t as usize >= STATS_TASKS || r as usize >= STATS_RES {
+        return;
+    }
+    s[STATS_CS_OPEN + t as usize * STATS_RES + r as usize] = consumed;
+}
+
+/// Task `t` unlocked Resource `r` with `consumed` cycles charged to its
+/// Job: the Critical_Section's execution is the difference since the
+/// lock, less the counter read cost (R34.3).
+#[cfg(feature = "trace-ram")]
+pub fn stats_cs_close(t: u8, r: u8, consumed: u32) {
+    let s = stats();
+    if t as usize >= STATS_TASKS || r as usize >= STATS_RES {
+        return;
+    }
+    let opened = s[STATS_CS_OPEN + t as usize * STATS_RES + r as usize];
+    let cycles = consumed.wrapping_sub(opened).saturating_sub(s[3]);
+    let v = STATS_CS + (t as usize * STATS_RES + r as usize) * 2;
+    s[v] = s[v].saturating_add(1);
+    if cycles > s[v + 1] {
+        s[v + 1] = cycles;
+    }
+}
+
 /// Appends one trace entry, unless the trace is frozen (`events_push`).
 /// Called only at the Kernel level or with PRIMASK held.
 #[cfg(feature = "trace-ram")]
@@ -312,7 +392,11 @@ pub fn trace_ram_push(word: u32, now: u64) {
 /// k), expect_task (0xFF: any), 0`, then `(kind << 24 | task << 16 |
 /// partition << 8, instant_lo, instant_hi, detail)` per event.
 #[cfg(feature = "trace-ram")]
-pub const EVENTS_LEN: usize = 1024;
+/// 512 entries: with the trace ring and the release-timing record the
+/// no-init records must leave the Kernel stack its room in the 32 KiB of
+/// Kernel RAM (a 1,024-entry mirror beside the record of task 19.1 left
+/// it too little, 2026-11-02).
+pub const EVENTS_LEN: usize = 512;
 /// The most events one Kernel entry can add to the mirror: the log's capacity.
 #[cfg(feature = "trace-ram")]
 pub const EVENTS_PER_ENTRY: usize = 32;

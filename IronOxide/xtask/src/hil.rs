@@ -64,11 +64,14 @@ pub fn timing_record_path(root: &Path, variant: &str) -> PathBuf {
     root.join("docs").join("hil").join(format!("kernel_timing_{variant}.json"))
 }
 
-/// The committed Kernel_Timing_Parameter records whose binary the
-/// Build_Manifest lists (`binaries` or `hil_binaries`): fresh for the
-/// Analyzer (R33.4). The second list names the stale ones with their
-/// hashes.
-pub fn fresh_timing_records(root: &Path, manifest: &serde_json::Value) -> (Vec<PathBuf>, Vec<String>) {
+/// The committed WCET_Records of a measurement configuration
+/// (`docs/hil/wcet_<variant>.json`, task 19.1).
+pub fn wcet_record_path(root: &Path, variant: &str) -> PathBuf {
+    root.join("docs").join("hil").join(format!("wcet_{variant}.json"))
+}
+
+/// The binary hashes a Build_Manifest lists (`binaries` and `hil_binaries`).
+fn manifest_hashes(manifest: &serde_json::Value) -> Vec<String> {
     let mut hashes: Vec<String> = Vec::new();
     for key in ["binaries", "hil_binaries"] {
         for b in manifest.get(key).and_then(|b| b.as_array()).into_iter().flatten() {
@@ -77,6 +80,15 @@ pub fn fresh_timing_records(root: &Path, manifest: &serde_json::Value) -> (Vec<P
             }
         }
     }
+    hashes
+}
+
+/// The committed Kernel_Timing_Parameter records whose binary the
+/// Build_Manifest lists (`binaries` or `hil_binaries`): fresh for the
+/// Analyzer (R33.4). The second list names the stale ones with their
+/// hashes.
+pub fn fresh_timing_records(root: &Path, manifest: &serde_json::Value) -> (Vec<PathBuf>, Vec<String>) {
+    let hashes = manifest_hashes(manifest);
     let mut fresh = Vec::new();
     let mut stale = Vec::new();
     for m in MEASUREMENTS {
@@ -89,6 +101,21 @@ pub fn fresh_timing_records(root: &Path, manifest: &serde_json::Value) -> (Vec<P
         }
     }
     (fresh, stale)
+}
+
+/// The committed WCET_Record set of `variant` when every record's binary
+/// the Build_Manifest lists (task 19.1, R33.4), else why not.
+pub fn fresh_wcet_records(root: &Path, manifest: &serde_json::Value, variant: &str) -> Result<Option<PathBuf>, String> {
+    let hashes = manifest_hashes(manifest);
+    let path = wcet_record_path(root, variant);
+    let Ok(text) = std::fs::read_to_string(&path) else { return Ok(None) };
+    match rsk_model::read_wcet_set(&text) {
+        Ok(w) => match w.records.iter().find(|r| !hashes.contains(&r.binary_hash)) {
+            None => Ok(Some(path)),
+            Some(r) => Err(format!("{} ({}: not a binary of this manifest)", path.display(), r.binary_hash)),
+        },
+        Err(e) => Err(format!("{} (not a WCET_Record set: {e})", path.display())),
+    }
 }
 
 /// The rig description at the workspace root, if there is one.
@@ -156,11 +183,49 @@ pub fn build_with(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, 
         }
     }
     let elf = target_dir.join(&ws.policy.target).join("release").join(bin);
+    if !link_check(ws, bin, features, &elf, report) {
+        return None;
+    }
     match Binary::of(bin, &format!("{bin} ({VARIANT}, {features})"), &elf) {
         Ok(binary) => Some(HilBuild { bin: bin.to_string(), elf, command, binary }),
         Err(e) => {
             report.error(Rule::Step, None, format!("HIL build of `{bin}`: {e}"));
             None
+        }
+    }
+}
+
+/// The Link_Checker (R37) on a HIL build: its no-init records (the trace
+/// ring, the event mirror, the release-timing record) occupy Kernel RAM
+/// beside the Kernel's data and bss, and the MSP must keep its worst case
+/// above them (a 1,024-entry mirror beside the record of task 19.1 left it
+/// 776 bytes and the Kernel crashed within a second, 2026-11-02). The
+/// Task_Model is the declaration variant's (`gen-<variant>/`, the variant
+/// named by the last feature of a measurement build, else `gen-nrf52840/`);
+/// a binary without one (the stimulus Application) is not checked.
+fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mut Report) -> bool {
+    let Some(app_dir) = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { return true };
+    let variant = features
+        .split(',')
+        .find_map(|f| MEASUREMENTS.iter().find(|m| m.feature == f).map(|m| m.variant.to_string()))
+        .or_else(|| features.split(',').any(|f| f == "response").then(|| format!("{VARIANT}_response")))
+        .unwrap_or_else(|| VARIANT.to_string());
+    let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
+    let Ok(model_text) = std::fs::read_to_string(&model) else { return true };
+    let Ok(bytes) = std::fs::read(elf) else { return true };
+    match rsk_link::check(&bytes, &model_text) {
+        Ok(result) => {
+            for v in &result.violations {
+                report.error(Rule::Step, None, format!("Link_Checker on the HIL build `{bin}` ({features}): [{}] {}", v.rule, v.message));
+            }
+            if let Some(k) = result.regions.iter().find(|r| r.name == "kernel") {
+                report.note(format!("Link_Checker on the HIL build `{bin}` ({features}): Kernel MSP worst case {} of {} bytes available", k.bound, k.available));
+            }
+            result.violations.is_empty()
+        }
+        Err(e) => {
+            report.error(Rule::Step, None, format!("Link_Checker on the HIL build `{bin}`: {e}"));
+            false
         }
     }
 }

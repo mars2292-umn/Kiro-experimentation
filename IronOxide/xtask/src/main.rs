@@ -566,11 +566,8 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
     // Task 19.3: the Kernel_Timing_Parameter record of the passed run
     // (J_rel; Δ_irq under the storm), bound to this HIL build, folded into
     // the committed record of the configuration.
-    let target_name = std::fs::read_to_string(&model)
-        .ok()
-        .and_then(|t| rsk_model::read_task_model(&t).ok())
-        .map(|m| format!("{}/{}", m.target, m.core_revision))
-        .unwrap_or_else(|| "nrf52840/?".to_string());
+    let task_model = std::fs::read_to_string(&model).ok().and_then(|t| rsk_model::read_task_model(&t).ok());
+    let target_name = task_model.as_ref().map(|m| format!("{}/{}", m.target, m.core_revision)).unwrap_or_else(|| "nrf52840/?".to_string());
     let binding = rsk_hil::kernel_timing::Binding { binary_hash: &target.binary.hash, target: &target_name, icache: "off", configuration: variant };
     match rsk_hil::kernel_timing::record(&inputs, &out, &binding, xtask::hil::MARGIN_PERCENT) {
         Some(new) => {
@@ -593,6 +590,31 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
             }
         }
         None => report.note("no Kernel_Timing_Parameter record: the run recorded no Release".to_string()),
+    }
+    // Task 19.1: the WCET_Records of the run (Task entries from the Budget
+    // accounting, Critical_Section sites), folded into the committed set.
+    match task_model.as_ref().and_then(|m| rsk_hil::wcet_records::record(&inputs, &out, m, &binding, xtask::hil::MARGIN_PERCENT)) {
+        Some(new) => {
+            let _ = std::fs::write(work.join("wcet.json"), rsk_model::print(&new));
+            let path = xtask::hil::wcet_record_path(&ws.root, variant);
+            let kept = std::fs::read_to_string(&path).ok().and_then(|t| rsk_model::read_wcet_set(&t).ok());
+            let (folded, replaced) = rsk_hil::wcet_records::fold(kept, new);
+            match std::fs::write(&path, rsk_model::print(&folded)) {
+                Ok(()) => {
+                    let what: Vec<String> = folded.records.iter().map(|r| r.provenance()).collect();
+                    report.note(format!(
+                        "WCET_Records {} {} ({} items, margin {} %, R34.6): {}",
+                        if replaced { "written to" } else { "folded into" },
+                        ws.rel(&path),
+                        folded.records.len(),
+                        xtask::hil::MARGIN_PERCENT,
+                        what.join("; ")
+                    ));
+                }
+                Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&path))),
+            }
+        }
+        None => report.note("no WCET_Record: the run recorded no Job execution (or no Task_Model)".to_string()),
     }
     print_report(&report, &format!("{kind} run passed"))
 }

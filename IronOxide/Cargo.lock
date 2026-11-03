@@ -1354,6 +1354,7 @@ dependencies = [
  "rsk-elf",
  "rsk-gen",
  "rsk-hil",
+ "rsk-link",
  "rsk-model",
  "serde_json",
  "toml",

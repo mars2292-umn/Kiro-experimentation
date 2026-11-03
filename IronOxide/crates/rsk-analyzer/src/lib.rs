@@ -246,6 +246,23 @@ pub mod placeholders {
 
     pub const TOOL: &str = "rsk-analyzer placeholders";
 
+    /// Task 19.1: the measured records of `measured` replace the placeholder
+    /// records of their items (a placeholder is the Task's Budget, never a
+    /// bound to keep); an item without a placeholder gains the record.
+    /// Returns the number of items taken.
+    pub fn overlay_wcet(set: &mut WcetSet, measured: &WcetSet) -> usize {
+        let mut taken = 0;
+        for r in &measured.records {
+            if r.method == "placeholder" {
+                continue;
+            }
+            set.records.retain(|q| !(q.item == r.item && q.method == "placeholder"));
+            set.records.push(r.clone());
+            taken += 1;
+        }
+        taken
+    }
+
     pub fn make(model: &TaskModel, binary_hash: &str, icache: &str) -> (WcetSet, KernelTiming) {
         let target = format!("{}/{}", model.target, model.core_revision);
         let record = |item: String, cycles: u64| WcetRecord {

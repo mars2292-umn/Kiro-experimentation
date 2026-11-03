@@ -392,6 +392,52 @@ fn deadline_miss_of_the_running_job_is_reported_at_its_next_nominal_instant() {
     assert!(k.mit_violations[0] == 1);
 }
 
+/// R18.1 cross-check (task 19.1, the Critical_Section measurements'
+/// finding of 2026-11-02): the executing Job is charged the cycles it ran
+/// at every timed event, not only at its Budget event. Task 0's Job runs
+/// across Task 1's and Task 2's nominal instants (their Releases, with
+/// Task 0's Budget event not yet due): each timer event's running cycles
+/// go to Task 0's account, and the Overrun at its Budget event is
+/// recorded once with the full account.
+#[kani::proof]
+#[kani::unwind(13)]
+fn running_cycles_are_charged_at_every_timed_event() {
+    let mut cfg = config();
+    // Task 0 alone at instant 0; Tasks 1 and 2 release at 300 and 600.
+    cfg.tasks[1].offset = 300;
+    cfg.tasks[2].offset = 600;
+    assert!(cfg.validate());
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(0));
+    k.dispatch(&cfg, 0, 0);
+    assert!(k.budget.used[0] == 0);
+    // Task 1's Release at 300, with Task 0's Budget event (armed at 100
+    // ticks from its dispatch) due as well: Task 0 ran 40 cycles since its
+    // dispatch, charged on entry; the Budget event finds 40 of 100 and
+    // re-arms for the remaining 60, at 360.
+    k.timer_event(&cfg, 300, 40);
+    assert!(k.budget.used[0] == 40);
+    assert!(k.sched.release[1] == REL_PENDING);
+    assert!(k.sched.job[0] == JOB_RUNNING);
+    // The Budget event at 360: 70 more cycles; the account reads 110 > 100:
+    // one Overrun, END_JOB ends the Job.
+    let logged = k.log.len;
+    k.timer_event(&cfg, 360, 70);
+    assert!(k.budget.used[0] == 110);
+    let mut overruns = 0;
+    let mut i = logged;
+    while i < k.log.len {
+        if k.log.get(i).kind == super::log::EV_OVERRUN && k.log.get(i).task == 0 {
+            overruns += 1;
+        }
+        i += 1;
+    }
+    assert!(overruns == 1);
+    assert!(k.sched.job[0] == JOB_NONE);
+}
+
 /// Task 5.5 (R17.1, R17.2): the executable DMA buffer check agrees with a
 /// direct recomputation of its specification for every layout of a 1 KiB
 /// to 64 KiB Partition RAM and every buffer, as a cross-check of the Verus

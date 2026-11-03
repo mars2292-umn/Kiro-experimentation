@@ -14,7 +14,8 @@
 //!   (the vector-table handlers, naked stubs included) plus one level record
 //!   per Job level in progress (the stub's 40-byte push, 104 with S16-S31)
 //!   plus the hardware frame of an exception taken from the idle loop (32),
-//!   against the Kernel RAM left above the Kernel's data and bss.
+//!   against the Kernel RAM left above the Kernel's data, bss and no-init
+//!   records.
 
 use std::collections::BTreeMap;
 
@@ -183,7 +184,11 @@ pub fn bounds(elf: &rsk_elf::Elf, model: &ModelInputs, functions: &[FunctionRepo
     let record = if any_fp { LEVEL_RECORD_FP } else { LEVEL_RECORD } as u64;
     let msp_bound = worst.1 as u64 + levels.len() as u64 * record + BASIC_FRAME as u64;
     let mut occupied = 0u64;
-    for name in [".kernel.data", ".kernel.bss"] {
+    // The no-init records of a HIL build (`.kernel.noinit`: the trace ring,
+    // the event mirror, the release-timing record) occupy Kernel RAM too;
+    // a 1,024-entry mirror beside the record of task 19.1 left the MSP
+    // under 1 KiB and the Kernel crashed within a second (2026-11-02).
+    for name in [".kernel.data", ".kernel.bss", ".kernel.noinit"] {
         if let Some(s) = elf.section_by_name(name) {
             if (s.addr as u64) >= model.kernel_ram_base && (s.addr as u64) < model.kernel_ram_base + model.kernel_ram_size {
                 occupied += s.size as u64;
@@ -196,7 +201,7 @@ pub fn bounds(elf: &rsk_elf::Elf, model: &ModelInputs, functions: &[FunctionRepo
         format!("worst Kernel entry point `{}`: {}", worst.0, worst.1),
         format!("{} Job levels x {record} (level records)", levels.len()),
         format!("{BASIC_FRAME} (exception frame from the idle loop)"),
-        format!("Kernel RAM {} minus {occupied} of data and bss", model.kernel_ram_size),
+        format!("Kernel RAM {} minus {occupied} of data, bss and no-init records", model.kernel_ram_size),
     ];
     if !ok {
         violations.push(Violation { rule: "R37.2", message: format!("Kernel MSP: {available} bytes available, worst case {msp_bound} ({})", terms.join("; ")) });

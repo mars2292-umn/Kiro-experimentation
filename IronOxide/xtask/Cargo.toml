@@ -12,6 +12,7 @@ rsk-elf.workspace = true
 rsk-hil = { path = "../crates/rsk-hil" }
 rsk-gen = { workspace = true, features = ["syntax"] }
 rsk-model = { path = "../crates/rsk-model" }
+rsk-link = { path = "../crates/rsk-link" }
 proc-macro2.workspace = true
 serde_json.workspace = true
 toml.workspace = true

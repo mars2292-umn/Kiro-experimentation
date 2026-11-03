@@ -154,8 +154,12 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // its 6 ms Budget outside a Critical_Section (END_JOB): 20 ms of busy
     // wait, of which sensor's Critical_Section and control's Jobs take up
     // to 10 ms (9 ms of wall time never reached 6 ms of execution).
+    // Chosen by the Job's period, not the count: a Job the Overrun_Response
+    // ends never counts, so a count-based choice repeated the overrun at
+    // every Job once the first was ended (seen when the Budget accounting
+    // of task 19.1 charged every segment, 2026-11-02).
     #[cfg(feature = "stress")]
-    if cx.count.get() % 4 == 3 {
+    if (rsk::now() / rsk_target::ms(40)) % 4 == 3 {
         inject::spin_ms(20);
     }
     let start = rsk::now();

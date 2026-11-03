@@ -9,6 +9,8 @@
 //! | `echo` | `part0` (level A) | 6 | sporadic, MIT 20 ms, released by the signal `tick` | none |
 //! | `log` | `part1` (level C) | 2 | 40 ms | none |
 //! | `pulse` | `part1` (level C) | 4 | sporadic, MIT 15 ms, bound to CMSDK_DUALTIMER (nRF52840: GPIOTE, the HIL_Rig's stimulus line) | none |
+//!
+//! `pulse`'s Budget is 500 µs (task 19.1, 2026-11-02): the HIL build's agent measured its Job at 0.278 ms with the Budget accounting charging the SVC handlers' time to the Job, over the 200 µs first declared, and under the storm the ended Jobs answered a third of the windows.
 //! | `filter` | `part2` (level B) | 3 | 25 ms; uses the FPU | none |
 //! | `sampler` | `part2` (level B) | 1 | 100 ms; EasyDMA requests on CMSDK_GPIO0 | none |
 //!
@@ -111,7 +113,7 @@ rsk::app! {
         state pulse.count: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
-                    budget = 200.us(), priority = 4);
+                    budget = 500.us(), priority = 4);
     }
 
     partition part2 (level = B, crate = p1_demo_part2, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),

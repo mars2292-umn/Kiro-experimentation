@@ -1372,6 +1372,14 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
             .find(|b| b.get("hash").and_then(|h| h.as_str()) == Some(hash.as_str()))
             .and_then(|b| b.get("config_checksum").cloned())
             .unwrap_or(serde_json::Value::Null);
+        // Task 19.1: the configuration's measured WCET_Records, when fresh.
+        let wcet_record = match crate::hil::fresh_wcet_records(&ws.root, &manifest_value, variant) {
+            Ok(w) => w,
+            Err(why) => {
+                report.note(format!("R33.4: stale WCET_Record set not used: {why}"));
+                None
+            }
+        };
         let out_dir = store.dir.join(format!("rta-{variant}-measured"));
         let _ = std::fs::create_dir_all(&out_dir);
         let mut value = manifest_value.clone();
@@ -1393,9 +1401,12 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
             .arg(&manifest_copy)
             .arg("--placeholders")
             .arg("--timing")
-            .arg(record)
-            .arg("--out")
-            .arg(&out_dir);
+            .arg(record);
+        let cmd = match &wcet_record {
+            Some(w) => cmd.arg("--wcet").arg(w),
+            None => cmd,
+        };
+        let cmd = cmd.arg("--out").arg(&out_dir);
         commands.push(cmd.display());
         let (status, text) = match cmd.output(Some(sandbox)) {
             Ok(o) => (o.status.code().unwrap_or(3), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
@@ -1405,17 +1416,31 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
         let _ = store.write_artifact(&log_name, &text);
         let measured_line = text.lines().find(|l| l.contains("MEASURED Kernel_Timing_Parameters")).map(|l| l.trim().to_string()).unwrap_or_default();
         let unschedulable: Vec<String> = text.lines().filter(|l| l.contains("NOT schedulable")).map(|l| l.trim().to_string()).collect();
+        // A rejection under R28.4 (a measured WCET above the Task's Budget)
+        // is a finding of a measurement configuration whose Jobs overrun by
+        // design (the release-timing configuration's late `sensor` Jobs):
+        // the Analyzer is right to reject the inputs, and the job records it.
+        let budget_rejection = status == 2 && text.contains("[R28.4]");
         let verdict = match status {
             0 => Verdict::Pass,
             1 => Verdict::Fail,
             _ => Verdict::Inconclusive,
         };
+        let wcet_used = match &wcet_record {
+            Some(w) => format!("the measured WCET_Records of {} over placeholders for the rest", ws.rel(w)),
+            None => "placeholder WCETs".to_string(),
+        };
         match status {
-            0 => report.note(format!("task 19.3: `{variant}`: schedulable with the measured Kernel_Timing_Parameters of {} over placeholder WCETs; {measured_line}", ws.rel(record))),
+            0 => report.note(format!("task 19.3: `{variant}`: schedulable with the measured Kernel_Timing_Parameters of {} and {wcet_used}; {measured_line}", ws.rel(record))),
             1 => report.note(format!(
-                "task 19.3 FINDING: `{variant}`: NOT schedulable with the measured Kernel_Timing_Parameters of {} over placeholder WCETs (every WCET the Budget: the blocking term is the whole Budget of the Critical_Section's Task); not a violation until the WCET_Records are measured (tasks 19.1, 19.2): {}; {measured_line}",
+                "task 19.3 FINDING: `{variant}`: NOT schedulable with the measured Kernel_Timing_Parameters of {} and {wcet_used}{}: {}; {measured_line}",
                 ws.rel(record),
+                if wcet_record.is_none() { " (every WCET the Budget: the blocking term is the whole Budget of the Critical_Section's Task); not a violation until the WCET_Records are measured (tasks 19.1, 19.2)" } else { "; not a violation while any WCET_Record is a placeholder (task 19.2)" },
                 unschedulable.join(" | ")
+            )),
+            _ if budget_rejection => report.note(format!(
+                "task 19.1 FINDING: `{variant}`: the Analyzer rejected the measured inputs under R28.4 (a measured WCET above its Task's Budget: the configuration's injected overruns); not a violation: {}",
+                text.lines().find(|l| l.contains("[R28.4]")).map(|l| l.trim()).unwrap_or("")
             )),
             _ => report.error(Rule::Step, None, format!("Analyzer: `{variant}` with measured Kernel_Timing_Parameters: exit {status} (see {log_name})")),
         }
@@ -1427,13 +1452,21 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
             verdict,
         )
         .covers(&["R13.2", "R13.3", "R28.3", "R29.1", "R29.3", "R33.4"]);
+        if wcet_record.is_some() {
+            item = item.covers(&["R34.3", "R34.6", "R34.7", "R28.2", "R29.2"]);
+        }
         item.command_lines = vec![commands.last().cloned().unwrap_or_default()];
         item.notes = vec![format!(
-            "measured J_rel and Δ_irq from {} (the rig's runs on the HIL build {} of this manifest, margin {} %, R34.6) over nominal placeholders for the other Kernel_Timing_Parameters, with placeholder WCET_Records (every WCET the Task's Budget): {}",
+            "measured J_rel and Δ_irq from {} (the rig's runs on the HIL build {} of this manifest, margin {} %, R34.6) over nominal placeholders for the other Kernel_Timing_Parameters, with {wcet_used} (a placeholder WCET is the Task's Budget): {}",
             ws.rel(record),
             hash,
             crate::hil::MARGIN_PERCENT,
-            if status == 1 { format!("NOT schedulable under these inputs, a finding of task 19.3 pending measured WCET_Records: {}", unschedulable.join(" | ")) } else { "schedulable".to_string() }
+            match status {
+                0 => "schedulable".to_string(),
+                1 => format!("NOT schedulable under these inputs, a finding of task 19.3 pending measured WCET_Records: {}", unschedulable.join(" | ")),
+                _ if budget_rejection => "REJECTED under R28.4: a measured WCET above its Task's Budget, the configuration's injected overruns (task 19.1)".to_string(),
+                _ => format!("the Analyzer did not run to a verdict (exit {status})"),
+            }
         )];
         if !stale.is_empty() {
             item.notes.push(format!("stale Kernel_Timing_Parameter records not used (R33.4): {}", stale.join("; ")));

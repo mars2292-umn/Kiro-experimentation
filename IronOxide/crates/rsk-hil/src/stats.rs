@@ -6,7 +6,9 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 26;
+const PER_TASK: usize = 28;
+/// Resource slots of the Critical_Section table (the Kernel's `STATS_RES`).
+const RES: usize = 16;
 const RING: usize = 256;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -25,6 +27,21 @@ pub struct TaskStats {
     pub intake_count: u32,
     pub intake_max_cycles: u32,
     pub intake_sum_cycles: u64,
+    /// Jobs completed and the largest execution of one Job in cycles, from
+    /// the Budget accounting (task 19.1).
+    pub exec_count: u32,
+    pub exec_max_cycles: u32,
+}
+
+/// One Critical_Section site's record: Task, Resource, sections closed,
+/// and the largest execution of one (lock to unlock, less the counter
+/// read cost), in cycles (task 19.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CsStats {
+    pub task: u8,
+    pub resource: u8,
+    pub count: u32,
+    pub max_cycles: u32,
 }
 
 impl TaskStats {
@@ -43,6 +60,11 @@ pub struct Release {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stats {
     pub tasks: Vec<TaskStats>,
+    /// The Critical_Section sites with closed sections.
+    pub cs: Vec<CsStats>,
+    /// R34.3: the smallest cycle count between two consecutive reads of
+    /// the cycle counter, measured at instant 0.
+    pub calibration_cycles: u32,
     /// Due instants that were not `offset + k * period`.
     pub nominal_mismatches: u32,
     /// The Releases the ring holds, oldest first.
@@ -56,7 +78,7 @@ impl Stats {
             return Err("RELEASE_STATS: no record (the magic word is absent: the Kernel never ran this build)".into());
         }
         let n = words[1] as usize;
-        let need = HEADER + n * PER_TASK + 1;
+        let need = HEADER + n * PER_TASK + n * RES * 3 + 1;
         if words.len() < need {
             return Err(format!("RELEASE_STATS: {} words, fewer than the {need} the header announces", words.len()));
         }
@@ -75,9 +97,21 @@ impl Stats {
                 intake_count: words[b + 22],
                 intake_max_cycles: words[b + 23],
                 intake_sum_cycles: (words[b + 25] as u64) << 32 | words[b + 24] as u64,
+                exec_count: words[b + 26],
+                exec_max_cycles: words[b + 27],
             });
         }
-        let ring = HEADER + n * PER_TASK;
+        let cs_at = HEADER + n * PER_TASK;
+        let mut cs = Vec::new();
+        for t in 0..n {
+            for r in 0..RES {
+                let v = cs_at + (t * RES + r) * 2;
+                if words[v] > 0 {
+                    cs.push(CsStats { task: t as u8, resource: r as u8, count: words[v], max_cycles: words[v + 1] });
+                }
+            }
+        }
+        let ring = cs_at + n * RES * 3;
         let written = words[ring];
         let slots = ((words.len() - ring - 1) / 4).min(RING);
         let mut recent = Vec::new();
@@ -88,7 +122,7 @@ impl Stats {
                 recent.push(Release { task: words[s] as u8, due: (words[s + 2] as u64) << 32 | words[s + 1] as u64, lag_cycles: words[s + 3] });
             }
         }
-        Ok(Stats { tasks, nominal_mismatches: words[2], recent, releases_recorded: written })
+        Ok(Stats { tasks, cs, calibration_cycles: words[3], nominal_mismatches: words[2], recent, releases_recorded: written })
     }
 
     /// The response-time table (Tasks with completed Jobs): `(task, jobs, max ms)`.
@@ -146,6 +180,20 @@ impl Stats {
                 ));
             }
         }
+        if self.tasks.iter().any(|t| t.exec_count > 0) || !self.cs.is_empty() {
+            s.push_str(&format!(
+                "\nExecution from the Budget accounting (task 19.1; cycle-counter read cost {} cycles, R34.3):\n\n| Item | Runs | Execution max (cycles / ms) |\n|---|---|---|\n",
+                self.calibration_cycles
+            ));
+            for (t, st) in self.tasks.iter().enumerate() {
+                if st.exec_count > 0 {
+                    s.push_str(&format!("| Task {t} entry | {} | {} / {:.3} |\n", st.exec_count, st.exec_max_cycles, st.exec_max_cycles as f64 * 1000.0 / cpu_hz as f64));
+                }
+            }
+            for c in &self.cs {
+                s.push_str(&format!("| Task {} on Resource {} | {} | {} / {:.3} |\n", c.task, c.resource, c.count, c.max_cycles, c.max_cycles as f64 * 1000.0 / cpu_hz as f64));
+            }
+        }
         if !self.recent.is_empty() {
             s.push_str("\nThe last recorded Releases (Task, nominal instant, lag):\n\n");
             for r in self.recent.iter().rev().take(12).collect::<Vec<_>>().into_iter().rev() {
@@ -163,7 +211,7 @@ mod tests {
     #[test]
     fn decodes_the_record() {
         let n = 2;
-        let mut w = vec![0u32; HEADER + n * PER_TASK + 1 + 4 * 3];
+        let mut w = vec![0u32; HEADER + n * PER_TASK + n * RES * 3 + 1 + 12];
         w[0] = MAGIC;
         w[1] = n as u32;
         w[2] = 1;
@@ -177,7 +225,13 @@ mod tests {
         w[b + 22] = 2;
         w[b + 23] = 900;
         w[b + 24] = 1500;
-        let ring = HEADER + n * PER_TASK;
+        w[b + 26] = 3;
+        w[b + 27] = 20_000;
+        w[3] = 2;
+        let cs = HEADER + n * PER_TASK + (1 * RES + 2) * 2;
+        w[cs] = 5;
+        w[cs + 1] = 16_000;
+        let ring = HEADER + n * PER_TASK + n * RES * 3;
         w[ring] = 4; // four written into three slots: entries 1, 2, 3 remain
         for k in 0..4u32 {
             let s = ring + 1 + 4 * (k as usize % 3);
@@ -198,6 +252,10 @@ mod tests {
         assert_eq!(st.tasks[1].resp_max_ticks, 160_000);
         assert_eq!(st.responses(16_000_000), vec![(1, 3, 10.0)]);
         assert!(st.render(64_000_000, 16_000_000).contains("| 1 | 3 | 10.000 | 2 | 900 | 750 |"));
+        assert_eq!((st.tasks[1].exec_count, st.tasks[1].exec_max_cycles, st.calibration_cycles), (3, 20_000, 2));
+        assert_eq!(st.cs, vec![CsStats { task: 1, resource: 2, count: 5, max_cycles: 16_000 }]);
+        assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 entry | 3 | 20000 / 0.312 |"));
+        assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 on Resource 2 | 5 | 16000 / 0.250 |"));
         assert!(Stats::decode(&[0, 0, 0, 0]).is_err());
     }
 }

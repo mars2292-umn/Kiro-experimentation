@@ -1,6 +1,6 @@
 //! The Kernel's event mirror (rsk-kernel feature `trace-ram`): every
 //! Health_Monitor event of the run, copied by Kernel_Arch into a ring of
-//! the last 1024 in `.rsk.noinit` (`EVENT_MIRROR`), with the trace
+//! the last 512 in `.rsk.noinit` (`EVENT_MIRROR`), with the trace
 //! freeze: the sequence number of the first event outside the run's
 //! expected set, at which the Kernel's trace ring stopped so that it holds
 //! the entries leading to the event. The rig reads it after a run; a run

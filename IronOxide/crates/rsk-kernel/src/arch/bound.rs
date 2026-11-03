@@ -300,6 +300,11 @@ pub trait KernelOps: Sized {
     /// instant of a Sporadic_Task), for the response-time record of the
     /// HIL build (R18.8).
     fn job_due(&self, t: u8) -> u64;
+    /// The execution cycles charged to the Job of `t` in progress by the
+    /// Budget accounting (R18.1), for the HIL build's WCET record (task
+    /// 19.1); what the Job consumed since the last charge point is not
+    /// included.
+    fn budget_used(&self, t: u8) -> u32;
     fn top(&self) -> Option<u8>
         requires self.inv();
     /// The Priority of the executing Job, 0 when none.
@@ -525,6 +530,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn job_due(&self, t: u8) -> u64 {
         if (t as usize) < NT { self.kernel.timing.job_due[t as usize] } else { 0 }
+    }
+
+    fn budget_used(&self, t: u8) -> u32 {
+        if (t as usize) < NT { self.kernel.budget.used[t as usize] } else { 0 }
     }
 
     fn top(&self) -> Option<u8> {

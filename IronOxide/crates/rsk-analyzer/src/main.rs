@@ -19,7 +19,7 @@ use rsk_analyzer::{inputs::Options, EXIT_INTERNAL, EXIT_REJECTED};
 use rsk_model::report::Inputs;
 
 fn usage() -> ExitCode {
-    eprintln!("usage: rsk-analyzer --model <task_model.json> (--wcet <wcet.json> --timing <kernel_timing.json> | --placeholders [--timing <measured.json>]...) --manifest <build-manifest.json> --out <dir> [--allow-placeholders] [--prefer measured|static] [--uppaal] [--uppaal-timeout <seconds>]");
+    eprintln!("usage: rsk-analyzer --model <task_model.json> (--wcet <wcet.json> --timing <kernel_timing.json> | --placeholders [--wcet <measured.json>]... [--timing <measured.json>]...) --manifest <build-manifest.json> --out <dir> [--allow-placeholders] [--prefer measured|static] [--uppaal] [--uppaal-timeout <seconds>]");
     ExitCode::from(EXIT_INTERNAL)
 }
 
@@ -30,7 +30,7 @@ fn read(path: &PathBuf) -> Result<String, String> {
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut model = None;
-    let mut wcet = None;
+    let mut wcet: Vec<PathBuf> = Vec::new();
     let mut timing: Vec<PathBuf> = Vec::new();
     let mut manifest = None;
     let mut out = None;
@@ -47,7 +47,11 @@ fn main() -> ExitCode {
         };
         match args[i].as_str() {
             "--model" => model = next(&mut i).map(PathBuf::from),
-            "--wcet" => wcet = next(&mut i).map(PathBuf::from),
+            "--wcet" => {
+                if let Some(w) = next(&mut i).map(PathBuf::from) {
+                    wcet.push(w);
+                }
+            }
             "--timing" => {
                 if let Some(t) = next(&mut i).map(PathBuf::from) {
                     timing.push(t);
@@ -97,7 +101,29 @@ fn main() -> ExitCode {
         };
         let hash = manifest.get("binaries").and_then(|b| b.as_array()).and_then(|b| b.first()).and_then(|b| b.get("hash")).and_then(|h| h.as_str()).unwrap_or("sha256:unknown").to_string();
         let icache = manifest.pointer("/build/icache").and_then(|v| v.as_str()).unwrap_or("off").to_string();
-        let (w, mut t) = rsk_analyzer::placeholders::make(&model, &hash, &icache);
+        let (mut w, mut t) = rsk_analyzer::placeholders::make(&model, &hash, &icache);
+        // Task 19.1: measured WCET_Records (`--wcet`, one file or more)
+        // replace the placeholder records of their items; each measured
+        // record carries its own binary hash (R28.3, R33.4).
+        let mut wcet_names = Vec::new();
+        for path in &wcet {
+            let text = match read(path) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("rsk-analyzer: {e}");
+                    return ExitCode::from(EXIT_INTERNAL);
+                }
+            };
+            let measured = match rsk_model::read_wcet_set(&text) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("rsk-analyzer: rejected input: {}: {e}", path.display());
+                    return ExitCode::from(EXIT_REJECTED);
+                }
+            };
+            let taken = rsk_analyzer::placeholders::overlay_wcet(&mut w, &measured);
+            wcet_names.push(format!("{} ({} item(s) taken)", path.display(), taken));
+        }
         // Task 19.3: measured Kernel_Timing_Parameters (`--timing`, one file
         // or more) replace the placeholders of their symbols; the set keeps
         // the measurement binary's hash so that R28.3/R33.4 apply to it.
@@ -127,9 +153,10 @@ fn main() -> ExitCode {
             names.push(format!("{} ({})", path.display(), if taken.is_empty() { "nothing taken".to_string() } else { taken.join(", ") }));
         }
         let timing_name = if names.is_empty() { "<placeholders>".to_string() } else { format!("<placeholders> + {}", names.join(" + ")) };
-        (PathBuf::from("<placeholders>"), PathBuf::from(timing_name), rsk_model::print(&w), rsk_model::print(&t))
+        let wcet_name = if wcet_names.is_empty() { "<placeholders>".to_string() } else { format!("<placeholders> + {}", wcet_names.join(" + ")) };
+        (PathBuf::from(wcet_name), PathBuf::from(timing_name), rsk_model::print(&w), rsk_model::print(&t))
     } else {
-        let (Some(wcet_p), Some(timing_p)) = (wcet, timing.into_iter().next()) else {
+        let (Some(wcet_p), Some(timing_p)) = (wcet.into_iter().next(), timing.into_iter().next()) else {
             return usage();
         };
         match (read(&wcet_p), read(&timing_p)) {
