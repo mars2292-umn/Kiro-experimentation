@@ -10,6 +10,10 @@
 //! `storm`). The rig checks that every Job of part0 (level A) completes
 //! within the WCRT the Analyzer computes and that the source costs one
 //! intake per MIT (Verification_Plan 11.4).
+//! Outside the schedulability claim (2026-11-05, task 19.2): its Tasks
+//! exceed their Budgets and deadlines by design, so its measured analysis
+//! supplies the Kernel_Timing_Parameters and interference figures and
+//! makes no claim about the set (Verification_Plan 11.11).
 rsk::app! {
     target = nrf52840, profile = Ravenscar, operating_duration = 3.min(),
     safe_state = crate::report_and_exit, log_capacity = 32;

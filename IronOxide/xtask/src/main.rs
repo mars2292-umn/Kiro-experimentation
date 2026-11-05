@@ -54,7 +54,10 @@ commands:
       target/xtask-nightly/<date>/. Needs the boards attached and the
       machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
       schedules it at 02:00.
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation | --boot-checks | --cycles]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation | --boot-checks | --cycles] [--lean]
+      --lean: the HIL build without the trace ring and the trace pins
+      (feature record-only; task 19.2, R34.7), its records written as
+      `<variant>_lean` beside the instrumented ones, never used by the job.
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -398,6 +401,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut isolation = false;
     let mut boot_checks = false;
     let mut cycles = false;
+    let mut lean = false;
     let mut short = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -417,6 +421,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--isolation" => isolation = true,
             "--boot-checks" => boot_checks = true,
             "--cycles" => cycles = true,
+            "--lean" => lean = true,
             "--short" => short = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
@@ -464,7 +469,7 @@ fn hil_command(args: &[String]) -> ExitCode {
         return print_report(&report, "hil");
     };
     if release_timing || stress {
-        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, stress, &target_dir, report);
+        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, stress, lean, &target_dir, report);
     }
     if response {
         return response_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
@@ -476,7 +481,7 @@ fn hil_command(args: &[String]) -> ExitCode {
         return boot_checks_command(&ws, &rig, &bin, &target_dir, report);
     }
     if cycles {
-        return cycles_command(&ws, &rig, &bin, &target_dir, report);
+        return cycles_command(&ws, &rig, &bin, lean, &target_dir, report);
     }
     let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
@@ -520,14 +525,18 @@ fn hil_command(args: &[String]) -> ExitCode {
 /// minutes), the stimulus board built with its `storm` feature, and the
 /// protected Partition's Jobs checked against the WCRTs the Analyzer
 /// computes for the configuration's Task_Model (placeholder timing).
-fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, stress: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, stress: bool, lean: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
     let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.stress == stress && (m.duration_secs < 10 * 60) == short) else {
         report.error(xtask::diag::Rule::Step, None, "no measurement configuration for this run".to_string());
         return print_report(&report, "hil");
     };
-    let (feature, duration_secs, variant) = (measurement.feature, measurement.duration_secs, measurement.variant);
+    let (feature, duration_secs, variant_name) = (measurement.feature, measurement.duration_secs, measurement.variant);
     let kind = if stress { "stress" } else { "release-timing" };
-    let features = format!("{},{feature}", xtask::hil::FEATURES);
+    let features = format!("{},{feature}", xtask::hil::features_for(lean));
+    // The lean run's reports and records carry the `_lean` suffix: beside
+    // the instrumented ones, never taken by the job (task 19.2, R34.7).
+    let variant_label = if lean { format!("{variant_name}_lean") } else { variant_name.to_string() };
+    let variant = variant_label.as_str();
     let dir = target_dir.join(kind).join(variant);
     let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
         return print_report(&report, "hil");
@@ -541,7 +550,7 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         return print_report(&report, "hil");
     };
     report.note(format!("{kind} configuration `{variant}` ({features}): {} over {} loadable bytes; {} s", target.binary.hash, target.binary.loadable_bytes, duration_secs));
-    let model = ws.root.join("apps").join(bin).join(format!("gen-{variant}")).join("task_model.json");
+    let model = ws.root.join("apps").join(bin).join(format!("gen-{variant_name}")).join("task_model.json");
     let stress_spec = if stress {
         match analyzer_wcrt(ws, &model, target.binary.config_checksum.as_deref(), &dir, &mut report) {
             Some((protected, timing_used)) => {
@@ -837,9 +846,9 @@ fn boot_checks_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::
 /// `cargo xtask hil --cycles` (task 7.5's `hil-cycles`, R18.1): the
 /// cycle-attribution test on the cycle configuration (2 seconds). The
 /// report goes under target/xtask-hil/cycles and docs/hil/.
-fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let features = format!("{},cycles", xtask::hil::FEATURES);
-    let dir = target_dir.join("cycles");
+fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, lean: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let features = format!("{},cycles", xtask::hil::features_for(lean));
+    let dir = target_dir.join(if lean { "cycles-lean" } else { "cycles" });
     let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
         return print_report(&report, "hil");
     };
@@ -852,16 +861,18 @@ fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, 
     let _ = std::fs::write(work.join("report.md"), &text);
     let record = ws.root.join("docs").join("hil");
     let _ = std::fs::create_dir_all(&record);
-    let _ = std::fs::write(record.join("cycles_nrf52840_cycles.md"), &text);
-    report.note(format!("report written to {} and docs/hil/cycles_nrf52840_cycles.md", ws.rel(&work)));
+    let suffix = if lean { "_lean" } else { "" };
+    let _ = std::fs::write(record.join(format!("cycles_nrf52840_cycles{suffix}.md")), &text);
+    report.note(format!("report written to {} and docs/hil/cycles_nrf52840_cycles{suffix}.md", ws.rel(&work)));
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, "the cycle-attribution test failed (report above)");
         return print_report(&report, "hil");
     }
     // The Kernel_Timing_Parameter record (task 19.3): Δ_entry and the entry
     // kinds, folded into the kept record of the same binary.
-    let variant = "nrf52840_cycles";
-    let model = xtask::hil::task_model(ws, bin, variant);
+    let variant_label = format!("nrf52840_cycles{suffix}");
+    let variant = variant_label.as_str();
+    let model = xtask::hil::task_model(ws, bin, "nrf52840_cycles");
     let target_name = model.as_ref().map(|m| format!("{}/{}", m.target, m.core_revision)).unwrap_or_else(|| "nrf52840/?".to_string());
     let binding = rsk_hil::kernel_timing::Binding { binary_hash: &target.binary.hash, target: &target_name, icache: "off", configuration: variant };
     if let Some(st) = &out.stats {

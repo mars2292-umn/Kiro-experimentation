@@ -9,7 +9,7 @@ const HEADER: usize = 4;
 const PER_TASK: usize = 49;
 /// Kernel-entry kinds of the entry table (the Kernel's `ENTRY_*`).
 pub const ENTRY_KINDS: usize = 16;
-pub const ENTRY_NAMES: [&str; 16] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "-"];
+pub const ENTRY_NAMES: [&str; 16] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "view"];
 /// Resource slots of the Critical_Section table (the Kernel's `STATS_RES`).
 const RES: usize = 16;
 const RING: usize = 256;

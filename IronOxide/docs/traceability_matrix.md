@@ -185,7 +185,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R13.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/wcet.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
 | R13.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/config.rs; +3 | test-workspace-tests |
 | R13.5 | — | — | ○19.3 | — | — |
-| R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/cycles.rs; +1 | — |
+| R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/cycles.rs; +4 | — |
 
 ### Requirement 14: Fault handling, panic policy, and Health_Monitor (Phase P1)
 
@@ -253,7 +253,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R18.5 | — | Closed response sets (DD-10, R14.5); Design decisions | ✓4.7 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs | — |
 | R18.6 | — | Closed response sets (DD-10, R14.5) | ✓4.7 | apps/p1-demo/part0/src/lib.rs; crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; +3 | — |
 | R18.7 | P-17 | Property 18 | ○19.4 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/properties.rs; +4 | test-workspace-tests |
-| R18.8 | P-17 | Profile_Conformance_Suite and HIL_Rig; Property 10 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/part1/src/lib.rs; +8 | — |
+| R18.8 | P-17 | Profile_Conformance_Suite and HIL_Rig; Property 10 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/part1/src/lib.rs; +9 | — |
 | R18.9 | — | — | ✓15.3 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs | test-workspace-tests |
 
 ### Requirement 19: Interrupt-source isolation (Phase P1)
@@ -437,7 +437,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R34.4 | — | — | ○19.2 | — | — |
 | R34.5 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis | ○19.2 | — | — |
 | R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-analyzer/src/report.rs; +6 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
-| R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/cycles.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/cycles.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/Cargo.toml; +5 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
 | R34.8 | — | — | ○19.2; ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/lib.rs; crates/rsk-hil/src/selftest.rs; +1 | hil-rig; hil-rig-step |
 | R34.9 | — | WCET and structural coverage | ○19.2 | — | — |
 

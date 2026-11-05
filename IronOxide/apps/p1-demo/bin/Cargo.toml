@@ -35,6 +35,7 @@ isolation = ["rsk-entry/isolation"]
 cycles = ["rsk-entry/cycles"]
 hw-dt = ["rsk-entry/hw-dt"]
 boot-mutation = ["rsk-entry/boot-mutation"]
+record-only = ["rsk-entry/record-only"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-entry/quiet"]
 

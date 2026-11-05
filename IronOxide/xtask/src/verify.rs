@@ -1721,8 +1721,17 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
         // design (the release-timing configuration's late `sensor` Jobs):
         // the Analyzer is right to reject the inputs, and the job records it.
         let budget_rejection = status == 2 && text.contains("[R28.4]");
+        // A fault-injection configuration (the stress runs) misbehaves by
+        // design: its Tasks exceed their Budgets and their deadlines on
+        // purpose, R18.8's claim being part0's response times on the
+        // board (11.4), so its analysis supplies the Kernel_Timing_Parameters
+        // and the interference figures and makes no schedulability claim
+        // (task 19.2, 2026-11-05): FAIL and R28.4 are recorded as
+        // inconclusive, with the reason, not as the set's verdict.
+        let fault_injection = crate::hil::MEASUREMENTS.iter().any(|m| m.variant == variant && m.stress);
         let verdict = match status {
             0 => Verdict::Pass,
+            1 if fault_injection => Verdict::Inconclusive,
             1 => Verdict::Fail,
             _ => Verdict::Inconclusive,
         };
@@ -1768,6 +1777,9 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
                 _ => format!("the Analyzer did not run to a verdict (exit {status})"),
             }
         )];
+        if fault_injection {
+            item.notes.insert(0, format!("fault-injection configuration `{variant}`: its Tasks exceed their Budgets and deadlines by design (R18.8), so this analysis supplies the Kernel_Timing_Parameters and interference figures and makes no schedulability claim; a FAIL or an R28.4 rejection is recorded as inconclusive (task 19.2, Verification_Plan 11.11)"));
+        }
         if !stale.is_empty() {
             item.notes.push(format!("stale Kernel_Timing_Parameter records not used (R33.4): {}", stale.join("; ")));
         }

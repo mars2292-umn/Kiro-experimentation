@@ -362,7 +362,15 @@ impl KernelArch for Cm4Hw {
             Action::TimebaseAck => hw::timebase_ack(),
             Action::TimebaseInit => hw::timebase_init(),
             Action::DwtEnable => hw::dwt_enable(),
-            Action::LoadView(_, view) => hw::mpu_load(&view),
+            Action::LoadView(_, view) => {
+                // Δ_view (R13.6, task 19.3): the view load's own cycles, inside
+                // Δ_dispatch, recorded apart for review (HIL builds).
+                #[cfg(feature = "trace-ram")]
+                let start = hw::dwt_cyccnt();
+                hw::mpu_load(&view);
+                #[cfg(feature = "trace-ram")]
+                super::unsafe_module::stats_entry(super::unsafe_module::ENTRY_VIEW, hw::dwt_cyccnt().wrapping_sub(start));
+            }
             Action::FpuAccess(on) => hw::fpu_set_access(on),
             Action::WriteFrame(frame, entry) => super::unsafe_module::build_frame(
                 frame,

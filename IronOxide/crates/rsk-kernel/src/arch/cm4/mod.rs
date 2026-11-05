@@ -104,9 +104,14 @@ fn trace(tag: &[u8], v: u32) {
         };
         // `now()` calls are the Tasks' busy loops: thousands per run, which
         // would flood the ring; the other SVCs and every other entry are kept.
+        // Feature `record-only` (task 19.2, R34.7): the records without the
+        // trace ring, to measure what the ring costs.
+        #[cfg(not(feature = "record-only"))]
         if !(id == entry::TR_SVC && v == entry::SVC_NOW as u32) {
             unsafe_module::trace_ram_push((id as u32) << 24 | (v & 0x00FF_FFFF), hw::timebase_now());
         }
+        #[cfg(feature = "record-only")]
+        let _ = (id, v);
     }
     #[cfg(feature = "trace")]
     {

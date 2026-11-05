@@ -1,0 +1,275 @@
+{
+  "schema": "rsk-kernel-timing/1",
+  "binary_hash": "sha256:8a35ce764f2832e16afc8527876b94abcb5359184ae8f3d1acee8b5240a91346",
+  "target": "nrf52840/r0p1",
+  "clock_hz": 64000000,
+  "icache": "off",
+  "parameters": [
+    {
+      "symbol": "j_rel",
+      "cycles": 10559,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 40495,
+        "max_observed": 8447,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_irq",
+      "cycles": 2428,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one run of the intake handler for Task 4's source under the interrupt storm (R19.3), the Kernel's own record",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 11957,
+        "max_observed": 1942,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s), interrupt storm"
+        ]
+      }
+    },
+    {
+      "symbol": "l_kernel",
+      "cycles": 4707,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the longest Kernel entry of the run (every entry masks preemption, DD-01): the largest Rust half of any kind (the stub's cycles outside the charge points, Δ_entry, come from the cycle configuration's record) (task 19.3; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 11301284,
+        "max_observed": 3765,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dispatch",
+      "cycles": 3064,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 58454,
+        "max_observed": 2451,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_timer",
+      "cycles": 4707,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 64390,
+        "max_observed": 3765,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_detect",
+      "cycles": 4707,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 64390,
+        "max_observed": 3765,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_in",
+      "cycles": 364,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one lock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 77397,
+        "max_observed": 291,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_out",
+      "cycles": 2005,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 76497,
+        "max_observed": 1604,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_complete",
+      "cycles": 3559,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 55529,
+        "max_observed": 2847,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_svc",
+      "cycles": 198,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 10814029,
+        "max_observed": 158,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dma_write",
+      "cycles": 682,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one EasyDMA request SVC, validation and the register writes (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 900,
+        "max_observed": 545,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_restart",
+      "cycles": 4707,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "an entry that restarted a Partition (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 900,
+        "max_observed": 3765,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_enforce",
+      "cycles": 4707,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 2925,
+        "max_observed": 3765,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_view",
+      "cycles": 409,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 73852,
+        "max_observed": 327,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_stress_short_lean (180 s)"
+        ]
+      }
+    }
+  ]
+}

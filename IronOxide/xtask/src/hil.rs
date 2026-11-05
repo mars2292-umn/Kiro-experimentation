@@ -28,6 +28,13 @@ pub const CHIP: &str = "nRF52840_xxAA";
 /// The declaration variant and the features of a HIL build.
 pub const VARIANT: &str = "nrf52840";
 pub const FEATURES: &str = "nrf52840,debug-port,quiet,trace-ram,trace-pins";
+/// The lean HIL build (task 19.2, R34.7): the records without the trace
+/// ring and the trace pins, to measure what the instrumentation costs.
+pub const FEATURES_LEAN: &str = "nrf52840,debug-port,quiet,trace-ram,record-only";
+
+pub fn features_for(lean: bool) -> &'static str {
+    if lean { FEATURES_LEAN } else { FEATURES }
+}
 /// The board's time base and CPU clock (the Target table), for the trace
 /// and the release-timing record.
 pub const TICK_HZ: u64 = 16_000_000;

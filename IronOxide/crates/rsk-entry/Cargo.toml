@@ -36,6 +36,7 @@ isolation = ["rsk-system?/isolation"]
 cycles = ["rsk-system?/cycles"]
 hw-dt = ["rsk-system?/hw-dt", "hil-stimulus-system?/hw-dt"]
 boot-mutation = ["rsk-system?/boot-mutation"]
+record-only = ["rsk-system?/record-only", "hil-stimulus-system?/record-only"]
 storm = ["hil-stimulus-system?/storm"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-system?/quiet", "hil-stimulus-system?/quiet"]

@@ -49,6 +49,10 @@ hw-dt = []
 # Requirement 12 made to fail per run, as the HIL_Rig requests over the
 # probe. HIL builds only; never a Flight_Build feature.
 boot-mutation = []
+# With `trace-ram`: the records (events, release timing, executions, entries)
+# without the trace ring, so that a run measures what the ring costs
+# (task 19.2, R34.7). HIL builds only.
+record-only = []
 
 # Verified by `cargo verus verify` (R44.6; xtask step "Kernel_Proofs").
 [package.metadata.verus]

@@ -276,6 +276,9 @@ pub const ENTRY_STOP: u8 = 12;
 pub const ENTRY_ENFORCE: u8 = 13;
 #[cfg(feature = "trace-ram")]
 pub const ENTRY_PANIC: u8 = 14;
+/// One MPU view load inside a dispatch (Δ_view, R13.6; task 19.3).
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_VIEW: u8 = 15;
 #[cfg(feature = "trace-ram")]
 const STATS_WORDS: usize = STATS_RING_AT + 1 + 4 * STATS_RING;
 #[cfg(feature = "trace-ram")]
