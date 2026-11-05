@@ -631,6 +631,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let bc_cmds = hil_boot_checks(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-boot-checks-step", "HIL boot-check suite step", &["R12.6"], bc_cmds);
 
+    // ------------------------------------------- 10b-hil''''. HIL cycle attribution
+    job.heading("HIL: cycle attribution, the Budget accounting against the DWT (task 7.5, hil-cycles)");
+    let cy_cmds = hil_cycles(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-cycles-step", "HIL cycle-attribution step", &["R18.1"], cy_cmds);
+
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
     let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
@@ -1273,6 +1278,66 @@ fn hil_boot_checks(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_di
         Verdict::from_bool(out.ok()),
     )
     .covers(&["R12.6", "R12.2", "R12.1", "R12.3"]);
+    let mut commands = vec![target.command.clone()];
+    commands.extend(out.commands.iter().cloned());
+    item.command_lines = commands.clone();
+    item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = artifacts;
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    commands
+}
+
+/// The cycle-attribution test (task 7.5's `hil-cycles`, R18.1, ASM-06):
+/// the cycle configuration on the rig's target, judged by
+/// `rsk_hil::cycles` from the Kernel's record. Evidence_Item `hil-cycles`.
+fn hil_cycles(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let Some(rig) = rig else { return vec![] };
+    let probes = match rsk_hil::probes::list() {
+        Ok(p) => p,
+        Err(e) => {
+            report.warn(format!("HIL cycle-attribution test: {e}; not run"));
+            return vec![];
+        }
+    };
+    if !probes.iter().any(|p| p.id == rig.target.serial) {
+        report.warn("HIL cycle-attribution test: the target board is not attached; not run".to_string());
+        return vec![];
+    }
+    let Some(bin) = ws.policy.qemu_spikes().next() else {
+        report.error(Rule::Step, None, "HIL cycle-attribution test: no QEMU spike Application to build");
+        return vec![];
+    };
+    let features = format!("{},cycles", crate::hil::FEATURES);
+    let dir = target_dir.join("hil").join("cycles");
+    let Some(target) = crate::hil::build_with(ws, &bin, &features, &dir, Some(sandbox), report) else {
+        return vec![];
+    };
+    let work = dir.join("run");
+    let inputs = rsk_hil::cycles::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 40, tick_hz: crate::hil::TICK_HZ, cpu_hz: crate::hil::CPU_HZ };
+    let out = rsk_hil::cycles::run(&inputs);
+    let text = rsk_hil::cycles::render(rig, &inputs, &out, &target.binary.hash);
+    let mut artifacts = Vec::new();
+    if let Ok(name) = store.write_artifact("hil-cycles.md", &text) {
+        artifacts.push(name);
+    }
+    for st in &out.steps {
+        if st.ok {
+            report.note(format!("HIL cycle-attribution test: {}: {}", st.name, st.detail));
+        } else {
+            report.error(Rule::Step, None, format!("HIL cycle-attribution test: {}: {}", st.name, st.detail));
+        }
+    }
+    let mut item = Item::new(
+        "hil-cycles",
+        Kind::Test,
+        &format!("HIL cycle attribution (R18.1, ASM-06): the Budget accounting's executions of a preempted Task against an unpreempted one executing the same spin, on the cycle configuration of {} ({}; target {})", bin, target.binary.hash, rig.target.serial),
+        Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+        Verdict::from_bool(out.ok()),
+    )
+    .covers(&["R18.1"]);
     let mut commands = vec![target.command.clone()];
     commands.extend(out.commands.iter().cloned());
     item.command_lines = commands.clone();

@@ -16,6 +16,7 @@
   "layout_checksum": "0x2425d509",
   "operating_duration_ticks": 5000000,
   "safe_state": "crate::report_and_exit",
+  "fp_flush_to_zero": false,
   "kernel_levels": [
     0
   ],

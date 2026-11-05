@@ -2,19 +2,19 @@
 
 Verdict: **pass**
 
-Target 1366:1060:001050217737; binary sha256:17bc07eae6d6936e26b488f809baf7477a75f54d7a3154b292425041b4931d8b (the isolation configuration `nrf52840_isolation`).
+Target 1366:1060:001050217737; binary sha256:26fdf8e4058f775742563aa7c241f16a218e682bb8942f850b10a671417143aa (the isolation configuration `nrf52840_isolation`).
 
 ## Steps
 
 | Step | Result | Detail |
 |---|---|---|
-| target run | pass | the report ran after 27.5 s (operating duration 3.6 s) |
+| target run | pass | the report ran after 27.9 s (operating duration 3.6 s) |
 | MPU access matrix (R16.8, R16.4) | pass | part0.control: 23 attempts (23 with an address), 23 fault events (21 MemManage, 2 BusFault), 23 followed by END_JOB \| part1.log: 23 attempts (21 with an address), 21 fault events (19 MemManage, 2 BusFault), 21 followed by END_JOB \| part2.sampler: 23 attempts (21 with an address), 21 fault events (19 MemManage, 2 BusFault), 21 followed by END_JOB \| fault record: every one of the 65 attempts has its fault with the attempted address and class (IACCVIOL for fetches, DACCVIOL with MMFAR for data, a BusFault for the PPB) |
 | walkers' counters (every attempt made, none returned) | pass | control 23/23 attempts, survived 0; log 23/23, survived 0; sampler's counters are since part2's restart at 65 ms and judged by its events |
 | EasyDMA cases (R17.7, R17.1, R17.2) | pass | 5 refused requests (stack buffer, another Partition's RAM, Kernel RAM, a buffer past the RAM's end, an absent channel; 5 expected), 5 ended the Job; 2 accepted (2 expected); the buffer at 0x20019034 inside part2's RAM above its stack; SPIM0 after the run: RXD.PTR 536973364 RXD.MAXCNT 16 TXD.PTR 0 TXD.MAXCNT 0 RXD.LIST 0 TXD.LIST 0 ENABLE 0 STARTED 0 END 0 RXD.AMOUNT 0 (the accepted request's pointer and count, nothing else written, no transfer started); sampler at case 35 (at least 30 expected: every case and attempt made, then idle Jobs) |
-| Partition restart stops its EasyDMA channels first (R17.6) | pass | part2 restarted at 72 ms; actions in order: stop 0x40003014, stop 0x40003014, reinit part2; the stop task (0x40003014, SPIM0.TASKS_STOP) precedes the re-initialization |
+| Partition restart stops its EasyDMA channels first (R17.6) | pass | part2 restarted at 73 ms; actions in order: stop 0x40003014, stop 0x40003014, reinit part2; the stop task (0x40003014, SPIM0.TASKS_STOP) precedes the re-initialization |
 | Kernel events | pass | 145 events mirrored (145 held, 0 of them the post-detach reboot's): memmanage of Task 0: 21, memmanage of Task 3: 19, memmanage of Task 6: 19, busfault of Task 0: 2, busfault of Task 3: 2, busfault of Task 6: 2, overrun of Task 5: 1, operating_end of Task none: 1, dma_rejected of Task 6: 5, partition_restart of Task none: 1, safe_state of Task none: 1, end_job of Task 0: 23, end_job of Task 3: 21, end_job of Task 6: 26, debugger of Task none: 1; the trace never froze during the run |
-| register patterns across preemptions (HW-06, HW-10, R7.5) | pass | 141 probe runs of filter (FPU Task), 0 with a changed register, mask 0x0; FPSCR of the first Job 0x0 |
+| register patterns across preemptions (HW-06, HW-10, R7.5) | pass | 141 probe runs of filter (FPU Task), 0 with a changed register, mask 0x0; FPSCR of the first Job 0x1000000 |
 | Hardware_Model differential tests (R49.3) | pass | 14 rules matched, 0 mismatched |
 
 ## The access matrix
@@ -108,148 +108,148 @@ Target 1366:1060:001050217737; binary sha256:17bc07eae6d6936e26b488f809baf7477a7
 | Seq | Instant (ms) | Kind | Task | Partition | Detail |
 |---|---|---|---|---|---|
 | 0 | 0.000 | debugger | - | - | 0x1 |
-| 1 | 6.514 | memmanage | 0 | 0 | 0x0 |
-| 2 | 6.514 | end_job | 0 | 0 | 0x2 |
-| 3 | 12.889 | memmanage | 0 | 0 | 0x0 |
-| 4 | 12.889 | end_job | 0 | 0 | 0x2 |
-| 5 | 12.889 | memmanage | 3 | 1 | 0x0 |
-| 6 | 12.889 | end_job | 3 | 1 | 0x2 |
+| 1 | 6.499 | memmanage | 0 | 0 | 0x0 |
+| 2 | 6.499 | end_job | 0 | 0 | 0x2 |
+| 3 | 12.873 | memmanage | 0 | 0 | 0x0 |
+| 4 | 12.873 | end_job | 0 | 0 | 0x2 |
+| 5 | 12.873 | memmanage | 3 | 1 | 0x0 |
+| 6 | 12.873 | end_job | 3 | 1 | 0x2 |
 | 7 | 20.008 | memmanage | 0 | 0 | 0x0 |
 | 8 | 20.008 | end_job | 0 | 0 | 0x2 |
-| 9 | 31.269 | memmanage | 0 | 0 | 0x0 |
-| 10 | 31.269 | end_job | 0 | 0 | 0x2 |
+| 9 | 31.263 | memmanage | 0 | 0 | 0x0 |
+| 10 | 31.263 | end_job | 0 | 0 | 0x2 |
 | 11 | 40.008 | memmanage | 0 | 0 | 0x0 |
 | 12 | 40.008 | end_job | 0 | 0 | 0x2 |
 | 13 | 40.008 | memmanage | 3 | 1 | 0x0 |
 | 14 | 40.008 | end_job | 3 | 1 | 0x2 |
-| 15 | 51.253 | memmanage | 0 | 0 | 0x0 |
-| 16 | 51.253 | end_job | 0 | 0 | 0x2 |
-| 17 | 60.013 | memmanage | 0 | 0 | 0x0 |
-| 18 | 60.013 | end_job | 0 | 0 | 0x2 |
-| 19 | 71.265 | memmanage | 0 | 0 | 0x0 |
-| 20 | 71.265 | end_job | 0 | 0 | 0x2 |
-| 21 | 72.953 | overrun | 5 | 2 | 0xea8cd |
-| 22 | 72.953 | partition_restart | - | 2 | 0x6 |
+| 15 | 51.254 | memmanage | 0 | 0 | 0x0 |
+| 16 | 51.254 | end_job | 0 | 0 | 0x2 |
+| 17 | 60.008 | memmanage | 0 | 0 | 0x0 |
+| 18 | 60.008 | end_job | 0 | 0 | 0x2 |
+| 19 | 71.261 | memmanage | 0 | 0 | 0x0 |
+| 20 | 71.261 | end_job | 0 | 0 | 0x2 |
+| 21 | 73.110 | overrun | 5 | 2 | 0xea8a0 |
+| 22 | 73.110 | partition_restart | - | 2 | 0x6 |
 | 23 | 80.008 | memmanage | 0 | 0 | 0x0 |
 | 24 | 80.008 | end_job | 0 | 0 | 0x2 |
 | 25 | 80.008 | memmanage | 3 | 1 | 0x0 |
 | 26 | 80.008 | end_job | 3 | 1 | 0x2 |
-| 27 | 91.257 | memmanage | 0 | 0 | 0x0 |
-| 28 | 91.257 | end_job | 0 | 0 | 0x2 |
+| 27 | 91.253 | memmanage | 0 | 0 | 0x0 |
+| 28 | 91.253 | end_job | 0 | 0 | 0x2 |
 | 29 | 100.008 | memmanage | 0 | 0 | 0x0 |
 | 30 | 100.008 | end_job | 0 | 0 | 0x2 |
-| 31 | 111.264 | memmanage | 0 | 0 | 0x0 |
-| 32 | 111.264 | end_job | 0 | 0 | 0x2 |
+| 31 | 111.261 | memmanage | 0 | 0 | 0x0 |
+| 32 | 111.261 | end_job | 0 | 0 | 0x2 |
 | 33 | 120.008 | memmanage | 0 | 0 | 0x0 |
 | 34 | 120.008 | end_job | 0 | 0 | 0x2 |
 | 35 | 120.008 | memmanage | 3 | 1 | 0x0 |
 | 36 | 120.008 | end_job | 3 | 1 | 0x2 |
-| 37 | 131.271 | memmanage | 0 | 0 | 0x0 |
-| 38 | 131.271 | end_job | 0 | 0 | 0x2 |
+| 37 | 131.267 | memmanage | 0 | 0 | 0x0 |
+| 38 | 131.267 | end_job | 0 | 0 | 0x2 |
 | 39 | 140.008 | memmanage | 0 | 0 | 0x0 |
 | 40 | 140.008 | end_job | 0 | 0 | 0x2 |
-| 41 | 151.253 | memmanage | 0 | 0 | 0x0 |
-| 42 | 151.253 | end_job | 0 | 0 | 0x2 |
+| 41 | 151.305 | memmanage | 0 | 0 | 0x0 |
+| 42 | 151.305 | end_job | 0 | 0 | 0x2 |
 | 43 | 160.008 | memmanage | 0 | 0 | 0x0 |
 | 44 | 160.008 | end_job | 0 | 0 | 0x2 |
 | 45 | 160.008 | memmanage | 3 | 1 | 0x0 |
 | 46 | 160.008 | end_job | 3 | 1 | 0x2 |
-| 47 | 171.257 | memmanage | 0 | 0 | 0x0 |
-| 48 | 171.257 | end_job | 0 | 0 | 0x2 |
+| 47 | 171.252 | memmanage | 0 | 0 | 0x0 |
+| 48 | 171.252 | end_job | 0 | 0 | 0x2 |
 | 49 | 180.008 | memmanage | 0 | 0 | 0x0 |
 | 50 | 180.008 | end_job | 0 | 0 | 0x2 |
-| 51 | 191.257 | memmanage | 0 | 0 | 0x0 |
-| 52 | 191.257 | end_job | 0 | 0 | 0x2 |
+| 51 | 190.268 | memmanage | 0 | 0 | 0x0 |
+| 52 | 190.268 | end_job | 0 | 0 | 0x2 |
 | 53 | 200.008 | busfault | 0 | 0 | 0x0 |
 | 54 | 200.008 | end_job | 0 | 0 | 0x3 |
-| 55 | 211.268 | busfault | 0 | 0 | 0x0 |
-| 56 | 211.268 | end_job | 0 | 0 | 0x3 |
-| 57 | 211.268 | memmanage | 3 | 1 | 0x0 |
-| 58 | 211.268 | end_job | 3 | 1 | 0x2 |
-| 59 | 212.447 | dma_rejected | 6 | 2 | 0x0 |
-| 60 | 212.447 | end_job | 6 | 2 | 0xd |
+| 55 | 211.266 | busfault | 0 | 0 | 0x0 |
+| 56 | 211.266 | end_job | 0 | 0 | 0x3 |
+| 57 | 211.266 | memmanage | 3 | 1 | 0x0 |
+| 58 | 211.266 | end_job | 3 | 1 | 0x2 |
+| 59 | 212.542 | dma_rejected | 6 | 2 | 0x0 |
+| 60 | 212.542 | end_job | 6 | 2 | 0xd |
 | 61 | 220.008 | memmanage | 0 | 0 | 0x0 |
 | 62 | 220.008 | end_job | 0 | 0 | 0x2 |
-| 63 | 312.686 | dma_rejected | 6 | 2 | 0x0 |
-| 64 | 312.686 | end_job | 6 | 2 | 0xd |
+| 63 | 312.666 | dma_rejected | 6 | 2 | 0x0 |
+| 64 | 312.666 | end_job | 6 | 2 | 0xd |
 | 65 | 320.008 | memmanage | 3 | 1 | 0x0 |
 | 66 | 320.008 | end_job | 3 | 1 | 0x2 |
-| 67 | 360.209 | memmanage | 3 | 1 | 0x0 |
-| 68 | 360.209 | end_job | 3 | 1 | 0x2 |
-| 69 | 411.271 | memmanage | 3 | 1 | 0x0 |
-| 70 | 411.271 | end_job | 3 | 1 | 0x2 |
-| 71 | 412.741 | dma_rejected | 6 | 2 | 0x0 |
-| 72 | 412.741 | end_job | 6 | 2 | 0xd |
+| 67 | 360.205 | memmanage | 3 | 1 | 0x0 |
+| 68 | 360.205 | end_job | 3 | 1 | 0x2 |
+| 69 | 411.268 | memmanage | 3 | 1 | 0x0 |
+| 70 | 411.268 | end_job | 3 | 1 | 0x2 |
+| 71 | 412.888 | dma_rejected | 6 | 2 | 0x0 |
+| 72 | 412.888 | end_job | 6 | 2 | 0xd |
 | 73 | 440.008 | memmanage | 3 | 1 | 0x0 |
 | 74 | 440.008 | end_job | 3 | 1 | 0x2 |
-| 75 | 480.217 | memmanage | 3 | 1 | 0x0 |
-| 76 | 480.217 | end_job | 3 | 1 | 0x2 |
-| 77 | 512.551 | dma_rejected | 6 | 2 | 0x0 |
-| 78 | 512.551 | end_job | 6 | 2 | 0xd |
-| 79 | 520.206 | memmanage | 3 | 1 | 0x0 |
-| 80 | 520.206 | end_job | 3 | 1 | 0x2 |
+| 75 | 480.213 | memmanage | 3 | 1 | 0x0 |
+| 76 | 480.213 | end_job | 3 | 1 | 0x2 |
+| 77 | 512.592 | dma_rejected | 6 | 2 | 0x0 |
+| 78 | 512.592 | end_job | 6 | 2 | 0xd |
+| 79 | 520.202 | memmanage | 3 | 1 | 0x0 |
+| 80 | 520.202 | end_job | 3 | 1 | 0x2 |
 | 81 | 560.008 | memmanage | 3 | 1 | 0x0 |
 | 82 | 560.008 | end_job | 3 | 1 | 0x2 |
-| 83 | 611.417 | memmanage | 3 | 1 | 0x0 |
-| 84 | 611.417 | end_job | 3 | 1 | 0x2 |
-| 85 | 612.812 | dma_rejected | 6 | 2 | 0x0 |
-| 86 | 612.812 | end_job | 6 | 2 | 0xd |
-| 87 | 640.206 | memmanage | 3 | 1 | 0x0 |
-| 88 | 640.206 | end_job | 3 | 1 | 0x2 |
-| 89 | 680.009 | memmanage | 3 | 1 | 0x0 |
-| 90 | 680.009 | end_job | 3 | 1 | 0x2 |
-| 91 | 720.253 | memmanage | 3 | 1 | 0x0 |
-| 92 | 720.253 | end_job | 3 | 1 | 0x2 |
-| 93 | 760.206 | memmanage | 3 | 1 | 0x0 |
-| 94 | 760.206 | end_job | 3 | 1 | 0x2 |
-| 95 | 811.422 | busfault | 3 | 1 | 0x0 |
-| 96 | 811.422 | end_job | 3 | 1 | 0x3 |
-| 97 | 812.668 | memmanage | 6 | 2 | 0x0 |
-| 98 | 812.668 | end_job | 6 | 2 | 0x2 |
-| 99 | 840.209 | busfault | 3 | 1 | 0x0 |
-| 100 | 840.209 | end_job | 3 | 1 | 0x3 |
-| 101 | 880.214 | memmanage | 3 | 1 | 0x0 |
-| 102 | 880.214 | end_job | 3 | 1 | 0x2 |
-| 103 | 912.686 | memmanage | 6 | 2 | 0x0 |
-| 104 | 912.686 | end_job | 6 | 2 | 0x2 |
-| 105 | 1015.796 | memmanage | 6 | 2 | 0x0 |
-| 106 | 1015.796 | end_job | 6 | 2 | 0x2 |
-| 107 | 1112.549 | memmanage | 6 | 2 | 0x0 |
-| 108 | 1112.549 | end_job | 6 | 2 | 0x2 |
-| 109 | 1215.812 | memmanage | 6 | 2 | 0x0 |
-| 110 | 1215.812 | end_job | 6 | 2 | 0x2 |
-| 111 | 1312.617 | memmanage | 6 | 2 | 0x0 |
-| 112 | 1312.617 | end_job | 6 | 2 | 0x2 |
-| 113 | 1615.741 | memmanage | 6 | 2 | 0x0 |
-| 114 | 1615.741 | end_job | 6 | 2 | 0x2 |
-| 115 | 1712.549 | memmanage | 6 | 2 | 0x0 |
-| 116 | 1712.549 | end_job | 6 | 2 | 0x2 |
-| 117 | 1815.812 | memmanage | 6 | 2 | 0x0 |
-| 118 | 1815.812 | end_job | 6 | 2 | 0x2 |
-| 119 | 1912.617 | memmanage | 6 | 2 | 0x0 |
-| 120 | 1912.617 | end_job | 6 | 2 | 0x2 |
-| 121 | 2015.728 | memmanage | 6 | 2 | 0x0 |
-| 122 | 2015.728 | end_job | 6 | 2 | 0x2 |
-| 123 | 2112.686 | memmanage | 6 | 2 | 0x0 |
-| 124 | 2112.686 | end_job | 6 | 2 | 0x2 |
-| 125 | 2215.741 | memmanage | 6 | 2 | 0x0 |
-| 126 | 2215.741 | end_job | 6 | 2 | 0x2 |
-| 127 | 2312.549 | memmanage | 6 | 2 | 0x0 |
-| 128 | 2312.549 | end_job | 6 | 2 | 0x2 |
-| 129 | 2415.812 | memmanage | 6 | 2 | 0x0 |
-| 130 | 2415.812 | end_job | 6 | 2 | 0x2 |
-| 131 | 2512.672 | memmanage | 6 | 2 | 0x0 |
-| 132 | 2512.672 | end_job | 6 | 2 | 0x2 |
-| 133 | 2615.672 | memmanage | 6 | 2 | 0x0 |
-| 134 | 2615.672 | end_job | 6 | 2 | 0x2 |
-| 135 | 2712.686 | memmanage | 6 | 2 | 0x0 |
-| 136 | 2712.686 | end_job | 6 | 2 | 0x2 |
-| 137 | 2815.741 | busfault | 6 | 2 | 0x0 |
-| 138 | 2815.741 | end_job | 6 | 2 | 0x3 |
-| 139 | 2912.549 | busfault | 6 | 2 | 0x0 |
-| 140 | 2912.549 | end_job | 6 | 2 | 0x3 |
-| 141 | 3015.867 | memmanage | 6 | 2 | 0x0 |
-| 142 | 3015.867 | end_job | 6 | 2 | 0x2 |
+| 83 | 611.410 | memmanage | 3 | 1 | 0x0 |
+| 84 | 611.410 | end_job | 3 | 1 | 0x2 |
+| 85 | 612.994 | dma_rejected | 6 | 2 | 0x0 |
+| 86 | 612.994 | end_job | 6 | 2 | 0xd |
+| 87 | 640.281 | memmanage | 3 | 1 | 0x0 |
+| 88 | 640.281 | end_job | 3 | 1 | 0x2 |
+| 89 | 680.008 | memmanage | 3 | 1 | 0x0 |
+| 90 | 680.008 | end_job | 3 | 1 | 0x2 |
+| 91 | 720.248 | memmanage | 3 | 1 | 0x0 |
+| 92 | 720.248 | end_job | 3 | 1 | 0x2 |
+| 93 | 760.202 | memmanage | 3 | 1 | 0x0 |
+| 94 | 760.202 | end_job | 3 | 1 | 0x2 |
+| 95 | 811.416 | busfault | 3 | 1 | 0x0 |
+| 96 | 811.416 | end_job | 3 | 1 | 0x3 |
+| 97 | 812.799 | memmanage | 6 | 2 | 0x0 |
+| 98 | 812.799 | end_job | 6 | 2 | 0x2 |
+| 99 | 840.205 | busfault | 3 | 1 | 0x0 |
+| 100 | 840.205 | end_job | 3 | 1 | 0x3 |
+| 101 | 880.210 | memmanage | 3 | 1 | 0x0 |
+| 102 | 880.210 | end_job | 3 | 1 | 0x2 |
+| 103 | 912.774 | memmanage | 6 | 2 | 0x0 |
+| 104 | 912.774 | end_job | 6 | 2 | 0x2 |
+| 105 | 1015.909 | memmanage | 6 | 2 | 0x0 |
+| 106 | 1015.909 | end_job | 6 | 2 | 0x2 |
+| 107 | 1112.638 | memmanage | 6 | 2 | 0x0 |
+| 108 | 1112.638 | end_job | 6 | 2 | 0x2 |
+| 109 | 1215.792 | memmanage | 6 | 2 | 0x0 |
+| 110 | 1215.792 | end_job | 6 | 2 | 0x2 |
+| 111 | 1312.762 | memmanage | 6 | 2 | 0x0 |
+| 112 | 1312.762 | end_job | 6 | 2 | 0x2 |
+| 113 | 1615.876 | memmanage | 6 | 2 | 0x0 |
+| 114 | 1615.876 | end_job | 6 | 2 | 0x2 |
+| 115 | 1712.679 | memmanage | 6 | 2 | 0x0 |
+| 116 | 1712.679 | end_job | 6 | 2 | 0x2 |
+| 117 | 1815.901 | memmanage | 6 | 2 | 0x0 |
+| 118 | 1815.901 | end_job | 6 | 2 | 0x2 |
+| 119 | 1912.731 | memmanage | 6 | 2 | 0x0 |
+| 120 | 1912.731 | end_job | 6 | 2 | 0x2 |
+| 121 | 2015.814 | memmanage | 6 | 2 | 0x0 |
+| 122 | 2015.814 | end_job | 6 | 2 | 0x2 |
+| 123 | 2112.666 | memmanage | 6 | 2 | 0x0 |
+| 124 | 2112.666 | end_job | 6 | 2 | 0x2 |
+| 125 | 2215.886 | memmanage | 6 | 2 | 0x0 |
+| 126 | 2215.886 | end_job | 6 | 2 | 0x2 |
+| 127 | 2312.539 | memmanage | 6 | 2 | 0x0 |
+| 128 | 2312.539 | end_job | 6 | 2 | 0x2 |
+| 129 | 2415.992 | memmanage | 6 | 2 | 0x0 |
+| 130 | 2415.992 | end_job | 6 | 2 | 0x2 |
+| 131 | 2512.805 | memmanage | 6 | 2 | 0x0 |
+| 132 | 2512.805 | end_job | 6 | 2 | 0x2 |
+| 133 | 2615.801 | memmanage | 6 | 2 | 0x0 |
+| 134 | 2615.801 | end_job | 6 | 2 | 0x2 |
+| 135 | 2712.773 | memmanage | 6 | 2 | 0x0 |
+| 136 | 2712.773 | end_job | 6 | 2 | 0x2 |
+| 137 | 2815.856 | busfault | 6 | 2 | 0x0 |
+| 138 | 2815.856 | end_job | 6 | 2 | 0x3 |
+| 139 | 2912.638 | busfault | 6 | 2 | 0x0 |
+| 140 | 2912.638 | end_job | 6 | 2 | 0x3 |
+| 141 | 3015.846 | memmanage | 6 | 2 | 0x0 |
+| 142 | 3015.846 | end_job | 6 | 2 | 0x2 |
 | 143 | 3600.000 | operating_end | - | - | 0x0 |
 | 144 | 3600.000 | safe_state | - | - | 0x0 |
 
@@ -341,7 +341,7 @@ RSK-SAFE-STATE
 control=337
 sensor=179
 log=69
-pulse=0
+pulse=198
 echo=111
 blocked_releases=168
 filter=141
@@ -358,7 +358,7 @@ sampler_survived=0
 filter_pattern_runs=141
 filter_pattern_fail=0
 filter_pattern_mask=0
-filter_fpscr=0
+filter_fpscr=16777216
 spim0_rxd_ptr=536973364
 spim0_rxd_maxcnt=16
 spim0_rxd_amount=0
@@ -567,5 +567,5 @@ event=18
   prs_hi=0
 RSK-OK
 Firmware exited successfully
-     Finished in 7.34s
+     Finished in 7.38s
 ```

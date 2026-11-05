@@ -33,7 +33,7 @@
 //! | 25, 26 | HW-08 | CONTROL as the handler of A read it (nPRIV set: Thread mode was unprivileged) and ICSR as that handler read it (a privileged access from Handler mode, VECTACTIVE 46) |
 //! | 27 | HW-08 | CONTROL in Thread mode afterwards (the handler cleared nPRIV) |
 //! | 28 to 35 | HW-06 | the SVC 14 exception frame: R0 to R3, R12, LR, PC, xPSR (R0 to R3 and R12 loaded with patterns before the SVC) |
-//! | 36, 37 | HW-06 | the frame's address (8-byte aligned, on the MSP) and the address of the instruction after the SVC |
+//! | 36, 37 | HW-06 | the frame's address (8-byte aligned, on the MSP) and the PC read by the instruction after the SVC (its address plus 4) |
 //! | 38 to 41 | HW-13 | two CYCCNT readings; two more taken a few dozen cycles after writing 0xFFFF_FFF0 (both wrapped past zero) |
 //! | 42, 43 | HW-14 | cycles from the exit of one handler to the entry of the next: A then B pended together (tail-chained), and A pended again after returning to Thread mode |
 //! | 44 | | the handler-log count |
@@ -483,8 +483,9 @@ fn unprivileged_window() -> u32 {
     }
 }
 
-/// R0 to R3 and R12 loaded with patterns, then SVC 14; returns the
-/// address of the instruction after the SVC (the stacked PC, HW-06).
+/// R0 to R3 and R12 loaded with patterns, then SVC 14; returns the PC read
+/// by the instruction after the SVC, which is that instruction's address
+/// (the stacked PC, HW-06) plus 4.
 fn svc_frame_probe() -> u32 {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -498,9 +499,13 @@ fn svc_frame_probe() -> u32 {
                 "movw r2, #0x3333", "movt r2, #0x3333",
                 "movw r3, #0x4444", "movt r3, #0x4444",
                 "movw r12, #0xcccc", "movt r12, #0xcccc",
-                "adr {lbl}, 2f",
                 "svc #14",
-                "2:",
+                // PC reads as the address of this instruction plus 4: the
+                // stacked PC (the instruction after the SVC) is `lbl - 4`.
+                // (ADR of a label rounds to a word boundary and misnamed a
+                // half-word-aligned label by 2 on the isolation run of
+                // 2026-11-04.)
+                "mov {lbl}, pc",
                 lbl = out(reg) lbl,
                 out("r0") _, out("r1") _, out("r2") _, out("r3") _, out("r12") _,
                 options(nostack),

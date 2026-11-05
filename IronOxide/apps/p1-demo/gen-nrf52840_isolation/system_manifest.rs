@@ -95,6 +95,7 @@ impl ::rsk_kernel::arch::System for Sys {
     const CPUID: u32 = 0x410fc241;
     const HFCLK_XTAL: bool = true;
     const FPU_NEEDED: bool = true;
+    const FP_FLUSH_TO_ZERO: bool = true;
     const TICK_HZ: u64 = 16000000;
     const DMA_COUNT: usize = ND;
     fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg { if i < ND { DMA[i] } else { NO_DMA } }

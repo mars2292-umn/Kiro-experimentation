@@ -130,6 +130,8 @@ pub struct Generated {
     pub lock_capacity: usize,
     pub slot_count: usize,
     pub log_capacity: usize,
+    /// FPDSCR.FZ for every Job's floating-point context (erratum 839676).
+    pub fp_flush_to_zero: bool,
     /// (Task level, NVIC priority byte) for every level in use, ascending level.
     pub priority_map: Vec<(u8, u8)>,
     pub kernel_levels: Vec<u8>,
@@ -322,6 +324,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         lock_capacity,
         slot_count,
         log_capacity: decl.log_capacity as usize,
+        fp_flush_to_zero: decl.fp_flush_to_zero,
         priority_map,
         kernel_levels: vec![0],
         changes,

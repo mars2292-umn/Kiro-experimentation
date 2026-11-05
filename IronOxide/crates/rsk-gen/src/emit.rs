@@ -226,6 +226,7 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    const CPUID: u32 = 0x{:08x};", g.target.cpuid);
     let _ = writeln!(s, "    const HFCLK_XTAL: bool = {};", g.target.hfclk_xtal);
     let _ = writeln!(s, "    const FPU_NEEDED: bool = {};", g.tasks.iter().any(|t| t.fpu));
+    let _ = writeln!(s, "    const FP_FLUSH_TO_ZERO: bool = {};", g.fp_flush_to_zero);
     let _ = writeln!(s, "    const TICK_HZ: u64 = {};", g.target.tick_hz);
     let _ = writeln!(s, "    const DMA_COUNT: usize = ND;");
     let _ = writeln!(s, "    fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg {{ if i < ND {{ DMA[i] }} else {{ NO_DMA }} }}");

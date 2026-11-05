@@ -114,6 +114,8 @@ pub struct TaskSide {
     pub patterns: Option<(u32, u32, u32)>,
     /// Whether any MPU view uses subregion-disable bits (HW-09).
     pub srd_used: bool,
+    /// The declaration's `fp_flush_to_zero` (FPDSCR.FZ expected set; HW-10).
+    pub fp_flush_to_zero: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,7 +190,8 @@ pub fn judge(r: &Record, side: &TaskSide) -> Vec<Row> {
     let frame: Vec<String> = (0..8).map(|i| hex(w[W_FRAME + i])).collect();
     let patterns_ok = w[W_FRAME] == 0x1111_1111 && w[W_FRAME + 1] == 0x2222_2222 && w[W_FRAME + 2] == 0x3333_3333 && w[W_FRAME + 3] == 0x4444_4444 && w[W_FRAME + 4] == 0xCCCC_CCCC;
     rows.push(row("HW-06", "SVC frame R0-R3, R12 hold the patterns loaded before the SVC", "0x11111111 0x22222222 0x33333333 0x44444444 0xcccccccc", frame[..5].join(" "), patterns_ok));
-    rows.push(row("HW-06", "stacked PC is the instruction after the SVC; xPSR.T set; frame 8-byte aligned (MSP)", format!("pc {}; T; aligned", hex(w[W_FRAME_PC])), format!("pc {}; xpsr {}; frame at {}", frame[6], frame[7], hex(w[W_FRAME_ADDR])), w[W_FRAME + 6] == w[W_FRAME_PC] && w[W_FRAME + 7] & (1 << 24) != 0 && w[W_FRAME_ADDR] % 8 == 0));
+    let pc_want = w[W_FRAME_PC].wrapping_sub(4);
+    rows.push(row("HW-06", "stacked PC is the instruction after the SVC (the PC that instruction reads, less 4); xPSR.T set; frame 8-byte aligned (MSP)", format!("pc {}; T; aligned", hex(pc_want)), format!("pc {}; xpsr {}; frame at {}", frame[6], frame[7], hex(w[W_FRAME_ADDR])), w[W_FRAME + 6] == pc_want && w[W_FRAME + 7] & (1 << 24) != 0 && w[W_FRAME_ADDR] % 8 == 0));
     match side.patterns {
         Some((runs, fail, mask)) => rows.push(row("HW-06", "a Job's R2-R5, R8, R10, R12 preserved across preemptions (Property 2, R7.5): the FPU Task's pattern probe", "0 failures", format!("{runs} runs, {fail} failures, mask {}", hex(mask)), runs > 0 && fail == 0)),
         None => rows.push(untested("HW-06", "register patterns across preemptions", "0 failures", "no Task-side record in this run")),
@@ -219,6 +222,8 @@ pub fn judge(r: &Record, side: &TaskSide) -> Vec<Row> {
     }
     // HW-10
     rows.push(row("HW-10", "FPCCR.ASPEN set, FPCCR.LSPEN clear (eager stacking)", "ASPEN 1, LSPEN 0", format!("FPCCR {}", hex(w[W_FPCCR])), w[W_FPCCR] >> 31 == 1 && (w[W_FPCCR] >> 30) & 1 == 0));
+    let fpdscr_want: u32 = if side.fp_flush_to_zero { 1 << 24 } else { 0 };
+    rows.push(row("HW-10", "FPDSCR as the declaration asks (FZ for `fp_flush_to_zero`, erratum 839676's workaround; the other defaults 0)", hex(fpdscr_want), hex(w[W_FPDSCR]), w[W_FPDSCR] == fpdscr_want));
     match side.filter_fpscr {
         Some(f) => rows.push(row("HW-10", "FPSCR of a new FP context equals FPDSCR", hex(w[W_FPDSCR]), hex(f), f == w[W_FPDSCR])),
         None => rows.push(untested("HW-10", "FPSCR of a new FP context", "FPDSCR", "no Task-side record in this run")),
@@ -320,7 +325,7 @@ mod tests {
         w[W_IABR] = 0; w[W_ICSR] = 0; w[W_LOG_AT_SVC15] = 8;
         w[W_CONTROL_HANDLER] = 1; w[W_ICSR_HANDLER] = 46; w[W_CONTROL_AFTER] = 0;
         w[W_FRAME] = 0x1111_1111; w[W_FRAME + 1] = 0x2222_2222; w[W_FRAME + 2] = 0x3333_3333; w[W_FRAME + 3] = 0x4444_4444; w[W_FRAME + 4] = 0xCCCC_CCCC;
-        w[W_FRAME + 6] = 0x1234; w[W_FRAME_PC] = 0x1234; w[W_FRAME + 7] = 1 << 24; w[W_FRAME_ADDR] = 0x2000_7FC0;
+        w[W_FRAME + 6] = 0x1234; w[W_FRAME_PC] = 0x1238; w[W_FRAME + 7] = 1 << 24; w[W_FRAME_ADDR] = 0x2000_7FC0;
         w[W_CYC] = 100; w[W_CYC + 1] = 110; w[W_CYC + 2] = 0x40; w[W_CYC + 3] = 0x44;
         w[W_GAP_TAIL] = 40; w[W_GAP_SEPARATE] = 70;
         let order = [47, 46, 47, 46, 46, 47, 46, 46, 46];
@@ -334,7 +339,7 @@ mod tests {
     #[test]
     fn a_record_matching_the_model_passes_every_rule() {
         let r = good();
-        let side = TaskSide { matrix: Some((true, "69 attempts refused".into())), stack_overflow_refused: Some(true), ppb_faults: vec![(true, false, true, 0xE000_E100); 6], ppb_attempts: 6, filter_fpscr: Some(0), patterns: Some((100, 0, 0)), srd_used: false };
+        let side = TaskSide { matrix: Some((true, "69 attempts refused".into())), stack_overflow_refused: Some(true), ppb_faults: vec![(true, false, true, 0xE000_E100); 6], ppb_attempts: 6, filter_fpscr: Some(0), patterns: Some((100, 0, 0)), srd_used: false, fp_flush_to_zero: false };
         let rows = judge(&r, &side);
         let v = verdicts(&rows);
         assert!(v.iter().all(|(_, _, x)| *x != Verdict::Mismatch), "{:?}", rows.iter().filter(|r| r.verdict == Verdict::Mismatch).collect::<Vec<_>>());

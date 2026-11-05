@@ -209,7 +209,9 @@ static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_
 /// handler's runs for the Task's interrupt source and their cycles;
 /// R19.3), and `exec_count, exec_max` (Jobs completed and the largest
 /// execution of one Job in cycles, from the Budget accounting; task 19.1,
-/// R34.7); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
+/// R34.7), `exec_over, exec_hist[16]`, and `exec_min, exec_sum_lo,
+/// exec_sum_hi` (the smallest execution and the sum, task 7.5's cycle
+/// test); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
 /// closed and the largest execution of one, lock to unlock, from the
 /// Budget accounting at the two SVCs, less the counter read cost) and the
 /// consumed count at each open Critical_Section's lock; then a ring of
@@ -226,7 +228,7 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 45;
+const STATS_PER_TASK: usize = 48;
 #[cfg(feature = "trace-ram")]
 const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
 #[cfg(feature = "trace-ram")]
@@ -370,6 +372,14 @@ pub fn stats_exec(t: u8, cycles: u32, over: bool) {
     }
     let bucket = (32 - cycles.leading_zeros()).min(15) as usize;
     s[v + 3 + bucket] = s[v + 3 + bucket].saturating_add(1);
+    // The smallest execution and the sum (task 7.5's cycle test, R18.1):
+    // the mean and the spread of a Task's executions.
+    if s[v] == 1 || cycles < s[v + 19] {
+        s[v + 19] = cycles;
+    }
+    let sum = ((s[v + 21] as u64) << 32 | s[v + 20] as u64).saturating_add(cycles as u64);
+    s[v + 20] = sum as u32;
+    s[v + 21] = (sum >> 32) as u32;
 }
 
 /// Diagnostic event kind of a HIL build: a Job completed above its Budget

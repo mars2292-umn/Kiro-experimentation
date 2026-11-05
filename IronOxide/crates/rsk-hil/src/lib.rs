@@ -28,6 +28,8 @@
 //! - [`isolation`]: the isolation suite (task 7.4): the MPU access matrix
 //!   (R16.8) and the EasyDMA cases (R17.7), judged from the event mirror,
 //!   the fault record, the actions record, and the target's report.
+//! - [`cycles`]: the cycle-attribution test (task 7.5, R18.1): the Budget
+//!   accounting of a preempted Job against an unpreempted one.
 //! - [`dt`]: the Hardware_Model differential tests (task 3.3, R49.3): the
 //!   Kernel's `DT_RECORD` and the Task-side probes against the model's
 //!   predictions, rule by rule.
@@ -41,6 +43,7 @@ pub mod board;
 pub mod boot_checks;
 pub mod capture;
 pub mod config;
+pub mod cycles;
 pub mod dt;
 pub mod events;
 pub mod faults;

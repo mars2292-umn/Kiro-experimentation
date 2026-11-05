@@ -28,6 +28,7 @@
     "layout_checksum": { "type": "string", "pattern": "^0x" },
     "operating_duration_ticks": { "type": "integer", "minimum": 1 },
     "safe_state": { "type": "string" },
+    "fp_flush_to_zero": { "type": "boolean" },
     "kernel_levels": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 7 } },
     "priority_map": {
       "type": "array",

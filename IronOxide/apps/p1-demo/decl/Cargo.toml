@@ -20,6 +20,8 @@ nrf52840_stress = ["nrf52840"]
 nrf52840_stress_short = ["nrf52840"]
 # The isolation configuration of task 7.4 (`src/nrf52840_isolation.rs`).
 nrf52840_isolation = ["nrf52840"]
+# The cycle-attribution configuration of task 7.5 (`src/nrf52840_cycles.rs`).
+nrf52840_cycles = ["nrf52840"]
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

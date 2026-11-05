@@ -179,6 +179,7 @@ pub fn task_model(g: &Generated) -> Value {
         .with("layout_checksum", format!("0x{:08x}", crate::derive::layout_checksum(g)))
         .with("operating_duration_ticks", g.operating_duration_ticks)
         .with("safe_state", g.safe_state.as_str())
+        .with("fp_flush_to_zero", g.fp_flush_to_zero)
         .with("kernel_levels", g.kernel_levels.iter().map(|&l| l as u64).collect::<Vec<u64>>())
         .with(
             "priority_map",
@@ -195,6 +196,7 @@ pub fn task_model(g: &Generated) -> Value {
                 .with("event_log", g.log_capacity)
                 .with("derived", true),
         )
+
         .with(
             "layout",
             Value::obj()

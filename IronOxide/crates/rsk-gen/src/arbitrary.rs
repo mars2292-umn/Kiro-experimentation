@@ -203,6 +203,7 @@ fn build(parts: Vec<PartitionSpec>, tasks: Vec<TaskSpec>, duration_s: u64, log_c
         operating_duration: Time { value: duration_s, unit: TimeUnit::S },
         safe_state: "crate::safe_outputs".into(),
         log_capacity,
+        fp_flush_to_zero: false,
         partitions,
     }
 }

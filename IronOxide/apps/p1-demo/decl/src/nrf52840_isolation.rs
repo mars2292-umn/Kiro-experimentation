@@ -10,11 +10,13 @@
 //! `filter` at 50 ms, so that the rig sees the Partition's EasyDMA stop
 //! precede its re-initialization (R17.6); and `filter`'s Budget raised to
 //! 15 ms for the register-pattern probe it runs across preemptions
-//! (HW-06, HW-10). The per-Task state records what each probe saw, for
-//! the safe state's report.
+//! (HW-06, HW-10); and `fp_flush_to_zero`, so that the tests read FPDSCR.FZ
+//! back and see `filter`'s first FP context start from it (erratum
+//! 839676's workaround, task 3.4). The per-Task state records what each
+//! probe saw, for the safe state's report.
 rsk::app! {
     target = nrf52840, profile = Ravenscar, operating_duration = 3600.ms(),
-    safe_state = crate::report_and_exit, log_capacity = 32;
+    safe_state = crate::report_and_exit, log_capacity = 32, fp_flush_to_zero = true;
 
     partition part0 (level = A, crate = p1_demo_part0, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
                      fault = END_JOB, overrun = RECORD_AND_CONTINUE, deadline_miss = RECORD_ONLY,

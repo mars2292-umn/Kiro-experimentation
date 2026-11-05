@@ -6,7 +6,7 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 45;
+const PER_TASK: usize = 48;
 /// Resource slots of the Critical_Section table (the Kernel's `STATS_RES`).
 const RES: usize = 16;
 const RING: usize = 256;
@@ -35,6 +35,10 @@ pub struct TaskStats {
     /// executions (bucket b counts executions below `2^b` cycles).
     pub exec_over_count: u32,
     pub exec_histogram: [u32; 16],
+    /// The smallest execution and the sum of all (the mean), in cycles
+    /// (task 7.5's cycle test, R18.1).
+    pub exec_min_cycles: u32,
+    pub exec_sum_cycles: u64,
 }
 
 /// One Critical_Section site's record: Task, Resource, sections closed,
@@ -51,6 +55,10 @@ pub struct CsStats {
 impl TaskStats {
     pub fn mean_cycles(&self) -> f64 {
         if self.count == 0 { 0.0 } else { self.sum_cycles as f64 / self.count as f64 }
+    }
+    /// The mean execution of a Job in cycles.
+    pub fn exec_mean_cycles(&self) -> f64 {
+        if self.exec_count == 0 { 0.0 } else { self.exec_sum_cycles as f64 / self.exec_count as f64 }
     }
 }
 
@@ -109,6 +117,8 @@ impl Stats {
                     h.copy_from_slice(&words[b + 29..b + 45]);
                     h
                 },
+                exec_min_cycles: words[b + 45],
+                exec_sum_cycles: (words[b + 47] as u64) << 32 | words[b + 46] as u64,
             });
         }
         let cs_at = HEADER + n * PER_TASK;
@@ -201,10 +211,12 @@ impl Stats {
                     let hi = st.exec_histogram.iter().rposition(|c| *c > 0).unwrap_or(0);
                     let hist: Vec<String> = (lo..=hi).map(|b| format!("2^{b}:{}", st.exec_histogram[b])).collect();
                     s.push_str(&format!(
-                        "| Task {t} entry | {} | {} / {:.3} | {} above the Budget; {} |\n",
+                        "| Task {t} entry | {} | {} / {:.3} (min {}, mean {:.0}) | {} above the Budget; {} |\n",
                         st.exec_count,
                         st.exec_max_cycles,
                         st.exec_max_cycles as f64 * 1000.0 / cpu_hz as f64,
+                        st.exec_min_cycles,
+                        st.exec_mean_cycles(),
                         st.exec_over_count,
                         hist.join(" ")
                     ));
@@ -277,7 +289,7 @@ mod tests {
         assert_eq!((st.tasks[1].exec_count, st.tasks[1].exec_max_cycles, st.calibration_cycles), (3, 20_000, 2));
         assert_eq!(st.cs, vec![CsStats { task: 1, resource: 2, count: 5, max_cycles: 16_000 }]);
         assert_eq!((st.tasks[1].exec_over_count, st.tasks[1].exec_histogram[15]), (1, 3));
-        assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 entry | 3 | 20000 / 0.312 | 1 above the Budget; 2^15:3 |"));
+        assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 entry | 3 | 20000 / 0.312 (min 0, mean 0) | 1 above the Budget; 2^15:3 |"), "{}", st.render(64_000_000, 16_000_000));
         assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 on Resource 2 | 5 | 16000 / 0.250 |"));
         assert!(Stats::decode(&[0, 0, 0, 0]).is_err());
     }

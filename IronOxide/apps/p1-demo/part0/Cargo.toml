@@ -23,6 +23,8 @@ timing = []
 response = []
 # The isolation suite (task 7.4): the access matrix and the DMA cases.
 isolation = ["rsk/hw-dt"]
+# The cycle-attribution test (task 7.5, R18.1): a fixed-iteration spin per Job.
+cycles = []
 fi-pr12 = []
 fi-pr19 = []
 fi-pr22 = []

@@ -370,10 +370,13 @@ pub fn clear_fault_status() {
 /// 2026-10-22) allow these data-movement instructions in Kernel code and
 /// forbid arithmetic, comparison, conversion, and FPSCR writes
 /// (verification_plan.md 5.7).
-pub fn fpu_configure_eager() {
+pub fn fpu_configure_eager(flush_to_zero: bool) {
     let v = mmio_read(addr::FPCCR);
     mmio_write(addr::FPCCR, (v | (1 << 31)) & !(1 << 30));
-    mmio_write(addr::FPDSCR, 0);
+    // FPDSCR: the FPSCR every new FP context starts from (HW-10). FZ (bit
+    // 24) when the declaration asks for it (erratum 839676's workaround,
+    // task 3.4); the other defaults (DN, AHP, RMode) stay 0.
+    mmio_write(addr::FPDSCR, if flush_to_zero { 1 << 24 } else { 0 });
     let c = mmio_read(addr::CPACR) | (0xF << 20);
     mmio_write(addr::CPACR, c);
     barrier();

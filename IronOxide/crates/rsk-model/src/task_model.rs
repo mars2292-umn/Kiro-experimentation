@@ -21,6 +21,9 @@ pub struct TaskModel {
     pub layout_checksum: String,
     pub operating_duration_ticks: u64,
     pub safe_state: String,
+    /// FPDSCR.FZ for every Job's floating-point context (erratum 839676, task 3.4).
+    #[serde(default)]
+    pub fp_flush_to_zero: bool,
     pub kernel_levels: Vec<u8>,
     pub priority_map: Vec<PriorityMapping>,
     pub capacities: Capacities,

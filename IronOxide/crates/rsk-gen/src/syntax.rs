@@ -7,7 +7,7 @@
 //! ```text
 //! rsk::app! {
 //!     target = qemu_mps2_an386, profile = Ravenscar, operating_duration = 200.ms(),
-//!     safe_state = crate::report_and_exit, log_capacity = 32;
+//!     safe_state = crate::report_and_exit, log_capacity = 32, fp_flush_to_zero = false;
 //!
 //!     partition part0 (level = A, crate = p1_demo_part0, code = 32.KiB(), ram = 32.KiB(),
 //!                      stack = 4.KiB(), fault = RESTART_PARTITION, overrun = END_JOB,
@@ -106,6 +106,10 @@ fn err<T>(span: Span, msg: impl Into<String>) -> syn::Result<T> {
 }
 
 fn parse_val(input: ParseStream) -> syn::Result<Val> {
+    if input.peek(syn::LitBool) {
+        let lit: syn::LitBool = input.parse()?;
+        return Ok(Val::Ident(lit.value.to_string(), lit.span()));
+    }
     if input.peek(LitInt) {
         let lit: LitInt = input.parse()?;
         let n: u64 = lit.base10_parse()?;
@@ -303,6 +307,20 @@ impl Parse for Parsed {
         let log_capacity = match h.take("log_capacity") {
             Some(a) => int(a)? as u32,
             None => 32,
+        };
+        // Flush-to-zero for every Job's floating-point context (FPDSCR.FZ,
+        // the workaround of Cortex-M4 erratum 839676; task 3.4): `true` or
+        // `false`, `false` by default.
+        let fp_flush_to_zero = match h.take("fp_flush_to_zero") {
+            Some(a) => {
+                let (v, span) = ident(a)?;
+                match v.as_str() {
+                    "true" => true,
+                    "false" => false,
+                    _ => return err(span, "`fp_flush_to_zero` is `true` or `false`".to_string()),
+                }
+            }
+            None => false,
         };
         h.finish()?;
 
@@ -558,6 +576,7 @@ impl Parse for Parsed {
                 operating_duration,
                 safe_state,
                 log_capacity,
+                fp_flush_to_zero,
                 partitions,
             },
             spans,

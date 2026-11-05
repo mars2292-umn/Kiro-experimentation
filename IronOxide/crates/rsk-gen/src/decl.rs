@@ -313,6 +313,9 @@ pub struct Declaration {
     pub safe_state: String,
     /// Health_Monitor event log capacity (R14.6).
     pub log_capacity: u32,
+    /// FPDSCR.FZ for every Job's floating-point context (the workaround of
+    /// Cortex-M4 erratum 839676, task 3.4; `false` by default).
+    pub fp_flush_to_zero: bool,
     pub partitions: Vec<PartitionDecl>,
 }
 

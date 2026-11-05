@@ -47,7 +47,7 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation | --boot-checks]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation | --boot-checks | --cycles]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
       the linker script and memory map, the configuration summary and the
@@ -389,6 +389,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut response = false;
     let mut isolation = false;
     let mut boot_checks = false;
+    let mut cycles = false;
     let mut short = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -407,6 +408,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--response" => response = true,
             "--isolation" => isolation = true,
             "--boot-checks" => boot_checks = true,
+            "--cycles" => cycles = true,
             "--short" => short = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
@@ -464,6 +466,9 @@ fn hil_command(args: &[String]) -> ExitCode {
     }
     if boot_checks {
         return boot_checks_command(&ws, &rig, &bin, &target_dir, report);
+    }
+    if cycles {
+        return cycles_command(&ws, &rig, &bin, &target_dir, report);
     }
     let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
@@ -819,6 +824,32 @@ fn boot_checks_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::
         report.error(xtask::diag::Rule::Step, None, "the boot-check suite failed (report above)");
     }
     print_report(&report, "boot-check suite passed")
+}
+
+/// `cargo xtask hil --cycles` (task 7.5's `hil-cycles`, R18.1): the
+/// cycle-attribution test on the cycle configuration (2 seconds). The
+/// report goes under target/xtask-hil/cycles and docs/hil/.
+fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let features = format!("{},cycles", xtask::hil::FEATURES);
+    let dir = target_dir.join("cycles");
+    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    report.note(format!("cycle configuration `nrf52840_cycles` ({features}): {} over {} loadable bytes", target.binary.hash, target.binary.loadable_bytes));
+    let work = dir.join("run");
+    let inputs = rsk_hil::cycles::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 40, tick_hz: xtask::hil::TICK_HZ, cpu_hz: xtask::hil::CPU_HZ };
+    let out = rsk_hil::cycles::run(&inputs);
+    let text = rsk_hil::cycles::render(rig, &inputs, &out, &target.binary.hash);
+    print!("{text}");
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::create_dir_all(&record);
+    let _ = std::fs::write(record.join("cycles_nrf52840_cycles.md"), &text);
+    report.note(format!("report written to {} and docs/hil/cycles_nrf52840_cycles.md", ws.rel(&work)));
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the cycle-attribution test failed (report above)");
+    }
+    print_report(&report, "cycle-attribution test passed")
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

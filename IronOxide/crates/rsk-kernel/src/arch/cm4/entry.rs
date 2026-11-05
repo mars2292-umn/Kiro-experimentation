@@ -186,7 +186,8 @@ pub enum Action {
     PrigroupAllPreempt,
     Nonbasethrdena(bool),
     Disdefwbuf(bool),
-    FpuEager,
+    /// Eager FP stacking (DD-04) with FPDSCR's flush-to-zero as declared.
+    FpuEager(bool),
     KernelExceptionPriorities,
     MpuEnableBackground,
     ClearFaultStatus,
@@ -262,7 +263,7 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::PrigroupAllPreempt => HwModel { prigroup_all_preempt: true, ..h },
         Action::Nonbasethrdena(b) => HwModel { nonbasethrdena: b, ..h },
         Action::Disdefwbuf(b) => HwModel { disdefwbuf: b, ..h },
-        Action::FpuEager => HwModel { fpu_eager: true, ..h },
+        Action::FpuEager(_) => HwModel { fpu_eager: true, ..h },
         Action::KernelExceptionPriorities => HwModel { kernel_exceptions_level0: true, ..h },
         Action::MpuEnableBackground => HwModel { mpu_enabled: true, ..h },
         Action::ClearFaultStatus => h,
@@ -312,6 +313,8 @@ pub trait Tables {
     fn priority_bits(&self) -> u8;
     /// What the boot checks compare the hardware against (R12.1).
     fn boot_expect(&self) -> BootExpect;
+    /// FPDSCR.FZ for every Job's floating-point context (erratum 839676).
+    fn fp_flush_to_zero(&self) -> bool;
     /// Time-base ticks per second (R21.2), for the watchdog reload.
     fn tick_hz(&self) -> u64;
     /// The EasyDMA channels (DD-08).
@@ -371,7 +374,7 @@ impl KernelArch for Cm4Hw {
             Action::PrigroupAllPreempt => hw::set_prigroup_all_preempt(),
             Action::Nonbasethrdena(on) => hw::set_nonbasethrdena(on),
             Action::Disdefwbuf(on) => hw::set_disdefwbuf(on),
-            Action::FpuEager => hw::fpu_configure_eager(),
+            Action::FpuEager(fz) => hw::fpu_configure_eager(fz),
             Action::KernelExceptionPriorities => hw::set_kernel_exception_priorities(),
             Action::MpuEnableBackground => hw::mpu_enable_background(),
             Action::ClearFaultStatus => hw::clear_fault_status(),
@@ -640,7 +643,7 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     // to Thread mode is a return to the base level.
     hw.apply(Action::Nonbasethrdena(false));
     hw.apply(Action::Disdefwbuf(true));
-    hw.apply(Action::FpuEager);
+    hw.apply(Action::FpuEager(tables.fp_flush_to_zero()));
     hw.apply(Action::KernelExceptionPriorities);
     let ghost h1 = hw.hw();
     let end: u16 = 16 + irqs;

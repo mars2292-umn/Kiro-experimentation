@@ -158,6 +158,16 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // the Job before it).
     #[cfg(feature = "isolation")]
     matrix_step(&mut cx.matrix, &mut cx.survived);
+    // The cycle-attribution test (task 7.5, R18.1): the same spin as
+    // `control`'s, at the lowest periodic Priority, preempted by every
+    // other Task; the 3 ms wall-clock wait below is skipped.
+    #[cfg(feature = "cycles")]
+    {
+        rsk::spin::<8_000>();
+        cx.count.with(|c| *c += 1);
+        rsk::debug(b"C");
+        return;
+    }
     // The response configuration (task 7.5, R14.11): the Job of 400 ms
     // exceeds its 6 ms Budget outside any Critical_Section (END_JOB: this
     // Job ends before it counts; 25 ms of busy wait, of which sensor's

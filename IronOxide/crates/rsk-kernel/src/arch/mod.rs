@@ -130,6 +130,9 @@ pub trait System: 'static {
     const HFCLK_XTAL: bool;
     /// Whether any Task is FPU-using (R11.2; the FPU's presence is then checked at boot).
     const FPU_NEEDED: bool;
+    /// FPDSCR.FZ for every Job's floating-point context (the declaration's
+    /// `fp_flush_to_zero`; the workaround of erratum 839676, task 3.4).
+    const FP_FLUSH_TO_ZERO: bool;
     /// Time-base ticks per second (R21.2), for the watchdog reload (ORQ-31).
     const TICK_HZ: u64;
     /// The EasyDMA channels of every Partition's peripherals (DD-08, R17).

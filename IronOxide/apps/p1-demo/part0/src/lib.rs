@@ -60,6 +60,11 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
     }
 }
 
+/// The cycle-attribution test's spin (task 7.5, R18.1): the same constant
+/// in `control` and `log`, so that their executions compare.
+#[cfg(feature = "cycles")]
+pub const CYCLES_SPIN: u32 = 8_000;
+
 /// Task `control`: reads the state under the lock, counts, and raises
 /// `tick` on every third Job (R10.5; every 30 ms, so every raise is
 /// accepted against echo's 20 ms MIT). `in_cs` says whether this Release
@@ -87,6 +92,20 @@ pub fn control(mut cx: rsk_ctx::Control) {
     // escalate END_JOB to a restart, R18.4).
     #[cfg(feature = "isolation")]
     matrix_step(&mut cx.matrix, &mut cx.survived);
+    // The cycle-attribution test (task 7.5, R18.1): the same spin as `log`'s
+    // and nothing else (no lock, no raise: the SVCs' cost is the Job's own
+    // and would not compare), at the highest Priority (about 1.2 ms; the
+    // Budget is 2 ms in that configuration).
+    #[cfg(feature = "cycles")]
+    {
+        rsk::spin::<CYCLES_SPIN>();
+        cx.count.set(cx.count.get().saturating_add(1));
+        let _ = &mut cx.in_cs;
+        let _ = &mut cx.state;
+        let _ = &mut cx.blocked;
+        let _ = &cx.tick;
+        return;
+    }
     #[cfg(creusot)]
     let count_before = rsk::creusot_std::macros::snapshot!(cx.count@);
     // A Critical_Section's closure carries its postcondition for the

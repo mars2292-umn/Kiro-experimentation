@@ -332,6 +332,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     side.filter_fpscr = v("filter_fpscr");
     side.patterns = match (v("filter_pattern_runs"), v("filter_pattern_fail"), v("filter_pattern_mask")) { (Some(r), Some(f), Some(m)) => Some((r, f, m)), _ => None };
     side.srd_used = inputs.model.partitions.iter().any(|p| p.mpu.code.srd != 0 || p.mpu.ram.srd != 0 || p.mpu.windows.iter().any(|w| w.srd != 0));
+    side.fp_flush_to_zero = inputs.model.fp_flush_to_zero;
     if let Some((runs, fail, mask)) = side.patterns {
         out.step("register patterns across preemptions (HW-06, HW-10, R7.5)", runs > 0 && fail == 0, format!("{runs} probe runs of filter (FPU Task), {fail} with a changed register, mask {mask:#x}; FPSCR of the first Job {}", v("filter_fpscr").map(|f| format!("{f:#x}")).unwrap_or("?".into())));
     }

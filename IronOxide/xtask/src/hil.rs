@@ -214,6 +214,7 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
         .find_map(|f| MEASUREMENTS.iter().find(|m| m.feature == f).map(|m| m.variant.to_string()))
         .or_else(|| features.split(',').any(|f| f == "response").then(|| format!("{VARIANT}_response")))
         .or_else(|| features.split(',').any(|f| f == "isolation").then(|| format!("{VARIANT}_isolation")))
+        .or_else(|| features.split(',').any(|f| f == "cycles").then(|| format!("{VARIANT}_cycles")))
         .unwrap_or_else(|| VARIANT.to_string());
     let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
     let Ok(model_text) = std::fs::read_to_string(&model) else { return true };

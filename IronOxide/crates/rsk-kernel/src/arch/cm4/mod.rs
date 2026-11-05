@@ -227,6 +227,9 @@ impl<S: System> Tables for SysTables<S> {
     fn tick_hz(&self) -> u64 {
         S::TICK_HZ
     }
+    fn fp_flush_to_zero(&self) -> bool {
+        S::FP_FLUSH_TO_ZERO
+    }
     fn dma_count(&self) -> usize {
         S::DMA_COUNT
     }
