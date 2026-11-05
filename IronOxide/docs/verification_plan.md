@@ -5,7 +5,7 @@
 | Version | 1, draft, 2026-10-14; evidence and sections 4, 5.9, 6.3, 9.2 updated 2026-10-22; Link_Checker scans (task 12.3) 2026-10-23; the HIL sections 11.1 to 11.12 as each suite ran (2026-10-29 to 2026-11-05); **revision of 2026-11-05 (task 8.1): the evidence of section 1 and the status columns of sections 3, 8, 9, and 11 brought to the state of the project, the Phase 1 checkpoint status (1.1), and the open items of section 13 restated** |
 | Implements | requirements.md component G; tasks 8.1 and 6.3; R43, R45.4, R45.6, R45.8, R46.1, R46.2, R51, R52, R58.3; the HIL frequency of R50.1 (section 11, task 8.2); the HIL reports of tasks 3.1, 3.3, 3.4, 7.1 to 7.5, 19.1 to 19.3 (section 11) |
 | Certification basis | DO-178C DAL A/B, DO-330 tool qualification, DO-333 formal-methods credit (fixed input, confirmed 2026-10-14). rsk is a research prototype that keeps this path open; it produces no applicant plans (NG-12), and activities only an applicant can perform are marked as such (R54.4). |
-| Review status | Not reviewed (section 13). |
+| Review status | Reviewed and signed off by Luke Marshall on 2026-11-05 (section 13: the review record of tasks 6.3 and 8.1). |
 | Hardware status | The HIL_Rig exists since 2026-11-01 (section 11.2: three nRF52840-DK boards, a logic analyzer, `rsk-hil`). Every HIL suite of section 11 has run on it; the short ones run in every verification job with the boards attached, the hour-long campaigns under `cargo xtask nightly`. Open hardware items are findings and residuals, listed in section 13, not missing suites. |
 
 Requirement identifiers (Rn.m, PR-nn, ASM-nn, ORQ-nn, RN-nn) point into requirements.md. TBR-nn, GAP-nn, and KS-nn point into the Trust_Base_Register `docs/trust_base_register.toml`, the Gap_Register `docs/gap_register.toml`, and `docs/kani_stubs.toml`. Both registers cite the P-nn rows of section 3, and `cargo xtask check` fails when a cited row, requirement, ASM, ORQ, or gap does not exist (R48, R54). "Proof" means Verus (all reachable states) or Kani (all inputs within stated bounds); "test" means testing evidence (R43.4); "argument" means a pen-and-paper argument recorded in section 5, which is review evidence and earns no DO-333 credit until mechanized.
@@ -665,7 +665,7 @@ At requirement level, the criteria that no row of section 3 covers fall into fou
 
 ## 13. Review record and open items
 
-Review status: not reviewed. For DAL A/B the review must be done by someone other than the author, which is an applicant activity (R54.4). The review covers:
+Review record: this plan (task 8.1) and its section 6 (task 6.3, Kani's limitations and mitigations) were reviewed and signed off by Luke Marshall on 2026-11-05, at the revision of that date. The sign-off is the project's review record; for DAL A/B an applicant's review by someone other than the author remains an applicant activity (R54.4, GAP-08). The review covers:
 
 1. each Verus specification against its natural-language criterion (R52.2);
 2. each argument of section 5;
