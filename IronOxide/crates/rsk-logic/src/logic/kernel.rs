@@ -42,9 +42,29 @@
 //! point extends the history (`history_extends`) and records exactly its
 //! own transitions. The field is ghost: a Flight_Build carries nothing.
 //!
-//! Not stated here: the Releases that `timer_event` makes (Property 7's
-//! link from slots to nominal instants) and the interrupt-source bound of
-//! Property 9. The responses that `timer_event` and `intake` apply
+//! Property 7's link (task 4.5 follow-up, 2026-11-05). `inv` carries
+//! `release_slots_consistent`: every armed slot of kind `SLOT_RELEASE` is
+//! the release slot of the Periodic_Task it names, armed at that Task's
+//! current nominal instant, so the timer's Releases are the Tasks' own,
+//! one slot each. `timer_event` then states what it does for every
+//! Periodic_Task: one whose nominal instant is due at the entry
+//! (`periodic_due_at`) has its Release served (`periodic_release_served`:
+//! a Release step at the nominal instant joined the history, R9.1 and
+//! R9.2, unless the Job could not complete within the operating duration,
+//! R9.9, or the instant was discarded against a pending Release with the
+//! MIT_Violation counted, R9.8, or a response of the same entry stopped
+//! or restarted the Partition or entered the safe state; and the next
+//! nominal instant O + (k + 1)T is armed, or none past the duration,
+//! R9.3 and R9.5), and every other Periodic_Task's release slot, nominal
+//! instant, and absent Release are as they were (`periodic_kept`). The
+//! served slots compose through `periodic_env` (what every served event
+//! keeps: the other Tasks' release state, the flags only setting, the
+//! counts only rising but for a re-initialization, the instant) and the
+//! lemmas `lemma_kept_trans`, `lemma_periodic_served_trans`, and
+//! `lemma_periodic_served_rebase` over the two loops of `timer_event`.
+//!
+//! Not stated here: the interrupt-source bound of Property 9. The
+//! responses that `timer_event` and `intake` apply
 //! (deadline miss, Overrun, MIT_Violation threshold) go through
 //! `apply_response` and so satisfy R14.9 relative to the state in which
 //! each is applied.
@@ -515,6 +535,360 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         s.armed && s.at == self.timing.nominal[u] && s.kind == SLOT_RELEASE && s.task as int == u
     }
 
+    /// Property 7's link (R9.1, R9.3; task 4 follow-up, 2026-11-05):
+    /// Periodic_Task `u`'s release slot, nominal instant, and absent
+    /// Release are as in `old`. An absent Release stays absent: nothing
+    /// but the Task's own release slot makes one; a pending one may be
+    /// cleared by a Partition restart, which `periodic_release_served`
+    /// accounts for.
+    pub open spec fn periodic_kept(&self, old: &Self, cfg: &Config<NT, NR, NP>, u: int) -> bool {
+        &&& self.slots.slots[cfg.slot_release[u] as int] == old.slots.slots[cfg.slot_release[u] as int]
+        &&& self.timing.nominal[u] == old.timing.nominal[u] && self.timing.k[u] == old.timing.k[u]
+        &&& (old.sched.release[u] == REL_NONE ==> self.sched.release[u] == REL_NONE)
+    }
+
+    /// `periodic_kept` for every Periodic_Task but the one whose release
+    /// slot is `except` (`-1`: every Periodic_Task).
+    pub open spec fn periodic_releases_kept(&self, old: &Self, cfg: &Config<NT, NR, NP>, except: int) -> bool {
+        forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != except
+            ==> self.periodic_kept(old, cfg, u)
+    }
+
+    /// What every step of a timer entry keeps: the Periodic_Tasks' release
+    /// state (but the slot served), the flags' monotonicity, the counts'.
+    pub open spec fn periodic_env(&self, old: &Self, cfg: &Config<NT, NR, NP>, except: int) -> bool {
+        &&& self.periodic_releases_kept(old, cfg, except)
+        &&& self.flags_monotone(old)
+        &&& self.violations_monotone(old)
+        &&& self.now == old.now
+    }
+
+    /// The Partition flags only ever set within an entry point: a stopped
+    /// Partition stays stopped, a requested re-initialization stays
+    /// requested, the safe state is never left.
+    pub open spec fn flags_monotone(&self, old: &Self) -> bool {
+        &&& forall|p: int| 0 <= p < NP && #[trigger] old.stopped[p] ==> self.stopped[p]
+        &&& forall|p: int| 0 <= p < NP && #[trigger] old.reinit_partition[p] ==> self.reinit_partition[p]
+        &&& old.safe_state ==> self.safe_state
+    }
+
+    /// A Partition's MIT_Violation count only rises within an entry point,
+    /// unless a restart reset it (then re-initialization is requested),
+    /// the Partition was stopped, or the safe state entered.
+    pub open spec fn violations_monotone(&self, old: &Self) -> bool {
+        forall|p: int| 0 <= p < NP ==> #[trigger] self.mit_violations[p] >= old.mit_violations[p]
+            || self.reinit_partition[p] || self.stopped[p] || self.safe_state
+    }
+
+    /// Every armed slot of kind `SLOT_RELEASE` is the release slot of the
+    /// Periodic_Task it names (`inv`): the timer's Releases are then the
+    /// Tasks' own, one slot each.
+    pub open spec fn release_slots_consistent(&self, cfg: &Config<NT, NR, NP>) -> bool {
+        &&& forall|i: int| 0 <= i < NS && #[trigger] self.slots.slots[i].armed && self.slots.slots[i].kind == SLOT_RELEASE
+            ==> (self.slots.slots[i].task as int) < NT && cfg.tasks[self.slots.slots[i].task as int].kind == KIND_PERIODIC
+                && (cfg.slot_release[self.slots.slots[i].task as int] as int) == i
+        &&& forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+            && self.slots.slots[cfg.slot_release[u] as int].armed
+            ==> self.slots.slots[cfg.slot_release[u] as int].kind == SLOT_RELEASE && (self.slots.slots[cfg.slot_release[u] as int].task as int) == u
+                && self.slots.slots[cfg.slot_release[u] as int].at == self.timing.nominal[u]
+    }
+
+    /// R9.4 for a Periodic_Task's release slot: it is no Task's deadline or
+    /// Budget slot, no other Task's release slot, and neither reserved slot.
+    pub proof fn lemma_release_slot_apart(cfg: &Config<NT, NR, NP>, t: int)
+        requires cfg.wf(), 0 <= t < NT,
+        ensures forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+            ==> (cfg.slot_release[u] as int) < cfg.slot_count - 2
+                && cfg.slot_release[u] != cfg.slot_deadline[t] && cfg.slot_release[u] != cfg.slot_budget[t]
+                && (u != t ==> cfg.slot_release[u] != cfg.slot_release[t]),
+    {
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+            implies (cfg.slot_release[u] as int) < cfg.slot_count - 2
+                && cfg.slot_release[u] != cfg.slot_deadline[t] && cfg.slot_release[u] != cfg.slot_budget[t]
+                && (u != t ==> cfg.slot_release[u] != cfg.slot_release[t]) by {
+            assert(cfg.slot_ok(u));
+            if u != t {
+                Self::lemma_slots_apart(cfg, t, u);
+            }
+        }
+    }
+
+    /// An armed slot of another kind is no Periodic_Task's release slot.
+    pub proof fn lemma_armed_other_kind(before: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires before.release_slots_consistent(cfg), 0 <= i < NS,
+            before.slots.slots[i].armed, before.slots.slots[i].kind != SLOT_RELEASE,
+        ensures forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC ==> (cfg.slot_release[u] as int) != i,
+    {
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+            implies (cfg.slot_release[u] as int) != i by {
+            if (cfg.slot_release[u] as int) == i {
+                assert(before.slots.slots[i].kind == SLOT_RELEASE);
+            }
+        }
+    }
+
+    /// `release_slots_consistent` after a slot is disarmed.
+    pub proof fn lemma_consistent_disarm(before: &Self, after: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS, before.release_slots_consistent(cfg), 0 <= i < NS,
+            forall|j: int| 0 <= j < NS && j != i ==> after.slots.slots[j] == before.slots.slots[j],
+            !after.slots.slots[i].armed, after.timing.nominal == before.timing.nominal,
+        ensures after.release_slots_consistent(cfg),
+    {
+        Self::lemma_consistent_from(before, after, cfg, i);
+    }
+
+    /// `release_slots_consistent` after a slot that is no Periodic_Task's
+    /// release slot is armed with another kind.
+    pub proof fn lemma_consistent_arm_other(before: &Self, after: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS, before.release_slots_consistent(cfg), 0 <= i < NS,
+            forall|j: int| 0 <= j < NS && j != i ==> after.slots.slots[j] == before.slots.slots[j],
+            after.slots.slots[i].kind != SLOT_RELEASE, after.timing.nominal == before.timing.nominal,
+            forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC ==> (cfg.slot_release[u] as int) != i,
+        ensures after.release_slots_consistent(cfg),
+    {
+        Self::lemma_consistent_from(before, after, cfg, i);
+    }
+
+    /// The two lemmas above: slot `i` is not armed as a release slot after.
+    proof fn lemma_consistent_from(before: &Self, after: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS, before.release_slots_consistent(cfg), 0 <= i < NS,
+            forall|j: int| 0 <= j < NS && j != i ==> after.slots.slots[j] == before.slots.slots[j],
+            !after.slots.slots[i].armed || after.slots.slots[i].kind != SLOT_RELEASE,
+            after.timing.nominal == before.timing.nominal,
+            after.slots.slots[i].armed ==> forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC ==> (cfg.slot_release[u] as int) != i,
+        ensures after.release_slots_consistent(cfg),
+    {
+        assert forall|j: int| 0 <= j < NS && #[trigger] after.slots.slots[j].armed && after.slots.slots[j].kind == SLOT_RELEASE
+            implies (after.slots.slots[j].task as int) < NT && cfg.tasks[after.slots.slots[j].task as int].kind == KIND_PERIODIC
+                && (cfg.slot_release[after.slots.slots[j].task as int] as int) == j by {
+            assert(j != i);
+            assert(before.slots.slots[j].armed);
+        }
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+            && after.slots.slots[cfg.slot_release[u] as int].armed
+            implies after.slots.slots[cfg.slot_release[u] as int].kind == SLOT_RELEASE
+                && (after.slots.slots[cfg.slot_release[u] as int].task as int) == u
+                && after.slots.slots[cfg.slot_release[u] as int].at == after.timing.nominal[u] by {
+            assert(cfg.slot_ok(u));
+            assert((cfg.slot_release[u] as int) != i);
+            assert(before.slots.slots[cfg.slot_release[u] as int].armed);
+        }
+    }
+
+    /// `release_slots_consistent` after Periodic_Task `t`'s release slot is
+    /// armed for its (possibly advanced) nominal instant.
+    pub proof fn lemma_consistent_arm_release(before: &Self, after: &Self, cfg: &Config<NT, NR, NP>, t: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS, before.release_slots_consistent(cfg),
+            0 <= t < NT, cfg.tasks[t].kind == KIND_PERIODIC,
+            forall|j: int| 0 <= j < NS && j != cfg.slot_release[t] ==> after.slots.slots[j] == before.slots.slots[j],
+            after.slots.slots[cfg.slot_release[t] as int].armed,
+            after.slots.slots[cfg.slot_release[t] as int].kind == SLOT_RELEASE,
+            (after.slots.slots[cfg.slot_release[t] as int].task as int) == t,
+            after.slots.slots[cfg.slot_release[t] as int].at == after.timing.nominal[t],
+            forall|u: int| 0 <= u < NT && u != t ==> after.timing.nominal[u] == before.timing.nominal[u],
+        ensures after.release_slots_consistent(cfg),
+    {
+        Self::lemma_release_slot_apart(cfg, t);
+        assert(cfg.slot_ok(t));
+        let r = cfg.slot_release[t] as int;
+        assert forall|j: int| 0 <= j < NS && #[trigger] after.slots.slots[j].armed && after.slots.slots[j].kind == SLOT_RELEASE
+            implies (after.slots.slots[j].task as int) < NT && cfg.tasks[after.slots.slots[j].task as int].kind == KIND_PERIODIC
+                && (cfg.slot_release[after.slots.slots[j].task as int] as int) == j by {
+            if j != r {
+                assert(before.slots.slots[j].armed);
+            }
+        }
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+            && after.slots.slots[cfg.slot_release[u] as int].armed
+            implies after.slots.slots[cfg.slot_release[u] as int].kind == SLOT_RELEASE
+                && (after.slots.slots[cfg.slot_release[u] as int].task as int) == u
+                && after.slots.slots[cfg.slot_release[u] as int].at == after.timing.nominal[u] by {
+            if u != t {
+                assert(cfg.slot_ok(u));
+                assert((cfg.slot_release[u] as int) != r);
+                assert(before.slots.slots[cfg.slot_release[u] as int].armed);
+            }
+        }
+    }
+
+    /// `periodic_env` after a step that touched no slot but `i` and `j`
+    /// (`j` no Periodic_Task's release slot), no nominal instant of a Task
+    /// whose release slot is not `i`, no Release, no flag, no count, and
+    /// not the instant.
+    pub proof fn lemma_env_slots(old: &Self, new: &Self, cfg: &Config<NT, NR, NP>, i: int, j: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS,
+            forall|k: int| 0 <= k < NS && k != i && k != j ==> new.slots.slots[k] == old.slots.slots[k],
+            j == i || forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC ==> (cfg.slot_release[u] as int) != j,
+            forall|u: int| 0 <= u < NT && (#[trigger] cfg.slot_release[u] as int) != i
+                ==> new.timing.nominal[u] == old.timing.nominal[u] && new.timing.k[u] == old.timing.k[u]
+                    && new.sched.release[u] == old.sched.release[u],
+            new.stopped == old.stopped, new.reinit_partition == old.reinit_partition, new.safe_state == old.safe_state,
+            new.mit_violations == old.mit_violations, new.now == old.now,
+        ensures new.periodic_env(old, cfg, i),
+    {
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != i
+            implies new.periodic_kept(old, cfg, u) by {
+            assert(cfg.slot_ok(u));
+        }
+    }
+
+    /// `periodic_env` but slot `i` is `periodic_env` outright when `i` is
+    /// no Periodic_Task's release slot.
+    pub proof fn lemma_kept_except_none(old: &Self, new: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires new.periodic_env(old, cfg, i),
+            forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC ==> (cfg.slot_release[u] as int) != i,
+        ensures new.periodic_env(old, cfg, -1),
+    {
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+            implies new.periodic_kept(old, cfg, u) by {
+            assert((cfg.slot_release[u] as int) != i);
+        }
+    }
+
+    /// `periodic_releases_kept` composes: a first step keeping all but
+    /// slot `a`, a second keeping all (or all but `a` again).
+    pub proof fn lemma_kept_trans(old: &Self, mid: &Self, new: &Self, cfg: &Config<NT, NR, NP>, a: int, b: int)
+        requires mid.periodic_env(old, cfg, a), new.periodic_env(mid, cfg, b), b == -1 || b == a,
+        ensures new.periodic_env(old, cfg, a),
+    {
+        assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != a
+            implies new.periodic_kept(old, cfg, u) by {
+            assert(mid.periodic_kept(old, cfg, u));
+            assert(new.periodic_kept(mid, cfg, u));
+        }
+    }
+
+    /// Property 7's link (R9.1, R9.2, R9.3, R9.8, R9.9): the Release of
+    /// Periodic_Task `t` whose nominal instant was due in `old` has been
+    /// served. (1) With no Release pending and the Job able to complete
+    /// within the operating duration, the Release is made: a Release step
+    /// of `t` at the nominal instant joined the history, unless a response
+    /// of the same entry stopped the Partition or entered the safe state.
+    /// (2) With a Release pending (R9.7's held Release), the nominal
+    /// instant is discarded with an MIT_Violation counted against the
+    /// Partition, unless the pending Release was cleared first (a restart,
+    /// which also resets the count) and the new one made, or the Partition
+    /// was stopped, or the safe state entered. (3) The next nominal instant
+    /// `O + (k + 1)T` is armed on the Task's release slot, or none when it
+    /// lies beyond the operating duration.
+    pub open spec fn periodic_release_served(&self, old: &Self, cfg: &Config<NT, NR, NP>, t: int) -> bool {
+        let p = cfg.tasks[t].partition as int;
+        let nominal = old.timing.nominal[t] as int;
+        let within = nominal + cfg.tasks[t].deadline as int <= cfg.operating_duration as int;
+        let made = exists|k: int| old.history@.len() <= k < self.history@.len() && #[trigger] self.release_step(k, t) && self.history@[k].arg == nominal;
+        &&& (old.sched.release[t] == REL_NONE && within ==> made || self.stopped[p] || self.safe_state)
+        &&& (old.sched.release[t] != REL_NONE && within
+            ==> made || self.stopped[p] || self.reinit_partition[p] || self.safe_state
+                || self.mit_violations[p] >= Self::incremented(old.mit_violations[p]))
+        &&& ((self.timing.k[t] == old.timing.k[t] + 1 && self.release_armed(cfg, t)
+                && self.timing.nominal[t] as int == super::time::nominal_of(cfg, t, old.timing.k[t] as int + 1))
+            || (super::time::nominal_of(cfg, t, old.timing.k[t] as int + 1) > cfg.operating_duration as int
+                && self.timing.k[t] == old.timing.k[t] && !self.slots.slots[cfg.slot_release[t] as int].armed))
+    }
+
+    /// Whether Periodic_Task `t`'s nominal instant is due at `now`: its
+    /// release slot armed for that instant.
+    pub open spec fn periodic_due_at(&self, cfg: &Config<NT, NR, NP>, t: int, now: int) -> bool {
+        cfg.tasks[t].kind == KIND_PERIODIC && self.release_armed(cfg, t) && self.timing.nominal[t] as int <= now
+    }
+
+    /// The second loop of `timer_event` at slot `i`: every Periodic_Task
+    /// due at `now` whose release slot lies below `i` has its Release
+    /// served since `entry`; every other Periodic_Task is kept.
+    pub open spec fn served_below(&self, entry: &Self, cfg: &Config<NT, NR, NP>, now: int, i: int) -> bool {
+        forall|t: int| 0 <= t < NT && #[trigger] cfg.tasks[t].kind == KIND_PERIODIC ==>
+            if entry.periodic_due_at(cfg, t, now) && (cfg.slot_release[t] as int) < i {
+                self.periodic_release_served(entry, cfg, t)
+            } else {
+                self.periodic_kept(entry, cfg, t)
+            }
+    }
+
+    /// A served Release stays served through a later step that keeps the
+    /// Task: the history only grows, the flags only set, the count only
+    /// rises unless the Partition is re-initialized.
+    pub proof fn lemma_periodic_served_trans(old: &Self, mid: &Self, new: &Self, cfg: &Config<NT, NR, NP>, t: int)
+        requires cfg.wf(), 0 <= t < NT, cfg.tasks[t].kind == KIND_PERIODIC,
+            mid.periodic_release_served(old, cfg, t), new.periodic_kept(mid, cfg, t),
+            new.flags_monotone(mid), new.violations_monotone(mid), new.history_extends(mid),
+        ensures new.periodic_release_served(old, cfg, t),
+    {
+        assert(cfg.task_ok(t));
+        let p = cfg.tasks[t].partition as int;
+        let nominal = old.timing.nominal[t] as int;
+        if exists|k: int| old.history@.len() <= k < mid.history@.len() && #[trigger] mid.release_step(k, t) && mid.history@[k].arg == nominal {
+            let k = choose|k: int| old.history@.len() <= k < mid.history@.len() && #[trigger] mid.release_step(k, t) && mid.history@[k].arg == nominal;
+            assert(new.history@[k] == mid.history@[k]);
+            assert(new.release_step(k, t));
+        }
+    }
+
+    /// A served Release stated against the state at the slot's service
+    /// holds against the entry's state the Task was kept from.
+    pub proof fn lemma_periodic_served_rebase(old: &Self, mid: &Self, new: &Self, cfg: &Config<NT, NR, NP>, t: int)
+        requires cfg.wf(), 0 <= t < NT, cfg.tasks[t].kind == KIND_PERIODIC,
+            mid.periodic_kept(old, cfg, t), mid.flags_monotone(old), mid.violations_monotone(old), mid.history_extends(old),
+            new.periodic_release_served(mid, cfg, t), new.flags_monotone(mid), new.history_extends(mid),
+        ensures new.periodic_release_served(old, cfg, t),
+    {
+        assert(cfg.task_ok(t));
+        let p = cfg.tasks[t].partition as int;
+        let nominal = old.timing.nominal[t] as int;
+        if old.sched.release[t] != REL_NONE && mid.sched.release[t] == REL_NONE {
+            // The pending Release was cleared before the slot was served
+            // (a restart or the safe state): clause (2) holds by the flag.
+        }
+        if exists|k: int| mid.history@.len() <= k < new.history@.len() && #[trigger] new.release_step(k, t) && new.history@[k].arg == nominal {
+            let k = choose|k: int| mid.history@.len() <= k < new.history@.len() && #[trigger] new.release_step(k, t) && new.history@[k].arg == nominal;
+            assert(old.history@.len() <= k < new.history@.len());
+        }
+    }
+
+    /// `periodic_release_served` assembled from the Release (or the
+    /// violation) in `v` and the advance of the nominal instant with the
+    /// slot armed (or disarmed) in `new`.
+    pub proof fn lemma_served_after_advance(old: &Self, v: &Self, new: &Self, cfg: &Config<NT, NR, NP>, t: int, i: int)
+        requires cfg.wf(), 0 <= t < NT, cfg.tasks[t].kind == KIND_PERIODIC, (cfg.slot_release[t] as int) == i, 0 <= i < NS,
+            ({
+                let p = cfg.tasks[t].partition as int;
+                let nominal = old.timing.nominal[t] as int;
+                let within = nominal + cfg.tasks[t].deadline as int <= cfg.operating_duration as int;
+                &&& (old.sched.release[t] == REL_NONE && !old.stopped[p] && within
+                    ==> exists|k: int| old.history@.len() <= k < v.history@.len() && #[trigger] v.release_step(k, t) && v.history@[k].arg == nominal)
+                &&& (old.sched.release[t] != REL_NONE && !old.stopped[p] && within
+                    ==> v.mit_violations[p] >= Self::incremented(old.mit_violations[p])
+                        || v.reinit_partition[p] || v.stopped[p] || v.safe_state)
+                &&& (old.stopped[p] ==> v.stopped[p])
+            }),
+            new.history@ == v.history@, new.stopped == v.stopped, new.reinit_partition == v.reinit_partition,
+            new.safe_state == v.safe_state, new.mit_violations == v.mit_violations,
+            v.timing.k[t] == old.timing.k[t], v.timing.nominal[t] == old.timing.nominal[t],
+            (new.timing.k[t] == v.timing.k[t] + 1
+                && new.timing.nominal[t] as int == super::time::nominal_of(cfg, t, v.timing.k[t] as int + 1)
+                && new.slots.slots[i].armed && new.slots.slots[i].at == new.timing.nominal[t]
+                && new.slots.slots[i].kind == SLOT_RELEASE && (new.slots.slots[i].task as int) == t)
+            || (super::time::nominal_of(cfg, t, v.timing.k[t] as int + 1) > cfg.operating_duration as int
+                && new.timing.k[t] == v.timing.k[t] && !new.slots.slots[i].armed),
+        ensures new.periodic_release_served(old, cfg, t),
+    {
+        assert(cfg.task_ok(t));
+        let p = cfg.tasks[t].partition as int;
+        let nominal = old.timing.nominal[t] as int;
+        let within = nominal + cfg.tasks[t].deadline as int <= cfg.operating_duration as int;
+        if old.sched.release[t] == REL_NONE && !old.stopped[p] && within {
+            let k = choose|k: int| old.history@.len() <= k < v.history@.len() && #[trigger] v.release_step(k, t) && v.history@[k].arg == nominal;
+            assert(new.release_step(k, t));
+        }
+    }
+
+    /// `periodic_kept`, the flags, and the counts compose over two steps.
+    pub proof fn lemma_periodic_env_trans(old: &Self, mid: &Self, new: &Self, cfg: &Config<NT, NR, NP>, u: int)
+        requires 0 <= u < NT, mid.periodic_kept(old, cfg, u), new.periodic_kept(mid, cfg, u),
+            mid.flags_monotone(old), new.flags_monotone(mid), mid.violations_monotone(old), new.violations_monotone(mid),
+        ensures new.periodic_kept(old, cfg, u), new.flags_monotone(old), new.violations_monotone(old),
+    {
+    }
+
     /// R9.9: the end-of-operation slot is armed for the operating duration.
     pub open spec fn end_armed(&self, cfg: &Config<NT, NR, NP>) -> bool {
         let s = self.slots.slots[cfg.slot_of_end()];
@@ -752,6 +1126,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             ==> cfg.tasks[u].kind == KIND_SPORADIC && cfg.tasks[u].mit_policy == MIT_DEFER
                 && self.timing.has_last[u]
                 && self.timing.deferred_until[u] as int == self.timing.last_due[u] as int + cfg.tasks[u].period as int
+        // Every armed release slot is its Periodic_Task's own (Property 7's link, 2026-11-05).
+        &&& self.release_slots_consistent(cfg)
     }
 
     /// The step `record` would append now.
@@ -933,6 +1309,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             }
             reveal(Kernel::releases_linked);
             assert(k.top_now() == -1);
+            assert forall|i: int| 0 <= i < NS implies !k.slots.slots[i].armed by {
+                assert(!k.slots.armed(i));
+            }
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+                implies !k.slots.slots[cfg.slot_release[u] as int].armed by {
+                assert(cfg.slot_ok(u));
+            }
+            assert(k.release_slots_consistent(cfg));
         }
         k
     }
@@ -1011,7 +1395,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 }
                 let slot = cfg.slot_release[t] as usize;
                 let at = self.timing.nominal[t];
+                let ghost before = *self;
                 self.slots.arm(slot, at, SLOT_RELEASE, t as u8);
+                proof {
+                    Self::lemma_consistent_arm_release(&before, self, cfg, t as int);
+                }
             }
             t = t + 1;
         }
@@ -1023,10 +1411,26 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             }
         }
         let end = (cfg.slot_count - 2) as usize;
+        let ghost b1 = *self;
         self.slots.arm(end, cfg.operating_duration, SLOT_END, 0xFF);
+        proof {
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+                implies (cfg.slot_release[u] as int) != end as int by {
+                assert(cfg.slot_ok(u));
+            }
+            Self::lemma_consistent_arm_other(&b1, self, cfg, end as int);
+        }
         let hk = (cfg.slot_count - 1) as usize;
         let hk_at = if HOUSEKEEPING_PERIOD < cfg.operating_duration { HOUSEKEEPING_PERIOD } else { cfg.operating_duration };
+        let ghost b2 = *self;
         self.slots.arm(hk, hk_at, SLOT_HOUSEKEEPING, 0xFF);
+        proof {
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+                implies (cfg.slot_release[u] as int) != hk as int by {
+                assert(cfg.slot_ok(u));
+            }
+            Self::lemma_consistent_arm_other(&b2, self, cfg, hk as int);
+        }
         self.started = true;
     }
 
@@ -1109,7 +1513,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let remaining = self.budget.remaining(cfg, t) as u64;
         let ticks = (remaining + CYCLES_PER_TICK - 1) / CYCLES_PER_TICK;
         let at = if self.now + ticks > cfg.operating_duration { cfg.operating_duration } else { self.now + ticks };
+        let ghost before = *self;
         self.slots.arm(cfg.slot_budget[t as usize] as usize, at, SLOT_BUDGET, t);
+        proof {
+            Self::lemma_release_slot_apart(cfg, t as int);
+            Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_budget[t as int] as int);
+        }
     }
 
     /// Dispatch stub exit (the Task body returned, or Kernel_Arch unwound to
@@ -1165,8 +1574,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             let kind = if killed { EV_RESOURCE_RELEASED } else { EV_API_MISUSE };
             self.push_event(cfg, kind, t, partition, 1u64 << 7, released as u32);
         }
+        let ghost b1 = *self;
         self.slots.disarm(cfg.slot_budget[t as usize] as usize);
+        proof {
+            Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
+        }
+        let ghost b2 = *self;
         self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
+        proof {
+            Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_deadline[t as int] as int);
+        }
         if cfg.tasks[t as usize].kind == KIND_SPORADIC {
             self.end_mit_window(cfg, t);
         }
@@ -1242,7 +1659,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let unmasked = self.timing.try_unmask(cfg, t, now, true);
         if !unmasked && self.sched.release[t as usize] == REL_NONE {
             let at = self.unmask_instant(cfg, t);
+            let ghost before = *self;
             self.slots.arm(cfg.slot_deadline[t as usize] as usize, at, SLOT_UNMASK, t);
+            proof {
+                Self::lemma_release_slot_apart(cfg, t as int);
+                Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_deadline[t as int] as int);
+            }
         }
     }
 
@@ -1451,8 +1873,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.timing.accept(cfg, t, now);
             self.sched.make_pending(cfg, t);
             let deadline = now + cfg.tasks[t as usize].deadline;
+            let ghost before = *self;
             self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
             proof {
+                Self::lemma_release_slot_apart(cfg, t as int);
+                Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_deadline[t as int] as int);
                 self.lemma_release_match_kept(old(self), cfg, t as int);
                 self.lemma_release_spaced(old(self), cfg, t as int, now as int);
                 self.lemma_top_kept(old(self), cfg);
@@ -1471,7 +1896,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 let at = self.timing.defer(cfg, t);
                 let at = if at > cfg.operating_duration { cfg.operating_duration } else { at };
                 self.sched.defer(cfg, t);
+                let ghost before = *self;
                 self.slots.arm(cfg.slot_release[t as usize] as usize, at, SLOT_DEFER, t);
+                proof {
+                    // A deferral slot is a Sporadic_Task's: no Periodic_Task's.
+                    Self::lemma_release_slot_apart(cfg, t as int);
+                    assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
+                        implies (cfg.slot_release[u] as int) != cfg.slot_release[t as int] as int by {
+                        assert(u != t as int);
+                    }
+                    Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_release[t as int] as int);
+                }
             }
             // The violation may trip the threshold and stop or restart the
             // Partition, which then suppresses the Release just deferred.
@@ -1498,6 +1933,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).violation_applied(old(self), cfg, partition as int, t as int),
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).periodic_env(old(self), cfg, -1),
+            // The count rose, unless the response reset it (re-initialization), stopped the Partition, or entered the safe state.
+            final(self).mit_violations[partition as int] >= Self::incremented(old(self).mit_violations[partition as int])
+                || final(self).reinit_partition[partition as int] || final(self).stopped[partition as int] || final(self).safe_state,
     {
         self.push_event(cfg, EV_MIT_VIOLATION, t, partition, PRS_RELEASE, 0);
         let count = self.mit_violations[partition as usize].saturating_add(1);
@@ -1506,6 +1945,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             assert(count == Self::incremented(old(self).mit_violations[partition as int]));
             assert(mid.counted(old(self), partition as int, count));
+            // The count only rose; nothing else changed but the log.
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+                implies mid.periodic_kept(old(self), cfg, u) by {}
+            assert(mid.periodic_env(old(self), cfg, -1));
         }
         if count > cfg.partitions[partition as usize].mit_threshold {
             let response = cfg.partitions[partition as usize].fault_response;
@@ -1513,6 +1956,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             proof {
                 assert(mid.counted(old(self), partition as int, Self::incremented(old(self).mit_violations[partition as int]))
                     && self.response_applied(&mid, cfg, partition as int, response, t as int));
+                Self::lemma_kept_trans(old(self), &mid, self, cfg, -1, -1);
             }
         }
     }
@@ -1557,6 +2001,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 } else {
                     old(self).budget.used[u]
                 }) || final(self).budget.used[u] == 0,
+            // Property 7's link (R9.1, R9.2, R9.3, R9.8, R9.9; 2026-11-05):
+            // every Periodic_Task whose nominal instant is due at this entry
+            // has its Release served (`periodic_release_served`), and every
+            // other Periodic_Task's release slot, nominal instant, and absent
+            // Release are as they were. The flags only set and the counts
+            // only rise (but for a re-initialization) within the entry.
+            !old(self).safe_state ==> forall|t: int| 0 <= t < NT && #[trigger] cfg.tasks[t].kind == KIND_PERIODIC ==>
+                if old(self).periodic_due_at(cfg, t, Self::observed(old(self).now, now)) {
+                    final(self).periodic_release_served(old(self), cfg, t)
+                } else {
+                    final(self).periodic_kept(old(self), cfg, t)
+                },
+            final(self).flags_monotone(old(self)), final(self).violations_monotone(old(self)),
     {
         self.observe(cfg, now);
         if self.safe_state {
@@ -1576,10 +2033,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // The accounts after the entry charge: the served events change
         // them only by the resets of a Partition-ending response (R18.1).
         let ghost charged = self.budget;
+        // The entry's state after the observation and the charge: the
+        // release state the served slots are judged from.
+        let ghost entry = *self;
+        let ghost now_obs = self.now;
         let mut i: usize = 0;
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
                 self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
+                self.now == now_obs, self.history_extends(&entry),
+                // Deadline slots only: no Periodic_Task's release slot is served.
+                self.periodic_env(&entry, cfg, -1),
             decreases NS - i,
         {
             let slot = self.slots.slots[i];
@@ -1589,6 +2053,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 proof {
                     Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
                     Budget::lemma_only_reset_trans(&charged, &before.budget, &self.budget);
+                    // Slot i is a deadline slot: not a Periodic_Task's release slot
+                    // (an armed release slot has kind SLOT_RELEASE, `inv`).
+                    Self::lemma_armed_other_kind(&before, cfg, i as int);
+                    Self::lemma_kept_except_none(&before, self, cfg, i as int);
+                    Self::lemma_kept_trans(&entry, &before, self, cfg, -1, -1);
                 }
             }
             i = i + 1;
@@ -1597,6 +2066,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
                 self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
+                self.now == now_obs, self.history_extends(&entry),
+                self.flags_monotone(&entry), self.violations_monotone(&entry),
+                // Served below i, kept at or above (Property 7's link).
+                self.served_below(&entry, cfg, now_obs as int, i as int),
             decreases NS - i,
         {
             let slot = self.slots.slots[i];
@@ -1606,9 +2079,94 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 proof {
                     Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
                     Budget::lemma_only_reset_trans(&charged, &before.budget, &self.budget);
+                    assert forall|t: int| 0 <= t < NT && #[trigger] cfg.tasks[t].kind == KIND_PERIODIC
+                        implies (if entry.periodic_due_at(cfg, t, now_obs as int) && (cfg.slot_release[t] as int) < i as int + 1 {
+                            self.periodic_release_served(&entry, cfg, t)
+                        } else {
+                            self.periodic_kept(&entry, cfg, t)
+                        }) by {
+                        assert(cfg.slot_ok(t));
+                        if (cfg.slot_release[t] as int) == i as int {
+                            // t's own release slot: served now, or not due (then its
+                            // slot is unchanged since the entry and not armed at or
+                            // before now, so it was not served).
+                            assert(before.periodic_kept(&entry, cfg, t));
+                            assert(before.slots.slots[i as int] == entry.slots.slots[i as int]);
+                            if entry.periodic_due_at(cfg, t, now_obs as int) {
+                                assert(before.slots.slots[i as int].kind == SLOT_RELEASE);
+                                assert(before.slots.slots[i as int].task as int == t);
+                                assert(self.periodic_release_served(&before, cfg, t));
+                                Self::lemma_periodic_served_rebase(&entry, &before, self, cfg, t);
+                            } else {
+                                // Armed at or before now: by `inv` the slot is t's Release
+                                // at its nominal instant, so t was due.
+                                assert(before.release_slots_consistent(cfg));
+                                assert(before.slots.slots[i as int].kind == SLOT_RELEASE
+                                    && before.slots.slots[i as int].task as int == t
+                                    && before.slots.slots[i as int].at == before.timing.nominal[t]);
+                                assert(entry.release_armed(cfg, t));
+                                assert(entry.periodic_due_at(cfg, t, now_obs as int));
+                                assert(false);
+                            }
+                        } else {
+                            if entry.periodic_due_at(cfg, t, now_obs as int) && (cfg.slot_release[t] as int) < i as int {
+                                Self::lemma_periodic_served_trans(&entry, &before, self, cfg, t);
+                            } else {
+                                assert(self.periodic_kept(&before, cfg, t));
+                            }
+                        }
+                    }
+                    assert(self.served_below(&entry, cfg, now_obs as int, i as int + 1));
+                }
+            } else {
+                proof {
+                    // A due Periodic_Task's release slot is armed at or before now
+                    // (kept since the entry), so slot i is not it.
+                    assert forall|t: int| 0 <= t < NT && #[trigger] cfg.tasks[t].kind == KIND_PERIODIC
+                        implies (if entry.periodic_due_at(cfg, t, now_obs as int) && (cfg.slot_release[t] as int) < i as int + 1 {
+                            self.periodic_release_served(&entry, cfg, t)
+                        } else {
+                            self.periodic_kept(&entry, cfg, t)
+                        }) by {
+                        if (cfg.slot_release[t] as int) == i as int && entry.periodic_due_at(cfg, t, now_obs as int) {
+                            assert(self.periodic_kept(&entry, cfg, t));
+                            assert(self.slots.slots[i as int] == entry.slots.slots[i as int]);
+                            assert(false);
+                        }
+                    }
+                    assert(self.served_below(&entry, cfg, now_obs as int, i as int + 1));
                 }
             }
             i = i + 1;
+        }
+        proof {
+            assert forall|t: int| 0 <= t < NT && #[trigger] cfg.tasks[t].kind == KIND_PERIODIC
+                implies (if old(self).periodic_due_at(cfg, t, Self::observed(old(self).now, now)) {
+                    self.periodic_release_served(old(self), cfg, t)
+                } else {
+                    self.periodic_kept(old(self), cfg, t)
+                }) by {
+                // `entry` and `old(self)` agree on every field but `now`, `budget`,
+                // and the history's length-preserving observation.
+                assert(entry.slots == old(self).slots && entry.timing == old(self).timing && entry.sched == old(self).sched);
+                assert(entry.history@ == old(self).history@);
+                assert(entry.stopped == old(self).stopped && entry.reinit_partition == old(self).reinit_partition
+                    && entry.mit_violations == old(self).mit_violations && entry.safe_state == old(self).safe_state);
+                assert(now_obs as int == Self::observed(old(self).now, now));
+                assert(cfg.slot_ok(t));
+                assert((cfg.slot_release[t] as int) < NS);
+            }
+            // The flags and counts since the entry's observation are those since the entry.
+            assert forall|p: int| 0 <= p < NP && #[trigger] old(self).stopped[p] implies self.stopped[p] by {
+                assert(entry.stopped[p]);
+            }
+            assert forall|p: int| 0 <= p < NP && #[trigger] old(self).reinit_partition[p] implies self.reinit_partition[p] by {
+                assert(entry.reinit_partition[p]);
+            }
+            assert forall|p: int| 0 <= p < NP implies #[trigger] self.mit_violations[p] >= old(self).mit_violations[p]
+                || self.reinit_partition[p] || self.stopped[p] || self.safe_state by {
+                assert(entry.mit_violations[p] == old(self).mit_violations[p]);
+            }
         }
         proof {
             assert forall|u: int| 0 <= u < NT implies
@@ -1629,16 +2187,43 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), i < NS, old(self).slots.slots[i as int].armed,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).mit_spaced(old(self), cfg), final(self).budget.only_reset_from(&old(self).budget),
+            // Property 7's link: the served slot's Periodic_Task has its
+            // Release served; every other Periodic_Task is kept.
+            final(self).periodic_env(old(self), cfg, i as int),
+            old(self).slots.slots[i as int].kind == SLOT_RELEASE
+                ==> final(self).periodic_release_served(old(self), cfg, old(self).slots.slots[i as int].task as int),
     {
         let slot = self.slots.slots[i];
         let t = slot.task;
+        proof {
+            // An armed release slot is its Periodic_Task's own (`inv`).
+            if slot.kind == SLOT_RELEASE {
+                assert((t as int) < NT && cfg.tasks[t as int].kind == KIND_PERIODIC);
+            } else {
+                Self::lemma_armed_other_kind(old(self), cfg, i as int);
+            }
+        }
         if slot.kind == SLOT_END {
             self.slots.disarm(i);
+            proof {
+                Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
+            }
             self.push_event(cfg, EV_OPERATING_END, 0xFF, 0xFF, 0, 0);
+            let ghost mid = *self;
+            proof {
+                Self::lemma_env_slots(old(self), &mid, cfg, i as int, i as int);
+            }
             self.enter_safe_state(cfg);
+            proof {
+                Self::lemma_kept_trans(old(self), &mid, self, cfg, i as int, -1);
+            }
         } else if slot.kind == SLOT_HOUSEKEEPING {
             let next = if self.now + HOUSEKEEPING_PERIOD > cfg.operating_duration { cfg.operating_duration } else { self.now + HOUSEKEEPING_PERIOD };
             self.slots.arm(i, next, SLOT_HOUSEKEEPING, 0xFF);
+            proof {
+                Self::lemma_consistent_arm_other(old(self), self, cfg, i as int);
+                Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
+            }
         } else if (t as usize) < NT {
             if slot.kind == SLOT_RELEASE {
                 self.periodic_release(cfg, t, i);
@@ -1652,22 +2237,41 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 // DD-06: the MIT window is over; Kernel_Arch re-enables the
                 // source from `masked` at the next `apply`.
                 self.slots.disarm(i);
+                proof {
+                    Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
+                }
                 self.timing.unmask(cfg, t);
+                proof {
+                    Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
+                }
             } else {
                 self.slots.disarm(i);
+                proof {
+                    Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
+                    Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
+                }
             }
         } else {
             self.slots.disarm(i);
+            proof {
+                Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
+                Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
+            }
         }
     }
 
     /// R9.1, R9.2, R9.7, R9.8: the nominal instant of Periodic_Task `t`
     /// arrived. The Release becomes pending unless one is already pending
     /// (discard with MIT_Violation), and the next nominal instant is armed.
+    #[verifier::rlimit(40)]
     fn periodic_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
+            old(self).slots.slots[i as int].armed, old(self).slots.slots[i as int].kind == SLOT_RELEASE,
+            old(self).slots.slots[i as int].task == t,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).periodic_env(old(self), cfg, i as int),
+            final(self).periodic_release_served(old(self), cfg, t as int),
             // A periodic Release never touches the MIT history.
             final(self).timing.has_last == old(self).timing.has_last,
             final(self).timing.last_due == old(self).timing.last_due,
@@ -1684,10 +2288,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             assert(cfg.slot_ok(t as int));
             assert(cfg.task_ok(t as int));
+            // The armed release slot is t's own (`inv`): t is periodic and i its slot.
+            assert(cfg.tasks[t as int].kind == KIND_PERIODIC);
+            assert((cfg.slot_release[t as int] as int) == i as int);
+            Self::lemma_release_slot_apart(cfg, t as int);
         }
         let partition = cfg.tasks[t as usize].partition;
         let nominal = self.timing.nominal[t as usize];
         if cfg.tasks[t as usize].kind != KIND_PERIODIC {
+            // Unreachable (above); kept as the executable guard.
+            proof {
+                assert(false);
+            }
             self.slots.disarm(i);
             return;
         }
@@ -1703,27 +2315,63 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.sched.make_pending(cfg, t);
                 self.timing.periodic_due(cfg, t, nominal);
                 let deadline = nominal + cfg.tasks[t as usize].deadline;
+                let ghost before = *self;
                 self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
                 proof {
+                    Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_deadline[t as int] as int);
                     self.lemma_release_match_kept(old(self), cfg, -1);
                     self.lemma_top_kept(old(self), cfg);
                 }
                 self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nominal as int));
+                proof {
+                    // The Release step is the last of the history, at the nominal instant.
+                    let k = old(self).history@.len() as int;
+                    assert(self.release_step(k, t as int));
+                    assert(self.history@[k].arg == nominal as int);
+                    assert(exists|k: int| old(self).history@.len() <= k < self.history@.len()
+                        && #[trigger] self.release_step(k, t as int) && self.history@[k].arg == nominal as int);
+                    // Every other Periodic_Task is kept: only t's deadline slot was armed.
+                    Self::lemma_env_slots(old(self), self, cfg, i as int, cfg.slot_deadline[t as int] as int);
+                }
             } else {
                 // R9.8: a Release is already pending; discard this one.
                 let ghost before = *self;
                 self.mit_violation(cfg, t, partition);
                 proof {
                     self.lemma_violation_keeps_timing(&before, cfg, partition as int, t as int);
+                    assert(before == *old(self));
                 }
+            }
+        } else {
+            proof {
+                Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
             }
         }
         let ghost v = *self;
+        proof {
+            assert(v.periodic_env(old(self), cfg, i as int));
+            assert(v.timing.k[t as int] == old(self).timing.k[t as int]);
+            assert(v.timing.nominal[t as int] == old(self).timing.nominal[t as int]);
+        }
         match self.timing.advance_periodic(cfg, t) {
-            Some(next) => { self.slots.arm(i, next, SLOT_RELEASE, t); }
-            None => { self.slots.disarm(i); }
+            Some(next) => {
+                self.slots.arm(i, next, SLOT_RELEASE, t);
+                proof {
+                    Self::lemma_consistent_arm_release(&v, self, cfg, t as int);
+                }
+            }
+            None => {
+                self.slots.disarm(i);
+                proof {
+                    Self::lemma_consistent_disarm(&v, self, cfg, i as int);
+                }
+            }
         }
         proof {
+            Self::lemma_env_slots(&v, self, cfg, i as int, i as int);
+            Self::lemma_kept_trans(old(self), &v, self, cfg, i as int, i as int);
+            assert(self.history@ == v.history@);
+            Self::lemma_served_after_advance(old(self), &v, self, cfg, t as int, i as int);
             if old(self).periodic_discards(cfg, t as int) {
                 assert(v.violation_applied(old(self), cfg, partition as int, t as int)
                     && self.sched == v.sched && self.budget == v.budget && self.flags_eq(&v));
@@ -1736,6 +2384,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).budget == old(self).budget,
+            final(self).periodic_env(old(self), cfg, i as int),
             // R10.2: the deferred Release becomes due, and pending, exactly one
             // MIT after the previous accepted Release, which it then replaces
             // as the previous accepted due instant.
@@ -1761,28 +2410,57 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             assert(cfg.slot_ok(t as int));
             assert(cfg.task_ok(t as int));
+            Self::lemma_release_slot_apart(cfg, t as int);
         }
         self.slots.disarm(i);
+        proof {
+            Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
+        }
         let partition = cfg.tasks[t as usize].partition;
         if self.stopped[partition as usize] || self.sched.release[t as usize] != REL_DEFERRED {
+            proof {
+                Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
+            }
             return;
+        }
+        proof {
+            // A deferred Release is a Sporadic_Task's (`inv`): no Periodic_Task is t.
+            assert(cfg.tasks[t as int].kind == KIND_SPORADIC);
         }
         let at = self.timing.deferred_until[t as usize];
         if at + cfg.tasks[t as usize].deadline > cfg.operating_duration {
             // R9.9: cannot complete within the operating duration.
             self.sched.clear_release(cfg, t);
+            proof {
+                assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != i as int
+                    implies self.periodic_kept(old(self), cfg, u) by {
+                    assert(cfg.slot_ok(u));
+                    assert(u != t as int);
+                }
+                assert(self.periodic_env(old(self), cfg, i as int));
+            }
             return;
         }
         self.timing.deferred_due_clamped(cfg, t, at);
         self.sched.make_pending(cfg, t);
         let deadline = at + cfg.tasks[t as usize].deadline;
+        let ghost before = *self;
         self.slots.arm(cfg.slot_deadline[t as usize] as usize, deadline, SLOT_DEADLINE, t);
         proof {
+            Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_deadline[t as int] as int);
             self.lemma_release_match_kept(old(self), cfg, t as int);
             self.lemma_release_spaced(old(self), cfg, t as int, at as int);
             self.lemma_top_kept(old(self), cfg);
         }
         self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(at as int));
+        proof {
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != i as int
+                implies self.periodic_kept(old(self), cfg, u) by {
+                assert(cfg.slot_ok(u));
+                assert(u != t as int);
+            }
+            assert(self.periodic_env(old(self), cfg, i as int));
+        }
     }
 
     /// R9.6: the absolute deadline of a Release passed while its Job had
@@ -1791,18 +2469,24 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).periodic_env(old(self), cfg, i as int),
     {
         self.slots.disarm(i);
         proof {
             assert(cfg.task_ok(t as int));
+            Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
         }
         let partition = cfg.tasks[t as usize].partition;
         self.push_event(cfg, EV_DEADLINE_MISS, t, partition, PRS_BUDGET, 0);
         let ghost before = *self;
+        proof {
+            Self::lemma_env_slots(old(self), &before, cfg, i as int, i as int);
+        }
         let response = cfg.partitions[partition as usize].deadline_response;
         self.apply_response(cfg, partition, response, EV_DEADLINE_MISS, t);
         proof {
             self.lemma_response_keeps_timing(&before, cfg, partition as int, response, t as int);
+            Self::lemma_kept_trans(old(self), &before, self, cfg, i as int, -1);
         }
     }
 
@@ -1821,8 +2505,13 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
             // R18.1: the event judges and responds; it charges nothing.
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).periodic_env(old(self), cfg, i as int),
     {
         self.slots.disarm(i);
+        proof {
+            Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
+            Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
+        }
         if self.sched.depth == 0 || self.sched.stack[self.sched.depth - 1] != t {
             return;
         }
@@ -1841,13 +2530,21 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             let partition = cfg.tasks[t as usize].partition;
             self.push_event(cfg, EV_OVERRUN, t, partition, PRS_BUDGET, self.budget.used[t as usize]);
             let ghost before = *self;
+            proof {
+                Self::lemma_env_slots(old(self), &before, cfg, i as int, i as int);
+            }
             let response = cfg.partitions[partition as usize].overrun_response;
             self.apply_response(cfg, partition, response, EV_OVERRUN, t);
             proof {
                 self.lemma_response_keeps_timing(&before, cfg, partition as int, response, t as int);
+                Self::lemma_kept_trans(old(self), &before, self, cfg, i as int, -1);
             }
         } else {
             self.arm_budget(cfg, t);
+            proof {
+                Self::lemma_release_slot_apart(cfg, t as int);
+                Self::lemma_env_slots(old(self), self, cfg, i as int, cfg.slot_budget[t as int] as int);
+            }
         }
     }
 
@@ -1901,8 +2598,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // response resets its Tasks' accounts (an ended Job's account
             // is otherwise reset by its Task's next dispatch).
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).periodic_env(old(self), cfg, -1),
     {
         if response == RESP_RECORD_ONLY || response == RESP_RECORD_AND_CONTINUE {
+            proof {
+                Self::lemma_env_slots(old(self), self, cfg, -1, -1);
+            }
             return;
         }
         if response == RESP_END_JOB {
@@ -1915,9 +2616,13 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     if holds_nothing {
                         self.push_event(cfg, EV_END_JOB, t, partition, 0, cause as u32);
                         let ghost mid = *self;
+                        proof {
+                            Self::lemma_env_slots(old(self), &mid, cfg, -1, -1);
+                        }
                         self.end_top(cfg);
                         proof {
                             self.lemma_others_same_but_log(&mid, old(self), cfg, cfg.tasks[t as int].partition as int);
+                            Self::lemma_kept_trans(old(self), &mid, self, cfg, -1, -1);
                         }
                         return;
                     }
@@ -1967,13 +2672,22 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if released > 0 {
             self.push_event(cfg, EV_RESOURCE_RELEASED, t, cfg.tasks[t as usize].partition, 1u64 << 7, released as u32);
         }
+        let ghost b1 = *self;
         self.slots.disarm(cfg.slot_budget[t as usize] as usize);
+        proof {
+            Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
+        }
+        let ghost b2 = *self;
         self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
+        proof {
+            Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_deadline[t as int] as int);
+        }
     }
 
     fn end_top(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).periodic_env(old(self), cfg, -1),
             // `Sched::end_job` lifted (Property 6, R8.9).
             final(self).ended_top(old(self), cfg),
             final(self).flags_eq(old(self)),
@@ -1987,6 +2701,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(cfg.task_ok(t as int));
         }
         self.end_top_release(cfg);
+        let ghost m = *self;
         if self.sched.depth > 0 {
             let resumed = self.sched.stack[self.sched.depth - 1];
             proof {
@@ -1995,6 +2710,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.arm_budget(cfg, resumed);
         }
         proof {
+            // The slots touched are t's Budget and deadline slots and the
+            // resumed Job's Budget slot: no Periodic_Task's release slot.
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+                implies self.periodic_kept(old(self), cfg, u) by {
+                assert(cfg.slot_ok(u));
+                Self::lemma_release_slot_apart(cfg, t as int);
+                if m.sched.depth > 0 {
+                    Self::lemma_release_slot_apart(cfg, m.sched.top());
+                }
+                assert(m.slots.slots[cfg.slot_release[u] as int] == old(self).slots.slots[cfg.slot_release[u] as int]);
+            }
+            assert(self.periodic_env(old(self), cfg, -1));
             let pt = cfg.tasks[t as int].partition as int;
             // Every other Partition's Task keeps its slots: the ones touched
             // here are t's Budget and deadline slots and the resumed Job's
@@ -2042,7 +2769,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).sched.lock_res == old(self).sched.lock_res, final(self).sched.lock_depth == old(self).sched.lock_depth,
             final(self).sched.start_ceiling == old(self).sched.start_ceiling,
             final(self).timing == old(self).timing, final(self).slots == old(self).slots, final(self).budget == old(self).budget,
-            final(self).log == old(self).log, final(self).flags_eq(old(self)),
+            final(self).log == old(self).log, final(self).flags_eq(old(self)), final(self).now == old(self).now,
     {
         let u = self.sched.stack[i];
         self.sched.kill(cfg, i);
@@ -2081,6 +2808,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn kill_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).periodic_env(old(self), cfg, -1),
             final(self).budget == old(self).budget,
             forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> final(self).sched.job[u] != JOB_RUNNING,
             final(self).others_unchanged(old(self), cfg, partition as int),
@@ -2093,7 +2821,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 forall|j: int| 0 <= j < i && cfg.tasks[self.sched.stack[j] as int].partition == partition
                     ==> self.sched.job[self.sched.stack[j] as int] != JOB_RUNNING,
                 self.others_unchanged(old(self), cfg, partition as int),
-                self.timing == old(self).timing, self.budget == old(self).budget,
+                self.timing == old(self).timing, self.budget == old(self).budget, self.slots == old(self).slots,
+                self.sched.release == old(self).sched.release,
+                self.stopped == old(self).stopped, self.reinit_partition == old(self).reinit_partition,
+                self.safe_state == old(self).safe_state, self.mit_violations == old(self).mit_violations,
+                self.now == old(self).now,
                 self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases self.sched.depth - i,
         {
@@ -2109,6 +2841,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             i = i + 1;
         }
         proof {
+            Self::lemma_env_slots(old(self), self, cfg, -1, -1);
             // Every Job of the Partition in progress is on the stack, so it was
             // reached by the loop.
             assert forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition
@@ -2129,6 +2862,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (partition as int) < NP,
             forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> old(self).sched.job[u] != JOB_RUNNING,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).stop_dma[partition as int],
@@ -2143,26 +2877,40 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 forall|u: int| 0 <= u < t && cfg.tasks[u].partition == partition ==> self.sched.release[u] == REL_NONE,
                 self.others_unchanged(old(self), cfg, partition as int),
                 self.timing == old(self).timing, self.budget.only_reset_from(&old(self).budget),
+                self.periodic_env(old(self), cfg, -1),
                 self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases NT - t,
         {
             if cfg.tasks[t].partition == partition {
+                let ghost b = *self;
                 proof {
                     assert(cfg.slot_ok(t as int));
                     assert(cfg.task_ok(t as int));
+                    Self::lemma_release_slot_apart(cfg, t as int);
                 }
                 self.sched.clear_release(cfg, t as u8);
+                let ghost b1 = *self;
                 if cfg.tasks[t].kind == KIND_SPORADIC && self.timing.masked[t] {
                     // A masked source keeps an unmask event (on the deadline
                     // slot, whose deadline is cleared with the Release) so that
                     // the MIT window still ends (DD-06; R14.5 keeps the MIT state).
                     let at = self.unmask_instant(cfg, t as u8);
                     self.slots.arm(cfg.slot_deadline[t] as usize, at, SLOT_UNMASK, t as u8);
+                    proof {
+                        Self::lemma_consistent_arm_other(&b1, self, cfg, cfg.slot_deadline[t as int] as int);
+                    }
                 } else {
                     self.slots.disarm(cfg.slot_deadline[t] as usize);
+                    proof {
+                        Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_deadline[t as int] as int);
+                    }
                 }
+                let ghost b2 = *self;
                 if cfg.tasks[t].kind == KIND_SPORADIC && cfg.tasks[t].mit_policy == MIT_DEFER {
                     self.slots.disarm(cfg.slot_release[t] as usize);
+                    proof {
+                        Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_release[t as int] as int);
+                    }
                 }
                 self.budget.reset(t as u8);
                 proof {
@@ -2172,6 +2920,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                         implies self.task_unchanged(old(self), cfg, u) by {
                         Self::lemma_slots_apart(cfg, t as int, u);
                     }
+                    // No Periodic_Task's release slot was touched (a Periodic_Task's
+                    // Release cleared here stays cleared), so every one is kept.
+                    assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+                        implies self.periodic_kept(&b, cfg, u) by {
+                        assert(cfg.slot_ok(u));
+                        if cfg.tasks[t as int].kind == KIND_SPORADIC {
+                            assert(u != t as int);
+                        }
+                    }
+                    assert(self.periodic_env(&b, cfg, -1));
+                    Self::lemma_kept_trans(old(self), &b, self, cfg, -1, -1);
                 }
             }
             t = t + 1;
@@ -2185,6 +2944,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn end_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).stop_dma[partition as int],
@@ -2204,20 +2964,28 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
         let ghost m1 = *self;
         assert(m1.others_unchanged(old(self), cfg, partition as int));
+        proof {
+            if !(old(self).sched.depth > 0 && cfg.tasks[old(self).sched.top()].partition == partition) {
+                Self::lemma_env_slots(old(self), &m1, cfg, -1, -1);
+            }
+        }
         self.kill_partition_jobs(cfg, partition);
         proof {
             self.lemma_others_unchanged_trans(&m1, old(self), cfg, partition as int);
+            Self::lemma_kept_trans(old(self), &m1, self, cfg, -1, -1);
         }
         let ghost m2 = *self;
         self.clear_partition_releases(cfg, partition);
         proof {
             self.lemma_others_unchanged_trans(&m2, old(self), cfg, partition as int);
+            Self::lemma_kept_trans(old(self), &m2, self, cfg, -1, -1);
         }
     }
 
     fn restart_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).reinit_partition[partition as int], final(self).stop_dma[partition as int],
@@ -2227,17 +2995,28 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     {
         self.push_event(cfg, EV_PARTITION_RESTART, 0xFF, partition, 0, cause as u32);
         let ghost mid = *self;
+        proof {
+            Self::lemma_env_slots(old(self), &mid, cfg, -1, -1);
+        }
         self.end_partition_jobs(cfg, partition);
+        let ghost m2 = *self;
         self.mit_violations[partition as usize] = 0;
         self.reinit_partition[partition as usize] = true;
         proof {
             self.lemma_others_same_but_log(&mid, old(self), cfg, partition as int);
+            // The count reset is covered by the re-initialization requested.
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+                implies self.periodic_kept(&m2, cfg, u) by {}
+            assert(self.periodic_env(&m2, cfg, -1));
+            Self::lemma_kept_trans(old(self), &mid, &m2, cfg, -1, -1);
+            Self::lemma_kept_trans(old(self), &m2, self, cfg, -1, -1);
         }
     }
 
     fn stop_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).stopped[partition as int],
+            final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).partition_ended(cfg, partition as int), final(self).stop_dma[partition as int],
             final(self).others_unchanged(old(self), cfg, partition as int),
@@ -2245,10 +3024,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     {
         self.push_event(cfg, EV_PARTITION_STOP, 0xFF, partition, 0, cause as u32);
         let ghost mid = *self;
+        proof {
+            Self::lemma_env_slots(old(self), &mid, cfg, -1, -1);
+        }
         self.end_partition_jobs(cfg, partition);
+        let ghost m2 = *self;
         self.stopped[partition as usize] = true;
         proof {
             self.lemma_others_same_but_log(&mid, old(self), cfg, partition as int);
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+                implies self.periodic_kept(&m2, cfg, u) by {}
+            assert(self.periodic_env(&m2, cfg, -1));
+            Self::lemma_kept_trans(old(self), &mid, &m2, cfg, -1, -1);
+            Self::lemma_kept_trans(old(self), &m2, self, cfg, -1, -1);
         }
     }
 
@@ -2257,6 +3045,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     pub fn enter_safe_state(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg),
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).safe_state,
+            final(self).periodic_env(old(self), cfg, -1),
             // No Release stays pending or deferred; the Jobs in progress and
             // the lock stack are untouched (Kernel_Arch applies the outputs).
             final(self).no_release(), final(self).jobs_eq(old(self)),
@@ -2275,11 +3064,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.started == old(self).started, self.stopped == old(self).stopped,
                 self.budget == old(self).budget, self.slots == old(self).slots,
                 self.timing == old(self).timing,
+                self.reinit_partition == old(self).reinit_partition, self.mit_violations == old(self).mit_violations,
+                self.now == old(self).now,
                 forall|u: int| 0 <= u < t ==> self.sched.release[u] == REL_NONE,
             decreases NT - t,
         {
             self.sched.clear_release(cfg, t as u8);
             t = t + 1;
+        }
+        proof {
+            assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != -1
+                implies self.periodic_kept(old(self), cfg, u) by {}
+            assert(self.periodic_env(old(self), cfg, -1));
         }
     }
 

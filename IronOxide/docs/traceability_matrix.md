@@ -131,7 +131,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R9.2 | — | — | ✓4.5 | crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/sched.rs; +1 | — |
 | R9.3 | P-07 | Ceiling-Protocol State Machine; Property 7 | ✓4.5 | crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs | proof-kernel-verus |
 | R9.4 | P-09 | Generated_Config; Kernel logic and Kernel_Arch (Component B); Property 11 | ✓4.5 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/derive.rs; +5 | proof-kernel-verus |
-| R9.5 | P-07 | Property 7 | ✓4.5 | crates/rsk-gen/src/validate.rs; crates/rsk-hil/src/release_timing.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; +3 | — |
+| R9.5 | P-07 | Property 7 | ✓4.5 | crates/rsk-gen/src/validate.rs; crates/rsk-hil/src/release_timing.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; +4 | — |
 | R9.6 | — | Requirements Impact | ✓4.5 | crates/rsk-hil/src/release_timing.rs; crates/rsk-hil/src/response.rs; crates/rsk-logic/src/logic/kani_harness.rs; +2 | proof-kernel-kani |
 | R9.7 | P-08 | Priority and privilege model (DD-01, DD-02); Property 8; Reuse and Deviation Record | ✓4.5 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +7 | proof-kernel-kani |
 | R9.8 | P-08 | Ceiling-Protocol State Machine; Property 8 | ✓4.5 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +5 | — |

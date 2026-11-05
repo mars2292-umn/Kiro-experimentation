@@ -17,7 +17,7 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
 | responses under the storm | pass | 11949 response edges inside the run (target counted 11949) against 12001 MIT windows; 0 stimulus rises on the mirror |
-| dispatch timeline | pass | Tasks executing 40.2 % of the run, the Kernel 44.9 % over 1369968 entries; runs per Task [18053, 6004, 20998, 7741, 12009, 7365, 1811] |
+| dispatch timeline | pass | Tasks executing 40.2 % of the run, the Kernel 45.0 % over 1370160 entries; runs per Task [18041, 6005, 20997, 7741, 12009, 7363, 1810] |
 | agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 22816 cycles (0.356 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 22400 cycles (0.350 ms at 100000 samples/s) |
 
 ## The Kernel's release-timing record
@@ -103,14 +103,14 @@ The last recorded Releases (Task, nominal instant, lag):
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 313325 | 18053 | 0.350 |
-| 1 | 22632 | 6004 | 0.140 |
-| 2 | 5663552 | 20998 | 6.260 |
-| 3 | 1719569 | 7741 | 4.830 |
-| 4 | 44985 | 12009 | 0.130 |
-| 5 | 324000 | 7365 | 0.890 |
-| 6 | 59371 | 1811 | 0.610 |
-| none | 12112406 | 42979 | 15395.540 |
+| 0 | 313335 | 18041 | 0.350 |
+| 1 | 22620 | 6005 | 0.140 |
+| 2 | 5663545 | 20997 | 6.260 |
+| 3 | 1719557 | 7741 | 4.830 |
+| 4 | 45076 | 12009 | 0.130 |
+| 5 | 324011 | 7363 | 0.890 |
+| 6 | 59365 | 1810 | 0.610 |
+| none | 12116427 | 42979 | 15414.700 |
 
 ## Commands
 
@@ -334,5 +334,5 @@ expected_sensor=9000
 part0_events=0
 RSK-OK
 Firmware exited successfully
-     Finished in 7.05s
+     Finished in 7.07s
 ```
