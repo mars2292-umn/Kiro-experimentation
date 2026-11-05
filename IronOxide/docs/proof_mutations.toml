@@ -212,3 +212,12 @@ find = "        if p < base + self.stack_size as u64 || p + l > base + size {\n"
 replace = "        if p < base || p + l > base + size {\n"
 expect = ["mpu.rs", "dma_permitted"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "periodic-release-not-recorded"
+kills = "periodic_release_served (Property 7's link, R9.1): a nominal instant that is due with no Release pending must put a Release step at that instant into the history; 2026-11-05"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "                self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nominal as int));\n"
+replace = "                // (mutant) the Release step is not recorded\n"
+expect = ["kernel.rs", "release_step(k, t as int)"]
+package = "rsk-logic"
