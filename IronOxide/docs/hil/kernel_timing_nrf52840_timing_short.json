@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:8be25349928909f04888d09e54ab1806e70a7c1c61ff001b9f6dff073437c830",
+  "binary_hash": "sha256:22f54c7296cf7ef10cfe57b2a83a2a1acff8bc86cd59eeb9ba79e7de89bd8edf",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 7259,
+      "cycles": 9387,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -16,7 +16,178 @@
       ],
       "measured": {
         "runs": 40487,
-        "max_observed": 5807,
+        "max_observed": 7509,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dispatch",
+      "cycles": 3412,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 56490,
+        "max_observed": 2729,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_timer",
+      "cycles": 5697,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 52323,
+        "max_observed": 4557,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_detect",
+      "cycles": 5697,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 52323,
+        "max_observed": 4557,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_in",
+      "cycles": 557,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one lock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 71976,
+        "max_observed": 445,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_out",
+      "cycles": 2260,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 71976,
+        "max_observed": 1808,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_complete",
+      "cycles": 4074,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 56490,
+        "max_observed": 3259,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_svc",
+      "cycles": 285,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 14332203,
+        "max_observed": 228,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dma_write",
+      "cycles": 882,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one EasyDMA request SVC, validation and the register writes (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 1800,
+        "max_observed": 705,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_timing_short (180 s)"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_enforce",
+      "cycles": 3837,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 8,
+        "max_observed": 3069,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
