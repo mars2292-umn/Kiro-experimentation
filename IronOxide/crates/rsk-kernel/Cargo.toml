@@ -45,6 +45,10 @@ debug-port = []
 # Task-side register probes of the rsk `hw_dt` API. HIL builds only; never
 # a Flight_Build feature.
 hw-dt = []
+# The boot-check suite's mutation word (task 7.2, R12.6): one check of
+# Requirement 12 made to fail per run, as the HIL_Rig requests over the
+# probe. HIL builds only; never a Flight_Build feature.
+boot-mutation = []
 
 # Verified by `cargo verus verify` (R44.6; xtask step "Kernel_Proofs").
 [package.metadata.verus]

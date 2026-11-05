@@ -342,8 +342,21 @@ pub fn scan(g: &CallGraph, facts: &Facts, inputs: &ScanInputs, violations: &mut 
         for addr in &f.nops {
             violations.push(Violation { rule: "ORQ-32", message: format!("naked stub `{}` contains a nop at 0x{addr:08x}: the assembler's silent replacement of a cross-section cbz/cbnz", f.name) });
         }
+        // Erratum 838869 (r0p0, r0p1; R11.6, DD-01): a store buffered at an
+        // exception return can vector the next interrupt wrongly; the
+        // workaround is a DSB before every exception return, which every
+        // naked stub's `bx` must have immediately before it (a `cpsie`
+        // between is no store).
+        if f.name.ends_with("_rust") {
+            // The Rust halves return to their stubs, not from an exception.
+            continue;
+        }
+        for addr in &f.returns_without_dsb {
+            violations.push(Violation { rule: "ERR-838869", message: format!("naked stub `{}` returns at 0x{addr:08x} without a dsb immediately before it (erratum 838869 workaround, R11.6)", f.name) });
+        }
     }
     notes.push(format!("ORQ-32: {stubs} naked stubs disassembled, no cross-section cbz/cbnz and no nop"));
+    notes.push(format!("ERR-838869: every exception return of the {stubs} naked stubs is preceded by a dsb (R11.6); ERR-752770: no Kernel function loads SP from memory (every SP write is an immediate or a push/pop)"));
 
     // --- Symbol checks: allocator, unwinding, panic handler, vstd, crates.
     let mut crates: BTreeSet<String> = BTreeSet::new();
@@ -487,7 +500,7 @@ mod tests {
 
     /// A graph of hand-built functions with their realms: `(name, realm, callees' addresses)`.
     fn fixture(funcs: Vec<(&str, Realm, Vec<u32>)>) -> (CallGraph, Vec<Function>, Vec<Realm>) {
-        let functions: Vec<Function> = funcs.iter().enumerate().map(|(i, (name, _, direct))| Function { name: name.to_string(), address: 0x100 * (i as u32 + 1), size: 4, frame: 8, dynamic_sp: false, direct: direct.clone(), indirect_sites: 0, indirect_branches: 0, materialised: vec![], svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![] }).collect();
+        let functions: Vec<Function> = funcs.iter().enumerate().map(|(i, (name, _, direct))| Function { name: name.to_string(), address: 0x100 * (i as u32 + 1), size: 4, frame: 8, dynamic_sp: false, direct: direct.clone(), indirect_sites: 0, indirect_branches: 0, materialised: vec![], svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] }).collect();
         let realm = funcs.iter().map(|f| f.1).collect();
         (CallGraph::from_functions(functions.clone()), functions, realm)
     }
@@ -559,6 +572,18 @@ mod tests {
         let rules: Vec<&str> = v.iter().map(|x| x.rule).collect();
         assert_eq!(rules, vec!["R16.3", "PR-22", "PR-22", "PR-22"], "{v:?}");
         assert!(v[3].message.contains("0xe000ed08"));
+    }
+
+    /// ERR-838869: a naked stub's exception return without a DSB before it
+    /// is reported (R11.6).
+    #[test]
+    fn a_stub_return_without_dsb_is_reported() {
+        let (_, mut f, r) = fixture(vec![("rsk_irq_entry", Realm::Kernel, vec![]), ("rsk_irq_entry_rust", Realm::Kernel, vec![])]);
+        f[0].returns_without_dsb = vec![0x104];
+        f[1].returns_without_dsb = vec![0x204];
+        let v = scan_fixture(f, r, vec![], vec![0], &[HANDLER], &[], CORE);
+        assert_eq!(v.iter().map(|x| x.rule).collect::<Vec<_>>(), vec!["ERR-838869"], "{v:?}");
+        assert!(v[0].message.contains("rsk_irq_entry` returns at 0x00000104"));
     }
 
     /// PR-18: an indirect call site in Kernel code is reported, naming the

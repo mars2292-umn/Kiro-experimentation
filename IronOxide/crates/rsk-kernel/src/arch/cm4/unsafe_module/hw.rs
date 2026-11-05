@@ -338,6 +338,11 @@ pub fn fault_status() -> (u32, u32) {
 /// `loop { safe_state_idle() }` beside the idle loop as the two unbounded
 /// loops (PR-16); the QEMU board has no watchdog.
 pub fn safe_state_idle() {
+    #[cfg(all(not(feature = "board-qemu-mps2"), feature = "boot-mutation"))]
+    if super::boot_mutation() == crate::arch::cm4::MUT_WATCHDOG {
+        wait_for_interrupt();
+        return;
+    }
     #[cfg(not(feature = "board-qemu-mps2"))]
     watchdog_feed();
     wait_for_interrupt();
@@ -543,10 +548,16 @@ pub fn boot_info() -> u32 {
     }
     #[cfg(not(feature = "board-qemu-mps2"))]
     {
+        // nRF52840 anomaly 136 (task 3.4): after a pin reset, bits other
+        // than RESETPIN may be set too; they are then ignored, and the
+        // register is cleared in every case so that the next reset reports
+        // its own reason.
         let reasons = mmio_read(addr::NRF_RESETREAS);
-        if reasons & (1 << 1) != 0 {
+        if reasons & 1 == 0 && reasons & (1 << 1) != 0 {
             info |= BOOT_INFO_WATCHDOG_RESET;
-            mmio_write(addr::NRF_RESETREAS, 1 << 1);
+        }
+        if reasons != 0 {
+            mmio_write(addr::NRF_RESETREAS, reasons);
         }
     }
     info

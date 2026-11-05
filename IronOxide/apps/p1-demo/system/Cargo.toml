@@ -25,6 +25,8 @@ stress-short = ["nrf52840", "p1-demo-decl/nrf52840_stress_short", "p1-demo-part1
 isolation = ["nrf52840", "hw-dt", "p1-demo-decl/nrf52840_isolation", "p1-demo-part0/isolation", "p1-demo-part1/isolation", "p1-demo-part2/isolation"]
 # HIL builds: the Hardware_Model differential tests (task 3.3).
 hw-dt = ["rsk-kernel/hw-dt", "rsk/hw-dt"]
+# HIL builds: the boot-check suite's mutation word (task 7.2).
+boot-mutation = ["rsk-kernel/boot-mutation"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-kernel/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.

@@ -22,6 +22,8 @@
 //!   injection, R18.8, R19.3).
 //! - [`response`]: the response suite (task 7.5, R14.11): one injected
 //!   fault per response of R14.5, judged from the event mirror.
+//! - [`boot_checks`]: the boot-check suite (task 7.2, R12.6): one run per
+//!   mutated check, judged from the target's report.
 //! - [`faults`]: the Kernel's fault record (CFSR and address per fault).
 //! - [`isolation`]: the isolation suite (task 7.4): the MPU access matrix
 //!   (R16.8) and the EasyDMA cases (R17.7), judged from the event mirror,
@@ -36,6 +38,7 @@
 #![forbid(unsafe_code)]
 
 pub mod board;
+pub mod boot_checks;
 pub mod capture;
 pub mod config;
 pub mod dt;

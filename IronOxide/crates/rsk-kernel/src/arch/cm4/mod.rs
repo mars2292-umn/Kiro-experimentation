@@ -186,12 +186,24 @@ impl<S: System> Tables for SysTables<S> {
         S::task_entry(t) as usize as u32
     }
     fn irq_count(&self) -> u16 {
+        #[cfg(feature = "boot-mutation")]
+        if unsafe_module::boot_mutation() == MUT_IRQ_COUNT {
+            return 600;
+        }
         S::IRQ_COUNT
     }
     fn config_checksum(&self) -> u32 {
+        #[cfg(feature = "boot-mutation")]
+        if unsafe_module::boot_mutation() == MUT_CONFIG_CHECKSUM {
+            return S::CONFIG_CHECKSUM ^ 1;
+        }
         S::CONFIG_CHECKSUM
     }
     fn layout_checksum(&self) -> u32 {
+        #[cfg(feature = "boot-mutation")]
+        if unsafe_module::boot_mutation() == MUT_LAYOUT_CHECKSUM {
+            return S::LAYOUT_CHECKSUM ^ 1;
+        }
         S::LAYOUT_CHECKSUM
     }
     fn timer_vector(&self) -> u16 {
@@ -201,7 +213,16 @@ impl<S: System> Tables for SysTables<S> {
         S::PRIORITY_BITS
     }
     fn boot_expect(&self) -> plan::BootExpect {
-        plan::BootExpect { priority_bits: S::PRIORITY_BITS, cpuid: S::CPUID, hfclk_xtal: S::HFCLK_XTAL, fpu_needed: S::FPU_NEEDED }
+        #[allow(unused_mut)]
+        let mut e = plan::BootExpect { priority_bits: S::PRIORITY_BITS, cpuid: S::CPUID, hfclk_xtal: S::HFCLK_XTAL, fpu_needed: S::FPU_NEEDED };
+        #[cfg(feature = "boot-mutation")]
+        match unsafe_module::boot_mutation() {
+            MUT_CPUID => e.cpuid ^= 1,
+            MUT_PRIORITY_BITS => e.priority_bits = 8,
+            MUT_HFCLK => e.hfclk_xtal = !e.hfclk_xtal,
+            _ => {}
+        }
+        e
     }
     fn tick_hz(&self) -> u64 {
         S::TICK_HZ
@@ -227,6 +248,56 @@ impl<S: System> Tables for SysTables<S> {
 
 /// Boot (R12.4): `false` when a boot check fails (R12.1, R12.2); the caller
 /// enters the safe state.
+/// The boot-check suite's mutations (feature `boot-mutation`, HIL builds
+/// only; task 7.2, R12.6), selected by the word the rig writes into
+/// `BOOT_MUTATION` before the run. Each makes exactly one check fail:
+/// a recorded value that differs from the Target's (the CPUID, the
+/// priority bits, the clock source, the two checksums, the interrupt-line
+/// count), a table corrupted in memory (a Task's Budget in the Kernel's
+/// `Config` copy, so the computed checksum differs from the recorded
+/// one), a register state the check rejects (PRIGROUP, the instruction
+/// cache enabled before the check), and the watchdog never fed (the
+/// reset's next boot fails the watchdog check).
+#[cfg(feature = "boot-mutation")]
+pub const MUT_CPUID: u32 = 1;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_PRIORITY_BITS: u32 = 2;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_HFCLK: u32 = 3;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_PRIGROUP: u32 = 4;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_ICACHE: u32 = 5;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_CONFIG_CHECKSUM: u32 = 6;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_CONFIG_TABLE: u32 = 7;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_LAYOUT_CHECKSUM: u32 = 8;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_IRQ_COUNT: u32 = 9;
+#[cfg(feature = "boot-mutation")]
+pub const MUT_WATCHDOG: u32 = 10;
+
+/// Applies the mutations that act before the checks: the register states
+/// and the table corruption.
+#[cfg(feature = "boot-mutation")]
+fn boot_mutation<S: System>(k: &mut S::K) {
+    match unsafe_module::boot_mutation() {
+        MUT_PRIGROUP => {
+            // AIRCR.PRIGROUP = 5 (VECTKEY 0x05FA): not the reset value the check requires.
+            let v = hw::mmio_read(unsafe_module::hw::addr::AIRCR) & 0x0000_F8FF;
+            hw::mmio_write(unsafe_module::hw::addr::AIRCR, (0x05FA << 16) | v | (5 << 8));
+        }
+        MUT_ICACHE => {
+            #[cfg(not(feature = "board-qemu-mps2"))]
+            hw::mmio_write(unsafe_module::hw::addr::NRF_ICACHECNF, 1);
+        }
+        MUT_CONFIG_TABLE => k.corrupt_config_for_test(),
+        _ => {}
+    }
+}
+
 pub fn boot<S: System>() -> bool {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
@@ -234,6 +305,8 @@ pub fn boot<S: System>() -> bool {
     // Kernel configures anything.
     #[cfg(feature = "hw-dt")]
     unsafe_module::dt::early();
+    #[cfg(feature = "boot-mutation")]
+    boot_mutation::<S>(k);
     let ok = entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     mirror_events(k);
     ok
@@ -699,9 +772,14 @@ mod tests {
         assert_eq!(hw::boot_info(), 0);
         sim::write(hw::addr::DHCSR, 1);
         assert_eq!(hw::boot_info(), hw::BOOT_INFO_DEBUGGER);
-        sim::write(hw::addr::NRF_RESETREAS, (1 << 1) | 1);
+        sim::write(hw::addr::NRF_RESETREAS, (1 << 1) | (1 << 2));
         assert_eq!(hw::boot_info(), hw::BOOT_INFO_DEBUGGER | hw::BOOT_INFO_WATCHDOG_RESET);
-        assert_eq!(sim::read(hw::addr::NRF_RESETREAS), 1 << 1, "the DOG bit was written to clear it");
+        assert_eq!(sim::read(hw::addr::NRF_RESETREAS), (1 << 1) | (1 << 2), "every set bit was written to clear it");
+        // nRF52840 anomaly 136 (task 3.4): with RESETPIN set the other bits
+        // are not trusted; the register is still cleared.
+        sim::write(hw::addr::NRF_RESETREAS, (1 << 1) | 1);
+        assert_eq!(hw::boot_info(), hw::BOOT_INFO_DEBUGGER, "DOG beside RESETPIN is ignored (anomaly 136)");
+        assert_eq!(sim::read(hw::addr::NRF_RESETREAS), (1 << 1) | 1);
     }
 
     /// ORQ-31, task 5.3: the watchdog is started with the reload value,

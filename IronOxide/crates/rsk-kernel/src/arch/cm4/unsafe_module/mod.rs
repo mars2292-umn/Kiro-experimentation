@@ -36,6 +36,35 @@ pub mod kani;
 #[cfg(feature = "hw-dt")]
 pub mod dt;
 
+/// The boot-check suite's mutation word (feature `boot-mutation`, HIL
+/// builds only; task 7.2, R12.6): a word of RAM outside every region of
+/// the memory map (the top of the nRF52840's 256 KiB, above the 128 KiB
+/// the layout uses) that the HIL_Rig writes over the probe before a run,
+/// read by the trusted table accessors and the boot
+/// (`arch::cm4::boot_mutation`) to make one check of R12.1, R12.3, or
+/// R12.5 fail. 0 is no mutation. Outside the Kernel's RAM on purpose: the
+/// flashing algorithm probe-rs runs before the reset occupies the start
+/// of RAM, where a no-init word of the Kernel's was overwritten (seen on
+/// the first run of the suite, 2026-11-04); a word at the top of RAM
+/// survives the flashing and the reset. Never in a Flight_Build.
+#[cfg(feature = "boot-mutation")]
+pub const BOOT_MUTATION_ADDR: u32 = 0x2003_FFF0;
+
+/// The mutation the rig requested for this boot.
+#[cfg(feature = "boot-mutation")]
+pub fn boot_mutation() -> u32 {
+    #[cfg(all(target_arch = "arm", target_os = "none", not(feature = "board-qemu-mps2")))]
+    {
+        // SAFETY (UJ-048): a volatile word read of RAM outside every region
+        // of the layout, written only over the debug port. HIL builds only.
+        unsafe { core::ptr::read_volatile(BOOT_MUTATION_ADDR as usize as *const u32) }
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none", not(feature = "board-qemu-mps2"))))]
+    {
+        0
+    }
+}
+
 use core::cell::UnsafeCell;
 
 use super::ArchState;

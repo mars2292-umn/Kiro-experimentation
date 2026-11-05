@@ -276,6 +276,11 @@ pub trait KernelOps: Sized {
         ensures ok ==> self.valid();
     /// CRC-32 over the configuration tables in memory (R12.3).
     fn config_checksum(&self) -> u32;
+    /// The boot-check suite's table corruption (feature `boot-mutation`,
+    /// HIL builds only; task 7.2): one value of the `Config` copy in memory
+    /// changed, so that the computed checksum differs from the recorded one.
+    #[cfg(feature = "boot-mutation")]
+    fn corrupt_config_for_test(&mut self);
     /// CRC-32 over the `LAYOUT` in memory (R12.3, R26.4).
     fn layout_checksum(&self) -> u32;
     /// Replaces the `static` initializer's placeholder by the verified
@@ -459,6 +464,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn partition_count(&self) -> (n: usize) {
         NP
+    }
+
+    #[cfg(feature = "boot-mutation")]
+    #[verifier::external_body]
+    fn corrupt_config_for_test(&mut self) {
+        if NT > 0 {
+            self.cfg.tasks[0].budget = self.cfg.tasks[0].budget.wrapping_add(1);
+        }
     }
 
     fn config_checksum(&self) -> u32 {

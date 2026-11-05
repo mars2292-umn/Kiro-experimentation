@@ -626,6 +626,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let iso_cmds = hil_isolation(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-isolation-step", "HIL isolation suite step", &["R16.8", "R17.7", "R49.3"], iso_cmds);
 
+    // ------------------------------------------- 10b-hil'''. HIL boot-check suite
+    job.heading("HIL: boot-check suite, mismatched values and corrupted tables (task 7.2, hil-boot-checks)");
+    let bc_cmds = hil_boot_checks(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-boot-checks-step", "HIL boot-check suite step", &["R12.6"], bc_cmds);
+
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
     let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
@@ -1215,6 +1220,67 @@ fn hil_isolation(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir:
         if let Err(e) = store.write(&item) {
             report.error(Rule::Evidence, None, e);
         }
+    }
+    commands
+}
+
+/// The boot-check suite (task 7.2, R12.6): the HIL build with the
+/// `boot-mutation` feature, one run per mutated check, judged by
+/// `rsk_hil::boot_checks`. Evidence_Item `hil-boot-checks`. Skipped with a
+/// warning without a rig or its target.
+fn hil_boot_checks(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let Some(rig) = rig else { return vec![] };
+    let probes = match rsk_hil::probes::list() {
+        Ok(p) => p,
+        Err(e) => {
+            report.warn(format!("HIL boot-check suite: {e}; not run"));
+            return vec![];
+        }
+    };
+    if !probes.iter().any(|p| p.id == rig.target.serial) {
+        report.warn("HIL boot-check suite: the target board is not attached; not run".to_string());
+        return vec![];
+    }
+    let Some(bin) = ws.policy.qemu_spikes().next() else {
+        report.error(Rule::Step, None, "HIL boot-check suite: no QEMU spike Application to build");
+        return vec![];
+    };
+    let features = format!("{},boot-mutation", crate::hil::FEATURES);
+    let dir = target_dir.join("hil").join("boot-checks");
+    let Some(target) = crate::hil::build_with(ws, &bin, &features, &dir, Some(sandbox), report) else {
+        return vec![];
+    };
+    let work = dir.join("run");
+    let inputs = rsk_hil::boot_checks::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 40, counters: crate::hil::COUNTERS };
+    let out = rsk_hil::boot_checks::run(&inputs);
+    let text = rsk_hil::boot_checks::render(rig, &out, &target.binary.hash);
+    let mut artifacts = Vec::new();
+    if let Ok(name) = store.write_artifact("hil-boot-checks.md", &text) {
+        artifacts.push(name);
+    }
+    for st in &out.steps {
+        if st.ok {
+            report.note(format!("HIL boot-check suite: {}: {}", st.name, st.detail));
+        } else {
+            report.error(Rule::Step, None, format!("HIL boot-check suite: {}: {}", st.name, st.detail));
+        }
+    }
+    let mut item = Item::new(
+        "hil-boot-checks",
+        Kind::Test,
+        &format!("HIL boot-check suite (R12.6): one run per check of R12.1, R12.3, and R12.5 made to fail on the HIL build of {} with the `boot-mutation` feature ({}; target {})", bin, target.binary.hash, rig.target.serial),
+        Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+        Verdict::from_bool(out.ok()),
+    )
+    .covers(&["R12.6", "R12.2", "R12.1", "R12.3"]);
+    let mut commands = vec![target.command.clone()];
+    commands.extend(out.commands.iter().cloned());
+    item.command_lines = commands.clone();
+    item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = artifacts;
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
     }
     commands
 }

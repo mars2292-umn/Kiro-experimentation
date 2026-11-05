@@ -43,6 +43,8 @@ pub enum Effect {
     CompareBranch(u32),
     /// `nop` (ORQ-32: the assembler's silent replacement of an unencodable branch).
     Nop,
+    /// `dsb` (erratum 838869: the barrier before every exception return).
+    Dsb,
     /// Anything else.
     Other,
 }
@@ -190,6 +192,19 @@ fn decode16(hw: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
 
 fn decode32(hw1: u16, hw2: u16, pc: u32, literal: &dyn Fn(u32) -> Option<u32>) -> Effect {
     let (a, b) = (hw1 as u32, hw2 as u32);
+    // dsb #option: F3BF 8F4x (erratum 838869's workaround before exception returns).
+    if a == 0xF3BF && b & 0xFFF0 == 0x8F40 {
+        return Effect::Dsb;
+    }
+    // ldr.w Rt, [Rn, #imm12] (T3: F8Dn), ldr Rt, [Rn, #-imm8] / post-indexed /
+    // pre-indexed (T4: F85n), ldr Rt, [pc, #imm12] (T2: F85F/F8DF), and
+    // ldr.w Rt, [Rn, Rm, lsl #n] (T2 register: F85n with bits 11..6 zero)
+    // with Rt = SP: a load to the stack pointer, the instruction class of
+    // erratum 752770 (interrupted loads to SP), which no Kernel code may
+    // contain (R11.6; the compiler never emits one).
+    if (a & 0xFFF0 == 0xF8D0 || a & 0xFFF0 == 0xF850) && (b >> 12) == 13 {
+        return Effect::SpDynamic;
+    }
     // msr <spec>, Rn: F380 | Rn ; hw2 1000 mask 0000 SYSm. mrs Rd, <spec>: F3EF ; hw2 1000 Rd SYSm.
     if a & 0xFFF0 == 0xF380 && b & 0xF000 == 0x8000 {
         return Effect::Msr((b & 0xFF) as u8);
@@ -378,6 +393,9 @@ mod tests {
         assert_eq!(one(&[0x05, 0xDF]), Effect::Svc(5));
         assert_eq!(one(&[0x08, 0xB1]), Effect::CompareBranch(0x1006)); // cbz r0, +2
         assert_eq!(one(&[0x00, 0xBF]), Effect::Nop);
+        assert_eq!(one(&[0xBF, 0xF3, 0x4F, 0x8F]), Effect::Dsb); // dsb sy
+        assert_eq!(one(&[0xD1, 0xF8, 0x04, 0xD0]), Effect::SpDynamic); // ldr.w sp, [r1, #4] (erratum 752770)
+        assert_eq!(one(&[0x51, 0xF8, 0x04, 0xDB]), Effect::SpDynamic); // ldr sp, [r1], #4 (erratum 752770)
     }
 
     #[test]

@@ -394,8 +394,23 @@ impl KernelArch for Cm4Hw {
                 super::unsafe_module::action_push(2, p as u32);
                 hw::partition_reinit(p)
             }
-            Action::WatchdogStart(reload) => hw::watchdog_start(reload),
-            Action::WatchdogFeed => hw::watchdog_feed(),
+            Action::WatchdogStart(reload) => {
+                // The boot-check suite's watchdog case (task 7.2): a 50 ms
+                // reload, never fed, so that the reset lands inside the run
+                // and the next boot fails the watchdog check.
+                #[cfg(feature = "boot-mutation")]
+                let reload = if super::unsafe_module::boot_mutation() == super::MUT_WATCHDOG { 1639 } else { reload };
+                hw::watchdog_start(reload)
+            }
+            Action::WatchdogFeed => {
+                // The boot-check suite's watchdog case (task 7.2): never fed,
+                // so that the reset's next boot fails the watchdog check.
+                #[cfg(feature = "boot-mutation")]
+                if super::unsafe_module::boot_mutation() == super::MUT_WATCHDOG {
+                    return;
+                }
+                hw::watchdog_feed()
+            }
             Action::Trace(tag, v) => super::trace(super::trace_tag(tag), v),
         }
     }

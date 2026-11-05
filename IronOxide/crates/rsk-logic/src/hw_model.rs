@@ -21,21 +21,38 @@
 //! | HW-13 DWT CYCCNT | Armv7-M ARM C1.8.7 (DWT_CYCCNT), C1.8.8 (DWT_CTRL.CYCCNTENA); ASM-06 |
 //! | HW-14 Tail-chaining and late arrival | Armv7-M ARM B1.5.12 |
 //!
-//! Errata (R49.4, ASM-01): Cortex-M4 r0p1 erratum 838869 ("store immediate
-//! overlapping exception return operation might vector to incorrect
-//! interrupt") applies to r0p0 and r0p1 and is worked around by a DSB
-//! before every exception return (DD-01); erratum 752770 (VDIV/VSQRT with
-//! a very short ISR) is excluded because Jobs never execute floating-point
-//! divisions inside the Kernel level and eager stacking preserves the FP
-//! state (DD-04). nRF52840 anomalies relevant to the Kernel: 219 (TWIM),
-//! 223 (USBD), and 230 (RADIO) concern peripherals that Partitions own and
-//! the MPU confines; none touches the TIMER, NVIC, or MPU behaviour used
-//! here. The applicability of 838869 to r0p1 is the fact the P1 spike
-//! confirms on hardware (task 3.1); the TIMER near-counter rule was
-//! measured by the differential tests of task 3.3 (`MIN_COMPARE_DISTANCE`,
-//! HW-12). Every rule has a differential test on the nRF52840-DK since
-//! 2026-11-02 (`hil-dt-hw-01` to `-14`, Verification_Plan 11.8: thirteen
-//! matched as stated, HW-12's constant was revised from the silicon).
+//! Errata (R49.4, R11.6, ASM-01; task 3.4, reviewed 2026-11-04 against the
+//! Arm Cortex-M4 Software Developers Errata Notice v3 (ARM-ECM-0426805,
+//! 2019) and the nRF52840 Revision 3 errata (build code Fx0, the rig's
+//! boards): every erratum of the notice and every anomaly of the chip
+//! that touches a behaviour the Kernel uses, with its applicability, the
+//! workaround applied, and the test that shows the workaround in place.
+//!
+//! | Erratum | Cat | r0p1 | Applies to rsk | Workaround | Test |
+//! |---|---|---|---|---|---|
+//! | 838869 Store immediate overlapping exception return operation might vector to incorrect interrupt | B rare | yes | Yes: the stubs store to RAM (the level records, the trace) and return from exceptions with another interrupt pending, and the chip's RAM can wait-state a buffered store | DSB before every exception return in every naked stub (DD-01) | Link_Checker `ERR-838869`: every `bx` of a naked stub is immediately preceded by `dsb` (a `cpsie` between is no store); the hour-long runs of 7.3 and 7.5 with the workaround in place |
+//! | 776924 VDIV or VSQRT instructions might not complete correctly when very short ISRs are used | B | yes (Cortex-M4F) | Conditions require lazy FP context save (FPCCR.LSPEN set); the policy disables it | FPCCR.LSPEN = 0 (eager stacking, DD-04, HW-10), workaround 1 of the notice; the Kernel's ISRs are in any case longer than two instructions | `hil-dt-hw-10` reads FPCCR back (ASPEN 1, LSPEN 0); the boot check of R12.1 covers the context-preservation settings |
+//! | 752770 Interrupted loads to SP can cause erroneous behaviour | B | yes | No instruction of the class exists in the Kernel: the compiler never emits a load to SP and the stubs set SP by `msr psp`/pushes and pops only | None needed; the absence is checked | Link_Checker: a load to SP (`ldr sp, ...`, any form) decodes as a dynamic SP write, which fails the build for every Kernel function (R37, `ERR-752770` note) |
+//! | 839676 Fused MAC instructions give incorrect results for rare data combinations | B rare | yes (Cortex-M4F) | Not the Kernel's: it executes no FP arithmetic (R6.6, Link_Checker). Applications' FP code with subnormal results under VFMA/VFMS/VFNMA/VFNMS could meet the conditions while FPSCR.FZ is clear (FPDSCR 0) | None in the Kernel; an Application that needs it sets FZ in its FPSCR, or the Generator could set FPDSCR.FZ for every new context (open, section 13 of the plan) | Not tested: no Kernel obligation depends on it |
+//! | 806422 ITM can deadlock when global timestamping enabled | B | yes | No: the ITM and global timestamping are never enabled (ASM-12; the trace is the Kernel's own ring) | None needed | Not applicable |
+//! | 1299509 Processor reset asserted asynchronously could corrupt FPB comparator registers and remap to wrong address | C | yes | No: the FPB is never used (no remap, no breakpoints in a Flight_Build) | None needed | Not applicable |
+//!
+//! nRF52840 Revision 3 anomalies touching the Kernel's peripherals (the
+//! TIMER, CLOCK, WDT, GPIOTE, POWER, SPIM, NVMC; none concerns the NVIC,
+//! the MPU, or the DWT):
+//!
+//! | Anomaly | Applies to rsk | Disposition | Test |
+//! |---|---|---|---|
+//! | 136 System: bits in RESETREAS are set when they should not be (after a pin reset, other bits too) | Yes: the boot reads RESETREAS.DOG as a failed check (ORQ-31) | The boot ignores DOG when RESETPIN is set and clears RESETREAS as the anomaly requires (`hw::boot_info`, 2026-11-04) | Host test `boot_info_reports_the_debugger_and_a_watchdog_reset_and_clears_the_reason`; the boot-check suite's watchdog case (`hil-boot-checks`) |
+//! | 155 GPIOTE: IN event may occur more than once on input edge (edges closer than 1.3 µs) | The HIL_Rig's stimulus is a 100 µs pulse every 18 ms, far outside the condition; an Application's source could meet it | A duplicate event is a second Release_Source event inside the MIT window, which the MIT policy masks or defers (DD-06): the Kernel's temporal guarantees hold either way; the Generator could set the anomaly's register for sources that may meet the condition (open) | 203,333 of 203,333 stimulus edges answered once over PAR-05 (7.3) |
+//! | 87 CPU: unexpected wake from System ON Idle when using FPU | The idle activity is `wfi` in a loop (R7.6) | A spurious wake re-enters the loop: no effect on scheduling (no Release comes from it); the workaround's FPU pending-interrupt clear is not applied | Not tested: no obligation depends on when the idle activity wakes |
+//! | 78 TIMER: high current consumption when using timer STOP task only | No: the time base is never stopped | None needed | Not applicable |
+//! | 36 CLOCK: some registers are not reset when expected | The boot starts HFCLK from the crystal explicitly and checks HFCLKSTAT (ASM-05) rather than relying on reset values | None beyond the explicit start and check | Boot check bit 10 (`hil-boot-checks`) |
+//! | 213 WDT: configuration is cleared when entering System OFF | No: the Kernel never enters System OFF | None needed | Not applicable |
+//! | 176 System: flash erase through CTRL-AP fails due to watchdog time-out | Bench only: the operator's one-time unlock (11.1) | Erase with the chip held in reset, as probe-rs does | Not a Kernel obligation |
+//! | 184 NVMC: erase or write from the external debugger fail when the CPU is not halted | Bench only: probe-rs halts the core before flashing | None in the Kernel | Not a Kernel obligation |
+//! | 174, 193, 195, 198 SPIM3 | No: the demo's EasyDMA peripheral is SPIM0; the Generator's class table is the same for SPIM3 (open: an Application owning SPIM3 inherits them) | None in the Kernel | Not applicable |
+//! | 242 NVMC: operations during POFWARN hang the CPU | No: the Kernel never writes flash | None needed | Not applicable |
 //!
 //! Behaviours deliberately not formalized (R49.6), with the reason no proof
 //! depends on them: lazy FP stacking (disabled by the policy, DD-04);

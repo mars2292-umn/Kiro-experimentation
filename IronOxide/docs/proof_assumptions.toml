@@ -57,11 +57,18 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
 item = "boot_checks"
 why = "The R12.1 checks read CPUID, MPU_TYPE, DWT_CTRL, AIRCR, MVFR0, and the implemented priority bits from the PPB, and on the nRF52840 the CLOCK.HFCLKSTAT and NVMC.ICACHECNF registers (ASM-01 to ASM-05, ASM-06)."
-evidence = "Host test `boot_checks_pass_on_the_expected_board_and_fail_one_bit_per_check` (every check passes on simulated expected values and each alone fails with its bit); hil-boot-checks (task 7.2, pending hardware); QEMU boot (TBR-23; the clock and cache checks are skipped on the QEMU board)."
+evidence = "Host test `boot_checks_pass_on_the_expected_board_and_fail_one_bit_per_check` (every check passes on simulated expected values and each alone fails with its bit); hil-boot-checks (task 7.2, run 2026-11-04: ten mutated checks each into the safe state with its own bit); QEMU boot (TBR-23; the clock and cache checks are skipped on the QEMU board)."
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
 item = "boot_info"
 why = "DHCSR.C_DEBUGEN (ORQ-30) and the nRF52840 POWER.RESETREAS watchdog bit (ORQ-31) are volatile reads; the reset reason is cleared by a volatile write."
-evidence = "Host test `boot_info_reports_the_debugger_and_a_watchdog_reset_and_clears_the_reason`; hil-watchdog (task 5.3 / section 11, pending hardware; no QEMU model)."
+evidence = "Host test `boot_info_reports_the_debugger_and_a_watchdog_reset_and_clears_the_reason` (with nRF52840 anomaly 136: DOG beside RESETPIN ignored, task 3.4); hil-boot-checks' watchdog case (task 7.2, 2026-11-04: the reset's next boot fails the watchdog check and reports); no QEMU model."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/bound.rs"
+construct = "#[verifier::external_body]"
+item = "corrupt_config_for_test"
+why = "The boot-check suite's table corruption (feature `boot-mutation`, HIL builds only, task 7.2): one value of the `Config` copy in memory changed before the checks, so that the computed checksum differs from the recorded one (R12.3, R12.6). Compiled into no Flight_Build; it establishes nothing for the proofs."
+evidence = "hil-boot-checks case 7 (2026-11-04: the corrupted table fails checksum bit 5 alone, no Task released); the Flight_Build's symbol table holds no such function (the feature is off)."

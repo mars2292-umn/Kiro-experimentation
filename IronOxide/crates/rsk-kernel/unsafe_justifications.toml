@@ -370,3 +370,11 @@ kind = "review"
 why_no_machine_check = "The MPU's fetch decision (HW-09) precedes any execution at the address: under the Partition's view the call faults with IACCVIOL and the Partition's fault response applies. A granted fetch is the failure the suite exists to detect. HIL builds only, in the isolation configuration."
 reviewed_by = "rsk kernel review (task 7.4)"
 reviewed_on = "2026-11-02"
+
+[[justification]]
+id = "UJ-048"
+summary = "boot_mutation: the boot-check suite's mutation word read from RAM above every region (feature boot-mutation, HIL builds only)"
+kind = "review"
+why_no_machine_check = "A volatile word read of a fixed RAM address outside the layout (the top of the nRF52840's RAM), written only over the debug port before a run; read by the boot in Thread mode with nothing else running. Never in a Flight_Build."
+reviewed_by = "rsk kernel review (task 7.2)"
+reviewed_on = "2026-11-04"

@@ -54,6 +54,10 @@ pub const MEASUREMENTS: &[Measurement] = &[
     Measurement { variant: "nrf52840_stress", feature: "stress", duration_secs: 61 * 60, stress: true },
 ];
 
+/// The per-Task counters the P1 demo's safe state reports: all 0 when no
+/// Task was released (the boot-check suite, task 7.2).
+pub const COUNTERS: &[&str] = &["control", "sensor", "log", "pulse", "echo", "filter", "sampler"];
+
 /// The margin `m` of R34.6 applied to a measured Kernel_Timing_Parameter,
 /// in percent (Verification_Plan 11.5; ORQ-13).
 pub const MARGIN_PERCENT: u64 = 25;

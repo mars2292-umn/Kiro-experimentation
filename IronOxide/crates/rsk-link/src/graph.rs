@@ -31,6 +31,10 @@ pub struct Function {
     /// `cbz`/`cbnz` instructions whose target lies outside the function (ORQ-32), and `nop`s.
     pub nonlocal_cbz: Vec<(u32, u32)>,
     pub nops: Vec<u32>,
+    /// Addresses of `bx` instructions (returns and exception returns) not
+    /// immediately preceded by a `dsb`, allowing only `cpsie`/`cpsid` between
+    /// (erratum 838869's workaround, DD-01, R11.6).
+    pub returns_without_dsb: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,9 +112,23 @@ impl CallGraph {
                 ppb_refs: Vec::new(),
                 nonlocal_cbz: Vec::new(),
                 nops: Vec::new(),
+                returns_without_dsb: Vec::new(),
             };
             let mut partial: BTreeMap<u8, u32> = BTreeMap::new();
+            // Instructions since the last `dsb`, `cps` not counted; `None` before any.
+            let mut since_dsb: Option<u32> = None;
             for insn in &insns {
+                match &insn.effect {
+                    Effect::Dsb => since_dsb = Some(0),
+                    Effect::Cps => {}
+                    Effect::IndirectBranch(_) | Effect::Return => {
+                        if since_dsb != Some(0) {
+                            f.returns_without_dsb.push(insn.address);
+                        }
+                        since_dsb = None;
+                    }
+                    _ => since_dsb = since_dsb.map(|n| n + 1),
+                }
                 match &insn.effect {
                     Effect::SpDown(n) => f.frame = f.frame.saturating_add(*n),
                     Effect::SpDynamic => f.dynamic_sp = true,
@@ -359,7 +377,7 @@ mod tests {
         let mut by_address = BTreeMap::new();
         for (i, (name, address, frame, direct, indirect, materialised, dynamic)) in funcs.into_iter().enumerate() {
             by_address.insert(address, i);
-            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![] });
+            functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] });
         }
         CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![] }
     }

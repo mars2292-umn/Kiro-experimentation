@@ -141,10 +141,19 @@ impl Target<'_> {
     /// killed after `timeout_secs`. `ok` is a zero exit with `RSK-OK` on
     /// the console.
     pub fn run(&self, elf: &Path, timeout_secs: u64) -> Run {
-        let args = ["--disable-progressbars", "--catch-hardfault"];
+        self.run_with(elf, timeout_secs, &[])
+    }
+
+    /// As [`Target::run`], with extra probe-rs options (`--no-catch-reset`
+    /// lets a reset the firmware causes, a watchdog's, boot again under the
+    /// console instead of halting at the reset vector: the boot-check
+    /// suite's watchdog case, task 7.2).
+    pub fn run_with(&self, elf: &Path, timeout_secs: u64, extra: &[&str]) -> Run {
+        let mut args = vec!["--disable-progressbars", "--catch-hardfault"];
+        args.extend_from_slice(extra);
         let command = self.display("run", &format!("{} {}", args.join(" "), elf.display()));
         let start = Instant::now();
-        let mut child = match self.command("run").args(args).arg(elf).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+        let mut child = match self.command("run").args(&args).arg(elf).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
             Ok(c) => c,
             Err(e) => return Run { ok: false, seconds: 0.0, log: format!("cannot run probe-rs: {e}"), command, timed_out: false },
         };
@@ -253,5 +262,26 @@ impl Target<'_> {
         let bytes = self.read(sym.address(), sym.size as usize, scratch)?;
         let _ = std::fs::remove_file(scratch);
         Ok(Some(bytes.chunks_exact(4).map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()))
+    }
+}
+
+impl Target<'_> {
+    /// Writes one word of the board's RAM (`probe-rs write b32`): the
+    /// boot-check suite's mutation word, which RAM keeps across the
+    /// flashing and the reset of the run that follows.
+    pub fn write_word(&self, addr: u32, value: u32) -> Result<String, String> {
+        let out = self.command("write").args(["b32", &format!("{addr:#x}"), &format!("{value:#x}")]).output().map_err(|e| format!("cannot run probe-rs: {e}"))?;
+        let command = self.display("write", &format!("b32 {addr:#x} {value:#x}"));
+        if !out.status.success() {
+            return Err(format!("{command} failed: {}", strip_ansi(&String::from_utf8_lossy(&out.stderr)).trim()));
+        }
+        Ok(command)
+    }
+
+    /// The address of an object symbol of `elf`.
+    pub fn symbol_address(elf: &Path, symbol: &str) -> Result<Option<u32>, String> {
+        let image = rsk_elf::Elf::read(elf).map_err(|e| format!("{}: {e}", elf.display()))?;
+        let symbols = image.symbols().map_err(|e| e.to_string())?;
+        Ok(symbols.iter().find(|s| s.name == symbol && s.is_object()).map(|s| s.address()))
     }
 }
