@@ -29,6 +29,62 @@ pub struct Binding<'a> {
     pub configuration: &'a str,
 }
 
+/// The Kernel_Timing_Parameters of Table 13-1 that the Kernel-entry table
+/// measures (task 19.3): symbol, the entry kinds whose maxima add up to
+/// it, and the condition text. Δ_complete is the Job-end SVC plus the
+/// unwind's epilogue; Δ_hm the fault entry (a Health_Monitor response
+/// other than an Overrun_Response); Δ_enforce the entry that recorded an
+/// Overrun and applied the response; Δ_detect is the time-base handling
+/// of the Budget compare, the timer entry.
+pub const ENTRY_PARAMETERS: &[(&str, &[usize], &str)] = &[
+    ("delta_dispatch", &[0], "one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry)"),
+    ("delta_timer", &[1], "one time-base entry: every due timed event served (the Rust half)"),
+    ("delta_detect", &[1], "the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry)"),
+    ("delta_lock_in", &[3], "one lock SVC (the Rust half)"),
+    ("delta_lock_out", &[4], "one unlock SVC (the Rust half)"),
+    ("delta_complete", &[5, 10], "the Job-end SVC plus the unwind's epilogue (the Rust halves)"),
+    ("delta_svc", &[6], "the now SVC, the service with the least work (the Rust half)"),
+    ("delta_dma_write", &[8], "one EasyDMA request SVC, validation and the register writes (the Rust half)"),
+    ("delta_hm", &[9], "one fault entry applying the Partition's fault response (the Rust half)"),
+    ("delta_restart", &[11], "an entry that restarted a Partition (the Rust half, whole)"),
+    ("delta_stop", &[12], "an entry that stopped a Partition (the Rust half, whole)"),
+    ("delta_enforce", &[13], "an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole)"),
+];
+
+/// The parameters of `ENTRY_PARAMETERS` the record `st` measured.
+pub fn entry_parameters(st: &crate::stats::Stats, scenario: &str, margin_percent: u64) -> Vec<KernelTimingParameter> {
+    let instrumented = "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".to_string();
+    let mut out = Vec::new();
+    for (symbol, kinds, what) in ENTRY_PARAMETERS {
+        let parts: Vec<&crate::stats::EntryStats> = kinds.iter().filter_map(|k| st.entries.get(*k)).collect();
+        if parts.is_empty() || parts.iter().any(|e| e.count == 0) {
+            continue;
+        }
+        let max: u64 = parts.iter().map(|e| e.max_cycles as u64).sum();
+        let runs = parts.iter().map(|e| e.count as u64).min().unwrap_or(0);
+        out.push(KernelTimingParameter {
+            symbol: symbol.to_string(),
+            cycles: bound(max, margin_percent),
+            method: "measured".into(),
+            tool: TOOL.into(),
+            conditions: vec![format!("{what}, the Kernel's entry record (task 19.3)"), instrumented.clone()],
+            measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.to_string()] }),
+        });
+    }
+    out
+}
+
+/// A record from a record of any run: the entry parameters, plus the
+/// parameters given (`extra`, such as Δ_entry from the cycle test).
+pub fn record_from_stats(st: &crate::stats::Stats, binding: &Binding<'_>, cpu_hz: u64, scenario: &str, margin_percent: u64, extra: Vec<KernelTimingParameter>) -> Option<KernelTiming> {
+    let mut parameters = entry_parameters(st, scenario, margin_percent);
+    parameters.extend(extra);
+    if parameters.is_empty() {
+        return None;
+    }
+    Some(KernelTiming { schema: KERNEL_TIMING_SCHEMA.into(), binary_hash: binding.binary_hash.to_string(), target: binding.target.to_string(), clock_hz: cpu_hz, icache: binding.icache.to_string(), parameters })
+}
+
 /// The margin-applied bound of R34.6: `max * (1 + m / 100)`, rounded up.
 pub fn bound(max_observed: u64, margin_percent: u64) -> u64 {
     let scaled = max_observed as u128 * (100 + margin_percent as u128);
@@ -88,6 +144,7 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, binding: &Binding<'_>, margin_
             }
         }
     }
+    parameters.extend(entry_parameters(st, &scenario, margin_percent));
     if parameters.is_empty() {
         return None;
     }

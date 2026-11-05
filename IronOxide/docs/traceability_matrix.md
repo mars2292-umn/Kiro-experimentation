@@ -185,7 +185,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R13.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/wcet.rs; +1 | analysis-rta-p1-demo; test-workspace-tests |
 | R13.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/config.rs; +3 | test-workspace-tests |
 | R13.5 | — | — | ○19.3 | — | — |
-| R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ○19.3 | crates/rsk-model/src/wcet.rs | — |
+| R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/cycles.rs; +1 | — |
 
 ### Requirement 14: Fault handling, panic policy, and Health_Monitor (Phase P1)
 
@@ -374,7 +374,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R29.1 | — | Property 16 | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; +7 | analysis-rta-p1-demo; test-workspace-tests |
 | R29.2 | P-05 | Property 5; Reuse and Deviation Record | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-analyzer/tests/rules.rs; +3 | analysis-rta-p1-demo; test-workspace-tests |
 | R29.3 | — | — | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/uppaal.rs; crates/rsk-analyzer/tests/properties.rs; +4 | analysis-rta-p1-demo; test-workspace-tests |
-| R29.4 | — | — | ✓15.2 | apps/p1-demo/decl/src/lib.rs; crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/rta.rs; +4 | analysis-rta-p1-demo; test-workspace-tests |
+| R29.4 | — | Kernel_Timing_Parameters added by this design (R13.6) | ✓15.2 | apps/p1-demo/decl/src/lib.rs; crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/rta.rs; +4 | analysis-rta-p1-demo; test-workspace-tests |
 | R29.5 | — | Property 18 | ○19.4; ✓15.2 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-analyzer/tests/rules.rs; +1 | analysis-rta-p1-demo; analysis-rta-step; test-workspace-tests |
 | R29.6 | — | Property 16 | ✓15.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/rta.rs; +2 | analysis-rta-p1-demo; test-workspace-tests |
 | R29.7 | — | Property 16 | ✓15.2 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/rta.rs; crates/rsk-analyzer/tests/properties.rs; +2 | analysis-rta-p1-demo; test-workspace-tests |
@@ -599,7 +599,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R50.1 | — | — | ✓8.2 | xtask/src/evidence.rs; xtask/src/verify.rs | — |
+| R50.1 | — | — | ✓8.2 | xtask/src/evidence.rs; xtask/src/main.rs; xtask/src/verify.rs | — |
 | R50.2 | — | Kernel proofs (Verus, R44); Trust-Base Analysis | ✓5.7; ✓8.2 | xtask/src/checks/mod.rs; xtask/src/diag.rs; xtask/src/lib.rs; +2 | check-static-checks; test-workspace-tests |
 | R50.3 | — | — | ✓1.3 | crates/rsk-digest/Cargo.toml; crates/rsk-digest/src/lib.rs; xtask/src/diag.rs; +5 | check-evidence |
 | R50.4 | — | — | ✓8.2 | xtask/src/evidence.rs | — |

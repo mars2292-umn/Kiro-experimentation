@@ -363,6 +363,48 @@ fn mirror_events<K: KernelOps>(k: &K) {
     let _ = k;
 }
 
+/// Feature `trace-ram`, task 19.3: the kinds of the events the Kernel
+/// logic pushed since `seq_before`, as a bit set (bit k = kind k).
+#[cfg(feature = "trace-ram")]
+fn pushed_kinds<K: KernelOps>(k: &K, seq_before: u32) -> u32 {
+    let seq = k.log_seq();
+    let new = seq.wrapping_sub(seq_before) as usize;
+    let len = k.log_len();
+    let new = if new > len { len } else { new };
+    let mut bits = 0u32;
+    let mut i = len - new;
+    // Bounded by the log's capacity (PR-16), as `mirror_events` is.
+    let mut seen = 0;
+    while i < len && seen < unsafe_module::EVENTS_PER_ENTRY {
+        let kind = k.log_kind(i);
+        if kind < 32 {
+            bits |= 1 << kind;
+        }
+        i += 1;
+        seen += 1;
+    }
+    bits
+}
+
+/// Feature `trace-ram`, task 19.3: records a Kernel entry of `kind` that
+/// began at `start` (DWT cycles) and, when the entry applied a response,
+/// the response's kinds too (Table 13-1: Δ_restart, Δ_stop, Δ_enforce).
+#[cfg(feature = "trace-ram")]
+fn entry_record<K: KernelOps>(k: &K, kind: u8, start: u32, seq_before: u32) {
+    let cycles = hw::dwt_cyccnt().wrapping_sub(start);
+    unsafe_module::stats_entry(kind, cycles);
+    let pushed = pushed_kinds(k, seq_before);
+    if pushed & (1 << crate::logic::log::EV_PARTITION_RESTART) != 0 {
+        unsafe_module::stats_entry(unsafe_module::ENTRY_RESTART, cycles);
+    }
+    if pushed & (1 << crate::logic::log::EV_PARTITION_STOP) != 0 {
+        unsafe_module::stats_entry(unsafe_module::ENTRY_STOP, cycles);
+    }
+    if pushed & (1 << crate::logic::log::EV_OVERRUN) != 0 {
+        unsafe_module::stats_entry(unsafe_module::ENTRY_ENFORCE, cycles);
+    }
+}
+
 /// Instant 0: enables Releases (PR-34) and the compare of the first event.
 pub fn start<S: System>() {
     let k = S::kernel().get();
@@ -415,6 +457,8 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
         }
         (hw::timebase_now(), hw::dwt_cyccnt(), due)
     };
+    #[cfg(feature = "trace-ram")]
+    let (seq_before, top_before) = (k.log_seq(), k.top());
     let (plan, safe) = entry::irq_entry_core(
         k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
     );
@@ -422,8 +466,19 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     {
         // R19.3: the cycles of this intake handler run, attributed to the
         // source's Task (the record the storm test reads).
-        if let crate::arch::Binding::Intake { task, .. } = S::binding((ipsr & 0x1FF) as u16) {
+        let binding = S::binding((ipsr & 0x1FF) as u16);
+        if let crate::arch::Binding::Intake { task, .. } = binding {
             unsafe_module::stats_intake(task, hw::dwt_cyccnt().wrapping_sub(entry_cycles));
+        }
+        // Task 19.3: the entry's cycles by kind, and the Job it interrupted.
+        let kind = match binding {
+            crate::arch::Binding::Dispatch(_) => unsafe_module::ENTRY_DISPATCH,
+            crate::arch::Binding::Intake { .. } => unsafe_module::ENTRY_INTAKE,
+            _ => unsafe_module::ENTRY_TIMER,
+        };
+        entry_record(k, kind, entry_cycles, seq_before);
+        if let Some(t) = top_before {
+            unsafe_module::stats_interrupted(t);
         }
     }
     #[cfg(feature = "trace-ram")]
@@ -474,7 +529,16 @@ pub fn timer<S: System>() -> ReturnPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     pins_enter();
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    #[cfg(feature = "trace-ram")]
+    {
+        entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
+        if let Some(t) = top_before {
+            unsafe_module::stats_interrupted(t);
+        }
+    }
     mirror_events(k);
     if safe {
         S::safe_state();
@@ -521,8 +585,23 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     // replaces it).
     #[cfg(feature = "trace-ram")]
     let section = if number == entry::SVC_LOCK || number == entry::SVC_UNLOCK { k.top().map(|t| (t, frame[0] as u8, consumed_now(k, t))) } else { None };
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     let (hop, safe) =
         entry::svc_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number);
+    #[cfg(feature = "trace-ram")]
+    {
+        let kind = match number {
+            entry::SVC_LOCK => unsafe_module::ENTRY_LOCK,
+            entry::SVC_UNLOCK => unsafe_module::ENTRY_UNLOCK,
+            entry::SVC_JOB_END => unsafe_module::ENTRY_JOB_END,
+            entry::SVC_NOW => unsafe_module::ENTRY_NOW,
+            entry::SVC_RAISE => unsafe_module::ENTRY_RAISE,
+            entry::SVC_DMA => unsafe_module::ENTRY_DMA,
+            _ => unsafe_module::ENTRY_PANIC,
+        };
+        entry_record(k, kind, start, seq_before);
+    }
     #[cfg(feature = "trace-ram")]
     if let Some((t, due)) = ending {
         unsafe_module::stats_response(t, hw::timebase_now().saturating_sub(due));
@@ -570,7 +649,11 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     pins_enter();
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     let (r, safe) = entry::epilogue_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), n);
+    #[cfg(feature = "trace-ram")]
+    entry_record(k, unsafe_module::ENTRY_EPILOGUE, start, seq_before);
     mirror_events(k);
     if safe {
         S::safe_state();
@@ -584,8 +667,12 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     pins_enter();
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
+    #[cfg(feature = "trace-ram")]
+    entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
         S::safe_state();

@@ -29,10 +29,10 @@ RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 | m09 | 6 | 1 | 3 | 42 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m10 | 2 | 0 | 4 | 62 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m11 | 4 | 1 | 4 | 81 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
-| m12 | 6 | 2 | 2 | 43 | PASS | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
+| m12 | 6 | 2 | 2 | 44 | PASS | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m13 | 2 | 0 | 4 | 41 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m14 | 4 | 2 | 3 | 48 | PASS | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
-| m15 | 6 | 2 | 3 | 33 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
+| m15 | 6 | 2 | 3 | 34 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m16 | 2 | 0 | 1 | 128 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m17 | 4 | 0 | 2 | 46 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m18 | 6 | 3 | 0 | 22 | PASS | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
@@ -41,7 +41,7 @@ RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 | m21 | 4 | 1 | 3 | 171 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m22 | 6 | 1 | 4 | 131 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m23 | 2 | 0 | 2 | 129 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
-| m24 | 4 | 0 | 1 | 108 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
+| m24 | 4 | 0 | 1 | 109 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m25 | 6 | 1 | 2 | 106 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m26 | 2 | 0 | 0 | 86 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |
 | m27 | 4 | 0 | 2 | 143 | FAIL | `not_run` | UPPAAL's verifyta is not installed; the export was written for an offline cross-check |

@@ -58,6 +58,12 @@ pub const MEASUREMENTS: &[Measurement] = &[
 /// Task was released (the boot-check suite, task 7.2).
 pub const COUNTERS: &[&str] = &["control", "sensor", "log", "pulse", "echo", "filter", "sampler"];
 
+/// Further configurations whose Kernel_Timing_Parameter records the job
+/// takes (task 19.3): built for the Build_Manifest like the measurement
+/// configurations, each `(variant, bin feature)`. The cycle configuration
+/// measures Δ_entry and the entry kinds (section 11.11).
+pub const RECORD_VARIANTS: &[(&str, &str)] = &[("nrf52840_cycles", "cycles")];
+
 /// The margin `m` of R34.6 applied to a measured Kernel_Timing_Parameter,
 /// in percent (Verification_Plan 11.5; ORQ-13).
 pub const MARGIN_PERCENT: u64 = 25;
@@ -95,8 +101,9 @@ pub fn fresh_timing_records(root: &Path, manifest: &serde_json::Value) -> (Vec<P
     let hashes = manifest_hashes(manifest);
     let mut fresh = Vec::new();
     let mut stale = Vec::new();
-    for m in MEASUREMENTS {
-        let path = timing_record_path(root, m.variant);
+    let variants = MEASUREMENTS.iter().map(|m| m.variant).chain(RECORD_VARIANTS.iter().map(|(v, _)| *v));
+    for variant in variants {
+        let path = timing_record_path(root, variant);
         let Ok(text) = std::fs::read_to_string(&path) else { continue };
         match rsk_model::read_kernel_timing(&text) {
             Ok(t) if hashes.contains(&t.binary_hash) => fresh.push(path),
@@ -253,9 +260,9 @@ pub fn build_all(ws: &Workspace, target_dir: &Path, sandbox: Option<&Sandbox>, r
     // 19.3): built in their own directories, as `cargo xtask hil` builds
     // them, so that their hashes are those of the measured binaries.
     for bin in ws.policy.qemu_spikes() {
-        for m in MEASUREMENTS {
-            let features = format!("{FEATURES},{}", m.feature);
-            if let Some(b) = build_with(ws, bin, &features, &target_dir.join(m.variant), sandbox, report) {
+        for (variant, feature) in MEASUREMENTS.iter().map(|m| (m.variant, m.feature)).chain(RECORD_VARIANTS.iter().copied()) {
+            let features = format!("{FEATURES},{feature}");
+            if let Some(b) = build_with(ws, bin, &features, &target_dir.join(variant), sandbox, report) {
                 builds.push(b);
             }
         }

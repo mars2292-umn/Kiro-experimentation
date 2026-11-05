@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The nightly HIL campaign of R50.1 (Verification_Plan section 11, "HIL
+  frequency"): `cargo xtask nightly` at 02:00 every day on the checked-out
+  head of the main branch, under caffeinate so that the machine does not
+  sleep (honoured on AC power only; the rig's boards must be attached).
+  Install (once, as the bench user; adjust the two paths):
+      cp xtask/launchd/com.ironoxide.nightly.plist ~/Library/LaunchAgents/
+      launchctl load -w ~/Library/LaunchAgents/com.ironoxide.nightly.plist
+  Remove: launchctl unload -w ~/Library/LaunchAgents/com.ironoxide.nightly.plist
+  The step logs and the summary land under target/xtask-nightly/<date>/.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ironoxide.nightly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd /Users/mars2292/repos/Kiro-experimentation/IronOxide &amp;&amp; export PATH="$HOME/.creusot/_opam/bin:$HOME/.elan/bin:$HOME/.cargo/bin:$HOME/.local/bin:/opt/homebrew/bin:$PATH" RSK_VERUS_DIR="$HOME/.local/opt/verus-dl/verus-arm64-macos" &amp;&amp; /usr/bin/caffeinate -i cargo xtask nightly</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>2</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-nightly/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-nightly/launchd.err.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

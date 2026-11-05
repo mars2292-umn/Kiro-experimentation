@@ -273,6 +273,10 @@ pub fn prepare(
     let delta_hm = ktp("delta_hm");
     let delta_irq = ktp("delta_irq");
     let delta_stamp = ktp("delta_stamp");
+    // Δ_entry (R13.6, measured by the cycle test of 11.11): the cycles a
+    // Kernel entry charges the Job it interrupts; charged once per Job
+    // instance, so that every interfering instance carries it.
+    let delta_entry = ktp("delta_entry");
     let l_kernel = ktp("l_kernel");
     let j_rel = ktp("j_rel");
     let delta_restart = ktp("delta_restart");
@@ -316,7 +320,8 @@ pub fn prepare(
             .saturating_add(delta_wake)
             .saturating_add(delta_timer.saturating_mul(timed_events))
             .saturating_add(delta_lock.saturating_mul(t.cs_sites.len() as u64))
-            .saturating_add(delta_hm);
+            .saturating_add(delta_hm)
+            .saturating_add(delta_entry);
         if any_fpu {
             o = o.saturating_add(delta_fp_save).saturating_add(delta_fp_restore);
         }

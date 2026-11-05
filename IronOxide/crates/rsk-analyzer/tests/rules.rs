@@ -347,13 +347,13 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     // Placeholders: every Δ is 300 cycles. control: release + dispatch +
     // complete + wake (1,200), three timed events (900), two Critical_Section
     // sites' lock in + out (1,200), Δ_hm (300), FP save + restore because the
-    // set has an FPU-using Task (600): 4,200.
-    assert_eq!(by("part0.control").o, 4_200);
+    // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,500.
+    assert_eq!(by("part0.control").o, 4_500);
     // echo (sporadic, deferral policy, no Critical_Section): the same
-    // without the lock terms plus Δ_irq and Δ_stamp: 3,600.
-    assert_eq!(by("part0.echo").o, 3_600);
-    // log (periodic, no Critical_Section): 3,000.
-    assert_eq!(by("part1.log").o, 3_000);
+    // without the lock terms plus Δ_irq and Δ_stamp: 3,900.
+    assert_eq!(by("part0.echo").o, 3_900);
+    // log (periodic, no Critical_Section): 3,300.
+    assert_eq!(by("part1.log").o, 3_300);
     // J is J_rel for every Task (Table 13-1).
     assert!(p.tasks.iter().all(|x| x.j == 500));
 }
@@ -470,7 +470,7 @@ fn task_19_3_measured_parameters_of_a_listed_hil_build_replace_placeholders() {
     let m = model();
     let mut manifest = manifest(&m);
     manifest["hil_binaries"] = serde_json::json!([{"package": "p1-demo", "target": "p1-demo (nrf52840, stress-short)", "file": "p1-demo", "hash": "sha256:hil", "loadable_bytes": 1, "config_checksum": "0x1"}]);
-    for (max, cycles, exit) in [(640u64, 800u64, EXIT_PASS), (5000, 6250, EXIT_FAIL)] {
+    for (max, cycles, exit) in [(320u64, 400u64, EXIT_PASS), (5000, 6250, EXIT_FAIL)] {
         let (w, mut t) = placeholders::make(&m, HASH, "off");
         let taken = t.overlay(&measured_j_rel("sha256:hil", max, cycles));
         assert_eq!(taken, vec!["j_rel".to_string()]);

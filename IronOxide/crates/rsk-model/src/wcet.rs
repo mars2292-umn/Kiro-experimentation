@@ -81,6 +81,7 @@ pub const KERNEL_TIMING_SYMBOLS: &[&str] = &[
     "delta_view",
     "delta_restart",
     "delta_stop",
+    "delta_entry",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

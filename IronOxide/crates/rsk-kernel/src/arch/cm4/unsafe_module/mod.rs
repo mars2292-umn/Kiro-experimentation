@@ -228,13 +228,54 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 48;
+const STATS_PER_TASK: usize = 49;
 #[cfg(feature = "trace-ram")]
 const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
 #[cfg(feature = "trace-ram")]
 const STATS_CS_OPEN: usize = STATS_CS + STATS_TASKS * STATS_RES * 2;
 #[cfg(feature = "trace-ram")]
-const STATS_RING_AT: usize = STATS_CS_OPEN + STATS_TASKS * STATS_RES;
+/// The Kernel-entry table (task 19.3, Table 13-1): per entry kind
+/// (`ENTRY_*`) `count, max, sum_lo, sum_hi` of the cycles from the Rust
+/// half's entry to its return (the stub's own cycles outside are the
+/// interrupted Job's, `ENTRY_KINDS` apart: Δ_entry, measured by the cycle
+/// test as the preempted Job's excess over the interruptions counted per
+/// Task at word 48 of its record).
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_KINDS: usize = 16;
+#[cfg(feature = "trace-ram")]
+const STATS_ENTRY: usize = STATS_CS_OPEN + STATS_TASKS * STATS_RES;
+#[cfg(feature = "trace-ram")]
+const STATS_RING_AT: usize = STATS_ENTRY + 4 * ENTRY_KINDS;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_DISPATCH: u8 = 0;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_TIMER: u8 = 1;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_INTAKE: u8 = 2;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_LOCK: u8 = 3;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_UNLOCK: u8 = 4;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_JOB_END: u8 = 5;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_NOW: u8 = 6;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_RAISE: u8 = 7;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_DMA: u8 = 8;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_FAULT: u8 = 9;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_EPILOGUE: u8 = 10;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_RESTART: u8 = 11;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_STOP: u8 = 12;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_ENFORCE: u8 = 13;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_PANIC: u8 = 14;
 #[cfg(feature = "trace-ram")]
 const STATS_WORDS: usize = STATS_RING_AT + 1 + 4 * STATS_RING;
 #[cfg(feature = "trace-ram")]
@@ -434,6 +475,34 @@ pub fn stats_cs_close(t: u8, r: u8, consumed: u32) {
     if cycles > s[v + 1] {
         s[v + 1] = cycles;
     }
+}
+
+/// Records one Kernel entry of `kind` that took `cycles` (task 19.3).
+#[cfg(feature = "trace-ram")]
+pub fn stats_entry(kind: u8, cycles: u32) {
+    if kind as usize >= ENTRY_KINDS {
+        return;
+    }
+    let s = stats();
+    let v = STATS_ENTRY + 4 * kind as usize;
+    s[v] = s[v].saturating_add(1);
+    if cycles > s[v + 1] {
+        s[v + 1] = cycles;
+    }
+    let sum = ((s[v + 3] as u64) << 32 | s[v + 2] as u64).saturating_add(cycles as u64);
+    s[v + 2] = sum as u32;
+    s[v + 3] = (sum >> 32) as u32;
+}
+
+/// Counts one Kernel entry that interrupted the executing Job of `t`.
+#[cfg(feature = "trace-ram")]
+pub fn stats_interrupted(t: u8) {
+    if t as usize >= STATS_TASKS {
+        return;
+    }
+    let s = stats();
+    let v = STATS_HEADER + t as usize * STATS_PER_TASK + 48;
+    s[v] = s[v].saturating_add(1);
 }
 
 /// Appends one trace entry, unless the trace is frozen (`events_push`).

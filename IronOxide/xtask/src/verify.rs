@@ -1643,8 +1643,17 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
     for s in &stale {
         report.note(format!("R33.4: stale Kernel_Timing_Parameter record not used: {s}"));
     }
+    // The records of the further configurations (`RECORD_VARIANTS`, the cycle
+    // test's Δ_entry) go into every analysis; their own configurations are
+    // not analysed (their Tasks exist for the probes).
+    let variant_of = |p: &Path| p.file_name().and_then(|f| f.to_str()).and_then(|f| f.strip_prefix("kernel_timing_")).and_then(|f| f.strip_suffix(".json")).map(str::to_string);
+    let extra_records: Vec<PathBuf> = fresh.iter().filter(|r| variant_of(r).is_some_and(|v| crate::hil::RECORD_VARIANTS.iter().any(|(rv, _)| *rv == v))).cloned().collect();
     for record in &fresh {
-        let Some(variant) = record.file_name().and_then(|f| f.to_str()).and_then(|f| f.strip_prefix("kernel_timing_")).and_then(|f| f.strip_suffix(".json")) else { continue };
+        let Some(variant) = variant_of(record) else { continue };
+        let variant = variant.as_str();
+        if crate::hil::RECORD_VARIANTS.iter().any(|(rv, _)| *rv == variant) {
+            continue;
+        }
         let Some(bin) = ws.policy.qemu_spikes().next() else { continue };
         let Some(app_dir) = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { continue };
         let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
@@ -1692,6 +1701,7 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
             .arg("--placeholders")
             .arg("--timing")
             .arg(record);
+        let cmd = extra_records.iter().fold(cmd, |c, r| c.arg("--timing").arg(r));
         let cmd = match &wcet_record {
             Some(w) => cmd.arg("--wcet").arg(w),
             None => cmd,

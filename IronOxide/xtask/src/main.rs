@@ -47,6 +47,13 @@ commands:
       only validates the register against the sources, without Verus.
   gen [--check]
   uppaal-corpus
+  nightly
+      The nightly HIL campaign (R50.1, Verification_Plan section 11): the
+      verification job, then the hour-long release-timing and stress runs
+      on the rig, each as its own command; the log and a summary go under
+      target/xtask-nightly/<date>/. Needs the boards attached and the
+      machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
+      schedules it at 02:00.
   hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation | --boot-checks | --cycles]
       Run the Generator (rsk-gen) on every declaration crate of the
       workspace (policy `declaration = true`) and write the Task_Model,
@@ -90,6 +97,7 @@ fn main() -> ExitCode {
         "uppaal-corpus" => uppaal_corpus_command(rest),
         "qemu" => qemu_command(rest),
         "hil" => hil_command(rest),
+        "nightly" => nightly_command(rest),
         "probe-network" => match probe_network() {
             ProbeResult::Denied(detail) => {
                 println!("denied: {detail}");
@@ -848,8 +856,89 @@ fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, 
     report.note(format!("report written to {} and docs/hil/cycles_nrf52840_cycles.md", ws.rel(&work)));
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, "the cycle-attribution test failed (report above)");
+        return print_report(&report, "hil");
+    }
+    // The Kernel_Timing_Parameter record (task 19.3): Δ_entry and the entry
+    // kinds, folded into the kept record of the same binary.
+    let variant = "nrf52840_cycles";
+    let model = xtask::hil::task_model(ws, bin, variant);
+    let target_name = model.as_ref().map(|m| format!("{}/{}", m.target, m.core_revision)).unwrap_or_else(|| "nrf52840/?".to_string());
+    let binding = rsk_hil::kernel_timing::Binding { binary_hash: &target.binary.hash, target: &target_name, icache: "off", configuration: variant };
+    if let Some(st) = &out.stats {
+        let extra: Vec<_> = rsk_hil::cycles::delta_entry(st, xtask::hil::MARGIN_PERCENT).into_iter().collect();
+        if let Some(new) = rsk_hil::kernel_timing::record_from_stats(st, &binding, xtask::hil::CPU_HZ, "nrf52840_cycles (2 s)", xtask::hil::MARGIN_PERCENT, extra) {
+            let path = xtask::hil::timing_record_path(&ws.root, variant);
+            let kept = std::fs::read_to_string(&path).ok().and_then(|t| rsk_model::read_kernel_timing(&t).ok());
+            let (folded, replaced) = rsk_hil::kernel_timing::fold(kept, new);
+            match serde_json::to_string_pretty(&folded) {
+                Ok(text) => {
+                    let _ = std::fs::write(&path, format!("{text}\n"));
+                    report.note(format!("Kernel_Timing_Parameter record {} {} ({} parameters: {})", ws.rel(&path), if replaced { "written" } else { "extended" }, folded.parameters.len(), folded.parameters.iter().map(|p| format!("{} {}", p.symbol, p.cycles)).collect::<Vec<_>>().join(", ")));
+                }
+                Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write the record: {e}")),
+            }
+        }
     }
     print_report(&report, "cycle-attribution test passed")
+}
+
+/// `cargo xtask nightly` (R50.1): the whole campaign on the head of the
+/// main branch, one command after another, each with its own log; a step
+/// that fails does not stop the next. The summary names every step's
+/// verdict and log, so that a morning read suffices.
+fn nightly_command(args: &[String]) -> ExitCode {
+    if !args.is_empty() {
+        return usage_error("nightly takes no options");
+    }
+    let root = xtask::repository_root();
+    let stamp = {
+        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        // Calendar date from the epoch (UTC), no dependency.
+        let days = secs / 86_400;
+        let (y, m, d) = civil_from_days(days as i64);
+        format!("{y:04}-{m:02}-{d:02}")
+    };
+    let dir = root.join("target").join("xtask-nightly").join(&stamp);
+    let _ = std::fs::create_dir_all(&dir);
+    let steps: [(&str, &[&str]); 3] = [
+        ("verify", &["verify"]),
+        ("release-timing", &["hil", "--release-timing"]),
+        ("stress", &["hil", "--stress"]),
+    ];
+    let mut summary = format!("# Nightly HIL campaign {stamp}\n\n| Step | Verdict | Log | Minutes |\n|---|---|---|---|\n");
+    let mut all_ok = true;
+    for (name, argv) in steps {
+        let log = dir.join(format!("{name}.log"));
+        let start = std::time::Instant::now();
+        let status = std::process::Command::new(std::env::current_exe().unwrap_or_else(|_| "xtask".into()))
+            .args(argv)
+            .current_dir(&root)
+            .stdout(std::fs::File::create(&log).map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null()))
+            .stderr(std::process::Stdio::inherit())
+            .status();
+        let ok = status.map(|s| s.success()).unwrap_or(false);
+        all_ok &= ok;
+        summary.push_str(&format!("| {name} | {} | {} | {:.0} |\n", if ok { "pass" } else { "FAIL" }, log.display(), start.elapsed().as_secs_f64() / 60.0));
+        println!("nightly: {name}: {}", if ok { "pass" } else { "FAIL" });
+    }
+    let _ = std::fs::write(dir.join("summary.md"), &summary);
+    let _ = std::fs::write(root.join("target").join("xtask-nightly").join("latest.md"), &summary);
+    print!("{summary}");
+    if all_ok { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+}
+
+/// Proleptic Gregorian date from days since 1970-01-01 (Howard Hinnant's algorithm).
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 fn qemu_command(args: &[String]) -> ExitCode {

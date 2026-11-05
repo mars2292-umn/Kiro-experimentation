@@ -83,7 +83,7 @@ pub fn judge(st: &Stats, cpu_hz: u64, tick_hz: u64) -> Vec<(String, bool, String
     out.push((
         "attribution overhead (informative: the preempted Job's excess, the Kernel entries' cycles outside the charge points)".into(),
         true,
-        format!("{:.0} cycles ({:.3} ms) per log Job over its {} Jobs; the Analyzer's switching parameters must cover it per preemption", lm - hm, (lm - hm) * 1000.0 / cpu_hz as f64, l.exec_count),
+        format!("{:.0} cycles ({:.3} ms) per log Job over its {} Jobs, interrupted by {} Kernel entries: {:.0} cycles per entry, exported as Δ_entry (R13.6)", lm - hm, (lm - hm) * 1000.0 / cpu_hz as f64, l.exec_count, l.interrupted, if l.interrupted > 0 { (lm - hm).max(0.0) * l.exec_count as f64 / l.interrupted as f64 } else { 0.0 }),
     ));
     let tight = |t: &crate::stats::TaskStats| t.exec_max_cycles as f64 - t.exec_min_cycles as f64 <= t.exec_mean_cycles() * 2.0 * TOLERANCE_PERCENT as f64 / 100.0;
     out.push((
@@ -121,6 +121,31 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         Err(e) => out.step("record", false, e),
     }
     out
+}
+
+/// Δ_entry (design.md, R13.6): the cycles a Kernel entry charges the Job
+/// it interrupts, outside the handler's charge points: the preempted
+/// Task's mean excess over the unpreempted one, spread over the entries
+/// that interrupted its Jobs, with the margin. `None` without the
+/// interruption counts.
+pub fn delta_entry(st: &Stats, margin_percent: u64) -> Option<rsk_model::wcet::KernelTimingParameter> {
+    let (h, l) = (st.tasks.get(HIGH)?, st.tasks.get(LOW)?);
+    if l.interrupted == 0 || l.exec_count == 0 || h.exec_count == 0 {
+        return None;
+    }
+    let excess = (l.exec_mean_cycles() - h.exec_mean_cycles()).max(0.0) * l.exec_count as f64;
+    let per_entry = (excess / l.interrupted as f64).ceil() as u64;
+    Some(rsk_model::wcet::KernelTimingParameter {
+        symbol: "delta_entry".into(),
+        cycles: crate::kernel_timing::bound(per_entry, margin_percent),
+        method: "measured".into(),
+        tool: crate::kernel_timing::TOOL.into(),
+        conditions: vec![
+            format!("the cycles a Kernel entry charges the Job it interrupts outside the charge points: log's excess over control ({} Jobs) spread over the {} entries that interrupted log's Jobs (the cycle test, R18.1)", l.exec_count, l.interrupted),
+            "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".into(),
+        ],
+        measured: Some(rsk_model::wcet::Measured { runs: l.interrupted as u64, max_observed: per_entry, margin_percent, coverage_branch_percent: 0, scenarios: vec!["nrf52840_cycles (2 s)".into()] }),
+    })
 }
 
 pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome, binary: &str) -> String {

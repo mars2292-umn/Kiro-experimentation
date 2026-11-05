@@ -6,7 +6,10 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 48;
+const PER_TASK: usize = 49;
+/// Kernel-entry kinds of the entry table (the Kernel's `ENTRY_*`).
+pub const ENTRY_KINDS: usize = 16;
+pub const ENTRY_NAMES: [&str; 16] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "-"];
 /// Resource slots of the Critical_Section table (the Kernel's `STATS_RES`).
 const RES: usize = 16;
 const RING: usize = 256;
@@ -39,6 +42,22 @@ pub struct TaskStats {
     /// (task 7.5's cycle test, R18.1).
     pub exec_min_cycles: u32,
     pub exec_sum_cycles: u64,
+    /// Kernel entries that interrupted the Task's executing Job (task 19.3).
+    pub interrupted: u32,
+}
+
+/// One Kernel-entry kind's record: runs, the largest, the sum (task 19.3).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct EntryStats {
+    pub count: u32,
+    pub max_cycles: u32,
+    pub sum_cycles: u64,
+}
+
+impl EntryStats {
+    pub fn mean_cycles(&self) -> f64 {
+        if self.count == 0 { 0.0 } else { self.sum_cycles as f64 / self.count as f64 }
+    }
 }
 
 /// One Critical_Section site's record: Task, Resource, sections closed,
@@ -81,6 +100,8 @@ pub struct Stats {
     pub nominal_mismatches: u32,
     /// The Releases the ring holds, oldest first.
     pub recent: Vec<Release>,
+    /// The Kernel-entry table by kind (`ENTRY_NAMES`).
+    pub entries: Vec<EntryStats>,
     pub releases_recorded: u32,
 }
 
@@ -90,7 +111,7 @@ impl Stats {
             return Err("RELEASE_STATS: no record (the magic word is absent: the Kernel never ran this build)".into());
         }
         let n = words[1] as usize;
-        let need = HEADER + n * PER_TASK + n * RES * 3 + 1;
+        let need = HEADER + n * PER_TASK + n * RES * 3 + 4 * ENTRY_KINDS + 1;
         if words.len() < need {
             return Err(format!("RELEASE_STATS: {} words, fewer than the {need} the header announces", words.len()));
         }
@@ -119,6 +140,7 @@ impl Stats {
                 },
                 exec_min_cycles: words[b + 45],
                 exec_sum_cycles: (words[b + 47] as u64) << 32 | words[b + 46] as u64,
+                interrupted: words[b + 48],
             });
         }
         let cs_at = HEADER + n * PER_TASK;
@@ -131,7 +153,14 @@ impl Stats {
                 }
             }
         }
-        let ring = cs_at + n * RES * 3;
+        let entry_at = cs_at + n * RES * 3;
+        let entries: Vec<EntryStats> = (0..ENTRY_KINDS)
+            .map(|k| {
+                let e = entry_at + 4 * k;
+                EntryStats { count: words[e], max_cycles: words[e + 1], sum_cycles: (words[e + 3] as u64) << 32 | words[e + 2] as u64 }
+            })
+            .collect();
+        let ring = entry_at + 4 * ENTRY_KINDS;
         let written = words[ring];
         let slots = ((words.len() - ring - 1) / 4).min(RING);
         let mut recent = Vec::new();
@@ -142,7 +171,7 @@ impl Stats {
                 recent.push(Release { task: words[s] as u8, due: (words[s + 2] as u64) << 32 | words[s + 1] as u64, lag_cycles: words[s + 3] });
             }
         }
-        Ok(Stats { tasks, cs, calibration_cycles: words[3], nominal_mismatches: words[2], recent, releases_recorded: written })
+        Ok(Stats { tasks, cs, calibration_cycles: words[3], nominal_mismatches: words[2], recent, entries, releases_recorded: written })
     }
 
     /// The response-time table (Tasks with completed Jobs): `(task, jobs, max ms)`.
@@ -225,6 +254,18 @@ impl Stats {
             for c in &self.cs {
                 s.push_str(&format!("| Task {} on Resource {} | {} | {} / {:.3} | |\n", c.task, c.resource, c.count, c.max_cycles, c.max_cycles as f64 * 1000.0 / cpu_hz as f64));
             }
+            if self.entries.iter().any(|e| e.count > 0) {
+                s.push_str("\nKernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):\n\n| Entry | Runs | Max (cycles / µs) | Mean (cycles) |\n|---|---|---|---|\n");
+                for (k, e) in self.entries.iter().enumerate() {
+                    if e.count > 0 {
+                        s.push_str(&format!("| {} | {} | {} / {:.2} | {:.0} |\n", ENTRY_NAMES[k], e.count, e.max_cycles, e.max_cycles as f64 * 1_000_000.0 / cpu_hz as f64, e.mean_cycles()));
+                    }
+                }
+                let interrupted: Vec<String> = self.tasks.iter().enumerate().filter(|(_, t)| t.interrupted > 0).map(|(t, st)| format!("Task {t}: {}", st.interrupted)).collect();
+                if !interrupted.is_empty() {
+                    s.push_str(&format!("\nEntries that interrupted an executing Job: {}\n", interrupted.join(", ")));
+                }
+            }
         }
         if !self.recent.is_empty() {
             s.push_str("\nThe last recorded Releases (Task, nominal instant, lag):\n\n");
@@ -243,7 +284,7 @@ mod tests {
     #[test]
     fn decodes_the_record() {
         let n = 2;
-        let mut w = vec![0u32; HEADER + n * PER_TASK + n * RES * 3 + 1 + 12];
+        let mut w = vec![0u32; HEADER + n * PER_TASK + n * RES * 3 + 4 * ENTRY_KINDS + 1 + 12];
         w[0] = MAGIC;
         w[1] = n as u32;
         w[2] = 1;
@@ -265,7 +306,7 @@ mod tests {
         let cs = HEADER + n * PER_TASK + (1 * RES + 2) * 2;
         w[cs] = 5;
         w[cs + 1] = 16_000;
-        let ring = HEADER + n * PER_TASK + n * RES * 3;
+        let ring = HEADER + n * PER_TASK + n * RES * 3 + 4 * ENTRY_KINDS;
         w[ring] = 4; // four written into three slots: entries 1, 2, 3 remain
         for k in 0..4u32 {
             let s = ring + 1 + 4 * (k as usize % 3);
