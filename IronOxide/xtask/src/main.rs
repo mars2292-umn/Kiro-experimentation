@@ -401,6 +401,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut isolation = false;
     let mut boot_checks = false;
     let mut cycles = false;
+    let mut coverage = false;
     let mut lean = false;
     let mut short = false;
     let mut args = args.iter();
@@ -421,6 +422,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--isolation" => isolation = true,
             "--boot-checks" => boot_checks = true,
             "--cycles" => cycles = true,
+            "--coverage" => coverage = true,
             "--lean" => lean = true,
             "--short" => short = true,
             other => return usage_error(&format!("unknown option `{other}`")),
@@ -468,6 +470,9 @@ fn hil_command(args: &[String]) -> ExitCode {
     let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
         return print_report(&report, "hil");
     };
+    if coverage {
+        return coverage_command(&ws, &rig, &bin, &stimulus_bin, stress, &target_dir, report);
+    }
     if release_timing || stress {
         return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, stress, lean, &target_dir, report);
     }
@@ -565,6 +570,12 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         None
     };
     let work = dir.join("run");
+    // Task 19.2: the Profile_Lint's loop-bound export, which the rig judges
+    // the build's loop report against (R34.9, R35.4).
+    let loop_bounds = xtask::hil::loop_bounds_export(ws, bin, &dir.join("loop-bounds.json"), &mut report);
+    if loop_bounds.is_none() {
+        return print_report(&report, "hil");
+    }
     let inputs = rsk_hil::release_timing::Inputs {
         rig,
         target_elf: &target.elf,
@@ -577,6 +588,9 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         samplerate_hz: 100_000,
         flash_stimulus: true,
         stress: stress_spec,
+        loop_bounds: loop_bounds.as_deref(),
+        configuration: variant,
+        binary_hash: &target.binary.hash,
     };
     let out = rsk_hil::release_timing::run(&inputs);
     let text = rsk_hil::release_timing::render(rig, &inputs, &out);
@@ -591,6 +605,17 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
     let name = format!("{}_{variant}.md", kind.replace('-', "_"));
     let _ = std::fs::write(record.join(&name), &text);
     report.note(format!("report written to {} and docs/hil/{name}", ws.rel(&work)));
+    // Task 19.2: the loop-iteration report of the run (R34.9, R35.4), kept
+    // beside the records whatever the verdict (a failed run's is evidence
+    // of what exceeded its bound).
+    if let Some(l) = &out.loops {
+        let path = xtask::hil::loop_record_path(&ws.root, variant);
+        let _ = std::fs::write(work.join("loop_iterations.json"), l.print());
+        match std::fs::write(&path, l.print()) {
+            Ok(()) => report.note(format!("loop iterations written to {}: {}", ws.rel(&path), l.summary())),
+            Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&path))),
+        }
+    }
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, format!("the {kind} run failed (report above)"));
         return print_report(&report, "hil");
@@ -649,6 +674,154 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         None => report.note("no WCET_Record: the run recorded no Job execution (or no Task_Model)".to_string()),
     }
     print_report(&report, &format!("{kind} run passed"))
+}
+
+/// `cargo xtask hil --coverage [--stress]` (task 19.2, R34.4, R53.3;
+/// Verification_Plan 11.13): the short measurement configuration (the
+/// release-timing one, or the stress one with `--stress`) built as the
+/// coverage build and run on the rig under the same inputs as the
+/// measurement run; afterwards the Partitions' branch counters are read
+/// over the probe and the branch coverage of each Task entry (its body
+/// and its crate's helpers) and Critical_Section site is judged against
+/// the threshold the rig records, written to `docs/hil/coverage_<variant>.json`
+/// and `.md`, and entered into the committed WCET_Records of the
+/// configuration as their `coverage_branch_percent`. The run writes no
+/// timing record: the instrumented bodies are not the measured binary.
+fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, stress: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.stress == stress && m.duration_secs < 10 * 60) else {
+        report.error(xtask::diag::Rule::Step, None, "no short measurement configuration for this run".to_string());
+        return print_report(&report, "hil");
+    };
+    let (feature, duration_secs, variant) = (measurement.feature, measurement.duration_secs, measurement.variant);
+    let Some(tools) = xtask::hil::coverage_tools(&mut report) else {
+        return print_report(&report, "hil");
+    };
+    let features = format!("{},{feature},coverage", xtask::hil::FEATURES);
+    let dir = target_dir.join("coverage").join(variant);
+    let Some(target) = xtask::hil::coverage_build(ws, bin, &features, &dir, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let stimulus = if stress {
+        xtask::hil::build_with(ws, stimulus_bin, &format!("{},storm", xtask::hil::FEATURES), &target_dir.join("stimulus-storm"), None, &mut report)
+    } else {
+        xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report)
+    };
+    let Some(stimulus) = stimulus else {
+        return print_report(&report, "hil");
+    };
+    report.note(format!("coverage build of `{variant}` ({features}; {}): {} over {} loadable bytes; {} s", xtask::hil::COVERAGE_TOOLCHAIN, target.binary.hash, target.binary.loadable_bytes, duration_secs));
+    let model = ws.root.join("apps").join(bin).join(format!("gen-{variant}")).join("task_model.json");
+    let stress_spec = if stress {
+        match analyzer_wcrt(ws, &model, target.binary.config_checksum.as_deref(), &dir, &mut report) {
+            Some((protected, _)) => Some(rsk_hil::release_timing::Stress { protected, storm_task: 4, mit_ms: 15 }),
+            None => return print_report(&report, "hil"),
+        }
+    } else {
+        None
+    };
+    let work = dir.join("run");
+    let loop_bounds = xtask::hil::loop_bounds_export(ws, bin, &dir.join("loop-bounds.json"), &mut report);
+    let inputs = rsk_hil::release_timing::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        work_dir: &work,
+        duration_secs,
+        grace_secs: 90,
+        tick_hz: xtask::hil::TICK_HZ,
+        cpu_hz: xtask::hil::CPU_HZ,
+        samplerate_hz: 100_000,
+        flash_stimulus: true,
+        stress: stress_spec,
+        loop_bounds: loop_bounds.as_deref(),
+        configuration: variant,
+        binary_hash: &target.binary.hash,
+    };
+    let out = rsk_hil::release_timing::run(&inputs);
+    let mut text = rsk_hil::release_timing::render(rig, &inputs, &out);
+    text = text.replacen("# HIL ", "# HIL coverage run (task 19.2, R34.4) over the ", 1);
+    // The counters, the raw profile, and the branch report.
+    let board = rsk_hil::board::Target { chip: &rig.chip, serial: &rig.target.serial };
+    let crates = xtask::hil::partition_crates(ws, bin);
+    let sources: Vec<std::path::PathBuf> = crates.iter().map(|(_, _, s)| s.clone()).collect();
+    let task_model = std::fs::read_to_string(&model).ok().and_then(|t| rsk_model::read_task_model(&t).ok());
+    let coverage = match (task_model.as_ref(), rsk_hil::coverage::collect(&board, &target.elf, &work)) {
+        (Some(m), Ok((profraw, ranges))) => match rsk_hil::coverage::export(&tools, &target.elf, &profraw, &work, &sources) {
+            Ok(export) => {
+                let functions = rsk_hil::coverage::functions(&export);
+                let tasks: Vec<(String, String, String, Vec<String>)> = m
+                    .tasks
+                    .iter()
+                    .map(|t| {
+                        let krate = m.partitions.iter().find(|p| p.id == t.partition).map(|p| p.krate.clone()).unwrap_or_default();
+                        let body = t.id.rsplit('.').next().unwrap_or(&t.id).to_string();
+                        (t.id.clone(), krate, body, t.cs_sites.clone())
+                    })
+                    .collect();
+                let r = rsk_hil::coverage::report(functions, &tasks, variant, &target.binary.hash, rig.coverage_branch_percent);
+                report.note(format!("counters read: {}", ranges.iter().map(|r| format!("Partition {} {} bytes", r.partition, r.end - r.start)).collect::<Vec<_>>().join(", ")));
+                Ok(r)
+            }
+            Err(e) => Err(e),
+        },
+        (None, _) => Err(format!("no Task_Model at {}", ws.rel(&model))),
+        (_, Err(e)) => Err(e),
+    };
+    match &coverage {
+        Ok(r) => {
+            text.push_str("\n## Branch coverage of the measurement inputs (R34.4)\n\n");
+            text.push_str(&format!("{}\n\n", r.summary()));
+            text.push_str(&r.render());
+        }
+        Err(e) => text.push_str(&format!("\n## Branch coverage of the measurement inputs (R34.4)\n\nNot collected: {e}\n")),
+    }
+    print!("{text}");
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::create_dir_all(&record);
+    let _ = std::fs::write(record.join(format!("coverage_{variant}.md")), &text);
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the coverage run failed (report above): no coverage is taken from a failed run".to_string());
+        return print_report(&report, "hil");
+    }
+    let r = match coverage {
+        Ok(r) => r,
+        Err(e) => {
+            report.error(xtask::diag::Rule::Step, None, format!("branch coverage not collected: {e}"));
+            return print_report(&report, "hil");
+        }
+    };
+    let path = xtask::hil::coverage_record_path(&ws.root, variant);
+    match std::fs::write(&path, r.print()) {
+        Ok(()) => report.note(format!("branch coverage written to {}: {}", ws.rel(&path), r.summary())),
+        Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&path))),
+    }
+    // The committed WCET_Records of the configuration take the figures
+    // (R33.1's coverage field), each with a condition naming the build.
+    let wcet = xtask::hil::wcet_record_path(&ws.root, variant);
+    if let Some(mut set) = std::fs::read_to_string(&wcet).ok().and_then(|t| rsk_model::read_wcet_set(&t).ok()) {
+        let mut entered = 0;
+        for rec in &mut set.records {
+            let Some(item) = r.items.iter().find(|i| i.item == rec.item) else { continue };
+            if let Some(m) = &mut rec.measured {
+                m.coverage_branch_percent = item.percent;
+                rec.conditions.retain(|c| !c.starts_with("branch coverage "));
+                rec.conditions.push(format!("branch coverage {} % of the inputs ({} of {} branch outcomes of the body and its crate's helpers) from the coverage build {} of this configuration (R34.4; docs/hil/coverage_{variant}.json)", item.percent, item.covered, item.branches, &target.binary.hash));
+                entered += 1;
+            }
+        }
+        match std::fs::write(&wcet, rsk_model::print(&set)) {
+            Ok(()) => report.note(format!("coverage entered into {} records of {}", entered, ws.rel(&wcet))),
+            Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&wcet))),
+        }
+    } else {
+        report.note(format!("no committed WCET_Records at {} to carry the coverage (run the measurement first)", ws.rel(&wcet)));
+    }
+    if !r.ok() {
+        report.error(xtask::diag::Rule::Step, None, format!("branch coverage below the {} % threshold (R34.4): {}", r.threshold_percent, r.below().iter().map(|i| format!("{} {} %", i.item, i.percent)).collect::<Vec<_>>().join(", ")));
+        return print_report(&report, "hil");
+    }
+    print_report(&report, "coverage run passed")
 }
 
 /// The Analyzer's WCRT of every Task of the highest-criticality Partition
@@ -911,10 +1084,14 @@ fn nightly_command(args: &[String]) -> ExitCode {
     };
     let dir = root.join("target").join("xtask-nightly").join(&stamp);
     let _ = std::fs::create_dir_all(&dir);
-    let steps: [(&str, &[&str]); 3] = [
+    let steps: [(&str, &[&str]); 5] = [
         ("verify", &["verify"]),
         ("release-timing", &["hil", "--release-timing"]),
         ("stress", &["hil", "--stress"]),
+        // Task 19.2 (R34.4): the branch coverage of the measurement inputs,
+        // one coverage run per short configuration.
+        ("coverage-timing", &["hil", "--coverage"]),
+        ("coverage-stress", &["hil", "--coverage", "--stress"]),
     ];
     let mut summary = format!("# Nightly HIL campaign {stamp}\n\n| Step | Verdict | Log | Minutes |\n|---|---|---|---|\n");
     let mut all_ok = true;

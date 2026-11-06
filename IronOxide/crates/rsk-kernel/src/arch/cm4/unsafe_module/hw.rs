@@ -162,6 +162,71 @@ extern "C" {
 const INIT_RANGES: usize = 16;
 const RAM_WORDS: usize = 65_536;
 
+#[cfg(all(feature = "coverage", target_arch = "arm", target_os = "none"))]
+extern "C" {
+    /// `(start, end, 0)` triples of the coverage counter ranges, one per
+    /// Partition, terminated by zeros (the Generator's `link.x`; task 19.2).
+    static __rsk_cov_table: InitRange;
+}
+
+/// The coverage build (task 19.2, R34.4): zeroes every Partition's
+/// coverage counters at instant 0, as the records are cleared, so that a
+/// run's counts are its own and survive the reboot the probe's detach
+/// causes (which never reaches instant 0). A Partition restart leaves the
+/// counters alone (its range of the zero table is its image alone).
+#[cfg(feature = "coverage")]
+pub fn coverage_reset() {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        // SAFETY (UJ-049): the table is the linker's for this build; each
+        // range is a Partition's counters above its image, in its own RAM,
+        // written here at instant 0 before any Job runs.
+        unsafe {
+            let mut entry = &__rsk_cov_table as *const InitRange;
+            let mut i = 0;
+            while i < INIT_RANGES {
+                let (start, end) = ((*entry).start, (*entry).end);
+                if start == 0 && end == 0 {
+                    return;
+                }
+                let mut a = start as usize as *mut u32;
+                let stop = end as usize as *mut u32;
+                let mut words = 0;
+                while a < stop && words < RAM_WORDS {
+                    core::ptr::write_volatile(a, 0);
+                    a = a.add(1);
+                    words += 1;
+                }
+                entry = entry.add(1);
+                i += 1;
+            }
+        }
+    }
+}
+
+/// The coverage build's counter increment (task 19.2): rustc lowers every
+/// `-C instrument-coverage` counter update to an atomic 64-bit add, which
+/// the Cortex-M4 has no instruction for, so the compiler calls this
+/// libcall. Placed in the shared code region (`.text.rsk_shared`), since
+/// the Partitions' instrumented bodies call it under their MPU views. Not
+/// atomic: a counter belongs to one function, and a lost increment under
+/// preemption (two Tasks of a Partition in one shared helper) changes a
+/// count, never whether a branch was taken, which is what the report
+/// reads (R34.4). HIL builds only; never a Flight_Build function.
+#[cfg(feature = "coverage")]
+#[no_mangle]
+#[link_section = ".text.rsk_shared"]
+pub extern "C" fn __atomic_fetch_add_8(counter: *mut u64, value: u64, _order: i32) -> u64 {
+    // SAFETY (UJ-050): the pointer is the compiler's, to a counter of the
+    // calling Partition's coverage range (`__rsk_cov_table`), aligned and
+    // in that Partition's RAM; read and written once each.
+    unsafe {
+        let old = core::ptr::read_volatile(counter);
+        core::ptr::write_volatile(counter, old.wrapping_add(value));
+        old
+    }
+}
+
 /// R14.5: re-initializes Partition `p`'s RAM image: its range of the
 /// linker's zero table (entry `p + 1`; the Kernel's is entry 0) is zeroed.
 /// The Generator places every Partition static (per-Task state, Resource
@@ -718,6 +783,16 @@ pub fn dma_program(ptr_reg: u32, ptr: u32, cnt_reg: u32, len: u32) {
 pub fn dma_stop(reg: u32) {
     if addr::peripheral(reg) {
         mmio_write(reg, 1);
+    }
+}
+
+/// The Kernel-mediated write of one register of an EasyDMA-capable
+/// peripheral (DD-08; `dma_write_core` has validated the register and the
+/// caller's ownership, task 19.2); an address outside the peripheral
+/// region is refused here as for `dma_program`.
+pub fn dma_write(reg: u32, value: u32) {
+    if addr::peripheral(reg) {
+        mmio_write(reg, value);
     }
 }
 

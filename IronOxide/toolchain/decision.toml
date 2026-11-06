@@ -223,3 +223,18 @@ driver = "fx2lafw"
 # port is locked; unlock once with `probe-rs run --allow-erase-all` of the
 # HIL build, after which `cargo xtask hil` attaches without erasing.
 hil_features = "nrf52840,debug-port,quiet"
+
+[coverage]
+# Task 19.2 (2026-11-06): the coverage build of the measurement
+# configurations (`cargo xtask hil --coverage`; Verification_Plan 11.13,
+# R34.4) compiles the Partition crates with `-C instrument-coverage` and
+# branch counters, which the pinned 1.95.0 cannot do for a target without
+# a profiler runtime (`-Z no-profiler-runtime`, `-Z coverage-options=branch`
+# are nightly options). The coverage build is a measurement aid: the
+# branch coverage of the inputs is read from it, every timing record from
+# the pinned toolchain's builds. Its llvm-profdata and llvm-cov come with
+# the toolchain's llvm-tools component.
+toolchain = "nightly-2026-09-17"
+rustc = "1.100.0-nightly"
+llvm = "23.1.1"
+targets = ["thumbv7em-none-eabihf"]

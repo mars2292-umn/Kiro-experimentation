@@ -53,6 +53,12 @@ boot-mutation = []
 # without the trace ring, so that a run measures what the ring costs
 # (task 19.2, R34.7). HIL builds only.
 record-only = []
+# The coverage build (task 19.2, R34.4): the Partition crates compiled with
+# `-C instrument-coverage`, their counters in each Partition's RAM
+# (`__rsk_cov_table` of the generated linker script), zeroed at instant 0
+# and read by the HIL_Rig after the run. HIL builds only; never a
+# Flight_Build feature.
+coverage = []
 
 # Verified by `cargo verus verify` (R44.6; xtask step "Kernel_Proofs").
 [package.metadata.verus]

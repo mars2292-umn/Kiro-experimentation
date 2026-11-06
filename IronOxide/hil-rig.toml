@@ -79,3 +79,40 @@ j_rel_cycles = 10000
 # for the Analyzer (task 19.3) carries the observed maximum with the
 # margin of R34.6.
 delta_irq_cycles = 2600
+# Task 19.2 (2026-11-06): the exported bound of L_kernel, the longest
+# Kernel entry (every entry masks preemption): 4,340 to 4,498 cycles
+# measured (plus Δ_entry's 1,765 outside the charge points). With Δ_irq
+# it bounds the lag from a Release_Source edge to the Kernel's timestamp
+# (Δ_stamp): the loopback step allows a wire latency later than the
+# deadline by at most this lag when the Kernel logged no deadline miss.
+l_kernel_cycles = 7000
+
+# Task 19.2 (R34.9): the Application loops whose Loop_Bound_Annotation no
+# input reaches, with the justification the Verification_Plan records
+# (section 11.13). Every loop of the demo is a wait by the time base with
+# an iteration guard as the PR-16 backstop: the guard is one to four
+# orders of magnitude above the iterations the wait takes (each iteration
+# reads the time base through an SVC, some hundreds of cycles), so only a
+# stopped time base reaches it. The rig's loop report (`cargo xtask hil
+# --release-timing|--stress`) fails a loop below its bound that is not
+# listed here, and any loop above it (R35.4).
+[loops]
+unreachable = [
+  { key = "loop:part0:spin_ms:spin", reason = "a wait of up to 120 ms by the time base (about 300,000 SVC-paced iterations); the 100,000,000-iteration guard is the PR-16 backstop" },
+  { key = "loop:part1:spin_ms:spin", reason = "a wait of up to 25 ms by the time base; the 100,000,000-iteration guard is the PR-16 backstop" },
+  { key = "loop:part2:spin_ms:spin", reason = "a wait of up to 50 ms by the time base; the 100,000,000-iteration guard is the PR-16 backstop" },
+  { key = "loop:part0:sensor:hold", reason = "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop" },
+  { key = "loop:part0:sensor:late", reason = "the injected late Job's 38 ms by the time base; the 50,000,000-iteration guard is the PR-16 backstop" },
+  { key = "loop:part1:log:busy", reason = "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop" },
+  { key = "loop:part2:filter:hold", reason = "a hold of 250 µs or 1 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop" },
+]
+
+# Task 19.2 (R34.4): the branch-coverage threshold of the measurement
+# inputs, in percent of the branch outcomes of the functions a Task's Jobs
+# reach in its crate (the Link_Checker's call graph), as the
+# Verification_Plan records it (section 11.13): 50 % for Phase 3, every
+# uncovered outcome listed in the run's report and justified in the plan
+# (the fault paths and the PR-16 backstop guards the configuration cannot
+# drive). `cargo xtask hil --coverage [--stress]` fails an item below it.
+[coverage]
+branch_percent = 50

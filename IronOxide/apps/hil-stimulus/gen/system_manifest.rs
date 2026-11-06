@@ -60,7 +60,7 @@ static KERNEL: ::rsk_kernel::arch::cm4::KernelCell<K> = ::rsk_kernel::arch::cm4:
 const DISPATCH_IRQ: [u16; NT] = [20];
 const INTAKE_IRQ: [u16; NT] = [0xFFFF];
 pub const ND: usize = 0;
-const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0] };
+const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0], shorts: 0 };
 pub const DMA: [::rsk_kernel::arch::DmaCfg; ND] = [
 ];
 pub const NSIG: usize = 0;

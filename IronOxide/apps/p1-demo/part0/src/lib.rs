@@ -24,16 +24,21 @@ mod inject {
         now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms.saturating_add(len_ms))
     }
 
-    pub fn spin_ms(ms: u64) {
+    /// Returns the iterations the loop ran (the measurement build's loop
+    /// report, task 19.2, R35.4). The loop's label names it in that report
+    /// and in the Profile_Lint's export (R35.3); nothing breaks to it.
+    #[allow(unused_labels)]
+    pub fn spin_ms(ms: u64) -> u32 {
         let start = rsk::now();
         let mut i = 0u32;
         // The App_Prover's bound of the loop equals the Loop_Bound_Annotation
         // the Profile_Lint derives from the guard (R35.2; the lint compares them).
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 100_000_000))]
         #[cfg_attr(creusot, rsk::creusot_std::macros::variant(100_000_000 - i@))]
-        while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+        'spin: while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
             i += 1;
         }
+        i
     }
 
     /// A write into the Kernel's RAM, outside every Partition's view: a
@@ -205,6 +210,9 @@ const CS_MS: u64 = 6;
 const CS_MS: u64 = 12;
 
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::sensor_pre(&cx)))]
+// The loops' labels name them in the loop report (task 19.2) and the
+// Profile_Lint's export; nothing breaks to them.
+#[allow(unused_labels)]
 pub fn sensor(mut cx: rsk_ctx::Sensor) {
     #[cfg(creusot)]
     let enter = #[rsk::creusot_std::macros::ensures(^v == 1u32)] |v: &mut u32| *v = 1;
@@ -226,9 +234,13 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
         // bound the Profile_Lint derives from the guard (R35.2).
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
         #[cfg_attr(creusot, rsk::creusot_std::macros::variant(10_000_000 - i@))]
-        while rsk::now().wrapping_sub(start) < rsk_target::ms(CS_MS) && i < 10_000_000 {
+        'hold: while rsk::now().wrapping_sub(start) < rsk_target::ms(CS_MS) && i < 10_000_000 {
             i += 1;
         }
+        // The measurement build (task 19.2, R35.4): the largest iteration
+        // count the loop reached, for the safe state's loop report.
+        #[cfg(feature = "measure")]
+        cx.loop_hold.with(|m| if i > *m { *m = i });
         *s = s.saturating_add(1);
     });
     cx.in_cs.lock(leave);
@@ -248,7 +260,11 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
     // (RECORD_ONLY) and part2 (STOP_PARTITION).
     #[cfg(feature = "response")]
     if inject::window(1300, 20) {
-        inject::spin_ms(120);
+        let n = inject::spin_ms(120);
+        #[cfg(feature = "measure")]
+        cx.loop_spin.with(|m| if n > *m { *m = n });
+        #[cfg(not(feature = "measure"))]
+        let _ = n;
     }
     #[cfg(feature = "timing")]
     if cx.count.get() % 1024 == 0 {
@@ -256,9 +272,11 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
         let mut i = 0u32;
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 50_000_000))]
         #[cfg_attr(creusot, rsk::creusot_std::macros::variant(50_000_000 - i@))]
-        while rsk::now().wrapping_sub(start) < rsk_target::ms(38) && i < 50_000_000 {
+        'late: while rsk::now().wrapping_sub(start) < rsk_target::ms(38) && i < 50_000_000 {
             i += 1;
         }
+        #[cfg(feature = "measure")]
+        cx.loop_late.with(|m| if i > *m { *m = i });
     }
     rsk::debug(&[b'B']);
 }

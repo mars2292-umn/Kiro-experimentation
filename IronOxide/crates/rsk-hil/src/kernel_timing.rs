@@ -175,6 +175,18 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, binding: &Binding<'_>, margin_
     if parameters.is_empty() {
         return None;
     }
+    // The interference scenarios of R34.5 as the run observed them (task
+    // 19.2), after the configuration the records fold on.
+    let extra: Vec<String> = crate::release_timing::scenarios(inputs, out).into_iter().skip(1).collect();
+    for p in &mut parameters {
+        if let Some(m) = &mut p.measured {
+            for s in &extra {
+                if !m.scenarios.contains(s) {
+                    m.scenarios.push(s.clone());
+                }
+            }
+        }
+    }
     Some(KernelTiming {
         schema: KERNEL_TIMING_SCHEMA.into(),
         binary_hash: binding.binary_hash.to_string(),

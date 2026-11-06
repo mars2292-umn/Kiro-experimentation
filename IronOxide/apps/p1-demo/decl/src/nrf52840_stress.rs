@@ -32,6 +32,12 @@ rsk::app! {
         state control.blocked: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
+        // The measurement build (task 19.2, R34.9, R35.4; the Partition crates'
+        // `measure` feature): the largest iteration count each bounded loop
+        // reached, by loop, reported by the safe state as `loop:part0:<fn>:<label>`.
+        state sensor.loop_spin: u32 = 0;
+        state sensor.loop_hold: u32 = 0;
+        state sensor.loop_late: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
@@ -46,6 +52,8 @@ rsk::app! {
         peripherals = [GPIOTE, P0];
         state log.count: u32 = 0;
         state pulse.count: u32 = 0;
+        state log.loop_spin: u32 = 0;
+        state log.loop_busy: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
@@ -63,6 +71,17 @@ rsk::app! {
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
+        state filter.loop_hold: u32 = 0;
+        state sampler.loop_spin: u32 = 0;
+        // The EasyDMA traffic scenario of R17.4 and R34.5 (task 19.2): SPIM0
+        // transfers over these buffers continuously (END_START shortcut) for
+        // the whole run; `dma_end` counts the Jobs that found a transfer
+        // ended since the last, `dma_after_stop` the restarts after which a
+        // transfer still ran once the Kernel had stopped the peripheral (R17.6).
+        state sampler.tx: [u8; 64] = [0; 64];
+        state sampler.rx: [u8; 64] = [0; 64];
+        state sampler.dma_end: u32 = 0;
+        state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),

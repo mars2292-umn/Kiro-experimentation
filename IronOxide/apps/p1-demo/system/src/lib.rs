@@ -190,6 +190,30 @@ pub fn report_and_exit() -> ! {
         print_kv(b"spim0_events_end", hw::mmio_read(SPIM0 + 0x118));
         print_kv(b"spim0_events_stopped", hw::mmio_read(SPIM0 + 0x104));
     }
+    // The measurement configurations (task 19.2): the largest iteration
+    // count of each bounded loop, keyed as the rig's loop report expects
+    // (`loop:<partition>:<function>:<label>`, R34.9, R35.4; a function
+    // several Tasks call reports the largest over them), and the EasyDMA
+    // traffic scenario's counters and SPIM0's registers (R17.4, R34.5).
+    #[cfg(feature = "measure")]
+    {
+        print_kv(b"loop:part0:spin_ms:spin", p1_demo_part0::rsk_state::SENSOR_LOOP_SPIN.peek());
+        print_kv(b"loop:part0:sensor:hold", p1_demo_part0::rsk_state::SENSOR_LOOP_HOLD.peek());
+        print_kv(b"loop:part0:sensor:late", p1_demo_part0::rsk_state::SENSOR_LOOP_LATE.peek());
+        print_kv(b"loop:part1:spin_ms:spin", p1_demo_part1::rsk_state::LOG_LOOP_SPIN.peek());
+        print_kv(b"loop:part1:log:busy", p1_demo_part1::rsk_state::LOG_LOOP_BUSY.peek());
+        print_kv(b"loop:part2:filter:hold", p1_demo_part2::rsk_state::FILTER_LOOP_HOLD.peek());
+        print_kv(b"loop:part2:spin_ms:spin", p1_demo_part2::rsk_state::SAMPLER_LOOP_SPIN.peek());
+        print_kv(b"dma_end", p1_demo_part2::rsk_state::SAMPLER_DMA_END.peek());
+        print_kv(b"dma_after_stop", p1_demo_part2::rsk_state::SAMPLER_DMA_AFTER_STOP.peek());
+        const SPIM0: u32 = 0x4000_3000;
+        print_kv(b"spim0_enable", hw::mmio_read(SPIM0 + 0x500));
+        print_kv(b"spim0_shorts", hw::mmio_read(SPIM0 + 0x200));
+        print_kv(b"spim0_rxd_maxcnt", hw::mmio_read(SPIM0 + 0x538));
+        print_kv(b"spim0_txd_maxcnt", hw::mmio_read(SPIM0 + 0x548));
+        print_kv(b"spim0_events_end", hw::mmio_read(SPIM0 + 0x118));
+        print_kv(b"spim0_events_stopped", hw::mmio_read(SPIM0 + 0x104));
+    }
     // The first MemManage fault's status and address (HIL diagnosis, R14.3).
     let (cfsr, mmfar) = rsk_kernel::arch::cm4::first_memmanage();
     print_kv(b"first_memmanage_cfsr", cfsr);

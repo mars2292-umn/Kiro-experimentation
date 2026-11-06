@@ -42,6 +42,9 @@ pub struct DmaCfg {
     pub maxcnt: u32,
     pub stops: [u32; 2],
     pub lists: [u32; 2],
+    /// The peripheral's SHORTS register (0 when it has none), cleared
+    /// before the stop tasks (R17.6; task 19.2).
+    pub shorts: u32,
 }
 
 /// One Release_Signal (R10.5): the Partition that declares it (the raising

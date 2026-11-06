@@ -427,6 +427,9 @@ pub fn start<S: System>() {
     unsafe_module::faults_reset();
     #[cfg(feature = "trace-ram")]
     unsafe_module::actions_reset();
+    // The coverage build (task 19.2): the Partitions' counters are a run's own.
+    #[cfg(feature = "coverage")]
+    unsafe_module::hw::coverage_reset();
     // The HIL differential tests' late phase (task 3.3): the Kernel's
     // configuration read back and the time base's compare rule, before
     // instant 0.

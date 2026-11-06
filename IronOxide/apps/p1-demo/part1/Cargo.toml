@@ -16,6 +16,8 @@ isolation = ["rsk/hw-dt"]
 # The cycle-attribution test (task 7.5, R18.1): a fixed-iteration spin per Job.
 cycles = []
 stress = []
+# The measurement configurations (task 19.2, R34.9, R35.4): the loop report.
+measure = []
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

@@ -24,7 +24,7 @@ pub const PAR_02_RUNS: u64 = 10_000;
 pub fn record(inputs: &Inputs<'_>, out: &Outcome, model: &TaskModel, binding: &Binding<'_>, margin_percent: u64) -> Option<WcetSet> {
     let st = out.stats.as_ref()?;
     let target = format!("{}/{}", model.target, model.core_revision);
-    let scenario = format!("{} ({} s)", binding.configuration, inputs.duration_secs);
+    let scenarios = crate::release_timing::scenarios(inputs, out);
     let mut records = Vec::new();
     let base_conditions = |what: &str, runs: u64| {
         let mut c = vec![
@@ -47,7 +47,7 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, model: &TaskModel, binding: &B
         clock_hz: inputs.cpu_hz,
         icache: binding.icache.to_string(),
         conditions: base_conditions(what, runs),
-        measured: Some(Measured { runs, max_observed: max as u64, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.clone()] }),
+        measured: Some(Measured { runs, max_observed: max as u64, margin_percent, coverage_branch_percent: 0, scenarios: scenarios.clone() }),
     };
     for (i, ts) in st.tasks.iter().enumerate() {
         let Some(task) = model.tasks.get(i) else { continue };

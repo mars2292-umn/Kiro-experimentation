@@ -61,6 +61,14 @@ SECTIONS
     _p0_ebss = .;
   } > P0RAM
 
+  .p0.cov (NOLOAD) : ALIGN(8)
+  {
+    _p0_scov = .;
+    KEEP(*libhil_stimulus_part-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _p0_ecov = .;
+  } > P0RAM
+
   .kernel.data : ALIGN(4)
   {
     _sdata = .;
@@ -85,6 +93,22 @@ SECTIONS
     . = ALIGN(4);
   } > KRAM
 
+  __llvm_prf_data : ALIGN(8)
+  {
+    __start___llvm_prf_data = .;
+    KEEP(*(__llvm_prf_data __llvm_prf_data.*));
+    __stop___llvm_prf_data = .;
+    . = ALIGN(8);
+  } > KFLASH
+
+  __llvm_prf_names : ALIGN(8)
+  {
+    __start___llvm_prf_names = .;
+    KEEP(*(__llvm_prf_names __llvm_prf_names.*));
+    __stop___llvm_prf_names = .;
+    . = ALIGN(4);
+  } > KFLASH
+
   .rsk.tables : ALIGN(4)
   {
     __rsk_bss_table = .;
@@ -94,7 +118,13 @@ SECTIONS
     __rsk_data_table = .;
     LONG(_sdata); LONG(_edata); LONG(_sidata);
     LONG(0); LONG(0); LONG(0);
+    __rsk_cov_table = .;
+    LONG(_p0_scov); LONG(_p0_ecov); LONG(0);
+    LONG(0); LONG(0); LONG(0);
   } > KFLASH
+
+  __llvm_covmap 0 (INFO) : { KEEP(*(__llvm_covmap __llvm_covmap.*)) }
+  __llvm_covfun 0 (INFO) : { KEEP(*(__llvm_covfun __llvm_covfun.*)) }
 
   /DISCARD/ :
   {

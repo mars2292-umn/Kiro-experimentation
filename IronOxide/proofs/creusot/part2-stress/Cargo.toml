@@ -24,7 +24,8 @@ check-cfg = ["cfg(creusot)"]
 # (`cargo creusot -- -p <member>`): the declaration's variant features are
 # exclusive, and a whole-workspace build would unify them.
 [features]
-default = ["stress"]
+default = ["stress", "measure"]
 response = []
 isolation = []
 stress = []
+measure = []

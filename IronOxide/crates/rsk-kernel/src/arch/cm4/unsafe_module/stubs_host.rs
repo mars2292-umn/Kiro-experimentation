@@ -30,4 +30,10 @@ pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
     true
 }
 
+pub fn svc_dma_write(i: u8, offset: u32, value: u32) -> bool {
+    sim::write(0xFFFF_FFF8, 0x8000_0000 | i as u32);
+    sim::write(0xFFFF_FFFC, offset.wrapping_add(value));
+    true
+}
+
 pub fn svc_panic() {}

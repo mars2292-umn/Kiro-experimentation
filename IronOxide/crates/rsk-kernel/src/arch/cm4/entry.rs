@@ -200,6 +200,15 @@ pub enum Action {
     DmaStop(u32),
     /// EasyDMA: clear a list-mode register (list mode forbidden, DD-08).
     DmaListOff(u32),
+    /// EasyDMA: clear a peripheral's SHORTS register before its stop tasks
+    /// (R17.6): a Partition's END_START shortcut restarted a stopped
+    /// transfer on the rig (task 19.2, 2026-11-06).
+    DmaShortsOff(u32),
+    /// EasyDMA (DD-08, task 19.2): the Kernel-mediated write of one
+    /// register of an EasyDMA-capable peripheral at (address, value);
+    /// `dma_write_core` has refused every pointer, count, and list-mode
+    /// register of the peripheral's channels.
+    DmaWrite(u32, u32),
     /// PPI: disable every channel (Kernel-owned, DD-08).
     PpiDisableAll,
     /// R14.5: re-initializes the RAM image of a restarted or stopped
@@ -271,6 +280,8 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::DmaProgram(_, _, _, _) => h,
         Action::DmaStop(_) => h,
         Action::DmaListOff(_) => h,
+        Action::DmaShortsOff(_) => h,
+        Action::DmaWrite(_, _) => h,
         Action::PpiDisableAll => h,
         Action::ReinitPartition(_) => h,
         Action::WatchdogStart(_) => HwModel { watchdog_running: true, ..h },
@@ -398,6 +409,8 @@ impl KernelArch for Cm4Hw {
                 hw::dma_stop(reg)
             }
             Action::DmaListOff(reg) => hw::dma_list_off(reg),
+            Action::DmaShortsOff(reg) => hw::dma_list_off(reg),
+            Action::DmaWrite(reg, value) => hw::dma_write(reg, value),
             Action::PpiDisableAll => hw::ppi_disable_all(),
             Action::ReinitPartition(p) => {
                 super::trace(b"reinit", p as u32);
@@ -705,7 +718,12 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     true
 }
 
-/// Triggers the stop tasks of every EasyDMA channel of Partition `p` (R17.6).
+/// Triggers the stop tasks of every EasyDMA channel of Partition `p`
+/// (R17.6), each peripheral's SHORTS register cleared first: with an
+/// END_START shortcut set, the END event the stop raises would start the
+/// next transfer (seen on the rig under the traffic scenario of task
+/// 19.2: one restart in about ninety left a transfer running after the
+/// stop task).
 fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     ensures
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
@@ -720,6 +738,9 @@ fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     {
         let d = tables.dma(i);
         if d.partition == p {
+            if d.shorts != 0 {
+                hw.apply(Action::DmaShortsOff(d.shorts));
+            }
             if d.stops[0] != 0 {
                 hw.apply(Action::DmaStop(d.stops[0]));
             }
@@ -780,6 +801,64 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
     if accepted {
         let d = tables.dma(i);
         hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));
+    } else {
+        k.fault(EV_DMA_REJECTED, false);
+    }
+    accepted
+}
+
+/// The EasyDMA register-write service (DD-08; R17.3, Δ_dma_write; task
+/// 19.2): a Partition reaches the registers of its EasyDMA-capable
+/// peripherals, which its MPU view maps read-only, through the Kernel.
+/// The write goes to `offset` within the window of channel `i`'s
+/// peripheral when `i` is a channel of the executing Job's own Partition,
+/// the offset is a word of the 4 KiB window, and the register is none of
+/// the pointer, count, or list-mode registers of any channel of that
+/// window (those are programmed by `dma_request_core` alone, after the
+/// buffer check of R17.1; list mode stays off); anything else is refused
+/// before any register is written and is a spatial violation of the
+/// Partition (R17.2). Tasks (START, STOP), events, shortcuts, ENABLE,
+/// FREQUENCY, CONFIG, and pin selection are what a Partition drives this
+/// way. Returns whether the write was performed.
+fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, offset: u32, value: u32) -> (ok: bool)
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        ok ==> *final(k) == *old(k),
+        final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+{
+    let n = tables.dma_count();
+    let mut accepted = false;
+    let mut reg: u32 = 0;
+    if i < n && offset < 0x1000 && offset % 4 == 0 {
+        let d = tables.dma(i);
+        let owned = match k.top() {
+            Some(t) => {
+                let info = k.job_info(t);
+                info.partition == d.partition
+            }
+            None => false,
+        };
+        // The window: the 4 KiB block of the channel's pointer register.
+        let window = d.ptr & 0xFFFF_F000;
+        reg = window | offset;
+        let mut mediated = false;
+        let mut j: usize = 0;
+        while j < n
+            decreases n - j,
+        {
+            let e = tables.dma(j);
+            if e.ptr & 0xFFFF_F000 == window {
+                if reg == e.ptr || reg == e.maxcnt || reg == e.lists[0] || reg == e.lists[1] {
+                    mediated = true;
+                }
+            }
+            j += 1;
+        }
+        accepted = owned && d.ptr != 0 && !mediated;
+    }
+    if accepted {
+        hw.apply(Action::DmaWrite(reg, value));
     } else {
         k.fault(EV_DMA_REJECTED, false);
     }
@@ -1039,8 +1118,14 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         // holding no Job for it (the HIL isolation suite's first refused
         // request, 2026-11-02, task 7.4: the next SVC was served with no
         // executing Job and the Kernel entered the safe state).
+        // Bit 31 of r0 selects the register write of DD-08 (channel in the
+        // low byte, r1 the register offset, r2 the value; task 19.2).
         let top_before = k.top();
-        let ok = dma_request_core(k, hw, tables, frame[0] as usize, frame[1], frame[2]);
+        let ok = if frame[0] & 0x8000_0000 != 0 {
+            dma_write_core(k, hw, tables, (frame[0] & 0xFF) as usize, frame[1], frame[2])
+        } else {
+            dma_request_core(k, hw, tables, frame[0] as usize, frame[1], frame[2])
+        };
         frame[0] = if ok { 0 } else { 1 };
         if ok {
             (0, false)

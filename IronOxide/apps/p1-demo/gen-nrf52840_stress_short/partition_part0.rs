@@ -16,6 +16,12 @@ pub mod rsk_state {
     pub static ECHO_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part0.sensor.count` (PR-25): touched by `sensor`'s Jobs only.
     pub static SENSOR_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part0.sensor.loop_spin` (PR-25): touched by `sensor`'s Jobs only.
+    pub static SENSOR_LOOP_SPIN: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part0.sensor.loop_hold` (PR-25): touched by `sensor`'s Jobs only.
+    pub static SENSOR_LOOP_HOLD: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part0.sensor.loop_late` (PR-25): touched by `sensor`'s Jobs only.
+    pub static SENSOR_LOOP_LATE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {
@@ -71,6 +77,12 @@ pub mod rsk_ctx {
         pub in_cs: ::rsk::Shared<'static, u32>,
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `loop_spin` (PR-25).
+        pub loop_spin: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `loop_hold` (PR-25).
+        pub loop_hold: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `loop_late` (PR-25).
+        pub loop_late: ::rsk::PerTask<'static, u32>,
     }
 }
 #[cfg(creusot)]
@@ -136,6 +148,9 @@ pub mod rsk_jobs {
             state: ::rsk::Shared::new(&super::rsk_resources::STATE, 0),
             in_cs: ::rsk::Shared::new(&super::rsk_resources::IN_CS, 1),
             count: ::rsk::PerTask::new(&super::rsk_state::SENSOR_COUNT),
+            loop_spin: ::rsk::PerTask::new(&super::rsk_state::SENSOR_LOOP_SPIN),
+            loop_hold: ::rsk::PerTask::new(&super::rsk_state::SENSOR_LOOP_HOLD),
+            loop_late: ::rsk::PerTask::new(&super::rsk_state::SENSOR_LOOP_LATE),
         });
     }
 }

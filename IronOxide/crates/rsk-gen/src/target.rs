@@ -29,12 +29,16 @@ pub struct DmaRegs {
     pub channels: &'static [(u32, u32)],
     pub stops: &'static [u32],
     pub lists: &'static [u32],
+    /// The SHORTS register (0 when the class has none): cleared before the
+    /// stop task, so that no END_START shortcut restarts a stopped transfer
+    /// (R17.6; found on the rig under the traffic scenario, task 19.2).
+    pub shorts: u32,
 }
 
 /// RADIO (PS 6.20): PACKETPTR, length from PCNF1; DISABLE stops.
-pub const RADIO_DMA: DmaRegs = DmaRegs { channels: &[(0x504, 0)], stops: &[0x010], lists: &[] };
+pub const RADIO_DMA: DmaRegs = DmaRegs { channels: &[(0x504, 0)], stops: &[0x010], lists: &[], shorts: 0x200 };
 /// UARTE (PS 6.34): RXD and TXD; STOPRX and STOPTX.
-pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014, 0x01C], lists: &[] };
+pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014, 0x01C], lists: &[], shorts: 0x200 };
 /// SPIM (PS 6.26): RXD and TXD with LIST registers; STOP.
 /// SPIM (PS 6.26): RXD.PTR 0x534, RXD.MAXCNT 0x538, RXD.AMOUNT 0x53C,
 /// RXD.LIST 0x540; TXD.PTR 0x544, TXD.MAXCNT 0x548, TXD.AMOUNT 0x54C,
@@ -44,11 +48,11 @@ pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x5
 /// Kernel's list-mode clearing at boot (DD-08) then wrote a read-only
 /// register and left LIST at its reset value, 0, which is the value it
 /// writes, so no behaviour differed; the table is now the map's.
-pub const SPIM_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014], lists: &[0x540, 0x550] };
+pub const SPIM_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014], lists: &[0x540, 0x550], shorts: 0x200 };
 /// SAADC (PS 6.23): RESULT; STOP.
-pub const SAADC_DMA: DmaRegs = DmaRegs { channels: &[(0x62C, 0x630)], stops: &[0x004], lists: &[] };
+pub const SAADC_DMA: DmaRegs = DmaRegs { channels: &[(0x62C, 0x630)], stops: &[0x004], lists: &[], shorts: 0x200 };
 /// PWM (PS 6.17): SEQ[0] and SEQ[1]; STOP.
-pub const PWM_DMA: DmaRegs = DmaRegs { channels: &[(0x500, 0x504), (0x520, 0x524)], stops: &[0x004], lists: &[] };
+pub const PWM_DMA: DmaRegs = DmaRegs { channels: &[(0x500, 0x504), (0x520, 0x524)], stops: &[0x004], lists: &[], shorts: 0x200 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryRegion {
@@ -151,7 +155,7 @@ const MPS2_PERIPHERALS: &[Peripheral] = &[
 ];
 
 /// The GPIO0 stand-in channel of the QEMU spike (see `MPS2_PERIPHERALS`).
-pub const MPS2_GPIO_DMA: DmaRegs = DmaRegs { channels: &[(0x004, 0x010)], stops: &[0x014], lists: &[] };
+pub const MPS2_GPIO_DMA: DmaRegs = DmaRegs { channels: &[(0x004, 0x010)], stops: &[0x014], lists: &[], shorts: 0 };
 
 /// QEMU `mps2-an386` (Cortex-M4 model): 25 MHz CPU and time base (CMSDK
 /// TIMER0 free-running, TIMER1 compare), 8 priority bits in QEMU, 8 MPU

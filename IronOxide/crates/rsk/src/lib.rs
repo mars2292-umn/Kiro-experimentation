@@ -204,11 +204,29 @@ pub fn dma_request(channel: u8, buf: &[u8]) -> bool {
     stubs::svc_dma(channel, buf.as_ptr() as usize as u32, len)
 }
 
+/// The Kernel-mediated write of one register of an EasyDMA-capable
+/// peripheral (DD-08, R17.3; task 19.2): `offset` is the register's offset
+/// in the 4 KiB window of the peripheral of `channel` (a channel index of
+/// the calling Partition's peripherals, as for [`dma_request`]). The
+/// Kernel writes it only when the channel is the Partition's own and the
+/// register is none of the pointer, count, or list-mode registers of the
+/// peripheral's channels (those are [`dma_request`]'s); otherwise the
+/// request is refused before any register is written, the refusal is a
+/// spatial violation of the Partition (R17.2), and `false` is returned.
+/// A Partition starts and stops its transfers, configures the peripheral,
+/// and clears its events this way, since its MPU view maps the window
+/// read-only.
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+pub fn dma_write(channel: u8, offset: u32, value: u32) -> bool {
+    stubs::svc_dma_write(channel, offset, value)
+}
+
 /// Register access to the calling Partition's peripherals (R16.2): a
 /// read or write of a word at `addr`. The MPU view confines the access to
 /// the Partition's peripheral windows; any other address is a MemManage
 /// fault of the Partition (R16.4). EasyDMA peripherals are read-only
-/// here; their transfers go through [`dma_request`] (DD-08).
+/// here; their transfers go through [`dma_request`] and their other
+/// registers through [`dma_write`] (DD-08).
 pub mod mmio {
     use rsk_kernel::arch::cm4::unsafe_module::hw;
 

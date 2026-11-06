@@ -192,17 +192,18 @@ pub fn system_source(g: &Generated) -> String {
                 let list = |k: usize| regs.lists.get(k).map_or(0, |o| per.window_base + o);
                 for (ptr, cnt) in regs.channels {
                     dma.push(format!(
-                        "::rsk_kernel::arch::DmaCfg {{ partition: {pi}, ptr: 0x{:08x}, maxcnt: 0x{:08x}, stops: [0x{:08x}, 0x{:08x}], lists: [0x{:08x}, 0x{:08x}] }}, // {name}",
+                        "::rsk_kernel::arch::DmaCfg {{ partition: {pi}, ptr: 0x{:08x}, maxcnt: 0x{:08x}, stops: [0x{:08x}, 0x{:08x}], lists: [0x{:08x}, 0x{:08x}], shorts: 0x{:08x} }}, // {name}",
                         per.window_base + ptr,
                         if *cnt == 0 { 0 } else { per.window_base + cnt },
-                        stop(0), stop(1), list(0), list(1)
+                        stop(0), stop(1), list(0), list(1),
+                        if regs.shorts == 0 { 0 } else { per.window_base + regs.shorts }
                     ));
                 }
             }
         }
     }
     let _ = writeln!(s, "pub const ND: usize = {};", dma.len());
-    let _ = writeln!(s, "const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg {{ partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0] }};");
+    let _ = writeln!(s, "const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg {{ partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0], shorts: 0 }};");
     let _ = writeln!(s, "pub const DMA: [::rsk_kernel::arch::DmaCfg; ND] = [");
     for d in &dma {
         let _ = writeln!(s, "    {d}");
@@ -595,6 +596,20 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
         let _ = writeln!(s, "    . = ALIGN(4);");
         let _ = writeln!(s, "    _p{i}_ebss = .;");
         let _ = writeln!(s, "  }} > P{i}RAM");
+        // The coverage build's counters (task 19.2, R34.4; `-C
+        // instrument-coverage` on the Partition crates alone): in the
+        // Partition's RAM above its image, outside the zero table's range
+        // for the Partition (a restart re-initializes the image and keeps
+        // the counts), zeroed at instant 0 by the Kernel's `coverage`
+        // feature through `__rsk_cov_table`. Empty in every other build.
+        let _ = writeln!(s);
+        let _ = writeln!(s, "  .p{i}.cov (NOLOAD) : ALIGN(8)");
+        let _ = writeln!(s, "  {{");
+        let _ = writeln!(s, "    _p{i}_scov = .;");
+        let _ = writeln!(s, "    KEEP(*lib{}-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))", archive(&p.krate));
+        let _ = writeln!(s, "    . = ALIGN(8);");
+        let _ = writeln!(s, "    _p{i}_ecov = .;");
+        let _ = writeln!(s, "  }} > P{i}RAM");
     }
     let _ = writeln!(s);
     let _ = writeln!(s, "  .kernel.data : ALIGN(4)");
@@ -624,6 +639,25 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
     let _ = writeln!(s, "    . = ALIGN(4);");
     let _ = writeln!(s, "  }} > KRAM");
     let _ = writeln!(s);
+    // The coverage build's profile data and names (read by the host's
+    // llvm-cov from the ELF; the Target never reads them) and the counter
+    // ranges table the Kernel's `coverage` feature zeroes at instant 0.
+    let _ = writeln!(s, "  __llvm_prf_data : ALIGN(8)");
+    let _ = writeln!(s, "  {{");
+    let _ = writeln!(s, "    __start___llvm_prf_data = .;");
+    let _ = writeln!(s, "    KEEP(*(__llvm_prf_data __llvm_prf_data.*));");
+    let _ = writeln!(s, "    __stop___llvm_prf_data = .;");
+    let _ = writeln!(s, "    . = ALIGN(8);");
+    let _ = writeln!(s, "  }} > KFLASH");
+    let _ = writeln!(s);
+    let _ = writeln!(s, "  __llvm_prf_names : ALIGN(8)");
+    let _ = writeln!(s, "  {{");
+    let _ = writeln!(s, "    __start___llvm_prf_names = .;");
+    let _ = writeln!(s, "    KEEP(*(__llvm_prf_names __llvm_prf_names.*));");
+    let _ = writeln!(s, "    __stop___llvm_prf_names = .;");
+    let _ = writeln!(s, "    . = ALIGN(4);");
+    let _ = writeln!(s, "  }} > KFLASH");
+    let _ = writeln!(s);
     let _ = writeln!(s, "  .rsk.tables : ALIGN(4)");
     let _ = writeln!(s, "  {{");
     let _ = writeln!(s, "    __rsk_bss_table = .;");
@@ -635,7 +669,16 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
     let _ = writeln!(s, "    __rsk_data_table = .;");
     let _ = writeln!(s, "    LONG(_sdata); LONG(_edata); LONG(_sidata);");
     let _ = writeln!(s, "    LONG(0); LONG(0); LONG(0);");
+    let _ = writeln!(s, "    __rsk_cov_table = .;");
+    for i in 0..g.partitions.len() {
+        let _ = writeln!(s, "    LONG(_p{i}_scov); LONG(_p{i}_ecov); LONG(0);");
+    }
+    let _ = writeln!(s, "    LONG(0); LONG(0); LONG(0);");
     let _ = writeln!(s, "  }} > KFLASH");
+    let _ = writeln!(s);
+    // The coverage mapping, kept in the ELF outside the image for llvm-cov.
+    let _ = writeln!(s, "  __llvm_covmap 0 (INFO) : {{ KEEP(*(__llvm_covmap __llvm_covmap.*)) }}");
+    let _ = writeln!(s, "  __llvm_covfun 0 (INFO) : {{ KEEP(*(__llvm_covfun __llvm_covfun.*)) }}");
     let _ = writeln!(s);
     let _ = writeln!(s, "  /DISCARD/ :");
     let _ = writeln!(s, "  {{");

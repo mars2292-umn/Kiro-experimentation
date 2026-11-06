@@ -6,6 +6,10 @@ pub mod rsk_resources {
 pub mod rsk_state {
     /// Per-Task state `part1.log.count` (PR-25): touched by `log`'s Jobs only.
     pub static LOG_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part1.log.loop_spin` (PR-25): touched by `log`'s Jobs only.
+    pub static LOG_LOOP_SPIN: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part1.log.loop_busy` (PR-25): touched by `log`'s Jobs only.
+    pub static LOG_LOOP_BUSY: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part1.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
     pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
@@ -45,6 +49,10 @@ pub mod rsk_ctx {
     pub struct Log {
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `loop_spin` (PR-25).
+        pub loop_spin: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `loop_busy` (PR-25).
+        pub loop_busy: ::rsk::PerTask<'static, u32>,
     }
     /// The Context of Task `part1.pulse` (Priority 4).
     pub struct Pulse {
@@ -74,6 +82,8 @@ pub mod rsk_jobs {
     pub fn log() {
         let () = super::log(super::rsk_ctx::Log {
             count: ::rsk::PerTask::new(&super::rsk_state::LOG_COUNT),
+            loop_spin: ::rsk::PerTask::new(&super::rsk_state::LOG_LOOP_SPIN),
+            loop_busy: ::rsk::PerTask::new(&super::rsk_state::LOG_LOOP_BUSY),
         });
     }
     /// Job wrapper of `part1.pulse` (vector 40; Critical_Section sites: none).

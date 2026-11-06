@@ -1,0 +1,91 @@
+{
+  "schema": "rsk-loop-iterations/1",
+  "configuration": "nrf52840_stress_short",
+  "binary_hash": "sha256:d0fe4f33cfa973fe900db9da1c453292c1aec6ad033a817a20f3089042518f66",
+  "loops": [
+    {
+      "key": "loop:part0:spin_ms:spin",
+      "file": "apps/p1-demo/part0/src/lib.rs",
+      "line": 38,
+      "function": "spin_ms",
+      "label": "spin",
+      "bound": "100_000_000",
+      "bound_value": 100000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part0:sensor:hold",
+      "file": "apps/p1-demo/part0/src/lib.rs",
+      "line": 237,
+      "function": "sensor",
+      "label": "hold",
+      "bound": "10_000_000",
+      "bound_value": 10000000,
+      "observed": 699,
+      "verdict": "unreachable",
+      "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
+    },
+    {
+      "key": "loop:part0:sensor:late",
+      "file": "apps/p1-demo/part0/src/lib.rs",
+      "line": 275,
+      "function": "sensor",
+      "label": "late",
+      "bound": "50_000_000",
+      "bound_value": 50000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part1:spin_ms:spin",
+      "file": "apps/p1-demo/part1/src/lib.rs",
+      "line": 30,
+      "function": "spin_ms",
+      "label": "spin",
+      "bound": "100_000_000",
+      "bound_value": 100000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part1:log:busy",
+      "file": "apps/p1-demo/part1/src/lib.rs",
+      "line": 226,
+      "function": "log",
+      "label": "busy",
+      "bound": "10_000_000",
+      "bound_value": 10000000,
+      "observed": 352,
+      "verdict": "unreachable",
+      "justification": "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
+    },
+    {
+      "key": "loop:part2:spin_ms:spin",
+      "file": "apps/p1-demo/part2/src/lib.rs",
+      "line": 38,
+      "function": "spin_ms",
+      "label": "spin",
+      "bound": "100_000_000",
+      "bound_value": 100000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part2:filter:hold",
+      "file": "apps/p1-demo/part2/src/lib.rs",
+      "line": 325,
+      "function": "filter",
+      "label": "hold",
+      "bound": "10_000_000",
+      "bound_value": 10000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    }
+  ]
+}

@@ -75,6 +75,14 @@ SECTIONS
     _p0_ebss = .;
   } > P0RAM
 
+  .p0.cov (NOLOAD) : ALIGN(8)
+  {
+    _p0_scov = .;
+    KEEP(*libp1_demo_part0-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _p0_ecov = .;
+  } > P0RAM
+
   .p1.bss ORIGIN(P1RAM) + 4096 (NOLOAD) : ALIGN(4)
   {
     _p1_sbss = .;
@@ -83,12 +91,28 @@ SECTIONS
     _p1_ebss = .;
   } > P1RAM
 
+  .p1.cov (NOLOAD) : ALIGN(8)
+  {
+    _p1_scov = .;
+    KEEP(*libp1_demo_part1-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _p1_ecov = .;
+  } > P1RAM
+
   .p2.bss ORIGIN(P2RAM) + 4096 (NOLOAD) : ALIGN(4)
   {
     _p2_sbss = .;
     *libp1_demo_part2-*:*(.bss .bss.* .data .data.* COMMON)
     . = ALIGN(4);
     _p2_ebss = .;
+  } > P2RAM
+
+  .p2.cov (NOLOAD) : ALIGN(8)
+  {
+    _p2_scov = .;
+    KEEP(*libp1_demo_part2-*:*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _p2_ecov = .;
   } > P2RAM
 
   .kernel.data : ALIGN(4)
@@ -115,6 +139,22 @@ SECTIONS
     . = ALIGN(4);
   } > KRAM
 
+  __llvm_prf_data : ALIGN(8)
+  {
+    __start___llvm_prf_data = .;
+    KEEP(*(__llvm_prf_data __llvm_prf_data.*));
+    __stop___llvm_prf_data = .;
+    . = ALIGN(8);
+  } > KFLASH
+
+  __llvm_prf_names : ALIGN(8)
+  {
+    __start___llvm_prf_names = .;
+    KEEP(*(__llvm_prf_names __llvm_prf_names.*));
+    __stop___llvm_prf_names = .;
+    . = ALIGN(4);
+  } > KFLASH
+
   .rsk.tables : ALIGN(4)
   {
     __rsk_bss_table = .;
@@ -126,7 +166,15 @@ SECTIONS
     __rsk_data_table = .;
     LONG(_sdata); LONG(_edata); LONG(_sidata);
     LONG(0); LONG(0); LONG(0);
+    __rsk_cov_table = .;
+    LONG(_p0_scov); LONG(_p0_ecov); LONG(0);
+    LONG(_p1_scov); LONG(_p1_ecov); LONG(0);
+    LONG(_p2_scov); LONG(_p2_ecov); LONG(0);
+    LONG(0); LONG(0); LONG(0);
   } > KFLASH
+
+  __llvm_covmap 0 (INFO) : { KEEP(*(__llvm_covmap __llvm_covmap.*)) }
+  __llvm_covfun 0 (INFO) : { KEEP(*(__llvm_covfun __llvm_covfun.*)) }
 
   /DISCARD/ :
   {

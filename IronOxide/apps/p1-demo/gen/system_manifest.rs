@@ -79,9 +79,9 @@ static KERNEL: ::rsk_kernel::arch::cm4::KernelCell<K> = ::rsk_kernel::arch::cm4:
 const DISPATCH_IRQ: [u16; NT] = [20, 21, 22, 23, 24, 25, 26];
 const INTAKE_IRQ: [u16; NT] = [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 10, 0xFFFF, 0xFFFF];
 pub const ND: usize = 1;
-const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0] };
+const NO_DMA: ::rsk_kernel::arch::DmaCfg = ::rsk_kernel::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0], shorts: 0 };
 pub const DMA: [::rsk_kernel::arch::DmaCfg; ND] = [
-    ::rsk_kernel::arch::DmaCfg { partition: 2, ptr: 0x40010004, maxcnt: 0x40010010, stops: [0x40010014, 0x00000000], lists: [0x00000000, 0x00000000] }, // CMSDK_GPIO0
+    ::rsk_kernel::arch::DmaCfg { partition: 2, ptr: 0x40010004, maxcnt: 0x40010010, stops: [0x40010014, 0x00000000], lists: [0x00000000, 0x00000000], shorts: 0x00000000 }, // CMSDK_GPIO0
 ];
 pub const NSIG: usize = 1;
 const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg { partition: 0xFF, task: 0xFF };

@@ -997,13 +997,13 @@ fn creusot_hil_members(dir: &Path) -> Vec<(String, String)> {
 
 #[cfg(test)]
 mod creusot_members_tests {
-    /// R46.3: the proof workspace's HIL-configuration members are the nine (declaration variant, Partition features) pairs the rig builds, each outside the default members, named by directory and package.
+    /// R46.3: the proof workspace's HIL-configuration members are the eleven (declaration variant, Partition features) pairs the rig builds (the measurement configurations' `measure` feature since task 19.2), each outside the default members, named by directory and package.
     #[test]
-    fn hil_members_are_the_nine_configurations_outside_the_defaults() {
+    fn hil_members_are_the_eleven_configurations_outside_the_defaults() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
         let dirs: Vec<&str> = members.iter().map(|(d, _)| d.as_str()).collect();
-        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-response", "part0-isolation", "part0-cycles", "part2-nrf52840", "part2-response", "part2-stress", "part2-isolation"]);
+        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-stress", "part0-response", "part0-isolation", "part0-cycles", "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-isolation"]);
         assert!(members.iter().all(|(d, p)| *p == format!("p1-demo-{d}-proof")));
     }
 }

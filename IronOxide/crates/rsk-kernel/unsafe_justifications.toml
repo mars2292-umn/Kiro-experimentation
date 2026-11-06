@@ -378,3 +378,12 @@ kind = "review"
 why_no_machine_check = "A volatile word read of a fixed RAM address outside the layout (the top of the nRF52840's RAM), written only over the debug port before a run; read by the boot in Thread mode with nothing else running. Never in a Flight_Build."
 reviewed_by = "rsk kernel review (task 7.2)"
 reviewed_on = "2026-11-04"
+
+[[justification]]
+id = "UJ-049"
+summary = "coverage_reset: the coverage build's counter ranges zeroed at instant 0 (feature coverage, HIL builds only; task 19.2, R34.4)"
+kind = "review"
+why_no_machine_check = "The ranges come from the linker script's __rsk_cov_table of this build, one per Partition, each the Partition's coverage counters above its image in its own RAM; written at instant 0 in privileged Thread mode before any Job runs, as the records of trace-ram are cleared. Bounded as the reset path's walk (INIT_RANGES, RAM_WORDS). Never in a Flight_Build."
+reviewed_by = "rsk kernel review (task 19.2)"
+reviewed_on = "2026-11-06"
+

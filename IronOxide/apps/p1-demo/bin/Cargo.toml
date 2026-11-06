@@ -36,6 +36,8 @@ cycles = ["rsk-entry/cycles"]
 hw-dt = ["rsk-entry/hw-dt"]
 boot-mutation = ["rsk-entry/boot-mutation"]
 record-only = ["rsk-entry/record-only"]
+# The coverage build (task 19.2, R34.4), `cargo xtask hil --coverage`.
+coverage = ["rsk-entry/coverage"]
 # HIL builds: the Tasks' debug prints are silent (see the rsk crate).
 quiet = ["rsk-entry/quiet"]
 

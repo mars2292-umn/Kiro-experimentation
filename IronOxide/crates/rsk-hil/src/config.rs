@@ -52,6 +52,11 @@ pub struct Expect {
     /// R19.3: the bound on one run of the intake handler, in CPU cycles:
     /// the exported bound of Δ_irq (R13.4).
     pub delta_irq_cycles: u32,
+    /// The exported bound of L_kernel (Table 13-1), in CPU cycles: with
+    /// Δ_irq it bounds the lag from a Release_Source edge to the Kernel's
+    /// timestamp of it (Δ_stamp), which the loopback's wire latency carries
+    /// beyond the Kernel's own deadline (task 19.2, 2026-11-06).
+    pub l_kernel_cycles: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,6 +69,12 @@ pub struct Rig {
     /// The wiring table as written: `(key, text)` lines for the report.
     pub wiring: Vec<(String, String)>,
     pub expect: Expect,
+    /// `[loops] unreachable`: the Application loops whose Loop_Bound_Annotation
+    /// no input can reach, each with its justification (R34.9; task 19.2).
+    pub loops: Vec<crate::loops::Unreachable>,
+    /// `[coverage] branch_percent`: the branch-coverage threshold of R34.4
+    /// the Verification_Plan records, below which an item fails (task 19.2).
+    pub coverage_branch_percent: u64,
 }
 
 impl Rig {
@@ -80,7 +91,7 @@ impl Rig {
     pub fn parse(text: &str) -> Result<Rig, String> {
         let table: Table = text.parse().map_err(|e| format!("not valid TOML: {e}"))?;
         for key in table.keys() {
-            if !["schema", "chip", "boards", "analyzer", "wiring", "expect"].contains(&key.as_str()) {
+            if !["schema", "chip", "boards", "analyzer", "wiring", "expect", "loops", "coverage"].contains(&key.as_str()) {
                 return Err(format!("unknown key `{key}`"));
             }
         }
@@ -171,7 +182,7 @@ impl Rig {
         }
         let ex = table.get("expect").and_then(Value::as_table).ok_or("no [expect] table")?;
         for key in ex.keys() {
-            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles", "delta_irq_cycles"].contains(&key.as_str()) {
+            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles", "delta_irq_cycles", "l_kernel_cycles"].contains(&key.as_str()) {
                 return Err(format!("[expect]: unknown key `{key}`"));
             }
         }
@@ -182,11 +193,46 @@ impl Rig {
             min_matched: int_of(ex, "min_matched")? as usize,
             j_rel_cycles: ex.get("j_rel_cycles").map(|_| int_of(ex, "j_rel_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
             delta_irq_cycles: ex.get("delta_irq_cycles").map(|_| int_of(ex, "delta_irq_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
+            l_kernel_cycles: ex.get("l_kernel_cycles").map(|_| int_of(ex, "l_kernel_cycles")).transpose()?.unwrap_or(0) as u32,
         };
         if expect.period_ms == 0 || expect.response_deadline_ms == 0 {
             return Err("[expect]: period_ms and response_deadline_ms must be positive".into());
         }
-        Ok(Rig { chip, target, stimulus, spares, analyzer, wiring, expect })
+        let mut loops = Vec::new();
+        if let Some(l) = table.get("loops").and_then(Value::as_table) {
+            for key in l.keys() {
+                if key != "unreachable" {
+                    return Err(format!("[loops]: unknown key `{key}`"));
+                }
+            }
+            for (i, entry) in l.get("unreachable").and_then(Value::as_array).into_iter().flatten().enumerate() {
+                let entry = entry.as_table().ok_or_else(|| format!("[loops] unreachable[{i}] is not a table"))?;
+                for key in entry.keys() {
+                    if !["key", "reason"].contains(&key.as_str()) {
+                        return Err(format!("[loops] unreachable[{i}]: unknown key `{key}`"));
+                    }
+                }
+                let key = str_of(entry, "key").map_err(|e| format!("[loops] unreachable[{i}]: {e}"))?.to_string();
+                if key.split(':').count() != 4 || !key.starts_with("loop:") {
+                    return Err(format!("[loops] unreachable[{i}]: `{key}` is not `loop:<partition>:<function>:<label>`"));
+                }
+                let reason = str_of(entry, "reason").map_err(|e| format!("[loops] unreachable[{i}]: {e}"))?.to_string();
+                loops.push(crate::loops::Unreachable { key, reason });
+            }
+        }
+        let mut coverage_branch_percent = 100;
+        if let Some(c) = table.get("coverage").and_then(Value::as_table) {
+            for key in c.keys() {
+                if key != "branch_percent" {
+                    return Err(format!("[coverage]: unknown key `{key}`"));
+                }
+            }
+            coverage_branch_percent = int_of(c, "branch_percent")?;
+            if coverage_branch_percent > 100 {
+                return Err("[coverage]: branch_percent is above 100".into());
+            }
+        }
+        Ok(Rig { chip, target, stimulus, spares, analyzer, wiring, expect, loops, coverage_branch_percent })
     }
 
     /// Every board of the rig, the target first.

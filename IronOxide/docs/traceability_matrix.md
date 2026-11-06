@@ -180,12 +180,12 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R13.1 | — | — | ○19.3 | crates/rsk-model/src/wcet.rs | — |
-| R13.2 | — | — | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; +2 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
+| R13.1 | — | — | ✓19.3 | crates/rsk-model/src/wcet.rs | — |
+| R13.2 | — | — | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; +2 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
 | R13.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/wcet.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); analysis-rta-p1-demo; test-workspace-tests |
-| R13.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/config.rs; +3 | test-workspace-tests |
-| R13.5 | — | — | ○19.3 | — | — |
-| R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/terms.rs; crates/rsk-analyzer/tests/rules.rs; +5 | — |
+| R13.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/config.rs; +3 | test-workspace-tests |
+| R13.5 | — | — | ✓19.3 | — | — |
+| R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/terms.rs; crates/rsk-analyzer/tests/rules.rs; +5 | — |
 
 ### Requirement 14: Fault handling, panic policy, and Health_Monitor (Phase P1)
 
@@ -198,7 +198,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_response.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-gen/src/decl.rs; +18 | hil-response; hil-response-step; proof-kernel-verus |
 | R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
 | R14.7 | P-09 | Health_Monitor event log entry | ✓4.8 | crates/rsk-kernel/src/arch/bound.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
-| R14.8 | — | — | ○19.3; ✓4.4 | — | — |
+| R14.8 | — | — | ✓19.3; ✓4.4 | — | — |
 | R14.9 | P-18 | Kernel logic and Kernel_Arch (Component B) | ✓4.4 | crates/rsk-hil/src/response.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/sched.rs; +3 | hil-response; hil-response-step; proof-kernel-verus |
 | R14.10 | P-18 | Closed response sets (DD-10, R14.5) | ✓4.4 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/terms.rs; crates/rsk-analyzer/tests/rules.rs; +2 | — |
 | R14.11 | P-18 | Profile_Conformance_Suite and HIL_Rig; Property 6 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; +5 | hil-response; hil-response-step |
@@ -236,10 +236,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R17.1 | — | — | — | apps/p1-demo/part2/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/bound.rs; +7 | hil-dma; proof-kernel-kani |
 | R17.2 | — | Requirements Impact | — | apps/p1-demo/part2/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-hil/src/isolation.rs; +6 | hil-dma; proof-kernel-kani |
-| R17.3 | — | — | — | — | — |
-| R17.4 | — | — | ○19.2 | — | — |
+| R17.3 | — | — | — | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk/src/lib.rs | — |
+| R17.4 | — | Requirements Impact | ✓19.2 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/decl/src/nrf52840_timing.rs; +6 | — |
 | R17.5 | — | — | — | — | — |
-| R17.6 | — | Closed response sets (DD-10, R14.5); Requirements Impact | — | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/part2/src/lib.rs; crates/rsk-hil/src/isolation.rs; +5 | hil-dma |
+| R17.6 | — | Closed response sets (DD-10, R14.5); Requirements Impact | — | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; +12 | hil-dma |
 | R17.7 | — | Profile_Conformance_Suite and HIL_Rig | ✓7.4 | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/part2/src/lib.rs; apps/p1-demo/system/Cargo.toml; +4 | hil-dma; hil-isolation-step |
 
 ### Requirement 18: Temporal isolation and Budget enforcement (Phase P1)
@@ -421,25 +421,25 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R33.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3; ✓10.1 | crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; crates/rsk-hil/src/wcet_records.rs; +3 | — |
+| R33.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓10.1; ✓19.3 | crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; crates/rsk-hil/src/release_timing.rs; +5 | — |
 | R33.2 | — | Module boundaries; Property 15 | ✓10.1 | crates/rsk-model/tests/properties.rs; xtask/src/verify.rs | test-workspace-tests |
 | R33.3 | — | — | ✓1.3 | crates/rsk-digest/Cargo.toml; crates/rsk-digest/src/lib.rs; crates/rsk-elf/src/lib.rs; +4 | check-build-manifest; test-workspace-tests |
-| R33.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +4 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
+| R33.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +4 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive); test-workspace-tests |
 | R33.5 | — | WCET and structural coverage | ○24.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs | test-workspace-tests |
 
 ### Requirement 34: Measurement-based WCET (Phase P3)
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R34.1 | — | — | ○19.1 | — | — |
-| R34.2 | — | — | ○19.1 | — | — |
-| R34.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/stats.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
-| R34.4 | — | — | ○19.2 | — | — |
-| R34.5 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis | ○19.2 | — | — |
-| R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-analyzer/src/report.rs; +6 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
-| R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.1 | crates/rsk-hil/src/cycles.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/Cargo.toml; +5 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
-| R34.8 | — | — | ○19.2; ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/lib.rs; crates/rsk-hil/src/selftest.rs; +1 | hil-rig; hil-rig-step |
-| R34.9 | — | WCET and structural coverage | ○19.2 | — | — |
+| R34.1 | — | — | ✓19.1 | — | — |
+| R34.2 | — | — | ✓19.1 | — | — |
+| R34.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.1 | crates/rsk-hil/src/stats.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.4 | — | — | ✓19.2 | apps/p1-demo/bin/Cargo.toml; apps/p1-demo/system/Cargo.toml; crates/rsk-gen/src/emit.rs; +7 | — |
+| R34.5 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis | ✓19.2 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/decl/src/nrf52840_timing.rs; +7 | — |
+| R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-analyzer/src/report.rs; +6 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.1 | crates/rsk-hil/src/cycles.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/Cargo.toml; +5 | analysis-rta-nrf52840_stress_short-measured (inconclusive); analysis-rta-nrf52840_timing_short-measured (inconclusive) |
+| R34.8 | — | — | ✓19.2; ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/lib.rs; crates/rsk-hil/src/selftest.rs; +1 | hil-rig; hil-rig-step |
+| R34.9 | — | WCET and structural coverage | ✓19.2 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/decl/src/nrf52840_timing.rs; +11 | — |
 
 ### Requirement 35: Loop bounds (Phase P2)
 
@@ -447,8 +447,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R35.1 | — | — | ✓11.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-lint/tests/ui.rs; +2 | check-profile-lint; test-workspace-tests |
 | R35.2 | P-23 | Application prover: Creusot (R46, ORQ-10) | ✓17.1 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part2/src/lib.rs; crates/rsk-lint/fixtures/ui/loop_variants.rs; +6 | check-profile-lint; proof-app-creusot; proof-app-step; test-workspace-tests |
-| R35.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | crates/rsk-lint/src/lib.rs; crates/rsk-macros/src/lib.rs; profile/profile.toml; +1 | check-profile-lint |
-| R35.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | — | — |
+| R35.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.2 | apps/p1-demo/part0/src/lib.rs; crates/rsk-hil/src/loops.rs; crates/rsk-lint/src/lib.rs; +4 | check-profile-lint |
+| R35.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.2 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/decl/src/nrf52840_timing.rs; +13 | — |
 | R35.5 | — | — | ✓11.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-macros/src/lib.rs; +2 | check-profile-lint |
 
 ### Requirement 36: Static WCET (Phase P5)
@@ -634,7 +634,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R53.1 | — | — | ○19.5 | — | — |
 | R53.2 | — | Trust-Base Analysis | ○19.5 | — | — |
-| R53.3 | — | — | ○19.5 | — | — |
+| R53.3 | — | — | ○19.5 | crates/rsk-hil/src/coverage.rs; xtask/src/main.rs | — |
 | R53.4 | — | — | ○19.5 | — | — |
 
 ### Requirement 54: Certification gap register (Phase P1)
@@ -744,10 +744,10 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R12.5 | ✓5.2 | — |
 | R14.2 | ✓5.3 | — |
 | R14.4 | ✓5.3 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record |
-| R14.8 | ○19.3; ✓4.4 | — |
+| R14.8 | ✓19.3; ✓4.4 | — |
 | R14.10 | ✓4.4 | Closed response sets (DD-10, R14.5) |
 | R17.3 | — | — |
-| R17.4 | ○19.2 | — |
+| R17.4 | ✓19.2 | Requirements Impact |
 | R17.5 | — | — |
 | R18.3 | ✓4.7 | — |
 | R18.5 | ✓4.7 | Closed response sets (DD-10, R14.5); Design decisions |
@@ -806,9 +806,9 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 
 | Criterion | Tasks | Design |
 |---|---|---|
-| R13.1 | ○19.3 | — |
-| R13.5 | ○19.3 | — |
-| R13.6 | ○19.3 | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact |
+| R13.1 | ✓19.3 | — |
+| R13.5 | ✓19.3 | — |
+| R13.6 | ✓19.3 | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact |
 
 ### Phase P1 plan: 4 criteria
 
@@ -850,7 +850,7 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R27.5 | ✓10.7 | — |
 | R31.1 | ✓16.1 | — |
 | R31.2 | ✓16.1 | — |
-| R35.4 | ○19.2 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
+| R35.4 | ✓19.2 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
 | R47.3 | ✓17.2 | — |
 | R47.4 | — | — |
 | R59.3 | ✓1.3 | Trust-Base Analysis |
@@ -859,17 +859,17 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 
 | Criterion | Tasks | Design |
 |---|---|---|
-| R33.1 | ○19.3; ✓10.1 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
+| R33.1 | ✓10.1; ✓19.3 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
 
 ### Phase P3: 9 criteria
 
 | Criterion | Tasks | Design |
 |---|---|---|
-| R34.1 | ○19.1 | — |
-| R34.2 | ○19.1 | — |
-| R34.4 | ○19.2 | — |
-| R34.5 | ○19.2 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis |
-| R34.9 | ○19.2 | WCET and structural coverage |
+| R34.1 | ✓19.1 | — |
+| R34.2 | ✓19.1 | — |
+| R34.4 | ✓19.2 | — |
+| R34.5 | ✓19.2 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis |
+| R34.9 | ✓19.2 | WCET and structural coverage |
 | R53.1 | ○19.5 | — |
 | R53.2 | ○19.5 | Trust-Base Analysis |
 | R53.3 | ○19.5 | — |
@@ -1001,15 +1001,15 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R11.8 | P1 | ✓5.1 | — |
 | R12.4 | P1 | ✓5.2 | — |
 | R12.5 | P1 | ✓5.2 | — |
-| R13.1 | P1 definition; P3 measurement | ○19.3 | — |
-| R13.2 | P1 definition; P3 measurement | ○19.3 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured; test-workspace-tests |
+| R13.1 | P1 definition; P3 measurement | ✓19.3 | — |
+| R13.2 | P1 definition; P3 measurement | ✓19.3 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured; test-workspace-tests |
 | R13.3 | P1 definition; P3 measurement | ✓15.1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured; analysis-rta-p1-demo; +1 |
-| R13.4 | P1 definition; P3 measurement | ○19.3 | test-workspace-tests |
-| R13.5 | P1 definition; P3 measurement | ○19.3 | — |
-| R13.6 | P1 definition; P3 measurement | ○19.3 | — |
+| R13.4 | P1 definition; P3 measurement | ✓19.3 | test-workspace-tests |
+| R13.5 | P1 definition; P3 measurement | ✓19.3 | — |
+| R13.6 | P1 definition; P3 measurement | ✓19.3 | — |
 | R14.1 | P1 | ✓12.3; ✓5.3 | analysis-stack-p1-demo; test-workspace-tests |
 | R14.2 | P1 | ✓5.3 | — |
-| R14.8 | P1 | ○19.3; ✓4.4 | — |
+| R14.8 | P1 | ✓19.3; ✓4.4 | — |
 | R15.1 | P1 Kernel; P2 Generator | ✓10.2 | — |
 | R15.2 | P1 Kernel; P2 Generator | ✓10.2 | — |
 | R15.3 | P1 Kernel; P2 Generator | ✓10.2 | — |
@@ -1023,7 +1023,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R17.1 | P1 | — | hil-dma; proof-kernel-kani |
 | R17.2 | P1 | — | hil-dma; proof-kernel-kani |
 | R17.3 | P1 | — | — |
-| R17.4 | P1 | ○19.2 | — |
+| R17.4 | P1 | ✓19.2 | — |
 | R17.5 | P1 | — | — |
 | R17.6 | P1 | — | hil-dma |
 | R17.7 | P1 | ✓7.4 | hil-dma; hil-isolation-step |
@@ -1114,23 +1114,23 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R32.5 | P2 | ✓15.4 | test-workspace-tests |
 | R32.6 | P2 | ✓16.2 | check-uppaal-corpus; check-uppaal-corpus-step |
 | R32.7 | P2 | ✓15.4 | test-workspace-tests |
-| R33.1 | P2 format; P3 measurement | ○19.3; ✓10.1 | — |
+| R33.1 | P2 format; P3 measurement | ✓10.1; ✓19.3 | — |
 | R33.2 | P2 format; P3 measurement | ✓10.1 | test-workspace-tests |
 | R33.3 | P2 format; P3 measurement | ✓1.3 | check-build-manifest; test-workspace-tests |
-| R33.4 | P2 format; P3 measurement | ○19.3 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured; test-workspace-tests |
+| R33.4 | P2 format; P3 measurement | ✓19.3 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured; test-workspace-tests |
 | R33.5 | P2 format; P3 measurement | ○24.1 | test-workspace-tests |
-| R34.1 | P3 | ○19.1 | — |
-| R34.2 | P3 | ○19.1 | — |
-| R34.3 | P3 | ○19.1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured |
-| R34.4 | P3 | ○19.2 | — |
-| R34.5 | P3 | ○19.2 | — |
-| R34.6 | P3 | ○19.2 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured |
-| R34.7 | P3 | ○19.1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured |
-| R34.8 | P3 | ○19.2; ✓7.1 | hil-rig; hil-rig-step |
-| R34.9 | P3 | ○19.2 | — |
+| R34.1 | P3 | ✓19.1 | — |
+| R34.2 | P3 | ✓19.1 | — |
+| R34.3 | P3 | ✓19.1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured |
+| R34.4 | P3 | ✓19.2 | — |
+| R34.5 | P3 | ✓19.2 | — |
+| R34.6 | P3 | ✓19.2 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured |
+| R34.7 | P3 | ✓19.1 | analysis-rta-nrf52840_stress_short-measured; analysis-rta-nrf52840_timing_short-measured |
+| R34.8 | P3 | ✓19.2; ✓7.1 | hil-rig; hil-rig-step |
+| R34.9 | P3 | ✓19.2 | — |
 | R35.1 | P2 | ✓11.1 | check-profile-lint; test-workspace-tests |
-| R35.3 | P2 | ○19.2 | check-profile-lint |
-| R35.4 | P2 | ○19.2 | — |
+| R35.3 | P2 | ✓19.2 | check-profile-lint |
+| R35.4 | P2 | ✓19.2 | — |
 | R35.5 | P2 | ✓11.1 | check-profile-lint |
 | R36.1 | P5 | ○24.1 | — |
 | R36.2 | P5 | ○24.1 | — |

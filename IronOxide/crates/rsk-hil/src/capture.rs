@@ -208,6 +208,16 @@ impl Analysis {
         self.latencies_us.iter().filter(|(_, l)| *l > deadline_us).count()
     }
 
+    /// The late responses as `(stimulus sample, response sample, latency µs)`,
+    /// for the diagnosis of what executed in between.
+    pub fn late_windows(&self, deadline_us: f64) -> Vec<(usize, usize, f64)> {
+        self.latencies_us
+            .iter()
+            .filter(|(_, l)| *l > deadline_us)
+            .map(|(s, l)| (*s, *s + (*l * self.samplerate_hz as f64 / 1e6) as usize, *l))
+            .collect()
+    }
+
     /// One line per edge, for the evidence artifact.
     pub fn edges_text(&self, samples: &[u8], stimulus: u8, response: u8) -> String {
         let mut out = format!("# samples={} samplerate_hz={} stimulus=D{stimulus} response=D{response}\n# t_s channel level\n", self.samples, self.samplerate_hz);

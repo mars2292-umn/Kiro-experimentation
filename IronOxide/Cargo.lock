@@ -681,6 +681,8 @@ dependencies = [
  "rsk-digest",
  "rsk-elf",
  "rsk-model",
+ "serde",
+ "serde_json",
  "toml",
 ]
 

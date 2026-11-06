@@ -329,6 +329,18 @@ pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
     out == 0
 }
 
+/// The EasyDMA register-write SVC (DD-08, task 19.2): register `offset`
+/// of channel `i`'s peripheral window set to `value`; `true` when the
+/// Kernel accepted and wrote it. The same SVC number as the request, bit
+/// 31 of r0 set.
+#[inline(always)]
+pub fn svc_dma_write(i: u8, offset: u32, value: u32) -> bool {
+    let out: u32;
+    // SAFETY (UJ-035b): as UJ-035; r0 to r2 in, r0 out (0 accepted, 1 refused).
+    unsafe { core::arch::asm!("svc #6", inout("r0") (0x8000_0000u32 | i as u32) => out, in("r1") offset, in("r2") value, options(nostack)) };
+    out == 0
+}
+
 /// The Release_Signal raise SVC (R10.5): `true` when the Kernel took the
 /// raise as a Release_Source event of the bound Task.
 #[inline(always)]

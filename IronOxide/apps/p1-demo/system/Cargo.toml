@@ -15,12 +15,16 @@ qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
 nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
 # The release-timing configurations of task 7.3 (with `nrf52840`): the
 # declaration variant, Partition 0's late Jobs, and this crate's report.
-timing = ["nrf52840", "p1-demo-decl/nrf52840_timing", "p1-demo-part0/timing"]
-timing-short = ["nrf52840", "p1-demo-decl/nrf52840_timing_short", "p1-demo-part0/timing"]
+timing = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing", "p1-demo-part0/timing"]
+timing-short = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing_short", "p1-demo-part0/timing"]
 # The fault-injection configurations of task 7.5 (Verification_Plan 11.4).
 response = ["nrf52840", "p1-demo-decl/nrf52840_response", "p1-demo-part0/response", "p1-demo-part1/response", "p1-demo-part2/response"]
-stress = ["nrf52840", "p1-demo-decl/nrf52840_stress", "p1-demo-part1/stress", "p1-demo-part2/stress"]
-stress-short = ["nrf52840", "p1-demo-decl/nrf52840_stress_short", "p1-demo-part1/stress", "p1-demo-part2/stress"]
+stress = ["nrf52840", "measure", "p1-demo-decl/nrf52840_stress", "p1-demo-part1/stress", "p1-demo-part2/stress"]
+stress-short = ["nrf52840", "measure", "p1-demo-decl/nrf52840_stress_short", "p1-demo-part1/stress", "p1-demo-part2/stress"]
+# The measurement configurations' instrumentation (task 19.2): the loop
+# report (R34.9, R35.4) and the EasyDMA traffic scenario (R17.4, R34.5),
+# reported by the safe state.
+measure = ["p1-demo-part0/measure", "p1-demo-part1/measure", "p1-demo-part2/measure"]
 # The isolation configuration of task 7.4 (R16.8, R17.7; Verification_Plan 11.7).
 isolation = ["nrf52840", "hw-dt", "p1-demo-decl/nrf52840_isolation", "p1-demo-part0/isolation", "p1-demo-part1/isolation", "p1-demo-part2/isolation"]
 # The cycle-attribution configuration of task 7.5 (R18.1; Verification_Plan 11.11).
@@ -30,6 +34,9 @@ hw-dt = ["rsk-kernel/hw-dt", "rsk/hw-dt"]
 # HIL builds: the boot-check suite's mutation word (task 7.2).
 boot-mutation = ["rsk-kernel/boot-mutation"]
 record-only = ["rsk-kernel/record-only"]
+# The coverage build (task 19.2, R34.4): the Kernel zeroes the Partitions'
+# coverage counters at instant 0; `cargo xtask hil --coverage` builds it.
+coverage = ["rsk-kernel/coverage"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-kernel/debug-port"]
 # Debugging only: the Kernel's semihosting trace of every entry point.

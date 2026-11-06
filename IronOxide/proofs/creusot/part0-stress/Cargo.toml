@@ -1,0 +1,36 @@
+[package]
+name = "p1-demo-part0-stress-proof"
+description = "Creusot proof of the P1 demo's Partition 0 Task bodies as the HIL stress configuration compiles them (the measurement instrumentation, task 19.2) (the real source under the App_Prover)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "../../../apps/p1-demo/part0/src/lib.rs"
+
+[dependencies]
+p1-demo-decl = { path = "../../../apps/p1-demo/decl", features = ["nrf52840_stress_short"] }
+rsk = { path = "../../../crates/rsk", features = ["creusot"] }
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]
+
+# The Partition's features, as the HIL configuration enables them (the
+# proof member is the real source compiled as its own crate, so the
+# `cfg(feature = ..)` of the body are this crate's; the others are named
+# so that the compiler knows them). Proved one member at a time
+# (`cargo creusot -- -p <member>`): the declaration's variant features are
+# exclusive, and a whole-workspace build would unify them.
+[features]
+default = ["measure"]
+timing = []
+response = []
+isolation = []
+cycles = []
+fi-pr12 = []
+fi-pr19 = []
+fi-pr22 = []
+fi-pr29 = []
+measure = []

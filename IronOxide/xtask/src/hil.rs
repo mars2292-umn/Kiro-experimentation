@@ -87,6 +87,166 @@ pub fn wcet_record_path(root: &Path, variant: &str) -> PathBuf {
     root.join("docs").join("hil").join(format!("wcet_{variant}.json"))
 }
 
+/// The coverage build (task 19.2, R34.4; Verification_Plan 11.13): the
+/// Partition crates compiled with `-C instrument-coverage` and branch
+/// counters by this toolchain (the pinned 1.95.0 has neither the branch
+/// option nor a way to drop the profiler runtime; the instrumented
+/// bodies are the same source under the same inputs, and the build is a
+/// measurement aid, never a measured binary), the counters in each
+/// Partition's RAM (`__rsk_cov_table`), read by the rig after the run.
+pub const COVERAGE_TOOLCHAIN: &str = "nightly-2026-09-17";
+
+/// The committed branch-coverage report of a measurement configuration
+/// (`docs/hil/coverage_<variant>.json`).
+pub fn coverage_record_path(root: &Path, variant: &str) -> PathBuf {
+    root.join("docs").join("hil").join(format!("coverage_{variant}.json"))
+}
+
+/// The Partition crates of `bin`'s Application: `(package name, crate
+/// name, source file)`, the Flight crates under its directory that are
+/// not the declaration or the system crate.
+pub fn partition_crates(ws: &Workspace, bin: &str) -> Vec<(String, String, PathBuf)> {
+    let Some(app_dir) = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { return vec![] };
+    let mut out: Vec<(String, String, PathBuf)> = ws
+        .policy
+        .crates
+        .iter()
+        .filter(|(_, policy)| policy.flight && !policy.declaration && !policy.kernel)
+        .filter_map(|(name, _)| ws.packages.values().find(|p| &p.name == name))
+        .filter(|p| p.dir.starts_with(&app_dir) && p.name != bin && !p.name.ends_with("-system") && p.dir.join("src").join("lib.rs").is_file())
+        .map(|p| (p.name.clone(), p.name.replace('-', "_"), p.dir.join("src").join("lib.rs")))
+        .collect();
+    out.sort();
+    out
+}
+
+/// Builds the coverage build of `bin` with `features` (which name the
+/// configuration and `coverage`): the coverage toolchain with a rustc
+/// wrapper that instruments the Partition crates alone.
+pub fn coverage_build(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, report: &mut Report) -> Option<HilBuild> {
+    let crates = partition_crates(ws, bin);
+    if crates.is_empty() {
+        report.error(Rule::Step, None, format!("no Partition crate of `{bin}` to instrument"));
+        return None;
+    }
+    let _ = std::fs::create_dir_all(target_dir);
+    let wrapper = target_dir.join("rustc-wrapper.sh");
+    let cases: Vec<String> = crates.iter().map(|(_, k, _)| format!("*\" --crate-name {k} \"*")).collect();
+    // Legacy symbol mangling for every crate: the Link_Checker (R37) reads
+    // the Task entries by their legacy names, which the pinned toolchain
+    // emits and the nightly does not by default.
+    let script = format!(
+        "#!/bin/sh\n# The coverage build's RUSTC_WRAPPER (cargo xtask hil --coverage): the Partition crates alone are instrumented; every crate keeps the legacy symbol mangling the Link_Checker reads.\nrustc=\"$1\"; shift\ncase \" $* \" in\n  {})\n    exec \"$rustc\" \"$@\" -Z unstable-options -C symbol-mangling-version=legacy -C instrument-coverage -Z no-profiler-runtime -Z coverage-options=branch ;;\n  *) exec \"$rustc\" \"$@\" -Z unstable-options -C symbol-mangling-version=legacy ;;\nesac\n",
+        cases.join("|")
+    );
+    if let Err(e) = std::fs::write(&wrapper, script) {
+        report.error(Rule::Step, None, format!("cannot write {}: {e}", wrapper.display()));
+        return None;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755));
+    }
+    let cmd = Cmd::cargo_frozen("build")
+        .args(["--quiet", "-p", bin, "--release", "--target", &ws.policy.target, "--no-default-features", "--features", features, "--manifest-path"])
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(target_dir)
+        .env("RUSTUP_TOOLCHAIN", COVERAGE_TOOLCHAIN)
+        .env("RUSTC_WRAPPER", &wrapper);
+    let command = format!("RUSTUP_TOOLCHAIN={COVERAGE_TOOLCHAIN} RUSTC_WRAPPER={} {}", wrapper.display(), cmd.display());
+    match cmd.output(None) {
+        Ok(o) if o.status.success() => {}
+        Ok(o) => {
+            report.error(Rule::Step, None, format!("coverage build of `{bin}` failed:\n{}", String::from_utf8_lossy(&o.stderr)));
+            return None;
+        }
+        Err(e) => {
+            report.error(Rule::Step, None, format!("cannot run cargo: {e}"));
+            return None;
+        }
+    }
+    let elf = target_dir.join(&ws.policy.target).join("release").join(bin);
+    if !link_check(ws, bin, features, &elf, report) {
+        return None;
+    }
+    match Binary::of(bin, &format!("{bin} ({VARIANT}, {features}; coverage build, {COVERAGE_TOOLCHAIN})"), &elf) {
+        Ok(binary) => Some(HilBuild { bin: bin.to_string(), elf, command, binary }),
+        Err(e) => {
+            report.error(Rule::Step, None, format!("coverage build of `{bin}`: {e}"));
+            None
+        }
+    }
+}
+
+/// The coverage toolchain's `llvm-profdata` and `llvm-cov`.
+pub fn coverage_tools(report: &mut Report) -> Option<rsk_hil::coverage::Tools> {
+    let out = |args: &[&str]| std::process::Command::new("rustc").arg(format!("+{COVERAGE_TOOLCHAIN}")).args(args).output().ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).to_string());
+    let Some(sysroot) = out(&["--print", "sysroot"]) else {
+        report.error(Rule::Step, None, format!("the coverage toolchain `{COVERAGE_TOOLCHAIN}` is not installed (rustup toolchain install {COVERAGE_TOOLCHAIN}; rustup component add llvm-tools; rustup target add {})", "thumbv7em-none-eabihf"));
+        return None;
+    };
+    let host = out(&["-vV"]).and_then(|t| t.lines().find_map(|l| l.strip_prefix("host: ").map(str::to_string))).unwrap_or_default();
+    let bin = PathBuf::from(sysroot.trim()).join("lib").join("rustlib").join(host.trim()).join("bin");
+    let tools = rsk_hil::coverage::Tools { profdata: bin.join("llvm-profdata"), cov: bin.join("llvm-cov") };
+    if !tools.profdata.is_file() || !tools.cov.is_file() {
+        report.error(Rule::Step, None, format!("no llvm-profdata and llvm-cov under {} (rustup component add llvm-tools --toolchain {COVERAGE_TOOLCHAIN})", bin.display()));
+        return None;
+    }
+    Some(tools)
+}
+
+/// The committed loop-iteration report of a measurement configuration
+/// (`docs/hil/loop_iterations_<variant>.json`, task 19.2; R34.9, R35.4).
+pub fn loop_record_path(root: &Path, variant: &str) -> PathBuf {
+    root.join("docs").join("hil").join(format!("loop_iterations_{variant}.json"))
+}
+
+/// The Profile_Lint's `rsk-loop-bounds/1` export of `bin`'s Application
+/// crates (R35.3), written to `out` for the rig's loop report (task
+/// 19.2): the lint over the Partition crates of the Application, as the
+/// job runs it over every crate (`verify::profile_lint`).
+pub fn loop_bounds_export(ws: &Workspace, bin: &str, out: &Path, report: &mut Report) -> Option<PathBuf> {
+    let app_dir = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf))?;
+    let mut cmd = Cmd::cargo_frozen("run")
+        .args(["--quiet", "-p", "rsk-lint", "--manifest-path"])
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(ws.root.join("target"))
+        .arg("--")
+        .arg("--root")
+        .arg(&ws.root)
+        .arg("--profile")
+        .arg(ws.root.join("profile").join("profile.toml"))
+        .arg("--core-subset")
+        .arg(ws.root.join("profile").join("core_subset.toml"))
+        .arg("--out")
+        .arg(out);
+    let mut apps = 0;
+    for (name, policy) in &ws.policy.crates {
+        let Some(pkg) = ws.packages.values().find(|p| &p.name == name) else { continue };
+        if !policy.kernel && (policy.flight || policy.declaration) && pkg.dir.starts_with(&app_dir) {
+            cmd = cmd.arg("--app").arg(&pkg.dir);
+            apps += 1;
+        }
+    }
+    if apps == 0 {
+        return None;
+    }
+    match cmd.output(None) {
+        Ok(o) if o.status.success() && out.is_file() => Some(out.to_path_buf()),
+        Ok(o) => {
+            report.error(Rule::Step, None, format!("the Profile_Lint's loop-bound export of `{bin}` failed:\n{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr)));
+            None
+        }
+        Err(e) => {
+            report.error(Rule::Step, None, format!("cannot run rsk-lint: {e}"));
+            None
+        }
+    }
+}
+
 /// The binary hashes a Build_Manifest lists (`binaries` and `hil_binaries`).
 fn manifest_hashes(manifest: &serde_json::Value) -> Vec<String> {
     let mut hashes: Vec<String> = Vec::new();

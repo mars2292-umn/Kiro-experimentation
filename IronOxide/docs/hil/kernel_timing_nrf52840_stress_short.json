@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:f16e35e69bc4ca60f2654f685c3d867d38b61cfd8a72d1b8fbace617caac6016",
+  "binary_hash": "sha256:d0fe4f33cfa973fe900db9da1c453292c1aec6ad033a817a20f3089042518f66",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 10449,
+      "cycles": 10572,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -16,17 +16,20 @@
       ],
       "measured": {
         "runs": 40495,
-        "max_observed": 8359,
+        "max_observed": 8457,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_irq",
-      "cycles": 2659,
+      "cycles": 2712,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -35,17 +38,20 @@
       ],
       "measured": {
         "runs": 11952,
-        "max_observed": 2127,
+        "max_observed": 2169,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s), interrupt storm"
+          "nrf52840_stress_short (180 s), interrupt storm",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "l_kernel",
-      "cycles": 5162,
+      "cycles": 5882,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -53,18 +59,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 8867166,
-        "max_observed": 4129,
+        "runs": 8997195,
+        "max_observed": 4705,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_dispatch",
-      "cycles": 3559,
+      "cycles": 3583,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -73,17 +82,20 @@
       ],
       "measured": {
         "runs": 58449,
-        "max_observed": 2847,
+        "max_observed": 2866,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_timer",
-      "cycles": 5162,
+      "cycles": 5882,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -91,18 +103,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 65256,
-        "max_observed": 4129,
+        "runs": 65419,
+        "max_observed": 4705,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_detect",
-      "cycles": 5162,
+      "cycles": 5882,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -110,18 +125,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 65256,
-        "max_observed": 4129,
+        "runs": 65419,
+        "max_observed": 4705,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_lock_in",
-      "cycles": 569,
+      "cycles": 573,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -129,18 +147,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 77397,
-        "max_observed": 455,
+        "runs": 77415,
+        "max_observed": 458,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_lock_out",
-      "cycles": 2207,
+      "cycles": 2285,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -148,18 +169,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 76497,
-        "max_observed": 1765,
+        "runs": 76515,
+        "max_observed": 1828,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_complete",
-      "cycles": 4014,
+      "cycles": 4095,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -168,17 +192,20 @@
       ],
       "measured": {
         "runs": 55524,
-        "max_observed": 3211,
+        "max_observed": 3276,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_svc",
-      "cycles": 300,
+      "cycles": 297,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -186,18 +213,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 8379055,
-        "max_observed": 240,
+        "runs": 8500323,
+        "max_observed": 237,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_dma_write",
-      "cycles": 869,
+      "cycles": 887,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -205,18 +235,21 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 900,
-        "max_observed": 695,
+        "runs": 9328,
+        "max_observed": 709,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_restart",
-      "cycles": 5162,
+      "cycles": 5882,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -225,17 +258,20 @@
       ],
       "measured": {
         "runs": 900,
-        "max_observed": 4129,
+        "max_observed": 4705,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_enforce",
-      "cycles": 5162,
+      "cycles": 5882,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -244,17 +280,20 @@
       ],
       "measured": {
         "runs": 2925,
-        "max_observed": 4129,
+        "max_observed": 4705,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     },
     {
       "symbol": "delta_view",
-      "cycles": 409,
+      "cycles": 410,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -262,12 +301,15 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 73862,
-        "max_observed": 327,
+        "runs": 73996,
+        "max_observed": 328,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
-          "nrf52840_stress_short (180 s)"
+          "nrf52840_stress_short (180 s)",
+          "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (0 transfer-ended observations, 0 still running after a stop)",
+          "floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs",
+          "preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, the stormed source at the stimulus board's highest rate"
         ]
       }
     }

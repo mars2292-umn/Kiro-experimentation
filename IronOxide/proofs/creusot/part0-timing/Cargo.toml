@@ -24,7 +24,7 @@ check-cfg = ["cfg(creusot)"]
 # (`cargo creusot -- -p <member>`): the declaration's variant features are
 # exclusive, and a whole-workspace build would unify them.
 [features]
-default = ["timing"]
+default = ["timing", "measure"]
 timing = []
 response = []
 isolation = []
@@ -33,3 +33,4 @@ fi-pr12 = []
 fi-pr19 = []
 fi-pr22 = []
 fi-pr29 = []
+measure = []

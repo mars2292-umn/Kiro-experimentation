@@ -26,15 +26,19 @@ mod inject {
         now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms.saturating_add(len_ms))
     }
 
-    pub fn spin_ms(ms: u64) {
+    /// Returns the iterations the loop ran (the loop report, task 19.2, R35.4);
+    /// the label names the loop there, nothing breaks to it.
+    #[allow(unused_labels)]
+    pub fn spin_ms(ms: u64) -> u32 {
         let start = rsk::now();
         let mut i = 0u32;
         // R35.2: the App_Prover's bound equals the derived Loop_Bound_Annotation.
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 100_000_000))]
         #[cfg_attr(creusot, rsk::creusot_std::macros::variant(100_000_000 - i@))]
-        while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+        'spin: while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
             i += 1;
         }
+        i
     }
 
     /// A write into the Kernel's RAM, outside every Partition's view: a
@@ -47,7 +51,101 @@ mod inject {
 
 /// The channel index of CMSDK_GPIO0's stand-in channel in the system's DMA
 /// table (the only EasyDMA channel of the declaration).
+// Unused under the measurement configurations alone (the traffic scenario
+// names its channels, `traffic::CHANNEL_*`).
+#[allow(dead_code)]
 const DMA_CHANNEL: u8 = 0;
+
+/// The EasyDMA traffic scenario of the measurement configurations (task
+/// 19.2; R17.4, R34.5): SPIM0, the Partition's EasyDMA peripheral,
+/// transfers 64 bytes out of `tx` and 64 bytes into `rx` at its highest
+/// rate (8 Mbps) for the whole run, the END_START shortcut starting the
+/// next transfer as each ends, so that every Task of every Partition is
+/// measured under the worst-case concurrent EasyDMA traffic this
+/// Application can produce (part2 owns the only EasyDMA-capable
+/// peripheral). The clock and data pins go to the DK's LEDs (part1, the
+/// owner of `P0`, sets their direction in the measurement build).
+/// The registers are reached through `rsk::dma_write` (DD-08: the window
+/// is read-only to the Partition); the pointer and count registers
+/// through `rsk::dma_request`, which checks the buffers (R17.1).
+#[cfg(feature = "measure")]
+mod traffic {
+    /// The window of SPIM0 in the Target table (the report reads the same).
+    pub const SPIM0: u32 = 0x4000_3000;
+    pub const TASKS_START: u32 = 0x010;
+    pub const EVENTS_END: u32 = 0x118;
+    pub const EVENTS_STARTED: u32 = 0x14C;
+    pub const SHORTS: u32 = 0x200;
+    pub const ENABLE: u32 = 0x500;
+    pub const PSEL_SCK: u32 = 0x508;
+    pub const PSEL_MOSI: u32 = 0x50C;
+    pub const PSEL_MISO: u32 = 0x510;
+    pub const FREQUENCY: u32 = 0x524;
+    /// The pins (port 0): LED2 and LED3 of the DK carry SCK and MOSI (they
+    /// glow at the clock's duty), LED4's pin reads MISO; part1 configures
+    /// their direction in its `P0` window (the SPIM does not), and the
+    /// transfer needs the clock pin connected to run.
+    pub const SCK_PIN: u32 = 14;
+    pub const MOSI_PIN: u32 = 15;
+    pub const MISO_PIN: u32 = 16;
+    pub const SHORTS_END_START: u32 = 1 << 17;
+    pub const FREQUENCY_M8: u32 = 0x8000_0000;
+    pub const ENABLE_SPIM: u32 = 7;
+    /// The channels of the system's DMA table: RXD, then TXD.
+    pub const CHANNEL_RX: u8 = 0;
+    pub const CHANNEL_TX: u8 = 1;
+}
+
+/// One Job's step of the traffic scenario: the first Job of the
+/// Partition's incarnation configures and starts the transfers (and, after
+/// a restart, checks that the Kernel's stop held, R17.6: a transfer that
+/// starts again within a transfer's length of the check, with the
+/// shortcut still set, is counted in `dma_after_stop`); every later Job
+/// counts in `dma_end` whether a transfer ended since the last and clears
+/// the event. Returns whether the Job's traffic was confirmed: the first
+/// Job's requests accepted, a later Job's transfer ended (the demo's
+/// safe state counts it as `dma_ok`).
+// App_Prover (task 17.1): the step leaves the Job's count and the Resource
+// as they were, which the body's assertions after the call rely on.
+#[cfg(feature = "measure")]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).count@ == (*cx).count@))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).stats@ == (*cx).stats@))]
+fn traffic_step(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
+    use traffic::*;
+    if cx.count.get() != 0 {
+        let ended = rsk::mmio::read(SPIM0 + EVENTS_END) != 0;
+        if ended {
+            let _ = rsk::dma_write(CHANNEL_RX, EVENTS_END, 0);
+            cx.dma_end.with(|c| *c = c.saturating_add(1));
+        }
+        return ended;
+    }
+    if rsk::mmio::read(SPIM0 + ENABLE) == ENABLE_SPIM {
+        let _ = rsk::dma_write(CHANNEL_RX, EVENTS_STARTED, 0);
+        // About 150 µs, over twice a 64-byte transfer at 8 Mbps.
+        rsk::spin::<1_000>();
+        if rsk::mmio::read(SPIM0 + EVENTS_STARTED) != 0 {
+            cx.dma_after_stop.with(|c| *c = c.saturating_add(1));
+        }
+    }
+    let _ = rsk::dma_write(CHANNEL_RX, PSEL_SCK, SCK_PIN);
+    let _ = rsk::dma_write(CHANNEL_RX, PSEL_MOSI, MOSI_PIN);
+    let _ = rsk::dma_write(CHANNEL_RX, PSEL_MISO, MISO_PIN);
+    let _ = rsk::dma_write(CHANNEL_RX, FREQUENCY, FREQUENCY_M8);
+    let _ = rsk::dma_write(CHANNEL_RX, SHORTS, SHORTS_END_START);
+    let _ = rsk::dma_write(CHANNEL_RX, ENABLE, ENABLE_SPIM);
+    let tx = cx.tx.with(|b| {
+        b[0] = n;
+        let bytes: &[u8] = &*b;
+        rsk::dma_request(CHANNEL_TX, bytes)
+    });
+    let rx = cx.rx.with(|b| {
+        let bytes: &[u8] = &*b;
+        rsk::dma_request(CHANNEL_RX, bytes)
+    });
+    let _ = rsk::dma_write(CHANNEL_RX, TASKS_START, 1);
+    tx && rx
+}
 
 /// The isolation suite (task 7.4): the EasyDMA cases of R17.7 (R17.1,
 /// R17.2), one per Job of `sampler`, then the access matrix of this
@@ -171,6 +269,8 @@ fn lowpass(y: &mut f32) {
 /// Task `filter`: steps the low-pass state and reads the transfer
 /// statistics inside a Critical_Section it leaves unchanged.
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::filter_pre(&cx)))]
+// The loop's label names it in the loop report (task 19.2); nothing breaks to it.
+#[allow(unused_labels)]
 pub fn filter(mut cx: rsk_ctx::Filter) {
     // The isolation suite (task 7.4) with the Hardware_Model differential
     // tests (task 3.3, HW-06, HW-10): FPSCR as the first Job finds it,
@@ -222,9 +322,13 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
             let hold = if long { rsk_target::ms(1) } else { rsk_target::TICK_HZ / 4000 };
             #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
             #[cfg_attr(creusot, rsk::creusot_std::macros::variant(10_000_000 - i@))]
-            while rsk::now().wrapping_sub(start) < hold && i < 10_000_000 {
+            'hold: while rsk::now().wrapping_sub(start) < hold && i < 10_000_000 {
                 i += 1;
             }
+            // The measurement build (task 19.2, R35.4): the largest iteration
+            // count the loop reached, for the safe state's loop report.
+            #[cfg(feature = "measure")]
+            cx.loop_hold.with(|m| if i > *m { *m = i });
         });
     }
     cx.y.with(|y| lowpass(y));
@@ -252,7 +356,11 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
     // its 500 µs Budget outside a Critical_Section (END_JOB).
     #[cfg(feature = "stress")]
     if cx.count.get() % 2 == 1 {
-        inject::spin_ms(2);
+        let n = inject::spin_ms(2);
+        #[cfg(feature = "measure")]
+        cx.loop_spin.with(|m| if n > *m { *m = n });
+        #[cfg(not(feature = "measure"))]
+        let _ = n;
     }
     // The isolation suite (task 7.4): the EasyDMA cases, then the access
     // matrix; the buffer's address for the rig's register check.
@@ -273,7 +381,11 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
         let _ = n;
         false
     };
-    #[cfg(not(feature = "isolation"))]
+    // The measurement configurations (task 19.2): the EasyDMA traffic
+    // scenario of R17.4 and R34.5 in place of the per-Job request.
+    #[cfg(all(not(feature = "isolation"), feature = "measure"))]
+    let accepted = traffic_step(&mut cx, n);
+    #[cfg(all(not(feature = "isolation"), not(feature = "measure")))]
     let accepted = cx.buf.with(|buf| {
         buf[0] = n;
         // An unsizing coercion, not `Index<RangeFull>`, which Creusot has no

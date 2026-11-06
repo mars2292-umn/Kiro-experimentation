@@ -16,4 +16,6 @@ bench = false
 rsk-digest.workspace = true
 rsk-elf.workspace = true
 rsk-model = { path = "../rsk-model" }
+serde.workspace = true
+serde_json.workspace = true
 toml.workspace = true

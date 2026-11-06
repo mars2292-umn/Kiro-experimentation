@@ -173,6 +173,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "p1-demo-part0-stress-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
 name = "p1-demo-part0-timing-proof"
 version = "0.0.0"
 dependencies = [
@@ -219,6 +228,15 @@ dependencies = [
 
 [[package]]
 name = "p1-demo-part2-stress-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part2-timing-proof"
 version = "0.0.0"
 dependencies = [
  "creusot-std",

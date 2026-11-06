@@ -21,12 +21,16 @@ mod inject {
         now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
     }
 
-    pub fn spin_ms(ms: u64) {
+    /// Returns the iterations the loop ran (the loop report, task 19.2);
+    /// the label names the loop there, nothing breaks to it.
+    #[allow(unused_labels)]
+    pub fn spin_ms(ms: u64) -> u32 {
         let start = rsk::now();
         let mut i = 0u32;
-        while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
+        'spin: while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
             i += 1;
         }
+        i
     }
 
     /// A write into the Kernel's RAM, outside every Partition's view: a
@@ -149,9 +153,22 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
 /// Task `log`: busy for 3 ms by the time base (bounded in iterations too,
 /// PR-16; within its 6 ms Budget on any Target), then counts. Its first Job
 /// starts the Release_Source of `pulse` (task 5.4).
+// The loop's label names it in the loop report (task 19.2); nothing breaks to it.
+#[allow(unused_labels)]
 pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
         pulse_source::start();
+        // The measurement configurations (task 19.2): the EasyDMA traffic
+        // scenario's SPIM0 pins, P0.14 and P0.15 (LED2, LED3) as outputs
+        // for SCK and MOSI and P0.16 (LED4) as the MISO input; this
+        // Partition owns `P0`, part2 selects them in SPIM0.
+        #[cfg(feature = "measure")]
+        {
+            const P0_PIN_CNF: u32 = 0x5000_0700;
+            rsk::mmio::write(P0_PIN_CNF + 4 * 14, 0b11);
+            rsk::mmio::write(P0_PIN_CNF + 4 * 15, 0b11);
+            rsk::mmio::write(P0_PIN_CNF + 4 * 16, 0);
+        }
     }
     // The isolation suite (task 7.4): one access attempt per Job, after
     // the source is started (the first Job's attempt would otherwise end
@@ -178,7 +195,11 @@ pub fn log(mut cx: rsk_ctx::Log) {
     #[cfg(feature = "response")]
     {
         if inject::window(400, 40) {
-            inject::spin_ms(25);
+            let n = inject::spin_ms(25);
+            #[cfg(feature = "measure")]
+            cx.loop_spin.with(|m| if n > *m { *m = n });
+            #[cfg(not(feature = "measure"))]
+            let _ = n;
         }
         if inject::window(800, 40) {
             inject::fault();
@@ -194,13 +215,21 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // of task 19.1 charged every segment, 2026-11-02).
     #[cfg(feature = "stress")]
     if (rsk::now() / rsk_target::ms(40)) % 4 == 3 {
-        inject::spin_ms(20);
+        let n = inject::spin_ms(20);
+        #[cfg(feature = "measure")]
+        cx.loop_spin.with(|m| if n > *m { *m = n });
+        #[cfg(not(feature = "measure"))]
+        let _ = n;
     }
     let start = rsk::now();
     let mut i = 0u32;
-    while rsk::now().wrapping_sub(start) < rsk_target::ms(3) && i < 10_000_000 {
+    'busy: while rsk::now().wrapping_sub(start) < rsk_target::ms(3) && i < 10_000_000 {
         i += 1;
     }
+    // The measurement build (task 19.2, R35.4): the largest iteration count
+    // the loop reached, for the safe state's loop report.
+    #[cfg(feature = "measure")]
+    cx.loop_busy.with(|m| if i > *m { *m = i });
     cx.count.with(|c| *c += 1);
     rsk::debug(b"C");
 }

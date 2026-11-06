@@ -10,12 +10,24 @@ pub mod rsk_state {
     pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.filter.y` (PR-25): touched by `filter`'s Jobs only.
     pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::new(0.0);
+    /// Per-Task state `part2.filter.loop_hold` (PR-25): touched by `filter`'s Jobs only.
+    pub static FILTER_LOOP_HOLD: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.sampler.count` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.sampler.dma_ok` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.sampler.buf` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_BUF: ::rsk::ResourceCell<[u8 ; 16]> = ::rsk::ResourceCell::new([0 ; 16]);
+    /// Per-Task state `part2.sampler.loop_spin` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_LOOP_SPIN: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part2.sampler.tx` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_TX: ::rsk::ResourceCell<[u8 ; 64]> = ::rsk::ResourceCell::new([0 ; 64]);
+    /// Per-Task state `part2.sampler.rx` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_RX: ::rsk::ResourceCell<[u8 ; 64]> = ::rsk::ResourceCell::new([0 ; 64]);
+    /// Per-Task state `part2.sampler.dma_end` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_DMA_END: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part2.sampler.dma_after_stop` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_DMA_AFTER_STOP: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {
@@ -56,6 +68,8 @@ pub mod rsk_ctx {
         pub count: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `y` (PR-25).
         pub y: ::rsk::PerTask<'static, f32>,
+        /// Per-Task state `loop_hold` (PR-25).
+        pub loop_hold: ::rsk::PerTask<'static, u32>,
     }
     /// The Context of Task `part2.sampler` (Priority 1).
     pub struct Sampler {
@@ -66,6 +80,16 @@ pub mod rsk_ctx {
         pub dma_ok: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `buf` (PR-25).
         pub buf: ::rsk::PerTask<'static, [u8 ; 16]>,
+        /// Per-Task state `loop_spin` (PR-25).
+        pub loop_spin: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `tx` (PR-25).
+        pub tx: ::rsk::PerTask<'static, [u8 ; 64]>,
+        /// Per-Task state `rx` (PR-25).
+        pub rx: ::rsk::PerTask<'static, [u8 ; 64]>,
+        /// Per-Task state `dma_end` (PR-25).
+        pub dma_end: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `dma_after_stop` (PR-25).
+        pub dma_after_stop: ::rsk::PerTask<'static, u32>,
     }
 }
 #[cfg(creusot)]
@@ -100,6 +124,7 @@ pub mod rsk_jobs {
             stats: ::rsk::Shared::new(&super::rsk_resources::STATS, 2),
             count: ::rsk::PerTask::new(&super::rsk_state::FILTER_COUNT),
             y: ::rsk::PerTask::new(&super::rsk_state::FILTER_Y),
+            loop_hold: ::rsk::PerTask::new(&super::rsk_state::FILTER_LOOP_HOLD),
         });
     }
     /// Job wrapper of `part2.sampler` (vector 56; Critical_Section sites: part2.sampler#cs:stats).
@@ -110,6 +135,11 @@ pub mod rsk_jobs {
             count: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_COUNT),
             dma_ok: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_OK),
             buf: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_BUF),
+            loop_spin: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_LOOP_SPIN),
+            tx: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_TX),
+            rx: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_RX),
+            dma_end: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_END),
+            dma_after_stop: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_AFTER_STOP),
         });
     }
 }

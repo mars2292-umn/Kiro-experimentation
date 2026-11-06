@@ -197,7 +197,7 @@ fn mpu_load_writes_every_region() {
 fn apply_every_action_is_total() {
     sim::reset();
     let which: u8 = kani::any();
-    kani::assume(which < 30);
+    kani::assume(which < 32);
     let n: u16 = kani::any();
     let p: u8 = kani::any();
     let on: bool = kani::any();
@@ -237,6 +237,8 @@ fn apply_every_action_is_total() {
         26 => Action::ReinitPartition(p),
         27 => Action::WatchdogStart(w),
         28 => Action::WatchdogFeed,
+        29 => Action::DmaWrite(w, x),
+        30 => Action::DmaShortsOff(w),
         _ => Action::Trace(p, w),
     };
     let before = sim::write_count();
@@ -324,7 +326,7 @@ fn apply_every_action_is_total() {
             }
             assert!(writes == ptr_written as u32 + cnt_written as u32);
         }
-        23 | 24 => {
+        23 | 24 | 30 => {
             if addr::peripheral(w) {
                 assert!(sim::read(w) == if which == 23 { 1 } else { 0 } && writes == 1);
             } else {
@@ -340,6 +342,13 @@ fn apply_every_action_is_total() {
             assert!(sim::read(addr::NRF_WDT + hw::wdt::TASKS_START) == 1);
         }
         28 => assert!(sim::read(addr::NRF_WDT + hw::wdt::RR0) == hw::wdt::RELOAD && writes == 1),
+        29 => {
+            if addr::peripheral(w) {
+                assert!(sim::read(w) == x && writes == 1);
+            } else {
+                assert!(writes == 0);
+            }
+        }
         _ => assert!(writes == 0),
     }
 }
