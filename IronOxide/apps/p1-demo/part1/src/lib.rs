@@ -141,7 +141,7 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
         return;
     }
     index.set(i + 1);
-    if rsk::matrix::perform(&layout, i as usize) == rsk::matrix::Outcome::Survived {
+    if matches!(rsk::matrix::perform(&layout, i as usize), rsk::matrix::Outcome::Survived) {
         survived.with(|m| *m |= 1 << i);
     }
 }

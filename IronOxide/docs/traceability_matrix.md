@@ -562,9 +562,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R46.1 | — | — | ✓8.1 | xtask/src/verify.rs | proof-app-aeneas; proof-app-aeneas-step |
 | R46.2 | — | Application prover: Creusot (R46, ORQ-10) | ✓8.1 | xtask/src/manifest.rs; xtask/src/tools.rs; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
-| R46.3 | P-23 | — | ○17.1 | profile/core_subset.toml; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
+| R46.3 | P-23 | — | ○17.1 | profile/core_subset.toml; xtask/src/verify.rs | proof-app-creusot; proof-app-step; test-workspace-tests |
 | R46.4 | P-23 | App_Declaration and generation pipeline (Component C); Application prover: Creusot (R46, ORQ-10) | ○17.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840.rs; apps/p1-demo/decl/src/nrf52840_cycles.rs; +32 | proof-app-creusot; proof-app-step; test-workspace-tests |
-| R46.5 | — | — | ○17.1; ✓17.3 | xtask/src/verify.rs | proof-app-aeneas |
+| R46.5 | — | Application prover: Creusot (R46, ORQ-10) | ○17.1; ✓17.3 | apps/p1-demo/part2/src/lib.rs; xtask/src/verify.rs | proof-app-aeneas |
 
 ### Requirement 47: Interleaving tests with Loom and Shuttle (Phase P2)
 

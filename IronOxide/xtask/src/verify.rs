@@ -898,6 +898,52 @@ fn creusot_session_clear(dir: &Path) {
     }
 }
 
+/// The HIL-configuration members of the proof workspace: every `members`
+/// entry of `proofs/creusot/Cargo.toml` outside
+/// `[workspace.metadata.creusot] default-members`, as (directory, package
+/// name) pairs, in manifest order.
+fn creusot_hil_members(dir: &Path) -> Vec<(String, String)> {
+    let Ok(text) = std::fs::read_to_string(dir.join("Cargo.toml")) else { return vec![] };
+    let Ok(table) = text.parse::<toml::Table>() else { return vec![] };
+    let ws = table.get("workspace").and_then(|w| w.as_table());
+    let members: Vec<String> = ws
+        .and_then(|w| w.get("members"))
+        .and_then(|m| m.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    let defaults: Vec<String> = ws
+        .and_then(|w| w.get("metadata"))
+        .and_then(|m| m.get("creusot"))
+        .and_then(|c| c.get("default-members"))
+        .and_then(|d| d.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    let mut out = Vec::new();
+    for m in members {
+        let Ok(manifest) = std::fs::read_to_string(dir.join(&m).join("Cargo.toml")) else { continue };
+        let Ok(t) = manifest.parse::<toml::Table>() else { continue };
+        let Some(name) = t.get("package").and_then(|p| p.get("name")).and_then(|n| n.as_str()) else { continue };
+        if defaults.iter().any(|d| d == name) {
+            continue;
+        }
+        out.push((m, name.to_string()));
+    }
+    out
+}
+
+#[cfg(test)]
+mod creusot_members_tests {
+    /// R46.3: the proof workspace's HIL-configuration members are the nine (declaration variant, Partition features) pairs the rig builds, each outside the default members, named by directory and package.
+    #[test]
+    fn hil_members_are_the_nine_configurations_outside_the_defaults() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
+        let dirs: Vec<&str> = members.iter().map(|(d, _)| d.as_str()).collect();
+        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-response", "part0-isolation", "part0-cycles", "part2-nrf52840", "part2-response", "part2-stress", "part2-isolation"]);
+        assert!(members.iter().all(|(d, p)| *p == format!("p1-demo-{d}-proof")));
+    }
+}
+
 fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, creusot: Option<&Creusot>, report: &mut Report) -> Vec<String> {
     let dir = ws.root.join("proofs").join("creusot");
     if !dir.join("Cargo.toml").is_file() {
@@ -918,8 +964,16 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
     // demo's 14 files in seconds; the bound is generous).
     let _ = Command::new("pkill").args(["-f", "why3find"]).status();
     creusot_session_clear(&dir);
-    let cmd = Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir);
-    let command = format!("(cd proofs/creusot && {})", cmd.display());
+    // The runs: the QEMU pair (the workspace's default members, one
+    // `cargo creusot`), then each HIL-configuration member by name
+    // (`-p <package>`), since the declaration's variant features are
+    // exclusive and one build of them all would unify them (task 17.1,
+    // Verification_Plan section 7). The members come from the proof
+    // workspace's manifest: every member outside `default-members`.
+    let mut runs: Vec<(String, Cmd)> = vec![("the QEMU configuration".to_string(), Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir))];
+    for (member, package) in creusot_hil_members(&dir) {
+        runs.push((format!("`{member}`"), Cmd::cargo().args(["creusot", "-p", &package, "--", "--offline"]).cwd(&dir)));
+    }
     let run_once = |cmd: &Cmd| match cmd.output_timeout(Some(sandbox), 600, &["why3find", "cargo-creusot"]) {
         Ok(o) => {
             let text = format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr));
@@ -927,22 +981,43 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         }
         Err(e) => (false, format!("cannot run cargo creusot: {e}"), e.to_string().contains("did not complete")),
     };
-    let (mut ok, mut text, timed_out) = run_once(&cmd);
-    if timed_out {
-        // The why3find hang (0 % CPU, no solver running) reached the bound
-        // although the session was fresh (2026-11-02, with the HIL isolation
-        // suite's job): ended, cleared, and run once more; a fresh run proves
-        // the files in about a minute, so a second bound reached is the verdict.
-        report.warn("App_Prover: `cargo creusot` reached its bound once (why3find hung); the session was cleared and the run repeated".to_string());
+    let mut commands = Vec::new();
+    let mut texts = Vec::new();
+    let mut verdicts = Vec::new();
+    let mut ok = true;
+    for (label, cmd) in &runs {
+        // The session is cleared between runs; the build directory was
+        // cleared once above, so every member's translation is fresh.
         let _ = Command::new("pkill").args(["-f", "why3find"]).status();
-        creusot_session_clear(&dir);
-        let (ok2, text2, _) = run_once(&cmd);
-        ok = ok2;
-        text = format!("{text}\n--- second run after the bound ---\n{text2}");
+        for name in ["verif", ".why3find"] {
+            let _ = std::fs::remove_dir_all(dir.join(name));
+        }
+        let command = format!("(cd proofs/creusot && {})", cmd.display());
+        let (mut run_ok, mut text, timed_out) = run_once(cmd);
+        if timed_out {
+            // The why3find hang (0 % CPU, no solver running) reached the bound
+            // although the session was fresh (2026-11-02, with the HIL isolation
+            // suite's job): ended, cleared, and run once more; a fresh run proves
+            // the files in about a minute, so a second bound reached is the verdict.
+            report.warn(format!("App_Prover: `cargo creusot` for {label} reached its bound once (why3find hung); the session was cleared and the run repeated"));
+            let _ = Command::new("pkill").args(["-f", "why3find"]).status();
+            for name in ["verif", ".why3find"] {
+                let _ = std::fs::remove_dir_all(dir.join(name));
+            }
+            let (ok2, text2, _) = run_once(cmd);
+            run_ok = ok2;
+            text = format!("{text}\n--- second run after the bound ---\n{text2}");
+        }
+        let verdict = text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string();
+        verdicts.push(format!("{label}: {verdict}"));
+        ok = ok && run_ok;
+        texts.push(format!("=== {command}\n{text}"));
+        commands.push(command);
     }
+    let text = texts.join("\n");
     creusot_session_clear(&dir);
     let _ = store.write_artifact("creusot.log", &text);
-    let verdict = text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string();
+    let verdict = verdicts.join("; ");
     if ok {
         report.note(format!("R46.3: App_Prover: {verdict} ({version})"));
     } else {
@@ -956,14 +1031,14 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         Verdict::from_bool(ok),
     )
     .covers(&["R46.2", "R46.3", "R46.4", "R35.2", "PR-19"]);
-    item.command_lines = vec![command.clone()];
-    item.notes = vec![verdict, "trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, and mmio (TBR-08); the Generator's glue is excluded under cfg(creusot); the f32 step `lowpass` of part2 is trusted (verification_plan.md section 7)".to_string()];
+    item.command_lines = commands.clone();
+    item.notes = vec![verdict, "trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, mmio, and the hw_dt probes (TBR-08); the Generator's glue is excluded under cfg(creusot); the f32 step `lowpass` of part2 and the pointer-to-integer helper `address_of` of its isolation configuration are trusted (verification_plan.md section 7, R46.5)".to_string()];
     item.build_manifest = Some(manifest_id.to_string());
     item.artifacts = vec!["creusot.log".to_string()];
     if let Err(e) = store.write(&item) {
         report.error(Rule::Evidence, None, e);
     }
-    vec![command]
+    commands
 }
 
 /// Task 3.1's hardware half (Verification_Plan section 11, `hil-spike`): the

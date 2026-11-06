@@ -22,7 +22,8 @@ mod inject {
     #[cfg(any(feature = "response", feature = "isolation"))]
     pub fn window(from_ms: u64, len_ms: u64) -> bool {
         let now = rsk::now();
-        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
+        // Saturating: an obligation the App_Prover cannot discharge otherwise (task 17.1).
+        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms.saturating_add(len_ms))
     }
 
     pub fn spin_ms(ms: u64) {
@@ -66,11 +67,25 @@ const DMA_CHANNEL: u8 = 0;
 #[cfg(feature = "isolation")]
 const DMA_CASES: u32 = 7;
 
+/// The address of the Task's buffer, for the rig's register check. A
+/// pointer-to-integer cast is outside the App_Prover's language, so this
+/// one-line helper is trusted (R46.5; the value is only reported).
 #[cfg(feature = "isolation")]
+#[cfg_attr(creusot, rsk::creusot_std::macros::trusted)]
+fn address_of(buf: &[u8; 16]) -> u32 {
+    buf.as_ptr() as usize as u32
+}
+
+// App_Prover (task 17.1): the step leaves `stats` as it was, so that the
+// body's Critical_Section on it still finds the Resource invariant
+// (`sampler_pre`) after the call; the step's own obligations are its
+// counters' arithmetic and the access matrix's preconditions.
+#[cfg(feature = "isolation")]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).stats@ == (*cx).stats@))]
 fn isolation_step(cx: &mut rsk_ctx::Sampler) {
     use rsk_target::layout as l;
     let case = cx.dma_case.get();
-    cx.dma_case.set(case + 1);
+    cx.dma_case.set(case.saturating_add(1));
     let other = if l::SELF == 0 { 1 } else { 0 };
     match case {
         0 | 6 => {
@@ -107,7 +122,7 @@ fn isolation_step(cx: &mut rsk_ctx::Sampler) {
                 kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
             };
             let i = (case - DMA_CASES) as usize;
-            if i < rsk::matrix::count(&layout) && rsk::matrix::perform(&layout, i) == rsk::matrix::Outcome::Survived {
+            if i < 32 && i < rsk::matrix::count(&layout) && matches!(rsk::matrix::perform(&layout, i), rsk::matrix::Outcome::Survived) {
                 cx.survived.with(|m| *m |= 1 << i);
             }
         }
@@ -243,7 +258,7 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
     // matrix; the buffer's address for the rig's register check.
     #[cfg(feature = "isolation")]
     {
-        cx.dma_ptr.set(cx.buf.with(|buf| buf.as_ptr() as usize as u32));
+        cx.dma_ptr.set(cx.buf.with(|buf| address_of(buf)));
         isolation_step(&mut cx);
     }
     #[cfg(creusot)]

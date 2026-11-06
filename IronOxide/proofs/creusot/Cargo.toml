@@ -9,7 +9,23 @@
 # vendored sources offline.
 [workspace]
 resolver = "2"
-members = ["part0", "part2"]
+members = [
+    # The QEMU configuration (the Flight_Build of the conformance Application).
+    "part0", "part2",
+    # The HIL configurations: the same sources with their feature-gated
+    # bodies, one member per (declaration variant, Partition features)
+    # pair the rig builds (task 17.1; Verification_Plan section 7). Proved
+    # one member at a time, `cargo creusot -- --offline -p <member>`, since
+    # the declaration's variant features are exclusive.
+    "part0-nrf52840", "part0-timing", "part0-response", "part0-isolation", "part0-cycles",
+    "part2-nrf52840", "part2-response", "part2-stress", "part2-isolation",
+]
+
+# `cargo creusot` with no package proves the QEMU pair; a HIL member is
+# proved by name (`cargo creusot -p p1-demo-part0-response-proof -- --offline`),
+# which resolves the declaration's variant feature for that member alone.
+[workspace.metadata.creusot]
+default-members = ["p1-demo-part0-proof", "p1-demo-part2-proof"]
 
 [workspace.package]
 version = "0.0.0"

@@ -260,6 +260,7 @@ pub mod hw_dt {
     /// Bit i set for the i-th of R2 to R5, R8, R10, R12 that changed over
     /// `iterations` of a spin (0: every register preserved).
     #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn register_patterns(iterations: u32) -> u32 {
         dt::register_patterns(iterations)
     }
@@ -267,12 +268,14 @@ pub mod hw_dt {
     /// As [`register_patterns`], with S0 to S31 (bits 8 to 23: S0 to S15;
     /// bits 24 to 27: how many of S16 to S31 changed). FPU Tasks only.
     #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn register_patterns_fp(iterations: u32) -> u32 {
         dt::register_patterns_fp(iterations)
     }
 
     /// FPSCR as the Job finds it. FPU Tasks only.
     #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn fpscr() -> u32 {
         dt::fpscr_read()
     }
@@ -280,12 +283,14 @@ pub mod hw_dt {
     /// An instruction fetch at `addr`: a call, which the MPU refuses
     /// (IACCVIOL) when the address is outside the Partition's view.
     #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn fetch(addr: u32) {
         dt::fetch(addr)
     }
 
     /// An EasyDMA request over `len` bytes at `ptr` (any address: the
     /// Kernel decides, R17.1, R17.2), as [`super::dma_request`] over a slice.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn dma_request_raw(channel: u8, ptr: u32, len: u32) -> bool {
         super::stubs::svc_dma(channel, ptr, len)
     }
@@ -330,8 +335,10 @@ pub mod matrix {
     /// The private peripheral bus address attempted (NVIC_ISER0).
     pub const PPB: u32 = 0xE000_E100;
 
-    /// What an attempt did.
-    #[derive(Clone, Copy, PartialEq, Eq)]
+    /// What an attempt did. No `PartialEq`: under the App_Prover a derived
+    /// equality needs Creusot's `DeepModel` (the finding of 2026-10-24);
+    /// callers match on the variant.
+    #[derive(Clone, Copy)]
     pub enum Outcome {
         /// No address for the class (the Partition owns no peripheral).
         Skipped,
@@ -339,13 +346,32 @@ pub mod matrix {
         Survived,
     }
 
+    /// A map with one entry per Partition in every table and `this` among
+    /// them (App_Prover, task 17.1: what `target` and `perform` require).
+    #[cfg(feature = "creusot")]
+    #[allow(unused_imports)] // used by the logic function below under creusot-rustc only
+    use creusot_std::{macros::{logic, pearlite}, model::View};
+
+    #[cfg(feature = "creusot")]
+    #[logic(open)]
+    pub fn wf(l: &Layout<'_>) -> bool {
+        pearlite! {
+            l.code@.len() >= 1 && l.ram@.len() == l.code@.len() && l.stack@.len() == l.code@.len()
+                && l.windows@.len() == l.code@.len() && l.this@ < l.code@.len()
+        }
+    }
+
     /// The number of attempts of this Partition.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(wf(l)))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ == (l.code@.len() - 1) * PER_PARTITION@ + KERNEL@))]
     pub fn count(l: &Layout<'_>) -> usize {
         (l.code.len() - 1) * PER_PARTITION + KERNEL
     }
 
     /// The address and class of attempt `i`: `(address, class)` with the
     /// class 0 read, 1 write, 2 fetch; `None` when skipped.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(wf(l)))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(i@ < (l.code@.len() - 1) * PER_PARTITION@ + KERNEL@))]
     pub fn target(l: &Layout<'_>, i: usize) -> Option<(u32, u8)> {
         let others = l.code.len() - 1;
         if i < others * PER_PARTITION {
@@ -387,6 +413,8 @@ pub mod matrix {
     /// Performs attempt `i`. Returns only when the access was skipped or
     /// granted: a refused access ends the Job (the Partition's fault
     /// response) and never returns here.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(wf(l)))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::requires(i@ < (l.code@.len() - 1) * PER_PARTITION@ + KERNEL@))]
     pub fn perform(l: &Layout<'_>, i: usize) -> Outcome {
         match target(l, i) {
             None => Outcome::Skipped,

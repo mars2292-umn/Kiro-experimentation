@@ -20,7 +20,8 @@ p1_demo_decl::rsk_partition_part0!();
 mod inject {
     pub fn window(from_ms: u64, len_ms: u64) -> bool {
         let now = rsk::now();
-        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
+        // Saturating: an obligation the App_Prover cannot discharge otherwise (task 17.1).
+        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms.saturating_add(len_ms))
     }
 
     pub fn spin_ms(ms: u64) {
@@ -55,11 +56,14 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
         kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
     };
     let i = index.get();
-    if (i as usize) >= rsk::matrix::count(&layout) {
+    // `i < 32` for the bit below (25 attempts here); saturating for the
+    // App_Prover (task 17.1), which proves this body as the isolation
+    // configuration compiles it.
+    if i >= 32 || (i as usize) >= rsk::matrix::count(&layout) {
         return;
     }
-    index.set(i + 1);
-    if rsk::matrix::perform(&layout, i as usize) == rsk::matrix::Outcome::Survived {
+    index.set(i.saturating_add(1));
+    if matches!(rsk::matrix::perform(&layout, i as usize), rsk::matrix::Outcome::Survived) {
         survived.with(|m| *m |= 1 << i);
     }
 }
