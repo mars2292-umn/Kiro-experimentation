@@ -898,6 +898,70 @@ fn creusot_session_clear(dir: &Path) {
     }
 }
 
+/// Clears why3find's session (`.why3find`, and the `proof.json`,
+/// `why3session.xml`, and `why3shapes.gz` under `verif`); with
+/// `keep_translation` the `.coma` files stay, so that a second prover
+/// set can be run on the same translation (`--only prove`), otherwise
+/// `verif` goes too.
+fn creusot_session_clear_keeping_translation(dir: &Path, keep_translation: bool) {
+    let _ = std::fs::remove_dir_all(dir.join(".why3find"));
+    if !keep_translation {
+        let _ = std::fs::remove_dir_all(dir.join("verif"));
+        return;
+    }
+    fn walk(d: &Path) {
+        let Ok(entries) = std::fs::read_dir(d) else { return };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p);
+            } else if matches!(p.file_name().and_then(|n| n.to_str()), Some("proof.json" | "why3session.xml" | "why3shapes.gz")) {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+    walk(&dir.join("verif"));
+}
+
+/// The solvers that discharged the goals of the session under `verif`,
+/// counted from why3find's `proof.json` files (`"prover": "<name>"` per
+/// goal), for the Evidence_Item's note.
+fn creusot_provers_used(dir: &Path) -> std::collections::BTreeMap<String, usize> {
+    let mut out = std::collections::BTreeMap::new();
+    fn walk(d: &Path, out: &mut std::collections::BTreeMap<String, usize>) {
+        let Ok(entries) = std::fs::read_dir(d) else { return };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, out);
+            } else if p.file_name().and_then(|n| n.to_str()) == Some("proof.json") {
+                let Ok(text) = std::fs::read_to_string(&p) else { continue };
+                let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
+                fn goals(v: &serde_json::Value, out: &mut std::collections::BTreeMap<String, usize>) {
+                    match v {
+                        serde_json::Value::Object(m) => {
+                            if let Some(serde_json::Value::String(p)) = m.get("prover") {
+                                *out.entry(p.clone()).or_default() += 1;
+                            } else {
+                                for x in m.values() {
+                                    goals(x, out);
+                                }
+                            }
+                        }
+                        serde_json::Value::Array(a) => a.iter().for_each(|x| goals(x, out)),
+                        _ => {}
+                    }
+                }
+                if let Some(proofs) = v.get("proofs") {
+                    goals(proofs, out);
+                }
+            }
+        }
+    }
+    walk(&dir.join("verif"), &mut out);
+    out
+}
+
 /// The HIL-configuration members of the proof workspace: every `members`
 /// entry of `proofs/creusot/Cargo.toml` outside
 /// `[workspace.metadata.creusot] default-members`, as (directory, package
@@ -970,9 +1034,25 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
     // exclusive and one build of them all would unify them (task 17.1,
     // Verification_Plan section 7). The members come from the proof
     // workspace's manifest: every member outside `default-members`.
-    let mut runs: Vec<(String, Cmd)> = vec![("the QEMU configuration".to_string(), Cmd::cargo().args(["creusot", "--", "--offline"]).cwd(&dir))];
+    // The runs: the QEMU pair (the workspace's default members, one
+    // `cargo creusot`), then each HIL-configuration member by name
+    // (`-p <package>`), since the declaration's variant features are
+    // exclusive and one build of them all would unify them (task 17.1,
+    // Verification_Plan section 7). The members come from the proof
+    // workspace's manifest: every member outside `default-members`.
+    //
+    // Cross-solver confirmation (9.1, since 2026-11-06): every goal is
+    // discharged twice, by a solver of each of two disjoint sets. The
+    // first run compiles and proves with alt-ergo and z3 only
+    // (`-P -cvc5,-cvc4` removes the other two from why3find.json's list);
+    // the session is cleared but the translation kept, and the second run
+    // (`--only prove --no-cache`) proves the same files with cvc5 and cvc4
+    // only. The item passes when both runs of every configuration prove.
+    const SET_A: [&str; 2] = ["--why3find-arg=-P", "--why3find-arg=-cvc5,-cvc4"];
+    const SET_B: [&str; 2] = ["--why3find-arg=-P", "--why3find-arg=-alt-ergo,-z3"];
+    let mut runs: Vec<(String, Vec<String>)> = vec![("the QEMU configuration".to_string(), vec![])];
     for (member, package) in creusot_hil_members(&dir) {
-        runs.push((format!("`{member}`"), Cmd::cargo().args(["creusot", "-p", &package, "--", "--offline"]).cwd(&dir)));
+        runs.push((format!("`{member}`"), vec!["-p".to_string(), package]));
     }
     let run_once = |cmd: &Cmd| match cmd.output_timeout(Some(sandbox), 600, &["why3find", "cargo-creusot"]) {
         Ok(o) => {
@@ -981,39 +1061,50 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         }
         Err(e) => (false, format!("cannot run cargo creusot: {e}"), e.to_string().contains("did not complete")),
     };
+    let verdict_of = |text: &str| {
+        text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string()
+    };
     let mut commands = Vec::new();
     let mut texts = Vec::new();
     let mut verdicts = Vec::new();
+    let mut provers: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     let mut ok = true;
-    for (label, cmd) in &runs {
-        // The session is cleared between runs; the build directory was
-        // cleared once above, so every member's translation is fresh.
-        let _ = Command::new("pkill").args(["-f", "why3find"]).status();
-        for name in ["verif", ".why3find"] {
-            let _ = std::fs::remove_dir_all(dir.join(name));
-        }
-        let command = format!("(cd proofs/creusot && {})", cmd.display());
-        let (mut run_ok, mut text, timed_out) = run_once(cmd);
-        if timed_out {
-            // The why3find hang (0 % CPU, no solver running) reached the bound
-            // although the session was fresh (2026-11-02, with the HIL isolation
-            // suite's job): ended, cleared, and run once more; a fresh run proves
-            // the files in about a minute, so a second bound reached is the verdict.
-            report.warn(format!("App_Prover: `cargo creusot` for {label} reached its bound once (why3find hung); the session was cleared and the run repeated"));
+    for (label, select) in &runs {
+        let mut cmd_a = Cmd::cargo().arg("creusot").args(select).args(SET_A).args(["--", "--offline"]).cwd(&dir);
+        let mut cmd_b = Cmd::cargo().arg("creusot").args(select).args(["--only", "prove", "--no-cache"]).args(SET_B).args(["--", "--offline"]).cwd(&dir);
+        let mut pair = Vec::new();
+        for (set, cmd, keep_translation) in [("alt-ergo and z3", &mut cmd_a, false), ("cvc5 and cvc4", &mut cmd_b, true)] {
+            // The session is cleared between runs (the translation too
+            // before the first of a configuration); the build directory was
+            // cleared once above, so every member's translation is fresh.
             let _ = Command::new("pkill").args(["-f", "why3find"]).status();
-            for name in ["verif", ".why3find"] {
-                let _ = std::fs::remove_dir_all(dir.join(name));
+            creusot_session_clear_keeping_translation(&dir, keep_translation);
+            let command = format!("(cd proofs/creusot && {})", cmd.display());
+            let (mut run_ok, mut text, timed_out) = run_once(cmd);
+            if timed_out {
+                // The why3find hang (0 % CPU, no solver running) reached the bound
+                // although the session was fresh (2026-11-02, with the HIL isolation
+                // suite's job): ended, cleared, and run once more; a fresh run proves
+                // the files in about a minute, so a second bound reached is the verdict.
+                report.warn(format!("App_Prover: `cargo creusot` for {label} ({set}) reached its bound once (why3find hung); the session was cleared and the run repeated"));
+                let _ = Command::new("pkill").args(["-f", "why3find"]).status();
+                creusot_session_clear_keeping_translation(&dir, keep_translation);
+                let (ok2, text2, _) = run_once(cmd);
+                run_ok = ok2;
+                text = format!("{text}\n--- second run after the bound ---\n{text2}");
             }
-            let (ok2, text2, _) = run_once(cmd);
-            run_ok = ok2;
-            text = format!("{text}\n--- second run after the bound ---\n{text2}");
+            for (prover, n) in creusot_provers_used(&dir) {
+                *provers.entry(prover).or_default() += n;
+            }
+            pair.push(format!("{set}: {}", verdict_of(&text)));
+            ok = ok && run_ok;
+            texts.push(format!("=== {command}\n{text}"));
+            commands.push(command);
         }
-        let verdict = text.lines().rev().find(|l| l.contains("Proved (") || l.contains("proof failed") || l.starts_with("Error")).unwrap_or("no verdict line").trim().to_string();
-        verdicts.push(format!("{label}: {verdict}"));
-        ok = ok && run_ok;
-        texts.push(format!("=== {command}\n{text}"));
-        commands.push(command);
+        verdicts.push(format!("{label}: {}", pair.join(", ")));
     }
+    let prover_note = provers.iter().map(|(p, n)| format!("{p} {n}")).collect::<Vec<_>>().join(", ");
+    verdicts.push(format!("goals discharged per solver: {prover_note}"));
     let text = texts.join("\n");
     creusot_session_clear(&dir);
     let _ = store.write_artifact("creusot.log", &text);
@@ -1032,7 +1123,7 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
     )
     .covers(&["R46.2", "R46.3", "R46.4", "R35.2", "PR-19"]);
     item.command_lines = commands.clone();
-    item.notes = vec![verdict, "trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, mmio, and the hw_dt probes (TBR-08); the Generator's glue is excluded under cfg(creusot); the f32 step `lowpass` of part2 and the pointer-to-integer helper `address_of` of its isolation configuration are trusted (verification_plan.md section 7, R46.5)".to_string()];
+    item.notes = vec![verdict, "every goal discharged by two solvers of disjoint sets (alt-ergo or z3, then cvc5 or cvc4; cross-solver confirmation, verification_plan.md 9.1); trusted: the contracts of rsk::Shared::lock, PerTask, Signal::raise, now, spin, dma_request, debug, mmio, and the hw_dt probes (TBR-08); the Generator's glue is excluded under cfg(creusot); the f32 step `lowpass` of part2 and the pointer-to-integer helper `address_of` of its isolation configuration are trusted (verification_plan.md section 7, R46.5)".to_string()];
     item.build_manifest = Some(manifest_id.to_string());
     item.artifacts = vec!["creusot.log".to_string()];
     if let Err(e) = store.write(&item) {
