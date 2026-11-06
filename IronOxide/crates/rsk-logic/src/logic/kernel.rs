@@ -1190,6 +1190,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // Property 9's link (R19.1, 2026-11-05): every effective intake is
         // either one MIT old or still covered by its source's mask.
         &&& self.intakes_linked(cfg)
+        // R18.2 (2026-11-05): a reported Overrun is one the account shows.
+        &&& self.budget.inv(cfg)
     }
 
     /// Property 9's link from the history to the mask (R19.1, DD-06): for
@@ -2307,7 +2309,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             let slot = self.slots.slots[i];
             if slot.armed && slot.kind == SLOT_DEADLINE && slot.at <= self.now {
                 let ghost before = *self;
-                self.serve_slot(cfg, i, running_cycles);
+                self.serve_slot(cfg, i);
                 proof {
                     Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
                     Budget::lemma_only_reset_trans(&charged, &before.budget, &self.budget);
@@ -2333,7 +2335,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             let slot = self.slots.slots[i];
             if slot.armed && slot.at <= self.now {
                 let ghost before = *self;
-                self.serve_slot(cfg, i, running_cycles);
+                self.serve_slot(cfg, i);
                 proof {
                     Self::lemma_mit_spaced_trans(old(self), &before, self, cfg);
                     Budget::lemma_only_reset_trans(&charged, &before.budget, &self.budget);
@@ -2441,7 +2443,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Serves one due slot. No account is charged (R18.1: the executing
     /// Job's cycles were charged on entry); an account is reset only by a
     /// response that ends its Task's Partition.
-    fn serve_slot(&mut self, cfg: &Config<NT, NR, NP>, i: usize, running_cycles: u32)
+    fn serve_slot(&mut self, cfg: &Config<NT, NR, NP>, i: usize)
         requires old(self).inv(cfg), i < NS, old(self).slots.slots[i as int].armed,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).mit_spaced(old(self), cfg), final(self).budget.only_reset_from(&old(self).budget),
@@ -2490,7 +2492,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             } else if slot.kind == SLOT_DEADLINE {
                 self.deadline_miss(cfg, t, i);
             } else if slot.kind == SLOT_BUDGET {
-                self.budget_event(cfg, t, i, running_cycles);
+                self.budget_event(cfg, t, i);
             } else if slot.kind == SLOT_UNMASK {
                 // DD-06: the MIT window is over; Kernel_Arch re-enables the
                 // source from `masked` at the next `apply`.
@@ -2758,21 +2760,34 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     }
 
     /// R18.2, R18.3: the Budget compare of the executing Job fired. The
-    /// cycles consumed since it last resumed are charged; an Overrun
-    /// triggers the Partition's Overrun_Response, otherwise the compare is
-    /// re-armed for the remainder. A Job that runs on after its Overrun
-    /// (RECORD_AND_CONTINUE, R18.6) has its compare re-armed with no
-    /// remainder at every resume, which fires at once: the Overrun is
-    /// recorded once per Job, not once per resume (the HIL response suite
-    /// found a dozen records of one Overrun, task 7.5). The cycles of the
-    /// event were charged by `timer_event` on entry, as at every timed
-    /// event (task 19.1).
-    fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize, running_cycles: u32)
+    /// cycles consumed since it last resumed were charged by `timer_event`
+    /// on entry, as at every timed event (task 19.1); an Overrun not yet
+    /// reported for this Job triggers the Partition's Overrun_Response,
+    /// otherwise the compare is re-armed for the remainder. A Job that
+    /// runs on after its Overrun (RECORD_AND_CONTINUE, R18.6) has its
+    /// compare re-armed with no remainder at every resume, which fires at
+    /// once: `Budget::reported` keeps the Overrun recorded once per Job,
+    /// not once per resume (the HIL response suite found a dozen records
+    /// of one Overrun, task 7.5). Until 2026-11-05 "already reported" was
+    /// inferred from the account having been past the Budget before this
+    /// event's charge; an account that crossed the Budget at a
+    /// preemption's charge was then taken for reported, and the Job ran on
+    /// with no compare and no Overrun (Verification_Plan 11.6).
+    fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
             // R18.1: the event judges and responds; it charges nothing.
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, i as int),
+            // R18.6: an Overrun already reported for this Job is not reported again.
+            old(self).budget.reported[t as int] ==> final(self).log == old(self).log
+                && final(self).budget == old(self).budget && final(self).sched == old(self).sched,
+            // R18.2: the executing Job's Overrun, found by this event, is
+            // reported (unless the response ended its Partition, which
+            // reset its account).
+            old(self).sched.depth > 0 && old(self).sched.top() == t as int && !old(self).budget.reported[t as int]
+                && old(self).budget.used[t as int] > cfg.tasks[t as int].budget
+                ==> final(self).budget.reported[t as int] || final(self).budget.used[t as int] == 0,
     {
         self.slots.disarm(i);
         proof {
@@ -2782,18 +2797,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.sched.depth == 0 || self.sched.stack[self.sched.depth - 1] != t {
             return;
         }
-        // The Overrun is recorded once per Job: not again when the account
-        // was already past the Budget before this event's cycles, which
-        // `timer_event` charged on entry (a saturated account was past it).
-        let before_this_event = self.budget.used[t as usize].saturating_sub(running_cycles);
-        let recorded = before_this_event > cfg.tasks[t as usize].budget;
-        if recorded {
+        if self.budget.reported[t as usize] {
             return;
         }
         if self.budget.overrun(cfg, t) {
             proof {
                 assert(cfg.task_ok(t as int));
             }
+            self.budget.report(cfg, t);
             let partition = cfg.tasks[t as usize].partition;
             self.push_event(cfg, EV_OVERRUN, t, partition, PRS_BUDGET, self.budget.used[t as usize]);
             let ghost before = *self;
@@ -2865,6 +2876,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // response resets its Tasks' accounts (an ended Job's account
             // is otherwise reset by its Task's next dispatch).
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).budget.reported_kept(&old(self).budget),
             final(self).periodic_env(old(self), cfg, -1),
     {
         if response == RESP_RECORD_ONLY || response == RESP_RECORD_AND_CONTINUE {
@@ -3131,6 +3143,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).budget.reported_kept(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).stop_dma[partition as int],
             final(self).others_unchanged(old(self), cfg, partition as int),
@@ -3144,6 +3157,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 forall|u: int| 0 <= u < t && cfg.tasks[u].partition == partition ==> self.sched.release[u] == REL_NONE,
                 self.others_unchanged(old(self), cfg, partition as int),
                 self.timing == old(self).timing, self.budget.only_reset_from(&old(self).budget),
+                self.budget.reported_kept(&old(self).budget),
                 self.periodic_env(old(self), cfg, -1),
                 self.sched.depth == old(self).sched.depth, self.sched.stack == old(self).sched.stack,
             decreases NT - t,
@@ -3213,6 +3227,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).budget.reported_kept(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).stop_dma[partition as int],
             // R14.9: every other Partition is as it was; MIT history is kept.
@@ -3246,6 +3261,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             self.lemma_others_unchanged_trans(&m2, old(self), cfg, partition as int);
             Self::lemma_kept_trans(old(self), &m2, self, cfg, -1, -1);
+            // The accounts: ended by `end_top` unchanged (`m1`), kept by the kills (`m2`), reset by the clearing.
+            Budget::lemma_reported_kept_trans(&old(self).budget, &m2.budget, &self.budget);
         }
     }
 
@@ -3254,6 +3271,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).budget.reported_kept(&old(self).budget),
             final(self).partition_ended(cfg, partition as int),
             final(self).reinit_partition[partition as int], final(self).stop_dma[partition as int],
             final(self).mit_violations[partition as int] == 0,
@@ -3291,6 +3309,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).stopped[partition as int],
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
+            final(self).budget.reported_kept(&old(self).budget),
             final(self).partition_ended(cfg, partition as int), final(self).stop_dma[partition as int],
             final(self).others_unchanged(old(self), cfg, partition as int),
             final(self).timing == old(self).timing,

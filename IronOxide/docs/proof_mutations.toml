@@ -239,3 +239,12 @@ find = "        self.mit_violations[partition as usize] = 0;\n        self.reini
 replace = "        // (mutant) the restart keeps the Partition's MIT_Violation count\n        self.reinit_partition[partition as usize] = true;\n"
 expect = ["kernel.rs", "mit_violations[p] as int"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "overrun-not-marked-reported"
+kills = "budget_event's R18.2 clause: an Overrun found with the Job executing must be reported (Budget::reported set), else the next Budget event reports it again or, after a response, the Job runs on uncounted; 2026-11-05"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            self.budget.report(cfg, t);\n            let partition = cfg.tasks[t as usize].partition;\n"
+replace = "            // (mutant) the Overrun is not marked reported\n            let partition = cfg.tasks[t as usize].partition;\n"
+expect = ["kernel.rs", "budget.reported[t as int]"]
+package = "rsk-logic"

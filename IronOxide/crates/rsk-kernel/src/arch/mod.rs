@@ -58,7 +58,7 @@ pub const fn placeholder_kernel<const NT: usize, const NR: usize, const NP: usiz
             job_due: [0; NT],
         },
         slots: Slots { slots: [Slot { armed: false, at: 0, kind: SLOT_FREE, task: 0 }; NS] },
-        budget: Budget { used: [0; NT] },
+        budget: Budget { used: [0; NT], reported: [false; NT] },
         log: Log {
             entries: [Event { kind: 0, task: 0xFF, partition: 0xFF, prs: 0, instant: 0, detail: 0 }; NE],
             head: 0,
