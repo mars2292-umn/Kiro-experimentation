@@ -1,0 +1,513 @@
+# 512 entries; t_ms tag value
+  6213.459 irq       0x000018 vector=24
+  6213.465 tick      0xecf565
+  6213.527 epilogue  0x000027
+  6213.538 irq       0x000038 vector=56
+  6213.575 dispatch  0x018fe6 task=6 frame=0x18fe0
+  6213.587 svc       0x000006 number=6
+  6213.604 svc       0x000001 number=1
+  6213.617 svc       0x000002 number=2
+  6213.647 svc       0x000003 number=3
+  6213.679 epilogue  0x000038
+  6220.005 irq       0x000018 vector=24
+  6220.010 tick      0xee8e7b
+  6220.064 irq       0x000024 vector=36
+  6220.101 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6220.113 svc       0x000001 number=1
+  6220.126 svc       0x000002 number=2
+  6220.156 svc       0x000001 number=1
+  6220.169 svc       0x000002 number=2
+  6220.199 svc       0x000003 number=3
+  6220.232 epilogue  0x000024
+  6220.243 irq       0x000018 vector=24
+  6220.248 tick      0xee9d63
+  6222.099 irq       0x000018 vector=24
+  6222.105 tick      0xef1167
+  6222.151 irq       0x000016 vector=22
+  6222.188 irq       0x000028 vector=40
+  6222.224 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6222.237 svc       0x000003 number=3
+  6222.269 epilogue  0x000028
+  6225.005 irq       0x000018 vector=24
+  6225.010 tick      0xefc6fb
+  6225.073 irq       0x000026 vector=38
+  6225.109 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6225.122 svc       0x000001 number=1
+  6225.135 svc       0x000002 number=2
+  6225.166 svc       0x000001 number=1
+  6230.009 irq       0x000018 vector=24
+  6230.014 tick      0xf0ffc0
+  6231.194 svc       0x000002 number=2
+  6231.226 irq       0x000024 vector=36
+  6231.265 dispatch  0x008f78 task=0 frame=0x8f78
+  6231.278 irq       0x000018 vector=24
+  6231.283 tick      0xf14f0e
+  6231.336 svc       0x000001 number=1
+  6231.349 svc       0x000002 number=2
+  6231.381 svc       0x000001 number=1
+  6231.394 svc       0x000002 number=2
+  6231.425 svc       0x000007 number=7
+  6231.461 svc       0x000003 number=3
+  6231.498 epilogue  0x000024
+  6231.522 irq       0x000025 vector=37
+  6231.560 dispatch  0x008f79 task=1 frame=0x8f78
+  6231.573 svc       0x000003 number=3
+  6231.609 epilogue  0x000025
+  6231.632 svc       0x000001 number=1
+  6231.646 svc       0x000002 number=2
+  6231.677 svc       0x000003 number=3
+  6231.711 epilogue  0x000026
+  6231.723 irq       0x000029 vector=41
+  6231.760 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6231.772 svc       0x000001 number=1
+  6232.045 svc       0x000002 number=2
+  6232.076 svc       0x000001 number=1
+  6232.090 svc       0x000002 number=2
+  6232.121 svc       0x000003 number=3
+  6232.153 epilogue  0x000029
+  6237.157 irq       0x000018 vector=24
+  6237.162 tick      0xf2be81
+  6237.209 irq       0x000016 vector=22
+  6237.247 irq       0x000028 vector=40
+  6237.283 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6237.296 svc       0x000003 number=3
+  6237.329 epilogue  0x000028
+  6240.005 irq       0x000018 vector=24
+  6240.010 tick      0xf3707b
+  6240.073 irq       0x000024 vector=36
+  6240.110 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6240.122 svc       0x000001 number=1
+  6240.135 svc       0x000002 number=2
+  6240.166 svc       0x000001 number=1
+  6240.180 svc       0x000002 number=2
+  6240.211 svc       0x000003 number=3
+  6240.245 epilogue  0x000024
+  6240.257 irq       0x000027 vector=39
+  6240.294 dispatch  0x010fe3 task=3 frame=0x10fe0
+  6243.325 svc       0x000003 number=3
+  6243.358 epilogue  0x000027
+  6245.005 irq       0x000018 vector=24
+  6245.010 tick      0xf4a8fb
+  6245.064 irq       0x000026 vector=38
+  6245.101 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6245.113 svc       0x000001 number=1
+  6245.127 svc       0x000002 number=2
+  6245.157 svc       0x000001 number=1
+  6250.008 irq       0x000018 vector=24
+  6250.014 tick      0xf5e1b5
+  6250.803 irq       0x000018 vector=24
+  6250.808 tick      0xf6135a
+  6251.183 svc       0x000002 number=2
+  6251.216 irq       0x000024 vector=36
+  6251.255 dispatch  0x008f78 task=0 frame=0x8f78
+  6251.268 svc       0x000001 number=1
+  6251.281 svc       0x000002 number=2
+  6251.313 svc       0x000001 number=1
+  6251.327 svc       0x000002 number=2
+  6251.359 svc       0x000003 number=3
+  6251.394 epilogue  0x000024
+  6251.418 svc       0x000001 number=1
+  6251.431 svc       0x000002 number=2
+  6251.463 irq       0x000018 vector=24
+  6251.468 tick      0xf63c9c
+  6251.518 svc       0x000003 number=3
+  6251.552 epilogue  0x000026
+  6251.563 irq       0x000029 vector=41
+  6251.600 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6251.612 svc       0x000001 number=1
+  6251.885 svc       0x000002 number=2
+  6251.916 svc       0x000001 number=1
+  6251.930 svc       0x000002 number=2
+  6251.960 svc       0x000003 number=3
+  6251.992 epilogue  0x000029
+  6252.215 irq       0x000018 vector=24
+  6252.220 tick      0xf66ba4
+  6252.266 irq       0x000016 vector=22
+  6252.304 irq       0x000028 vector=40
+  6252.340 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6252.353 svc       0x000003 number=3
+  6252.385 epilogue  0x000028
+  6260.005 irq       0x000018 vector=24
+  6260.010 tick      0xf8527b
+  6260.064 irq       0x000024 vector=36
+  6260.099 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6260.111 svc       0x000001 number=1
+  6260.125 svc       0x000002 number=2
+  6260.154 svc       0x000001 number=1
+  6260.168 svc       0x000002 number=2
+  6260.197 svc       0x000007 number=7
+  6260.231 svc       0x000003 number=3
+  6260.265 epilogue  0x000024
+  6260.277 irq       0x000025 vector=37
+  6260.313 dispatch  0x008fe1 task=1 frame=0x8fe0
+  6260.324 svc       0x000003 number=3
+  6260.357 epilogue  0x000025
+  6265.005 irq       0x000018 vector=24
+  6265.010 tick      0xf98afb
+  6265.064 irq       0x000026 vector=38
+  6265.101 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6265.113 svc       0x000001 number=1
+  6265.127 svc       0x000002 number=2
+  6265.157 svc       0x000001 number=1
+  6267.273 irq       0x000018 vector=24
+  6267.279 tick      0xfa18c8
+  6267.329 irq       0x000016 vector=22
+  6270.012 irq       0x000018 vector=24
+  6270.017 tick      0xfac3ef
+  6271.180 svc       0x000002 number=2
+  6271.213 irq       0x000024 vector=36
+  6271.252 dispatch  0x008f78 task=0 frame=0x8f78
+  6271.264 irq       0x000018 vector=24
+  6271.270 tick      0xfb1235
+  6271.322 svc       0x000001 number=1
+  6271.336 svc       0x000002 number=2
+  6271.367 svc       0x000001 number=1
+  6271.381 svc       0x000002 number=2
+  6271.412 svc       0x000003 number=3
+  6271.447 epilogue  0x000024
+  6271.471 svc       0x000001 number=1
+  6271.484 svc       0x000002 number=2
+  6271.515 svc       0x000003 number=3
+  6271.549 epilogue  0x000026
+  6271.560 irq       0x000028 vector=40
+  6271.597 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6271.609 svc       0x000003 number=3
+  6271.642 epilogue  0x000028
+  6275.005 irq       0x000018 vector=24
+  6275.010 tick      0xfbfbfb
+  6275.064 irq       0x000029 vector=41
+  6275.101 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6275.114 svc       0x000001 number=1
+  6275.387 svc       0x000002 number=2
+  6275.417 svc       0x000001 number=1
+  6275.431 svc       0x000002 number=2
+  6275.462 svc       0x000003 number=3
+  6275.494 epilogue  0x000029
+  6280.005 irq       0x000018 vector=24
+  6280.010 tick      0xfd347b
+  6280.073 irq       0x000024 vector=36
+  6280.110 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6280.122 svc       0x000001 number=1
+  6280.135 svc       0x000002 number=2
+  6280.166 svc       0x000001 number=1
+  6280.180 svc       0x000002 number=2
+  6280.211 irq       0x000018 vector=24
+  6280.217 tick      0xfd4165
+  6280.267 svc       0x000003 number=3
+  6280.300 epilogue  0x000024
+  6280.312 irq       0x000027 vector=39
+  6280.349 dispatch  0x010fe3 task=3 frame=0x10fe0
+  6282.341 irq       0x000018 vector=24
+  6282.347 tick      0xfdc687
+  6282.396 irq       0x000016 vector=22
+  6282.437 irq       0x000028 vector=40
+  6282.475 dispatch  0x010fa4 task=4 frame=0x10fa0
+  6282.488 svc       0x000003 number=3
+  6282.523 epilogue  0x000028
+  6283.387 svc       0x000003 number=3
+  6283.419 epilogue  0x000027
+  6285.005 irq       0x000018 vector=24
+  6285.010 tick      0xfe6cfb
+  6285.064 irq       0x000026 vector=38
+  6285.100 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6285.112 svc       0x000001 number=1
+  6285.126 svc       0x000002 number=2
+  6285.155 svc       0x000001 number=1
+  6290.007 irq       0x000018 vector=24
+  6290.012 tick      0xffa59d
+  6291.182 svc       0x000002 number=2
+  6291.215 irq       0x000024 vector=36
+  6291.253 dispatch  0x008f78 task=0 frame=0x8f78
+  6291.266 irq       0x000018 vector=24
+  6291.271 tick      0xfff44a
+  6291.322 svc       0x000001 number=1
+  6291.335 svc       0x000002 number=2
+  6291.366 svc       0x000001 number=1
+  6291.379 svc       0x000002 number=2
+  6291.409 svc       0x000007 number=7
+  6291.445 svc       0x000003 number=3
+  6291.481 epilogue  0x000024
+  6291.505 irq       0x000025 vector=37
+  6291.543 dispatch  0x008f79 task=1 frame=0x8f78
+  6291.555 svc       0x000003 number=3
+  6291.591 epilogue  0x000025
+  6291.614 svc       0x000001 number=1
+  6291.627 svc       0x000002 number=2
+  6291.658 svc       0x000003 number=3
+  6291.690 epilogue  0x000026
+  6297.403 irq       0x000018 vector=24
+  6297.408 tick      0x0173d9
+  6297.454 irq       0x000016 vector=22
+  6297.492 irq       0x000028 vector=40
+  6297.529 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6297.541 svc       0x000003 number=3
+  6297.574 epilogue  0x000028
+  6300.005 irq       0x000018 vector=24
+  6300.010 tick      0x02167b
+  6300.082 irq       0x000024 vector=36
+  6300.119 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6300.131 svc       0x000001 number=1
+  6300.145 svc       0x000002 number=2
+  6300.176 svc       0x000001 number=1
+  6300.190 svc       0x000002 number=2
+  6300.222 svc       0x000003 number=3
+  6300.256 epilogue  0x000024
+  6300.268 irq       0x000029 vector=41
+  6300.305 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6300.317 svc       0x000001 number=1
+  6300.591 svc       0x000002 number=2
+  6300.623 svc       0x000001 number=1
+  6300.636 svc       0x000002 number=2
+  6300.668 svc       0x000003 number=3
+  6300.702 epilogue  0x000029
+  6300.714 irq       0x000038 vector=56
+  6300.751 dispatch  0x018fe6 task=6 frame=0x18fe0
+  6300.763 irq       0x000018 vector=24
+  6300.768 tick      0x0245e0
+  6301.221 irq       0x000018 vector=24
+  6301.226 tick      0x026282
+  6301.286 epilogue  0x000038
+  6305.005 irq       0x000018 vector=24
+  6305.010 tick      0x034efb
+  6305.064 irq       0x000026 vector=38
+  6305.101 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6305.113 svc       0x000001 number=1
+  6305.127 svc       0x000002 number=2
+  6305.157 svc       0x000001 number=1
+  6310.008 irq       0x000018 vector=24
+  6310.014 tick      0x0487b5
+  6311.184 svc       0x000002 number=2
+  6311.217 irq       0x000024 vector=36
+  6311.256 dispatch  0x008f78 task=0 frame=0x8f78
+  6311.268 irq       0x000018 vector=24
+  6311.274 tick      0x04d678
+  6311.325 svc       0x000001 number=1
+  6311.339 svc       0x000002 number=2
+  6311.370 svc       0x000001 number=1
+  6311.383 svc       0x000002 number=2
+  6311.414 svc       0x000003 number=3
+  6311.449 epilogue  0x000024
+  6311.472 irq       0x000018 vector=24
+  6311.478 tick      0x04e337
+  6311.526 svc       0x000001 number=1
+  6311.540 svc       0x000002 number=2
+  6311.569 svc       0x000003 number=3
+  6311.601 epilogue  0x000026
+  6312.461 irq       0x000018 vector=24
+  6312.466 tick      0x0520fc
+  6312.512 irq       0x000016 vector=22
+  6312.550 irq       0x000028 vector=40
+  6312.586 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6312.598 svc       0x000003 number=3
+  6312.631 epilogue  0x000028
+  6320.005 irq       0x000018 vector=24
+  6320.010 tick      0x06f87b
+  6320.073 irq       0x000024 vector=36
+  6320.109 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6320.121 svc       0x000001 number=1
+  6320.134 svc       0x000002 number=2
+  6320.165 svc       0x000001 number=1
+  6320.178 svc       0x000002 number=2
+  6320.209 svc       0x000007 number=7
+  6320.244 svc       0x000003 number=3
+  6320.278 epilogue  0x000024
+  6320.289 irq       0x000025 vector=37
+  6320.326 dispatch  0x008fe1 task=1 frame=0x8fe0
+  6320.338 svc       0x000003 number=3
+  6320.372 epilogue  0x000025
+  6320.384 irq       0x000027 vector=39
+  6320.421 dispatch  0x010fe3 task=3 frame=0x10fe0
+  6323.453 svc       0x000003 number=3
+  6323.485 epilogue  0x000027
+  6325.005 irq       0x000018 vector=24
+  6325.010 tick      0x0830fb
+  6325.073 irq       0x000026 vector=38
+  6325.110 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6325.123 svc       0x000001 number=1
+  6325.136 svc       0x000002 number=2
+  6325.167 svc       0x000001 number=1
+  6327.525 irq       0x000018 vector=24
+  6327.530 tick      0x08ce7f
+  6327.582 irq       0x000016 vector=22
+  6330.007 irq       0x000018 vector=24
+  6330.013 tick      0x0969a7
+  6331.193 svc       0x000002 number=2
+  6331.226 irq       0x000024 vector=36
+  6331.266 dispatch  0x008f78 task=0 frame=0x8f78
+  6331.278 irq       0x000018 vector=24
+  6331.283 tick      0x09b915
+  6331.337 svc       0x000001 number=1
+  6331.350 svc       0x000002 number=2
+  6331.383 svc       0x000001 number=1
+  6331.396 svc       0x000002 number=2
+  6331.428 svc       0x000003 number=3
+  6331.464 epilogue  0x000024
+  6331.487 svc       0x000001 number=1
+  6331.500 svc       0x000002 number=2
+  6331.532 svc       0x000003 number=3
+  6331.566 epilogue  0x000026
+  6331.578 irq       0x000028 vector=40
+  6331.615 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6331.627 svc       0x000003 number=3
+  6331.662 epilogue  0x000028
+  6331.673 irq       0x000029 vector=41
+  6331.710 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6331.722 svc       0x000001 number=1
+  6331.995 svc       0x000002 number=2
+  6332.026 svc       0x000001 number=1
+  6332.040 svc       0x000002 number=2
+  6332.071 svc       0x000003 number=3
+  6332.103 epilogue  0x000029
+  6332.115 irq       0x000018 vector=24
+  6332.120 tick      0x09ed5b
+  6340.005 irq       0x000018 vector=24
+  6340.010 tick      0x0bda7a
+  6340.064 irq       0x000024 vector=36
+  6340.100 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6340.113 svc       0x000001 number=1
+  6340.126 svc       0x000002 number=2
+  6340.156 svc       0x000001 number=1
+  6340.169 svc       0x000002 number=2
+  6340.199 svc       0x000003 number=3
+  6340.232 epilogue  0x000024
+  6340.243 irq       0x000018 vector=24
+  6340.248 tick      0x0be964
+  6342.588 irq       0x000018 vector=24
+  6342.593 tick      0x0c7bee
+  6342.639 irq       0x000016 vector=22
+  6342.677 irq       0x000028 vector=40
+  6342.713 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6342.725 svc       0x000003 number=3
+  6342.758 epilogue  0x000028
+  6345.005 irq       0x000018 vector=24
+  6345.010 tick      0x0d12fb
+  6345.064 irq       0x000026 vector=38
+  6345.100 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6345.112 svc       0x000001 number=1
+  6345.126 svc       0x000002 number=2
+  6345.155 svc       0x000001 number=1
+  6350.007 irq       0x000018 vector=24
+  6350.012 tick      0x0e4b9d
+  6351.183 svc       0x000002 number=2
+  6351.216 irq       0x000024 vector=36
+  6351.254 dispatch  0x008f78 task=0 frame=0x8f78
+  6351.267 irq       0x000018 vector=24
+  6351.272 tick      0x0e9a61
+  6351.325 svc       0x000001 number=1
+  6351.338 svc       0x000002 number=2
+  6351.370 svc       0x000001 number=1
+  6351.383 svc       0x000002 number=2
+  6351.415 svc       0x000007 number=7
+  6351.450 svc       0x000003 number=3
+  6351.487 epilogue  0x000024
+  6351.511 irq       0x000025 vector=37
+  6351.550 dispatch  0x008f79 task=1 frame=0x8f78
+  6351.562 svc       0x000003 number=3
+  6351.598 epilogue  0x000025
+  6351.622 svc       0x000001 number=1
+  6351.635 svc       0x000002 number=2
+  6351.666 svc       0x000003 number=3
+  6351.701 epilogue  0x000026
+  6351.712 irq       0x000029 vector=41
+  6351.749 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6351.761 svc       0x000001 number=1
+  6352.034 svc       0x000002 number=2
+  6352.065 svc       0x000001 number=1
+  6352.079 svc       0x000002 number=2
+  6352.110 svc       0x000003 number=3
+  6352.142 epilogue  0x000029
+  6357.645 irq       0x000018 vector=24
+  6357.651 tick      0x102908
+  6357.697 irq       0x000016 vector=22
+  6357.735 irq       0x000028 vector=40
+  6357.772 dispatch  0x010fe4 task=4 frame=0x10fe0
+  6357.784 svc       0x000003 number=3
+  6357.817 epilogue  0x000028
+  6360.005 irq       0x000018 vector=24
+  6360.010 tick      0x10bc7b
+  6360.073 irq       0x000024 vector=36
+  6360.110 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6360.122 svc       0x000001 number=1
+  6360.135 svc       0x000002 number=2
+  6360.166 svc       0x000001 number=1
+  6360.180 svc       0x000002 number=2
+  6360.211 svc       0x000003 number=3
+  6360.245 epilogue  0x000024
+  6360.257 irq       0x000027 vector=39
+  6360.294 dispatch  0x010fe3 task=3 frame=0x10fe0
+  6365.005 irq       0x000018 vector=24
+  6365.010 tick      0x11f500
+  6365.069 irq       0x000026 vector=38
+  6365.107 dispatch  0x008fe2 task=2 frame=0x8fe0
+  6365.120 svc       0x000001 number=1
+  6365.134 svc       0x000002 number=2
+  6365.165 svc       0x000001 number=1
+  6366.018 irq       0x000018 vector=24
+  6366.023 tick      0x12344e
+  6370.005 irq       0x000018 vector=24
+  6370.011 tick      0x132d86
+  6371.190 svc       0x000002 number=2
+  6371.224 irq       0x000024 vector=36
+  6371.263 dispatch  0x008f78 task=0 frame=0x8f78
+  6371.276 irq       0x000018 vector=24
+  6371.281 tick      0x137ceb
+  6371.333 svc       0x000001 number=1
+  6371.347 svc       0x000002 number=2
+  6371.378 svc       0x000001 number=1
+  6371.391 svc       0x000002 number=2
+  6371.423 irq       0x000018 vector=24
+  6371.428 tick      0x138622
+  6371.479 svc       0x000003 number=3
+  6371.514 epilogue  0x000024
+  6371.537 svc       0x000001 number=1
+  6371.550 svc       0x000002 number=2
+  6371.581 svc       0x000003 number=3
+  6371.615 epilogue  0x000026
+  6372.620 irq       0x000018 vector=24
+  6372.625 tick      0x13d0f4
+  6372.709 irq       0x000018 vector=24
+  6372.714 tick      0x13d67c
+  6372.763 irq       0x000016 vector=22
+  6372.804 irq       0x000028 vector=40
+  6372.843 dispatch  0x010fa4 task=4 frame=0x10fa0
+  6372.856 irq       0x000018 vector=24
+  6372.861 tick      0x13dfac
+  6372.910 svc       0x000003 number=3
+  6372.945 epilogue  0x000028
+  6372.970 irq       0x000018 vector=24
+  6372.975 tick      0x13e6cc
+  6375.010 irq       0x000018 vector=24
+  6375.016 tick      0x146656
+  6375.073 irq       0x000029 vector=41
+  6375.111 dispatch  0x018fe5 task=5 frame=0x18fe0
+  6375.124 svc       0x000001 number=1
+  6375.816 irq       0x000018 vector=24
+  6375.821 tick      0x1498aa
+  6375.881 irq       0x000018 vector=24
+  6375.887 tick      0x149cc6
+  6375.936 dmastop   0x003014
+  6375.939 dmastop   0x003014
+  6375.942 reinit    0x000002
+  6375.969 epilogue  0x000029
+  6375.994 irq       0x000018 vector=24
+  6375.999 tick      0x14a3cd
+  6380.013 irq       0x000018 vector=24
+  6380.018 tick      0x159efd
+  6380.075 irq       0x000024 vector=36
+  6380.113 dispatch  0x008fe0 task=0 frame=0x8fe0
+  6380.125 svc       0x000001 number=1
+  6380.139 svc       0x000002 number=2
+  6380.169 svc       0x000001 number=1
+  6380.182 svc       0x000002 number=2
+  6380.212 svc       0x000007 number=7
+  6380.247 svc       0x000003 number=3
+  6380.283 epilogue  0x000024
+  6380.308 irq       0x000018 vector=24
+  6380.313 tick      0x15b16d
+  6380.364 irq       0x000025 vector=37
+  6380.402 dispatch  0x008fe1 task=1 frame=0x8fe0
+  6380.415 svc       0x000003 number=3
+  6380.450 epilogue  0x000025
+  6380.474 irq       0x000018 vector=24
+  6380.480 tick      0x15bbd8
+  6383.546 svc       0x000003 number=3

@@ -439,6 +439,10 @@ pub const EV_DIAG_EXEC_OVER: u8 = 24;
 #[cfg(feature = "trace-ram")]
 pub fn events_push_diag(kind: u8, task: u8, partition: u8, instant: u64, detail: u32) {
     let e = events();
+    if e[4] != 0 {
+        // Frozen: the mirror holds the events that led to the freeze.
+        return;
+    }
     let n = e[2] as usize;
     let slot = EVENTS_HEADER + 4 * (n % EVENTS_LEN);
     e[slot] = (kind as u32) << 24 | (task as u32) << 16 | (partition as u32) << 8;
@@ -723,6 +727,13 @@ pub fn trace_frozen() -> bool {
 #[cfg(feature = "trace-ram")]
 pub fn events_push(seq: u32, kind: u8, task: u8, partition: u8, instant: u64, detail: u32) {
     let e = events();
+    if e[4] != 0 {
+        // Frozen (2026-11-05): the mirror keeps the events that led to the
+        // freeze, as the trace ring does, instead of overwriting them; the
+        // log's sequence stays followed so no entry re-copies old events.
+        e[3] = seq.wrapping_add(1);
+        return;
+    }
     let n = e[2] as usize;
     let slot = EVENTS_HEADER + 4 * (n % EVENTS_LEN);
     e[slot] = (kind as u32) << 24 | (task as u32) << 16 | (partition as u32) << 8;

@@ -110,9 +110,15 @@ impl Events {
         }
     }
 
-    /// The freeze, when it fell inside the run.
+    /// The freeze, when it fell inside the run: before the run's
+    /// `safe_state`, whether or not the frozen event is still held (a
+    /// mirror that went on after the freeze let it out of the held window,
+    /// and the stress run of 2026-11-05 reported "never froze" for a
+    /// freeze at event 239 of 6,756; since then the mirror stops at the
+    /// freeze, and this judgement no longer needs the event held).
     pub fn frozen_in_run(&self) -> Option<u32> {
-        self.frozen_at.filter(|seq| self.run_entries().iter().any(|e| e.seq == *seq))
+        let run_end = self.entries.iter().find(|e| e.kind == 18).map(|e| e.seq).unwrap_or(self.written);
+        self.frozen_at.filter(|seq| *seq < run_end)
     }
 
     pub fn is_expected(&self, e: &EventRec) -> bool {
@@ -144,7 +150,7 @@ impl Events {
         let frozen = match self.frozen_in_run() {
             Some(seq) => match self.entries.iter().find(|e| e.seq == seq) {
                 Some(e) => format!("; the trace froze at event {seq} ({} of Task {} at {:.3} ms)", kind_name(e.kind), e.task, e.instant as f64 * 1000.0 / tick_hz as f64),
-                None => format!("; the trace froze at event {seq} (no longer in the mirror)"),
+                None => format!("; the trace froze at event {seq} (before the held window of the mirror)"),
             },
             None => "; the trace never froze during the run".to_string(),
         };
