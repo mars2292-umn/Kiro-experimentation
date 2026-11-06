@@ -26,6 +26,10 @@ mod inject {
     pub fn spin_ms(ms: u64) {
         let start = rsk::now();
         let mut i = 0u32;
+        // The App_Prover's bound of the loop equals the Loop_Bound_Annotation
+        // the Profile_Lint derives from the guard (R35.2; the lint compares them).
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 100_000_000))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(100_000_000 - i@))]
         while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
             i += 1;
         }
@@ -214,7 +218,10 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
         let mut i = 0u32;
         // `wrapping_sub`: the time base is monotone, but the App_Prover knows
         // nothing of `now()` beyond its type (task 17.1).
+        // The variant proves the loop runs at most 10,000,000 times, the
+        // bound the Profile_Lint derives from the guard (R35.2).
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(10_000_000 - i@))]
         while rsk::now().wrapping_sub(start) < rsk_target::ms(CS_MS) && i < 10_000_000 {
             i += 1;
         }
@@ -243,6 +250,8 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
     if cx.count.get() % 1024 == 0 {
         let start = rsk::now();
         let mut i = 0u32;
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 50_000_000))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(50_000_000 - i@))]
         while rsk::now().wrapping_sub(start) < rsk_target::ms(38) && i < 50_000_000 {
             i += 1;
         }

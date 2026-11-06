@@ -83,6 +83,9 @@ pub struct LoopRecord {
     /// `annotated`, `derived`, `verus`, or `exempt`.
     pub kind: &'static str,
     pub bound: Option<String>,
+    /// R35.2: the App_Prover's statement of the bound on the loop itself
+    /// (a Creusot `variant` whose constant equals `bound`), when present.
+    pub proof: Option<String>,
 }
 
 #[derive(Default)]
@@ -110,12 +113,13 @@ pub struct Report {
 }
 
 impl Report {
-    /// `rsk-loop-bounds/1`: every loop with its bound (R35.3).
+    /// `rsk-loop-bounds/1`: every loop with its bound (R35.3) and, since
+    /// 2026-11-06, its `proof` (the App_Prover variant of R35.2, or null).
     pub fn export(&self) -> String {
         let loops: Vec<serde_json::Value> = self
             .loops
             .iter()
-            .map(|l| serde_json::json!({ "file": l.file, "line": l.line, "function": l.function, "label": l.label, "kind": l.kind, "bound": l.bound }))
+            .map(|l| serde_json::json!({ "file": l.file, "line": l.line, "function": l.function, "label": l.label, "kind": l.kind, "bound": l.bound, "proof": l.proof }))
             .collect();
         let v = serde_json::json!({
             "schema": "rsk-loop-bounds/1",
@@ -131,8 +135,9 @@ impl Report {
         let derived = self.loops.iter().filter(|l| l.kind == "derived").count();
         let verus = self.loops.iter().filter(|l| l.kind == "verus").count();
         let exempt = self.loops.iter().filter(|l| l.kind == "exempt").count();
+        let proven = self.loops.iter().filter(|l| l.proof.is_some()).count();
         if self.findings.is_empty() {
-            format!("{} files, {} loops bounded ({annotated} annotated, {derived} derived from constants, {verus} by `decreases`, {exempt} non-terminating by design), no violation", self.files, self.loops.len())
+            format!("{} files, {} loops bounded ({annotated} annotated, {derived} derived from constants, {verus} by `decreases`, {exempt} non-terminating by design; {proven} with an App_Prover variant equal to the bound, R35.2), no violation", self.files, self.loops.len())
         } else {
             format!("{} files, {} violation(s)", self.files, self.findings.len())
         }

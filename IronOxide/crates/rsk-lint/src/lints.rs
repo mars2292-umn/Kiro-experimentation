@@ -209,6 +209,58 @@ fn bounds_of(attrs: &[Attribute]) -> Vec<(String, String, bool, usize)> {
     out
 }
 
+/// The App_Prover's `variant(...)` among a loop's attributes, written
+/// directly or under `cfg_attr(creusot, ...)`: the text inside the
+/// parentheses (R35.2).
+fn creusot_variant(attrs: &[Attribute]) -> Option<String> {
+    for a in attrs {
+        let s = a.meta.to_token_stream().to_string();
+        let mut rest = s.as_str();
+        while let Some(k) = rest.find("variant") {
+            let before = &rest[..k];
+            let after = rest[k + "variant".len()..].trim_start();
+            let is_path_end = before.is_empty() || before.ends_with("::") || before.ends_with(':') || before.ends_with(' ') || before.ends_with(',') || before.ends_with('(');
+            if is_path_end && after.starts_with('(') {
+                let mut depth = 0usize;
+                let mut end = None;
+                for (i, c) in after.char_indices() {
+                    match c {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                end = Some(i);
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some(e) = end {
+                    return Some(after[1..e].split_whitespace().collect::<Vec<_>>().join(" "));
+                }
+            }
+            rest = &rest[k + "variant".len()..];
+        }
+    }
+    None
+}
+
+/// The bound a loop variant states: the text before its last ` - ` (the
+/// variant is `<bound> - <iteration count>`, so that it is non-negative
+/// under the invariant `count <= bound` and decreases by one per
+/// iteration).
+fn variant_bound(text: &str) -> Option<String> {
+    let k = text.rfind(" - ")?;
+    let b = text[..k].trim();
+    if b.is_empty() { None } else { Some(b.to_string()) }
+}
+
+/// A bound's text without underscores and spaces, for comparison.
+fn normalized(text: &str) -> String {
+    text.chars().filter(|c| *c != '_' && !c.is_whitespace()).collect()
+}
+
 struct Bound {
     label: syn::Lifetime,
     expr: Expr,
@@ -269,27 +321,31 @@ impl<'a> Linter<'a> {
         }
     }
 
-    /// A loop outside `verus!`.
-    fn record_loop(&mut self, keyword: &str, label: Option<&syn::Label>, derived: Option<String>, exempt: bool, line: usize) {
+    /// A loop outside `verus!`. `attrs` are the loop expression's own
+    /// attributes, where the App_Prover's `variant` lives (R35.2).
+    fn record_loop(&mut self, keyword: &str, label: Option<&syn::Label>, attrs: &[Attribute], derived: Option<String>, exempt: bool, line: usize) {
         let label = label.map(|l| l.name.to_string());
         let function = self.fn_name();
+        let variant = creusot_variant(attrs);
         if let Some(l) = &label {
             if let Some(f) = self.fns.last_mut() {
                 if let Some((_, expr, ok)) = f.bounds.iter().find(|(x, _, _)| x == l).cloned() {
                     f.used.push(l.clone());
                     if ok {
-                        self.loops.push(LoopRecord { file: self.file.clone(), line, function, label, kind: "annotated", bound: Some(expr) });
+                        let proof = self.variant_proof(&function, line, &expr, variant);
+                        self.loops.push(LoopRecord { file: self.file.clone(), line, function, label, kind: "annotated", bound: Some(expr), proof });
                     }
                     return;
                 }
             }
         }
         if let Some(b) = derived {
-            self.loops.push(LoopRecord { file: self.file.clone(), line, function, label, kind: "derived", bound: Some(b) });
+            let proof = self.variant_proof(&function, line, &b, variant);
+            self.loops.push(LoopRecord { file: self.file.clone(), line, function, label, kind: "derived", bound: Some(b), proof });
             return;
         }
         if exempt {
-            self.loops.push(LoopRecord { file: self.file.clone(), line, function, label, kind: "exempt", bound: None });
+            self.loops.push(LoopRecord { file: self.file.clone(), line, function, label, kind: "exempt", bound: None, proof: None });
             return;
         }
         let what = match &label {
@@ -297,6 +353,26 @@ impl<'a> Linter<'a> {
             None => format!("`{keyword}`"),
         };
         self.err("PR-16", line, format!("{what} in `{function}` has no Loop_Bound_Annotation (`#[rsk::bounds('label = N)]` on the function) and no iteration count derivable from compile-time constants (R35.1)"));
+    }
+
+    /// R35.2: the App_Prover's `variant` on a loop, `<bound> - <count>`,
+    /// states the same bound as the loop's Loop_Bound_Annotation (the same
+    /// text, underscores and spaces aside), or the lint reports the loop; the
+    /// record keeps the variant's text. A loop without a variant has no
+    /// proof of its bound here (the Kernel's loops have `decreases`).
+    fn variant_proof(&mut self, function: &str, line: usize, bound: &str, variant: Option<String>) -> Option<String> {
+        let v = variant?;
+        match variant_bound(&v) {
+            Some(b) if normalized(&b) == normalized(bound) => Some(v),
+            Some(b) => {
+                self.err("PR-16", line, format!("the App_Prover variant `{v}` of the loop in `{function}` states the bound `{b}`, but its Loop_Bound_Annotation is `{bound}` (R35.2)"));
+                None
+            }
+            None => {
+                self.err("PR-16", line, format!("the App_Prover variant `{v}` of the loop in `{function}` is not of the form `<bound> - <count>`, so it states no bound to compare with its Loop_Bound_Annotation `{bound}` (R35.2)"));
+                None
+            }
+        }
     }
 
     fn lint_levels(&mut self, a: &Attribute) {
@@ -345,9 +421,9 @@ impl<'a> Linter<'a> {
             for l in loops {
                 let function = l.function.clone();
                 if l.bounded {
-                    self.loops.push(LoopRecord { file: self.file.clone(), line: l.line, function, label: l.label, kind: "verus", bound: Some("decreases".into()) });
+                    self.loops.push(LoopRecord { file: self.file.clone(), line: l.line, function, label: l.label, kind: "verus", bound: Some("decreases".into()), proof: None });
                 } else if l.empty {
-                    self.loops.push(LoopRecord { file: self.file.clone(), line: l.line, function, label: l.label, kind: "exempt", bound: None });
+                    self.loops.push(LoopRecord { file: self.file.clone(), line: l.line, function, label: l.label, kind: "exempt", bound: None, proof: None });
                 } else {
                     self.err("PR-16", l.line, format!("`{}` in `{}` inside `verus!` has no `decreases` clause (R35.2)", l.keyword, l.function));
                 }
@@ -467,13 +543,13 @@ impl<'ast, 'a> Visit<'ast> for Linter<'a> {
 
     fn visit_expr_for_loop(&mut self, e: &'ast syn::ExprForLoop) {
         let derived = bounded_iterator(&e.expr);
-        self.record_loop("for", e.label.as_ref(), derived, false, line_of(&e.for_token));
+        self.record_loop("for", e.label.as_ref(), &e.attrs, derived, false, line_of(&e.for_token));
         visit::visit_expr_for_loop(self, e);
     }
 
     fn visit_expr_while(&mut self, e: &'ast syn::ExprWhile) {
         let derived = bounded_condition(&e.cond);
-        self.record_loop("while", e.label.as_ref(), derived, false, line_of(&e.while_token));
+        self.record_loop("while", e.label.as_ref(), &e.attrs, derived, false, line_of(&e.while_token));
         visit::visit_expr_while(self, e);
     }
 
@@ -484,7 +560,7 @@ impl<'ast, 'a> Visit<'ast> for Linter<'a> {
         let exempt = e.body.stmts.is_empty()
             || (e.body.stmts.len() == 1
                 && matches!(&e.body.stmts[0], syn::Stmt::Expr(Expr::Call(c), _) if matches!(&*c.func, Expr::Path(p) if p.path.segments.last().is_some_and(|s| s.ident == "wait_for_interrupt" || s.ident == "safe_state_idle"))));
-        self.record_loop("loop", e.label.as_ref(), None, exempt, line_of(&e.loop_token));
+        self.record_loop("loop", e.label.as_ref(), &e.attrs, None, exempt, line_of(&e.loop_token));
         visit::visit_expr_loop(self, e);
     }
 

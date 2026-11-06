@@ -52,6 +52,18 @@ fn pr16_loops() {
     assert_eq!(kinds.iter().filter(|(k, _)| *k == "exempt").count(), 3);
 }
 
+/// R35.2: a loop whose App_Prover `variant` (direct or under `cfg_attr(creusot, ..)`, of the form `<bound> - <count>`) states the loop's Loop_Bound_Annotation is recorded with that proof; a variant stating another bound, or not of that form, is reported naming PR-16; a loop without a variant is recorded without a proof.
+#[test]
+fn r35_2_loop_variants_match_the_bound() {
+    let r = expect("loop_variants.rs", &[("PR-16", 28), ("PR-16", 32)]);
+    let proofs: Vec<(usize, Option<&str>)> = r.loops.iter().map(|l| (l.line, l.proof.as_deref())).collect();
+    assert!(proofs.contains(&(9, Some("10_000 - i @"))));
+    assert!(proofs.contains(&(13, Some("N - i @"))));
+    assert!(proofs.contains(&(20, Some("N * 2 - i @"))));
+    assert!(proofs.contains(&(28, None)) && proofs.contains(&(32, None)) && proofs.contains(&(39, None)));
+    assert_eq!(r.loops.iter().filter(|l| l.proof.is_some()).count(), 3);
+}
+
 /// R35.1: a loop inside `verus!` in a Kernel function without a `decreases`
 /// clause is reported naming PR-16; `decreases` and a range `for` are bounds.
 #[test]

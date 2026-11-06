@@ -446,7 +446,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R35.1 | — | — | ✓11.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-lint/tests/ui.rs; +2 | check-profile-lint; test-workspace-tests |
-| R35.2 | — | — | ○17.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-lint/src/verus.rs; +2 | check-profile-lint; proof-app-creusot; proof-app-step |
+| R35.2 | — | Application prover: Creusot (R46, ORQ-10) | ○17.1 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part2/src/lib.rs; crates/rsk-lint/fixtures/ui/loop_variants.rs; +6 | check-profile-lint; proof-app-creusot; proof-app-step; test-workspace-tests |
 | R35.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | crates/rsk-lint/src/lib.rs; crates/rsk-macros/src/lib.rs; profile/profile.toml; +1 | check-profile-lint |
 | R35.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ○19.2 | — | — |
 | R35.5 | — | — | ✓11.1 | crates/rsk-lint/src/lib.rs; crates/rsk-lint/src/lints.rs; crates/rsk-macros/src/lib.rs; +2 | check-profile-lint |
@@ -1129,7 +1129,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R34.8 | P3 | ○19.2; ✓7.1 | hil-rig; hil-rig-step |
 | R34.9 | P3 | ○19.2 | — |
 | R35.1 | P2 | ✓11.1 | check-profile-lint; test-workspace-tests |
-| R35.2 | P2 | ○17.1 | check-profile-lint; proof-app-creusot; proof-app-step |
+| R35.2 | P2 | ○17.1 | check-profile-lint; proof-app-creusot; proof-app-step; +1 |
 | R35.3 | P2 | ○19.2 | check-profile-lint |
 | R35.4 | P2 | ○19.2 | — |
 | R35.5 | P2 | ✓11.1 | check-profile-lint |

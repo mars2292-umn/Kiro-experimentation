@@ -28,6 +28,9 @@ mod inject {
     pub fn spin_ms(ms: u64) {
         let start = rsk::now();
         let mut i = 0u32;
+        // R35.2: the App_Prover's bound equals the derived Loop_Bound_Annotation.
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 100_000_000))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(100_000_000 - i@))]
         while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
             i += 1;
         }
@@ -202,6 +205,8 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
             let start = rsk::now();
             let mut i = 0u32;
             let hold = if long { rsk_target::ms(1) } else { rsk_target::TICK_HZ / 4000 };
+            #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
+            #[cfg_attr(creusot, rsk::creusot_std::macros::variant(10_000_000 - i@))]
             while rsk::now().wrapping_sub(start) < hold && i < 10_000_000 {
                 i += 1;
             }
