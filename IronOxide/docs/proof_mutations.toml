@@ -221,3 +221,12 @@ find = "                self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nomi
 replace = "                // (mutant) the Release step is not recorded\n"
 expect = ["kernel.rs", "release_step(k, t as int)"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "discard-leaves-source-unmasked"
+kills = "intakes_linked and the intake record of Property 9 (R19.1): a discarded event must mask its source for one MIT like every other outcome; 2026-11-05"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "                self.timing.mask(cfg, t, now);\n                proof {\n                    Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);\n                }\n                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));\n"
+replace = "                // (mutant) the discarded event leaves the source unmasked\n                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));\n"
+expect = ["kernel.rs", "record_intake"]
+package = "rsk-logic"

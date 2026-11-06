@@ -166,6 +166,9 @@ pub struct Timing<const NT: usize> {
     pub deferred_until: [u64; NT],
     /// DD-06: the interrupt source is masked until the MIT window and the Job end.
     pub masked: [bool; NT],
+    /// DD-06, Property 9: the instant from which the mask may be lifted,
+    /// one MIT after the event that set it (R19.1: one entry per MIT).
+    pub mask_until: [u64; NT],
     /// The due instant of the current pending or deferred Release (for the deadline, R9.6).
     pub due: [u64; NT],
     /// The due instant of the Release whose Job is in progress.
@@ -187,6 +190,7 @@ impl<const NT: usize> Timing<NT> {
         &&& forall|t: int| 0 <= t < NT ==> self.nominal[t] <= cfg.operating_duration
         &&& forall|t: int| 0 <= t < NT ==> self.last_due[t] <= cfg.operating_duration
         &&& forall|t: int| 0 <= t < NT ==> self.deferred_until[t] <= cfg.operating_duration + cfg.tasks[t].period
+        &&& forall|t: int| 0 <= t < NT ==> self.mask_until[t] <= cfg.operating_duration + cfg.tasks[t].period
     }
 
     pub fn new<const NR: usize, const NP: usize>(cfg: &Config<NT, NR, NP>) -> (s: Self)
@@ -201,6 +205,7 @@ impl<const NT: usize> Timing<NT> {
             last_due: [0; NT],
             deferred_until: [0; NT],
             masked: [false; NT],
+            mask_until: [0; NT],
             due: [0; NT],
             job_due: [0; NT],
         };
@@ -239,7 +244,7 @@ impl<const NT: usize> Timing<NT> {
             forall|u: int| 0 <= u < NT && u != t ==> final(self).k[u] == old(self).k[u] && final(self).nominal[u] == old(self).nominal[u],
             final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
             final(self).masked == old(self).masked, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
-            final(self).deferred_until == old(self).deferred_until,
+            final(self).deferred_until == old(self).deferred_until, final(self).mask_until == old(self).mask_until,
     {
         let period = cfg.tasks[t as usize].period;
         let n = self.nominal[t as usize];
@@ -303,35 +308,46 @@ impl<const NT: usize> Timing<NT> {
             !old(self).has_last[t as int] || now >= old(self).last_due[t as int] + cfg.tasks[t as int].period,
         ensures final(self).inv(cfg),
             final(self).has_last[t as int], final(self).last_due[t as int] == now, final(self).due[t as int] == now,
-            final(self).masked[t as int],
+            final(self).masked[t as int], final(self).mask_until[t as int] as int == now as int + cfg.tasks[t as int].period as int,
             old(self).has_last[t as int] ==> now >= old(self).last_due[t as int] + cfg.tasks[t as int].period,
-            forall|u: int| 0 <= u < NT && u != t ==> final(self).last_due[u] == old(self).last_due[u] && final(self).has_last[u] == old(self).has_last[u] && final(self).masked[u] == old(self).masked[u] && final(self).due[u] == old(self).due[u],
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).last_due[u] == old(self).last_due[u] && final(self).has_last[u] == old(self).has_last[u] && final(self).masked[u] == old(self).masked[u] && final(self).due[u] == old(self).due[u] && final(self).mask_until[u] == old(self).mask_until[u],
             final(self).k == old(self).k, final(self).nominal == old(self).nominal,
             final(self).deferred_until == old(self).deferred_until, final(self).job_due == old(self).job_due,
     {
+        proof {
+            assert(cfg.task_ok(t as int));
+            assert(cfg.tasks[t as int].period <= cfg.operating_duration);
+        }
         self.has_last[t as usize] = true;
         self.last_due[t as usize] = now;
         self.due[t as usize] = now;
         self.masked[t as usize] = true;
+        self.mask_until[t as usize] = now + cfg.tasks[t as usize].period;
     }
 
     /// R10.2, deferral: the Release becomes due one MIT after the previous
     /// accepted Release became due. Returns that instant.
-    pub fn defer<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8) -> (at: u64)
+    pub fn defer<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64) -> (at: u64)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC, old(self).has_last[t as int],
+            now <= cfg.operating_duration,
         ensures final(self).inv(cfg),
             at == old(self).last_due[t as int] + cfg.tasks[t as int].period,
             final(self).deferred_until[t as int] == at, final(self).masked[t as int],
-            forall|u: int| 0 <= u < NT && u != t ==> final(self).deferred_until[u] == old(self).deferred_until[u] && final(self).masked[u] == old(self).masked[u],
+            final(self).mask_until[t as int] as int == now as int + cfg.tasks[t as int].period as int,
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).deferred_until[u] == old(self).deferred_until[u] && final(self).masked[u] == old(self).masked[u] && final(self).mask_until[u] == old(self).mask_until[u],
             final(self).k == old(self).k, final(self).nominal == old(self).nominal, final(self).has_last == old(self).has_last,
             final(self).last_due == old(self).last_due, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
     {
         proof {
             assert(cfg.task_ok(t as int));
+            assert(cfg.tasks[t as int].period <= cfg.operating_duration);
         }
         let at = self.last_due[t as usize] + cfg.tasks[t as usize].period;
         self.deferred_until[t as usize] = at;
         self.masked[t as usize] = true;
+        // Property 9: the mask lasts one MIT from this event, not from the
+        // previous accepted Release (R19.1: one entry per MIT).
+        self.mask_until[t as usize] = now + cfg.tasks[t as usize].period;
         at
     }
 
@@ -346,6 +362,7 @@ impl<const NT: usize> Timing<NT> {
             forall|u: int| 0 <= u < NT && u != t ==> final(self).last_due[u] == old(self).last_due[u] && final(self).due[u] == old(self).due[u] && final(self).has_last[u] == old(self).has_last[u],
             final(self).k == old(self).k, final(self).nominal == old(self).nominal, final(self).masked == old(self).masked,
             final(self).deferred_until == old(self).deferred_until, final(self).job_due == old(self).job_due,
+            final(self).mask_until == old(self).mask_until,
     {
         let at = self.deferred_until[t as usize];
         self.last_due[t as usize] = at;
@@ -362,6 +379,7 @@ impl<const NT: usize> Timing<NT> {
             forall|u: int| 0 <= u < NT && u != t ==> final(self).last_due[u] == old(self).last_due[u] && final(self).due[u] == old(self).due[u] && final(self).has_last[u] == old(self).has_last[u],
             final(self).k == old(self).k, final(self).nominal == old(self).nominal, final(self).masked == old(self).masked,
             final(self).deferred_until == old(self).deferred_until, final(self).job_due == old(self).job_due,
+            final(self).mask_until == old(self).mask_until,
     {
         self.last_due[t as usize] = at;
         self.due[t as usize] = at;
@@ -376,6 +394,7 @@ impl<const NT: usize> Timing<NT> {
             final(self).k == old(self).k, final(self).nominal == old(self).nominal, final(self).masked == old(self).masked,
             final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
             final(self).deferred_until == old(self).deferred_until, final(self).job_due == old(self).job_due,
+            final(self).mask_until == old(self).mask_until,
     {
         self.due[t as usize] = at;
     }
@@ -389,6 +408,7 @@ impl<const NT: usize> Timing<NT> {
             final(self).k == old(self).k, final(self).nominal == old(self).nominal, final(self).masked == old(self).masked,
             final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
             final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due,
+            final(self).mask_until == old(self).mask_until,
     {
         self.job_due[t as usize] = self.due[t as usize];
     }
@@ -406,6 +426,7 @@ impl<const NT: usize> Timing<NT> {
             final(self).k == old(self).k, final(self).nominal == old(self).nominal,
             final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
             final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
+            final(self).mask_until == old(self).mask_until,
     {
         self.masked[t as usize] = false;
     }
@@ -417,32 +438,39 @@ impl<const NT: usize> Timing<NT> {
     /// the operating end (seen on the HIL_Rig, 2026-11-01: a GPIOTE storm
     /// over the last 11 ms starved every Task). Only a Partition restart
     /// unmasks it, and the next event masks it again.
-    pub fn mask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
-        requires old(self).inv(cfg), (t as int) < NT,
+    pub fn mask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64)
+        requires old(self).inv(cfg), (t as int) < NT, now <= cfg.operating_duration,
         ensures final(self).inv(cfg), final(self).masked[t as int],
-            forall|u: int| 0 <= u < NT && u != t ==> final(self).masked[u] == old(self).masked[u],
-            final(self).k == old(self).k, final(self).nominal == old(self).nominal,
-            final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
-            final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
-    {
-        self.masked[t as usize] = true;
-    }
-
-    pub fn try_unmask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64, job_ended: bool) -> (unmasked: bool)
-        requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
-        ensures final(self).inv(cfg),
-            unmasked == (job_ended && (!old(self).has_last[t as int] || now >= old(self).last_due[t as int] + cfg.tasks[t as int].period)),
-            unmasked ==> !final(self).masked[t as int],
-            !unmasked ==> final(self).masked == old(self).masked,
-            forall|u: int| 0 <= u < NT && u != t ==> final(self).masked[u] == old(self).masked[u],
+            final(self).mask_until[t as int] as int == now as int + cfg.tasks[t as int].period as int,
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).masked[u] == old(self).masked[u] && final(self).mask_until[u] == old(self).mask_until[u],
             final(self).k == old(self).k, final(self).nominal == old(self).nominal,
             final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
             final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
     {
         proof {
             assert(cfg.task_ok(t as int));
+            assert(cfg.tasks[t as int].period <= cfg.operating_duration);
         }
-        let window_over = !self.has_last[t as usize] || now >= self.last_due[t as usize] + cfg.tasks[t as usize].period;
+        self.masked[t as usize] = true;
+        self.mask_until[t as usize] = now + cfg.tasks[t as usize].period;
+    }
+
+    pub fn try_unmask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64, job_ended: bool) -> (unmasked: bool)
+        requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
+        ensures final(self).inv(cfg),
+            unmasked == (job_ended && now >= old(self).mask_until[t as int]),
+            unmasked ==> !final(self).masked[t as int],
+            !unmasked ==> final(self).masked == old(self).masked,
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).masked[u] == old(self).masked[u],
+            final(self).k == old(self).k, final(self).nominal == old(self).nominal,
+            final(self).has_last == old(self).has_last, final(self).last_due == old(self).last_due,
+            final(self).deferred_until == old(self).deferred_until, final(self).due == old(self).due, final(self).job_due == old(self).job_due,
+            final(self).mask_until == old(self).mask_until,
+    {
+        proof {
+            assert(cfg.task_ok(t as int));
+        }
+        let window_over = now >= self.mask_until[t as usize];
         if job_ended && window_over {
             self.masked[t as usize] = false;
             true

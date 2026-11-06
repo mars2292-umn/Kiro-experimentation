@@ -71,6 +71,14 @@ pub const ST_RELEASE: u8 = 5;
 /// executing one ended by force (`arg` 1), or a preempted one marked
 /// killed for the unwind (`arg` 0; its lock entries stay, R8.9).
 pub const ST_KILL: u8 = 6;
+/// A Release_Source event of the Sporadic_Task reached the Kernel at
+/// instant `at` (`Kernel::intake`, DD-06; Property 9, R19.1). `arg` is
+/// the outcome (0 accepted, 1 deferred, 2 discarded, 3 refused as too
+/// late for the operating duration), plus 8 when the source was already
+/// masked at entry: a Release_Signal raise, or an event the hardware
+/// delivered from a masked source (an effective intake, `arg < 8`, is one
+/// the source's mask could not have stopped).
+pub const ST_INTAKE: u8 = 7;
 
 pub struct Step {
     pub kind: u8,
@@ -117,7 +125,8 @@ pub open spec fn top_rel<const NT: usize, const NR: usize, const NP: usize>(prev
         // Only the executing Job locks and unlocks; the stack is unchanged.
         &&& s.top == prev.top
         &&& s.task == s.top
-    } else if s.kind == ST_RELEASE || (s.kind == ST_KILL && s.arg == 0) {
+    } else if s.kind == ST_RELEASE || s.kind == ST_INTAKE || (s.kind == ST_KILL && s.arg == 0) {
+        // A Release, an intake, or a kill mark changes no Job in progress.
         s.top == prev.top
     } else {
         // A Job end resumes the Job below: the top is whatever it is.
@@ -171,7 +180,7 @@ pub open spec fn step_rel(prev: Seq<int>, s: Step) -> bool {
 
 /// A step of a well-formed history over the configuration.
 pub open spec fn step_wf<const NT: usize, const NR: usize, const NP: usize>(s: Step, cfg: &Config<NT, NR, NP>) -> bool {
-    &&& ST_DISPATCH <= s.kind <= ST_KILL
+    &&& ST_DISPATCH <= s.kind <= ST_INTAKE
     &&& 0 <= s.task < NT
     &&& 0 <= s.at
     &&& 0 <= s.arg
@@ -205,6 +214,31 @@ pub open spec fn release_spaced_after<const NT: usize, const NR: usize, const NP
             ==> h[k].arg + cfg.tasks[s.task].period as int <= s.arg
 }
 
+/// Step `k` of `h` is an effective intake of Sporadic_Task `t`: the
+/// source reached the Kernel while unmasked (Property 9 counts these;
+/// an event the mask stopped never costs an entry).
+pub open spec fn intake_step_in(h: Seq<Step>, k: int, t: int) -> bool {
+    0 <= k < h.len() && h[k].kind == ST_INTAKE && h[k].task == t && h[k].arg < 8
+}
+
+/// Property 9 over a run (R19.1): two effective intakes of one
+/// Sporadic_Task's source are at least one MIT apart.
+pub open spec fn intakes_spaced<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>) -> bool {
+    forall|i: int, j: int| 0 <= i < j < h.len()
+        && #[trigger] h[i].kind == ST_INTAKE && #[trigger] h[j].kind == ST_INTAKE
+        && h[i].task == h[j].task && h[i].arg < 8 && h[j].arg < 8 && cfg.tasks[h[i].task].kind == KIND_SPORADIC
+        ==> h[i].at + cfg.tasks[h[i].task].period as int <= h[j].at
+}
+
+/// What appending `s` to `h` needs for `intakes_spaced` to hold of the
+/// result: an effective intake comes at least one MIT after every
+/// earlier effective intake of the same Task.
+pub open spec fn intake_spaced_after<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, s: Step, cfg: &Config<NT, NR, NP>) -> bool {
+    s.kind == ST_INTAKE && s.arg < 8 && cfg.tasks[s.task].kind == KIND_SPORADIC
+        ==> forall|k: int| 0 <= k < h.len() && #[trigger] h[k].kind == ST_INTAKE && h[k].task == s.task && h[k].arg < 8
+            ==> h[k].at + cfg.tasks[s.task].period as int <= s.at
+}
+
 /// The trace invariant: well-formed steps, instants nondecreasing along
 /// the history and never beyond the Kernel's observed instant `now`,
 /// every step's lock snapshot related to the previous one by its kind,
@@ -219,6 +253,7 @@ pub open spec fn history_wf<const NT: usize, const NR: usize, const NP: usize>(h
     &&& forall|k: int| 0 <= k < h.len() ==> step_rel(locks_before(h, k), #[trigger] h[k])
     &&& forall|k: int| 0 <= k < h.len() ==> top_rel(before(h, k), #[trigger] h[k], cfg)
     &&& releases_spaced(h, cfg)
+    &&& intakes_spaced(h, cfg)
 }
 
 /// The empty history is well formed at any instant.
@@ -242,11 +277,22 @@ pub proof fn lemma_history_later<const NT: usize, const NR: usize, const NP: usi
 pub proof fn lemma_history_push<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, s: Step, cfg: &Config<NT, NR, NP>, now: int)
     requires history_wf(h, cfg, now), step_wf(s, cfg), s.at == now, step_rel(locks_before(h.push(s), h.len() as int), s),
         top_rel(before(h.push(s), h.len() as int), s, cfg),
-        release_spaced_after(h, s, cfg),
+        release_spaced_after(h, s, cfg), intake_spaced_after(h, s, cfg),
     ensures history_wf(h.push(s), cfg, now),
 {
     reveal(history_wf);
     let p = h.push(s);
+    assert forall|i: int, j: int| 0 <= i < j < p.len()
+        && #[trigger] p[i].kind == ST_INTAKE && #[trigger] p[j].kind == ST_INTAKE
+        && p[i].task == p[j].task && p[i].arg < 8 && p[j].arg < 8 && cfg.tasks[p[i].task].kind == KIND_SPORADIC
+        implies p[i].at + cfg.tasks[p[i].task].period as int <= p[j].at by {
+        assert(p[i] == h[i]);
+        if j < h.len() {
+            assert(p[j] == h[j]);
+        } else {
+            assert(p[j] == s);
+        }
+    }
     assert forall|k: int| 0 <= k < p.len() implies top_rel(before(p, k), #[trigger] p[k], cfg) by {
         if k < h.len() {
             assert(p[k] == h[k]);
@@ -390,6 +436,91 @@ pub proof fn lemma_no_lower_dispatch_while_waiting<const NT: usize, const NR: us
 }
 
 // ------------------------------------------- Theorem: MIT spacing over a run (5.4)
+
+/// Every step of a well-formed history happened at or before `now`.
+pub proof fn lemma_step_at_bounded<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, k: int)
+    requires history_wf(h, cfg, now), 0 <= k < h.len(),
+    ensures h[k].at <= now,
+{
+    reveal(history_wf);
+}
+
+/// Property 9 over a run (R19.1), read back from the invariant: two
+/// effective intakes of Sporadic_Task `t`'s source are at least one MIT
+/// apart, whatever the source's event rate.
+pub proof fn lemma_intake_spacing_over_run<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, t: int, i: int, j: int)
+    requires history_wf(h, cfg, now), 0 <= t < NT, cfg.tasks[t].kind == KIND_SPORADIC,
+        intake_step_in(h, i, t), intake_step_in(h, j, t), i < j,
+    ensures h[j].at >= h[i].at + cfg.tasks[t].period as int,
+{
+    reveal(history_wf);
+}
+
+/// The number of effective intakes of Task `t` among the steps `lo..=hi`.
+pub open spec fn intakes_in(h: Seq<Step>, t: int, lo: int, hi: int) -> int
+    decreases hi - lo + 1,
+{
+    if hi < lo { 0 } else { intakes_in(h, t, lo, hi - 1) + (if intake_step_in(h, hi, t) { 1int } else { 0int }) }
+}
+
+/// The last effective intake of Task `t` among the steps `lo..=hi` (`-1` when none).
+pub open spec fn last_intake(h: Seq<Step>, t: int, lo: int, hi: int) -> int
+    decreases hi - lo + 1,
+{
+    if hi < lo { -1 } else if intake_step_in(h, hi, t) { hi } else { last_intake(h, t, lo, hi - 1) }
+}
+
+/// Property 9 counted (R19.1): from an effective intake `i` of `t`, the
+/// last effective intake among `i..=j` lies at least `(n - 1)` MITs after
+/// it, `n` being the number of effective intakes among `i..=j`.
+pub proof fn lemma_intake_span<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, t: int, i: int, j: int)
+    requires history_wf(h, cfg, now), 0 <= t < NT, cfg.tasks[t].kind == KIND_SPORADIC,
+        intake_step_in(h, i, t), i <= j < h.len(),
+    ensures ({
+        let m = last_intake(h, t, i, j);
+        &&& i <= m <= j
+        &&& intake_step_in(h, m, t)
+        &&& h[m].at >= h[i].at + (intakes_in(h, t, i, j) - 1) * cfg.tasks[t].period as int
+    }),
+    decreases j - i,
+{
+    let period = cfg.tasks[t].period as int;
+    if j == i {
+        assert(intakes_in(h, t, i, i - 1) == 0);
+        assert(intakes_in(h, t, i, i) == 1);
+        assert(last_intake(h, t, i, i) == i);
+        assert(h[i].at >= h[i].at + 0 * period) by (nonlinear_arith);
+    } else {
+        lemma_intake_span(h, cfg, now, t, i, j - 1);
+        let m = last_intake(h, t, i, j - 1);
+        let c = intakes_in(h, t, i, j - 1);
+        if intake_step_in(h, j, t) {
+            lemma_intake_spacing_over_run(h, cfg, now, t, m, j);
+            assert(last_intake(h, t, i, j) == j);
+            assert(intakes_in(h, t, i, j) == c + 1);
+            assert(h[m].at + period >= h[i].at + (c - 1) * period + period);
+            assert((c - 1) * period + period == c * period) by (nonlinear_arith);
+        } else {
+            assert(last_intake(h, t, i, j) == m);
+            assert(intakes_in(h, t, i, j) == c);
+        }
+    }
+}
+
+/// Property 9 as a count (R19.1): between two effective intakes `i <= j`
+/// of `t`, with `n` effective intakes among `i..=j`, at least `(n - 1)`
+/// MITs elapse; so a half-open window of length `T` holds at most
+/// `ceil(T / MIT)` effective intakes, each costing one entry (Delta_irq).
+pub proof fn lemma_intake_count_bound<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, t: int, i: int, j: int, window: int)
+    requires history_wf(h, cfg, now), 0 <= t < NT, cfg.tasks[t].kind == KIND_SPORADIC,
+        intake_step_in(h, i, t), intake_step_in(h, j, t), i <= j,
+        h[j].at < h[i].at + window,
+    ensures h[j].at - h[i].at >= (intakes_in(h, t, i, j) - 1) * cfg.tasks[t].period as int,
+        (intakes_in(h, t, i, j) - 1) * (cfg.tasks[t].period as int) < window,
+{
+    lemma_intake_span(h, cfg, now, t, i, j);
+    assert(last_intake(h, t, i, j) == j);
+}
 
 /// Verification_Plan argument 5.4 (R10.1, R10.2, Property 8), over the
 /// history: in any run, two Releases of one Sporadic_Task become due at

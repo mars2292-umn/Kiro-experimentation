@@ -144,7 +144,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R10.1 | P-08 | Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.14; ✓4.6 | crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; +3 | proof-kernel-kani; proof-kernel-verus |
 | R10.2 | P-08 | Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.14; ✓4.6 | crates/rsk-gen/src/syntax.rs; crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kani_harness.rs; +6 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
-| R10.3 | P-08 | Ceiling-Protocol State Machine; Property 8 | ✓4.6 | crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs; +4 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
+| R10.3 | P-08 | Ceiling-Protocol State Machine; Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.6 | crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs; +4 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
 | R10.4 | P-08 | Open Research Question Dispositions; Property 8 | ✓4.6 | crates/rsk-logic/src/logic/kernel.rs | — |
 | R10.5 | — | Application API (`rsk`); Reuse and Deviation Record | ✓4.6 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840_cycles/partition_part0.rs; +17 | — |
 | R10.6 | — | — | ✓4.6 | — | — |
@@ -260,7 +260,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R19.1 | P-08; P-17 | Interrupt intake and MIT enforcement (DD-06); Property 9; Requirements Impact | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs | — |
+| R19.1 | P-08; P-17 | Interrupt intake and MIT enforcement (DD-06); Property 9; Requirements Impact | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kernel.rs; +1 | — |
 | R19.2 | P-08; P-17 | Property 9 | ✓5.4 | — | — |
 | R19.3 | P-17 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Profile_Conformance_Suite and HIL_Rig; Property 9 | ✓7.5 | apps/hil-stimulus/part/Cargo.toml; apps/hil-stimulus/part/src/lib.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; +9 | — |
 | R19.4 | — | Interrupt intake and MIT enforcement (DD-06); Requirements Impact | ✓5.4 | — | — |
@@ -524,11 +524,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R43.1 | — | — | ○8.1 | — | — |
-| R43.2 | — | — | ○8.1 | — | — |
-| R43.3 | — | What the type system gives, and what it does not | ○8.1 | profile/core_subset.toml | — |
-| R43.4 | — | Correctness Properties; Testing Strategy | ○8.1 | — | — |
-| R43.5 | — | — | ○8.1 | xtask/src/main.rs; xtask/src/trace.rs | — |
+| R43.1 | — | — | ✓8.1 | — | — |
+| R43.2 | — | — | ✓8.1 | — | — |
+| R43.3 | — | What the type system gives, and what it does not | ✓8.1 | profile/core_subset.toml | — |
+| R43.4 | — | Correctness Properties; Testing Strategy | ✓8.1 | — | — |
+| R43.5 | — | — | ✓8.1 | xtask/src/main.rs; xtask/src/trace.rs | — |
 
 ### Requirement 44: Kernel proofs with Verus (Phase P1)
 
@@ -552,7 +552,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R45.3 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.2 | crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/proofs.rs | proof-kernel-kani |
 | R45.4 | — | Kani harnesses (R45); Reuse and Deviation Record; Trust-Base Analysis | ✓6.1 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/sim.rs; +2 | — |
 | R45.5 | — | — | ✓6.1 | xtask/src/diag.rs; xtask/src/lib.rs; xtask/src/proofs.rs; +1 | check-kani-step; proof-kernel-kani; test-workspace-tests |
-| R45.6 | — | — | ○6.3 | — | — |
+| R45.6 | — | — | ✓6.3 | — | — |
 | R45.7 | — | — | ✓6.1 | xtask/src/checks/ci.rs; xtask/src/lib.rs; xtask/src/proofs.rs; +2 | check-kani-step; proof-kernel-kani |
 | R45.8 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.1 | crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/proofs.rs | proof-kernel-kani |
 
@@ -560,8 +560,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R46.1 | — | — | ○8.1 | xtask/src/verify.rs | proof-app-aeneas; proof-app-aeneas-step |
-| R46.2 | — | Application prover: Creusot (R46, ORQ-10) | ○8.1 | xtask/src/manifest.rs; xtask/src/tools.rs; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
+| R46.1 | — | — | ✓8.1 | xtask/src/verify.rs | proof-app-aeneas; proof-app-aeneas-step |
+| R46.2 | — | Application prover: Creusot (R46, ORQ-10) | ✓8.1 | xtask/src/manifest.rs; xtask/src/tools.rs; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
 | R46.3 | P-23 | — | ○17.1 | profile/core_subset.toml; xtask/src/verify.rs | proof-app-creusot; proof-app-step |
 | R46.4 | P-23 | App_Declaration and generation pipeline (Component C); Application prover: Creusot (R46, ORQ-10) | ○17.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840.rs; apps/p1-demo/decl/src/nrf52840_cycles.rs; +32 | proof-app-creusot; proof-app-step; test-workspace-tests |
 | R46.5 | — | — | ○17.1; ✓17.3 | xtask/src/verify.rs | proof-app-aeneas |
@@ -610,23 +610,23 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R51.1 | — | — | ○8.1 | — | — |
-| R51.2 | — | — | ○8.1 | — | — |
-| R51.3 | — | Tool qualification proposal (R51); Trust-Base Analysis | ○8.1 | — | — |
-| R51.4 | — | — | ○8.1 | — | — |
-| R51.5 | — | Tool qualification proposal (R51) | ○8.1 | — | — |
-| R51.6 | — | — | ○8.1 | — | — |
-| R51.7 | — | Tool qualification proposal (R51) | ○8.1 | — | — |
+| R51.1 | — | — | ✓8.1 | — | — |
+| R51.2 | — | — | ✓8.1 | — | — |
+| R51.3 | — | Tool qualification proposal (R51); Trust-Base Analysis | ✓8.1 | — | — |
+| R51.4 | — | — | ✓8.1 | — | — |
+| R51.5 | — | Tool qualification proposal (R51) | ✓8.1 | — | — |
+| R51.6 | — | — | ✓8.1 | — | — |
+| R51.7 | — | Tool qualification proposal (R51) | ✓8.1 | — | — |
 
 ### Requirement 52: DO-333 formal-methods credit (Phase P1 plan)
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R52.1 | — | — | ○8.1; ✓4.11 | — | — |
-| R52.2 | — | — | ○8.1 | xtask/src/main.rs; xtask/src/mutations.rs | test-workspace-tests |
-| R52.3 | — | — | ○8.1 | — | — |
-| R52.4 | — | — | ○8.1 | — | — |
-| R52.5 | — | — | ○8.1; ✓4.11 | xtask/src/trace.rs | — |
+| R52.1 | — | — | ✓4.11; ✓8.1 | — | — |
+| R52.2 | — | — | ✓8.1 | xtask/src/main.rs; xtask/src/mutations.rs | test-workspace-tests |
+| R52.3 | — | — | ✓8.1 | — | — |
+| R52.4 | — | — | ✓8.1 | — | — |
+| R52.5 | — | — | ✓4.11; ✓8.1 | xtask/src/trace.rs | — |
 
 ### Requirement 53: Structural coverage and source-to-object traceability (Phase P3)
 
@@ -682,7 +682,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R58.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Memory and MPU layout (DD-07, DD-11); Profile_Conformance_Suite and HIL_Rig; +1 | ✓1.1 | crates/rsk-lint/src/lib.rs; profile/profile.toml; xtask/src/checks/ci.rs; +7 | check-static-checks; test-host-build; test-target-build; test-workspace-tests |
 | R58.2 | — | Trust-Base Analysis | ✓1.3 | profile/profile.toml; xtask/src/checks/deps.rs; xtask/src/checks/registers.rs; +3 | check-post-build |
-| R58.3 | — | — | ○8.1 | profile/profile.toml | — |
+| R58.3 | — | — | ✓8.1 | profile/profile.toml | — |
 | R58.4 | — | — | ✓1.1 | apps/p1-demo/bin/build.rs; xtask/src/checks/config.rs; xtask/src/diag.rs; +4 | check-network-sandbox; check-static-checks; test-host-build; test-network-probe; test-target-build |
 | R58.5 | — | — | ✓1.3 | xtask/src/checks/deps.rs; xtask/src/checks/registers.rs; xtask/src/diag.rs; +2 | check-post-build |
 
@@ -759,18 +759,18 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R19.3 | ✓7.5 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Profile_Conformance_Suite and HIL_Rig; +1 |
 | R19.4 | ✓5.4 | Interrupt intake and MIT enforcement (DD-06); Requirements Impact |
 | R19.5 | ✓5.4 | — |
-| R43.1 | ○8.1 | — |
-| R43.2 | ○8.1 | — |
-| R43.3 | ○8.1 | What the type system gives, and what it does not |
-| R43.4 | ○8.1 | Correctness Properties; Testing Strategy |
-| R43.5 | ○8.1 | — |
+| R43.1 | ✓8.1 | — |
+| R43.2 | ✓8.1 | — |
+| R43.3 | ✓8.1 | What the type system gives, and what it does not |
+| R43.4 | ✓8.1 | Correctness Properties; Testing Strategy |
+| R43.5 | ✓8.1 | — |
 | R44.2 | ✓4.5; ✓4.8 | Property 11 |
 | R44.3 | ✓4.7 | Property 10 |
 | R44.4 | ✓4.9 | Property 12 |
 | R44.5 | ✓4.10; ✓5.7 | Kernel logic and Kernel_Arch (Component B); Kernel proofs (Verus, R44); +2 |
 | R44.8 | ✓4.5 | Property 7 |
 | R45.4 | ✓6.1 | Kani harnesses (R45); Reuse and Deviation Record; +1 |
-| R45.6 | ○6.3 | — |
+| R45.6 | ✓6.3 | — |
 | R49.1 | ✓3.2 | Kernel proofs (Verus, R44) |
 | R49.2 | ✓3.2 | Trust-Base Analysis |
 | R49.4 | ✓3.4 | Trust-Base Analysis |
@@ -778,15 +778,15 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R49.6 | ✓3.2 | — |
 | R50.1 | ✓8.2 | — |
 | R50.4 | ✓8.2 | — |
-| R51.1 | ○8.1 | — |
-| R51.2 | ○8.1 | — |
-| R51.3 | ○8.1 | Tool qualification proposal (R51); Trust-Base Analysis |
-| R51.4 | ○8.1 | — |
-| R51.5 | ○8.1 | Tool qualification proposal (R51) |
-| R51.6 | ○8.1 | — |
-| R51.7 | ○8.1 | Tool qualification proposal (R51) |
+| R51.1 | ✓8.1 | — |
+| R51.2 | ✓8.1 | — |
+| R51.3 | ✓8.1 | Tool qualification proposal (R51); Trust-Base Analysis |
+| R51.4 | ✓8.1 | — |
+| R51.5 | ✓8.1 | Tool qualification proposal (R51) |
+| R51.6 | ✓8.1 | — |
+| R51.7 | ✓8.1 | Tool qualification proposal (R51) |
 | R57.4 | ✓2.2 | — |
-| R58.3 | ○8.1 | — |
+| R58.3 | ✓8.1 | — |
 | R61.1 | ✓8.3 | Reuse and Deviation Record |
 | R61.2 | ✓8.3 | Reuse and Deviation Record |
 | R61.3 | ✓8.3 | Reuse and Deviation Record |
@@ -817,10 +817,10 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 
 | Criterion | Tasks | Design |
 |---|---|---|
-| R52.1 | ○8.1; ✓4.11 | — |
-| R52.3 | ○8.1 | — |
-| R52.4 | ○8.1 | — |
-| R52.5 | ○8.1; ✓4.11 | — |
+| R52.1 | ✓4.11; ✓8.1 | — |
+| R52.3 | ✓8.1 | — |
+| R52.4 | ✓8.1 | — |
+| R52.5 | ✓4.11; ✓8.1 | — |
 
 ### Phase P1; dual build from P5: 1 criteria
 
@@ -1169,22 +1169,22 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R42.2 | P4 | ○21.2 | — |
 | R42.3 | P4 | ○21.4 | — |
 | R42.4 | P4 | ○21.4 | — |
-| R43.1 | P1 | ○8.1 | — |
-| R43.2 | P1 | ○8.1 | — |
-| R43.3 | P1 | ○8.1 | — |
-| R43.4 | P1 | ○8.1 | — |
-| R43.5 | P1 | ○8.1 | — |
+| R43.1 | P1 | ✓8.1 | — |
+| R43.2 | P1 | ✓8.1 | — |
+| R43.3 | P1 | ✓8.1 | — |
+| R43.4 | P1 | ✓8.1 | — |
+| R43.5 | P1 | ✓8.1 | — |
 | R44.3 | P1 | ✓4.7 | — |
 | R44.5 | P1 | ✓4.10; ✓5.7 | — |
 | R44.6 | P1 | ✓4.1 | check-kernel-proofs-step; proof-kernel-verus |
 | R45.3 | P1 | ✓6.2 | proof-kernel-kani |
 | R45.4 | P1 | ✓6.1 | — |
 | R45.5 | P1 | ✓6.1 | check-kani-step; proof-kernel-kani; test-workspace-tests |
-| R45.6 | P1 | ○6.3 | — |
+| R45.6 | P1 | ✓6.3 | — |
 | R45.7 | P1 | ✓6.1 | check-kani-step; proof-kernel-kani |
 | R45.8 | P1 | ✓6.1 | proof-kernel-kani |
-| R46.1 | P1 selection; P2 use | ○8.1 | proof-app-aeneas; proof-app-aeneas-step |
-| R46.2 | P1 selection; P2 use | ○8.1 | proof-app-creusot; proof-app-step |
+| R46.1 | P1 selection; P2 use | ✓8.1 | proof-app-aeneas; proof-app-aeneas-step |
+| R46.2 | P1 selection; P2 use | ✓8.1 | proof-app-creusot; proof-app-step |
 | R46.5 | P1 selection; P2 use | ○17.1; ✓17.3 | proof-app-aeneas |
 | R47.1 | P2 | ✓17.2 | test-workspace-tests |
 | R47.2 | P2 | ✓17.2 | test-workspace-tests |
@@ -1200,18 +1200,18 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R50.4 | P1 | ✓8.2 | — |
 | R50.5 | P1 | ✓8.4 | check-evidence; test-workspace-tests |
 | R50.6 | P1 | ✓8.4 | check-evidence |
-| R51.1 | P1 | ○8.1 | — |
-| R51.2 | P1 | ○8.1 | — |
-| R51.3 | P1 | ○8.1 | — |
-| R51.4 | P1 | ○8.1 | — |
-| R51.5 | P1 | ○8.1 | — |
-| R51.6 | P1 | ○8.1 | — |
-| R51.7 | P1 | ○8.1 | — |
-| R52.1 | P1 plan | ○8.1; ✓4.11 | — |
-| R52.2 | P1 plan | ○8.1 | test-workspace-tests |
-| R52.3 | P1 plan | ○8.1 | — |
-| R52.4 | P1 plan | ○8.1 | — |
-| R52.5 | P1 plan | ○8.1; ✓4.11 | — |
+| R51.1 | P1 | ✓8.1 | — |
+| R51.2 | P1 | ✓8.1 | — |
+| R51.3 | P1 | ✓8.1 | — |
+| R51.4 | P1 | ✓8.1 | — |
+| R51.5 | P1 | ✓8.1 | — |
+| R51.6 | P1 | ✓8.1 | — |
+| R51.7 | P1 | ✓8.1 | — |
+| R52.1 | P1 plan | ✓4.11; ✓8.1 | — |
+| R52.2 | P1 plan | ✓8.1 | test-workspace-tests |
+| R52.3 | P1 plan | ✓8.1 | — |
+| R52.4 | P1 plan | ✓8.1 | — |
+| R52.5 | P1 plan | ✓4.11; ✓8.1 | — |
 | R53.1 | P3 | ○19.5 | — |
 | R53.2 | P3 | ○19.5 | — |
 | R53.3 | P3 | ○19.5 | — |
@@ -1237,7 +1237,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R57.5 | P1 | ✓2.2 | check-static-checks |
 | R58.1 | P1 | ✓1.1 | check-static-checks; test-host-build; test-target-build; +1 |
 | R58.2 | P1 | ✓1.3 | check-post-build |
-| R58.3 | P1 | ○8.1 | — |
+| R58.3 | P1 | ✓8.1 | — |
 | R58.4 | P1 | ✓1.1 | check-network-sandbox; check-static-checks; test-host-build; +2 |
 | R58.5 | P1 | ✓1.3 | check-post-build |
 | R59.1 | P2 | ✓1.3 | test-target-build |

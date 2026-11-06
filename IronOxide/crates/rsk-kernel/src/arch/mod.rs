@@ -53,6 +53,7 @@ pub const fn placeholder_kernel<const NT: usize, const NR: usize, const NP: usiz
             last_due: [0; NT],
             deferred_until: [0; NT],
             masked: [false; NT],
+            mask_until: [0; NT],
             due: [0; NT],
             job_due: [0; NT],
         },

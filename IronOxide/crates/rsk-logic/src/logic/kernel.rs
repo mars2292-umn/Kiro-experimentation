@@ -63,8 +63,28 @@
 //! lemmas `lemma_kept_trans`, `lemma_periodic_served_trans`, and
 //! `lemma_periodic_served_rebase` over the two loops of `timer_event`.
 //!
-//! Not stated here: the interrupt-source bound of Property 9. The
-//! responses that `timer_event` and `intake` apply
+//! Property 9 (task 4.6 follow-up, 2026-11-05; R19.1). Every event that
+//! reaches `intake` is recorded as an `ST_INTAKE` step, effective when
+//! the source was unmasked at entry (the hardware delivers from an
+//! enabled vector only; a Release_Signal raise or a stale event from a
+//! masked source is recorded as such and never counts). Every outcome of
+//! an intake, acceptance, deferral, discard, or the R9.9 refusal, masks
+//! the source for one MIT from the event (`Timing::mask_until`), and the
+//! mask is lifted only once that instant has passed (`end_mit_window` at
+//! the Job's end, or the unmask slot). `inv` carries `intakes_linked`:
+//! every effective intake is either one MIT old or still covered by its
+//! source's mask; `record` turns it into `intakes_spaced` of the history,
+//! and `history::lemma_intake_count_bound` reads the count back: between
+//! two effective intakes of a source with `n` effective intakes between
+//! them, at least `(n - 1)` MITs elapse, so a half-open window of length
+//! `T` holds at most `ceil(T / MIT)` entries of that source, each one
+//! `Delta_irq` (R19.1). The hardware half, that the NVIC delivers an
+//! intake only from an enabled vector and that `apply_core` enables a
+//! source's vector exactly when it is unmasked and its Partition not
+//! stopped, is Kernel_Arch (Verification_Plan section 4, A13).
+//!
+//! Not stated here: nothing further of Properties 7 to 9 at the logic
+//! level. The responses that `timer_event` and `intake` apply
 //! (deadline miss, Overrun, MIT_Violation threshold) go through
 //! `apply_response` and so satisfy R14.9 relative to the state in which
 //! each is applied.
@@ -86,7 +106,7 @@ use super::log::{Event, Log, EV_BOOT_CHECK, EV_BUSFAULT, EV_DEBUGGER, EV_MEMMANA
     EV_OVERRUN, EV_PARTITION_RESTART, EV_PARTITION_STOP, EV_RELEASE_OVERLAP, EV_RESOURCE_RELEASED, EV_SAFE_STATE,
     EV_API_MISUSE};
 // Spec and proof items of `history` are named by path: ghost erasure removes them from the stable build.
-use super::history::{Step, ST_DISPATCH, ST_END, ST_KILL, ST_LOCK, ST_RELEASE, ST_UNLOCK};
+use super::history::{Step, ST_DISPATCH, ST_END, ST_INTAKE, ST_KILL, ST_LOCK, ST_RELEASE, ST_UNLOCK};
 use super::sched::{Sched, JOB_KILLED, JOB_NONE, JOB_RUNNING, REL_DEFERRED, REL_NONE, REL_PENDING};
 use super::time::{Slots, Timing, INTAKE_ACCEPT, INTAKE_DEFER, SLOT_BUDGET, SLOT_DEADLINE, SLOT_DEFER, SLOT_END, SLOT_UNMASK,
     SLOT_HOUSEKEEPING, SLOT_RELEASE};
@@ -1128,6 +1148,82 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 && self.timing.deferred_until[u] as int == self.timing.last_due[u] as int + cfg.tasks[u].period as int
         // Every armed release slot is its Periodic_Task's own (Property 7's link, 2026-11-05).
         &&& self.release_slots_consistent(cfg)
+        // Property 9's link (R19.1, 2026-11-05): every effective intake is
+        // either one MIT old or still covered by its source's mask.
+        &&& self.intakes_linked(cfg)
+    }
+
+    /// Property 9's link from the history to the mask (R19.1, DD-06): for
+    /// every effective intake of Sporadic_Task `t` recorded at instant `a`,
+    /// either one MIT has elapsed since `a`, or the source is masked with
+    /// the mask lasting to at least `a + MIT`. An intake records itself
+    /// masked for one MIT (`intake_release`), the mask is lifted only once
+    /// `mask_until` has passed (`end_mit_window`, the unmask slot), and the
+    /// instant only grows: so a source whose mask is lifted has had no
+    /// effective intake for one MIT, which `record` turns into
+    /// `intakes_spaced` over the run (`lemma_intake_spacing_over_run`).
+    pub open spec fn intakes_linked(&self, cfg: &Config<NT, NR, NP>) -> bool {
+        forall|t: int, k: int| 0 <= t < NT && #[trigger] super::history::intake_step_in(self.history@, k, t)
+            ==> self.now as int >= self.history@[k].at + cfg.tasks[t].period as int
+                || (self.timing.masked[t] && self.timing.mask_until[t] as int >= self.history@[k].at + cfg.tasks[t].period as int)
+    }
+
+    /// `intakes_linked` after the source of `t` is masked for one MIT from
+    /// now, from a state `m0` that satisfied `inv` with the same instant,
+    /// the same history (or that history with one step that is no intake),
+    /// and the other sources' masks unchanged.
+    pub proof fn lemma_intakes_linked_after_mask(m0: &Self, cur: &Self, cfg: &Config<NT, NR, NP>, t: int)
+        requires m0.inv(cfg), 0 <= t < NT, cur.now == m0.now,
+            cur.history_extends(m0), cur.history@.len() <= m0.history@.len() + 1,
+            cur.history@.len() > m0.history@.len() ==> cur.history@[m0.history@.len() as int].kind != ST_INTAKE,
+            cur.timing.masked[t], cur.timing.mask_until[t] as int >= cur.now as int + cfg.tasks[t].period as int,
+            forall|u: int| 0 <= u < NT && u != t ==> cur.timing.masked[u] == m0.timing.masked[u] && cur.timing.mask_until[u] == m0.timing.mask_until[u],
+        ensures cur.intakes_linked(cfg),
+    {
+        assert forall|u: int, k: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(cur.history@, k, u)
+            implies cur.now as int >= cur.history@[k].at + cfg.tasks[u].period as int
+                || (cur.timing.masked[u] && cur.timing.mask_until[u] as int >= cur.history@[k].at + cfg.tasks[u].period as int) by {
+            assert(k < m0.history@.len());
+            assert(cur.history@[k] == m0.history@[k]);
+            assert(super::history::intake_step_in(m0.history@, k, u));
+            if u == t {
+                super::history::lemma_step_at_bounded(m0.history@, cfg, m0.now as int, k);
+            }
+        }
+    }
+
+    /// `intakes_linked` after the mask of `t` is lifted (or left) at an
+    /// instant at or past `mask_until`, nothing else changed.
+    pub proof fn lemma_intakes_linked_unmask(&self, before: &Self, cfg: &Config<NT, NR, NP>, t: int)
+        requires before.intakes_linked(cfg), 0 <= t < NT, self.now == before.now, self.history@ == before.history@,
+            self.timing.mask_until == before.timing.mask_until,
+            forall|u: int| 0 <= u < NT && u != t ==> self.timing.masked[u] == before.timing.masked[u],
+            !self.timing.masked[t] ==> before.timing.masked[t] ==> self.now >= before.timing.mask_until[t],
+        ensures self.intakes_linked(cfg),
+    {
+        assert forall|u: int, k: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(self.history@, k, u)
+            implies self.now as int >= self.history@[k].at + cfg.tasks[u].period as int
+                || (self.timing.masked[u] && self.timing.mask_until[u] as int >= self.history@[k].at + cfg.tasks[u].period as int) by {
+            assert(super::history::intake_step_in(before.history@, k, u));
+        }
+    }
+
+    /// An effective intake of `t` finds every earlier effective intake of
+    /// `t` one MIT old: the source was unmasked at `m0`, so `intakes_linked`
+    /// leaves only that disjunct; `cur` may have recorded one step since.
+    pub proof fn lemma_intake_entry_spaced(m0: &Self, cur: &Self, cfg: &Config<NT, NR, NP>, t: int)
+        requires m0.inv(cfg), 0 <= t < NT, !m0.timing.masked[t], cur.now == m0.now,
+            cur.history_extends(m0), cur.history@.len() <= m0.history@.len() + 1,
+            cur.history@.len() > m0.history@.len() ==> cur.history@[m0.history@.len() as int].kind != ST_INTAKE,
+        ensures forall|k: int| 0 <= k < cur.history@.len() && #[trigger] cur.history@[k].kind == ST_INTAKE && cur.history@[k].task == t && cur.history@[k].arg < 8
+            ==> cur.history@[k].at + cfg.tasks[t].period as int <= cur.now as int,
+    {
+        assert forall|k: int| 0 <= k < cur.history@.len() && #[trigger] cur.history@[k].kind == ST_INTAKE && cur.history@[k].task == t && cur.history@[k].arg < 8
+            implies cur.history@[k].at + cfg.tasks[t].period as int <= cur.now as int by {
+            assert(k < m0.history@.len());
+            assert(cur.history@[k] == m0.history@[k]);
+            assert(super::history::intake_step_in(m0.history@, k, t));
+        }
     }
 
     /// The step `record` would append now.
@@ -1199,8 +1295,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Erased from the Flight_Build; the `Ghost` assignment has no
     /// executable effect.
     fn record(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: Ghost<int>, arg: Ghost<int>)
-        requires old(self).inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_KILL, 0 <= task@ < NT, 0 <= arg@,
+        requires old(self).inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_INTAKE, 0 <= task@ < NT, 0 <= arg@,
             (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg@ < NR,
+            // Property 9 (R19.1): an effective intake is recorded with its
+            // source masked for one MIT from now, one MIT after every
+            // earlier effective intake of the Task.
+            kind == ST_INTAKE && arg@ < 8
+                ==> old(self).timing.masked[task@]
+                    && old(self).timing.mask_until[task@] as int >= old(self).now as int + cfg.tasks[task@].period as int
+                    && forall|k: int| 0 <= k < old(self).history@.len() && #[trigger] old(self).history@[k].kind == ST_INTAKE
+                        && old(self).history@[k].task == task@ && old(self).history@[k].arg < 8
+                        ==> old(self).history@[k].at + cfg.tasks[task@].period as int <= old(self).now as int,
             // The lock change since the last step is the one this kind reports.
             super::history::step_rel(old(self).locks_recorded(), old(self).step_now(kind, task@, arg@)),
             // The top follows from the last recorded one by this kind (task 4.12).
@@ -1231,6 +1336,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(super::history::step_wf(s, cfg));
             let p = self.history@.push(s);
             assert(super::history::locks_before(p, self.history@.len() as int) == self.locks_recorded());
+            assert(super::history::intake_spaced_after(self.history@, s, cfg));
             super::history::lemma_history_push(self.history@, s, cfg, self.now as int);
         }
         let ghost before = *self;
@@ -1238,6 +1344,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             let h = before.history@;
             let p = self.history@;
+            // Property 9's link holds of the extended history: the old
+            // intakes by the old link (nothing else changed), the new step
+            // by this record's requires when it is an effective intake.
+            assert forall|u: int, k: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(p, k, u)
+                implies self.now as int >= p[k].at + cfg.tasks[u].period as int
+                    || (self.timing.masked[u] && self.timing.mask_until[u] as int >= p[k].at + cfg.tasks[u].period as int) by {
+                if k < h.len() {
+                    assert(p[k] == h[k]);
+                    assert(super::history::intake_step_in(h, k, u));
+                } else {
+                    assert(p[k] == s);
+                }
+            }
             let has_last = self.timing.has_last;
             let last_due = self.timing.last_due;
             assert forall|u: int| 0 <= u < NT implies #[trigger] Self::release_match_in(p, has_last, last_due, cfg, u) by {
@@ -1317,6 +1436,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 assert(cfg.slot_ok(u));
             }
             assert(k.release_slots_consistent(cfg));
+            assert forall|u: int, j: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(k.history@, j, u) implies false by {}
         }
         k
     }
@@ -1352,6 +1472,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 super::history::lemma_history_later(self.history@, cfg, self.now as int, now as int);
             }
             self.now = now;
+            proof {
+                // Property 9's link: a later instant keeps every effective intake one MIT old or masked.
+                assert forall|u: int, k: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(self.history@, k, u)
+                    implies self.now as int >= self.history@[k].at + cfg.tasks[u].period as int
+                        || (self.timing.masked[u] && self.timing.mask_until[u] as int >= self.history@[k].at + cfg.tasks[u].period as int) by {
+                    assert(super::history::intake_step_in(old(self).history@, k, u));
+                }
+            }
         }
     }
 
@@ -1628,7 +1756,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             assert(cfg.task_ok(t as int));
         }
-        let end = self.timing.last_due[t as usize] + cfg.tasks[t as usize].period;
+        let end = self.timing.mask_until[t as usize];
         if end > cfg.operating_duration { cfg.operating_duration } else { end }
     }
 
@@ -1646,7 +1774,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).timing.has_last == old(self).timing.has_last, final(self).timing.last_due == old(self).timing.last_due,
             final(self).timing.k == old(self).timing.k, final(self).timing.nominal == old(self).timing.nominal,
             final(self).timing.deferred_until == old(self).timing.deferred_until, final(self).timing.due == old(self).timing.due,
-            final(self).timing.job_due == old(self).timing.job_due,
+            final(self).timing.job_due == old(self).timing.job_due, final(self).timing.mask_until == old(self).timing.mask_until,
             forall|j: int| 0 <= j < NS && j != cfg.slot_deadline[t as int] ==> final(self).slots.slots[j] == old(self).slots.slots[j],
             final(self).slots.armed(cfg.slot_deadline[t as int] as int)
                 ==> final(self).slots.slots[cfg.slot_deadline[t as int] as int].kind == SLOT_UNMASK,
@@ -1657,6 +1785,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
         let now = self.now;
         let unmasked = self.timing.try_unmask(cfg, t, now, true);
+        proof {
+            // Property 9's link: the mask is lifted only once `mask_until`
+            // has passed, so every effective intake of t is one MIT old.
+            self.lemma_intakes_linked_unmask(old(self), cfg, t as int);
+        }
         if !unmasked && self.sched.release[t as usize] == REL_NONE {
             let at = self.unmask_instant(cfg, t);
             let ghost before = *self;
@@ -1768,7 +1901,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         &&& old.intake_active(cfg, t, n) && old.mit_defers(cfg, t, n)
             ==> exists|d: Self| #[trigger] d.deferred(old, cfg, t) && self.violation_applied(&d, cfg, source_partition, t)
         &&& old.intake_active(cfg, t, n) && !old.mit_accepts(cfg, t, n) && !old.mit_defers(cfg, t, n)
-            ==> self.timing == old.timing && self.violation_applied(old, cfg, source_partition, t)
+            ==> exists|d: Self| #[trigger] d.unchanged_but_log_and_mask(old, t) && self.violation_applied(&d, cfg, source_partition, t)
         &&& self.mit_spaced(old, cfg)
     }
 
@@ -1811,6 +1944,37 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
     }
 
+    /// Records the intake step of Property 9 (R19.1) from the state after
+    /// the source of `t` was masked for one MIT from now: `m0` is the state
+    /// at entry (after the observation), whose history this state extends
+    /// by at most the Release step; `outcome` is the step's `arg`.
+    fn record_intake(&mut self, cfg: &Config<NT, NR, NP>, t: u8, m0: Ghost<&Self>, outcome: Ghost<int>)
+        requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
+            m0@.inv(cfg), old(self).now == m0@.now, 0 <= outcome@ < 16,
+            old(self).history_extends(m0@), old(self).history@.len() <= m0@.history@.len() + 1,
+            old(self).history@.len() > m0@.history@.len() ==> old(self).history@[m0@.history@.len() as int].kind != ST_INTAKE,
+            outcome@ < 8 ==> !m0@.timing.masked[t as int],
+            old(self).timing.masked[t as int],
+            old(self).timing.mask_until[t as int] as int >= old(self).now as int + cfg.tasks[t as int].period as int,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).history@ == old(self).history@.push(old(self).step_now(ST_INTAKE, t as int, outcome@)),
+            final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
+            final(self).budget == old(self).budget, final(self).log == old(self).log, final(self).stopped == old(self).stopped,
+            final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
+            final(self).started == old(self).started, final(self).now == old(self).now,
+            final(self).reinit_partition == old(self).reinit_partition, final(self).stop_dma == old(self).stop_dma,
+    {
+        proof {
+            assert(cfg.task_ok(t as int));
+            self.lemma_release_match_kept(old(self), cfg, -1);
+            self.lemma_top_kept(old(self), cfg);
+            if outcome@ < 8 {
+                Self::lemma_intake_entry_spaced(m0@, old(self), cfg, t as int);
+            }
+        }
+        self.record(cfg, ST_INTAKE, Ghost(t as int), outcome);
+    }
+
     /// The Release_Source event of Sporadic_Task `t` taken in from the
     /// current state: the MIT decision of R10.1 to R10.3 and its record.
     fn intake_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64)
@@ -1846,12 +2010,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             old(self).intake_active(cfg, t as int, Self::observed(old(self).now, now))
                 && !old(self).mit_accepts(cfg, t as int, Self::observed(old(self).now, now))
                 && !old(self).mit_defers(cfg, t as int, Self::observed(old(self).now, now))
-                ==> final(self).timing == old(self).timing
-                    && final(self).violation_applied(old(self), cfg, source_partition as int, t as int),
+                ==> exists|d: Self| #[trigger] d.unchanged_but_log_and_mask(old(self), t as int)
+                    && final(self).violation_applied(&d, cfg, source_partition as int, t as int),
             final(self).mit_spaced(old(self), cfg),
     {
         self.observe(cfg, now);
         let now = self.now;
+        // Property 9 (R19.1): the entry's own record. The source was
+        // unmasked at entry for an effective intake (the hardware delivers
+        // from an enabled vector only); a Release_Signal raise, or an event
+        // from a masked source, is recorded with `was_masked`.
+        let ghost m0 = *self;
+        let ghost was_masked: int = if self.timing.masked[t as int] { 8 } else { 0 };
         proof {
             assert(cfg.slot_ok(t as int));
             assert(cfg.task_ok(t as int));
@@ -1864,7 +2034,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // R9.9: the Job could not complete within the operating duration,
             // and neither could any later one: the source is masked for good
             // (DD-06, R19.1), else a level no Job clears re-enters at once.
-            self.timing.mask(cfg, t);
+            self.timing.mask(cfg, t, now);
+            proof {
+                Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
+            }
+            self.record_intake(cfg, t, Ghost(&m0), Ghost(3 + was_masked));
             return;
         }
         let release_none = self.sched.release[t as usize] == REL_NONE;
@@ -1881,8 +2055,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.lemma_release_match_kept(old(self), cfg, t as int);
                 self.lemma_release_spaced(old(self), cfg, t as int, now as int);
                 self.lemma_top_kept(old(self), cfg);
+                Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
             }
             self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(now as int));
+            self.record_intake(cfg, t, Ghost(&m0), Ghost(0 + was_masked));
         } else {
             if d == INTAKE_DEFER && release_none {
                 proof {
@@ -1893,7 +2069,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     assert(self.timing.has_last[t as int]);
                     assert(cfg.tasks[t as int].mit_policy == MIT_DEFER);
                 }
-                let at = self.timing.defer(cfg, t);
+                let at = self.timing.defer(cfg, t, now);
                 let at = if at > cfg.operating_duration { cfg.operating_duration } else { at };
                 self.sched.defer(cfg, t);
                 let ghost before = *self;
@@ -1907,6 +2083,21 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     }
                     Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_release[t as int] as int);
                 }
+                proof {
+                    Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
+                }
+                self.record_intake(cfg, t, Ghost(&m0), Ghost(1 + was_masked));
+            } else {
+                // R10.2 (discard policy) and R10.3: the event is discarded.
+                // Property 9 (R19.1): the source is masked for one MIT all the
+                // same, else a level-triggered source with a Release pending
+                // re-enters at once, each entry a discard (the window of a
+                // Job past its deadline under a continue response).
+                self.timing.mask(cfg, t, now);
+                proof {
+                    Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
+                }
+                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));
             }
             // The violation may trip the threshold and stop or restart the
             // Partition, which then suppresses the Release just deferred.
@@ -1919,8 +2110,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     assert(before.deferred(old(self), cfg, t as int)
                         && self.violation_applied(&before, cfg, source_partition as int, t as int));
                 } else {
-                    assert(before.unchanged_but_log(old(self)));
-                    self.lemma_violation_rebase(&before, old(self), cfg, source_partition as int, t as int);
+                    assert(before.unchanged_but_log_and_mask(old(self), t as int));
+                    assert(before.unchanged_but_log_and_mask(old(self), t as int)
+                        && self.violation_applied(&before, cfg, source_partition as int, t as int));
                 }
             }
         }
@@ -2240,7 +2432,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 proof {
                     Self::lemma_consistent_disarm(old(self), self, cfg, i as int);
                 }
-                self.timing.unmask(cfg, t);
+                // Property 9 (R19.1): the slot was armed for `mask_until` or the
+                // operating duration, whichever is earlier; the mask is lifted
+                // only once `mask_until` has passed.
+                if self.now >= self.timing.mask_until[t as usize] {
+                    let ghost before_unmask = *self;
+                    self.timing.unmask(cfg, t);
+                    proof {
+                        self.lemma_intakes_linked_unmask(&before_unmask, cfg, t as int);
+                    }
+                }
                 proof {
                     Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
                 }
