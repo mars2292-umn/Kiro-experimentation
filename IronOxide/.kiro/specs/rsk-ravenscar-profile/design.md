@@ -531,8 +531,8 @@ Each property names the evidence that establishes it. "Proof" means Verus, which
 **Validates: Requirements 25.5, 31.8, 33.2** · Evidence: PBT
 
 ### Property 16: RTA computes the least fixed point
-*For any* Task_Model and timing inputs, the Analyzer terminates. It returns the least fixed point of the R29.1 recurrence, a not-schedulable verdict once the iterate exceeds D_i, or an overflow error.
-**Validates: Requirements 29.1, 29.6, 29.7, 32.1** · Evidence: Verus
+*For any* Task_Model and timing inputs, the Analyzer terminates. It returns the least fixed point of the R29.1 recurrence, a not-schedulable verdict once the iterate exceeds D_i, or an overflow error. The terms of the recurrence are the requirement's: B_i, O_i, E_j, and L_j as R29.2 to R29.4 state them from the Task_Model's Priorities, Ceilings, Budgets, Overrun_Responses, and Critical_Section WCETs, the ticks rounded as R29.8 states, the term list every Task of hep(i) by its Jobs and every lower-Priority Sporadic_Task by the intake of its Release_Source (R19.2), and an overflow of any term reported rather than saturated (since 2026-11-06, `rsk-analyzer::terms`).
+**Validates: Requirements 19.2, 29.1, 29.2, 29.3, 29.4, 29.6, 29.7, 29.8, 32.1** · Evidence: Verus
 
 ### Property 17: RTA monotonicity and locality
 *For any* Task_Model, increasing a Budget, WCET, blocking term, jitter, or Kernel_Timing_Parameter, or decreasing a period or MIT, never decreases a WCRT. Changing a lower-priority Task that shares no relevant Resource changes Task i's WCRT by at most its Kernel overhead terms.

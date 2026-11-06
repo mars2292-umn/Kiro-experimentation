@@ -1,12 +1,16 @@
 //! Analyzer inputs (R28): the Task_Model, the WCET_Record set, the
 //! Kernel_Timing_Parameters and the Build_Manifest, each validated against
 //! its schema (R28.1) and cross-checked (R28.2 to R28.8); then the terms
-//! of the response-time analysis (R29.2 to R29.4, R29.8) in CPU cycles.
+//! of the response-time analysis (R29.2 to R29.4, R29.8) in CPU cycles,
+//! derived by the verified `terms` module from the resolved values this
+//! module takes out of the Task_Model (2026-11-06).
 
 use std::collections::BTreeMap;
 
 use rsk_model::task_model::{Task, TaskModel};
 use rsk_model::{KernelTiming, WcetRecord, WcetSet};
+
+use crate::terms;
 
 /// Why an input was rejected (exit status 2, R30.4).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,18 +43,6 @@ pub struct Options {
     pub prefer_method: Option<String>,
 }
 
-/// Rounding directions of R29.8.
-fn ticks_to_cycles_down(ticks: u64, tick_hz: u64, cpu_hz: u64) -> Option<u64> {
-    let v = (ticks as u128) * (cpu_hz as u128) / (tick_hz as u128);
-    u64::try_from(v).ok()
-}
-
-fn ticks_to_cycles_up(ticks: u64, tick_hz: u64, cpu_hz: u64) -> Option<u64> {
-    let num = (ticks as u128) * (cpu_hz as u128);
-    let den = tick_hz as u128;
-    u64::try_from(num.div_ceil(den)).ok()
-}
-
 /// One analysed Task with every term of R29.1 in CPU cycles.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnalysedTask {
@@ -72,6 +64,10 @@ pub struct AnalysedTask {
     pub j: u64,
     /// E_i: the interference bound this Task imposes on lower ones (R29.4).
     pub e: u64,
+    /// The intake cost of the Task's Release_Source per MIT (Δ_irq for a
+    /// Sporadic_Task, 0 for a Periodic_Task): interference on every Task
+    /// its Jobs cannot preempt (R19.2).
+    pub intake: u64,
     pub stops_overruns: bool,
     /// A Sporadic_Task (its period is the MIT), for the UPPAAL release generator (R31.2).
     pub sporadic: bool,
@@ -260,34 +256,48 @@ pub fn prepare(
         return Err(rejections);
     }
     let ktp = |s: &str| timing.get(s).unwrap_or(0);
-    let delta_release = ktp("delta_release");
-    let delta_dispatch = ktp("delta_dispatch");
-    let delta_complete = ktp("delta_complete");
-    let delta_wake = ktp("delta_wake");
-    let delta_timer = ktp("delta_timer");
-    let delta_fp_save = ktp("delta_fp_save");
-    let delta_fp_restore = ktp("delta_fp_restore");
-    let delta_lock = ktp("delta_lock_in").saturating_add(ktp("delta_lock_out"));
-    let delta_detect = ktp("delta_detect");
-    let delta_enforce = ktp("delta_enforce");
-    let delta_hm = ktp("delta_hm");
-    let delta_irq = ktp("delta_irq");
-    let delta_stamp = ktp("delta_stamp");
+    // The Kernel_Timing_Parameters of Table 13-1 the terms use (R29.3).
     // Δ_entry (R13.6, measured by the cycle test of 11.11): the cycles a
     // Kernel entry charges the Job it interrupts; charged once per Job
     // instance, so that every interfering instance carries it.
-    let delta_entry = ktp("delta_entry");
-    let l_kernel = ktp("l_kernel");
-    let j_rel = ktp("j_rel");
-    let delta_restart = ktp("delta_restart");
-    let delta_stop = ktp("delta_stop");
+    let params = terms::Params {
+        release: ktp("delta_release"),
+        dispatch: ktp("delta_dispatch"),
+        complete: ktp("delta_complete"),
+        wake: ktp("delta_wake"),
+        timer: ktp("delta_timer"),
+        fp_save: ktp("delta_fp_save"),
+        fp_restore: ktp("delta_fp_restore"),
+        lock_in: ktp("delta_lock_in"),
+        lock_out: ktp("delta_lock_out"),
+        detect: ktp("delta_detect"),
+        enforce: ktp("delta_enforce"),
+        hm: ktp("delta_hm"),
+        irq: ktp("delta_irq"),
+        stamp: ktp("delta_stamp"),
+        entry: ktp("delta_entry"),
+        l_kernel: ktp("l_kernel"),
+        j_rel: ktp("j_rel"),
+        restart: ktp("delta_restart"),
+        stop: ktp("delta_stop"),
+    };
+    if tick_hz == 0 {
+        return Err(vec![reject("R29.8", "the Task_Model's tick_hz is 0: no clock ratio")]);
+    }
 
     let any_fpu = model.tasks.iter().any(|t| t.fpu);
     let partition_of: BTreeMap<&str, &rsk_model::task_model::Partition> = model.partitions.iter().map(|p| (p.id.as_str(), p)).collect();
+    let partition_index: BTreeMap<&str, u32> = model.partitions.iter().enumerate().map(|(i, p)| (p.id.as_str(), i as u32)).collect();
 
-    // Critical_Section WCETs per Task (R29.2) and Task entry WCETs (R28.2, R28.4).
-    let mut tasks = Vec::new();
-    for t in &model.tasks {
+    // The resolved inputs of the term derivation: each Task (R29.1's C_i,
+    // its Priority and Partition, its Partition's Overrun_Response, its
+    // kind) and each Critical_Section site with its holder, the Ceiling of
+    // its Resource, and its WCET (R28.2, R28.4, R29.2).
+    let mut task_in = Vec::new();
+    let mut sites_in = Vec::new();
+    let mut site_names: Vec<String> = Vec::new();
+    let mut per_task = Vec::new();
+    for (index, t) in model.tasks.iter().enumerate() {
         let partition = partition_of.get(t.partition.as_str()).ok_or_else(|| vec![reject("R28.1", format!("Task `{}` names an unknown Partition", t.id))])?;
         let stops_overruns = partition.overrun != "RECORD_AND_CONTINUE";
         let mut provenance = Vec::new();
@@ -299,102 +309,71 @@ pub fn prepare(
                 format!("the WCET of Task `{}` ({} cycles) exceeds its Budget ({} cycles)", t.id, entry.wcet_cycles, t.budget_cycles),
             )]);
         }
-        let mut longest_cs = 0u64;
-        let mut cs_wcets: Vec<(String, u64)> = Vec::new();
         for site in &t.cs_sites {
             let r = pick(&usable, site, options).ok_or_else(|| vec![reject("R28.2", format!("no WCET_Record for Critical_Section site `{site}`"))])?;
             provenance.push(r.provenance());
-            longest_cs = longest_cs.max(r.wcet_cycles);
-            cs_wcets.push((site.clone(), r.wcet_cycles));
+            let resource_name = site.rsplit(':').next().unwrap_or("");
+            let res = model
+                .resources
+                .iter()
+                .find(|r| r.partition == t.partition && r.id.ends_with(&format!(".{resource_name}")))
+                .ok_or_else(|| vec![reject("R28.1", format!("Critical_Section site `{site}` names no Resource of Partition `{}`", t.partition))])?;
+            sites_in.push(terms::Site { task: index, ceiling: res.ceiling, wcet: r.wcet_cycles });
+            site_names.push(site.clone());
         }
-        let period_cycles = ticks_to_cycles_down(t.window_ticks(), tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("period overflow for `{}`", t.id))])?;
-        let deadline_cycles = ticks_to_cycles_down(t.deadline_ticks, tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("deadline overflow for `{}`", t.id))])?;
-        // O_i (R29.3): release, dispatch, completion and wake-up per Job; the
-        // timed events of the Task (release, Budget, deadline); FP save and
-        // restore when the Task or a preemptor uses the FPU; lock in/out
-        // per Critical_Section; interrupt intake for sporadic Tasks.
-        let timed_events = 1 + 1 + if t.is_periodic() || t.mit_policy.as_deref() == Some("defer") { 1 } else { 0 };
-        let mut o = delta_release
-            .saturating_add(delta_dispatch)
-            .saturating_add(delta_complete)
-            .saturating_add(delta_wake)
-            .saturating_add(delta_timer.saturating_mul(timed_events))
-            .saturating_add(delta_lock.saturating_mul(t.cs_sites.len() as u64))
-            .saturating_add(delta_hm)
-            .saturating_add(delta_entry);
-        if any_fpu {
-            o = o.saturating_add(delta_fp_save).saturating_add(delta_fp_restore);
-        }
-        if !t.is_periodic() {
-            o = o.saturating_add(delta_irq).saturating_add(delta_stamp);
-        }
-        // E_i (R29.4).
-        let budget = t.budget_cycles as u64;
-        let e = if stops_overruns {
-            budget.saturating_add(delta_detect).saturating_add(delta_enforce).saturating_add(longest_cs).saturating_add(o)
-        } else {
-            budget.saturating_add(o)
-        };
+        let period_cycles = terms::ticks_to_cycles_down(t.window_ticks(), tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("period overflow for `{}`", t.id))])?;
+        let deadline_cycles = terms::ticks_to_cycles_down(t.deadline_ticks, tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("deadline overflow for `{}`", t.id))])?;
+        task_in.push(terms::TaskIn {
+            priority: t.priority,
+            partition: *partition_index.get(t.partition.as_str()).unwrap_or(&u32::MAX),
+            budget: t.budget_cycles as u64,
+            stops_overruns,
+            periodic: t.is_periodic(),
+            defer: t.mit_policy.as_deref() == Some("defer"),
+        });
+        per_task.push((period_cycles, deadline_cycles, partition.level.clone(), provenance, entry.wcet_cycles));
+    }
+    // The terms (R29.2 to R29.4; `terms::derive_all`, proven): O_i, E_i,
+    // L_i, B_i with the site that attains it, and J_i = J_rel.
+    let derived = terms::derive_all(&task_in, &sites_in, params, any_fpu)
+        .ok_or_else(|| vec![reject("R29.6", "a term of the response-time analysis exceeds u64 (overflow)")])?;
+    let restart_work = params.restart.max(params.stop);
+    let floor_source = if restart_work > params.l_kernel { "Partition stop/restart work (R14.10)" } else { "L_kernel" };
+    let mut tasks = Vec::new();
+    for (i, t) in model.tasks.iter().enumerate() {
+        let d = derived[i];
+        let (period_cycles, deadline_cycles, level, provenance, wcet) = per_task[i].clone();
         tasks.push(AnalysedTask {
             id: t.id.clone(),
             partition: t.partition.clone(),
-            level: partition.level.clone(),
+            level,
             priority: t.priority,
             period_cycles,
             deadline_cycles,
-            c: budget,
-            b: 0,
-            b_source: String::new(),
-            o,
-            j: ticks_to_cycles_up(0, tick_hz, cpu_hz).unwrap_or(0).max(j_rel),
-            e,
-            stops_overruns,
+            c: task_in[i].budget,
+            b: d.b,
+            b_source: match d.b_site {
+                Some(k) => site_names[k].clone(),
+                None => floor_source.to_string(),
+            },
+            o: d.o,
+            j: d.j,
+            e: d.e,
+            intake: if t.is_periodic() { 0 } else { params.irq },
+            stops_overruns: task_in[i].stops_overruns,
             sporadic: !t.is_periodic(),
-            longest_cs,
+            longest_cs: d.longest_cs,
             wcet_provenance: provenance,
-            wcet: entry.wcet_cycles,
+            wcet,
         });
-        let _ = cs_wcets;
-    }
-    // B_i (R29.2): max of L_kernel and, over the Critical_Section sites of
-    // lower-Priority Tasks on Resources whose Ceiling is at least P_i, the
-    // site's WCET; for a site of another Partition that stops overrunning
-    // Jobs, Budget_l + Δ_detect + Δ_enforce. The Partition stop/restart
-    // work (R14.10) is included as a Kernel-level blocking term too.
-    let restart_work = delta_restart.max(delta_stop);
-    for i in 0..tasks.len() {
-        let ti = &model.tasks[i];
-        let mut b = l_kernel.max(restart_work);
-        let mut source = if restart_work > l_kernel { "Partition stop/restart work (R14.10)".to_string() } else { "L_kernel".to_string() };
-        for (l, tl) in model.tasks.iter().enumerate() {
-            if tl.priority >= ti.priority {
-                continue;
-            }
-            for site in &tl.cs_sites {
-                let resource_name = site.rsplit(':').next().unwrap_or("");
-                let Some(res) = model.resources.iter().find(|r| r.partition == tl.partition && r.id.ends_with(&format!(".{resource_name}"))) else { continue };
-                if res.ceiling < ti.priority {
-                    continue;
-                }
-                let site_wcet = pick(&usable, site, options).map(|r| r.wcet_cycles).unwrap_or(0);
-                let candidate = if tl.partition != ti.partition && tasks[l].stops_overruns {
-                    (tl.budget_cycles as u64).saturating_add(delta_detect).saturating_add(delta_enforce)
-                } else {
-                    site_wcet
-                };
-                if candidate > b {
-                    b = candidate;
-                    source = site.clone();
-                }
-            }
-        }
-        tasks[i].b = b;
-        tasks[i].b_source = source;
     }
     let mut omitted_terms = Vec::new();
     omitted_terms.push("Endpoint operations (Phase P4) are not modelled".to_string());
     if !any_fpu {
         omitted_terms.push("no FPU-using Task: Δ_fp_save and Δ_fp_restore are not charged".to_string());
+    }
+    if tasks.iter().any(|t| t.intake > 0) {
+        omitted_terms.push("the intake handling of a Sporadic_Task's Release_Source (R19.2, Δ_irq per MIT) interferes with every Task in the RTA; the UPPAAL model carries it only in E_j, on the Tasks the Task's Jobs preempt".to_string());
     }
     Ok(Prepared {
         tasks,
@@ -404,32 +383,23 @@ pub fn prepare(
     })
 }
 
-/// Interference terms for Task `i` (R29.1: every j in hep(i), j ≠ i).
-pub fn terms_for(tasks: &[AnalysedTask], i: usize) -> Vec<crate::rta::Term> {
-    tasks
+/// The terms of Task `i`'s recurrence, each with its origin
+/// (`terms::terms_for`, proven): every j in hep(i), j ≠ i, by its Jobs
+/// (R29.1), and every lower-Priority Sporadic_Task by its intake (R19.2).
+pub fn terms_for(tasks: &[AnalysedTask], i: usize) -> Vec<terms::TermOf> {
+    let interferers: Vec<terms::Interferer> = tasks
         .iter()
-        .enumerate()
-        .filter(|(j, t)| *j != i && t.priority >= tasks[i].priority)
-        .map(|(_, t)| crate::rta::Term {
-            jitter: t.j,
-            period: t.period_cycles.max(1),
-            bound: t.e,
-        })
-        .collect()
+        .map(|t| terms::Interferer { priority: t.priority, jitter: t.j, period: t.period_cycles.max(1), bound: t.e, intake: t.intake })
+        .collect();
+    terms::terms_for(&interferers, i)
 }
 
-/// R29.9: Σ E_j / T_j > 1 fails without iteration (checked in integer
-/// arithmetic as Σ E_j · Π T ... avoided: compared pairwise via u128).
+/// R29.9: Σ E_j / T_j > 1 fails without iteration (`terms::utilization_exceeds_one`,
+/// proven: the sum on the scale `terms::SCALE`, each term rounded up).
 pub fn utilization_exceeds_one(tasks: &[AnalysedTask]) -> bool {
-    // Σ E_j/T_j > 1  <=>  Σ (E_j · L / T_j) > L for L = lcm; use a common
-    // scale of 1e9 with u128 to avoid floating point.
-    const SCALE: u128 = 1_000_000_000;
-    let mut sum: u128 = 0;
-    for t in tasks {
-        let tp = t.period_cycles.max(1) as u128;
-        sum += (t.e as u128 * SCALE).div_ceil(tp);
-    }
-    sum > SCALE
+    let loads: Vec<terms::Load> = tasks.iter().map(|t| terms::Load { e: t.e, period: t.period_cycles.max(1) }).collect();
+    assert!(loads.len() < 1 << 32);
+    terms::utilization_exceeds_one(&loads)
 }
 
 /// Utilization in percent (rounded up), for the report.

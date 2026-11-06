@@ -23,6 +23,7 @@ fn task(i: usize) -> impl Strategy<Value = AnalysedTask> {
             o: 300,
             j,
             e: c + 300,
+            intake: 0,
             stops_overruns,
             sporadic,
             longest_cs: 0,

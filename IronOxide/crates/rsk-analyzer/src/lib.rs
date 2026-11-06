@@ -10,6 +10,7 @@ pub mod inputs;
 pub mod profile_version;
 pub mod report;
 pub mod rta;
+pub mod terms;
 pub mod uppaal;
 
 use rsk_model::report::{CrossCheck, Inputs, Interference, Profile, Report, TaskResult};
@@ -65,33 +66,32 @@ pub fn load(model: &str, wcet: &str, timing: &str, manifest: &str) -> Result<Loa
 }
 
 /// Runs the recurrence of R29.1 for every prepared Task (R29.5, R29.7,
-/// R29.9).
+/// R29.9), with the intake terms of R19.2.
 pub fn response_times(tasks: &[inputs::AnalysedTask]) -> Vec<Wcrt> {
     let mut out = Vec::new();
     for (i, t) in tasks.iter().enumerate() {
         let terms = inputs::terms_for(tasks, i);
+        let plain: Vec<rta::Term> = terms.iter().map(|t| t.term).collect();
         let base = t.c.saturating_add(t.b).saturating_add(t.o);
         let (w, schedulable, overflow) = if t.c.checked_add(t.b).and_then(|x| x.checked_add(t.o)).is_none() {
             (u64::MAX, false, true)
         } else {
-            match rta::fixpoint(base, &terms, t.j, t.deadline_cycles) {
+            match rta::fixpoint(base, &plain, t.j, t.deadline_cycles) {
                 rta::Outcome::Fixpoint(w) => (w, true, false),
                 rta::Outcome::NotSchedulable(w) => (w, false, false),
                 rta::Outcome::Overflow => (u64::MAX, false, true),
             }
         };
         let r = w.saturating_add(t.j);
-        let interference = tasks
+        let interference = terms
             .iter()
-            .enumerate()
-            .filter(|(j, u)| *j != i && u.priority >= t.priority)
-            .map(|(_, u)| {
-                let jobs = if overflow { 0 } else { (w.saturating_add(u.j)).div_ceil(u.period_cycles.max(1)) };
+            .map(|term| {
+                let jobs = if overflow { 0 } else { (w.saturating_add(term.term.jitter)).div_ceil(term.term.period) };
                 Interference {
-                    task: u.id.clone(),
-                    e_cycles: u.e,
+                    task: if term.intake { format!("{} (intake, R19.2)", tasks[term.task].id) } else { tasks[term.task].id.clone() },
+                    e_cycles: term.term.bound,
                     jobs,
-                    cycles: jobs.saturating_mul(u.e),
+                    cycles: jobs.saturating_mul(term.term.bound),
                 }
             })
             .collect();

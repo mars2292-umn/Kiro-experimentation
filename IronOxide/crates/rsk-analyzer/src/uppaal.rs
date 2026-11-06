@@ -304,8 +304,8 @@ mod tests {
     #[test]
     fn export_round_trips_the_parameters() {
         let tasks = vec![
-            AnalysedTask { id: "p.a".into(), partition: "p".into(), level: "A".into(), priority: 7, period_cycles: 1000, deadline_cycles: 900, c: 100, b: 20, b_source: "L_kernel".into(), o: 5, j: 3, e: 105, stops_overruns: true, sporadic: true, longest_cs: 10, wcet_provenance: vec![], wcet: 90 },
-            AnalysedTask { id: "p.b".into(), partition: "p".into(), level: "A".into(), priority: 5, period_cycles: 2000, deadline_cycles: 2000, c: 300, b: 0, b_source: "L_kernel".into(), o: 5, j: 3, e: 305, stops_overruns: true, sporadic: false, longest_cs: 0, wcet_provenance: vec![], wcet: 290 },
+            AnalysedTask { id: "p.a".into(), partition: "p".into(), level: "A".into(), priority: 7, period_cycles: 1000, deadline_cycles: 900, c: 100, b: 20, b_source: "L_kernel".into(), o: 5, j: 3, e: 105, intake: 0, stops_overruns: true, sporadic: true, longest_cs: 10, wcet_provenance: vec![], wcet: 90 },
+            AnalysedTask { id: "p.b".into(), partition: "p".into(), level: "A".into(), priority: 5, period_cycles: 2000, deadline_cycles: 2000, c: 300, b: 0, b_source: "L_kernel".into(), o: 5, j: 3, e: 305, intake: 0, stops_overruns: true, sporadic: false, longest_cs: 0, wcet_provenance: vec![], wcet: 290 },
         ];
         let (xml, q) = export(&tasks);
         assert!(q.contains("A[] not (T0.Missed || T1.Missed)"));

@@ -47,6 +47,7 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         o: 0,
         j: 0,
         e: c,
+        intake: 0,
         stops_overruns: false,
         sporadic: false,
         longest_cs: 0,
@@ -219,7 +220,7 @@ fn dev() -> Options {
 
 // ------------------------------------------------------------- R32.4
 
-/// A reference implementation of R29.1, R29.5, R29.7, and R29.9 written
+/// A reference implementation of R29.1 (with the intake terms of R19.2), R29.5, R29.7, and R29.9 written
 /// without the Analyzer's code: Tasks sorted by Priority, the recurrence
 /// evaluated as written, u128 arithmetic, iteration until the value repeats
 /// or passes the deadline.
@@ -241,6 +242,12 @@ fn reference_rta(tasks: &[AnalysedTask]) -> Vec<(String, u128, bool)> {
                 let p = u.period_cycles.max(1) as u128;
                 let jobs = (w + u.j as u128 + p - 1) / p;
                 next += jobs * u.e as u128;
+            }
+            // R19.2: the intake handling of a lower Sporadic_Task's source,
+            // once per MIT, with no jitter.
+            for u in order.iter().copied().filter(|u| u.priority < t.priority && u.intake > 0) {
+                let p = u.period_cycles.max(1) as u128;
+                next += ((w + p - 1) / p) * u.intake as u128;
             }
             if next == w {
                 break (w, true);

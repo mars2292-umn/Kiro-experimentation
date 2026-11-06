@@ -226,6 +226,7 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         o: 0,
         j: 0,
         e: c,
+        intake: 0,
         stops_overruns: false,
         sporadic: false,
         longest_cs: 0,
@@ -314,9 +315,9 @@ fn r29_2_blocking_is_the_longest_lower_priority_critical_section_with_a_ceiling_
     let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
     let by = |id: &str| p.tasks.iter().find(|x| x.id == id).unwrap();
     // control (P7) and echo (P6): sensor (P5) holds `state` (Ceiling 7) for
-    // its placeholder WCET, the Budget of 8.8 ms = 220,000 cycles.
-    assert_eq!((by("part0.control").b, by("part0.control").b_source.as_str()), (220_000, "part0.sensor#cs:state"));
-    assert_eq!(by("part0.echo").b, 220_000);
+    // its placeholder WCET, the Budget of 8.75 ms = 218,750 cycles.
+    assert_eq!((by("part0.control").b, by("part0.control").b_source.as_str()), (218_750, "part0.sensor#cs:state"));
+    assert_eq!(by("part0.echo").b, 218_750);
     // sensor itself and the Tasks below the Ceiling's reach with no lower
     // locker: the Kernel-level terms (L_kernel 2,000 or the stop/restart
     // work 5,000 of R14.10, whichever is larger).
@@ -372,6 +373,60 @@ fn r29_4_interference_bounds_depend_on_the_partition_overrun_response() {
     let log = by("part1.log");
     assert!(log.stops_overruns);
     assert_eq!(log.e, log.c + 300 + 300 + 0 + log.o);
+}
+
+#[test]
+fn r29_6_a_term_that_exceeds_u64_is_rejected_not_saturated() {
+    // Δ_release at u64::MAX: O_i of every Task exceeds u64, so `prepare`
+    // reports the overflow (R29.6) instead of a saturated term.
+    let m = model();
+    let (w, mut t) = placeholders::make(&m, HASH, "off");
+    t.parameters.iter_mut().find(|p| p.symbol == "delta_release").unwrap().cycles = u64::MAX;
+    assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "R29.6", "overflow");
+    // A lower Task's Budget + Δ_detect + Δ_enforce beyond u64 overflows B_i
+    // of the Tasks it blocks across Partitions (sampler's `stats` reaches
+    // log, R29.2), and nothing else.
+    let (w, mut t) = placeholders::make(&m, HASH, "off");
+    t.parameters.iter_mut().find(|p| p.symbol == "delta_detect").unwrap().cycles = u64::MAX - 100;
+    assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "R29.6", "overflow");
+}
+
+#[test]
+fn r28_1_a_critical_section_site_whose_resource_is_unknown_is_rejected_naming_it() {
+    // The Resource `part0.state` renamed in its declaration only: the sites
+    // `part0.control#cs:state` and `part0.sensor#cs:state` then name no
+    // Resource of part0; the first Task's site is reported.
+    let m = model_with("\"id\": \"part0.state\"", "\"id\": \"part0.stat3\"");
+    let (w, t) = placeholders::make(&m, HASH, "off");
+    assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "R28.1", "part0.control#cs:state");
+}
+
+#[test]
+fn r19_2_the_intake_of_a_lower_sporadic_task_interferes_with_every_task() {
+    let m = model();
+    let (w, t) = placeholders::make(&m, HASH, "off");
+    let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
+    let by = |id: &str| p.tasks.iter().position(|x| x.id == id).unwrap();
+    // echo (sporadic, P6) is below control (P7): control's recurrence
+    // carries echo's intake, ⌈w / MIT⌉ · Δ_irq (300 placeholder cycles per
+    // 500,000-cycle MIT), and nothing else of echo.
+    let control = inputs::terms_for(&p.tasks, by("part0.control"));
+    let echo_terms: Vec<_> = control.iter().filter(|x| x.task == by("part0.echo")).collect();
+    assert_eq!(echo_terms.len(), 1);
+    assert!(echo_terms[0].intake);
+    assert_eq!((echo_terms[0].term.jitter, echo_terms[0].term.period, echo_terms[0].term.bound), (0, 500_000, 300));
+    // sensor (P5) is below echo: echo is in hep(sensor) and interferes by
+    // its Jobs (E = Budget + O, the intake in O), not by a separate term.
+    let sensor = inputs::terms_for(&p.tasks, by("part0.sensor"));
+    let echo_terms: Vec<_> = sensor.iter().filter(|x| x.task == by("part0.echo")).collect();
+    assert_eq!(echo_terms.len(), 1);
+    assert!(!echo_terms[0].intake);
+    assert_eq!(echo_terms[0].term.bound, p.tasks[by("part0.echo")].e);
+    // A Periodic_Task has no intake term anywhere.
+    assert!(p.tasks.iter().filter(|x| !x.sporadic).all(|x| x.intake == 0));
+    let r = response_times(&p.tasks);
+    let control_r = r.iter().find(|x| x.id == "part0.control").unwrap();
+    assert!(control_r.interference.iter().any(|i| i.task == "part0.echo (intake, R19.2)" && i.e_cycles == 300 && i.jobs == 1));
 }
 
 // ------------------------------------------------------------- R29.8

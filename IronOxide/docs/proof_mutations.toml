@@ -257,3 +257,30 @@ find = "            // R16.2: the window against the Kernel peripheral intervals
 replace = "            // (mutant) a window over a Kernel peripheral interval passes the boot validation\n"
 expect = ["mpu.rs", "apart_from_kernel_windows"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "blocking-ignores-overrun-partition"
+kills = "R29.2's cross-Partition clause in the Analyzer's term derivation: a site of a lower Task of another Partition that stops overrunning Jobs must block for Budget_l + Δ_detect + Δ_enforce, not the site's WCET, else `blocking` no longer computes `spec_b`; 2026-11-06"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "            let c: u64 = if l.partition != ti.partition && l.stops_overruns {\n"
+replace = "            let c: u64 = if false { // (mutant) every site blocks for its WCET\n"
+expect = ["terms.rs", "candidate"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "overhead-drops-sporadic-intake"
+kills = "R29.3 and R19.2 in the Analyzer's term derivation: a Sporadic_Task's own Job carries Δ_irq + Δ_stamp, else `overhead` no longer computes `spec_o`; 2026-11-06"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    let irq_cost: u64 = if t.periodic {\n"
+replace = "    let irq_cost: u64 = if true { // (mutant) no intake cost for any Task\n"
+expect = ["terms.rs", "spec_o"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "interference-bound-ignores-overrun-response"
+kills = "R29.4 in the Analyzer's term derivation: a Task of a Partition that stops overrunning Jobs interferes for Budget + Δ_detect + Δ_enforce + L_j + O_j, else `interference_bound` no longer computes `spec_e`; 2026-11-06"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    if t.stops_overruns {\n        let s1 = match add(t.budget, p.detect)"
+replace = "    if false { // (mutant) every Task interferes for Budget + O\n        let s1 = match add(t.budget, p.detect)"
+expect = ["terms.rs", "spec_e"]
+package = "rsk-analyzer"
