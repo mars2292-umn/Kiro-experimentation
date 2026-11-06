@@ -12,7 +12,7 @@
     "cpu_hz": 64000000,
     "tick_hz": 16000000
   },
-  "config_checksum": "0x4afd2786",
+  "config_checksum": "0xfcf9e1c5",
   "layout_checksum": "0x6f688748",
   "operating_duration_ticks": 58560000000,
   "safe_state": "crate::report_and_exit",
@@ -400,7 +400,7 @@
       "period_ticks": 640000,
       "source": null,
       "deadline_ticks": 640000,
-      "budget_cycles": 384000,
+      "budget_cycles": 256000,
       "fpu": false,
       "resources": [],
       "raises": [],
@@ -497,7 +497,7 @@
       "period_ticks": 1600000,
       "source": null,
       "deadline_ticks": 1600000,
-      "budget_cycles": 32000,
+      "budget_cycles": 51200,
       "fpu": false,
       "resources": [
         "part2.stats"

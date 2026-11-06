@@ -54,7 +54,12 @@ rsk::app! {
         state pulse.count: u32 = 0;
         state log.loop_spin: u32 = 0;
         state log.loop_busy: u32 = 0;
-        task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
+        // Budget 4 ms here (6 in the plain demo; the Job's 3 ms wait measures
+        // 3.2 ms, and the injected 20 ms spins overrun any Budget): with the
+        // measured Kernel_Timing_Parameters the set's utilization passed
+        // 100 % at 6 ms and the Analyzer computed no WCRT at all; at 4 ms the
+        // fixed point exists and part0's WCRTs are the claim of task 19.4.
+        task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 4.ms(), priority = 2);
         task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
     }
@@ -84,7 +89,12 @@ rsk::app! {
         state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
-        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
+        // Budget 800 µs here (500 in the plain demo): the first Job of each
+        // incarnation starts the EasyDMA traffic scenario (task 19.2), which
+        // the restarts of this configuration repeat every 200 ms, and its
+        // measured record with the margin must stay within the Budget for
+        // the measured analysis to have a verdict (R28.4; task 19.4).
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 800.us(),
                       priority = 1, resources = [stats]);
     }
 }

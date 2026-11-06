@@ -259,7 +259,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 23,
+        total_steps: 24,
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -636,6 +636,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let cy_cmds = hil_cycles(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-cycles-step", "HIL cycle-attribution step", &["R18.1"], cy_cmds);
 
+    // ------------------------------------ 10b-cov. Structural coverage (R53)
+    job.heading("Structural coverage: the Kernel's host tests instrumented, the Partitions' on-target reports (task 19.5, R53.3)");
+    let cov_cmds = structural_coverage(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "coverage-step", "Structural coverage step", &["R53.3"], cov_cmds);
+
     // ------------------------------------------------ 10b'. App_Prover
     job.heading("App_Prover (Creusot, R46.3, R46.4)");
     let creusot_cmds = app_prover(&ws, &sandbox, &mut store, &manifest_id, creusot.as_ref(), &mut report);
@@ -997,13 +1002,13 @@ fn creusot_hil_members(dir: &Path) -> Vec<(String, String)> {
 
 #[cfg(test)]
 mod creusot_members_tests {
-    /// R46.3: the proof workspace's HIL-configuration members are the eleven (declaration variant, Partition features) pairs the rig builds (the measurement configurations' `measure` feature since task 19.2), each outside the default members, named by directory and package.
+    /// R46.3: the proof workspace's HIL-configuration members are the fifteen (declaration variant, Partition features) pairs the rig builds (the measurement configurations' `measure` feature since task 19.2, the plain measurement and floating-point cycle configurations since tasks 19.4 and 19.3), each outside the default members, named by directory and package.
     #[test]
-    fn hil_members_are_the_eleven_configurations_outside_the_defaults() {
+    fn hil_members_are_the_fifteen_configurations_outside_the_defaults() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
         let dirs: Vec<&str> = members.iter().map(|(d, _)| d.as_str()).collect();
-        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-stress", "part0-response", "part0-isolation", "part0-cycles", "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-isolation"]);
+        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-stress", "part0-measure", "part0-response", "part0-isolation", "part0-cycles", "part0-cycles-fpu", "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-measure", "part2-isolation", "part2-cycles-fpu"]);
         assert!(members.iter().all(|(d, p)| *p == format!("p1-demo-{d}-proof")));
     }
 }
@@ -1460,6 +1465,20 @@ fn hil_boot_checks(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_di
 /// the cycle configuration on the rig's target, judged by
 /// `rsk_hil::cycles` from the Kernel's record. Evidence_Item `hil-cycles`.
 fn hil_cycles(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    // The plain configuration (Δ_entry), then its floating-point variant
+    // (task 19.3: Δ_fp_save and Δ_fp_restore, `hil-cycles-fpu`).
+    let mut commands = hil_cycles_variant(ws, rig, target_dir, sandbox, store, manifest_id, report, false);
+    commands.extend(hil_cycles_variant(ws, rig, target_dir, sandbox, store, manifest_id, report, true));
+    commands
+}
+
+#[allow(clippy::too_many_arguments)]
+fn hil_cycles_variant(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report, fpu: bool) -> Vec<String> {
+    let (feature, variant, item_name, low, tolerance) = if fpu {
+        ("cycles-fpu", "nrf52840_cycles_fpu", "hil-cycles-fpu", rsk_hil::cycles::LOW_FPU, rsk_hil::cycles::TOLERANCE_PERCENT_FPU)
+    } else {
+        ("cycles", "nrf52840_cycles", "hil-cycles", rsk_hil::cycles::LOW, rsk_hil::cycles::TOLERANCE_PERCENT)
+    };
     let Some(rig) = rig else { return vec![] };
     let probes = match rsk_hil::probes::list() {
         Ok(p) => p,
@@ -1476,17 +1495,17 @@ fn hil_cycles(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &P
         report.error(Rule::Step, None, "HIL cycle-attribution test: no QEMU spike Application to build");
         return vec![];
     };
-    let features = format!("{},cycles", crate::hil::FEATURES);
-    let dir = target_dir.join("hil").join("cycles");
+    let features = format!("{},{feature}", crate::hil::FEATURES);
+    let dir = target_dir.join("hil").join(if fpu { "cycles-fpu" } else { "cycles" });
     let Some(target) = crate::hil::build_with(ws, &bin, &features, &dir, Some(sandbox), report) else {
         return vec![];
     };
     let work = dir.join("run");
-    let inputs = rsk_hil::cycles::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 40, tick_hz: crate::hil::TICK_HZ, cpu_hz: crate::hil::CPU_HZ };
+    let inputs = rsk_hil::cycles::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 40, tick_hz: crate::hil::TICK_HZ, cpu_hz: crate::hil::CPU_HZ, low, tolerance_percent: tolerance };
     let out = rsk_hil::cycles::run(&inputs);
     let text = rsk_hil::cycles::render(rig, &inputs, &out, &target.binary.hash);
     let mut artifacts = Vec::new();
-    if let Ok(name) = store.write_artifact("hil-cycles.md", &text) {
+    if let Ok(name) = store.write_artifact(&format!("{item_name}.md"), &text) {
         artifacts.push(name);
     }
     for st in &out.steps {
@@ -1497,9 +1516,9 @@ fn hil_cycles(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &P
         }
     }
     let mut item = Item::new(
-        "hil-cycles",
+        item_name,
         Kind::Test,
-        &format!("HIL cycle attribution (R18.1, ASM-06): the Budget accounting's executions of a preempted Task against an unpreempted one executing the same spin, on the cycle configuration of {} ({}; target {})", bin, target.binary.hash, rig.target.serial),
+        &format!("HIL cycle attribution (R18.1, ASM-06{}): the Budget accounting's executions of a preempted Task against an unpreempted one executing the same spin, on the {variant} configuration of {} ({}; target {})", if fpu { "; task 19.3, the FPU Task preempted: Δ_fp_save and Δ_fp_restore" } else { "" }, bin, target.binary.hash, rig.target.serial),
         Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
         Verdict::from_bool(out.ok()),
     )
@@ -2288,4 +2307,212 @@ fn clippy_version() -> String {
         .ok()
         .map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").trim().to_string())
         .unwrap_or_default()
+}
+
+/// Task 19.5 (R53.1, R53.3): the structural coverage reports the plan
+/// selects (section 14): the Kernel crates' host tests run under the
+/// coverage toolchain's source-level instrumentation with branch counters
+/// (`coverage-kernel-host`, llvm-cov's totals over the Kernel sources;
+/// skipped with a warning when the toolchain of `toolchain/decision.toml
+/// [coverage]` is not installed), and the Partitions' on-target reports of
+/// the measurement runs (`coverage-partitions-<variant>`, from the
+/// committed `docs/hil/coverage_<variant>.json`: per crate and per Task
+/// entry against the recorded threshold). Level A, B, and C code is the
+/// three Partition crates; the Kernel's on-target coverage stays GAP-02.
+fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    // (a) The Kernel on the host.
+    let mut host_report = Report::default();
+    match crate::hil::coverage_tools(&mut host_report) {
+        None => report.warn(format!("structural coverage: the coverage toolchain `{}` is not installed; the Kernel's host coverage was not measured (section 14)", crate::hil::COVERAGE_TOOLCHAIN)),
+        Some(tools) => {
+            let dir = target_dir.join("coverage-host");
+            let _ = std::fs::create_dir_all(&dir);
+            for f in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                if f.path().extension().and_then(|e| e.to_str()) == Some("profraw") {
+                    let _ = std::fs::remove_file(f.path());
+                }
+            }
+            let crates = ["rsk-logic", "rsk-kernel"];
+            let mut cmd = Cmd::cargo_frozen("test").args(["--quiet"]);
+            for c in crates {
+                cmd = cmd.args(["-p", c]);
+            }
+            let cmd = cmd
+                .arg("--manifest-path")
+                .arg(ws.root.join("Cargo.toml"))
+                .arg("--target-dir")
+                .arg(&dir)
+                .env("RUSTUP_TOOLCHAIN", crate::hil::COVERAGE_TOOLCHAIN)
+                // The job pins CARGO_ENCODED_RUSTFLAGS empty (which cargo
+                // takes over RUSTFLAGS), so the flags go in through it.
+                .env("CARGO_ENCODED_RUSTFLAGS", "-C\x1finstrument-coverage\x1f-Z\x1fcoverage-options=branch")
+                .env("LLVM_PROFILE_FILE", dir.join("%p-%m.profraw"));
+            commands.push(format!("RUSTUP_TOOLCHAIN={} RUSTFLAGS='-C instrument-coverage -Z coverage-options=branch' {}", crate::hil::COVERAGE_TOOLCHAIN, cmd.display()));
+            let tests_ok = match cmd.output(None) {
+                Ok(o) if o.status.success() => true,
+                Ok(o) => {
+                    report.error(Rule::Step, None, format!("structural coverage: the Kernel crates' instrumented tests failed:\n{}", String::from_utf8_lossy(&o.stderr)));
+                    false
+                }
+                Err(e) => {
+                    report.error(Rule::Step, None, format!("structural coverage: cannot run cargo: {e}"));
+                    false
+                }
+            };
+            let profraws: Vec<PathBuf> = std::fs::read_dir(&dir).into_iter().flatten().flatten().map(|f| f.path()).filter(|p| p.extension().and_then(|e| e.to_str()) == Some("profraw")).collect();
+            // The test binaries, wherever this cargo's layout puts them
+            // (`debug/deps` or `debug/build/<crate>/<hash>/out`): the
+            // crate's name, a hyphen, and sixteen hex digits, executable.
+            fn test_binaries(dir: &Path, crates: &[&str], out: &mut Vec<PathBuf>) {
+                for f in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+                    let p = f.path();
+                    if p.is_dir() {
+                        test_binaries(&p, crates, out);
+                    } else if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                        let is_test = crates.iter().any(|c| {
+                            let prefix = format!("{}-", c.replace('-', "_"));
+                            name.strip_prefix(&prefix).is_some_and(|h| h.len() == 16 && h.chars().all(|ch| ch.is_ascii_hexdigit()))
+                        });
+                        if is_test {
+                            out.push(p);
+                        }
+                    }
+                }
+            }
+            let mut binaries = Vec::new();
+            test_binaries(&dir.join("debug"), &crates, &mut binaries);
+            let mut notes = Vec::new();
+            let mut ok = tests_ok && !profraws.is_empty() && !binaries.is_empty();
+            if ok {
+                let profdata = dir.join("kernel-host.profdata");
+                let merge = std::process::Command::new(&tools.profdata).arg("merge").arg("-o").arg(&profdata).args(&profraws).output();
+                match merge {
+                    Ok(o) if o.status.success() => {
+                        let mut cov = std::process::Command::new(&tools.cov);
+                        cov.arg("export").arg("-format=text").arg("-summary-only").arg("-instr-profile").arg(&profdata);
+                        for b in &binaries {
+                            cov.arg("-object").arg(b);
+                        }
+                        for c in crates {
+                            cov.arg("-sources").arg(ws.root.join("crates").join(c).join("src"));
+                        }
+                        match cov.output() {
+                            Ok(o) if o.status.success() => {
+                                let _ = store.write_artifact("coverage-kernel-host.json", &String::from_utf8_lossy(&o.stdout));
+                                match serde_json::from_slice::<serde_json::Value>(&o.stdout) {
+                                    Ok(v) => {
+                                        let totals = &v["data"][0]["totals"];
+                                        let pct = |k: &str| (totals[k]["percent"].as_f64().unwrap_or(0.0), totals[k]["covered"].as_u64().unwrap_or(0), totals[k]["count"].as_u64().unwrap_or(0));
+                                        let (l, b, f, r) = (pct("lines"), pct("branches"), pct("functions"), pct("regions"));
+                                        notes.push(format!("the Kernel crates' host tests (rsk-logic, rsk-kernel; {} test binaries, {} profiles): lines {:.1} % ({} of {}), branches {:.1} % ({} of {}), functions {:.1} % ({} of {}), regions {:.1} % ({} of {}) of the Kernel sources, source-level instrumentation by {} (R53.1; the Verus proofs and Kani harnesses cover the logic beyond these tests, section 14)", binaries.len(), profraws.len(), l.0, l.1, l.2, b.0, b.1, b.2, f.0, f.1, f.2, r.0, r.1, r.2, crate::hil::COVERAGE_TOOLCHAIN));
+                                        for file in v["data"][0]["files"].as_array().into_iter().flatten() {
+                                            let name = file["filename"].as_str().unwrap_or("");
+                                            let rel = name.strip_prefix(&format!("{}/", ws.root.display())).unwrap_or(name);
+                                            let s = &file["summary"];
+                                            notes.push(format!("{rel}: lines {:.1} %, branches {:.1} % ({} of {})", s["lines"]["percent"].as_f64().unwrap_or(0.0), s["branches"]["percent"].as_f64().unwrap_or(0.0), s["branches"]["covered"].as_u64().unwrap_or(0), s["branches"]["count"].as_u64().unwrap_or(0)));
+                                        }
+                                    }
+                                    Err(e) => {
+                                        ok = false;
+                                        report.error(Rule::Step, None, format!("structural coverage: llvm-cov's export is not JSON: {e}"));
+                                    }
+                                }
+                            }
+                            Ok(o) => {
+                                ok = false;
+                                report.error(Rule::Step, None, format!("structural coverage: llvm-cov export failed: {}", String::from_utf8_lossy(&o.stderr).trim()));
+                            }
+                            Err(e) => {
+                                ok = false;
+                                report.error(Rule::Step, None, format!("structural coverage: cannot run llvm-cov: {e}"));
+                            }
+                        }
+                    }
+                    Ok(o) => {
+                        ok = false;
+                        report.error(Rule::Step, None, format!("structural coverage: llvm-profdata merge failed: {}", String::from_utf8_lossy(&o.stderr).trim()));
+                    }
+                    Err(e) => {
+                        ok = false;
+                        report.error(Rule::Step, None, format!("structural coverage: cannot run llvm-profdata: {e}"));
+                    }
+                }
+            } else if tests_ok {
+                report.error(Rule::Step, None, format!("structural coverage: no profile ({} files) or no test binary ({}) under {}", profraws.len(), binaries.len(), ws.rel(&dir)));
+            }
+            for n in &notes {
+                report.note(format!("R53.3: {n}"));
+            }
+            let mut item = Item::new(
+                "coverage-kernel-host",
+                Kind::Measurement,
+                "Structural coverage of the Kernel crates on the host (R53.1, R53.3): their requirements-based host tests under source-level instrumentation with branch counters, llvm-cov's totals over the Kernel sources (task 19.5; Verification_Plan section 14)",
+                Tool { name: "llvm-cov".to_string(), version: crate::hil::COVERAGE_TOOLCHAIN.to_string(), solvers: vec![] },
+                Verdict::from_bool(ok),
+            )
+            .covers(&["R53.1", "R53.3"]);
+            item.command_lines = commands.clone();
+            item.notes = notes;
+            item.build_manifest = Some(manifest_id.to_string());
+            item.artifacts = vec!["coverage-kernel-host.json".to_string()];
+            if let Err(e) = store.write(&item) {
+                report.error(Rule::Evidence, None, e);
+            }
+        }
+    }
+    // (b) The Partitions on the Target: the committed reports.
+    let Some(bin) = ws.policy.qemu_spikes().next() else { return commands };
+    for m in crate::hil::MEASUREMENTS.iter().filter(|m| m.duration_secs < 10 * 60) {
+        let path = crate::hil::coverage_record_path(&ws.root, m.variant);
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            report.note(format!("R53.3: no on-target coverage report for `{}` at {} (`cargo xtask hil --coverage{}`)", m.variant, ws.rel(&path), match m.kind { "stress" => " --stress", "measure" => " --plain", _ => "" }));
+            continue;
+        };
+        let rep: serde_json::Value = match serde_json::from_str(&text) {
+            Ok(v) => v,
+            Err(e) => {
+                report.error(Rule::Evidence, None, format!("{}: not JSON: {e}", ws.rel(&path)));
+                continue;
+            }
+        };
+        let threshold = rep["threshold_percent"].as_u64().unwrap_or(0);
+        let items: Vec<&serde_json::Value> = rep["items"].as_array().into_iter().flatten().collect();
+        let ok = !items.is_empty() && items.iter().all(|i| i["percent"].as_u64().unwrap_or(0) >= threshold);
+        let mut notes: Vec<String> = Vec::new();
+        // Per crate (level A, B, C): the branch outcomes of every function of the crate.
+        let mut per_crate: std::collections::BTreeMap<String, (u64, u64)> = std::collections::BTreeMap::new();
+        for f in rep["functions"].as_array().into_iter().flatten() {
+            let name = f["name"].as_str().unwrap_or("");
+            let krate = name.split("::").next().unwrap_or("").to_string();
+            let e = per_crate.entry(krate).or_insert((0, 0));
+            e.0 += f["branches"].as_u64().unwrap_or(0);
+            e.1 += f["covered"].as_u64().unwrap_or(0);
+        }
+        let model = crate::hil::task_model(ws, &bin, m.variant);
+        for (krate, (b, c)) in &per_crate {
+            let level = model.as_ref().and_then(|mm| mm.partitions.iter().find(|p| p.krate == *krate)).map(|p| p.level.clone()).unwrap_or_else(|| "?".into());
+            notes.push(format!("{krate} (level {level}): {} of {} branch outcomes ({} %)", c, b, if *b == 0 { 100 } else { c * 100 / b }));
+        }
+        for i in items.iter().filter(|i| !i["item"].as_str().unwrap_or("").contains("#cs:")) {
+            notes.push(format!("{}: {} % ({} of {} branch outcomes){}", i["item"].as_str().unwrap_or(""), i["percent"].as_u64().unwrap_or(0), i["covered"].as_u64().unwrap_or(0), i["branches"].as_u64().unwrap_or(0), if i["percent"].as_u64().unwrap_or(0) >= threshold { "" } else { " BELOW the threshold" }));
+        }
+        for n in &notes {
+            report.note(format!("R53.3 ({}): {n}", m.variant));
+        }
+        let mut item = Item::new(
+            &format!("coverage-partitions-{}", m.variant),
+            Kind::Measurement,
+            &format!("Structural coverage of the Partition code (levels A, B, C) on the Target under the `{}` configuration's inputs (R34.4, R53.3): the coverage build's branch outcomes per crate and per Task entry against the plan's {threshold} % threshold, from the committed report {} (coverage build {})", m.variant, ws.rel(&path), rep["binary_hash"].as_str().unwrap_or("?")),
+            Tool { name: "rsk-hil coverage (llvm-cov)".to_string(), version: crate::hil::COVERAGE_TOOLCHAIN.to_string(), solvers: vec![] },
+            Verdict::from_bool(ok),
+        )
+        .covers(&["R34.4", "R53.3"]);
+        item.notes = notes;
+        item.build_manifest = Some(manifest_id.to_string());
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    commands
 }

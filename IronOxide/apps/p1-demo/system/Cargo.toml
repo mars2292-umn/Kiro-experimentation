@@ -29,6 +29,10 @@ measure = ["p1-demo-part0/measure", "p1-demo-part1/measure", "p1-demo-part2/meas
 isolation = ["nrf52840", "hw-dt", "p1-demo-decl/nrf52840_isolation", "p1-demo-part0/isolation", "p1-demo-part1/isolation", "p1-demo-part2/isolation"]
 # The cycle-attribution configuration of task 7.5 (R18.1; Verification_Plan 11.11).
 cycles = ["nrf52840", "p1-demo-decl/nrf52840_cycles", "p1-demo-part0/cycles", "p1-demo-part1/cycles"]
+# Its floating-point variant (task 19.3, Δ_fp_save and Δ_fp_restore): `filter` spins too.
+cycles-fpu = ["nrf52840", "p1-demo-decl/nrf52840_cycles_fpu", "p1-demo-part0/cycles", "p1-demo-part1/cycles", "p1-demo-part2/cycles"]
+# The plain measurement configuration of task 19.4: no injection, the measurement instrumentation alone.
+plain-measure = ["nrf52840", "measure", "p1-demo-decl/nrf52840_measure"]
 # HIL builds: the Hardware_Model differential tests (task 3.3).
 hw-dt = ["rsk-kernel/hw-dt", "rsk/hw-dt"]
 # HIL builds: the boot-check suite's mutation word (task 7.2).

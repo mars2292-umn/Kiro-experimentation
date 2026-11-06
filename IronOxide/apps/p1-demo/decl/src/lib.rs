@@ -67,7 +67,7 @@
 // both (`gen/` and `gen-nrf52840/`; policy `variants`).
 #[cfg(all(
     feature = "nrf52840",
-    not(any(feature = "nrf52840_timing", feature = "nrf52840_timing_short", feature = "nrf52840_response", feature = "nrf52840_stress", feature = "nrf52840_stress_short", feature = "nrf52840_isolation", feature = "nrf52840_cycles"))
+    not(any(feature = "nrf52840_timing", feature = "nrf52840_timing_short", feature = "nrf52840_response", feature = "nrf52840_stress", feature = "nrf52840_stress_short", feature = "nrf52840_isolation", feature = "nrf52840_cycles", feature = "nrf52840_cycles_fpu", feature = "nrf52840_measure"))
 ))]
 mod nrf52840;
 #[cfg(feature = "nrf52840_timing")]
@@ -84,6 +84,10 @@ mod nrf52840_stress_short;
 mod nrf52840_isolation;
 #[cfg(feature = "nrf52840_cycles")]
 mod nrf52840_cycles;
+#[cfg(feature = "nrf52840_cycles_fpu")]
+mod nrf52840_cycles_fpu;
+#[cfg(feature = "nrf52840_measure")]
+mod nrf52840_measure;
 
 #[cfg(not(feature = "nrf52840"))]
 rsk::app! {

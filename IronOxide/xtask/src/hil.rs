@@ -52,13 +52,17 @@ pub struct Measurement {
     pub feature: &'static str,
     pub duration_secs: u64,
     pub stress: bool,
+    /// The kind of run: `release-timing`, `stress`, or `measure` (the
+    /// plain configuration of task 19.4, no injection).
+    pub kind: &'static str,
 }
 
 pub const MEASUREMENTS: &[Measurement] = &[
-    Measurement { variant: "nrf52840_timing_short", feature: "timing-short", duration_secs: 3 * 60, stress: false },
-    Measurement { variant: "nrf52840_timing", feature: "timing", duration_secs: 61 * 60, stress: false },
-    Measurement { variant: "nrf52840_stress_short", feature: "stress-short", duration_secs: 3 * 60, stress: true },
-    Measurement { variant: "nrf52840_stress", feature: "stress", duration_secs: 61 * 60, stress: true },
+    Measurement { variant: "nrf52840_timing_short", feature: "timing-short", duration_secs: 3 * 60, stress: false, kind: "release-timing" },
+    Measurement { variant: "nrf52840_timing", feature: "timing", duration_secs: 61 * 60, stress: false, kind: "release-timing" },
+    Measurement { variant: "nrf52840_stress_short", feature: "stress-short", duration_secs: 3 * 60, stress: true, kind: "stress" },
+    Measurement { variant: "nrf52840_stress", feature: "stress", duration_secs: 61 * 60, stress: true, kind: "stress" },
+    Measurement { variant: "nrf52840_measure", feature: "plain-measure", duration_secs: 3 * 60, stress: false, kind: "measure" },
 ];
 
 /// The per-Task counters the P1 demo's safe state reports: all 0 when no
@@ -69,7 +73,7 @@ pub const COUNTERS: &[&str] = &["control", "sensor", "log", "pulse", "echo", "fi
 /// takes (task 19.3): built for the Build_Manifest like the measurement
 /// configurations, each `(variant, bin feature)`. The cycle configuration
 /// measures Δ_entry and the entry kinds (section 11.11).
-pub const RECORD_VARIANTS: &[(&str, &str)] = &[("nrf52840_cycles", "cycles")];
+pub const RECORD_VARIANTS: &[(&str, &str)] = &[("nrf52840_cycles", "cycles"), ("nrf52840_cycles_fpu", "cycles-fpu")];
 
 /// The margin `m` of R34.6 applied to a measured Kernel_Timing_Parameter,
 /// in percent (Verification_Plan 11.5; ORQ-13).
@@ -388,6 +392,7 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
         .find_map(|f| MEASUREMENTS.iter().find(|m| m.feature == f).map(|m| m.variant.to_string()))
         .or_else(|| features.split(',').any(|f| f == "response").then(|| format!("{VARIANT}_response")))
         .or_else(|| features.split(',').any(|f| f == "isolation").then(|| format!("{VARIANT}_isolation")))
+        .or_else(|| features.split(',').any(|f| f == "cycles-fpu").then(|| format!("{VARIANT}_cycles_fpu")))
         .or_else(|| features.split(',').any(|f| f == "cycles").then(|| format!("{VARIANT}_cycles")))
         .unwrap_or_else(|| VARIANT.to_string());
     let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");

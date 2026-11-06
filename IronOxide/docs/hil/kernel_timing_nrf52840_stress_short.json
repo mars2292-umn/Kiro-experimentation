@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:d0fe4f33cfa973fe900db9da1c453292c1aec6ad033a817a20f3089042518f66",
+  "binary_hash": "sha256:541c920d8de22a15b815fa4d925e4a17f179aa25bf990dfbf22e607d20728629",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 10572,
+      "cycles": 10387,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -16,7 +16,7 @@
       ],
       "measured": {
         "runs": 40495,
-        "max_observed": 8457,
+        "max_observed": 8309,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -29,7 +29,7 @@
     },
     {
       "symbol": "delta_irq",
-      "cycles": 2712,
+      "cycles": 2704,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -38,7 +38,7 @@
       ],
       "measured": {
         "runs": 11952,
-        "max_observed": 2169,
+        "max_observed": 2163,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -51,7 +51,7 @@
     },
     {
       "symbol": "l_kernel",
-      "cycles": 5882,
+      "cycles": 5732,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -59,8 +59,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 8997195,
-        "max_observed": 4705,
+        "runs": 8788081,
+        "max_observed": 4585,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -81,7 +81,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 58449,
+        "runs": 58450,
         "max_observed": 2866,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -95,7 +95,7 @@
     },
     {
       "symbol": "delta_timer",
-      "cycles": 5882,
+      "cycles": 5732,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -103,8 +103,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 65419,
-        "max_observed": 4705,
+        "runs": 64466,
+        "max_observed": 4585,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -117,7 +117,7 @@
     },
     {
       "symbol": "delta_detect",
-      "cycles": 5882,
+      "cycles": 5732,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -125,8 +125,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 65419,
-        "max_observed": 4705,
+        "runs": 64466,
+        "max_observed": 4585,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -147,7 +147,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 77415,
+        "runs": 77397,
         "max_observed": 458,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -161,7 +161,7 @@
     },
     {
       "symbol": "delta_lock_out",
-      "cycles": 2285,
+      "cycles": 2267,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -169,8 +169,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 76515,
-        "max_observed": 1828,
+        "runs": 76497,
+        "max_observed": 1813,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -183,7 +183,7 @@
     },
     {
       "symbol": "delta_complete",
-      "cycles": 4095,
+      "cycles": 4054,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -192,7 +192,7 @@
       ],
       "measured": {
         "runs": 55524,
-        "max_observed": 3276,
+        "max_observed": 3243,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -213,7 +213,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 8500323,
+        "runs": 8294508,
         "max_observed": 237,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -235,7 +235,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 9328,
+        "runs": 8999,
         "max_observed": 709,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -249,7 +249,7 @@
     },
     {
       "symbol": "delta_restart",
-      "cycles": 5882,
+      "cycles": 5732,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -258,7 +258,7 @@
       ],
       "measured": {
         "runs": 900,
-        "max_observed": 4705,
+        "max_observed": 4585,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -271,7 +271,7 @@
     },
     {
       "symbol": "delta_enforce",
-      "cycles": 5882,
+      "cycles": 5732,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -280,7 +280,7 @@
       ],
       "measured": {
         "runs": 2925,
-        "max_observed": 4705,
+        "max_observed": 4585,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -301,7 +301,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 73996,
+        "runs": 72014,
         "max_observed": 328,
         "margin_percent": 25,
         "coverage_branch_percent": 0,

@@ -404,6 +404,8 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut coverage = false;
     let mut lean = false;
     let mut short = false;
+    let mut plain = false;
+    let mut fpu = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -425,6 +427,8 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--coverage" => coverage = true,
             "--lean" => lean = true,
             "--short" => short = true,
+            "--plain" => plain = true,
+            "--fpu" => fpu = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
@@ -470,11 +474,12 @@ fn hil_command(args: &[String]) -> ExitCode {
     let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
         return print_report(&report, "hil");
     };
+    let kind = if stress { "stress" } else if plain { "measure" } else { "release-timing" };
     if coverage {
-        return coverage_command(&ws, &rig, &bin, &stimulus_bin, stress, &target_dir, report);
+        return coverage_command(&ws, &rig, &bin, &stimulus_bin, kind, &target_dir, report);
     }
-    if release_timing || stress {
-        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, short, stress, lean, &target_dir, report);
+    if release_timing || stress || plain {
+        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, kind, short || plain, lean, &target_dir, report);
     }
     if response {
         return response_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
@@ -486,7 +491,7 @@ fn hil_command(args: &[String]) -> ExitCode {
         return boot_checks_command(&ws, &rig, &bin, &target_dir, report);
     }
     if cycles {
-        return cycles_command(&ws, &rig, &bin, lean, &target_dir, report);
+        return cycles_command(&ws, &rig, &bin, lean, fpu, &target_dir, report);
     }
     let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
@@ -530,13 +535,13 @@ fn hil_command(args: &[String]) -> ExitCode {
 /// minutes), the stimulus board built with its `storm` feature, and the
 /// protected Partition's Jobs checked against the WCRTs the Analyzer
 /// computes for the configuration's Task_Model (placeholder timing).
-fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, short: bool, stress: bool, lean: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.stress == stress && (m.duration_secs < 10 * 60) == short) else {
+fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, kind: &str, short: bool, lean: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == kind && (m.duration_secs < 10 * 60) == short) else {
         report.error(xtask::diag::Rule::Step, None, "no measurement configuration for this run".to_string());
         return print_report(&report, "hil");
     };
+    let stress = measurement.stress;
     let (feature, duration_secs, variant_name) = (measurement.feature, measurement.duration_secs, measurement.variant);
-    let kind = if stress { "stress" } else { "release-timing" };
     let features = format!("{},{feature}", xtask::hil::features_for(lean));
     // The lean run's reports and records carry the `_lean` suffix: beside
     // the instrumented ones, never taken by the job (task 19.2, R34.7).
@@ -673,7 +678,138 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         }
         None => report.note("no WCET_Record: the run recorded no Job execution (or no Task_Model)".to_string()),
     }
+    // Task 19.4: the Analyzer on this run's records, and every Task's
+    // observed response time against the WCRT it computes.
+    let (ok, section) = measured_wcrt_step(ws, bin, variant_name, kind, &target, &model, &dir, &out, &mut report);
+    let text = format!("{text}\n{section}");
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let _ = std::fs::write(record.join(&name), &text);
+    print!("{section}");
+    if !ok {
+        report.error(xtask::diag::Rule::Step, None, "observed response times against the measured WCRTs (task 19.4): failed (report above)".to_string());
+        return print_report(&report, "hil");
+    }
     print_report(&report, &format!("{kind} run passed"))
+}
+
+/// Task 19.4 (R18.7, R29.5): the Analyzer run on the records this run
+/// wrote (its Kernel_Timing_Parameters and WCET_Records, with the cycle
+/// configurations' records when the job's manifest lists them), then each
+/// Task's largest observed response time (the Kernel's record, Release
+/// due to Job end) against the WCRT the Analyzer computed. A Task the
+/// analysis finds unschedulable has no WCRT to hold; the step passes when
+/// every schedulable Task observed stays within its WCRT and, for the
+/// plain configuration, the analysis is a PASS; under the stress
+/// configuration the Tasks of the highest Criticality_Level must be
+/// schedulable and within (R18.7). Returns the verdict and the report's
+/// section.
+#[allow(clippy::too_many_arguments)]
+fn measured_wcrt_step(ws: &xtask::workspace::Workspace, _bin: &str, variant: &str, kind: &str, target: &xtask::hil::HilBuild, model: &std::path::Path, dir: &std::path::Path, out: &rsk_hil::release_timing::Outcome, report: &mut Report) -> (bool, String) {
+    let mut s = String::from("## Observed response times against the measured WCRTs (task 19.4, R18.7, R29.5)\n\n");
+    let fail = |s: &mut String, why: &str| {
+        s.push_str(&format!("Not judged: {why}\n"));
+        (false, s.clone())
+    };
+    let Some(st) = &out.stats else { return fail(&mut s, "the run has no record") };
+    let timing = xtask::hil::timing_record_path(&ws.root, variant);
+    let wcet = xtask::hil::wcet_record_path(&ws.root, variant);
+    let bound_to_this = |path: &std::path::Path| -> bool {
+        std::fs::read_to_string(path).ok().map(|t| t.contains(&target.binary.hash)).unwrap_or(false)
+    };
+    if !bound_to_this(&timing) || !bound_to_this(&wcet) {
+        return fail(&mut s, "the records are not this build's");
+    }
+    let job_manifest = ws.root.join("target").join("xtask-verify").join("evidence").join("build-manifest.json");
+    let manifest_value: serde_json::Value = std::fs::read_to_string(&job_manifest).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null);
+    let (fresh, _) = xtask::hil::fresh_timing_records(&ws.root, &manifest_value);
+    let extra: Vec<std::path::PathBuf> = fresh
+        .into_iter()
+        .filter(|r| xtask::hil::RECORD_VARIANTS.iter().any(|(v, _)| r.file_name().and_then(|f| f.to_str()) == Some(&format!("kernel_timing_{v}.json"))))
+        .collect();
+    if manifest_value.is_null() {
+        return fail(&mut s, "no Build_Manifest of the job (run `cargo xtask verify` first)");
+    }
+    let out_dir = dir.join("rta-measured");
+    let _ = std::fs::create_dir_all(&out_dir);
+    // The manifest copy is the job's with this run's build among its HIL
+    // binaries (the records are bound to it, R33.4) and its Generated_Config
+    // checksum (R28.8).
+    let mut value = manifest_value.clone();
+    value["generated_config_checksum"] = target.binary.config_checksum.clone().map(serde_json::Value::String).unwrap_or(serde_json::Value::Null);
+    if let Some(list) = value.get_mut("hil_binaries").and_then(|b| b.as_array_mut()) {
+        if !list.iter().any(|b| b.get("hash").and_then(|h| h.as_str()) == Some(target.binary.hash.as_str())) {
+            list.push(serde_json::json!({
+                "package": target.binary.package,
+                "target": target.binary.target_name,
+                "file": target.binary.path.file_name().and_then(|f| f.to_str()).unwrap_or("p1-demo"),
+                "hash": target.binary.hash,
+                "loadable_bytes": target.binary.loadable_bytes,
+                "config_checksum": target.binary.config_checksum,
+            }));
+        }
+    }
+    let manifest_copy = out_dir.join("build-manifest.json");
+    if std::fs::write(&manifest_copy, serde_json::to_string_pretty(&value).unwrap_or_default()).is_err() {
+        return fail(&mut s, "cannot write the manifest copy");
+    }
+    let mut cmd = xtask::cmd::Cmd::cargo_frozen("run")
+        .args(["--quiet", "-p", "rsk-analyzer", "--manifest-path"])
+        .arg(ws.root.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(ws.root.join("target"))
+        .arg("--")
+        .arg("--model")
+        .arg(model)
+        .arg("--manifest")
+        .arg(&manifest_copy)
+        .arg("--placeholders")
+        .arg("--timing")
+        .arg(&timing);
+    for r in &extra {
+        cmd = cmd.arg("--timing").arg(r);
+    }
+    let cmd = cmd.arg("--wcet").arg(&wcet).arg("--out").arg(&out_dir);
+    let (status, text) = match cmd.output(None) {
+        Ok(o) => (o.status.code().unwrap_or(3), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+        Err(e) => return fail(&mut s, &format!("cannot run the Analyzer: {e}")),
+    };
+    let measured_line = text.lines().find(|l| l.contains("MEASURED")).map(|l| l.trim().to_string()).unwrap_or_default();
+    s.push_str(&format!("The Analyzer on this run's records ({}{}): exit {status}. {measured_line}\n\n", ws.rel(&timing), if extra.is_empty() { String::new() } else { format!(", with {}", extra.iter().map(|e| ws.rel(e)).collect::<Vec<_>>().join(", ")) }));
+    if status == 2 {
+        let why = text.lines().find(|l| l.contains("[R")).unwrap_or("").trim().to_string();
+        return fail(&mut s, &format!("the Analyzer rejected the inputs: {why}"));
+    }
+    let Ok(rep) = std::fs::read_to_string(out_dir.join("report.json")).map_err(|e| e.to_string()).and_then(|t| rsk_model::read_report(&t).map_err(|e| format!("{e:?}"))) else {
+        return fail(&mut s, "the Analyzer wrote no report");
+    };
+    let top = rep.tasks.iter().map(|t| t.level.clone()).min().unwrap_or_default();
+    let cycles_per_tick = xtask::hil::CPU_HZ / xtask::hil::TICK_HZ;
+    s.push_str(&format!("Result **{}** (utilization {} %). | Task | Level | WCRT (ms) | Deadline (ms) | Observed max (ms) | Jobs | Verdict |\n|---|---|---|---|---|---|---|\n", rep.result, rep.utilization_percent));
+    let mut all_ok = true;
+    for (i, t) in rep.tasks.iter().enumerate() {
+        let ts = st.tasks.get(i);
+        let (jobs, max_ticks) = ts.map(|x| (x.resp_count, x.resp_max_ticks as u64)).unwrap_or((0, 0));
+        let observed = max_ticks * cycles_per_tick;
+        let ms = |c: u64| c as f64 * 1000.0 / xtask::hil::CPU_HZ as f64;
+        let verdict = if !t.schedulable {
+            if t.level == top && kind == "stress" { all_ok = false; "NOT SCHEDULABLE (highest level)" } else { "not schedulable: no WCRT to hold" }
+        } else if jobs == 0 {
+            "no Job completed"
+        } else if observed <= t.r_cycles {
+            "within"
+        } else {
+            all_ok = false;
+            "EXCEEDED"
+        };
+        s.push_str(&format!("| `{}` | {} | {:.3} | {:.3} | {:.3} | {} | {} |\n", t.id, t.level, ms(t.r_cycles), ms(t.deadline_cycles), ms(observed), jobs, verdict));
+    }
+    if kind == "measure" && rep.result != "PASS" {
+        all_ok = false;
+        s.push_str("\nThe plain configuration's analysis is not a PASS: the schedulability claim under measured timing does not hold for this set.\n");
+    }
+    s.push_str(&format!("\nVerdict: **{}**\n", if all_ok { "pass" } else { "FAIL" }));
+    report.note(format!("task 19.4: the Analyzer on the measured records: {}; every observed response within its WCRT: {}", rep.result, if all_ok { "yes" } else { "NO" }));
+    (all_ok, s)
 }
 
 /// `cargo xtask hil --coverage [--stress]` (task 19.2, R34.4, R53.3;
@@ -687,11 +823,12 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
 /// and `.md`, and entered into the committed WCET_Records of the
 /// configuration as their `coverage_branch_percent`. The run writes no
 /// timing record: the instrumented bodies are not the measured binary.
-fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, stress: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.stress == stress && m.duration_secs < 10 * 60) else {
+fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, kind: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == kind && m.duration_secs < 10 * 60) else {
         report.error(xtask::diag::Rule::Step, None, "no short measurement configuration for this run".to_string());
         return print_report(&report, "hil");
     };
+    let stress = measurement.stress;
     let (feature, duration_secs, variant) = (measurement.feature, measurement.duration_secs, measurement.variant);
     let Some(tools) = xtask::hil::coverage_tools(&mut report) else {
         return print_report(&report, "hil");
@@ -1019,15 +1156,28 @@ fn boot_checks_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::
 /// `cargo xtask hil --cycles` (task 7.5's `hil-cycles`, R18.1): the
 /// cycle-attribution test on the cycle configuration (2 seconds). The
 /// report goes under target/xtask-hil/cycles and docs/hil/.
-fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, lean: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let features = format!("{},cycles", xtask::hil::features_for(lean));
-    let dir = target_dir.join(if lean { "cycles-lean" } else { "cycles" });
+fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, lean: bool, fpu: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    // `--fpu` (task 19.3): the floating-point variant, `filter` the preempted
+    // spinner, which measures Δ_fp_save and Δ_fp_restore against the plain
+    // configuration's Δ_entry.
+    let base_variant = if fpu { "nrf52840_cycles_fpu" } else { "nrf52840_cycles" };
+    let features = format!("{},{}", xtask::hil::features_for(lean), if fpu { "cycles-fpu" } else { "cycles" });
+    let dir = target_dir.join(format!("{}{}", if fpu { "cycles-fpu" } else { "cycles" }, if lean { "-lean" } else { "" }));
     let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
         return print_report(&report, "hil");
     };
-    report.note(format!("cycle configuration `nrf52840_cycles` ({features}): {} over {} loadable bytes", target.binary.hash, target.binary.loadable_bytes));
+    report.note(format!("cycle configuration `{base_variant}` ({features}): {} over {} loadable bytes", target.binary.hash, target.binary.loadable_bytes));
     let work = dir.join("run");
-    let inputs = rsk_hil::cycles::Inputs { rig, target_elf: &target.elf, work_dir: &work, timeout_secs: 40, tick_hz: xtask::hil::TICK_HZ, cpu_hz: xtask::hil::CPU_HZ };
+    let inputs = rsk_hil::cycles::Inputs {
+        rig,
+        target_elf: &target.elf,
+        work_dir: &work,
+        timeout_secs: 40,
+        tick_hz: xtask::hil::TICK_HZ,
+        cpu_hz: xtask::hil::CPU_HZ,
+        low: if fpu { rsk_hil::cycles::LOW_FPU } else { rsk_hil::cycles::LOW },
+        tolerance_percent: if fpu { rsk_hil::cycles::TOLERANCE_PERCENT_FPU } else { rsk_hil::cycles::TOLERANCE_PERCENT },
+    };
     let out = rsk_hil::cycles::run(&inputs);
     let text = rsk_hil::cycles::render(rig, &inputs, &out, &target.binary.hash);
     print!("{text}");
@@ -1035,22 +1185,38 @@ fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, 
     let record = ws.root.join("docs").join("hil");
     let _ = std::fs::create_dir_all(&record);
     let suffix = if lean { "_lean" } else { "" };
-    let _ = std::fs::write(record.join(format!("cycles_nrf52840_cycles{suffix}.md")), &text);
-    report.note(format!("report written to {} and docs/hil/cycles_nrf52840_cycles{suffix}.md", ws.rel(&work)));
+    let _ = std::fs::write(record.join(format!("cycles_{base_variant}{suffix}.md")), &text);
+    report.note(format!("report written to {} and docs/hil/cycles_{base_variant}{suffix}.md", ws.rel(&work)));
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, "the cycle-attribution test failed (report above)");
         return print_report(&report, "hil");
     }
     // The Kernel_Timing_Parameter record (task 19.3): Δ_entry and the entry
     // kinds, folded into the kept record of the same binary.
-    let variant_label = format!("nrf52840_cycles{suffix}");
+    let variant_label = format!("{base_variant}{suffix}");
     let variant = variant_label.as_str();
-    let model = xtask::hil::task_model(ws, bin, "nrf52840_cycles");
+    let model = xtask::hil::task_model(ws, bin, base_variant);
     let target_name = model.as_ref().map(|m| format!("{}/{}", m.target, m.core_revision)).unwrap_or_else(|| "nrf52840/?".to_string());
     let binding = rsk_hil::kernel_timing::Binding { binary_hash: &target.binary.hash, target: &target_name, icache: "off", configuration: variant };
     if let Some(st) = &out.stats {
-        let extra: Vec<_> = rsk_hil::cycles::delta_entry(st, xtask::hil::MARGIN_PERCENT).into_iter().collect();
-        if let Some(new) = rsk_hil::kernel_timing::record_from_stats(st, &binding, xtask::hil::CPU_HZ, "nrf52840_cycles (2 s)", xtask::hil::MARGIN_PERCENT, extra) {
+        let extra: Vec<_> = if fpu {
+            // Δ_entry of the plain configuration's committed record, before the margin.
+            let plain = std::fs::read_to_string(xtask::hil::timing_record_path(&ws.root, &format!("nrf52840_cycles{suffix}"))).ok().and_then(|t| rsk_model::read_kernel_timing(&t).ok());
+            let delta_entry = plain.as_ref().and_then(|p| p.parameters.iter().find(|q| q.symbol == "delta_entry")).and_then(|q| q.measured.as_ref()).map(|m| m.max_observed);
+            match delta_entry.and_then(|d| rsk_hil::cycles::delta_fp(st, d, xtask::hil::MARGIN_PERCENT)) {
+                Some(v) => {
+                    report.note(format!("Δ_fp_save and Δ_fp_restore from filter's excess per entry less Δ_entry {} of the plain configuration: {}", delta_entry.unwrap_or(0), v.iter().map(|p| format!("{} {} (observed {})", p.symbol, p.cycles, p.measured.as_ref().map(|m| m.max_observed).unwrap_or(0))).collect::<Vec<_>>().join(", ")));
+                    v
+                }
+                None => {
+                    report.error(xtask::diag::Rule::Step, None, format!("Δ_fp: the floating-point variant's per-entry excess ({:?}) does not exceed the plain configuration's Δ_entry ({delta_entry:?}; run `cargo xtask hil --cycles` first), so the stacking was not observed", rsk_hil::cycles::per_entry_excess(st, rsk_hil::cycles::LOW_FPU)));
+                    return print_report(&report, "hil");
+                }
+            }
+        } else {
+            rsk_hil::cycles::delta_entry(st, xtask::hil::MARGIN_PERCENT).into_iter().collect()
+        };
+        if let Some(new) = rsk_hil::kernel_timing::record_from_stats(st, &binding, xtask::hil::CPU_HZ, &format!("{base_variant} (2 s)"), xtask::hil::MARGIN_PERCENT, extra) {
             let path = xtask::hil::timing_record_path(&ws.root, variant);
             let kept = std::fs::read_to_string(&path).ok().and_then(|t| rsk_model::read_kernel_timing(&t).ok());
             let (folded, replaced) = rsk_hil::kernel_timing::fold(kept, new);
@@ -1084,7 +1250,7 @@ fn nightly_command(args: &[String]) -> ExitCode {
     };
     let dir = root.join("target").join("xtask-nightly").join(&stamp);
     let _ = std::fs::create_dir_all(&dir);
-    let steps: [(&str, &[&str]); 5] = [
+    let steps: [(&str, &[&str]); 7] = [
         ("verify", &["verify"]),
         ("release-timing", &["hil", "--release-timing"]),
         ("stress", &["hil", "--stress"]),
@@ -1092,6 +1258,9 @@ fn nightly_command(args: &[String]) -> ExitCode {
         // one coverage run per short configuration.
         ("coverage-timing", &["hil", "--coverage"]),
         ("coverage-stress", &["hil", "--coverage", "--stress"]),
+        // Task 19.4: the plain measurement configuration and its coverage.
+        ("measure", &["hil", "--plain"]),
+        ("coverage-plain", &["hil", "--coverage", "--plain"]),
     ];
     let mut summary = format!("# Nightly HIL campaign {stamp}\n\n| Step | Verdict | Log | Minutes |\n|---|---|---|---|\n");
     let mut all_ok = true;

@@ -12,6 +12,8 @@ response = []
 # The isolation suite (task 7.4): the access matrix and the DMA cases.
 isolation = ["rsk/hw-dt"]
 stress = []
+# The floating-point variant of the cycle-attribution test (task 19.3): `filter` spins as `log` does.
+cycles = []
 # The measurement configurations (task 19.2): the loop report (R34.9,
 # R35.4) and the EasyDMA traffic scenario (R17.4, R34.5): SPIM0
 # transferring continuously for the whole run.

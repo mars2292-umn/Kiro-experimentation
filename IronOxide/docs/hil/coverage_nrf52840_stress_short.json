@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:3725f1fa97e7608a99aecbaee3583526434591e017f506afbbc184e339e70083",
+  "binary_hash": "sha256:353f466e87252eb8543f23491ffab7f7477d14f9840349a16eaed46cb73542de",
   "threshold_percent": 50,
   "items": [
     {
@@ -170,14 +170,16 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 24,
-      "covered": 19,
-      "percent": 79,
+      "covered": 17,
+      "percent": 70,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::traffic_step: 147:5 false",
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::filter::{closure}: 325:67 false"
       ]
     },
     {
@@ -201,14 +203,16 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 24,
-      "covered": 19,
-      "percent": 79,
+      "covered": 17,
+      "percent": 70,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::traffic_step: 147:5 false",
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::filter::{closure}: 325:67 false"
       ]
     },
     {
@@ -231,16 +235,17 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 22,
-      "covered": 15,
-      "percent": 68,
+      "covered": 14,
+      "percent": 63,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
+        "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler::{closure}: 361:34 true",
-        "p1_demo_part2::sampler::{closure}: 361:34 false"
+        "p1_demo_part2::sampler::{closure}: 372:34 true",
+        "p1_demo_part2::sampler::{closure}: 372:34 false"
       ]
     },
     {
@@ -263,16 +268,17 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 22,
-      "covered": 15,
-      "percent": 68,
+      "covered": 14,
+      "percent": 63,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
+        "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler::{closure}: 361:34 true",
-        "p1_demo_part2::sampler::{closure}: 361:34 false"
+        "p1_demo_part2::sampler::{closure}: 372:34 true",
+        "p1_demo_part2::sampler::{closure}: 372:34 false"
       ]
     }
   ],
@@ -288,12 +294,13 @@
       "name": "p1_demo_part2::traffic_step",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 10,
-      "covered": 6,
+      "covered": 5,
       "uncovered": [
         "115:8 true",
         "117:12 true",
         "117:12 false",
-        "127:12 true"
+        "127:12 true",
+        "147:5 false"
       ]
     },
     {
@@ -344,8 +351,10 @@
       "name": "p1_demo_part2::filter::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 6,
-      "covered": 6,
-      "uncovered": []
+      "covered": 5,
+      "uncovered": [
+        "325:67 false"
+      ]
     },
     {
       "name": "p1_demo_part2::filter::{closure}",
@@ -416,8 +425,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "361:34 true",
-        "361:34 false"
+        "372:34 true",
+        "372:34 false"
       ]
     },
     {

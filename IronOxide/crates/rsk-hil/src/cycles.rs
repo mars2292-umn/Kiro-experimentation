@@ -28,11 +28,20 @@ pub struct Inputs<'a> {
     pub timeout_secs: u64,
     pub tick_hz: u64,
     pub cpu_hz: u64,
+    /// The preempted spinner: `log` (3) in the plain configuration, `filter`
+    /// (5, the FPU Task) in the floating-point variant (task 19.3).
+    pub low: usize,
+    /// The agreement required of the two mean executions, in percent
+    /// (`TOLERANCE_PERCENT`; wider for the floating-point variant, whose
+    /// preempted Task is charged the context stacking per entry too).
+    pub tolerance_percent: u64,
 }
 
 /// The Tasks compared: `control` (0) and `log` (3).
 pub const HIGH: usize = 0;
 pub const LOW: usize = 3;
+/// The floating-point variant's preempted Task, `filter`.
+pub const LOW_FPU: usize = 5;
 /// The agreement required of the two mean executions, in percent. The
 /// preempted Job is charged, at every Kernel entry that interrupts it,
 /// the cycles between the exception entry and the handler's charge point
@@ -43,6 +52,9 @@ pub const LOW: usize = 3;
 /// `control`'s. The tolerance covers that overhead; the difference itself
 /// is reported as the attribution overhead.
 pub const TOLERANCE_PERCENT: u64 = 10;
+/// The floating-point variant's tolerance: the preempted Task carries the
+/// context stacking of every interrupting entry beside Δ_entry.
+pub const TOLERANCE_PERCENT_FPU: u64 = 15;
 
 #[derive(Default)]
 pub struct Outcome {
@@ -66,26 +78,30 @@ impl Outcome {
 /// spread below the tolerance of the mean); `log`'s response times exceed
 /// its executions (it was preempted).
 pub fn judge(st: &Stats, cpu_hz: u64, tick_hz: u64) -> Vec<(String, bool, String)> {
+    judge_with(st, cpu_hz, tick_hz, LOW, TOLERANCE_PERCENT)
+}
+
+pub fn judge_with(st: &Stats, cpu_hz: u64, tick_hz: u64, low: usize, tolerance_percent: u64) -> Vec<(String, bool, String)> {
     let mut out = Vec::new();
-    let (Some(h), Some(l)) = (st.tasks.get(HIGH), st.tasks.get(LOW)) else {
+    let (Some(h), Some(l)) = (st.tasks.get(HIGH), st.tasks.get(low)) else {
         out.push(("record".into(), false, "the record has no entry for the two Tasks".into()));
         return out;
     };
     out.push(("Jobs recorded".into(), h.exec_count >= 150 && l.exec_count >= 40, format!("control {} Jobs, log {} Jobs (at least 150 and 40 expected over 2 s)", h.exec_count, l.exec_count)));
     let (hm, lm) = (h.exec_mean_cycles(), l.exec_mean_cycles());
     let diff = (hm - lm).abs();
-    let tol = hm * TOLERANCE_PERCENT as f64 / 100.0;
+    let tol = hm * tolerance_percent as f64 / 100.0;
     out.push((
         "executions agree (R18.1: the preempted Job is charged its own cycles only)".into(),
         hm > 0.0 && diff <= tol,
-        format!("control mean {hm:.0} cycles ({:.3} ms), log mean {lm:.0} cycles ({:.3} ms): difference {diff:.0} cycles ({:.2} %) against {TOLERANCE_PERCENT} %", hm * 1000.0 / cpu_hz as f64, lm * 1000.0 / cpu_hz as f64, if hm > 0.0 { diff * 100.0 / hm } else { 0.0 }),
+        format!("control mean {hm:.0} cycles ({:.3} ms), {} mean {lm:.0} cycles ({:.3} ms): difference {diff:.0} cycles ({:.2} %) against {tolerance_percent} %", hm * 1000.0 / cpu_hz as f64, if low == LOW { "log" } else { "filter" }, lm * 1000.0 / cpu_hz as f64, if hm > 0.0 { diff * 100.0 / hm } else { 0.0 }),
     ));
     out.push((
         "attribution overhead (informative: the preempted Job's excess, the Kernel entries' cycles outside the charge points)".into(),
         true,
         format!("{:.0} cycles ({:.3} ms) per log Job over its {} Jobs, interrupted by {} Kernel entries: {:.0} cycles per entry, exported as Δ_entry (R13.6)", lm - hm, (lm - hm) * 1000.0 / cpu_hz as f64, l.exec_count, l.interrupted, if l.interrupted > 0 { (lm - hm).max(0.0) * l.exec_count as f64 / l.interrupted as f64 } else { 0.0 }),
     ));
-    let tight = |t: &crate::stats::TaskStats| t.exec_max_cycles as f64 - t.exec_min_cycles as f64 <= t.exec_mean_cycles() * 2.0 * TOLERANCE_PERCENT as f64 / 100.0;
+    let tight = |t: &crate::stats::TaskStats| t.exec_max_cycles as f64 - t.exec_min_cycles as f64 <= t.exec_mean_cycles() * 2.0 * tolerance_percent as f64 / 100.0;
     out.push((
         "executions tight (every Job of a Task within a narrow band)".into(),
         tight(h) && tight(l),
@@ -112,7 +128,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     out.run = Some(run);
     match target.read_stats(inputs.target_elf, &scratch) {
         Ok(Some(st)) => {
-            for (name, ok, detail) in judge(&st, inputs.cpu_hz, inputs.tick_hz) {
+            for (name, ok, detail) in judge_with(&st, inputs.cpu_hz, inputs.tick_hz, inputs.low, inputs.tolerance_percent) {
                 out.step(&name, ok, detail);
             }
             out.stats = Some(st);
@@ -123,18 +139,54 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     out
 }
 
+/// The preempted Task's mean excess over the unpreempted one, spread over
+/// the entries that interrupted its Jobs (cycles per entry). `None`
+/// without the interruption counts.
+pub fn per_entry_excess(st: &Stats, low: usize) -> Option<u64> {
+    let (h, l) = (st.tasks.get(HIGH)?, st.tasks.get(low)?);
+    if l.interrupted == 0 || l.exec_count == 0 || h.exec_count == 0 {
+        return None;
+    }
+    let excess = (l.exec_mean_cycles() - h.exec_mean_cycles()).max(0.0) * l.exec_count as f64;
+    Some((excess / l.interrupted as f64).ceil() as u64)
+}
+
+/// Δ_fp_save and Δ_fp_restore (Table 13-1; task 19.3): in the
+/// floating-point variant the preempted Task is `filter`, whose context
+/// is active, so every interrupting entry stacks and unstacks the
+/// extended frame (DD-04, eager); its per-entry excess less Δ_entry of the
+/// plain configuration (`delta_entry_cycles`, the measured value before
+/// the margin) is the stacking's cost, recorded half as the save and half
+/// as the restore (the hardware does both, the sum is what was measured),
+/// each with the margin. `None` without the counts, or when the variant's
+/// excess does not exceed Δ_entry (then the stacking was not observed).
+pub fn delta_fp(st: &Stats, delta_entry_cycles: u64, margin_percent: u64) -> Option<Vec<rsk_model::wcet::KernelTimingParameter>> {
+    let per_entry = per_entry_excess(st, LOW_FPU)?;
+    let l = st.tasks.get(LOW_FPU)?;
+    let stacking = per_entry.checked_sub(delta_entry_cycles)?;
+    let half = stacking.div_ceil(2);
+    let make = |symbol: &str, what: &str| rsk_model::wcet::KernelTimingParameter {
+        symbol: symbol.into(),
+        cycles: crate::kernel_timing::bound(half, margin_percent),
+        method: "measured".into(),
+        tool: crate::kernel_timing::TOOL.into(),
+        conditions: vec![
+            format!("{what}: half of the floating-point context stacking per interrupting entry ({stacking} cycles: filter's excess over control per entry, {per_entry}, less Δ_entry of the plain cycle configuration, {delta_entry_cycles}; the FPU Task's {} Jobs, {} interrupting entries; task 19.3)", l.exec_count, l.interrupted),
+            "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".into(),
+        ],
+        measured: Some(rsk_model::wcet::Measured { runs: l.interrupted as u64, max_observed: half, margin_percent, coverage_branch_percent: 0, scenarios: vec!["nrf52840_cycles_fpu (2 s)".into()] }),
+    };
+    Some(vec![make("delta_fp_save", "the extended frame's stacking at an exception entry with the context active"), make("delta_fp_restore", "the extended frame's unstacking at the return")])
+}
+
 /// Δ_entry (design.md, R13.6): the cycles a Kernel entry charges the Job
 /// it interrupts, outside the handler's charge points: the preempted
 /// Task's mean excess over the unpreempted one, spread over the entries
 /// that interrupted its Jobs, with the margin. `None` without the
 /// interruption counts.
 pub fn delta_entry(st: &Stats, margin_percent: u64) -> Option<rsk_model::wcet::KernelTimingParameter> {
-    let (h, l) = (st.tasks.get(HIGH)?, st.tasks.get(LOW)?);
-    if l.interrupted == 0 || l.exec_count == 0 || h.exec_count == 0 {
-        return None;
-    }
-    let excess = (l.exec_mean_cycles() - h.exec_mean_cycles()).max(0.0) * l.exec_count as f64;
-    let per_entry = (excess / l.interrupted as f64).ceil() as u64;
+    let per_entry = per_entry_excess(st, LOW)?;
+    let l = st.tasks.get(LOW)?;
     Some(rsk_model::wcet::KernelTimingParameter {
         symbol: "delta_entry".into(),
         cycles: crate::kernel_timing::bound(per_entry, margin_percent),
@@ -152,7 +204,7 @@ pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome, binary: &str) -> St
     let mut s = String::new();
     let _ = writeln!(s, "# HIL cycle attribution: the Budget accounting against the DWT (task 7.5, R18.1, ASM-06)\n");
     let _ = writeln!(s, "Verdict: **{}**\n", if out.ok() { "pass" } else { "FAIL" });
-    let _ = writeln!(s, "Target {}; binary {binary} (the cycle configuration `nrf52840_cycles`: control and log execute the same {}-iteration spin per Job).\n", rig.target.serial, 8_000);
+    let _ = writeln!(s, "Target {}; binary {binary} (the cycle configuration `{}`: control and {} execute the same {}-iteration spin per Job).\n", rig.target.serial, if inputs.low == LOW { "nrf52840_cycles" } else { "nrf52840_cycles_fpu" }, if inputs.low == LOW { "log" } else { "filter (the FPU Task)" }, 8_000);
     let _ = writeln!(s, "## Steps\n\n| Step | Result | Detail |\n|---|---|---|");
     for st in &out.steps {
         let _ = writeln!(s, "| {} | {} | {} |", st.name, if st.ok { "pass" } else { "FAIL" }, st.detail.replace('|', "\\|"));

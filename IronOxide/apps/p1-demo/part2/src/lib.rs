@@ -332,6 +332,17 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
         });
     }
     cx.y.with(|y| lowpass(y));
+    // The floating-point variant of the cycle-attribution test (task 19.3,
+    // Δ_fp_save and Δ_fp_restore): with the context active from the step
+    // above, the same fixed-iteration spin as `control`'s, preempted by
+    // every other Task; the rest of the body is skipped as `log`'s is.
+    #[cfg(feature = "cycles")]
+    {
+        rsk::spin::<8_000>();
+        cx.count.with(|c| *c = c.saturating_add(1));
+        rsk::debug(&[b'F']);
+        return;
+    }
     #[cfg(creusot)]
     let read = #[rsk::creusot_std::macros::ensures(^s == *s && result == (*s).ok)] |s: &mut Stats| s.ok;
     #[cfg(not(creusot))]

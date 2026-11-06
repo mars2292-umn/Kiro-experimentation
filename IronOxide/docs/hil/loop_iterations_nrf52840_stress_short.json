@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:d0fe4f33cfa973fe900db9da1c453292c1aec6ad033a817a20f3089042518f66",
+  "binary_hash": "sha256:541c920d8de22a15b815fa4d925e4a17f179aa25bf990dfbf22e607d20728629",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",

@@ -272,14 +272,15 @@ pub fn report_and_exit() -> ! {
     // ..., 18: six raises, each a Release of echo (R10.5).
     // part2 (task 14): 8 filter Jobs (25 ms) with the FP state converging,
     // and 2 sampler Jobs (0 ms, 100 ms), each an accepted EasyDMA request.
-    // The cycle-attribution configuration (task 7.5): 2 seconds without a
-    // fault or a miss; the rig judges the executions from the record.
-    #[cfg(feature = "cycles")]
+    // The cycle-attribution configuration (task 7.5) and its floating-point
+    // variant (task 19.3): 2 seconds without a fault or a miss; the rig
+    // judges the executions from the record.
+    #[cfg(any(feature = "cycles", feature = "cycles-fpu"))]
     let ok = {
         let _ = (filter_ok, a, b, c, d, e, f, g, dma_ok, blocked);
         ended && faults == 0 && misses == 0
     };
-    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles")))]
+    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu")))]
     let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
         && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2;
     // The release-timing configuration: every count within two Jobs of

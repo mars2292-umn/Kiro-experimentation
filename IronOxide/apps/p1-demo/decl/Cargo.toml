@@ -22,6 +22,10 @@ nrf52840_stress_short = ["nrf52840"]
 nrf52840_isolation = ["nrf52840"]
 # The cycle-attribution configuration of task 7.5 (`src/nrf52840_cycles.rs`).
 nrf52840_cycles = ["nrf52840"]
+# The floating-point variant of the cycle configuration (task 19.3, Δ_fp_save and Δ_fp_restore).
+nrf52840_cycles_fpu = ["nrf52840"]
+# The plain measurement configuration of task 19.4 (`src/nrf52840_measure.rs`).
+nrf52840_measure = ["nrf52840"]
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }
