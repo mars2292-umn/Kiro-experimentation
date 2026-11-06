@@ -38,7 +38,7 @@ CI has the same entry point but does not install QEMU, so a CI run carries no QE
 
 ### 1.1 Phase 1 checkpoint status (task 9)
 
-Task 9 asks that every proof, Kani run, and HIL suite pass before Phase 1 is declared complete. The state on 2026-11-05:
+Task 9 asks that every proof, Kani run, and HIL suite pass before Phase 1 is declared complete. The state on 2026-11-06, at which the user closed the checkpoint:
 
 | Checkpoint item | State | What is left |
 |---|---|---|
@@ -48,7 +48,7 @@ Task 9 asks that every proof, Kani run, and HIL suite pass before Phase 1 is dec
 | Measured timing (R33, R34) | Kernel_Timing_Parameters and WCET_Records written by the rig on the committed binaries (11.5, 11.6) | A Flight_Build measured without the instrumentation (11.12); the static WCET cross-check is P5 |
 | Documents of task 8 | this plan, the registers, the reuse record, the traceability matrix | The independent review (R54.4); the standards' texts for OPEN-01 and OPEN-02 |
 
-Nothing in the checkpoint's own terms is failing; what remains are the residuals above, each with its owner in section 13. The checkpoint itself (task 9) is the user's call.
+Nothing in the checkpoint's own terms is failing; what remains are the residuals above, each with its owner in section 13. The checkpoint (task 9) was closed by the user on 2026-11-06 at this revision; the residuals stay open in section 13.
 
 ## 2. What the type system gives (R43.3)
 
