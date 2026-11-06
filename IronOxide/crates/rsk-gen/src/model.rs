@@ -203,6 +203,7 @@ pub fn task_model(g: &Generated) -> Value {
                 .with("kernel_flash", region(&g.plan.kernel_flash))
                 .with("shared_code", region(&g.plan.shared_code))
                 .with("kernel_ram", region(&g.plan.kernel_ram))
+                .with("kernel_windows", g.plan.kernel_windows.iter().map(window).collect::<Vec<_>>())
                 .with("derived", true),
         )
         .with("partitions", partitions)

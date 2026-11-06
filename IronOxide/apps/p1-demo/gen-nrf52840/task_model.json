@@ -13,7 +13,7 @@
     "tick_hz": 16000000
   },
   "config_checksum": "0xb4b1f707",
-  "layout_checksum": "0x86e339ac",
+  "layout_checksum": "0x6f688748",
   "operating_duration_ticks": 3200000,
   "safe_state": "crate::report_and_exit",
   "fp_flush_to_zero": false,
@@ -75,6 +75,53 @@
       "srd": 0,
       "usable_bytes": 32768
     },
+    "kernel_windows": [
+      {
+        "base": 3758096384,
+        "size_log2": 20,
+        "srd": 0,
+        "peripherals": [
+          "PPB"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073741824,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "CLOCK"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073774592,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "TIMER0"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073807360,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "WDT"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073868800,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "PPI"
+        ],
+        "read_only": false
+      }
+    ],
     "derived": true
   },
   "partitions": [

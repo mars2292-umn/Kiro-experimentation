@@ -19,8 +19,9 @@
 //! read, peripheral write (the first window, skipped when `q` owns none);
 //! then against the Kernel: RAM read and write (`kernel_ram + 0x100`),
 //! flash read and fetch (`kernel_flash + 0x100`), PPB read and write
-//! (NVIC_ISER0, 0xE000_E100), and a write to the word below `p`'s own
-//! stack. The walkers are `part0.control`, `part1.log`, and
+//! (NVIC_ISER0, 0xE000_E100), a read and a write of the first Kernel-owned
+//! peripheral's window after the PPB (`kernel_windows[1] + 0x100`, R16.2),
+//! and a write to the word below `p`'s own stack. The walkers are `part0.control`, `part1.log`, and
 //! `part2.sampler` (after its seven EasyDMA cases).
 
 use std::collections::BTreeMap;
@@ -107,17 +108,22 @@ pub fn attempts(model: &TaskModel, p: usize) -> Vec<Attempt> {
     let kram = region_base(&model.layout.kernel_ram) + 0x100;
     let kflash = region_base(&model.layout.kernel_flash) + 0x100;
     let own = region_base(&model.partitions[p].mpu.ram).wrapping_sub(4);
-    let kernel: [(String, u32, Class, u8); 7] = [
-        ("read the Kernel's RAM".into(), kram, Class::Read, MEMMANAGE),
-        ("write the Kernel's RAM".into(), kram, Class::Write, MEMMANAGE),
-        ("read the Kernel's flash".into(), kflash, Class::Read, MEMMANAGE),
-        ("fetch from the Kernel's flash".into(), kflash, Class::Fetch, MEMMANAGE),
-        ("read the PPB (NVIC_ISER0)".into(), PPB, Class::Read, BUSFAULT),
-        ("write the PPB (NVIC_ISER0)".into(), PPB, Class::Write, BUSFAULT),
-        ("write the word below the own stack (R16.5)".into(), own, Class::Write, MEMMANAGE),
+    let kwin = model.layout.kernel_windows.get(1);
+    let kwin_name = kwin.map_or("none".to_string(), |w| w.peripherals.join(","));
+    let kwin_addr = kwin.map(|w| w.base + 0x100);
+    let kernel: [(String, Option<u32>, Class, u8); 9] = [
+        ("read the Kernel's RAM".into(), Some(kram), Class::Read, MEMMANAGE),
+        ("write the Kernel's RAM".into(), Some(kram), Class::Write, MEMMANAGE),
+        ("read the Kernel's flash".into(), Some(kflash), Class::Read, MEMMANAGE),
+        ("fetch from the Kernel's flash".into(), Some(kflash), Class::Fetch, MEMMANAGE),
+        ("read the PPB (NVIC_ISER0)".into(), Some(PPB), Class::Read, BUSFAULT),
+        ("write the PPB (NVIC_ISER0)".into(), Some(PPB), Class::Write, BUSFAULT),
+        (format!("read the Kernel-owned peripheral {kwin_name} (R16.2)"), kwin_addr, Class::Read, MEMMANAGE),
+        (format!("write the Kernel-owned peripheral {kwin_name} (R16.2)"), kwin_addr, Class::Write, MEMMANAGE),
+        ("write the word below the own stack (R16.5)".into(), Some(own), Class::Write, MEMMANAGE),
     ];
     for (what, address, class, kind) in kernel {
-        out.push(Attempt { index: i, what, address: Some(address), class, kind });
+        out.push(Attempt { index: i, what, address, class, kind });
         i += 1;
     }
     out
@@ -425,7 +431,7 @@ mod tests {
         assert_eq!(w[1].task, 3);
         assert_eq!(w[2].task, 6);
         let a = &w[1].attempts; // part1 against part0, part2, the Kernel
-        assert_eq!(a.len(), 2 * 8 + 7);
+        assert_eq!(a.len(), 2 * 8 + 9);
         assert_eq!(a[0].address, Some(0x0002_0100));
         assert_eq!(a[2].class, Class::Fetch);
         assert_eq!(a[3].address, Some(0x2000_8000 + 4096 + 0x100));
@@ -435,7 +441,13 @@ mod tests {
         assert_eq!(a[16].address, Some(0x2000_0100));
         assert_eq!(a[19].class, Class::Fetch);
         assert_eq!(a[20].kind, BUSFAULT);
-        assert_eq!(a[22].address, Some(0x2001_0000 - 4));
+        // R16.2: the first Kernel-owned peripheral after the PPB (CLOCK on the nRF52840), read then write.
+        assert_eq!(a[22].address, Some(0x4000_0100));
+        assert_eq!(a[22].class, Class::Read);
+        assert_eq!(a[23].address, Some(0x4000_0100));
+        assert_eq!(a[23].class, Class::Write);
+        assert_eq!(a[23].kind, MEMMANAGE);
+        assert_eq!(a[24].address, Some(0x2001_0000 - 4));
     }
 
     #[test]

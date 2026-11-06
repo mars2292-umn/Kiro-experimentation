@@ -419,6 +419,19 @@ pub fn layout_bytes(g: &Generated) -> Vec<u8> {
     region(&mut out, &g.plan.kernel_flash);
     region(&mut out, &g.plan.shared_code);
     region(&mut out, &g.plan.kernel_ram);
+    out.push(g.plan.kernel_windows.len() as u8);
+    for k in 0..crate::layout::MAX_KERNEL_WINDOWS {
+        match g.plan.kernel_windows.get(k) {
+            Some(win) => {
+                out.extend_from_slice(&win.base.to_le_bytes());
+                out.push(win.size_log2);
+            }
+            None => {
+                out.extend_from_slice(&0u32.to_le_bytes());
+                out.push(5);
+            }
+        }
+    }
     out.extend_from_slice(&(g.plan.partitions.len() as u32).to_le_bytes());
     for p in &g.plan.partitions {
         region(&mut out, &p.code);

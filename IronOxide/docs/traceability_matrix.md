@@ -193,7 +193,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R14.1 | — | — | ✓12.3; ✓5.3 | crates/rsk-entry/src/lib.rs; crates/rsk-link/src/lib.rs; crates/rsk-link/src/scan.rs; +3 | analysis-stack-p1-demo; test-workspace-tests |
 | R14.2 | — | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; +1 | — |
-| R14.3 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Reuse and Deviation Record | ✓5.3 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +10 | hil-mpu-matrix |
+| R14.3 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Reuse and Deviation Record | ✓5.3 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +11 | hil-mpu-matrix |
 | R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/hil-stimulus/system/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; +5 | — |
 | R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_response.rs; crates/rsk-analyzer/tests/properties.rs; crates/rsk-gen/src/decl.rs; +18 | hil-response; hil-response-step; proof-kernel-verus |
 | R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
@@ -220,12 +220,12 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R16.1 | P-16 | — | ✓4.9 | crates/rsk-logic/src/hw_model.rs; crates/rsk-logic/src/logic/mpu.rs; xtask/src/trace.rs; +1 | hil-mpu-matrix; proof-kernel-verus |
-| R16.2 | P-16 | Reuse and Deviation Record | ✓4.9 | crates/rsk-logic/src/logic/mpu.rs; crates/rsk/src/lib.rs; xtask/src/trace.rs; +1 | hil-mpu-matrix |
+| R16.2 | P-16 | Design decisions; Memory and MPU layout (DD-07, DD-11); Reuse and Deviation Record | ✓4.9 | apps/hil-stimulus/gen/partition_stim.rs; apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; +48 | hil-mpu-matrix; proof-kernel-verus |
 | R16.3 | P-16 | Design decisions | ✓4.9 | crates/rsk-gen/src/emit.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/dt.rs; crates/rsk-link/src/scan.rs; +4 | hil-mpu-matrix; proof-kernel-verus; test-workspace-tests |
 | R16.4 | P-16 | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; +3 | hil-mpu-matrix; hil-spike-p1-demo; hil-spike-step |
 | R16.5 | P-16; P-21 | Closed response sets (DD-10, R14.5); Memory and MPU layout (DD-07, DD-11); Property 12 | ✓4.9 | apps/hil-stimulus/gen/link.x; apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/gen-nrf52840/link.x; +48 | hil-mpu-matrix; proof-kernel-verus |
 | R16.6 | P-16 | Property 12 | ✓4.9 | crates/rsk-logic/src/hw_model.rs; crates/rsk-logic/src/logic/mod.rs; crates/rsk-logic/src/logic/mpu.rs | proof-kernel-verus |
-| R16.7 | — | Trust-Base Analysis | ✓13.1 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-entry/unsafe_justifications.toml; +2 | check-config-p1-demo |
+| R16.7 | — | Trust-Base Analysis | ✓13.1 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-entry/unsafe_justifications.toml; +2 | check-config-p1-demo; proof-kernel-verus |
 | R16.8 | P-16 | Profile_Conformance_Suite and HIL_Rig; Property 12 | ✓7.4 | apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; +38 | hil-isolation-step; hil-mpu-matrix |
 | R16.9 | — | — | ✓3.1 | xtask/src/verify.rs | test-qemu-spike-p1-demo; test-qemu-spike-step |
 | R16.10 | — | Reuse and Deviation Record | ✓12.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-entry/clippy.toml; crates/rsk-hil/src/dt.rs; +6 | analysis-stack-p1-demo; test-workspace-tests |
@@ -1018,7 +1018,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R15.5 | P1 Kernel; P2 Generator | ✓10.5 | — |
 | R15.6 | P1 Kernel; P2 Generator | ✓10.2 | check-config-p1-demo; test-workspace-tests |
 | R15.7 | P1 Kernel; P2 Generator | ✓10.2 | — |
-| R16.7 | P1 | ✓13.1 | check-config-p1-demo |
+| R16.7 | P1 | ✓13.1 | check-config-p1-demo; proof-kernel-verus |
 | R16.9 | P1 | ✓3.1 | test-qemu-spike-p1-demo; test-qemu-spike-step |
 | R16.10 | P1 | ✓12.3 | analysis-stack-p1-demo; test-workspace-tests |
 | R17.1 | P1 | — | hil-dma; proof-kernel-kani |

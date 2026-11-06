@@ -124,9 +124,12 @@ expect = ["part1.peripherals (CMSDK_TIMER0): expected a Partition-assignable per
 id = "window-read-only-flag"
 class = "mpu-permissions"
 kind = "model"
-find = "\"read_only\": false"
-replace = "\"read_only\": true"
-expect = ["read_only: expected false, found true"]
+# The EasyDMA-capable peripheral's window, the one read-only window of the
+# demo (since 2026-11-05 the layout's Kernel peripheral intervals carry
+# `read_only: false` as well, so the false flag is no longer unique).
+find = "\"read_only\": true"
+replace = "\"read_only\": false"
+expect = ["read_only: expected true, found false"]
 
 [[mutation]]
 id = "layout-ram-base-model"
@@ -141,8 +144,10 @@ id = "layout-image-stack-byte"
 class = "mpu-permissions"
 kind = "binary"
 symbol = "RSK_LAYOUT_IMAGE"
-# Three Kernel intervals (18 bytes), NP (4), partitions[0].code and ram (12), then stack_size.
-offset = 34
+# Three Kernel intervals (18 bytes), the Kernel peripheral intervals (a count
+# byte and eight slots of 5 bytes, R16.2, since 2026-11-05: 41), NP (4),
+# partitions[0].code and ram (12), then stack_size.
+offset = 75
 xor = 16
 expect = ["RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)", "LAYOUT.partitions[0].stack_size (part0): expected 4096, found 4112"]
 

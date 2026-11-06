@@ -644,8 +644,8 @@ pub open spec fn partition_owns<const NP: usize>(layout: &Layout<NP>, q: int, a:
     ql.code.contains(a) || ql.ram.contains(a) || ql.in_window(a)
 }
 
-/// Property 12 over the Hardware_Model (R16.1, R16.3, R16.5, R16.6,
-/// R44.4): for a layout that passes the boot validation
+/// Property 12 over the Hardware_Model (R16.1, R16.2, R16.3, R16.5,
+/// R16.6, R44.4): for a layout that passes the boot validation
 /// (`Layout::validate` ensures `wf`) and the view that `Layout::view`
 /// computes for Partition `p`, the MPU's own decision for an unprivileged
 /// access of any kind (HW-09: highest-numbered covering region, subregion
@@ -654,6 +654,9 @@ pub open spec fn partition_owns<const NP: usize>(layout: &Layout<NP>, q: int, a:
 ///   shared code; writes only to its RAM or windows; instruction fetches
 ///   only from its code or the shared code;
 /// - grants nothing in the Kernel's flash or RAM;
+/// - grants nothing in a Kernel peripheral interval: the PPB, where the
+///   core peripherals PR-22 reserves to the Kernel live, and every
+///   Kernel-owned peripheral of the Target table (R16.2, PR-29);
 /// - grants nothing that another Partition owns;
 /// - refuses a write to the word below `p`'s stack, so a stack overflow
 ///   faults before it modifies memory outside the stack region (R16.5);
@@ -666,10 +669,12 @@ pub open spec fn partition_owns<const NP: usize>(layout: &Layout<NP>, q: int, a:
 /// `arch::cm4::boot` has checked `validate`); that the RBAR/RASR words it
 /// writes encode the view (Kani harnesses `rasr_encoding_fields`,
 /// `rbar_encoding_fields`); and that the MPU is enabled while Jobs run
-/// (`hw::mpu_enable_background` at boot). Kernel-
-/// owned peripherals and the PPB are not intervals of the layout, so they
-/// are excluded only through containment, as long as no window of `p`
-/// covers them (the Generator, PR-29, and the Config_Checker, R16.7).
+/// (`hw::mpu_enable_background` at boot); and that the layout's Kernel
+/// peripheral intervals are the PPB and every Kernel-owned peripheral of
+/// the Target table, and each window of `p` the registers of a peripheral
+/// `p` owns (the Generator, PR-29, and the Config_Checker, R16.7). A
+/// peripheral that no one owns is in no interval of any view, so it is
+/// granted to no Partition by the first clause.
 pub proof fn lemma_hw_partition_isolation<const NP: usize>(layout: &Layout<NP>, p: int, vp: &View, a: int, kind: u8)
     requires layout.wf(), 0 <= p < NP, layout.is_view_of(p, vp),
     ensures
@@ -681,6 +686,7 @@ pub proof fn lemma_hw_partition_isolation<const NP: usize>(layout: &Layout<NP>, 
         mpu_grants_unprivileged(vp, a, ACCESS_FETCH) ==> layout.shared_code.contains(a)
             || layout.partitions[p].code.contains(a),
         mpu_grants_unprivileged(vp, a, kind) ==> !layout.kernel_flash.contains(a) && !layout.kernel_ram.contains(a),
+        mpu_grants_unprivileged(vp, a, kind) ==> !layout.in_kernel_window(a),
         forall|q: int| 0 <= q < NP && q != p
             ==> (mpu_grants_unprivileged(vp, a, kind) ==> !#[trigger] partition_owns(layout, q, a)),
         !mpu_grants_unprivileged(vp, layout.partitions[p].ram.base as int - 1, ACCESS_WRITE),
@@ -694,6 +700,8 @@ pub proof fn lemma_hw_partition_isolation<const NP: usize>(layout: &Layout<NP>, 
     lemma_mpu_grant_covered(vp, a, ACCESS_WRITE);
     lemma_mpu_grant_covered(vp, a, ACCESS_FETCH);
     layout.lemma_view_within_layout(p, vp, a);
+    // Kernel peripherals (R16.2): no interval of the view meets one.
+    layout.lemma_view_no_kernel_window(p, vp, a);
     if mpu_grants_unprivileged(vp, a, kind) {
         // Kernel memory: every interval of p and the shared code are
         // disjoint from the Kernel's flash and RAM.

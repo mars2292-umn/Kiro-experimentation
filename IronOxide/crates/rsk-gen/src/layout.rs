@@ -17,6 +17,15 @@ use crate::target::Target;
 /// The maximum peripheral windows per Partition (8 regions: shared code,
 /// Partition code, Partition RAM, and 5 windows).
 pub const MAX_WINDOWS: usize = 5;
+/// The Kernel peripheral intervals a layout carries (R16.2), the
+/// `MAX_KERNEL_WINDOWS` of `rsk_kernel::logic::mpu`.
+pub const MAX_KERNEL_WINDOWS: usize = 8;
+/// The Private Peripheral Bus (Armv7-M ARM B3.1, 0xE0000000 to
+/// 0xE00FFFFF): the core peripherals PR-22 reserves to the Kernel (the
+/// NVIC, SCB, MPU, SysTick, DWT, ITM, TPIU, ETM, and ROM table). The
+/// first Kernel peripheral interval of every layout.
+pub const PPB_BASE: u32 = 0xE000_0000;
+pub const PPB_SIZE_LOG2: u8 = 20;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Region {
@@ -58,6 +67,10 @@ pub struct Plan {
     pub kernel_flash: Region,
     pub shared_code: Region,
     pub kernel_ram: Region,
+    /// The Kernel peripheral intervals (R16.2): the PPB, then every
+    /// Kernel-owned peripheral of the Target table (PR-29) in table order.
+    /// The verified layout keeps every Partition interval apart from them.
+    pub kernel_windows: Vec<Window>,
     /// In declaration order.
     pub partitions: Vec<PartitionRegions>,
 }
@@ -105,6 +118,27 @@ pub fn plan(decl: &Declaration, target: &Target) -> Result<Plan, Vec<Diagnostic>
     let kernel_flash = fixed(target.flash.base, target.kernel_flash);
     let shared_code = fixed(target.flash.base + target.kernel_flash, target.shared_code);
     let kernel_ram = fixed(target.ram.base, target.kernel_ram);
+    let mut kernel_windows = vec![Window { base: PPB_BASE, size_log2: PPB_SIZE_LOG2, srd: 0, peripherals: vec!["PPB".to_string()], read_only: false }];
+    for per in target.peripherals.iter().filter(|per| per.kernel_owned) {
+        debug_assert!(per.window_size.is_power_of_two() && per.window_base % per.window_size == 0, "Target table: {} window", per.name);
+        kernel_windows.push(Window {
+            base: per.window_base,
+            size_log2: per.window_size.trailing_zeros() as u8,
+            srd: 0,
+            peripherals: vec![per.name.to_string()],
+            read_only: false,
+        });
+    }
+    if kernel_windows.len() > MAX_KERNEL_WINDOWS {
+        errors.push(Diagnostic::new(
+            "R16.2",
+            ItemRef::Declaration,
+            format!(
+                "the Target's Kernel-owned peripherals and the PPB need {} Kernel peripheral intervals; the layout carries at most {MAX_KERNEL_WINDOWS}",
+                kernel_windows.len()
+            ),
+        ));
+    }
 
     let mut order: Vec<usize> = (0..decl.partitions.len()).collect();
     order.sort_by(|&a, &b| {
@@ -210,6 +244,7 @@ pub fn plan(decl: &Declaration, target: &Target) -> Result<Plan, Vec<Diagnostic>
         kernel_flash,
         shared_code,
         kernel_ram,
+        kernel_windows,
         partitions: placed.into_iter().map(|p| p.expect("placed")).collect(),
     })
 }

@@ -47,11 +47,12 @@
       }
     },
     "layout": {
-      "type": "object", "additionalProperties": false, "required": ["kernel_flash", "shared_code", "kernel_ram", "derived"],
+      "type": "object", "additionalProperties": false, "required": ["kernel_flash", "shared_code", "kernel_ram", "kernel_windows", "derived"],
       "properties": {
         "kernel_flash": { "$ref": "#/$defs/region" },
         "shared_code": { "$ref": "#/$defs/region" },
         "kernel_ram": { "$ref": "#/$defs/region" },
+        "kernel_windows": { "type": "array", "items": { "$ref": "#/$defs/window" } },
         "derived": { "const": true }
       }
     },

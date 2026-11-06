@@ -2,7 +2,7 @@
 
 Verdict: **pass** (14 rules matched, 0 mismatched, 3 with untested parts)
 
-Target 1366:1060:001050217737; binary sha256:26fdf8e4058f775742563aa7c241f16a218e682bb8942f850b10a671417143aa. The record `DT_RECORD` is written by the Kernel's two boot phases (feature `hw-dt`); the Task-side rows come from the isolation configuration's probes and the access matrix.
+Target 1366:1060:001050217737; binary sha256:1ae27ae8cbc39c26cd2ce56d0bd04a9ec817d6c06dbbe651e48b02f44acb7274. The record `DT_RECORD` is written by the Kernel's two boot phases (feature `hw-dt`); the Task-side rows come from the isolation configuration's probes and the access matrix.
 
 ## Per rule
 
@@ -38,13 +38,13 @@ Target 1366:1060:001050217737; binary sha256:26fdf8e4058f775742563aa7c241f16a218
 | HW-04 | MSR PRIMASK/BASEPRI from unprivileged Thread mode ignored | no effect | not tested on silicon: the Link_Checker excludes msr/mrs/cps from every Task's code (PR-22, R16.10), so no Job can execute them; the CPSIE I case above is the one the Kernel_Proofs rely on (`lemma_job_cannot_set_mask`) | not tested (disposition in the observed column) |
 | HW-05 | handler order: test 1 (B more urgent) B A; test 2 (A 0xC0 pended first, B 0x40) B A; test 3 (equal, B pended first) A B (lowest number); test 4 A A; unprivileged test A | [47, 46, 47, 46, 46, 47, 46, 46, 46] | [47, 46, 47, 46, 46, 47, 46, 46, 46] | match |
 | HW-06 | SVC frame R0-R3, R12 hold the patterns loaded before the SVC | 0x11111111 0x22222222 0x33333333 0x44444444 0xcccccccc | 0x11111111 0x22222222 0x33333333 0x44444444 0xcccccccc | match |
-| HW-06 | stacked PC is the instruction after the SVC (the PC that instruction reads, less 4); xPSR.T set; frame 8-byte aligned (MSP) | pc 0xc88; T; aligned | pc 0xc88; xpsr 0x21000000; frame at 0x20007ef8 | match |
+| HW-06 | stacked PC is the instruction after the SVC (the PC that instruction reads, less 4); xPSR.T set; frame 8-byte aligned (MSP) | pc 0xc86; T; aligned | pc 0xc86; xpsr 0x21000000; frame at 0x20007f10 | match |
 | HW-06 | a Job's R2-R5, R8, R10, R12 preserved across preemptions (Property 2, R7.5): the FPU Task's pattern probe | 0 failures | 141 runs, 0 failures, mask 0x0 | match |
 | HW-07 | after the handlers returned: IABR clear, ICSR.VECTACTIVE 0 | 0; 0 | 0x0; 0 | match |
 | HW-07 | CCR.NONBASETHRDENA after the Kernel's boot | 0 | 0 | match |
 | HW-08 | the handler of A read CONTROL.nPRIV set (Thread mode unprivileged), read ICSR with VECTACTIVE 46 (privileged in Handler mode), and Thread mode read CONTROL 0 afterwards | nPRIV 1; VECTACTIVE 46; CONTROL 0 | CONTROL 0x1; VECTACTIVE 46; CONTROL 0x0 | match |
 | HW-08 | a Job's access to the Private Peripheral Bus faults (unprivileged Thread mode) | 6 BusFaults | 6 BusFaults | match |
-| HW-09 | the access matrix (R16.8): every access outside the Partition's view refused | every attempt a MemManage fault of the Partition | part0.control: 23 attempts (23 with an address), 23 fault events (21 MemManage, 2 BusFault), 23 followed by END_JOB \| part1.log: 23 attempts (21 with an address), 21 fault events (19 MemManage, 2 BusFault), 21 followed by END_JOB \| part2.sampler: 23 attempts (21 with an address), 21 fault events (19 MemManage, 2 BusFault), 21 followed by END_JOB \| fault record: every one of the 65 attempts has its fault with the attempted address and class (IACCVIOL for fetches, DACCVIOL with MMFAR for data, a BusFault for the PPB) | match |
+| HW-09 | the access matrix (R16.8): every access outside the Partition's view refused | every attempt a MemManage fault of the Partition | part0.control: 25 attempts (25 with an address), 25 fault events (23 MemManage, 2 BusFault), 25 followed by END_JOB \| part1.log: 25 attempts (23 with an address), 23 fault events (21 MemManage, 2 BusFault), 23 followed by END_JOB \| part2.sampler: 25 attempts (23 with an address), 23 fault events (21 MemManage, 2 BusFault), 23 followed by END_JOB \| fault record: every one of the 71 attempts has its fault with the attempted address and class (IACCVIOL for fetches, DACCVIOL with MMFAR for data, a BusFault for the PPB) | match |
 | HW-09 | a write to the word below the Partition's stack refused (R16.5) | MemManage | MemManage | match |
 | HW-09 | MPU_CTRL after the Kernel's boot: ENABLE and PRIVDEFENA (background map for privileged code only) | 0x5 | 0x5 | match |
 | HW-09 | subregion-disable bits and overlap precedence | a disabled subregion refuses; the highest-numbered region decides | not exercised: no view of this Application sets SRD bits (every region is a power-of-two region of exactly its size) and no view has two enabled regions covering one address; the encoding is checked at field level by the Kani harnesses `rasr_encoding_fields` and `rbar_encoding_fields` | not tested (disposition in the observed column) |
@@ -54,25 +54,25 @@ Target 1366:1060:001050217737; binary sha256:26fdf8e4058f775742563aa7c241f16a218
 | HW-10 | S0-S31 preserved across preemptions (the hardware's S0-S15 under eager stacking, the stubs' S16-S31) | 0 failures | 141 runs, 0 failures, mask 0x0 | match |
 | HW-11 | ACTLR.DISDEFWBUF after the Kernel's boot | 1 | 1 | match |
 | HW-11 | every BusFault of the PPB attempts precise, with BFAR valid | 6 precise | 6 faults: PRECISERR+BFARVALID at 0xe000e100, PRECISERR+BFARVALID at 0xe000e100, PRECISERR+BFARVALID at 0xe000e100, PRECISERR+BFARVALID at 0xe000e100, PRECISERR+BFARVALID at 0xe000e100, PRECISERR+BFARVALID at 0xe000e100 | match |
-| HW-12 | COMPARE fires for every distance of MIN_COMPARE_DISTANCE (16, revised from 2 by this test's first run) ticks or more from the counter captured before the write; below it the event is not guaranteed (ASM-19) | fired for every d >= 16; the model's former 2 refuted (0 to 7 never fire: the capture-to-write path is about 7 ticks) | smallest distance that fired: 8 ticks; d=0: no event after 12555 ticks; d=1: no event after 12427 ticks; d=2: no event after 12427 ticks; d=3: no event after 12427 ticks; d=4: no event after 12427 ticks; d=5: no event after 12427 ticks; d=6: no event after 12427 ticks; d=7: no event after 12427 ticks; d=8: fired after 14 ticks; d=10: fired after 17 ticks; d=12: fired after 20 ticks; d=16: fired after 23 ticks | match |
-| HW-13 | CYCCNT counts up between two readings | second > first by a few cycles | 0x6 then 0xa | match |
+| HW-12 | COMPARE fires for every distance of MIN_COMPARE_DISTANCE (16, revised from 2 by this test's first run) ticks or more from the counter captured before the write; below it the event is not guaranteed (ASM-19) | fired for every d >= 16; the model's former 2 refuted (0 to 7 never fire: the capture-to-write path is about 7 ticks) | smallest distance that fired: 8 ticks; d=0: no event after 12555 ticks; d=1: no event after 12426 ticks; d=2: no event after 12426 ticks; d=3: no event after 12554 ticks; d=4: no event after 12426 ticks; d=5: no event after 12426 ticks; d=6: no event after 12426 ticks; d=7: no event after 12554 ticks; d=8: fired after 14 ticks; d=10: fired after 17 ticks; d=12: fired after 20 ticks; d=16: fired after 23 ticks | match |
+| HW-13 | CYCCNT counts up between two readings | second > first by a few cycles | 0x8 then 0xc | match |
 | HW-13 | CYCCNT wraps at 2^32: a few dozen cycles after writing 0xFFFF_FFF0, two readings have wrapped past zero, count up, and lie within the model's `elapsed_cycles` of the written value | both below 0x2000; second > first; elapsed from 0xFFFF_FFF0 below 0x2000 | 0x3a then 0x3e (elapsed from the write 78) | match |
-| HW-14 | tail-chaining: fewer cycles from one handler's exit to the next's entry when the next was already pending than when it is pended after the return | tail-chained gap below the separate gap | tail-chained 154 cycles, separate 233 cycles | match |
+| HW-14 | tail-chaining: fewer cycles from one handler's exit to the next's entry when the next was already pending than when it is pended after the return | tail-chained gap below the separate gap | tail-chained 154 cycles, separate 234 cycles | match |
 | HW-14 | late arrival (a higher-priority exception replacing the one being entered) | the stub sees the context actually preempted | not driven deliberately: the timing window is a few cycles wide and no probe can place an exception in it; observed in the field by the response suite of task 7.5 (a Job's SVC overtaken by the time base, `SVC_STALE`), where the stub's EXC_RETURN and frame described the context the hardware had preempted, as HW-14 states | not tested (disposition in the observed column) |
 
 ## The handler log
 
 | # | Vector | CYCCNT at entry | at exit | CONTROL |
 |---|---|---|---|---|
-| 0 | 47 | 258 | 320 | 0x0 |
-| 1 | 46 | 558 | 620 | 0x0 |
-| 2 | 47 | 952 | 1014 | 0x0 |
-| 3 | 46 | 1168 | 1230 | 0x0 |
-| 4 | 46 | 1552 | 1614 | 0x0 |
-| 5 | 47 | 1768 | 1830 | 0x0 |
-| 6 | 46 | 2085 | 2147 | 0x0 |
-| 7 | 46 | 2380 | 2442 | 0x0 |
-| 8 | 46 | 2884 | 2967 | 0x1 |
+| 0 | 47 | 250 | 306 | 0x0 |
+| 1 | 46 | 544 | 600 | 0x0 |
+| 2 | 47 | 939 | 995 | 0x0 |
+| 3 | 46 | 1149 | 1205 | 0x0 |
+| 4 | 46 | 1522 | 1578 | 0x0 |
+| 5 | 47 | 1732 | 1788 | 0x0 |
+| 6 | 46 | 2039 | 2095 | 0x0 |
+| 7 | 46 | 2329 | 2385 | 0x0 |
+| 8 | 46 | 2836 | 2917 | 0x1 |
 
 ## The record
 
@@ -81,18 +81,18 @@ Target 1366:1060:001050217737; binary sha256:26fdf8e4058f775742563aa7c241f16a218
   8: 00000080 00000060 00000040 00000020 00000080 00000080 00000060 00000000
  16: 00000001 c0000000 00000000 40000000 00000001 00000002 00000000 00000000
  24: 00000008 00000001 0000082e 00000000 11111111 22222222 33333333 44444444
- 32: cccccccc e000e41e 00000c88 21000000 20007ef8 00000c8c 00000006 0000000a
- 40: 0000003a 0000003e 0000009a 000000e9 00000009 0000002f 00000102 00000140
- 48: 00000000 0000002e 0000022e 0000026c 00000000 0000002f 000003b8 000003f6
- 56: 00000000 0000002e 00000490 000004ce 00000000 0000002e 00000610 0000064e
- 64: 00000000 0000002f 000006e8 00000726 00000000 0000002e 00000825 00000863
- 72: 00000000 0000002e 0000094c 0000098a 00000000 0000002e 00000b44 00000b97
+ 32: cccccccc e000e41e 00000c86 21000000 20007f10 00000c8a 00000008 0000000c
+ 40: 0000003a 0000003e 0000009a 000000ea 00000009 0000002f 000000fa 00000132
+ 48: 00000000 0000002e 00000220 00000258 00000000 0000002f 000003ab 000003e3
+ 56: 00000000 0000002e 0000047d 000004b5 00000000 0000002e 000005f2 0000062a
+ 64: 00000000 0000002f 000006c4 000006fc 00000000 0000002e 000007f7 0000082f
+ 72: 00000000 0000002e 00000919 00000951 00000000 0000002e 00000b14 00000b65
  80: 00000001 00000000 00000000 00000000 00000000 00000000 00000000 00000000
  88: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
  96: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
 104: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 0000310b
-112: 00000000 0000308b 00000000 0000308b 00000000 0000308b 00000000 0000308b
-120: 00000000 0000308b 00000000 0000308b 00000000 0000308b 00000001 0000000e
+112: 00000000 0000308a 00000000 0000308a 00000000 0000310a 00000000 0000308a
+120: 00000000 0000308a 00000000 0000308a 00000000 0000310a 00000001 0000000e
 128: 00000001 00000011 00000001 00000014 00000001 00000017 80000000 01000000
 136: 00000002 00000200 00000005 00000004 00000000 00000000 00000000 00000000
 144: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000

@@ -248,3 +248,12 @@ find = "            self.budget.report(cfg, t);\n            let partition = cfg
 replace = "            // (mutant) the Overrun is not marked reported\n            let partition = cfg.tasks[t as usize].partition;\n"
 expect = ["kernel.rs", "budget.reported[t as int]"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "layout-window-over-kernel-peripheral"
+kills = "R16.2 in the layout proof: the boot validation must refuse a Partition window over a Kernel peripheral interval (the PPB or a Kernel-owned peripheral), else `validate` no longer establishes `wf` and `lemma_view_no_kernel_window` has no premise; 2026-11-05"
+file = "crates/rsk-logic/src/logic/mpu.rs"
+find = "            // R16.2: the window against the Kernel peripheral intervals.\n            if !self.check_apart(&win) {\n                return false;\n            }\n"
+replace = "            // (mutant) a window over a Kernel peripheral interval passes the boot validation\n"
+expect = ["mpu.rs", "apart_from_kernel_windows"]
+package = "rsk-logic"

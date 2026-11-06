@@ -79,6 +79,8 @@ pub struct Model {
     pub kernel_flash: Region,
     pub shared_code: Region,
     pub kernel_ram: Region,
+    /// The Kernel peripheral intervals of the layout (R16.2).
+    pub kernel_windows: Vec<Window>,
     pub partitions: Vec<Partition>,
     pub tasks: Vec<Task>,
     pub resources: Vec<Resource>,
@@ -132,6 +134,15 @@ impl Model {
             .map_err(|_| format!("{at}: layout_checksum `{layout_text}` is not a hexadecimal word"))?;
         let caps = field(json, "capacities", at)?;
         let layout = field(json, "layout", at)?;
+        let mut kernel_windows = Vec::new();
+        for (w, win) in field(layout, "kernel_windows", "layout")?.as_array().ok_or("layout.kernel_windows is not a list")?.iter().enumerate() {
+            let wat = format!("layout.kernel_windows[{w}]");
+            kernel_windows.push(Window {
+                region: region_of(win, &wat)?,
+                peripherals: strings_of(win, "peripherals", &wat)?,
+                read_only: bool_of(win, "read_only", &wat)?,
+            });
+        }
         let mut partitions = Vec::new();
         for (i, p) in field(json, "partitions", at)?.as_array().ok_or("partitions is not a list")?.iter().enumerate() {
             let pat = format!("partitions[{i}]");
@@ -225,6 +236,7 @@ impl Model {
             kernel_flash: region_of(field(layout, "kernel_flash", "layout")?, "layout.kernel_flash")?,
             shared_code: region_of(field(layout, "shared_code", "layout")?, "layout.shared_code")?,
             kernel_ram: region_of(field(layout, "kernel_ram", "layout")?, "layout.kernel_ram")?,
+            kernel_windows,
             partitions,
             tasks,
             resources,

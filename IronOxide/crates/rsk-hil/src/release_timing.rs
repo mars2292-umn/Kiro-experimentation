@@ -78,6 +78,11 @@ pub struct Outcome {
     pub stats: Option<Stats>,
     pub trace: Vec<Entry>,
     pub events: Option<crate::events::Events>,
+    /// The Kernel's fault record (`FAULT_RING`, feature `trace-ram`), read
+    /// after every run since 2026-11-05 so that a fault event of the run
+    /// carries its CFSR and address (the UsageFault of Task 0 at 148,400 ms
+    /// in the timing-short run of that day had neither).
+    pub faults: Option<crate::faults::Faults>,
     pub analysis: Option<Analysis>,
     pub timeline: Option<Timeline>,
     pub wraps: u64,
@@ -247,6 +252,17 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         Ok(None) => out.step("Kernel events", true, "the build has no event mirror"),
         Err(e) => out.step("Kernel events", false, e),
     }
+    // The fault record: each MemManage, BusFault, or UsageFault the Kernel
+    // took, with its CFSR and address, for the diagnosis of a fault event
+    // (R14.3); informational, judged by the events above.
+    match target.read_words(inputs.target_elf, "FAULT_RING", &scratch) {
+        Ok(Some(w)) => match crate::faults::Faults::decode(&w) {
+            Ok(f) => out.faults = Some(f),
+            Err(e) => out.step("fault record", false, e),
+        },
+        Ok(None) => {}
+        Err(e) => out.step("fault record", false, e),
+    }
 
     // The trace: the storm check and the counter wraps (the time base is
     // 32 bits wide at `tick_hz`; a run longer than its period wraps).
@@ -397,6 +413,14 @@ pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome) -> String {
     if let Some(st) = &out.stats {
         s.push_str("\n## The Kernel's release-timing record\n\n");
         s.push_str(&st.render(inputs.cpu_hz, inputs.tick_hz));
+    }
+    if let Some(f) = &out.faults {
+        if f.written > 0 {
+            s.push_str("\n## The Kernel's fault record\n\n");
+            s.push_str("Each fault the Kernel took (CFSR, and MMFAR, BFAR, or the stacked PC), oldest first:\n\n```\n");
+            s.push_str(&f.render());
+            s.push_str("```\n");
+        }
     }
     if let Some(ev) = &out.events {
         s.push_str("\n## The Kernel's events\n\n");

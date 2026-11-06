@@ -134,7 +134,7 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
     use rsk_target::layout as l;
     let layout = rsk::matrix::Layout {
         this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
-        kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM,
+        kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
     };
     let i = index.get();
     if (i as usize) >= rsk::matrix::count(&layout) {

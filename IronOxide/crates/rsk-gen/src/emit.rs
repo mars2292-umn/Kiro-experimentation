@@ -133,6 +133,13 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    kernel_flash: {},", interval(&g.plan.kernel_flash));
     let _ = writeln!(s, "    shared_code: {},", interval(&g.plan.shared_code));
     let _ = writeln!(s, "    kernel_ram: {},", interval(&g.plan.kernel_ram));
+    let mut kwins: Vec<String> = g.plan.kernel_windows.iter().map(|w| format!("Interval {{ base: 0x{:08x}, size_log2: {} }}", w.base, w.size_log2)).collect();
+    while kwins.len() < crate::layout::MAX_KERNEL_WINDOWS {
+        kwins.push("NO_WINDOW".to_string());
+    }
+    let _ = writeln!(s, "    // R16.2: {}", g.plan.kernel_windows.iter().map(|w| w.peripherals.join(",")).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "    kernel_windows: [{}],", kwins.join(", "));
+    let _ = writeln!(s, "    kernel_window_count: {},", g.plan.kernel_windows.len());
     let _ = writeln!(s, "    partitions: [");
     for p in &g.plan.partitions {
         let mut windows: Vec<String> = p.windows.iter().map(|w| format!("Interval {{ base: 0x{:08x}, size_log2: {} }}", w.base, w.size_log2)).collect();
@@ -325,6 +332,13 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     let _ = writeln!(s, "        pub const KERNEL_FLASH: (u32, u32) = {};", pair(&g.plan.kernel_flash));
     let _ = writeln!(s, "        pub const SHARED_CODE: (u32, u32) = {};", pair(&g.plan.shared_code));
     let _ = writeln!(s, "        pub const KERNEL_RAM: (u32, u32) = {};", pair(&g.plan.kernel_ram));
+    let _ = writeln!(s, "        /// The Kernel's peripheral intervals (R16.2): the PPB, then the Kernel-owned peripherals.");
+    let _ = writeln!(
+        s,
+        "        pub const KERNEL_WINDOWS: [(u32, u32); {}] = [{}];",
+        g.plan.kernel_windows.len(),
+        g.plan.kernel_windows.iter().map(|w| format!("(0x{:08x}, 0x{:x})", w.base, 1u64 << w.size_log2)).collect::<Vec<_>>().join(", ")
+    );
     let _ = writeln!(s, "        /// Each Partition's code and RAM region, and its stack size (the stack");
     let _ = writeln!(s, "        /// is the bottom of its RAM; the word below it is outside every view, R16.5).");
     let _ = writeln!(s, "        pub const CODE: [(u32, u32); PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| pair(&q.code)).collect::<Vec<_>>().join(", "));
@@ -645,6 +659,11 @@ pub fn summary(g: &Generated) -> String {
     let _ = writeln!(s, "Capacities: lock stack {}, timer slots {}, event log {}", g.lock_capacity, g.slot_count, g.log_capacity);
     let _ = writeln!(s, "Kernel levels: {:?}; Task levels (level -> NVIC byte): {}", g.kernel_levels, g.priority_map.iter().map(|(l, n)| format!("{l} -> 0x{n:02x}")).collect::<Vec<_>>().join(", "));
     let _ = writeln!(s, "Kernel-owned peripherals: {}", g.target.peripherals.iter().filter(|p| p.kernel_owned).map(|p| p.name).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(
+        s,
+        "Kernel peripheral intervals (R16.2, outside every Partition view): {}",
+        g.plan.kernel_windows.iter().map(|w| format!("{} 0x{:08x} (2^{})", w.peripherals.join(","), w.base, w.size_log2)).collect::<Vec<_>>().join(", ")
+    );
     let _ = writeln!(s, "Timer: IRQ {} (vector {})", g.target.timer_irq, 16 + g.target.timer_irq);
     let _ = writeln!(s);
     let _ = writeln!(s, "Partitions:");

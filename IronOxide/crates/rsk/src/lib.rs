@@ -301,8 +301,10 @@ pub mod hw_dt {
 /// data (above its stack); a write into its stack; a read and a write of
 /// its first peripheral window (skipped when it owns none). Then against
 /// the Kernel: a read and a write of its RAM, a read and a fetch of its
-/// flash, a read and a write of the Private Peripheral Bus (the NVIC),
-/// and a write to the word below this Partition's own stack (R16.5).
+/// flash, a read and a write of the Private Peripheral Bus (the NVIC), a
+/// read and a write of the first Kernel-owned peripheral's window after
+/// the PPB (R16.2; skipped when the Target has none), and a write to the
+/// word below this Partition's own stack (R16.5).
 /// Every attempt the MPU refuses is a MemManage fault of the Partition
 /// (R16.4), the PPB attempts a BusFault (unprivileged, HW-08, HW-11);
 /// an attempt that returns is recorded by the caller as a mismatch.
@@ -318,11 +320,13 @@ pub mod matrix {
         pub windows: &'a [[(u32, u32); 5]],
         pub kernel_flash: (u32, u32),
         pub kernel_ram: (u32, u32),
+        /// The Kernel's peripheral intervals, the PPB first (R16.2).
+        pub kernel_windows: &'a [(u32, u32)],
     }
 
     /// Attempts per other Partition and against the Kernel.
     pub const PER_PARTITION: usize = 8;
-    pub const KERNEL: usize = 7;
+    pub const KERNEL: usize = 9;
     /// The private peripheral bus address attempted (NVIC_ISER0).
     pub const PPB: u32 = 0xE000_E100;
 
@@ -372,7 +376,9 @@ pub mod matrix {
                 3 => Some((l.kernel_flash.0 + 0x100, 2)),
                 4 => Some((PPB, 0)),
                 5 => Some((PPB, 1)),
-                6 => Some((l.ram[l.this].0.wrapping_sub(4), 1)),
+                6 => l.kernel_windows.get(1).map(|w| (w.0 + 0x100, 0)),
+                7 => l.kernel_windows.get(1).map(|w| (w.0 + 0x100, 1)),
+                8 => Some((l.ram[l.this].0.wrapping_sub(4), 1)),
                 _ => None,
             }
         }

@@ -18,6 +18,22 @@ pub fn kernel_owned(target: &str) -> &'static [&'static str] {
     }
 }
 
+/// The Kernel peripheral intervals of each Target's layout (R16.2): the
+/// Private Peripheral Bus (Armv7-M, 0xE0000000, 1 MiB: the core
+/// peripherals PR-22 reserves to the Kernel) first, then the register
+/// windows of the Kernel-owned peripherals in the order of
+/// `kernel_owned`, as `(name, base, size_log2)`. The checker's own table.
+pub fn kernel_windows(target: &str) -> Vec<(&'static str, u64, u8)> {
+    let mut out = vec![("PPB", 0xE000_0000, 20)];
+    let windows: &[(&str, u64)] = match target {
+        "nrf52840" => &[("CLOCK", 0x4000_0000), ("TIMER0", 0x4000_8000), ("WDT", 0x4001_0000), ("PPI", 0x4001_F000)],
+        "qemu-mps2-an386" => &[("CMSDK_TIMER0", 0x4000_0000), ("CMSDK_TIMER1", 0x4000_1000)],
+        _ => &[],
+    };
+    out.extend(windows.iter().map(|(n, b)| (*n, *b, 12u8)));
+    out
+}
+
 /// The EasyDMA-capable peripherals of each Target (DD-08): their windows
 /// are read-only to the owning Partition.
 pub fn easy_dma(target: &str) -> &'static [&'static str] {
@@ -147,6 +163,27 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     for pair in [(&m.kernel_flash, &m.shared_code), (&m.kernel_flash, &m.kernel_ram), (&m.shared_code, &m.kernel_ram)] {
         out.require("layout (Kernel regions)", disjoint(pair.0, pair.1), "disjoint", "overlapping");
     }
+    // The Kernel peripheral intervals (R16.2): the PPB and every Kernel-owned
+    // peripheral, each with its register window, and no Partition interval
+    // over any of them (what the verified layout keeps and the Kernel checks
+    // at boot).
+    let expected = kernel_windows(&m.target);
+    out.mismatch("layout.kernel_windows (count)", expected.len(), m.kernel_windows.len());
+    for (k, (name, base, size_log2)) in expected.iter().enumerate() {
+        let Some(w) = m.kernel_windows.get(k) else { continue };
+        out.mismatch(format!("layout.kernel_windows[{k}].peripherals"), format!("{name:?}"), format!("{:?}", w.peripherals.join(",")));
+        out.mismatch(format!("layout.kernel_windows[{k}].base ({name})"), format!("0x{base:08x}"), format!("0x{:08x}", w.region.base));
+        out.mismatch(format!("layout.kernel_windows[{k}].size_log2 ({name})"), *size_log2, w.region.size_log2);
+        out.require(format!("layout.kernel_windows[{k}] ({name})"), aligned(&w.region), "an aligned power-of-two region", format!("{:?}", w.region));
+        out.mismatch(format!("layout.kernel_windows[{k}].read_only ({name}: a Kernel interval, not a Partition's read-only window)"), false, w.read_only);
+        out.require(format!("layout.kernel_windows[{k}] vs shared code"), disjoint(&w.region, &m.shared_code), "disjoint", "overlapping");
+        for p in &m.partitions {
+            out.require(format!("{}.mpu vs Kernel peripheral interval {name} (R16.2)", p.id), disjoint(&p.code, &w.region) && disjoint(&p.ram, &w.region), "disjoint", "overlapping");
+            for win in &p.windows {
+                out.require(format!("{}.mpu.windows (0x{:08x}) vs Kernel peripheral interval {name} (R16.2)", p.id, win.region.base), disjoint(&win.region, &w.region), "disjoint", "overlapping");
+            }
+        }
+    }
     for (i, a) in m.partitions.iter().enumerate() {
         for b in &m.partitions[i + 1..] {
             out.require(format!("{}/{} regions", a.id, b.id), disjoint(&a.code, &b.code) && disjoint(&a.ram, &b.ram), "disjoint", "overlapping");
@@ -199,6 +236,11 @@ pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outc
     same("LAYOUT.kernel_flash", &m.kernel_flash, &l.kernel_flash, out);
     same("LAYOUT.shared_code", &m.shared_code, &l.shared_code, out);
     same("LAYOUT.kernel_ram", &m.kernel_ram, &l.kernel_ram, out);
+    out.mismatch("LAYOUT.kernel_window_count", m.kernel_windows.len(), l.kernel_window_count);
+    for (k, slot) in l.kernel_windows.iter().enumerate() {
+        let want = m.kernel_windows.get(k).map_or((0u64, 5u8), |win| (win.region.base, win.region.size_log2));
+        out.mismatch(format!("LAYOUT.kernel_windows[{k}]"), format!("{:?}", want), format!("{:?}", (slot.0 as u64, slot.1)));
+    }
     out.mismatch("LAYOUT.NP", m.partitions.len(), l.partitions.len());
     for (p, part) in m.partitions.iter().enumerate() {
         let Some(c) = l.partitions.get(p) else { continue };

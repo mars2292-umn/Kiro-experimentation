@@ -60,8 +60,15 @@ impl Fault {
         if self.bfsr() & 0x08 != 0 { parts.push("UNSTKERR"); }
         if self.bfsr() & 0x10 != 0 { parts.push("STKERR"); }
         if self.bfarvalid() { parts.push("BFARVALID"); }
+        // UsageFault status (CFSR bits 31:16): UNDEFINSTR 0, INVSTATE 1, INVPC 2, NOCP 3, UNALIGNED 8, DIVBYZERO 9.
         let ufsr = (self.cfsr >> 16) & 0xFFFF;
-        if ufsr != 0 { parts.push("UFSR"); }
+        if ufsr & 0x001 != 0 { parts.push("UNDEFINSTR"); }
+        if ufsr & 0x002 != 0 { parts.push("INVSTATE"); }
+        if ufsr & 0x004 != 0 { parts.push("INVPC"); }
+        if ufsr & 0x008 != 0 { parts.push("NOCP"); }
+        if ufsr & 0x100 != 0 { parts.push("UNALIGNED"); }
+        if ufsr & 0x200 != 0 { parts.push("DIVBYZERO"); }
+        if ufsr & !0x30F != 0 { parts.push("UFSR"); }
         format!("cfsr {:#010x} ({}) at {:#010x}", self.cfsr, parts.join("|"), self.address)
     }
 }

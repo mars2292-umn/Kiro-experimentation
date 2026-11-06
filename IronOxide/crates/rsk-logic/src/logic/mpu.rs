@@ -4,8 +4,11 @@
 //! A `Layout` is what the Generator computes and the Config_Checker
 //! re-derives (task 10.4, R26.2): for each Partition one code interval, one
 //! RAM interval with the stack at its lowest addresses, and up to five
-//! peripheral windows; plus the shared code interval and the Kernel's flash
-//! and RAM. Every interval has a power-of-two size of at least 32 bytes and
+//! peripheral windows; plus the shared code interval, the Kernel's flash
+//! and RAM, and the Kernel's peripheral intervals (R16.2: the Private
+//! Peripheral Bus, where the core peripherals PR-22 reserves to the Kernel
+//! live, and every Kernel-owned peripheral of the Target table, PR-29).
+//! Every interval has a power-of-two size of at least 32 bytes and
 //! a base aligned to its size, the Armv7-M region rules (Armv7-M ARM
 //! B3.5.8, MPU_RBAR; B3.5.9, MPU_RASR). `view` turns a Partition's
 //! intervals into its eight MPU regions; subregion-disable bits only remove
@@ -19,9 +22,11 @@
 //! lemmas at the end: an access granted by Partition p's view lies in one
 //! of p's intervals; two Partitions' views never grant conflicting access
 //! to one address, and no view grants access to Kernel memory
-//! (`layout.wf()` makes the intervals disjoint); and the word below a
-//! Partition's stack is granted to no writable region, so an overflow
-//! faults before any memory outside the stack region changes (R16.5).
+//! (`layout.wf()` makes the intervals disjoint); no view grants an address
+//! of a Kernel peripheral interval (R16.2, `lemma_view_no_kernel_window`);
+//! and the word below a Partition's stack is granted to no writable
+//! region, so an overflow faults before any memory outside the stack
+//! region changes (R16.5).
 //! `hw_model::lemma_hw_partition_isolation` and `lemma_hw_write_isolation`
 //! compose these lemmas with the hardware decision, so Property 12 is also
 //! stated for what the MPU itself grants.
@@ -35,6 +40,9 @@ verus! {
 pub const MPU_REGIONS: usize = 8;
 /// Peripheral windows per Partition (DD-07).
 pub const MAX_WINDOWS: usize = 5;
+/// Kernel peripheral intervals of a layout (R16.2): the PPB and the
+/// Kernel-owned peripherals of the Target table (PR-29).
+pub const MAX_KERNEL_WINDOWS: usize = 8;
 
 /// 2^k as a mathematical integer.
 pub open spec fn pow2(k: nat) -> nat
@@ -367,10 +375,26 @@ pub struct Layout<const NP: usize> {
     pub shared_code: Interval,
     pub kernel_flash: Interval,
     pub kernel_ram: Interval,
+    /// The Kernel's peripheral intervals (R16.2): the Private Peripheral
+    /// Bus and every Kernel-owned peripheral of the Target table (PR-29),
+    /// `kernel_window_count` of them live. No Partition interval overlaps
+    /// one, so no view grants an address of one.
+    pub kernel_windows: [Interval; MAX_KERNEL_WINDOWS],
+    pub kernel_window_count: u8,
     pub partitions: [PartitionLayout; NP],
 }
 
 impl<const NP: usize> Layout<NP> {
+    /// Whether `a` lies in a Kernel peripheral interval (R16.2).
+    pub open spec fn in_kernel_window(&self, a: int) -> bool {
+        exists|k: int| 0 <= k < self.kernel_window_count && self.kernel_windows[k].contains(a)
+    }
+
+    /// Whether `i` is disjoint from every Kernel peripheral interval.
+    pub open spec fn apart_from_kernel_windows(&self, i: &Interval) -> bool {
+        forall|k: int| 0 <= k < self.kernel_window_count ==> i.disjoint(&self.kernel_windows[k])
+    }
+
     pub open spec fn partition_ok(&self, p: int) -> bool {
         let pl = self.partitions[p];
         &&& pl.wf()
@@ -378,6 +402,9 @@ impl<const NP: usize> Layout<NP> {
         &&& pl.ram.disjoint(&self.kernel_flash) && pl.ram.disjoint(&self.kernel_ram) && pl.ram.disjoint(&self.shared_code)
         &&& forall|w: int| 0 <= w < pl.window_count ==> pl.windows[w].disjoint(&self.kernel_flash)
                 && pl.windows[w].disjoint(&self.kernel_ram) && pl.windows[w].disjoint(&self.shared_code)
+        // R16.2: nothing of the Partition overlaps a Kernel peripheral interval.
+        &&& self.apart_from_kernel_windows(&pl.code) && self.apart_from_kernel_windows(&pl.ram)
+        &&& forall|w: int| 0 <= w < pl.window_count ==> self.apart_from_kernel_windows(&pl.windows[w])
     }
 
     /// Two Partitions share nothing but the shared code (PR-28, PR-29).
@@ -394,6 +421,9 @@ impl<const NP: usize> Layout<NP> {
         &&& self.shared_code.rules_ok() && self.kernel_flash.rules_ok() && self.kernel_ram.rules_ok()
         &&& self.shared_code.disjoint(&self.kernel_flash) && self.shared_code.disjoint(&self.kernel_ram)
         &&& self.kernel_flash.disjoint(&self.kernel_ram)
+        &&& (self.kernel_window_count as int) <= MAX_KERNEL_WINDOWS
+        &&& forall|k: int| 0 <= k < self.kernel_window_count ==> self.kernel_windows[k].rules_ok()
+        &&& self.apart_from_kernel_windows(&self.shared_code)
         &&& forall|p: int| 0 <= p < NP ==> self.partition_ok(p)
         &&& forall|p: int, q: int| 0 <= p < NP && 0 <= q < NP && p != q ==> self.pair_ok(p, q)
     }
@@ -410,12 +440,16 @@ impl<const NP: usize> Layout<NP> {
         {
             return false;
         }
+        if !self.validate_kernel_windows() {
+            return false;
+        }
         let mut p: usize = 0;
         while p < NP
             invariant p <= NP,
                 self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(),
                 self.shared_code.disjoint(&self.kernel_flash), self.shared_code.disjoint(&self.kernel_ram),
                 self.kernel_flash.disjoint(&self.kernel_ram),
+                self.kernel_windows_ok(),
                 forall|i: int| 0 <= i < p ==> self.partition_ok(i),
                 forall|i: int, j: int| 0 <= i < p && 0 <= j < p && i != j ==> self.pair_ok(i, j),
             decreases NP - p,
@@ -441,8 +475,64 @@ impl<const NP: usize> Layout<NP> {
         true
     }
 
+    /// The Kernel peripheral intervals' part of `wf` (R16.2).
+    pub open spec fn kernel_windows_ok(&self) -> bool {
+        &&& (self.kernel_window_count as int) <= MAX_KERNEL_WINDOWS
+        &&& forall|k: int| 0 <= k < self.kernel_window_count ==> self.kernel_windows[k].rules_ok()
+        &&& self.apart_from_kernel_windows(&self.shared_code)
+    }
+
+    fn validate_kernel_windows(&self) -> (ok: bool)
+        requires self.shared_code.rules_ok(),
+        ensures ok ==> self.kernel_windows_ok(),
+    {
+        let count = self.kernel_window_count as usize;
+        if count > MAX_KERNEL_WINDOWS {
+            return false;
+        }
+        let mut k: usize = 0;
+        while k < count
+            invariant k <= count, count <= MAX_KERNEL_WINDOWS, count == self.kernel_window_count as int,
+                self.shared_code.rules_ok(),
+                forall|i: int| 0 <= i < k ==> self.kernel_windows[i].rules_ok() && self.shared_code.disjoint(&self.kernel_windows[i]),
+            decreases count - k,
+        {
+            let win = self.kernel_windows[k];
+            if !win.check_rules() {
+                return false;
+            }
+            if !self.shared_code.check_disjoint(&win) {
+                return false;
+            }
+            k = k + 1;
+        }
+        true
+    }
+
+    /// Executable check of `apart_from_kernel_windows` (R16.2).
+    fn check_apart(&self, i: &Interval) -> (ok: bool)
+        requires self.kernel_windows_ok(), i.size_log2 <= 31,
+        ensures ok == self.apart_from_kernel_windows(i),
+    {
+        let count = self.kernel_window_count as usize;
+        let mut k: usize = 0;
+        while k < count
+            invariant k <= count, count == self.kernel_window_count as int, self.kernel_windows_ok(), i.size_log2 <= 31,
+                forall|j: int| 0 <= j < k ==> i.disjoint(&self.kernel_windows[j]),
+            decreases count - k,
+        {
+            let win = self.kernel_windows[k];
+            if !i.check_disjoint(&win) {
+                return false;
+            }
+            k = k + 1;
+        }
+        true
+    }
+
     fn validate_partition(&self, p: usize) -> (ok: bool)
         requires p < NP, self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(),
+            self.kernel_windows_ok(),
         ensures ok ==> self.partition_ok(p as int),
     {
         let pl = self.partitions[p];
@@ -464,15 +554,20 @@ impl<const NP: usize> Layout<NP> {
         {
             return false;
         }
+        // R16.2: the code and RAM against the Kernel peripheral intervals.
+        if !(self.check_apart(&pl.code) && self.check_apart(&pl.ram)) {
+            return false;
+        }
         let count = pl.window_count as usize;
         let mut w: usize = 0;
         while w < count
             invariant w <= count, count <= MAX_WINDOWS, count == pl.window_count as int, pl == self.partitions[p as int], p < NP,
                 pl.ram.rules_ok(), pl.ram.size_log2 >= 8, pl.code.rules_ok(),
-                self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(),
+                self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(), self.kernel_windows_ok(),
                 forall|i: int| 0 <= i < w ==> pl.windows[i].rules_ok() && pl.windows[i].disjoint(&pl.ram) && pl.windows[i].disjoint(&pl.code)
                     && !pl.windows[i].contains(pl.ram.base as int - 1)
-                    && pl.windows[i].disjoint(&self.kernel_flash) && pl.windows[i].disjoint(&self.kernel_ram) && pl.windows[i].disjoint(&self.shared_code),
+                    && pl.windows[i].disjoint(&self.kernel_flash) && pl.windows[i].disjoint(&self.kernel_ram) && pl.windows[i].disjoint(&self.shared_code)
+                    && self.apart_from_kernel_windows(&pl.windows[i]),
             decreases count - w,
         {
             let win = pl.windows[w];
@@ -482,6 +577,10 @@ impl<const NP: usize> Layout<NP> {
             if !(win.check_disjoint(&pl.ram) && win.check_disjoint(&pl.code) && win.check_disjoint(&self.kernel_flash)
                 && win.check_disjoint(&self.kernel_ram) && win.check_disjoint(&self.shared_code))
             {
+                return false;
+            }
+            // R16.2: the window against the Kernel peripheral intervals.
+            if !self.check_apart(&win) {
                 return false;
             }
             // The word below the stack: with the window disjoint from RAM, it is
@@ -713,6 +812,31 @@ impl<const NP: usize> Layout<NP> {
             if pl.in_window(a) {
                 let w = choose|w: int| 0 <= w < pl.window_count && pl.windows[w].contains(a);
                 assert(pl.windows[w].disjoint(&self.kernel_flash) && pl.windows[w].disjoint(&self.kernel_ram));
+            }
+            assert(false);
+        }
+    }
+
+    /// Property 12 (d), R16.2: no view grants an address of a Kernel
+    /// peripheral interval (the PPB, where the core peripherals PR-22
+    /// reserves to the Kernel live, and the Kernel-owned peripherals of the
+    /// Target table, PR-29): every interval the view is built from is
+    /// disjoint from each of them.
+    pub proof fn lemma_view_no_kernel_window(&self, p: int, v: &View, a: int)
+        requires self.wf(), 0 <= p < NP, self.is_view_of(p, v),
+        ensures !(v.readable(a) && self.in_kernel_window(a)),
+    {
+        self.lemma_view_within_layout(p, v, a);
+        assert(self.partition_ok(p));
+        let pl = self.partitions[p];
+        if v.readable(a) && self.in_kernel_window(a) {
+            let k = choose|k: int| 0 <= k < self.kernel_window_count && self.kernel_windows[k].contains(a);
+            assert(self.shared_code.disjoint(&self.kernel_windows[k]));
+            assert(pl.code.disjoint(&self.kernel_windows[k]));
+            assert(pl.ram.disjoint(&self.kernel_windows[k]));
+            if pl.in_window(a) {
+                let w = choose|w: int| 0 <= w < pl.window_count && pl.windows[w].contains(a);
+                assert(pl.windows[w].disjoint(&self.kernel_windows[k]));
             }
             assert(false);
         }

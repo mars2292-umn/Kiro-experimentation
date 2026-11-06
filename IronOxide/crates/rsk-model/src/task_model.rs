@@ -81,6 +81,9 @@ pub struct Layout {
     pub kernel_flash: Region,
     pub shared_code: Region,
     pub kernel_ram: Region,
+    /// The Kernel peripheral intervals (R16.2): the PPB, then the
+    /// Kernel-owned peripherals of the Target; no Partition view reaches them.
+    pub kernel_windows: Vec<Window>,
     pub derived: bool,
 }
 

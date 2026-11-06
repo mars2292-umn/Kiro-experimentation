@@ -192,14 +192,24 @@ pub fn config_crc<const NT: usize, const NR: usize, const NP: usize>(cfg: &Confi
 
 /// The CRC-32 over the `LAYOUT` in memory (R12.3), in the field order the
 /// Generator hashes (`rsk_gen::derive::layout_bytes`) and the Config_Checker
-/// decodes (R26.4): the three Kernel intervals, NP, then per Partition code
-/// and RAM (base, size_log2, srd), stack_size, window_count, and every
-/// window slot (base, size_log2).
+/// decodes (R26.4): the three Kernel intervals, kernel_window_count and
+/// every Kernel peripheral slot (base, size_log2; R16.2), NP, then per
+/// Partition code and RAM (base, size_log2, srd), stack_size,
+/// window_count, and every window slot (base, size_log2).
 pub fn layout_crc<const NP: usize>(layout: &Layout<NP>) -> u32 {
     let mut c = Crc32::new();
     c = c.u32(layout.kernel_flash.base).byte(layout.kernel_flash.size_log2).byte(0);
     c = c.u32(layout.shared_code.base).byte(layout.shared_code.size_log2).byte(0);
     c = c.u32(layout.kernel_ram.base).byte(layout.kernel_ram.size_log2).byte(0);
+    c = c.byte(layout.kernel_window_count);
+    let mut k: usize = 0;
+    while k < crate::logic::mpu::MAX_KERNEL_WINDOWS
+        invariant k <= crate::logic::mpu::MAX_KERNEL_WINDOWS,
+        decreases crate::logic::mpu::MAX_KERNEL_WINDOWS - k,
+    {
+        c = c.u32(layout.kernel_windows[k].base).byte(layout.kernel_windows[k].size_log2);
+        k += 1;
+    }
     c = c.u32(NP as u32);
     let mut p: usize = 0;
     while p < NP

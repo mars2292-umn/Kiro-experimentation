@@ -7,6 +7,7 @@ Config checksum (CRC-32): 0x08b9bd49
 Capacities: lock stack 6, timer slots 23, event log 32
 Kernel levels: [0]; Task levels (level -> NVIC byte): 1 -> 0xe0, 2 -> 0xc0, 3 -> 0xa0, 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
 Kernel-owned peripherals: CMSDK_TIMER0, CMSDK_TIMER1
+Kernel peripheral intervals (R16.2, outside every Partition view): PPB 0xe0000000 (2^20), CMSDK_TIMER0 0x40000000 (2^12), CMSDK_TIMER1 0x40001000 (2^12)
 Timer: IRQ 9 (vector 25)
 
 Partitions:

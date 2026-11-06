@@ -101,7 +101,7 @@ fn isolation_step(cx: &mut rsk_ctx::Sampler) {
         _ => {
             let layout = rsk::matrix::Layout {
                 this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
-                kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM,
+                kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
             };
             let i = (case - DMA_CASES) as usize;
             if i < rsk::matrix::count(&layout) && rsk::matrix::perform(&layout, i) == rsk::matrix::Outcome::Survived {

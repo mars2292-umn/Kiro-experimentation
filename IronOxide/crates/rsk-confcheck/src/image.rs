@@ -49,6 +49,8 @@ pub fn level_code(name: &str) -> Option<u8> {
 
 /// `MAX_WINDOWS` of the Kernel's `PartitionLayout`.
 pub const MAX_WINDOWS: usize = 5;
+/// `MAX_KERNEL_WINDOWS` of the Kernel's `Layout` (R16.2).
+pub const MAX_KERNEL_WINDOWS: usize = 8;
 
 /// An image as found in the binary.
 pub struct Image {
@@ -108,6 +110,9 @@ pub struct LayoutImg {
     pub kernel_flash: IntervalImg,
     pub shared_code: IntervalImg,
     pub kernel_ram: IntervalImg,
+    pub kernel_window_count: u8,
+    /// `MAX_KERNEL_WINDOWS` slots, (base, size_log2); unused slots are (0, 5).
+    pub kernel_windows: Vec<(u32, u8)>,
     pub partitions: Vec<PartitionLayoutImg>,
 }
 
@@ -120,6 +125,11 @@ pub fn decode_layout(bytes: &[u8]) -> Result<LayoutImg, String> {
     let kernel_flash = interval(&mut r)?;
     let shared_code = interval(&mut r)?;
     let kernel_ram = interval(&mut r)?;
+    let kernel_window_count = r.u8()?;
+    let mut kernel_windows = Vec::with_capacity(MAX_KERNEL_WINDOWS);
+    for _ in 0..MAX_KERNEL_WINDOWS {
+        kernel_windows.push((r.u32()?, r.u8()?));
+    }
     let np = r.u32()? as usize;
     if np > 255 {
         return Err(format!("layout image: implausible NP={np}"));
@@ -139,7 +149,7 @@ pub fn decode_layout(bytes: &[u8]) -> Result<LayoutImg, String> {
     if r.pos != bytes.len() {
         return Err(format!("layout image: {} trailing bytes", bytes.len() - r.pos));
     }
-    Ok(LayoutImg { kernel_flash, shared_code, kernel_ram, partitions })
+    Ok(LayoutImg { kernel_flash, shared_code, kernel_ram, kernel_window_count, kernel_windows, partitions })
 }
 
 /// CRC-32 (IEEE 802.3, reflected, init and final XOR all ones) over `bytes`.
