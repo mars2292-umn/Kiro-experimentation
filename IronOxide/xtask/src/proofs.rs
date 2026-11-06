@@ -448,7 +448,9 @@ pub fn line_count_cross_check(ws: &Workspace, verus: &Verus, own_total: usize, r
         report.warn("the Verus release has no `line_count` tool; PAR-01 cross-check skipped");
         return;
     };
-    let files: Vec<_> = crate::checks::kernel_size::kernel_sources(ws)
+    let cfg = crate::checks::kernel_size::target_cfg(ws);
+    let files: Vec<_> = crate::checks::kernel_size::kernel_sources(ws, &cfg)
+        .0
         .into_iter()
         .map(|(_, f)| f)
         .collect();

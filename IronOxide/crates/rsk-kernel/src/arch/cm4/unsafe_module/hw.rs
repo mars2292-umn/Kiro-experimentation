@@ -80,24 +80,63 @@ pub mod addr {
     pub const fn plausible(a: u32) -> bool {
         a % 4 == 0 && ((a >= 0xE000_0000 && a < 0xE010_0000) || (a >= 0x4000_0000 && a < 0x6000_0000))
     }
+
+    /// The NVIC lines the Armv7-M register arrays can address (B3.4.6:
+    /// ISER0 to ISER15, IPR0 to IPR123): the bound of `irq_of`.
+    pub const NVIC_LINES: u32 = 496;
+
+    /// A word-aligned address of the peripheral region (0x4000_0000 to
+    /// 0x6000_0000): where the Target's peripherals and the EasyDMA
+    /// registers of the DMA table live.
+    pub const fn peripheral(a: u32) -> bool {
+        a % 4 == 0 && a >= 0x4000_0000 && a < 0x6000_0000
+    }
+
+    /// A word of the private peripheral bus the Kernel is written to
+    /// access: an entry of `ALL`, or an NVIC array word for a line below
+    /// `NVIC_LINES`. The precise form of UJ-001's precondition for the
+    /// PPB: `plausible` admits every word of the PPB, this admits the
+    /// Kernel's registers only.
+    pub const fn ppb_known(a: u32) -> bool {
+        let mut i = 0;
+        while i < ALL.len() {
+            if ALL[i] == a {
+                return true;
+            }
+            i += 1;
+        }
+        let words = 4 * NVIC_LINES.div_ceil(32);
+        a % 4 == 0
+            && ((a >= NVIC_ISER && a < NVIC_ISER + words)
+                || (a >= NVIC_ICER && a < NVIC_ICER + words)
+                || (a >= NVIC_ISPR && a < NVIC_ISPR + words)
+                || (a >= NVIC_ICPR && a < NVIC_ICPR + words)
+                || (a >= NVIC_IPR && a < NVIC_IPR + NVIC_LINES))
+    }
+
+    /// The precondition of UJ-001 and UJ-002, every word access of
+    /// `mmio_read` and `mmio_write`: a Kernel register of the PPB or a
+    /// word of the peripheral region. Stated here once; the Kani stub
+    /// KS-01 asserts it on every access a harness reaches, so every
+    /// harness that runs a Kernel_Arch path checks the addresses that
+    /// path computes (verification_plan.md 6.1).
+    pub const fn kernel_access_ok(a: u32) -> bool {
+        peripheral(a) || ppb_known(a)
+    }
+
+    /// The precondition of UJ-009, the byte writes of `mmio_write_u8`: a
+    /// byte of the NVIC_IPR array below `NVIC_LINES`.
+    pub const fn kernel_byte_access_ok(a: u32) -> bool {
+        a >= NVIC_IPR && a < NVIC_IPR + NVIC_LINES
+    }
 }
 
-/// Reads a memory-mapped register.
+/// Reads a memory-mapped register. Precondition: `addr::kernel_access_ok(a)`
+/// (UJ-001). Every address the Kernel computes is computed above this
+/// function by code that Flight_Builds and the Kani harnesses share; only
+/// the volatile instruction itself, in `raw`, differs between them.
 pub fn mmio_read(a: u32) -> u32 {
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
-    {
-        // SAFETY (UJ-001): `a` is one of the register addresses of `addr`
-        // (or one derived from them by the NVIC and MPU index arithmetic of
-        // this module), all of which the harness `uj_001_mmio_addresses_valid`
-        // shows word aligned and inside the system control space or the
-        // peripheral region, where reads have the semantics the
-        // Hardware_Model gives them (HW-01 to HW-13).
-        unsafe { core::ptr::read_volatile(a as usize as *const u32) }
-    }
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-    {
-        super::sim::read(a)
-    }
+    raw::read_word(a)
 }
 
 /// An entry of the linker-provided initialization tables (the layout of
@@ -169,29 +208,63 @@ pub fn partition_reinit(p: u8) {
     }
 }
 
-/// Writes a memory-mapped register.
+/// Writes a memory-mapped register. Precondition: `addr::kernel_access_ok(a)`
+/// (UJ-002); see `mmio_read`.
 pub fn mmio_write(a: u32, v: u32) {
+    raw::write_word(a, v)
+}
+
+/// Writes one byte of the NVIC_IPR array. Precondition:
+/// `addr::kernel_byte_access_ok(a)` (UJ-009).
+fn mmio_write_u8(a: u32, v: u8) {
+    raw::write_byte(a, v)
+}
+
+/// The volatile accesses: the one leaf of the Kernel_Unsafe_Module's
+/// register path that differs between a Flight_Build and the host, where
+/// the Kani stub KS-01 (`sim`) stands in and asserts the preconditions
+/// above. Nothing is computed here, so the harnesses that run the
+/// register functions check the same addresses and values the Target
+/// receives (R45.1; verification_plan.md 6.1).
+mod raw {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
-    {
+    pub fn read_word(a: u32) -> u32 {
+        // SAFETY (UJ-001): `a` satisfies `addr::kernel_access_ok` (a
+        // Kernel register of the PPB or a word of the peripheral region:
+        // word aligned, device memory with the semantics the
+        // Hardware_Model gives it, HW-01 to HW-13), which the Kani stub
+        // asserts on every access of the harnesses `uj_001_mmio_addresses_valid`
+        // and `apply_every_action_is_total` (every `Action` of Kernel_Arch).
+        unsafe { core::ptr::read_volatile(a as usize as *const u32) }
+    }
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    pub fn write_word(a: u32, v: u32) {
         // SAFETY (UJ-002): as UJ-001, for writes.
         unsafe { core::ptr::write_volatile(a as usize as *mut u32, v) }
     }
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-    {
-        super::sim::write(a, v)
-    }
-}
 
-fn mmio_write_u8(a: u32, v: u8) {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
-    {
-        // SAFETY (UJ-009): as UJ-001; byte access to the NVIC_IPR array,
-        // which the Armv7-M ARM defines as byte accessible (B3.4.6).
+    pub fn write_byte(a: u32, v: u8) {
+        // SAFETY (UJ-009): as UJ-001; `a` satisfies `addr::kernel_byte_access_ok`,
+        // a byte of the NVIC_IPR array, which the Armv7-M ARM defines as
+        // byte accessible (B3.4.6).
         unsafe { core::ptr::write_volatile(a as usize as *mut u8, v) }
     }
+
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
-    {
-        super::sim::write_u8(a, v)
+    pub fn read_word(a: u32) -> u32 {
+        super::super::sim::read(a)
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    pub fn write_word(a: u32, v: u32) {
+        super::super::sim::write(a, v)
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    pub fn write_byte(a: u32, v: u8) {
+        super::super::sim::write_u8(a, v)
     }
 }
 
@@ -272,29 +345,48 @@ pub fn wait_for_interrupt() {
 
 // ----------------------------------------------------------------- NVIC
 
+/// The NVIC line of exception number `n`, or `None` when `n` is a system
+/// exception (below 16) or beyond the register arrays: such a number is
+/// not in any binding table the Generator emits, and an NVIC function
+/// given one does nothing rather than write the word its arithmetic
+/// would reach (before 2026-11-06 the line was `n.saturating_sub(16)`,
+/// so a number above the arrays would have reached the SCB).
+pub fn irq_of(n: u16) -> Option<u32> {
+    if n < 16 || n as u32 - 16 >= addr::NVIC_LINES {
+        None
+    } else {
+        Some(n as u32 - 16)
+    }
+}
+
 pub fn nvic_enable(n: u16) {
-    let irq = n.saturating_sub(16) as u32;
-    mmio_write(addr::NVIC_ISER + 4 * (irq / 32), 1 << (irq % 32));
+    if let Some(irq) = irq_of(n) {
+        mmio_write(addr::NVIC_ISER + 4 * (irq / 32), 1 << (irq % 32));
+    }
 }
 
 pub fn nvic_disable(n: u16) {
-    let irq = n.saturating_sub(16) as u32;
-    mmio_write(addr::NVIC_ICER + 4 * (irq / 32), 1 << (irq % 32));
+    if let Some(irq) = irq_of(n) {
+        mmio_write(addr::NVIC_ICER + 4 * (irq / 32), 1 << (irq % 32));
+    }
 }
 
 pub fn nvic_set_pending(n: u16) {
-    let irq = n.saturating_sub(16) as u32;
-    mmio_write(addr::NVIC_ISPR + 4 * (irq / 32), 1 << (irq % 32));
+    if let Some(irq) = irq_of(n) {
+        mmio_write(addr::NVIC_ISPR + 4 * (irq / 32), 1 << (irq % 32));
+    }
 }
 
 pub fn nvic_clear_pending(n: u16) {
-    let irq = n.saturating_sub(16) as u32;
-    mmio_write(addr::NVIC_ICPR + 4 * (irq / 32), 1 << (irq % 32));
+    if let Some(irq) = irq_of(n) {
+        mmio_write(addr::NVIC_ICPR + 4 * (irq / 32), 1 << (irq % 32));
+    }
 }
 
 pub fn nvic_set_priority(n: u16, encoded: u8) {
-    let irq = n.saturating_sub(16) as u32;
-    mmio_write_u8(addr::NVIC_IPR + irq, encoded);
+    if let Some(irq) = irq_of(n) {
+        mmio_write_u8(addr::NVIC_IPR + irq, encoded);
+    }
 }
 
 /// AIRCR.PRIGROUP = 4: with 3 implemented bits (7:5) every bit is a group
@@ -610,26 +702,28 @@ pub fn watchdog_feed() {
 /// count register (R17.1; the caller, `dma_request_core`, has validated the
 /// buffer). The register addresses come from Generated_Config's DMA table;
 /// an address outside the peripheral region is refused here as defence in
-/// depth (UJ-002: every address written is plausible).
+/// depth (UJ-002: every address written satisfies `kernel_access_ok`;
+/// `plausible` was the guard before 2026-11-06, which admitted a word of
+/// the PPB, where no EasyDMA register is).
 pub fn dma_program(ptr_reg: u32, ptr: u32, cnt_reg: u32, len: u32) {
-    if addr::plausible(ptr_reg) {
+    if addr::peripheral(ptr_reg) {
         mmio_write(ptr_reg, ptr);
     }
-    if cnt_reg != 0 && addr::plausible(cnt_reg) {
+    if cnt_reg != 0 && addr::peripheral(cnt_reg) {
         mmio_write(cnt_reg, len);
     }
 }
 
 /// Triggers a stop task (R17.6).
 pub fn dma_stop(reg: u32) {
-    if addr::plausible(reg) {
+    if addr::peripheral(reg) {
         mmio_write(reg, 1);
     }
 }
 
 /// Clears a list-mode register (DD-08: list mode forbidden).
 pub fn dma_list_off(reg: u32) {
-    if addr::plausible(reg) {
+    if addr::peripheral(reg) {
         mmio_write(reg, 0);
     }
 }
@@ -660,7 +754,7 @@ pub fn peripheral_read(a: u32) -> u32 {
     }
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     {
-        super::sim::read(a)
+        super::sim::partition_read(a)
     }
 }
 
@@ -676,7 +770,7 @@ pub fn peripheral_write(a: u32, v: u32) {
     }
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     {
-        super::sim::write(a, v)
+        super::sim::partition_write(a, v)
     }
 }
 

@@ -90,7 +90,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R6.1 | — | Requirements Impact | ✓1.1 | crates/rsk-entry/Cargo.toml; crates/rsk-kernel/Cargo.toml; crates/rsk-kernel/src/arch/cm4/mod.rs; +11 | check-post-build; check-static-checks; test-workspace-tests |
 | R6.2 | — | — | ✓1.2 | xtask/src/checks/kernel_size.rs; xtask/src/diag.rs; xtask/src/lib.rs; +3 | check-kernel-proofs-step; check-static-checks; test-workspace-tests |
 | R6.3 | — | Design decisions; Kani harnesses (R45) | ✓1.1; ✓5.1 | crates/rsk-entry/clippy.toml; crates/rsk-entry/src/lib.rs; crates/rsk-kernel/clippy.toml; +16 | check-static-checks; test-workspace-tests |
-| R6.4 | P-13 | Application API (`rsk`); Kani harnesses (R45); Kernel logic and Kernel_Arch (Component B); +2 | ✓1.2; ✓5.1 | crates/rsk-entry/unsafe_justifications.toml; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +9 | check-static-checks; test-workspace-tests |
+| R6.4 | P-13 | Application API (`rsk`); Kani harnesses (R45); Kernel logic and Kernel_Arch (Component B); +2 | ✓1.2; ✓5.1 | crates/rsk-entry/unsafe_justifications.toml; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +9 | check-static-checks; proof-kernel-kani; test-workspace-tests |
 | R6.5 | — | — | ✓4.1 | — | — |
 | R6.6 | P-11 | Requirements Impact | ✓12.3; ✓5.1 | apps/p1-demo/system/src/lib.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-link/src/scan.rs; +4 | analysis-stack-p1-demo; test-workspace-tests |
 | R6.7 | — | Generated_Config | ✓5.1 | crates/rsk-analyzer/src/profile_version.rs; crates/rsk-gen/src/profile_version.rs; crates/rsk-kernel/src/profile_version.rs; +2 | — |
@@ -169,8 +169,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R12.1 | P-14 | Design decisions; Generated_Config; Reuse and Deviation Record; +1 | ✓5.2 | crates/rsk-gen/src/target.rs; crates/rsk-hil/src/boot_checks.rs; crates/rsk-kernel/src/arch/bound.rs; +9 | hil-boot-checks; hil-spike-p1-demo; test-workspace-tests |
-| R12.2 | P-14 | Error Handling; Reuse and Deviation Record | ✓5.2 | apps/p1-demo/system/src/lib.rs; crates/rsk-hil/src/boot_checks.rs; crates/rsk-kernel/src/arch/bound.rs; +6 | hil-boot-checks |
+| R12.1 | P-14 | Design decisions; Generated_Config; Reuse and Deviation Record; +1 | ✓5.2 | crates/rsk-gen/src/target.rs; crates/rsk-hil/src/boot_checks.rs; crates/rsk-kernel/src/arch/bound.rs; +10 | hil-boot-checks; hil-spike-p1-demo; proof-kernel-kani; test-workspace-tests |
+| R12.2 | P-14 | Error Handling; Reuse and Deviation Record | ✓5.2 | apps/p1-demo/system/src/lib.rs; crates/rsk-hil/src/boot_checks.rs; crates/rsk-kernel/src/arch/bound.rs; +7 | hil-boot-checks; proof-kernel-kani |
 | R12.3 | P-14 | Generated_Config; Reuse and Deviation Record | ✓5.2 | crates/rsk-confcheck/src/image.rs; crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/emit.rs; +10 | hil-boot-checks; proof-kernel-verus |
 | R12.4 | — | — | ✓5.2 | crates/rsk-entry/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; +2 | — |
 | R12.5 | — | — | ✓5.2 | crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; xtask/src/verify.rs | — |
@@ -547,14 +547,14 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R45.1 | P-13 | Application API (`rsk`); Kani harnesses (R45); Kernel logic and Kernel_Arch (Component B); +3 | ○21.2; ○25.1; ○25.2; ✓5.1; +5 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; profile/profile.toml; xtask/src/proofs.rs | proof-kernel-kani |
+| R45.1 | P-13 | Application API (`rsk`); Kani harnesses (R45); Kernel logic and Kernel_Arch (Component B); +3 | ○21.2; ○25.1; ○25.2; ✓5.1; +5 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; profile/profile.toml; +1 | proof-kernel-kani |
 | R45.2 | P-13 | Property 21 | ○21.2; ✓5.3; ✓5.4; ✓5.6 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; xtask/src/proofs.rs | proof-kernel-kani |
-| R45.3 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.2 | crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/proofs.rs | proof-kernel-kani |
+| R45.3 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.2 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/proofs.rs | proof-kernel-kani |
 | R45.4 | — | Kani harnesses (R45); Reuse and Deviation Record; Trust-Base Analysis | ✓6.1 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/sim.rs; +2 | — |
 | R45.5 | — | — | ✓6.1 | xtask/src/diag.rs; xtask/src/lib.rs; xtask/src/proofs.rs; +1 | check-kani-step; proof-kernel-kani; test-workspace-tests |
 | R45.6 | — | — | ✓6.3 | — | — |
 | R45.7 | — | — | ✓6.1 | xtask/src/checks/ci.rs; xtask/src/lib.rs; xtask/src/proofs.rs; +2 | check-kani-step; proof-kernel-kani |
-| R45.8 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.1 | crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/proofs.rs | proof-kernel-kani |
+| R45.8 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.1 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/checks/kani_bounds.rs; +3 | proof-kernel-kani; test-workspace-tests |
 
 ### Requirement 46: Application-level prover (Phase P1 selection; P2 use)
 
@@ -1179,7 +1179,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R45.5 | P1 | ✓6.1 | check-kani-step; proof-kernel-kani; test-workspace-tests |
 | R45.6 | P1 | ✓6.3 | — |
 | R45.7 | P1 | ✓6.1 | check-kani-step; proof-kernel-kani |
-| R45.8 | P1 | ✓6.1 | proof-kernel-kani |
+| R45.8 | P1 | ✓6.1 | proof-kernel-kani; test-workspace-tests |
 | R46.1 | P1 selection; P2 use | ✓8.1 | proof-app-aeneas; proof-app-aeneas-step |
 | R46.2 | P1 selection; P2 use | ✓8.1 | proof-app-creusot; proof-app-step |
 | R46.5 | P1 selection; P2 use | ○17.1; ✓17.3 | proof-app-aeneas |

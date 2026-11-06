@@ -76,14 +76,44 @@ pub fn partition_reinit(p: u8) {
     STORE.writes.set(STORE.writes.get().wrapping_add(1));
 }
 
+/// KS-01: the stub asserts the precondition of UJ-001 on every read, so a
+/// harness that reaches an address the Kernel may not access fails.
 pub fn read(a: u32) -> u32 {
+    assert!(super::hw::addr::kernel_access_ok(a), "mmio_read of an address outside the Kernel's registers (UJ-001)");
     match slot(a) {
         Some(i) => STORE.values[i].get(),
         None => 0,
     }
 }
 
+/// A Partition's accesses (`hw::peripheral_read`, UJ-036): the MPU view,
+/// not UJ-001's precondition, is their guard, so the stub asserts nothing.
+pub fn partition_read(a: u32) -> u32 {
+    match slot(a) {
+        Some(i) => STORE.values[i].get(),
+        None => 0,
+    }
+}
+
+/// See `partition_read` (UJ-037).
+pub fn partition_write(a: u32, v: u32) {
+    STORE.writes.set(STORE.writes.get().wrapping_add(1));
+    match slot(a) {
+        Some(i) => STORE.values[i].set(v),
+        None => {
+            let n = STORE.used.get();
+            if n < SLOTS {
+                STORE.addrs[n].set(a);
+                STORE.values[n].set(v);
+                STORE.used.set(n + 1);
+            }
+        }
+    }
+}
+
+/// KS-01: asserts the precondition of UJ-002 (see `read`).
 pub fn write(a: u32, v: u32) {
+    assert!(super::hw::addr::kernel_access_ok(a), "mmio_write of an address outside the Kernel's registers (UJ-002)");
     STORE.writes.set(STORE.writes.get().wrapping_add(1));
     match slot(a) {
         Some(i) => STORE.values[i].set(v),
@@ -104,7 +134,9 @@ pub fn write(a: u32, v: u32) {
     }
 }
 
+/// KS-01: asserts the precondition of UJ-009 (a byte of NVIC_IPR).
 pub fn write_u8(a: u32, v: u8) {
+    assert!(super::hw::addr::kernel_byte_access_ok(a), "mmio_write_u8 of an address outside NVIC_IPR (UJ-009)");
     let word = a & !3;
     let shift = (a & 3) * 8;
     let old = read(word);

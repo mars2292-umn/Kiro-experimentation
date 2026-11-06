@@ -39,6 +39,9 @@ pub enum Rule {
     Proof,
     /// R45: the Kani_Harnesses.
     Kani,
+    /// R45.8: the harness bounds cover the Profile_Conformance_Suite
+    /// Application's Generated_Config sizes and carry its configuration.
+    KaniBounds,
     /// The build policy table is missing or inconsistent.
     Policy,
     /// A build, test, or tool step failed.
@@ -72,6 +75,7 @@ impl Rule {
             Rule::Profile => "PROFILE",
             Rule::Proof => "R44.6/R50.2",
             Rule::Kani => "R45.5",
+            Rule::KaniBounds => "R45.8",
             Rule::Policy => "BUILD-POLICY",
             Rule::Step => "BUILD-STEP",
             Rule::Generator => "GENERATOR",

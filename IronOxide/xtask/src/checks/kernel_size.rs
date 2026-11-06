@@ -32,7 +32,7 @@
 //! constructs differently; this counter is the gate because it needs no
 //! external tool, and it errs on the side of counting).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use proc_macro2::{Delimiter, TokenTree};
 
@@ -411,17 +411,65 @@ pub fn target_cfg(ws: &Workspace) -> CfgSet {
     set
 }
 
-/// The source files counted for a Kernel crate: its library files.
-pub fn kernel_sources(ws: &Workspace) -> Vec<(String, std::path::PathBuf)> {
+/// The source files counted for a Kernel crate: its library files, less
+/// those declared under a `mod x;` whose `cfg` is false for the Target
+/// (`#[cfg(kani)] mod kani;`, `#[cfg(test)]`, host-only doubles, feature
+/// gates), with everything below them: the Target does not compile them,
+/// so they are no part of the Kernel's size (until 2026-11-06 every file
+/// was counted and the Kani harnesses and the host doubles were in the
+/// PAR-01 figure). The second value is the number of files left out.
+pub fn kernel_sources(ws: &Workspace, cfg: &CfgSet) -> (Vec<(String, std::path::PathBuf)>, usize) {
     let mut files = Vec::new();
+    let mut skipped = 0;
     for name in ws.policy.kernel_crates() {
         if let Some(pkg) = ws.package_named(name) {
-            for file in pkg.lib_files() {
-                files.push((pkg.name.clone(), file));
+            let all = pkg.lib_files();
+            let excluded = gated_module_paths(&all, cfg);
+            for file in all {
+                if excluded.iter().any(|e| file == *e || file.starts_with(e)) {
+                    skipped += 1;
+                } else {
+                    files.push((pkg.name.clone(), file));
+                }
             }
         }
     }
-    files
+    (files, skipped)
+}
+
+/// The paths (`base/name.rs` and `base/name/`) of every `mod name;` of
+/// `files` whose outer `cfg` is false under `cfg`.
+fn gated_module_paths(files: &[PathBuf], cfg: &CfgSet) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for path in files {
+        let Ok(tokens) = crate::tokens::lex_file(path) else { continue };
+        let base = match path.file_name().and_then(|n| n.to_str()) {
+            Some("mod.rs") | Some("lib.rs") | Some("main.rs") => path.parent().map(Path::to_path_buf),
+            _ => Some(path.with_extension("")),
+        };
+        let Some(base) = base else { continue };
+        for item in split_items(&tokens) {
+            if !item.gated_out(cfg) {
+                continue;
+            }
+            // `[pub] mod name;`: a header of identifiers ending in `;`.
+            let idents: Vec<String> = item
+                .tokens
+                .iter()
+                .filter_map(|t| match t {
+                    TokenTree::Ident(id) => Some(id.to_string()),
+                    _ => None,
+                })
+                .collect();
+            let declares = matches!(item.tokens.last(), Some(TokenTree::Punct(p)) if p.as_char() == ';');
+            if declares && idents.len() >= 2 && idents[idents.len() - 2] == "mod" {
+                let name = &idents[idents.len() - 1];
+                out.push(base.join(format!("{name}.rs")));
+                out.push(base.join(name));
+            }
+        }
+    }
+    out
 }
 
 pub fn check(ws: &Workspace, report: &mut Report) {
@@ -429,7 +477,8 @@ pub fn check(ws: &Workspace, report: &mut Report) {
     let mut total = FileCount::default();
     let mut per_crate: Vec<(String, usize)> = Vec::new();
     let mut generated = 0usize;
-    for (crate_name, file) in kernel_sources(ws) {
+    let (sources, gated) = kernel_sources(ws, &cfg);
+    for (crate_name, file) in sources {
         match count_file(&file, &cfg) {
             Ok(Some(count)) => {
                 total.exec += count.exec;
@@ -447,7 +496,7 @@ pub fn check(ws: &Workspace, report: &mut Report) {
     let breakdown: Vec<String> = per_crate.iter().map(|(n, c)| format!("{n}: {c}")).collect();
     report.note(format!(
         "R6.2/PAR-01: the Kernel has {} executable lines (limit {limit}; {} spec/proof lines not counted; \
-         {generated} generated files skipped){}",
+         {generated} generated files skipped; {gated} files under a `mod` the Target's cfg excludes not counted){}",
         total.exec,
         total.spec,
         if breakdown.is_empty() {
@@ -471,6 +520,39 @@ pub fn check(ws: &Workspace, report: &mut Report) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// R6.2/PAR-01: a file declared by a `mod x;` whose `cfg` is false for the Target (`cfg(kani)`, `cfg(test)`, a host-only predicate, a feature) is left out of the count with everything below it; a module gated for the Target, or not gated, is counted.
+    #[test]
+    fn files_under_target_gated_module_declarations_are_not_counted() {
+        let dir = std::env::temp_dir().join(format!("rsk-kernel-size-{}", std::process::id()));
+        let src = dir.join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(
+            src.join("lib.rs"),
+            "#[cfg(kani)]\npub mod kani;\n#[cfg(not(all(target_arch = \"arm\", target_os = \"none\")))]\nmod sim;\n#[cfg(all(target_arch = \"arm\", target_os = \"none\"))]\npub mod stubs;\npub mod sub;\n#[cfg(feature = \"hw-dt\")]\nmod dt;\nmod inline { fn f() {} }\n",
+        )
+        .unwrap();
+        std::fs::write(src.join("sub").join("mod.rs"), "#[cfg(test)]\nmod tests;\npub fn g() {}\n").unwrap();
+        let files = vec![
+            src.join("lib.rs"),
+            src.join("kani.rs"),
+            src.join("sim.rs"),
+            src.join("stubs.rs"),
+            src.join("dt.rs"),
+            src.join("sub").join("mod.rs"),
+            src.join("sub").join("tests.rs"),
+        ];
+        let excluded = gated_module_paths(&files, &cfg());
+        let left_out = |f: &std::path::Path| excluded.iter().any(|e| f == e || f.starts_with(e));
+        assert!(left_out(&src.join("kani.rs")));
+        assert!(left_out(&src.join("sim.rs")));
+        assert!(left_out(&src.join("dt.rs")));
+        assert!(left_out(&src.join("sub").join("tests.rs")));
+        assert!(!left_out(&src.join("stubs.rs")));
+        assert!(!left_out(&src.join("sub").join("mod.rs")));
+        assert!(!left_out(&src.join("lib.rs")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn cfg() -> CfgSet {
         CfgSet::from_rustc_print("target_os=\"none\"\ntarget_arch=\"arm\"\n")

@@ -2017,7 +2017,8 @@ fn config_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
 /// cross-check).
 fn kernel_line_total(ws: &Workspace) -> usize {
     let cfg = checks::kernel_size::target_cfg(ws);
-    checks::kernel_size::kernel_sources(ws)
+    checks::kernel_size::kernel_sources(ws, &cfg)
+        .0
         .into_iter()
         .filter_map(|(_, f)| checks::kernel_size::count_file(&f, &cfg).ok().flatten())
         .map(|c| c.exec)
