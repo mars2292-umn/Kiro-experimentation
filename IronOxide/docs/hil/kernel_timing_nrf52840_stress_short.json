@@ -1,6 +1,6 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:017f1bf96dbf021a1ee4616cd44a7650eb50f2d6fa62058132b1f646c8e4e8e7",
+  "binary_hash": "sha256:5f15c7b119f51418dc71c04f83b9a0c87256e4c53b8d63da7b3f267847eae97f",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",

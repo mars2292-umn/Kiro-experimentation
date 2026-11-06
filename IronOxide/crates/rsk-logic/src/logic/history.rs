@@ -79,6 +79,13 @@ pub const ST_KILL: u8 = 6;
 /// delivered from a masked source (an effective intake, `arg < 8`, is one
 /// the source's mask could not have stopped).
 pub const ST_INTAKE: u8 = 7;
+/// An MIT_Violation of the Task was recorded against Partition `arg`
+/// (R10.7; `Kernel::mit_violation`). R10.4 counts these per Partition
+/// since instant 0 or the Partition's last restart (`ST_RESTART`).
+pub const ST_VIOLATION: u8 = 8;
+/// Partition `arg` was restarted (RESTART_PARTITION, R14.5): its
+/// MIT_Violation count starts again (`task` is 0, unused).
+pub const ST_RESTART: u8 = 9;
 
 pub struct Step {
     pub kind: u8,
@@ -125,8 +132,10 @@ pub open spec fn top_rel<const NT: usize, const NR: usize, const NP: usize>(prev
         // Only the executing Job locks and unlocks; the stack is unchanged.
         &&& s.top == prev.top
         &&& s.task == s.top
-    } else if s.kind == ST_RELEASE || s.kind == ST_INTAKE || (s.kind == ST_KILL && s.arg == 0) {
-        // A Release, an intake, or a kill mark changes no Job in progress.
+    } else if s.kind == ST_RELEASE || s.kind == ST_INTAKE || s.kind == ST_VIOLATION || s.kind == ST_RESTART
+        || (s.kind == ST_KILL && s.arg == 0) {
+        // A Release, an intake, a violation, a restart mark, or a kill
+        // mark changes no Job in progress.
         s.top == prev.top
     } else {
         // A Job end resumes the Job below: the top is whatever it is.
@@ -180,11 +189,12 @@ pub open spec fn step_rel(prev: Seq<int>, s: Step) -> bool {
 
 /// A step of a well-formed history over the configuration.
 pub open spec fn step_wf<const NT: usize, const NR: usize, const NP: usize>(s: Step, cfg: &Config<NT, NR, NP>) -> bool {
-    &&& ST_DISPATCH <= s.kind <= ST_INTAKE
+    &&& ST_DISPATCH <= s.kind <= ST_RESTART
     &&& 0 <= s.task < NT
     &&& 0 <= s.at
     &&& 0 <= s.arg
     &&& (s.kind == ST_LOCK || s.kind == ST_UNLOCK) ==> s.arg < NR
+    &&& (s.kind == ST_VIOLATION || s.kind == ST_RESTART) ==> s.arg < NP
     &&& forall|e: int| 0 <= e < s.locks.len() ==> 0 <= #[trigger] s.locks[e] < NR
     &&& s.ceiling == ceiling_of(cfg, s.locks)
     &&& s.top == -1 || 0 <= s.top < NT
@@ -237,6 +247,45 @@ pub open spec fn intake_spaced_after<const NT: usize, const NR: usize, const NP:
     s.kind == ST_INTAKE && s.arg < 8 && cfg.tasks[s.task].kind == KIND_SPORADIC
         ==> forall|k: int| 0 <= k < h.len() && #[trigger] h[k].kind == ST_INTAKE && h[k].task == s.task && h[k].arg < 8
             ==> h[k].at + cfg.tasks[s.task].period as int <= s.at
+}
+
+/// R10.4: the MIT_Violations attributed to Partition `p` since instant 0
+/// or `p`'s last restart: a violation step of `p` counts one, a restart
+/// step of `p` starts the count again, every other step keeps it.
+pub open spec fn violations_since_restart(h: Seq<Step>, p: int) -> int
+    decreases h.len(),
+{
+    if h.len() == 0 {
+        0
+    } else if h.last().kind == ST_RESTART && h.last().arg == p {
+        0
+    } else if h.last().kind == ST_VIOLATION && h.last().arg == p {
+        violations_since_restart(h.drop_last(), p) + 1
+    } else {
+        violations_since_restart(h.drop_last(), p)
+    }
+}
+
+/// The count is never negative.
+pub proof fn lemma_violations_nonneg(h: Seq<Step>, p: int)
+    ensures violations_since_restart(h, p) >= 0,
+    decreases h.len(),
+{
+    if h.len() > 0 {
+        lemma_violations_nonneg(h.drop_last(), p);
+    }
+}
+
+/// The count after one more step.
+pub proof fn lemma_violations_push(h: Seq<Step>, s: Step, p: int)
+    ensures violations_since_restart(h.push(s), p) == (if s.kind == ST_RESTART && s.arg == p { 0 }
+        else if s.kind == ST_VIOLATION && s.arg == p { violations_since_restart(h, p) + 1 }
+        else { violations_since_restart(h, p) }),
+{
+    let q = h.push(s);
+    assert(q.len() == h.len() + 1);
+    assert(q.last() == s);
+    assert(q.drop_last() =~= h);
 }
 
 /// The trace invariant: well-formed steps, instants nondecreasing along

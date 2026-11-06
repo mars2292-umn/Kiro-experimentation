@@ -17,8 +17,8 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
 | responses under the storm | pass | 11950 response edges inside the run (target counted 11950) against 12001 MIT windows; 0 stimulus rises on the mirror |
-| dispatch timeline | pass | Tasks executing 40.1 % of the run, the Kernel 45.0 % over 1559582 entries; runs per Task [18056, 6009, 20998, 7689, 12029, 7402, 1826] |
-| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 22763 cycles (0.356 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 22400 cycles (0.350 ms at 100000 samples/s) |
+| dispatch timeline | pass | Tasks executing 40.1 % of the run, the Kernel 45.0 % over 1559767 entries; runs per Task [18062, 6006, 20999, 7692, 12029, 7401, 1825] |
+| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 22763 cycles (0.356 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 21760 cycles (0.340 ms at 100000 samples/s) |
 
 ## The Kernel's release-timing record
 
@@ -103,14 +103,14 @@ The last recorded Releases (Task, nominal instant, lag):
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 308511 | 18056 | 0.350 |
-| 1 | 22057 | 6009 | 0.140 |
-| 2 | 5660177 | 20998 | 6.260 |
-| 3 | 1720014 | 7689 | 4.920 |
-| 4 | 44215 | 12029 | 0.140 |
-| 5 | 319997 | 7402 | 0.890 |
-| 6 | 59166 | 1826 | 0.610 |
-| none | 12139015 | 42960 | 15501.250 |
+| 0 | 308515 | 18062 | 0.340 |
+| 1 | 22054 | 6006 | 0.140 |
+| 2 | 5660190 | 20999 | 6.260 |
+| 3 | 1720005 | 7692 | 4.920 |
+| 4 | 44160 | 12029 | 0.140 |
+| 5 | 319994 | 7401 | 0.900 |
+| 6 | 59154 | 1825 | 0.610 |
+| none | 12143176 | 42960 | 15561.590 |
 
 ## Commands
 
@@ -334,5 +334,5 @@ expected_sensor=9000
 part0_events=0
 RSK-OK
 Firmware exited successfully
-     Finished in 7.07s
+     Finished in 7.06s
 ```

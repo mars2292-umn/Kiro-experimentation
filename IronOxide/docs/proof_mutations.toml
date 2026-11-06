@@ -230,3 +230,12 @@ find = "                self.timing.mask(cfg, t, now);\n                proof {\
 replace = "                // (mutant) the discarded event leaves the source unmasked\n                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));\n"
 expect = ["kernel.rs", "record_intake"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "restart-keeps-violation-count"
+kills = "violations_linked and the restart step of R10.4: a Partition restart must start its MIT_Violation count again; 2026-11-05"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        self.mit_violations[partition as usize] = 0;\n        self.reinit_partition[partition as usize] = true;\n"
+replace = "        // (mutant) the restart keeps the Partition's MIT_Violation count\n        self.reinit_partition[partition as usize] = true;\n"
+expect = ["kernel.rs", "mit_violations[p] as int"]
+package = "rsk-logic"

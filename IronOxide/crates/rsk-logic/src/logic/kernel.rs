@@ -83,8 +83,18 @@
 //! source's vector exactly when it is unmasked and its Partition not
 //! stopped, is Kernel_Arch (Verification_Plan section 4, A13).
 //!
-//! Not stated here: nothing further of Properties 7 to 9 at the logic
-//! level. The responses that `timer_event` and `intake` apply
+//! R10.4 over the run (2026-11-05). Every MIT_Violation is recorded as an
+//! `ST_VIOLATION` step against the Partition it is attributed to, and
+//! every RESTART_PARTITION as an `ST_RESTART` step of that Partition;
+//! `inv` carries `violations_linked`: each Partition's count is the
+//! saturated number of its violation steps since instant 0 or its last
+//! restart step (`history::violations_since_restart`), and
+//! `mit_violation` applies the response exactly when that count, the new
+//! violation included, exceeds the threshold (`lemma_r10_4_count`). The
+//! windowed form of the count is ORQ-26, a Phase 3 decision.
+//!
+//! Not stated here: nothing further of Properties 7 to 9 or R10.4 at the
+//! logic level. The responses that `timer_event` and `intake` apply
 //! (deadline miss, Overrun, MIT_Violation threshold) go through
 //! `apply_response` and so satisfy R14.9 relative to the state in which
 //! each is applied.
@@ -106,7 +116,7 @@ use super::log::{Event, Log, EV_BOOT_CHECK, EV_BUSFAULT, EV_DEBUGGER, EV_MEMMANA
     EV_OVERRUN, EV_PARTITION_RESTART, EV_PARTITION_STOP, EV_RELEASE_OVERLAP, EV_RESOURCE_RELEASED, EV_SAFE_STATE,
     EV_API_MISUSE};
 // Spec and proof items of `history` are named by path: ghost erasure removes them from the stable build.
-use super::history::{Step, ST_DISPATCH, ST_END, ST_INTAKE, ST_KILL, ST_LOCK, ST_RELEASE, ST_UNLOCK};
+use super::history::{Step, ST_DISPATCH, ST_END, ST_INTAKE, ST_KILL, ST_LOCK, ST_RELEASE, ST_RESTART, ST_UNLOCK, ST_VIOLATION};
 use super::sched::{Sched, JOB_KILLED, JOB_NONE, JOB_RUNNING, REL_DEFERRED, REL_NONE, REL_PENDING};
 use super::time::{Slots, Timing, INTAKE_ACCEPT, INTAKE_DEFER, SLOT_BUDGET, SLOT_DEADLINE, SLOT_DEFER, SLOT_END, SLOT_UNMASK,
     SLOT_HOUSEKEEPING, SLOT_RELEASE};
@@ -185,6 +195,35 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // fields it reads, and opaque, so that it carries over any change
         // to the other fields without a proof step.
         &&& Self::releases_linked(self.history@, self.timing.has_last, self.timing.last_due, cfg)
+        // R10.4 over the run (2026-11-05): each Partition's MIT_Violation
+        // count is the number of violation steps attributed to it since
+        // instant 0 or its last restart step, saturating.
+        &&& self.violations_linked()
+    }
+
+    /// A count saturating at `u32::MAX`.
+    pub open spec fn saturated(c: int) -> int {
+        if c > u32::MAX as int { u32::MAX as int } else { c }
+    }
+
+    /// R10.4's link (2026-11-05): the MIT_Violation count of every
+    /// Partition is the saturated number of violation steps attributed to
+    /// it since instant 0 or its last restart step in the history.
+    pub open spec fn violations_linked(&self) -> bool {
+        forall|p: int| 0 <= p < NP ==> #[trigger] self.mit_violations[p] as int
+            == Self::saturated(super::history::violations_since_restart(self.history@, p))
+    }
+
+    /// R10.4 as `mit_violation` applies it: the response applies exactly
+    /// when the saturated count of violations attributed to `sp` since
+    /// instant 0 or its last restart, this one included, exceeds the
+    /// Partition's threshold (`violation_applied` with the link).
+    pub proof fn lemma_r10_4_count(old: &Self, cfg: &Config<NT, NR, NP>, sp: int)
+        requires old.inv(cfg), 0 <= sp < NP,
+        ensures Self::incremented(old.mit_violations[sp]) as int
+            == Self::saturated(super::history::violations_since_restart(old.history@, sp) + 1),
+    {
+        super::history::lemma_violations_nonneg(old.history@, sp);
     }
 
     /// Whether step `k` of the history is a Release step of Task `u`.
@@ -1295,8 +1334,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Erased from the Flight_Build; the `Ghost` assignment has no
     /// executable effect.
     fn record(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: Ghost<int>, arg: Ghost<int>)
-        requires old(self).inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_INTAKE, 0 <= task@ < NT, 0 <= arg@,
+        requires old(self).inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_RESTART, 0 <= task@ < NT, 0 <= arg@,
             (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg@ < NR,
+            (kind == ST_VIOLATION || kind == ST_RESTART) ==> arg@ < NP,
+            // R10.4: every Partition's count is linked to the history this
+            // step extends: a violation step was counted, a restart step
+            // reset the count, any other step changed no count.
+            forall|p: int| 0 <= p < NP ==> #[trigger] old(self).mit_violations[p] as int
+                == Self::saturated(if kind == ST_RESTART && p == arg@ { 0 }
+                    else if kind == ST_VIOLATION && p == arg@ { super::history::violations_since_restart(old(self).history@, p) + 1 }
+                    else { super::history::violations_since_restart(old(self).history@, p) }),
             // Property 9 (R19.1): an effective intake is recorded with its
             // source masked for one MIT from now, one MIT after every
             // earlier effective intake of the Task.
@@ -1344,6 +1391,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             let h = before.history@;
             let p = self.history@;
+            // R10.4's link holds of the extended history (the count moved
+            // as this step's kind says).
+            assert forall|q: int| 0 <= q < NP implies #[trigger] self.mit_violations[q] as int
+                == Self::saturated(super::history::violations_since_restart(p, q)) by {
+                super::history::lemma_violations_push(h, s, q);
+            }
             // Property 9's link holds of the extended history: the old
             // intakes by the old link (nothing else changed), the new step
             // by this record's requires when it is an effective intake.
@@ -1437,6 +1490,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             }
             assert(k.release_slots_consistent(cfg));
             assert forall|u: int, j: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(k.history@, j, u) implies false by {}
+            assert forall|p: int| 0 <= p < NP implies #[trigger] k.mit_violations[p] as int
+                == Self::saturated(super::history::violations_since_restart(k.history@, p)) by {
+                assert(super::history::violations_since_restart(k.history@, p) == 0);
+            }
         }
         k
     }
@@ -2131,8 +2188,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 || final(self).reinit_partition[partition as int] || final(self).stopped[partition as int] || final(self).safe_state,
     {
         self.push_event(cfg, EV_MIT_VIOLATION, t, partition, PRS_RELEASE, 0);
+        let ghost pe = *self;
         let count = self.mit_violations[partition as usize].saturating_add(1);
         self.mit_violations[partition as usize] = count;
+        proof {
+            // R10.4: the violation step, counted against `partition`.
+            assert(count == Self::incremented(old(self).mit_violations[partition as int]));
+            super::history::lemma_violations_nonneg(self.history@, partition as int);
+            self.lemma_release_match_kept(&pe, cfg, -1);
+            self.lemma_top_kept(&pe, cfg);
+        }
+        self.record(cfg, ST_VIOLATION, Ghost(t as int), Ghost(partition as int));
         let ghost mid = *self;
         proof {
             assert(count == Self::incremented(old(self).mit_violations[partition as int]));
@@ -3203,6 +3269,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let ghost m2 = *self;
         self.mit_violations[partition as usize] = 0;
         self.reinit_partition[partition as usize] = true;
+        proof {
+            // R10.4: the restart step, from which the Partition's count starts again.
+            self.lemma_release_match_kept(&m2, cfg, -1);
+            self.lemma_top_kept(&m2, cfg);
+        }
+        self.record(cfg, ST_RESTART, Ghost(0), Ghost(partition as int));
         proof {
             self.lemma_others_same_but_log(&mid, old(self), cfg, partition as int);
             // The count reset is covered by the re-initialization requested.
