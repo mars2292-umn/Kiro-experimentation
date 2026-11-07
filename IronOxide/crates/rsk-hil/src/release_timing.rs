@@ -61,6 +61,10 @@ pub struct Inputs<'a> {
     /// coverage build, whose instrumented Kernel is no timing evidence
     /// (task 19.5); its figures are reported, not judged.
     pub timing_bounds: bool,
+    /// The `defer-probe` witness build of Verification_Plan 5.8a (the
+    /// dispatch stub's entry and return windows widened): the step
+    /// "dispatch deferrals" then fails when the run deferred none.
+    pub expect_deferrals: bool,
 }
 
 /// What the stress configuration expects (task 7.5).
@@ -357,16 +361,27 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         Err(e) => out.step("Kernel trace", false, e),
     }
 
-    // The dispatch deferrals of 5.8a (the INVPC fix of 2026-11-06): the
-    // Kernel's actions record keeps one entry (kind 3, the vector) per
-    // dispatch vector taken inside another stub's return window and
-    // re-pended; the count is the run's and is reported, never judged.
+    // The deferrals of 5.8a (the INVPC finding of 2026-11-06): the Kernel
+    // counts every dispatch vector taken at another dispatch stub's entry
+    // instruction and deferred (`ARCH_WINDOWS`; the actions record keeps
+    // the last 32 actions, kind 3 with the vector). A count is a handled
+    // occurrence (reported, never judged); the witness build must record
+    // some, and its faults, if any, the fault record shows.
     match target.read_words(inputs.target_elf, "ARCH_ACTIONS", &scratch) {
         Ok(Some(words)) if words.len() >= 2 && words[0] == 0x5253_4b41 => {
             let n = words[1] as usize;
             let held = n.min(32);
-            let defers: Vec<String> = (0..held).filter(|i| words.get(2 + 2 * i) == Some(&3)).map(|i| format!("{:#x}", words.get(3 + 2 * i).copied().unwrap_or(0))).collect();
-            out.step("dispatch deferrals (5.8a)", true, format!("{} actions recorded ({held} held): {} deferral(s) of a dispatch vector taken inside another stub's return window{}", n, defers.len(), if defers.is_empty() { String::new() } else { format!(" (vectors {})", defers.join(", ")) }));
+            let hits: Vec<String> = (0..held).filter(|i| words.get(2 + 2 * i) == Some(&3)).map(|i| format!("{:#x}", words.get(3 + 2 * i).copied().unwrap_or(0))).collect();
+            let counted = match target.read_words(inputs.target_elf, "ARCH_WINDOWS", &scratch) {
+                Ok(Some(d)) if d.len() >= 2 && d[0] == 0x5253_4b41 => Some(d[1]),
+                _ => None,
+            };
+            let total = counted.unwrap_or(hits.len() as u32);
+            let ok = total > 0 || !inputs.expect_deferrals;
+            let mut vectors: Vec<String> = hits.clone();
+            vectors.sort();
+            vectors.dedup();
+            out.step("dispatch deferrals (5.8a)", ok, format!("{} entry-window occurrence(s) handled (a dispatch vector deferred, or an unwind owed to the stub, 0x1xxxx){}; {} actions recorded ({held} held, {} of them deferrals{}){}", total, if counted.is_none() { " (the record's held entries only)" } else { "" }, n, hits.len(), if vectors.is_empty() { String::new() } else { format!(": vectors {}", vectors.join(", ")) }, if inputs.expect_deferrals { if ok { "; the witness build's widened entry was entered and deferred" } else { "; the witness build's widened entry was never entered" } } else { "" }));
         }
         _ => {}
     }

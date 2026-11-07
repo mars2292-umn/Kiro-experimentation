@@ -54,7 +54,7 @@ commands:
       target/xtask-nightly/<date>/. Needs the boards attached and the
       machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
       schedules it at 02:00.
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] | --stress [--short] | --response | --isolation | --boot-checks | --cycles] [--lean]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] [--defer-probe | --defer-nofix] | --stress [--short] | --response | --isolation | --boot-checks | --cycles | --coverage [--stress | --plain | --kernel | --response | --isolation]] [--lean]
       --lean: the HIL build without the trace ring and the trace pins
       (feature record-only; task 19.2, R34.7), its records written as
       `<variant>_lean` beside the instrumented ones, never used by the job.
@@ -407,6 +407,8 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut plain = false;
     let mut fpu = false;
     let mut kernel = false;
+    let mut defer_probe = false;
+    let mut defer_nofix = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -431,6 +433,11 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--plain" => plain = true,
             "--fpu" => fpu = true,
             "--kernel" => kernel = true,
+            "--defer-probe" => defer_probe = true,
+            "--defer-nofix" => {
+                defer_probe = true;
+                defer_nofix = true;
+            }
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
@@ -477,17 +484,24 @@ fn hil_command(args: &[String]) -> ExitCode {
         return print_report(&report, "hil");
     };
     let kind = if stress { "stress" } else if plain { "measure" } else if kernel && coverage { "coverage-kernel" } else { "release-timing" };
+    if coverage && response {
+        return response_command(&ws, &rig, &bin, &stimulus_bin, true, &target_dir, report);
+    }
+    if coverage && isolation {
+        return isolation_command(&ws, &rig, &bin, true, &target_dir, report);
+    }
     if coverage {
         return coverage_command(&ws, &rig, &bin, &stimulus_bin, kind, &target_dir, report);
     }
     if release_timing || stress || plain {
-        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, kind, short || plain, lean, &target_dir, report);
+        let probe = if defer_nofix { Some("nofix") } else if defer_probe { Some("probe") } else { None };
+        return release_timing_command(&ws, &rig, &bin, &stimulus_bin, kind, short || plain, lean, probe, &target_dir, report);
     }
     if response {
-        return response_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
+        return response_command(&ws, &rig, &bin, &stimulus_bin, false, &target_dir, report);
     }
     if isolation {
-        return isolation_command(&ws, &rig, &bin, &target_dir, report);
+        return isolation_command(&ws, &rig, &bin, false, &target_dir, report);
     }
     if boot_checks {
         return boot_checks_command(&ws, &rig, &bin, &target_dir, report);
@@ -537,17 +551,36 @@ fn hil_command(args: &[String]) -> ExitCode {
 /// minutes), the stimulus board built with its `storm` feature, and the
 /// protected Partition's Jobs checked against the WCRTs the Analyzer
 /// computes for the configuration's Task_Model (placeholder timing).
-fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, kind: &str, short: bool, lean: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+///
+/// `--defer-probe` and `--defer-nofix` (Verification_Plan 5.8a): the
+/// witness builds of the INVPC fix, the dispatch stub's return window
+/// (the entry instruction and the return) widened to about 30 µs each,
+/// with the fence and the deferral (`probe`: the run must record
+/// deferrals and no fault) and without them (`nofix`: the windows fault as
+/// the unfixed Kernel did, one INVPC per entry). Their
+/// reports go to `docs/hil/findings/`; no record is written from them and
+/// the timing bounds are not judged.
+#[allow(clippy::too_many_arguments)]
+fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, kind: &str, short: bool, lean: bool, probe: Option<&str>, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
     let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == kind && (m.duration_secs < 10 * 60) == short) else {
         report.error(xtask::diag::Rule::Step, None, "no measurement configuration for this run".to_string());
         return print_report(&report, "hil");
     };
     let stress = measurement.stress;
     let (feature, duration_secs, variant_name) = (measurement.feature, measurement.duration_secs, measurement.variant);
-    let features = format!("{},{feature}", xtask::hil::features_for(lean));
+    let probe_features = match probe {
+        Some("nofix") => ",defer-probe,defer-nofix",
+        Some(_) => ",defer-probe",
+        None => "",
+    };
+    let features = format!("{},{feature}{probe_features}", xtask::hil::features_for(lean));
     // The lean run's reports and records carry the `_lean` suffix: beside
     // the instrumented ones, never taken by the job (task 19.2, R34.7).
-    let variant_label = if lean { format!("{variant_name}_lean") } else { variant_name.to_string() };
+    let variant_label = match probe {
+        Some(p) => format!("{variant_name}_defer_{p}"),
+        None if lean => format!("{variant_name}_lean"),
+        None => variant_name.to_string(),
+    };
     let variant = variant_label.as_str();
     let dir = target_dir.join(kind).join(variant);
     let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
@@ -598,7 +631,8 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         loop_bounds: loop_bounds.as_deref(),
         configuration: variant,
         binary_hash: &target.binary.hash,
-        timing_bounds: true,
+        timing_bounds: probe.is_none(),
+        expect_deferrals: probe == Some("probe"),
     };
     let out = rsk_hil::release_timing::run(&inputs);
     let text = rsk_hil::release_timing::render(rig, &inputs, &out);
@@ -607,6 +641,19 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
     let _ = std::fs::write(work.join("trace.txt"), rsk_hil::trace::render(&out.trace, xtask::hil::TICK_HZ));
     if let Some(ev) = &out.events {
         let _ = std::fs::write(work.join("events.txt"), ev.render(xtask::hil::TICK_HZ));
+    }
+    if let Some(p) = probe {
+        // The witness runs of 5.8a: the report and trace are findings, not records.
+        let findings = ws.root.join("docs").join("hil").join("findings").join(format!("defer_{p}_{variant_name}"));
+        let _ = std::fs::create_dir_all(&findings);
+        let _ = std::fs::write(findings.join("report.md"), &text);
+        let _ = std::fs::write(findings.join("trace.txt"), rsk_hil::trace::render(&out.trace, xtask::hil::TICK_HZ));
+        report.note(format!("witness run `{variant}` ({features}): report and trace under {}", ws.rel(&findings)));
+        if !out.ok() {
+            report.error(xtask::diag::Rule::Step, None, format!("the {kind} witness run failed (report above)"));
+            return print_report(&report, "hil");
+        }
+        return print_report(&report, &format!("{kind} witness run passed"));
     }
     let record = ws.root.join("docs").join("hil");
     let _ = std::fs::create_dir_all(&record);
@@ -889,10 +936,18 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
         configuration: variant,
         binary_hash: &target.binary.hash,
         timing_bounds: !kernel,
+        expect_deferrals: false,
     };
     let out = rsk_hil::release_timing::run(&inputs);
     let mut text = rsk_hil::release_timing::render(rig, &inputs, &out);
     text = text.replacen("# HIL ", "# HIL coverage run (task 19.2, R34.4) over the ", 1);
+    // The trace and events, as the measurement runs keep them (a failed
+    // coverage run is diagnosed from them: the finding of 2026-11-07).
+    let _ = std::fs::create_dir_all(&work);
+    let _ = std::fs::write(work.join("trace.txt"), rsk_hil::trace::render(&out.trace, xtask::hil::TICK_HZ));
+    if let Some(ev) = &out.events {
+        let _ = std::fs::write(work.join("events.txt"), ev.render(xtask::hil::TICK_HZ));
+    }
     // The counters, the raw profile, and the branch report.
     let board = rsk_hil::board::Target { chip: &rig.chip, serial: &rig.target.serial };
     let crates = xtask::hil::partition_crates(ws, bin);
@@ -1091,10 +1146,15 @@ fn analyzer_wcrt(ws: &xtask::workspace::Workspace, model: &std::path::Path, conf
 /// over the response configuration (2 seconds): one injected fault per
 /// response of R14.5, judged from the event mirror, the counts, and the
 /// capture. The report goes under target/xtask-hil/response and docs/hil/.
-fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let features = format!("{},response", xtask::hil::FEATURES);
-    let dir = target_dir.join("response");
-    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, coverage: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    // `--coverage --response` (task 19.2 extended, R34.4, R53.3): the same
+    // suite over the Partition crates instrumented, the counters read after
+    // the run and the branch report written beside the measurement
+    // configurations' (`docs/hil/coverage_nrf52840_response.{md,json}`).
+    let features = format!("{},response{}", xtask::hil::FEATURES, if coverage { ",coverage" } else { "" });
+    let dir = if coverage { target_dir.join("coverage").join("nrf52840_response") } else { target_dir.join("response") };
+    let target = if coverage { xtask::hil::coverage_build(ws, bin, &features, &dir, false, &mut report) } else { xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) };
+    let Some(target) = target else {
         return print_report(&report, "hil");
     };
     let Some(stimulus) = xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report) else {
@@ -1123,6 +1183,9 @@ fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     }
     let record = ws.root.join("docs").join("hil");
     let _ = std::fs::create_dir_all(&record);
+    if coverage {
+        return suite_coverage(ws, rig, bin, "nrf52840_response", &target, &work, text, out.ok(), "the response suite", report);
+    }
     let _ = std::fs::write(record.join("response_nrf52840_response.md"), &text);
     report.note(format!("report written to {} and docs/hil/response_nrf52840_response.md", ws.rel(&work)));
     if !out.ok() {
@@ -1131,15 +1194,96 @@ fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     print_report(&report, "response suite passed")
 }
 
+/// The branch coverage of a fault-injection suite's run (task 19.2
+/// extended; R34.4, R53.3): the instrumented Partitions' counters read
+/// over the probe after the suite, the raw profile exported, and each Task
+/// entry's branch outcomes reported against the plan's threshold, as the
+/// measurement configurations' coverage runs do. The report
+/// (`docs/hil/coverage_<variant>.md`: the suite's report with the coverage
+/// section) and the record (`coverage_<variant>.json`) are written
+/// whatever the verdict; the command fails on a failed suite, on
+/// uncollected coverage, or on a Task below the threshold. These suites
+/// drive the refusals, the responses, and the restarts the measurement
+/// configurations leave uncovered (section 14), so their figures are read
+/// beside those, not in their place.
+#[allow(clippy::too_many_arguments)]
+fn suite_coverage(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, variant: &str, target: &xtask::hil::HilBuild, work: &std::path::Path, mut text: String, suite_ok: bool, suite: &str, mut report: Report) -> ExitCode {
+    let Some(tools) = xtask::hil::coverage_tools(&mut report) else {
+        return print_report(&report, "hil");
+    };
+    let board = rsk_hil::board::Target { chip: &rig.chip, serial: &rig.target.serial };
+    let crates = xtask::hil::partition_crates(ws, bin);
+    let sources: Vec<std::path::PathBuf> = crates.iter().map(|(_, _, s)| s.clone()).collect();
+    let model = xtask::hil::task_model(ws, bin, variant);
+    let coverage = match (model.as_ref(), rsk_hil::coverage::collect(&board, &target.elf, work)) {
+        (Some(m), Ok((profraw, ranges))) => match rsk_hil::coverage::export(&tools, &target.elf, &profraw, work, &sources) {
+            Ok(export) => {
+                let functions = rsk_hil::coverage::functions(&export);
+                let tasks: Vec<(String, String, String, Vec<String>)> = m
+                    .tasks
+                    .iter()
+                    .map(|t| {
+                        let krate = m.partitions.iter().find(|p| p.id == t.partition).map(|p| p.krate.clone()).unwrap_or_default();
+                        let body = t.id.rsplit('.').next().unwrap_or(&t.id).to_string();
+                        (t.id.clone(), krate, body, t.cs_sites.clone())
+                    })
+                    .collect();
+                report.note(format!("counters read: {}", ranges.iter().map(|r| format!("Partition {} {} bytes", r.partition, r.end - r.start)).collect::<Vec<_>>().join(", ")));
+                Ok(rsk_hil::coverage::report(functions, &tasks, variant, &target.binary.hash, rig.coverage_branch_percent))
+            }
+            Err(e) => Err(e),
+        },
+        (None, _) => Err(format!("no Task_Model for `{variant}` (run `cargo xtask gen`)")),
+        (_, Err(e)) => Err(e),
+    };
+    text = text.replacen("# HIL ", "# HIL coverage run (R34.4, R53.3) over the ", 1);
+    match &coverage {
+        Ok(r) => {
+            text.push_str("\n## Branch coverage of the Task entries under the suite (R34.4)\n\n");
+            text.push_str(&format!("{}\n\n", r.summary()));
+            text.push_str(&r.render());
+        }
+        Err(e) => text.push_str(&format!("\n## Branch coverage of the Task entries under the suite (R34.4)\n\nNot collected: {e}\n")),
+    }
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::write(record.join(format!("coverage_{variant}.md")), &text);
+    report.note(format!("coverage report written to {} and docs/hil/coverage_{variant}.md", ws.rel(work)));
+    if !suite_ok {
+        report.error(xtask::diag::Rule::Step, None, format!("{suite} failed under instrumentation (report above): no coverage is taken from a failed run"));
+        return print_report(&report, "hil");
+    }
+    let r = match coverage {
+        Ok(r) => r,
+        Err(e) => {
+            report.error(xtask::diag::Rule::Step, None, format!("branch coverage not collected: {e}"));
+            return print_report(&report, "hil");
+        }
+    };
+    let path = xtask::hil::coverage_record_path(&ws.root, variant);
+    match std::fs::write(&path, r.print()) {
+        Ok(()) => report.note(format!("branch coverage written to {}: {}", ws.rel(&path), r.summary())),
+        Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&path))),
+    }
+    if !r.ok() {
+        report.error(xtask::diag::Rule::Step, None, format!("branch coverage below the {} % threshold (R34.4): {}", r.threshold_percent, r.below().iter().map(|i| format!("{} {} %", i.item, i.percent)).collect::<Vec<_>>().join(", ")));
+        return print_report(&report, "hil");
+    }
+    print_report(&report, "coverage run passed")
+}
+
 /// `cargo xtask hil --isolation` (tasks 7.4 and 3.3): the isolation suite
 /// over the isolation configuration (3.6 seconds; the MPU access matrix
 /// of R16.8 and the EasyDMA cases of R17.7) and, from the same run, the
 /// Hardware_Model differential tests of R49.3. The reports go under
 /// target/xtask-hil/isolation and docs/hil/.
-fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let features = format!("{},isolation", xtask::hil::FEATURES);
-    let dir = target_dir.join("isolation");
-    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, coverage: bool, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    // `--coverage --isolation`: the suite over the instrumented Partitions
+    // (as `--coverage --response`; `docs/hil/coverage_nrf52840_isolation.{md,json}`).
+    let features = format!("{},isolation{}", xtask::hil::FEATURES, if coverage { ",coverage" } else { "" });
+    let dir = if coverage { target_dir.join("coverage").join("nrf52840_isolation") } else { target_dir.join("isolation") };
+    let target = if coverage { xtask::hil::coverage_build(ws, bin, &features, &dir, false, &mut report) } else { xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) };
+    let Some(target) = target else {
         return print_report(&report, "hil");
     };
     let Some(model) = xtask::hil::task_model(ws, bin, "nrf52840_isolation") else {
@@ -1159,6 +1303,9 @@ fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Ri
     }
     let record = ws.root.join("docs").join("hil");
     let _ = std::fs::create_dir_all(&record);
+    if coverage {
+        return suite_coverage(ws, rig, bin, "nrf52840_isolation", &target, &work, text, out.ok(), "the isolation suite", report);
+    }
     let _ = std::fs::write(record.join("isolation_nrf52840_isolation.md"), &text);
     if let Some(dt) = &out.dt {
         let dt_text = rsk_hil::dt::render(dt, &out.dt_rows, &rig.target.serial, &target.binary.hash);
@@ -1302,9 +1449,10 @@ fn nightly_command(args: &[String]) -> ExitCode {
     // analyses key the cycle records on), then the records' refresh in the
     // order a Kernel change requires (the cycle configurations' Δ_entry
     // and Δ_fp, the short configurations, the plain one), the hour-long
-    // campaigns, the coverage runs (task 19.2, 19.4, 19.5), and the job
-    // again on the refreshed records.
-    let steps: [(&str, &[&str]); 13] = [
+    // campaigns, the coverage runs (task 19.2, 19.4, 19.5; the two
+    // fault-injection suites' since 2026-11-07), and the job again on the
+    // refreshed records.
+    let steps: [(&str, &[&str]); 15] = [
         ("verify", &["verify"]),
         ("cycles", &["hil", "--cycles"]),
         ("cycles-fpu", &["hil", "--cycles", "--fpu"]),
@@ -1317,6 +1465,8 @@ fn nightly_command(args: &[String]) -> ExitCode {
         ("coverage-stress", &["hil", "--coverage", "--stress"]),
         ("coverage-plain", &["hil", "--coverage", "--plain"]),
         ("coverage-kernel", &["hil", "--coverage", "--kernel"]),
+        ("coverage-response", &["hil", "--coverage", "--response"]),
+        ("coverage-isolation", &["hil", "--coverage", "--isolation"]),
         ("verify-final", &["verify"]),
     ];
     let mut summary = format!("# Nightly HIL campaign {stamp}\n\n| Step | Verdict | Log | Minutes |\n|---|---|---|---|\n");

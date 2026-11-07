@@ -436,11 +436,11 @@ impl KernelArch for Cm4Hw {
                 hw::watchdog_feed()
             }
             Action::Trace(tag, v) => {
-                // The deferral of 5.8a goes to the actions record too (kind
+                // A window entry of 5.8a goes to the actions record too (kind
                 // 3, the vector): the trace ring holds the last 512 entries
                 // only, the record survives the run.
                 #[cfg(feature = "trace-ram")]
-                if tag == TR_DEFER {
+                if tag == TR_WINDOW {
                     super::unsafe_module::action_push(3, v);
                 }
                 super::trace(super::trace_tag(tag), v)
@@ -488,8 +488,14 @@ pub const TR_SVC: u8 = 9;
 pub const TR_EPILOGUE: u8 = 10;
 pub const TR_FAULT: u8 = 11;
 pub const TR_ARM: u8 = 12;
-/// A dispatch vector taken inside another handler's return window, re-pended (2026-11-06).
-pub const TR_DEFER: u8 = 17;
+/// A dispatch vector taken at another dispatch stub's entry instruction and deferred (5.8a; 2026-11-06).
+pub const TR_WINDOW: u8 = 17;
+/// The deferral of 5.8a is in every build but the `defer-nofix` witness
+/// (HIL only), which shows the open window faulting as the unfixed Kernel did.
+#[cfg(not(feature = "defer-nofix"))]
+pub const WINDOW_DEFER: bool = true;
+#[cfg(feature = "defer-nofix")]
+pub const WINDOW_DEFER: bool = false;
 
 /// A1: the model's BASEPRI is the Hardware_Model's value for the Kernel
 /// state (DD-01, HW-03).
@@ -972,25 +978,80 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
     let n = (ipsr & 0x1FF) as u16;
     hw.apply(Action::Trace(TR_IRQ, n as u32));
-    match tables.binding(n) {
+    // The vectors deferred from a dispatch stub's entry (5.8a) are
+    // re-enabled, pending, by the entry that was preempted there, which is
+    // the one taken from Thread mode (EXC_RETURN bit 3 set); PRIMASK holds
+    // them until its return, after which the NVIC takes them from the base
+    // level in priority order.
+    if WINDOW_DEFER && exc_return & 0x8 != 0 {
+        let ghost h0 = hw.hw();
+        let mut i: usize = 0;
+        while i < 8
+            invariant
+                k.inv(), i <= 8,
+                hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
+            decreases 8 - i,
+        {
+            let v = state.deferred[i];
+            if v != 0 {
+                hw.apply(Action::Enable(v));
+                hw.apply(Action::Pend(v));
+                state.deferred[i] = 0;
+            }
+            i += 1;
+        }
+    }
+    let r: (DispatchPlan, bool) = match tables.binding(n) {
         Binding::Dispatch(t) => {
+            // The unwind a Kernel-level entry owed while this stub sat at
+            // its entry instruction (below): this stub has pushed its record
+            // over the ended Job's, so it pops its own and unwinds that one
+            // (`hop`), and re-pends its vector to be taken again from the
+            // resumed context, where it dispatches.
+            if WINDOW_DEFER && exc_return & 0x8 != 0 && state.pending_unwind != 0 {
+                let h = state.pending_unwind;
+                state.pending_unwind = 0;
+                hw.apply(Action::Pend(n));
+                return (DispatchPlan { psp: 0, control, exc_return, hop: h }, false);
+            }
             // A dispatch vector taken while another handler is active: the
             // preempted context is a handler (EXC_RETURN bit 3 clear), which
-            // can only be a dispatch stub in the window between its
-            // PRIMASK clear and its exception return (every other handler
-            // runs at the Kernel level, above every dispatch vector). A
-            // dispatch from here would return to Thread mode with that
-            // exception still active, which DD-01's invariant forbids and
-            // the processor refuses with NONBASETHRDENA clear (UFSR.INVPC:
-            // the finding of 2026-11-06, Verification_Plan section 13).
-            // The vector re-pends itself and returns into the preempted
-            // stub, whose return reaches Thread mode; the NVIC then takes
-            // the vector again from the base level, where the dispatch
-            // preempts the Job as the SRP intends.
-            if exc_return & 0x8 == 0 {
-                hw.apply(Action::Trace(TR_DEFER, n as u32));
-                hw.apply(Action::Pend(n));
-                return (no_change, false);
+            // can only be a dispatch stub of a lower level at its entry
+            // instruction, before its `cpsid i` (every other handler runs at
+            // the Kernel level, above every dispatch vector, and the return
+            // window is closed by FAULTMASK). A dispatch from here would
+            // return to Thread mode with that exception still active, which
+            // DD-01's invariant forbids and the processor refuses with
+            // NONBASETHRDENA clear (UFSR.INVPC: the finding of 2026-11-06,
+            // Verification_Plan 5.8a). The vector is deferred: disabled in
+            // the NVIC and recorded, so that the preempted stub runs its own
+            // entry under PRIMASK, re-enables and re-pends it (above), and
+            // returns, after which the NVIC takes it from Thread mode. A
+            // re-pend without the disable is a livelock (the witness run of
+            // 2026-11-07: the vector is taken again before the stub's next
+            // instruction). The backstop, with every slot taken, is a Kernel
+            // fault into the safe state (R16.5).
+            if WINDOW_DEFER && exc_return & 0x8 == 0 {
+                hw.apply(Action::Trace(TR_WINDOW, n as u32));
+                hw.apply(Action::Disable(n));
+                let mut slot: usize = 8;
+                let mut i: usize = 0;
+                while i < 8
+                    invariant i <= 8, slot <= 8,
+                    decreases 8 - i,
+                {
+                    if slot == 8 && (state.deferred[i] == 0 || state.deferred[i] == n) {
+                        slot = i;
+                    }
+                    i += 1;
+                }
+                if slot < 8 {
+                    state.deferred[slot] = n;
+                    return (no_change, false);
+                }
+                k.fault(EV_HARDFAULT, true);
+                let safe = apply_core(k, hw, tables);
+                return (no_change, safe);
             }
             if !k.eligible(t) {
                 // A stale pending bit (the Job was suppressed after it was
@@ -1082,7 +1143,19 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             let hop = end_plan_core(k, state, top_before);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
+    };
+    // A Kernel-level entry that ended a Job while a dispatch stub was at its
+    // entry instruction (EXC_RETURN bit 3 clear: that stub is active and
+    // has pushed nothing yet) cannot unwind from here: the MSP top is this
+    // entry's own frame, not the ended Job's level record, which lies
+    // below the preempted stub's pushes to come. The unwind is owed to that
+    // stub (above), which performs it after its own pushes.
+    if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 {
+        hw.apply(Action::Trace(TR_WINDOW, 0x10000 | r.0.hop));
+        state.pending_unwind = r.0.hop;
+        return (DispatchPlan { psp: 0, control, exc_return, hop: 0 }, false);
     }
+    r
 }
 
 /// The Kernel-level timer handler body. Returns the unwind plan when the
@@ -1205,8 +1278,9 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// safe-state flag. BASEPRI ends at the resumed Job's level or the
 /// System_Ceiling (A1), and the resumed Job's Partition view is loaded (A6).
 // Near Z3's default resource limit since `HwModel` gained the watchdog
-// fields (task 5.3); the limit is raised rather than the proof split.
-#[verifier::rlimit(20)]
+// fields (task 5.3), and over 20 since `ArchState` gained the deferred
+// vectors (5.8a, 2026-11-07); the limit is raised rather than the proof split.
+#[verifier::rlimit(40)]
 pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
 ) -> (r: ((u32, u32, u32, ReturnPlan), bool))

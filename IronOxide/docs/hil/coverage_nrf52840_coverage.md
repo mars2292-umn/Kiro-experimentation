@@ -8,25 +8,25 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 
 | Step | Result | Detail |
 |---|---|---|
-| stimulus running | pass | flashed in 4.8 s and reset |
+| stimulus running | pass | flashed in 5.1 s and reset |
 | EasyDMA traffic (R17.4) | pass | SPIM0 of part2 chaining 64-byte transfers on both channels at 8 Mbps: a transfer ended before 1799 of 1800 sampler Jobs; transfers still running after the Kernel's stop at a restart: 0; ENABLE 7, SHORTS 0x20000, RXD.MAXCNT 64, TXD.MAXCNT 64, END 1, STOPPED 0 at the end |
 | loop iterations (R34.9, R35.4) | pass | 7 Application loops in the export, 7 observed: 0 reached the bound, 0 exceeded, 2 below the bound with the justification recorded, 0 below without one, 5 never completed in this configuration, 0 not observed |
-| target run | pass | RSK-OK after 199 s (operating duration 180 s) |
-| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 31621 cycles (494.1 µs) against J_rel 10000 cycles |
+| target run | pass | RSK-OK after 200 s (operating duration 180 s) |
+| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 38812 cycles (606.4 µs) against J_rel 10000 cycles |
 | Kernel events | pass | 4 events mirrored (4 held, 1 of them the post-detach reboot's): operating_end of Task none: 1, safe_state of Task none: 1, debugger of Task none: 1; the trace never froze during the run |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
-| dispatch deferrals (5.8a) | pass | 0 actions recorded (0 held): 0 deferral(s) of a dispatch vector taken inside another stub's return window |
-| loopback over the run | pass | 9998 stimulus pulses answered (target counted 9998; 11062 rises and 9999 response edges in the capture); latency 400 to 9450 µs, median 1170 µs, 0 later than 15 ms; Δ_stamp observed 21824 cycles (341.0 µs) against the exported bound 8000 cycles EXCEEDED; 0 unanswered inside the run |
-| dispatch timeline | pass | Tasks executing 55.4 % of the run, the Kernel 56.3 % over 1672105 entries; runs per Task [18521, 6037, 20995, 7325, 10043, 7218, 1887] |
-| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 107332 cycles (1.677 ms, cycle-counter read cost 27 cycles) against the trace pin's longest run 105600 cycles (1.650 ms at 100000 samples/s; 18521 runs for 18000 Jobs): the agent exceeds the trace beyond quantization, within a tenth |
+| dispatch deferrals (5.8a) | pass | 0 entry-window occurrence(s) handled (a dispatch vector deferred, or an unwind owed to the stub, 0x1xxxx); 0 actions recorded (0 held, 0 of them deferrals) |
+| loopback over the run | pass | 9998 stimulus pulses answered (target counted 9998; 11130 rises and 9999 response edges in the capture); latency 420 to 8890 µs, median 1030 µs, 0 later than 15 ms; Δ_stamp observed 23540 cycles (367.8 µs) against the exported bound 8000 cycles EXCEEDED; 0 unanswered inside the run |
+| dispatch timeline | pass | Tasks executing 55.7 % of the run, the Kernel 56.8 % over 1650450 entries; runs per Task [18566, 6059, 20995, 8003, 9997, 7441, 1936] |
+| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 105295 cycles (1.645 ms, cycle-counter read cost 27 cycles) against the trace pin's longest run 103680 cycles (1.620 ms at 100000 samples/s; 18566 runs for 18000 Jobs): the agent exceeds the trace beyond quantization, within a tenth |
 
 ## Loop iterations (R34.9, R35.4)
 
 | Loop | File:line | Bound | Observed | Verdict |
 |---|---|---|---|---|
 | `loop:part0:spin_ms:spin` | apps/p1-demo/part0/src/lib.rs:38 | 100_000_000 | 0 | not run |
-| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:237 | 10_000_000 | 158 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:237 | 10_000_000 | 159 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:275 | 50_000_000 | 0 | not run |
 | `loop:part1:spin_ms:spin` | apps/p1-demo/part1/src/lib.rs:30 | 100_000_000 | 0 | not run |
 | `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:226 | 10_000_000 | 83 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
@@ -37,74 +37,74 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 17999 | 28491 / 445.2 | 15787 | 2^14:12872 2^15:5127 |
-| 2 | 8999 | 31621 / 494.1 | 16681 | 2^14:6310 2^15:2689 |
-| 3 | 4499 | 24019 / 375.3 | 15983 | 2^14:3596 2^15:903 |
-| 5 | 7199 | 28491 / 445.2 | 16610 | 2^14:3524 2^15:3675 |
-| 6 | 1799 | 28491 / 445.2 | 17109 | 2^15:1799 |
+| 0 | 17999 | 38812 / 606.4 | 16421 | 2^14:9913 2^15:8086 |
+| 2 | 8999 | 29288 / 457.6 | 16758 | 2^14:6706 2^15:2293 |
+| 3 | 4499 | 31625 / 494.1 | 16574 | 2^14:3579 2^15:920 |
+| 5 | 7199 | 31625 / 494.1 | 16965 | 2^14:3123 2^15:4076 |
+| 6 | 1799 | 31625 / 494.1 | 17671 | 2^15:1799 |
 
 Releases recorded: 40495; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 18000 | 4.157 | 0 | 0 | 0 |
-| 1 | 5999 | 1.291 | 0 | 0 | 0 |
-| 2 | 8999 | 9.598 | 0 | 0 | 0 |
-| 3 | 4500 | 16.522 | 0 | 0 | 0 |
-| 4 | 9998 | 9.547 | 9999 | 9227 | 8512 |
-| 5 | 7200 | 10.808 | 0 | 0 | 0 |
-| 6 | 1800 | 17.674 | 0 | 0 | 0 |
+| 0 | 18000 | 4.197 | 0 | 0 | 0 |
+| 1 | 5999 | 1.313 | 0 | 0 | 0 |
+| 2 | 8999 | 9.711 | 0 | 0 | 0 |
+| 3 | 4500 | 16.619 | 0 | 0 | 0 |
+| 4 | 9998 | 8.893 | 9999 | 9685 | 8996 |
+| 5 | 7200 | 10.942 | 0 | 0 | 0 |
+| 6 | 1800 | 18.047 | 0 | 0 | 0 |
 
 Execution from the Budget accounting (task 19.1; cycle-counter read cost 27 cycles, R34.3):
 
 | Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |
 |---|---|---|---|
-| Task 0 entry | 18000 | 107332 / 1.677 (min 36394, mean 44703) | 0 above the Budget; 2^15:18000 |
-| Task 1 entry | 5999 | 29375 / 0.459 (min 11549, mean 11935) | 0 above the Budget; 2^14:5987 2^15:12 |
-| Task 2 entry | 8999 | 491837 / 7.685 (min 442941, mean 453197) | 0 above the Budget; 2^15:8999 |
-| Task 3 entry | 4500 | 271137 / 4.237 (min 134369, mean 209245) | 0 above the Budget; 2^15:4500 |
-| Task 4 entry | 9998 | 69530 / 1.086 (min 12011, mean 13961) | 0 above the Budget; 2^14:8958 2^15:1040 |
-| Task 5 entry | 7200 | 79613 / 1.244 (min 24311, mean 27694) | 0 above the Budget; 2^15:7200 |
-| Task 6 entry | 1800 | 82151 / 1.284 (min 28215, mean 35946) | 0 above the Budget; 2^15:1800 |
-| Task 0 on Resource 0 | 18000 | 35192 / 0.550 | |
-| Task 0 on Resource 1 | 18000 | 33699 / 0.527 | |
-| Task 2 on Resource 0 | 8999 | 406128 / 6.346 | |
-| Task 2 on Resource 1 | 17998 | 18472 / 0.289 | |
-| Task 5 on Resource 2 | 7200 | 34252 / 0.535 | |
-| Task 6 on Resource 2 | 1800 | 21757 / 0.340 | |
+| Task 0 entry | 18000 | 105295 / 1.645 (min 36429, mean 44936) | 0 above the Budget; 2^15:18000 |
+| Task 1 entry | 5999 | 29969 / 0.468 (min 11619, mean 13269) | 0 above the Budget; 2^14:5542 2^15:457 |
+| Task 2 entry | 8999 | 505630 / 7.900 (min 443450, mean 454368) | 0 above the Budget; 2^15:8999 |
+| Task 3 entry | 4500 | 266012 / 4.156 (min 145499, mean 210126) | 0 above the Budget; 2^15:4500 |
+| Task 4 entry | 9998 | 47113 / 0.736 (min 12041, mean 14461) | 0 above the Budget; 2^14:8725 2^15:1273 |
+| Task 5 entry | 7200 | 64270 / 1.004 (min 24372, mean 27172) | 0 above the Budget; 2^15:7200 |
+| Task 6 entry | 1800 | 76952 / 1.202 (min 28300, mean 36061) | 0 above the Budget; 2^15:1800 |
+| Task 0 on Resource 0 | 18000 | 68312 / 1.067 | |
+| Task 0 on Resource 1 | 18000 | 18831 / 0.294 | |
+| Task 2 on Resource 0 | 8999 | 419436 / 6.554 | |
+| Task 2 on Resource 1 | 17998 | 34929 / 0.546 | |
+| Task 5 on Resource 2 | 7200 | 39076 / 0.611 | |
+| Task 6 on Resource 2 | 1800 | 35206 / 0.550 | |
 
 Kernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):
 
 | Entry | Runs | Max (cycles / µs) | Mean (cycles) |
 |---|---|---|---|
-| dispatch | 56496 | 9960 / 155.62 | 9281 |
-| timer | 52350 | 15779 / 246.55 | 12742 |
-| intake | 9999 | 9664 / 151.00 | 8920 |
-| lock | 71997 | 1759 / 27.48 | 1757 |
-| unlock | 71997 | 8052 / 125.81 | 7238 |
-| job_end | 56496 | 8943 / 139.73 | 7927 |
-| now | 1741876 | 920 / 14.38 | 920 |
-| raise | 6000 | 9604 / 150.06 | 9012 |
-| dma | 1808 | 3401 / 53.14 | 2399 |
-| epilogue | 56496 | 4771 / 74.55 | 2552 |
-| view | 71473 | 1776 / 27.75 | 1535 |
+| dispatch | 56496 | 10436 / 163.06 | 9768 |
+| timer | 52634 | 16335 / 255.23 | 13306 |
+| intake | 9999 | 10119 / 158.11 | 9394 |
+| lock | 71997 | 1782 / 27.84 | 1780 |
+| unlock | 71997 | 7975 / 124.61 | 7208 |
+| job_end | 56496 | 8941 / 139.70 | 7947 |
+| now | 1732898 | 929 / 14.52 | 927 |
+| raise | 6000 | 9369 / 146.39 | 8965 |
+| dma | 1808 | 3431 / 53.61 | 2427 |
+| epilogue | 56496 | 4784 / 74.75 | 2608 |
+| view | 72376 | 1776 / 27.75 | 1538 |
 
-Entries that interrupted an executing Job: Task 0: 4677, Task 1: 12, Task 2: 32345, Task 3: 6192, Task 4: 1096, Task 5: 1342, Task 6: 888
+Entries that interrupted an executing Job: Task 0: 4704, Task 1: 457, Task 2: 32801, Task 3: 7335, Task 4: 1279, Task 5: 1228, Task 6: 904
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 179930.000 ms, 16989 cycles
-- Task 0 at 179940.000 ms, 14607 cycles
-- Task 2 at 179945.000 ms, 14567 cycles
-- Task 0 at 179950.000 ms, 16617 cycles
-- Task 5 at 179950.000 ms, 16617 cycles
-- Task 0 at 179960.000 ms, 15423 cycles
-- Task 3 at 179960.000 ms, 15423 cycles
-- Task 2 at 179965.000 ms, 22723 cycles
-- Task 0 at 179970.000 ms, 16877 cycles
-- Task 5 at 179975.000 ms, 14575 cycles
-- Task 0 at 179980.000 ms, 14607 cycles
-- Task 0 at 179990.000 ms, 14319 cycles
+- Task 0 at 179930.000 ms, 16040 cycles
+- Task 0 at 179940.000 ms, 27569 cycles
+- Task 2 at 179945.000 ms, 15121 cycles
+- Task 0 at 179950.000 ms, 17748 cycles
+- Task 5 at 179950.000 ms, 17748 cycles
+- Task 0 at 179960.000 ms, 15969 cycles
+- Task 3 at 179960.000 ms, 15969 cycles
+- Task 2 at 179965.000 ms, 25393 cycles
+- Task 0 at 179970.000 ms, 15532 cycles
+- Task 5 at 179975.000 ms, 15213 cycles
+- Task 0 at 179980.000 ms, 15145 cycles
+- Task 0 at 179990.000 ms, 14785 cycles
 
 ## The Kernel's events
 
@@ -114,14 +114,14 @@ The last recorded Releases (Task, nominal instant, lag):
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 1212463 | 18521 | 1.650 |
-| 1 | 98833 | 6037 | 0.430 |
-| 2 | 6573527 | 20995 | 7.230 |
-| 3 | 1508734 | 7325 | 3.710 |
-| 4 | 188551 | 10043 | 0.750 |
-| 5 | 288137 | 7218 | 1.170 |
-| 6 | 96303 | 1887 | 0.950 |
-| none | 8027991 | 41509 | 7.860 |
+| 0 | 1217630 | 18566 | 1.620 |
+| 1 | 110895 | 6059 | 0.460 |
+| 2 | 6590076 | 20995 | 7.440 |
+| 3 | 1527719 | 8003 | 3.610 |
+| 4 | 194644 | 9997 | 0.710 |
+| 5 | 286132 | 7441 | 0.930 |
+| 6 | 97435 | 1936 | 0.940 |
+| none | 7970009 | 40607 | 7.440 |
 
 ## Commands
 
@@ -146,7 +146,7 @@ filter_state_bits=1120403452
 sampler=1800
 dma_ok=1800
 loop:part0:spin_ms:spin=0
-loop:part0:sensor:hold=158
+loop:part0:sensor:hold=159
 loop:part0:sensor:late=0
 loop:part1:spin_ms:spin=0
 loop:part1:log:busy=83
@@ -183,7 +183,7 @@ event=18
   prs_hi=0
 RSK-OK
 Firmware exited successfully
-     Finished in 15.22s
+     Finished in 16.44s
 ```
 
 ## Branch coverage of the measurement inputs (R34.4)
@@ -223,7 +223,7 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `rsk_kernel::arch::cm4::mirror_events` | 8 | 6 | 353:22 true, 356:26 false |
 | `rsk_kernel::arch::cm4::unsafe_module::arch_state` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::unsafe_module::fault_push` | 0 | 0 |  |
-| `rsk_kernel::arch::cm4::unsafe_module::svc_number` | 2 | 1 | 849:12 true |
+| `rsk_kernel::arch::cm4::unsafe_module::svc_number` | 2 | 1 | 878:12 true |
 | `rsk_kernel::arch::cm4::unsafe_module::stats_entry` | 4 | 3 | 522:8 true |
 | `rsk_kernel::arch::cm4::unsafe_module::stats_reset` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::unsafe_module::stats_stamp` | 10 | 6 | 376:8 true, 376:37 true, 380:8 true, 385:8 true |
@@ -255,35 +255,36 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `rsk_kernel::arch::cm4::unsafe_module::hw::timebase::now` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::unsafe_module::hw::boot_info` | 8 | 4 | 715:8 false, 725:12 false, 725:32 false, 728:12 false |
 | `rsk_kernel::arch::cm4::unsafe_module::stats` | 2 | 1 | 303:8 true |
-| `rsk_kernel::arch::cm4::unsafe_module::events` | 2 | 1 | 713:8 true |
-| `rsk_kernel::arch::cm4::unsafe_module::extend` | 2 | 1 | 804:8 true |
+| `rsk_kernel::arch::cm4::unsafe_module::events` | 2 | 1 | 742:8 true |
+| `rsk_kernel::arch::cm4::unsafe_module::extend` | 2 | 1 | 833:8 true |
 | `rsk_kernel::arch::cm4::unsafe_module::faults` | 2 | 0 | 630:8 true, 630:8 false |
-| `rsk_kernel::arch::cm4::unsafe_module::actions` | 2 | 0 | 683:8 true, 683:8 false |
+| `rsk_kernel::arch::cm4::unsafe_module::actions` | 2 | 0 | 707:8 true, 707:8 false |
+| `rsk_kernel::arch::cm4::unsafe_module::windows` | 2 | 0 | 697:8 true, 697:8 false |
 | `rsk_kernel::arch::cm4::svc` | 22 | 16 | 588:8 true, 629:12 true, 629:20 true, 629:20 false, 635:12 false, 646:8 true |
 | `rsk_kernel::arch::cm4::svc::{closure}` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::svc::{closure}` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::boot` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::plan::find_level` | 4 | 4 |  |
-| `rsk_kernel::arch::cm4::plan::plan_frame` | 4 | 2 | 155:8 true, 164:8 true |
+| `rsk_kernel::arch::cm4::plan::plan_frame` | 4 | 2 | 166:8 true, 175:8 true |
 | `rsk_kernel::arch::cm4::plan::compare_target` | 2 | 2 |  |
-| `rsk_kernel::arch::cm4::entry::apply_core` | 14 | 11 | 577:48 true, 607:12 true, 610:12 true |
-| `rsk_kernel::arch::cm4::entry::fault_core` | 4 | 0 | 1266:18 true, 1266:18 false, 1266:31 true, 1266:31 false |
-| `rsk_kernel::arch::cm4::entry::raise_core` | 6 | 3 | 890:23 false, 895:17 false, 902:8 false |
-| `rsk_kernel::arch::cm4::entry::start_core` | 2 | 1 | 926:8 false |
+| `rsk_kernel::arch::cm4::entry::apply_core` | 14 | 11 | 583:48 true, 613:12 true, 616:12 true |
+| `rsk_kernel::arch::cm4::entry::fault_core` | 4 | 0 | 1340:18 true, 1340:18 false, 1340:31 true, 1340:31 false |
+| `rsk_kernel::arch::cm4::entry::raise_core` | 6 | 3 | 896:23 false, 901:17 false, 908:8 false |
+| `rsk_kernel::arch::cm4::entry::start_core` | 2 | 1 | 932:8 false |
 | `rsk_kernel::arch::cm4::entry::timer_core` | 0 | 0 |  |
-| `rsk_kernel::arch::cm4::entry::arm_compare` | 2 | 1 | 533:21 false |
+| `rsk_kernel::arch::cm4::entry::arm_compare` | 2 | 1 | 539:21 false |
 | `rsk_kernel::arch::cm4::entry::charge_point` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::entry::end_plan_core` | 2 | 2 |  |
-| `rsk_kernel::arch::cm4::entry::epilogue_core` | 8 | 5 | 1223:8 false, 1232:22 true, 1239:16 true |
-| `rsk_kernel::arch::cm4::entry::dma_write_core` | 24 | 13 | 844:8 false, 844:17 false, 844:36 false, 862:16 false, 863:20 true, 863:36 true, 863:55 true, 863:76 true, 869:20 false, 869:29 false, 871:8 false |
-| `rsk_kernel::arch::cm4::entry::irq_entry_core` | 14 | 8 | 990:16 true, 995:16 true, 1002:46 false, 1002:92 false, 1011:16 true, 1070:16 false |
+| `rsk_kernel::arch::cm4::entry::epilogue_core` | 8 | 5 | 1297:8 false, 1306:22 true, 1313:16 true |
+| `rsk_kernel::arch::cm4::entry::dma_write_core` | 24 | 13 | 850:8 false, 850:17 false, 850:36 false, 868:16 false, 869:20 true, 869:36 true, 869:55 true, 869:76 true, 875:20 false, 875:29 false, 877:8 false |
+| `rsk_kernel::arch::cm4::entry::irq_entry_core` | 50 | 21 | 986:8 false, 986:24 false, 996:16 true, 1011:16 false, 1011:32 false, 1011:57 true, 1034:16 false, 1034:32 true, 1039:23 true, 1039:23 false, 1043:24 true, 1043:24 false, 1043:38 true, 1043:38 false, 1043:64 true, 1043:64 false, 1048:20 true, 1048:20 false, 1056:16 true, 1063:46 false, 1063:92 false, 1072:16 true, 1131:16 false, 1153:8 false, 1153:40 true, 1153:56 true, 1153:56 false, 1153:81 true, 1153:81 false |
 | `rsk_kernel::arch::cm4::entry::watchdog_reload` | 4 | 0 | 118:8 true, 118:8 false, 123:8 true, 123:8 false |
-| `rsk_kernel::arch::cm4::entry::dma_request_core` | 6 | 3 | 800:23 false, 805:17 false, 812:8 false |
-| `rsk_kernel::arch::cm4::entry::dma_stop_partition` | 10 | 0 | 746:11 true, 746:11 false, 751:12 true, 751:12 false, 752:16 true, 752:16 false, 755:16 true, 755:16 false, 758:16 true, 758:16 false |
+| `rsk_kernel::arch::cm4::entry::dma_request_core` | 6 | 3 | 806:23 false, 811:17 false, 818:8 false |
+| `rsk_kernel::arch::cm4::entry::dma_stop_partition` | 10 | 0 | 752:11 true, 752:11 false, 757:12 true, 757:12 false, 758:16 true, 758:16 false, 761:16 true, 761:16 false, 764:16 true, 764:16 false |
 | `rsk_kernel::arch::cm4::entry::Cm4Hw::new` | 0 | 0 |  |
-| `rsk_kernel::arch::cm4::entry::dma_boot` | 6 | 0 | 774:11 true, 774:11 false, 778:12 true, 778:12 false, 781:12 true, 781:12 false |
-| `rsk_kernel::arch::cm4::entry::svc_core` | 24 | 18 | 1128:23 false, 1133:23 false, 1158:23 false, 1159:12 false, 1173:23 false, 1179:15 false |
-| `rsk_kernel::arch::cm4::entry::boot_core` | 18 | 6 | 637:8 true, 648:8 true, 651:8 true, 654:8 false, 658:8 true, 666:8 false, 683:11 true, 683:11 false, 714:11 true, 714:11 false, 714:21 true, 714:21 false |
+| `rsk_kernel::arch::cm4::entry::dma_boot` | 6 | 0 | 780:11 true, 780:11 false, 784:12 true, 784:12 false, 787:12 true, 787:12 false |
+| `rsk_kernel::arch::cm4::entry::svc_core` | 24 | 18 | 1201:23 false, 1206:23 false, 1231:23 false, 1232:12 false, 1246:23 false, 1252:15 false |
+| `rsk_kernel::arch::cm4::entry::boot_core` | 18 | 6 | 643:8 true, 654:8 true, 657:8 true, 660:8 false, 664:8 true, 672:8 false, 689:11 true, 689:11 false, 720:11 true, 720:11 false, 720:21 true, 720:21 false |
 | `rsk_kernel::arch::cm4::fault` | 2 | 0 | 692:8 true, 692:8 false |
 | `rsk_kernel::arch::cm4::panic` | 2 | 0 | 782:8 true, 782:8 false |
 | `rsk_kernel::arch::cm4::start` | 2 | 0 | 445:8 true, 445:8 false |
@@ -551,9 +552,9 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `p1_demo_part0::rsk_jobs::sensor` | 0 | 0 |  |
 | `p1_demo_part0::rsk_jobs::control` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::unsafe_module::stats_exec` | 10 | 8 | 438:8 true, 446:8 true |
-| `rsk_kernel::arch::cm4::unsafe_module::action_push` | 0 | 0 |  |
+| `rsk_kernel::arch::cm4::unsafe_module::action_push` | 2 | 0 | 726:8 true, 726:8 false |
 | `rsk_kernel::arch::cm4::unsafe_module::build_frame` | 0 | 0 |  |
-| `rsk_kernel::arch::cm4::unsafe_module::events_push` | 22 | 10 | 762:8 true, 780:20 false, 780:33 true, 780:61 true, 780:61 false, 784:21 true, 785:8 false, 785:21 true, 785:40 true, 785:40 false, 785:53 true, 785:53 false |
+| `rsk_kernel::arch::cm4::unsafe_module::events_push` | 22 | 10 | 791:8 true, 809:20 false, 809:33 true, 809:61 true, 809:61 false, 813:21 true, 814:8 false, 814:21 true, 814:40 true, 814:40 false, 814:53 true, 814:53 false |
 | `rsk_kernel::arch::cm4::unsafe_module::frame_words` | 0 | 0 |  |
 | `rsk_kernel::arch::cm4::unsafe_module::stats_release` | 10 | 6 | 325:8 true, 328:8 true, 328:23 true, 328:39 true |
 | `rsk_kernel::arch::cm4::unsafe_module::hw::dwt_enable` | 0 | 0 |  |
@@ -722,7 +723,7 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 
 ## Structural coverage of the Kernel on the Target (task 19.5, R53.3)
 
-the Kernel on the Target: lines 68.3 % (3021 of 4426), branch outcomes 55.3 % (718 of 1298), functions 75.1 % (280 of 373) of the Kernel sources
+the Kernel on the Target: lines 67.8 % (3033 of 4476), branch outcomes 54.8 % (731 of 1334), functions 74.9 % (280 of 374) of the Kernel sources
 
 | File | Lines | Branch outcomes | Functions |
 |---|---|---|---|
@@ -732,11 +733,11 @@ the Kernel on the Target: lines 68.3 % (3021 of 4426), branch outcomes 55.3 % (7
 | apps/p1-demo/system/src/lib.rs | 98.2 % (107 of 109) | 75.0 % (39 of 52) | 100.0 % (3 of 3) |
 | crates/rsk-entry/src/lib.rs | 57.9 % (44 of 76) | 62.5 % (15 of 24) | 35.7 % (5 of 14) |
 | crates/rsk-kernel/src/arch/bound.rs | 91.7 % (297 of 324) | 64.2 % (86 of 134) | 94.9 % (56 of 59) |
-| crates/rsk-kernel/src/arch/cm4/entry.rs | 65.8 % (310 of 471) | 49.3 % (72 of 146) | 82.6 % (19 of 23) |
+| crates/rsk-kernel/src/arch/cm4/entry.rs | 63.5 % (322 of 507) | 47.8 % (85 of 178) | 82.6 % (19 of 23) |
 | crates/rsk-kernel/src/arch/cm4/mod.rs | 64.8 % (247 of 381) | 58.0 % (51 of 88) | 72.1 % (31 of 43) |
-| crates/rsk-kernel/src/arch/cm4/plan.rs | 51.1 % (24 of 47) | 80.0 % (8 of 10) | 75.0 % (3 of 4) |
+| crates/rsk-kernel/src/arch/cm4/plan.rs | 49.0 % (24 of 49) | 80.0 % (8 of 10) | 75.0 % (3 of 4) |
 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs | 52.8 % (205 of 388) | 39.6 % (57 of 144) | 54.8 % (34 of 62) |
-| crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs | 64.3 % (214 of 333) | 52.0 % (52 of 100) | 66.7 % (24 of 36) |
+| crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs | 62.0 % (214 of 345) | 50.0 % (52 of 104) | 64.9 % (24 of 37) |
 | crates/rsk-kernel/src/arch/mod.rs | 0.0 % (0 of 47) | - (0 of 0) | 0.0 % (0 of 2) |
 | crates/rsk-logic/src/logic/budget.rs | 86.4 % (19 of 22) | 50.0 % (1 of 2) | 83.3 % (5 of 6) |
 | crates/rsk-logic/src/logic/kernel.rs | 56.8 % (677 of 1191) | 44.7 % (85 of 190) | 62.5 % (25 of 40) |
@@ -745,4 +746,4 @@ the Kernel on the Target: lines 68.3 % (3021 of 4426), branch outcomes 55.3 % (7
 | crates/rsk-logic/src/logic/mpu.rs | 87.9 % (233 of 265) | 59.2 % (90 of 152) | 100.0 % (11 of 11) |
 | crates/rsk-logic/src/logic/sched.rs | 86.5 % (224 of 259) | 67.5 % (27 of 40) | 84.6 % (11 of 13) |
 | crates/rsk-logic/src/logic/time.rs | 81.9 % (127 of 155) | 70.8 % (17 of 24) | 86.7 % (13 of 15) |
-| **total** | 68.3 % (3021 of 4426) | 55.3 % (718 of 1298) | 75.1 % (280 of 373) |
+| **total** | 67.8 % (3033 of 4476) | 54.8 % (731 of 1334) | 74.9 % (280 of 374) |

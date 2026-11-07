@@ -39,6 +39,8 @@ coverage-kernel = ["nrf52840", "measure", "p1-demo-decl/nrf52840_coverage"]
 hw-dt = ["rsk-kernel/hw-dt", "rsk/hw-dt"]
 # HIL builds: the boot-check suite's mutation word (task 7.2).
 boot-mutation = ["rsk-kernel/boot-mutation"]
+defer-probe = ["rsk-kernel/defer-probe"]
+defer-nofix = ["rsk-kernel/defer-nofix"]
 record-only = ["rsk-kernel/record-only"]
 # The coverage build (task 19.2, R34.4): the Kernel zeroes the Partitions'
 # coverage counters at instant 0; `cargo xtask hil --coverage` builds it.

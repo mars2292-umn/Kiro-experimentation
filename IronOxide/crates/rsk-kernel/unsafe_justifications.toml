@@ -143,7 +143,7 @@ reviewed_on = "2026-10-08"
 id = "UJ-020"
 summary = "rsk_irq_entry: the shared dispatch stub (naked asm)"
 kind = "review"
-why_no_machine_check = "Kani does not model inline assembly or exception entry (R45.4); the frame protocol (push R3-R11/LR and S16-S31, matched by the pops of rsk_unwind in LIFO order, Property 2) is checked by the QEMU dispatch spike and the HIL preemption and register-pattern tests of task 3.1."
+why_no_machine_check = "Kani does not model inline assembly or exception entry (R45.4); the frame protocol (push R3-R11/LR and S16-S31, matched by the pops of rsk_unwind in LIFO order, Property 2) is checked by the QEMU dispatch spike and the HIL preemption and register-pattern tests of task 3.1. The return window (cpsie i before bx) is closed by cpsid f, which the exception return clears, and a dispatch vector taken at the entry instruction (before cpsid i) is deferred by irq_entry_core (Verification_Plan 5.8a, 2026-11-07); the witness builds defer-probe and defer-nofix show both windows handled and open."
 reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
 

@@ -96,7 +96,7 @@ fn trace(tag: &[u8], v: u32) {
             b"epilogue" => entry::TR_EPILOGUE,
             b"fault" => entry::TR_FAULT,
             b"arm" => entry::TR_ARM,
-            b"defer" => entry::TR_DEFER,
+            b"window" => entry::TR_WINDOW,
             b"cfsr" => 13,
             b"pc" => 14,
             b"dmastop" => 15,
@@ -160,7 +160,7 @@ fn trace_tag(tag: u8) -> &'static [u8] {
         entry::TR_EPILOGUE => b"epilogue",
         entry::TR_FAULT => b"fault",
         entry::TR_ARM => b"arm",
-        entry::TR_DEFER => b"defer",
+        entry::TR_WINDOW => b"window",
         _ => b"?",
     }
 }

@@ -38,6 +38,8 @@ plain-measure = ["rsk-entry/plain-measure"]
 coverage-kernel = ["rsk-entry/coverage-kernel"]
 hw-dt = ["rsk-entry/hw-dt"]
 boot-mutation = ["rsk-entry/boot-mutation"]
+defer-probe = ["rsk-entry/defer-probe"]
+defer-nofix = ["rsk-entry/defer-nofix"]
 record-only = ["rsk-entry/record-only"]
 # The coverage build (task 19.2, R34.4), `cargo xtask hil --coverage`.
 coverage = ["rsk-entry/coverage"]

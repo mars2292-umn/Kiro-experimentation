@@ -2496,11 +2496,21 @@ fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, st
             report.error(Rule::Evidence, None, e);
         }
     }
-    // (c) The Partitions on the Target: the committed reports.
-    for m in crate::hil::MEASUREMENTS.iter().filter(|m| m.duration_secs < 10 * 60 && m.kind != "coverage-kernel") {
-        let path = crate::hil::coverage_record_path(&ws.root, m.variant);
+    // (c) The Partitions on the Target: the committed reports of the
+    // measurement configurations and of the fault-injection suites
+    // (`--coverage --response`, `--coverage --isolation`), whose inputs
+    // reach the refusals, responses, and restarts the measurements do not.
+    let mut variants: Vec<(&str, &str)> = crate::hil::MEASUREMENTS
+        .iter()
+        .filter(|m| m.duration_secs < 10 * 60 && m.kind != "coverage-kernel")
+        .map(|m| (m.variant, match m.kind { "stress" => " --stress", "measure" => " --plain", _ => "" }))
+        .collect();
+    variants.push(("nrf52840_response", " --response"));
+    variants.push(("nrf52840_isolation", " --isolation"));
+    for (variant, flag) in variants {
+        let path = crate::hil::coverage_record_path(&ws.root, variant);
         let Ok(text) = std::fs::read_to_string(&path) else {
-            report.note(format!("R53.3: no on-target coverage report for `{}` at {} (`cargo xtask hil --coverage{}`)", m.variant, ws.rel(&path), match m.kind { "stress" => " --stress", "measure" => " --plain", _ => "" }));
+            report.note(format!("R53.3: no on-target coverage report for `{}` at {} (`cargo xtask hil --coverage{flag}`)", variant, ws.rel(&path)));
             continue;
         };
         let rep: serde_json::Value = match serde_json::from_str(&text) {
@@ -2523,7 +2533,7 @@ fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, st
             e.0 += f["branches"].as_u64().unwrap_or(0);
             e.1 += f["covered"].as_u64().unwrap_or(0);
         }
-        let model = crate::hil::task_model(ws, &bin, m.variant);
+        let model = crate::hil::task_model(ws, &bin, variant);
         for (krate, (b, c)) in &per_crate {
             let level = model.as_ref().and_then(|mm| mm.partitions.iter().find(|p| p.krate == *krate)).map(|p| p.level.clone()).unwrap_or_else(|| "?".into());
             notes.push(format!("{krate} (level {level}): {} of {} branch outcomes ({} %)", c, b, if *b == 0 { 100 } else { c * 100 / b }));
@@ -2532,12 +2542,12 @@ fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, st
             notes.push(format!("{}: {} % ({} of {} branch outcomes){}", i["item"].as_str().unwrap_or(""), i["percent"].as_u64().unwrap_or(0), i["covered"].as_u64().unwrap_or(0), i["branches"].as_u64().unwrap_or(0), if i["percent"].as_u64().unwrap_or(0) >= threshold { "" } else { " BELOW the threshold" }));
         }
         for n in &notes {
-            report.note(format!("R53.3 ({}): {n}", m.variant));
+            report.note(format!("R53.3 ({}): {n}", variant));
         }
         let mut item = Item::new(
-            &format!("coverage-partitions-{}", m.variant),
+            &format!("coverage-partitions-{}", variant),
             Kind::Measurement,
-            &format!("Structural coverage of the Partition code (levels A, B, C) on the Target under the `{}` configuration's inputs (R34.4, R53.3): the coverage build's branch outcomes per crate and per Task entry against the plan's {threshold} % threshold, from the committed report {} (coverage build {})", m.variant, ws.rel(&path), rep["binary_hash"].as_str().unwrap_or("?")),
+            &format!("Structural coverage of the Partition code (levels A, B, C) on the Target under the `{}` configuration's inputs (R34.4, R53.3): the coverage build's branch outcomes per crate and per Task entry against the plan's {threshold} % threshold, from the committed report {} (coverage build {})", variant, ws.rel(&path), rep["binary_hash"].as_str().unwrap_or("?")),
             Tool { name: "rsk-hil coverage (llvm-cov)".to_string(), version: crate::hil::COVERAGE_TOOLCHAIN.to_string(), solvers: vec![] },
             Verdict::from_bool(ok),
         )

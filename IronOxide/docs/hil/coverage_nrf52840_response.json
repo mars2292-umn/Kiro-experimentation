@@ -1,0 +1,647 @@
+{
+  "schema": "rsk-branch-coverage/1",
+  "configuration": "nrf52840_response",
+  "binary_hash": "sha256:d83d6646870689814eccbf3f7c25c36fb54d03e4aecb29b132fc11a599368502",
+  "threshold_percent": 50,
+  "items": [
+    {
+      "item": "part0.control",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E",
+        "_ZN13p1_demo_part07control17hd88e860d2fbebabbE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h280713d7c6bfb934E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc50fe847452416e7E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcc75f27b25f844eeE"
+      ],
+      "branches": 14,
+      "covered": 13,
+      "percent": 92,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false"
+      ]
+    },
+    {
+      "item": "part0.control#cs:state",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E",
+        "_ZN13p1_demo_part07control17hd88e860d2fbebabbE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h280713d7c6bfb934E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc50fe847452416e7E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcc75f27b25f844eeE"
+      ],
+      "branches": 14,
+      "covered": 13,
+      "percent": 92,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false"
+      ]
+    },
+    {
+      "item": "part0.control#cs:in_cs",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E",
+        "_ZN13p1_demo_part07control17hd88e860d2fbebabbE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h280713d7c6bfb934E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc50fe847452416e7E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcc75f27b25f844eeE"
+      ],
+      "branches": 14,
+      "covered": 13,
+      "percent": 92,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false"
+      ]
+    },
+    {
+      "item": "part0.echo",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part04echo17h9b788eb647484af7E",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h82d49458d0bc58c9E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E"
+      ],
+      "branches": 6,
+      "covered": 5,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false"
+      ]
+    },
+    {
+      "item": "part0.sensor",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E",
+        "_ZN13p1_demo_part06sensor17h102a1e5a2bf784daE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h17848cd730704341E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h7629d8d87a3dbeb9E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc275c56292f15aa6E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hffe578fb043cafa8E"
+      ],
+      "branches": 12,
+      "covered": 10,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false",
+        "p1_demo_part0::sensor::{closure}: 237:80 false"
+      ]
+    },
+    {
+      "item": "part0.sensor#cs:state",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E",
+        "_ZN13p1_demo_part06sensor17h102a1e5a2bf784daE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h17848cd730704341E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h7629d8d87a3dbeb9E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc275c56292f15aa6E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hffe578fb043cafa8E"
+      ],
+      "branches": 12,
+      "covered": 10,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false",
+        "p1_demo_part0::sensor::{closure}: 237:80 false"
+      ]
+    },
+    {
+      "item": "part0.sensor#cs:in_cs",
+      "functions": [
+        "_ZN13p1_demo_part010rsk_target2ms17hc84c96a41489dbb8E",
+        "_ZN13p1_demo_part06inject5fault17hf965255dae9a8ecfE",
+        "_ZN13p1_demo_part06inject6window17h2abf09a0d5b64050E",
+        "_ZN13p1_demo_part06inject7spin_ms17hcf31ba901c4763c5E",
+        "_ZN13p1_demo_part06sensor17h102a1e5a2bf784daE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h17848cd730704341E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h7629d8d87a3dbeb9E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc275c56292f15aa6E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hffe578fb043cafa8E"
+      ],
+      "branches": 12,
+      "covered": 10,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::inject::spin_ms: 38:84 false",
+        "p1_demo_part0::sensor::{closure}: 237:80 false"
+      ]
+    },
+    {
+      "item": "part1.log",
+      "functions": [
+        "_ZN13p1_demo_part110rsk_target2ms17h3f8eb796e7fee77dE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h7a759e2530c32462E",
+        "_ZN13p1_demo_part112pulse_source5start17hfeaab487fd71de81E",
+        "_ZN13p1_demo_part112pulse_source7respond17h68a3d26a496e025dE",
+        "_ZN13p1_demo_part13log17hb711c6e4412a6bf3E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h9df74ad6033bfdf6E",
+        "_ZN13p1_demo_part16inject5fault17h384da2f4acdcb186E",
+        "_ZN13p1_demo_part16inject6window17h88e81c901b4e25c8E",
+        "_ZN13p1_demo_part16inject7spin_ms17h677e67a8dc58f47aE"
+      ],
+      "branches": 22,
+      "covered": 21,
+      "percent": 95,
+      "uncovered": [
+        "p1_demo_part1::inject::spin_ms: 30:84 false"
+      ]
+    },
+    {
+      "item": "part1.pulse",
+      "functions": [
+        "_ZN13p1_demo_part110rsk_target2ms17h3f8eb796e7fee77dE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h7a759e2530c32462E",
+        "_ZN13p1_demo_part112pulse_source5start17hfeaab487fd71de81E",
+        "_ZN13p1_demo_part112pulse_source7respond17h68a3d26a496e025dE",
+        "_ZN13p1_demo_part15pulse17he1278273ed3b0644E",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17ha692eb3751682708E",
+        "_ZN13p1_demo_part16inject5fault17h384da2f4acdcb186E",
+        "_ZN13p1_demo_part16inject6window17h88e81c901b4e25c8E",
+        "_ZN13p1_demo_part16inject7spin_ms17h677e67a8dc58f47aE"
+      ],
+      "branches": 12,
+      "covered": 11,
+      "percent": 91,
+      "uncovered": [
+        "p1_demo_part1::inject::spin_ms: 30:84 false"
+      ]
+    },
+    {
+      "item": "part2.filter",
+      "functions": [
+        "_ZN13p1_demo_part210rsk_target2ms17hc8e4bb1b1d20e550E",
+        "_ZN13p1_demo_part25Stats6record17ha7e6e299422b5f0eE",
+        "_ZN13p1_demo_part26filter17h2171ccb54279b403E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h762011d3bdbce6c4E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h91eab17b255fa017E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hc59a4d0f3d8d8477E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hdf27f3e274be1f63E",
+        "_ZN13p1_demo_part26inject5fault17hf627762cbb36d0adE",
+        "_ZN13p1_demo_part26inject6window17he5482aae1a43b6d5E",
+        "_ZN13p1_demo_part26inject7spin_ms17h5618599d35b747b4E",
+        "_ZN13p1_demo_part27lowpass17haedc9f1daea5af21E",
+        "_ZN13p1_demo_part25Stats3new17hdbeb04493f8ebf00E"
+      ],
+      "branches": 12,
+      "covered": 10,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false"
+      ]
+    },
+    {
+      "item": "part2.filter#cs:stats",
+      "functions": [
+        "_ZN13p1_demo_part210rsk_target2ms17hc8e4bb1b1d20e550E",
+        "_ZN13p1_demo_part25Stats6record17ha7e6e299422b5f0eE",
+        "_ZN13p1_demo_part26filter17h2171ccb54279b403E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h762011d3bdbce6c4E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h91eab17b255fa017E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hc59a4d0f3d8d8477E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hdf27f3e274be1f63E",
+        "_ZN13p1_demo_part26inject5fault17hf627762cbb36d0adE",
+        "_ZN13p1_demo_part26inject6window17he5482aae1a43b6d5E",
+        "_ZN13p1_demo_part26inject7spin_ms17h5618599d35b747b4E",
+        "_ZN13p1_demo_part27lowpass17haedc9f1daea5af21E",
+        "_ZN13p1_demo_part25Stats3new17hdbeb04493f8ebf00E"
+      ],
+      "branches": 12,
+      "covered": 10,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false"
+      ]
+    },
+    {
+      "item": "part2.sampler",
+      "functions": [
+        "_ZN13p1_demo_part210rsk_target2ms17hc8e4bb1b1d20e550E",
+        "_ZN13p1_demo_part25Stats6record17ha7e6e299422b5f0eE",
+        "_ZN13p1_demo_part26inject5fault17hf627762cbb36d0adE",
+        "_ZN13p1_demo_part26inject6window17he5482aae1a43b6d5E",
+        "_ZN13p1_demo_part26inject7spin_ms17h5618599d35b747b4E",
+        "_ZN13p1_demo_part27lowpass17haedc9f1daea5af21E",
+        "_ZN13p1_demo_part27sampler17h036db4ad896f17d3E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h5f39bb0226fac18dE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h91cd9e69cee30224E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hccd123679691e841E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hef5de5c873521e89E",
+        "_ZN13p1_demo_part25Stats3new17hdbeb04493f8ebf00E"
+      ],
+      "branches": 10,
+      "covered": 7,
+      "percent": 70,
+      "uncovered": [
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false",
+        "p1_demo_part2::sampler: 407:8 false"
+      ]
+    },
+    {
+      "item": "part2.sampler#cs:stats",
+      "functions": [
+        "_ZN13p1_demo_part210rsk_target2ms17hc8e4bb1b1d20e550E",
+        "_ZN13p1_demo_part25Stats6record17ha7e6e299422b5f0eE",
+        "_ZN13p1_demo_part26inject5fault17hf627762cbb36d0adE",
+        "_ZN13p1_demo_part26inject6window17he5482aae1a43b6d5E",
+        "_ZN13p1_demo_part26inject7spin_ms17h5618599d35b747b4E",
+        "_ZN13p1_demo_part27lowpass17haedc9f1daea5af21E",
+        "_ZN13p1_demo_part27sampler17h036db4ad896f17d3E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h5f39bb0226fac18dE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h91cd9e69cee30224E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hccd123679691e841E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hef5de5c873521e89E",
+        "_ZN13p1_demo_part25Stats3new17hdbeb04493f8ebf00E"
+      ],
+      "branches": 10,
+      "covered": 7,
+      "percent": 70,
+      "uncovered": [
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false",
+        "p1_demo_part2::sampler: 407:8 false"
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "p1_demo_part2::rsk_target::ms",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::Stats::record",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 2,
+      "covered": 1,
+      "uncovered": [
+        "253:12 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part2::filter",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 4,
+      "covered": 4,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::inject::fault",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::inject::window",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::inject::spin_ms",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "38:84 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part2::lowpass",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::sampler",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 2,
+      "covered": 1,
+      "uncovered": [
+        "407:8 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part2::sampler::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::sampler::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::sampler::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::sampler::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_jobs::filter",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_jobs::sampler",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::Stats::new",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_target::ms",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::pulse_source::acknowledge",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::pulse_source::start",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::pulse_source::respond",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 6,
+      "covered": 6,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::log",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 10,
+      "covered": 10,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::pulse",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::pulse::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::inject::fault",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::inject::window",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::inject::spin_ms",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "30:84 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part1::rsk_jobs::log",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_jobs::pulse",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_target::ms",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::echo",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::echo::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::inject::fault",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::inject::window",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::inject::spin_ms",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "38:84 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part0::sensor",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "237:80 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 8,
+      "covered": 8,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_jobs::echo",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_jobs::sensor",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_jobs::control",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_response.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    }
+  ]
+}

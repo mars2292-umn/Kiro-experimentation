@@ -111,6 +111,15 @@ pub struct ArchState {
     /// bench): CFSR with bit 31 set as the record mark, and the faulting
     /// address (MMFAR when valid, else the stacked PC); zero until a fault.
     pub first_fault_cfsr: u32,
+    /// The dispatch vectors deferred from a dispatch stub's entry
+    /// instruction (Verification_Plan 5.8a): each disabled in the NVIC and
+    /// re-enabled, pending, by the next entry taken from Thread mode. Zero
+    /// is an empty slot.
+    pub deferred: [u16; 8],
+    /// The unwind a Kernel-level entry owed while a dispatch stub was at
+    /// its entry instruction (5.8a): the ended Job's level, unwound by that
+    /// stub once it has pushed its own record. Zero when none.
+    pub pending_unwind: u32,
     pub first_fault_addr: u32,
 }
 
@@ -133,6 +142,8 @@ impl ArchState {
             time_hi: 0,
             time_last_lo: 0,
             booted: false,
+            deferred: [0; 8],
+            pending_unwind: 0,
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }

@@ -45,63 +45,102 @@ extern "C" {
 /// mode (the pushes stay on the MSP as the level's record until the Job
 /// ends and `rsk_unwind` pops them); otherwise pop the registers and return
 /// as entered, or unwind the level of a Job that this handler ended.
-// SAFETY (UJ-020): naked entry with a hand-written frame protocol: the
-// pushes are matched by the pops of `rsk_unwind` (job end) or of the
-// no-change path below; the Rust half never returns to a different stack.
-#[unsafe(naked)]
-#[no_mangle]
-pub unsafe extern "C" fn rsk_irq_entry() {
-    naked_asm!(
-        ".fpu fpv4-sp-d16",
-        "cpsid i",
-        "push {{r3-r11, lr}}",
-        "tst lr, #0x10",
-        "it eq",
-        "vpusheq {{s16-s31}}",
-        "mrs r0, ipsr",
-        "mrs r1, psp",
-        "mrs r2, control",
-        "mov r3, lr",
-        // EXC_RETURN survives the call in a callee-saved register (r8 is
-        // restored from the stack by the pop below).
-        "mov r8, lr",
-        "sub sp, sp, #24",
-        "add r4, sp, #8",
-        "str r4, [sp, #0]",
-        "bl {entry}",
-        "ldr r0, [sp, #8]",
-        "ldr r1, [sp, #12]",
-        "ldr r2, [sp, #16]",
-        "ldr r3, [sp, #20]",
-        "add sp, sp, #24",
-        "cbz r0, 1f",
-        // Dispatch: install the Job's PSP and CONTROL, return to Thread mode.
-        "msr psp, r0",
-        "msr control, r1",
-        "isb",
-        "dsb",
-        "cpsie i",
-        "bx r2",
-        // No dispatch: restore and return as entered, or unwind the level
-        // of a Job that this handler ended (r3 = its exception number).
-        "1:",
-        "mov r12, r3",
-        "tst r8, #0x10",
-        "it eq",
-        "vpopeq {{s16-s31}}",
-        "pop {{r3-r11, lr}}",
-        "cmp r12, #0",
-        "bne 2f",
-        "dsb",
-        "cpsie i",
-        "bx lr",
-        "2:",
-        "mov r0, r12",
-        "b {unwind}",
-        entry = sym rsk_irq_entry_rust,
-        unwind = sym rsk_unwind,
-    )
+///
+/// The return window (Verification_Plan 5.8a, the INVPC finding of
+/// 2026-11-06): an exception return does not restore PRIMASK, so the stub
+/// clears it before the return, and a pending exception of higher
+/// priority is taken between the clear and the `bx`. A higher dispatch
+/// vector taken there would dispatch its Job and return to Thread mode
+/// with this stub's exception still active, which DD-01 forbids and the
+/// processor refuses (UFSR.INVPC). The fence (`$fence`: `cpsid f`) sets
+/// FAULTMASK before the PRIMASK clear: nothing but NMI is taken in the
+/// window, and the exception return itself clears FAULTMASK (ARMv7-M
+/// B1.4.3: any return other than NMI's), so the pending vector is taken
+/// from Thread mode, after this stub's exception is inactive. The
+/// `defer-probe` witness build spins in the window (`$window`, about
+/// 30 µs; r3 is dead there, the frame restores it) to show it closed.
+/// The entry instruction is the other window: nothing masks a pending
+/// exception before the stub's `cpsid i`, so a higher dispatch vector can
+/// find this stub active at its entry; `irq_entry_core` defers it (5.8a).
+/// The witness build spins there too (`$entry`), and `defer-nofix` leaves
+/// the fence and the deferral out to show the fault.
+macro_rules! irq_entry_stub {
+    (fence: [$($fence:literal),*], entry: [$($entry:literal),*], window: [$($window:literal),*]) => {
+        // SAFETY (UJ-020): naked entry with a hand-written frame protocol: the
+        // pushes are matched by the pops of `rsk_unwind` (job end) or of the
+        // no-change path below; the Rust half never returns to a different stack.
+        #[unsafe(naked)]
+        #[no_mangle]
+        pub unsafe extern "C" fn rsk_irq_entry() {
+            naked_asm!(
+                ".fpu fpv4-sp-d16",
+                // The entry instruction is reached with PRIMASK clear: a
+                // pending exception of higher priority is taken before it.
+                // A higher dispatch vector taken here finds this stub active
+                // and defers itself (`irq_entry_core`, 5.8a). The witness
+                // build spins here (`$entry`; r3 is restored from the frame).
+                $($entry,)*
+                "cpsid i",
+                "push {{r3-r11, lr}}",
+                "tst lr, #0x10",
+                "it eq",
+                "vpusheq {{s16-s31}}",
+                "mrs r0, ipsr",
+                "mrs r1, psp",
+                "mrs r2, control",
+                "mov r3, lr",
+                // EXC_RETURN survives the call in a callee-saved register (r8 is
+                // restored from the stack by the pop below).
+                "mov r8, lr",
+                "sub sp, sp, #24",
+                "add r4, sp, #8",
+                "str r4, [sp, #0]",
+                "bl {entry}",
+                "ldr r0, [sp, #8]",
+                "ldr r1, [sp, #12]",
+                "ldr r2, [sp, #16]",
+                "ldr r3, [sp, #20]",
+                "add sp, sp, #24",
+                "cbz r0, 1f",
+                // Dispatch: install the Job's PSP and CONTROL, return to Thread mode.
+                "msr psp, r0",
+                "msr control, r1",
+                "isb",
+                "dsb",
+                $($fence,)*
+                "cpsie i",
+                $($window,)*
+                "bx r2",
+                // No dispatch: restore and return as entered, or unwind the level
+                // of a Job that this handler ended (r3 = its exception number).
+                "1:",
+                "mov r12, r3",
+                "tst r8, #0x10",
+                "it eq",
+                "vpopeq {{s16-s31}}",
+                "pop {{r3-r11, lr}}",
+                "cmp r12, #0",
+                "bne 2f",
+                "dsb",
+                $($fence,)*
+                "cpsie i",
+                "bx lr",
+                "2:",
+                "mov r0, r12",
+                "b {unwind}",
+                entry = sym rsk_irq_entry_rust,
+                unwind = sym rsk_unwind,
+            )
+        }
+    };
 }
+
+#[cfg(not(feature = "defer-probe"))]
+irq_entry_stub!(fence: ["cpsid f"], entry: [], window: []);
+#[cfg(all(feature = "defer-probe", not(feature = "defer-nofix")))]
+irq_entry_stub!(fence: ["cpsid f"], entry: ["movw r3, #640", "4:", "subs r3, r3, #1", "bne 4b"], window: ["movw r3, #640", "3:", "subs r3, r3, #1", "bne 3b"]);
+#[cfg(all(feature = "defer-probe", feature = "defer-nofix"))]
+irq_entry_stub!(fence: [], entry: ["movw r3, #640", "4:", "subs r3, r3, #1", "bne 4b"], window: ["movw r3, #640", "3:", "subs r3, r3, #1", "bne 3b"]);
 
 /// The SVC handler: locates the caller's frame (PSP for Jobs), calls the
 /// Rust half, and either returns normally or, when the service ended the
@@ -171,6 +210,9 @@ pub unsafe extern "C" fn rsk_unwind() {
         "cmp r12, #0",
         "bne 2f",
         "dsb",
+        // The fence of `rsk_irq_entry`'s window: a dispatch stub that ended
+        // a Job unwinds from here at its own level.
+        "cpsid f",
         "cpsie i",
         "bx r2",
         // The resumed Job was killed: unwind its level as well.

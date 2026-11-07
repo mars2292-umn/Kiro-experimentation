@@ -676,6 +676,30 @@ unsafe impl Sync for ActionsCell {}
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
 static ARCH_ACTIONS: ActionsCell = ActionsCell(UnsafeCell::new([0; ACTIONS_WORDS]));
 
+/// The count of the dispatch vectors taken inside another stub's return
+/// window (Verification_Plan 5.8a; actions of kind 3), kept apart from the
+/// record because the record holds the last `ACTIONS_LEN` actions only.
+/// `ARCH_WINDOWS`: magic, count.
+#[cfg(feature = "trace-ram")]
+struct WindowsCell(UnsafeCell<[u32; 2]>);
+// SAFETY (UJ-005f): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for WindowsCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
+static ARCH_WINDOWS: WindowsCell = WindowsCell(UnsafeCell::new([0; 2]));
+
+#[cfg(feature = "trace-ram")]
+fn windows() -> &'static mut [u32; 2] {
+    // SAFETY (UJ-006f): as UJ-006.
+    let d = unsafe { &mut *ARCH_WINDOWS.0.get() };
+    if d[0] != ACTIONS_MAGIC {
+        *d = [ACTIONS_MAGIC, 0];
+    }
+    d
+}
+
 #[cfg(feature = "trace-ram")]
 fn actions() -> &'static mut [u32; ACTIONS_WORDS] {
     // SAFETY (UJ-006e): as UJ-006.
@@ -693,11 +717,16 @@ pub fn actions_reset() {
     let a = actions();
     *a = [0; ACTIONS_WORDS];
     a[0] = ACTIONS_MAGIC;
+    *windows() = [ACTIONS_MAGIC, 0];
 }
 
-/// Appends one action.
+/// Appends one action (a window entry, kind 3, is counted too).
 #[cfg(feature = "trace-ram")]
 pub fn action_push(kind: u32, value: u32) {
+    if kind == 3 {
+        let d = windows();
+        d[1] = d[1].wrapping_add(1);
+    }
     let a = actions();
     let n = a[1] as usize;
     let s = 2 + 2 * (n % ACTIONS_LEN);

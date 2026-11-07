@@ -49,6 +49,16 @@ hw-dt = []
 # Requirement 12 made to fail per run, as the HIL_Rig requests over the
 # probe. HIL builds only; never a Flight_Build feature.
 boot-mutation = []
+# The deferral witness of Verification_Plan 5.8a: the dispatch stub spins
+# about 30 µs between its PRIMASK clear and its exception return, so that
+# the interleaving of the INVPC finding (an intake inside the window
+# pending a higher dispatch vector) occurs many times a run instead of
+# about once an hour. HIL builds only; never a Flight_Build feature.
+defer-probe = []
+# With `defer-probe`: the re-pending of 5.8a removed, so that the window
+# faults as the unfixed Kernel did (the mutation the witness run kills).
+# HIL builds only; never a Flight_Build feature.
+defer-nofix = []
 # With `trace-ram`: the records (events, release timing, executions, entries)
 # without the trace ring, so that a run measures what the ring costs
 # (task 19.2, R34.7). HIL builds only.
