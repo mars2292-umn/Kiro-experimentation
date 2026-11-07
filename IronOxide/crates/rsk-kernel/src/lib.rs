@@ -11,6 +11,11 @@
 //! every module outside the Kernel_Unsafe_Module applies its own
 //! `#![forbid(unsafe_code)]`. `cargo xtask verify` checks this placement.
 #![no_std]
+// The Kernel coverage build (task 19.5): the functions Partition code runs
+// inline carry `#[coverage(off)]` under the `coverage` feature, since their
+// counters would be the Kernel's, unreachable under a Partition's view; the
+// attribute's gate comes from the coverage build's command line
+// (`-Z crate-attr`), never from this source (PR-36).
 #![deny(unsafe_code)]
 // Stable builds erase the ghost code of `verus!`, which leaves the imports
 // and parameters that only specifications use unused (ORQ-08).

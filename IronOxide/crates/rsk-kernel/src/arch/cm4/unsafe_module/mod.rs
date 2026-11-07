@@ -143,6 +143,7 @@ impl<T> ResourceCell<T> {
     /// accesses it. The Generator emits these accesses for declared
     /// per-Task state only; the demo uses them for its counters.
     #[inline(always)]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn with_unprivileged<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         // SAFETY (UJ-053): the cell is declared per-Task state (PR-25),
         // accessed by one Task's Jobs only, which never overlap (one Job
@@ -154,6 +155,7 @@ impl<T> ResourceCell<T> {
     /// A copy of per-Task state or of a value another Task only ever
     /// reads as a hint (the demo's blocking indicator).
     #[inline(always)]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn peek_unprivileged(&self) -> T
     where
         T: Copy,
@@ -211,7 +213,10 @@ static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_
 /// execution of one Job in cycles, from the Budget accounting; task 19.1,
 /// R34.7), `exec_over, exec_hist[16]`, and `exec_min, exec_sum_lo,
 /// exec_sum_hi` (the smallest execution and the sum, task 7.5's cycle
-/// test); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
+/// test), `interrupted` (the entries that interrupted the Task's Jobs), and
+/// `stamp_count, stamp_max, stamp_last` (the lag in ticks from the
+/// stimulus edge the Δ_stamp probe latched to the intake handler's own
+/// timestamp, counted once per latched edge; Table 13-1); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
 /// closed and the largest execution of one, lock to unlock, from the
 /// Budget accounting at the two SVCs, less the counter read cost) and the
 /// consumed count at each open Critical_Section's lock; then a ring of
@@ -228,7 +233,7 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 49;
+const STATS_PER_TASK: usize = 52;
 #[cfg(feature = "trace-ram")]
 const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
 #[cfg(feature = "trace-ram")]
@@ -359,6 +364,33 @@ pub fn stats_response(t: u8, response: u64) {
 }
 
 /// The intake handler of Task `t`'s interrupt source ran for `cycles`.
+/// Δ_stamp (Table 13-1): the intake handler for Task `t`'s source ran
+/// with the time base at `now` (low word, ticks) after the probe latched
+/// the edge at `captured` (TIMER0 CC[3]); recorded once per latched edge
+/// (a second intake without a new edge, under the storm's masking, does
+/// not count), and only when the lag is below a second (a stale capture
+/// from before a wrap is not a lag).
+#[cfg(feature = "trace-ram")]
+pub fn stats_stamp(t: u8, captured: u32, now: u32) {
+    let s = stats();
+    if t as usize >= STATS_TASKS || captured == 0 {
+        return;
+    }
+    let v = STATS_HEADER + t as usize * STATS_PER_TASK + 49;
+    if s[v + 2] == captured {
+        return;
+    }
+    s[v + 2] = captured;
+    let lag = now.wrapping_sub(captured);
+    if lag >= 16_000_000 {
+        return;
+    }
+    s[v] = s[v].saturating_add(1);
+    if lag > s[v + 1] {
+        s[v + 1] = lag;
+    }
+}
+
 #[cfg(feature = "trace-ram")]
 pub fn stats_intake(t: u8, cycles: u32) {
     let s = stats();

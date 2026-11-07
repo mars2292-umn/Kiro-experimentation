@@ -1,0 +1,513 @@
+# 512 entries; t_ms tag value
+2231872.955 epilogue  0x000028
+2231872.979 svc       0x000001 number=1
+2231872.992 svc       0x000002 number=2
+2231873.023 svc       0x000003 number=3
+2231873.055 epilogue  0x000026
+2231875.005 irq       0x000018 vector=24
+2231875.010 tick      0x7b5c01
+2231875.063 irq       0x000029 vector=41
+2231875.100 dispatch  0x018fe5 task=5 frame=0x18fe0
+2231875.113 svc       0x000001 number=1
+2231875.127 svc       0x000002 number=2
+2231875.157 svc       0x000003 number=3
+2231875.189 epilogue  0x000029
+2231876.979 irq       0x000018 vector=24
+2231876.984 tick      0x7bd75d
+2231879.966 irq       0x000016 vector=22
+2231880.005 irq       0x000018 vector=24
+2231880.011 tick      0x7c9486
+2231880.085 irq       0x000024 vector=36
+2231880.122 dispatch  0x008fe0 task=0 frame=0x8fe0
+2231880.134 svc       0x000001 number=1
+2231880.148 svc       0x000002 number=2
+2231880.180 svc       0x000001 number=1
+2231880.193 svc       0x000002 number=2
+2231880.226 svc       0x000003 number=3
+2231880.261 epilogue  0x000024
+2231880.272 irq       0x000028 vector=40
+2231880.310 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231880.323 svc       0x000003 number=3
+2231880.358 epilogue  0x000028
+2231880.370 irq       0x000027 vector=39
+2231880.407 dispatch  0x010fe3 task=3 frame=0x10fe0
+2231883.430 svc       0x000003 number=3
+2231883.464 epilogue  0x000027
+2231883.476 irq       0x000026 vector=38
+2231883.512 dispatch  0x008fe2 task=2 frame=0x8fe0
+2231883.525 svc       0x000001 number=1
+2231883.539 svc       0x000002 number=2
+2231883.569 svc       0x000001 number=1
+2231890.009 irq       0x000018 vector=24
+2231890.014 tick      0x7f05bf
+2231892.674 irq       0x000018 vector=24
+2231892.680 tick      0x7fac55
+2231893.020 irq       0x000018 vector=24
+2231893.025 tick      0x7fc1f0
+2231894.979 irq       0x000018 vector=24
+2231894.985 tick      0x803c6a
+2231895.593 svc       0x000002 number=2
+2231895.627 irq       0x000024 vector=36
+2231895.664 dispatch  0x008f70 task=0 frame=0x8f70
+2231895.677 svc       0x000001 number=1
+2231895.691 svc       0x000002 number=2
+2231895.722 svc       0x000001 number=1
+2231895.736 svc       0x000002 number=2
+2231895.767 svc       0x000003 number=3
+2231895.802 epilogue  0x000024
+2231895.826 svc       0x000001 number=1
+2231895.840 irq       0x000018 vector=24
+2231895.845 tick      0x80722e
+2231895.892 svc       0x000002 number=2
+2231895.923 svc       0x000003 number=3
+2231895.955 epilogue  0x000026
+2231897.966 irq       0x000016 vector=22
+2231898.005 irq       0x000028 vector=40
+2231898.041 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231898.053 svc       0x000003 number=3
+2231898.086 epilogue  0x000028
+2231900.005 irq       0x000018 vector=24
+2231900.010 tick      0x817681
+2231900.094 irq       0x000024 vector=36
+2231900.131 dispatch  0x008fe0 task=0 frame=0x8fe0
+2231900.143 svc       0x000001 number=1
+2231900.157 svc       0x000002 number=2
+2231900.189 svc       0x000001 number=1
+2231900.203 svc       0x000002 number=2
+2231900.234 svc       0x000007 number=7
+2231900.270 svc       0x000003 number=3
+2231900.306 epilogue  0x000024
+2231900.318 irq       0x000025 vector=37
+2231900.355 dispatch  0x008fe1 task=1 frame=0x8fe0
+2231900.367 svc       0x000003 number=3
+2231900.403 epilogue  0x000025
+2231900.415 irq       0x000029 vector=41
+2231900.452 dispatch  0x018fe5 task=5 frame=0x18fe0
+2231900.465 svc       0x000001 number=1
+2231900.479 svc       0x000002 number=2
+2231900.512 svc       0x000003 number=3
+2231900.546 epilogue  0x000029
+2231900.558 irq       0x000026 vector=38
+2231900.595 dispatch  0x008fe2 task=2 frame=0x8fe0
+2231900.608 svc       0x000001 number=1
+2231900.622 svc       0x000002 number=2
+2231900.653 svc       0x000001 number=1
+2231910.008 irq       0x000018 vector=24
+2231910.013 tick      0x83e7b2
+2231912.683 svc       0x000002 number=2
+2231912.717 irq       0x000024 vector=36
+2231912.756 dispatch  0x008f70 task=0 frame=0x8f70
+2231912.769 irq       0x000018 vector=24
+2231912.774 tick      0x84943e
+2231912.824 svc       0x000001 number=1
+2231912.838 svc       0x000002 number=2
+2231912.870 svc       0x000001 number=1
+2231912.884 svc       0x000002 number=2
+2231912.916 svc       0x000003 number=3
+2231912.952 epilogue  0x000024
+2231912.976 irq       0x000018 vector=24
+2231912.981 tick      0x84a130
+2231913.030 svc       0x000001 number=1
+2231913.043 svc       0x000002 number=2
+2231913.076 svc       0x000003 number=3
+2231913.111 epilogue  0x000026
+2231913.123 irq       0x000038 vector=56
+2231913.159 dispatch  0x018fe6 task=6 frame=0x18fe0
+2231913.172 svc       0x000006 number=6
+2231913.186 svc       0x000001 number=1
+2231913.199 svc       0x000002 number=2
+2231913.230 svc       0x000003 number=3
+2231913.263 epilogue  0x000038
+2231915.966 irq       0x000016 vector=22
+2231916.005 irq       0x000028 vector=40
+2231916.042 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231916.054 svc       0x000003 number=3
+2231916.087 epilogue  0x000028
+2231920.005 irq       0x000018 vector=24
+2231920.010 tick      0x865881
+2231920.084 irq       0x000024 vector=36
+2231920.121 dispatch  0x008fe0 task=0 frame=0x8fe0
+2231920.133 svc       0x000001 number=1
+2231920.147 svc       0x000002 number=2
+2231920.179 svc       0x000001 number=1
+2231920.192 svc       0x000002 number=2
+2231920.224 svc       0x000003 number=3
+2231920.259 epilogue  0x000024
+2231920.271 irq       0x000018 vector=24
+2231920.277 tick      0x866926
+2231920.322 irq       0x000027 vector=39
+2231920.359 dispatch  0x010fe3 task=3 frame=0x10fe0
+2231923.382 svc       0x000003 number=3
+2231923.416 epilogue  0x000027
+2231923.428 irq       0x000026 vector=38
+2231923.464 dispatch  0x008fe2 task=2 frame=0x8fe0
+2231923.476 svc       0x000001 number=1
+2231923.490 svc       0x000002 number=2
+2231923.520 svc       0x000001 number=1
+2231925.009 irq       0x000018 vector=24
+2231925.014 tick      0x87913f
+2231930.011 irq       0x000018 vector=24
+2231930.016 tick      0x88c9e2
+2231930.977 irq       0x000018 vector=24
+2231930.983 tick      0x89064b
+2231933.283 irq       0x000018 vector=24
+2231933.288 tick      0x89965e
+2231933.967 irq       0x000016 vector=22
+2231935.544 svc       0x000002 number=2
+2231935.578 irq       0x000024 vector=36
+2231935.616 dispatch  0x008f70 task=0 frame=0x8f70
+2231935.629 irq       0x000018 vector=24
+2231935.635 tick      0x8a2907
+2231935.684 svc       0x000001 number=1
+2231935.698 svc       0x000002 number=2
+2231935.730 svc       0x000001 number=1
+2231935.744 svc       0x000002 number=2
+2231935.775 svc       0x000007 number=7
+2231935.811 svc       0x000003 number=3
+2231935.849 epilogue  0x000024
+2231935.873 irq       0x000025 vector=37
+2231935.911 dispatch  0x008f71 task=1 frame=0x8f70
+2231935.924 svc       0x000003 number=3
+2231935.961 epilogue  0x000025
+2231935.985 irq       0x000028 vector=40
+2231936.025 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231936.038 svc       0x000003 number=3
+2231936.076 epilogue  0x000028
+2231936.100 irq       0x000029 vector=41
+2231936.139 dispatch  0x018fe5 task=5 frame=0x18fe0
+2231936.152 svc       0x000001 number=1
+2231936.166 svc       0x000002 number=2
+2231936.197 svc       0x000003 number=3
+2231936.232 epilogue  0x000029
+2231936.256 svc       0x000001 number=1
+2231936.269 svc       0x000002 number=2
+2231936.300 svc       0x000003 number=3
+2231936.332 epilogue  0x000026
+2231940.005 irq       0x000018 vector=24
+2231940.010 tick      0x8b3a81
+2231940.074 irq       0x000024 vector=36
+2231940.110 dispatch  0x008fe0 task=0 frame=0x8fe0
+2231940.122 svc       0x000001 number=1
+2231940.136 svc       0x000002 number=2
+2231940.167 svc       0x000001 number=1
+2231940.181 svc       0x000002 number=2
+2231940.212 svc       0x000003 number=3
+2231940.246 epilogue  0x000024
+2231940.258 irq       0x000026 vector=38
+2231940.295 dispatch  0x008fe2 task=2 frame=0x8fe0
+2231940.308 svc       0x000001 number=1
+2231940.321 svc       0x000002 number=2
+2231940.352 svc       0x000001 number=1
+2231948.982 irq       0x000018 vector=24
+2231948.987 tick      0x8d6b90
+2231950.009 irq       0x000018 vector=24
+2231950.014 tick      0x8dabc1
+2231951.970 irq       0x000016 vector=22
+2231952.383 svc       0x000002 number=2
+2231952.416 irq       0x000024 vector=36
+2231952.455 dispatch  0x008f70 task=0 frame=0x8f70
+2231952.468 svc       0x000001 number=1
+2231952.481 svc       0x000002 number=2
+2231952.514 svc       0x000001 number=1
+2231952.527 svc       0x000002 number=2
+2231952.560 svc       0x000003 number=3
+2231952.597 epilogue  0x000024
+2231952.621 irq       0x000028 vector=40
+2231952.660 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231952.673 irq       0x000018 vector=24
+2231952.679 tick      0x8e524a
+2231952.729 svc       0x000003 number=3
+2231952.767 epilogue  0x000028
+2231952.791 irq       0x000029 vector=41
+2231952.830 dispatch  0x018fe5 task=5 frame=0x18fe0
+2231952.843 svc       0x000001 number=1
+2231952.857 svc       0x000002 number=2
+2231952.888 svc       0x000003 number=3
+2231952.923 epilogue  0x000029
+2231952.947 svc       0x000001 number=1
+2231952.960 svc       0x000002 number=2
+2231952.991 svc       0x000003 number=3
+2231953.023 epilogue  0x000026
+2231955.782 irq       0x000018 vector=24
+2231955.788 tick      0x8f149a
+2231960.005 irq       0x000018 vector=24
+2231960.010 tick      0x901c81
+2231960.083 irq       0x000024 vector=36
+2231960.120 dispatch  0x008fe0 task=0 frame=0x8fe0
+2231960.132 svc       0x000001 number=1
+2231960.146 svc       0x000002 number=2
+2231960.177 svc       0x000001 number=1
+2231960.191 svc       0x000002 number=2
+2231960.222 svc       0x000007 number=7
+2231960.258 svc       0x000003 number=3
+2231960.293 epilogue  0x000024
+2231960.305 irq       0x000025 vector=37
+2231960.341 dispatch  0x008fe1 task=1 frame=0x8fe0
+2231960.353 svc       0x000003 number=3
+2231960.389 epilogue  0x000025
+2231960.401 irq       0x000027 vector=39
+2231960.438 dispatch  0x010fe3 task=3 frame=0x10fe0
+2231963.107 irq       0x000018 vector=24
+2231963.113 tick      0x90de68
+2231963.462 svc       0x000003 number=3
+2231963.496 epilogue  0x000027
+2231963.508 irq       0x000026 vector=38
+2231963.544 dispatch  0x008fe2 task=2 frame=0x8fe0
+2231963.557 svc       0x000001 number=1
+2231963.571 svc       0x000002 number=2
+2231963.601 svc       0x000001 number=1
+2231966.978 irq       0x000018 vector=24
+2231966.984 tick      0x91d05b
+2231969.972 irq       0x000016 vector=22
+2231970.013 irq       0x000018 vector=24
+2231970.018 tick      0x928e02
+2231975.007 irq       0x000018 vector=24
+2231975.013 tick      0x93c62b
+2231975.630 svc       0x000002 number=2
+2231975.664 irq       0x000024 vector=36
+2231975.703 dispatch  0x008f70 task=0 frame=0x8f70
+2231975.715 svc       0x000001 number=1
+2231975.729 svc       0x000002 number=2
+2231975.761 svc       0x000001 number=1
+2231975.775 svc       0x000002 number=2
+2231975.807 svc       0x000003 number=3
+2231975.844 epilogue  0x000024
+2231975.868 irq       0x000018 vector=24
+2231975.874 tick      0x93fbfb
+2231975.924 irq       0x000028 vector=40
+2231975.964 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231975.977 svc       0x000003 number=3
+2231976.015 epilogue  0x000028
+2231976.039 irq       0x000029 vector=41
+2231976.078 dispatch  0x018fe5 task=5 frame=0x18fe0
+2231976.091 svc       0x000001 number=1
+2231976.105 svc       0x000002 number=2
+2231976.136 svc       0x000003 number=3
+2231976.171 epilogue  0x000029
+2231976.195 svc       0x000001 number=1
+2231976.208 svc       0x000002 number=2
+2231976.239 svc       0x000003 number=3
+2231976.271 epilogue  0x000026
+2231980.005 irq       0x000018 vector=24
+2231980.010 tick      0x94fe81
+2231980.074 irq       0x000024 vector=36
+2231980.110 dispatch  0x008fe0 task=0 frame=0x8fe0
+2231980.122 svc       0x000001 number=1
+2231980.136 svc       0x000002 number=2
+2231980.167 svc       0x000001 number=1
+2231980.181 svc       0x000002 number=2
+2231980.212 svc       0x000003 number=3
+2231980.247 epilogue  0x000024
+2231980.258 irq       0x000018 vector=24
+2231980.264 tick      0x950e5b
+2231980.309 irq       0x000026 vector=38
+2231980.344 dispatch  0x008fe2 task=2 frame=0x8fe0
+2231980.357 svc       0x000001 number=1
+2231980.371 svc       0x000002 number=2
+2231980.401 svc       0x000001 number=1
+2231984.986 irq       0x000018 vector=24
+2231984.992 tick      0x9635d3
+2231987.970 irq       0x000016 vector=22
+2231990.012 irq       0x000018 vector=24
+2231990.017 tick      0x976fed
+2231992.427 svc       0x000002 number=2
+2231992.459 irq       0x000024 vector=36
+2231992.498 dispatch  0x008f70 task=0 frame=0x8f70
+2231992.511 irq       0x000018 vector=24
+2231992.516 tick      0x980c1e
+2231992.565 svc       0x000001 number=1
+2231992.579 svc       0x000002 number=2
+2231992.610 svc       0x000001 number=1
+2231992.624 svc       0x000002 number=2
+2231992.654 svc       0x000007 number=7
+2231992.690 svc       0x000003 number=3
+2231992.727 epilogue  0x000024
+2231992.751 irq       0x000025 vector=37
+2231992.789 dispatch  0x008f71 task=1 frame=0x8f70
+2231992.802 svc       0x000003 number=3
+2231992.839 epilogue  0x000025
+2231992.863 irq       0x000028 vector=40
+2231992.902 dispatch  0x010fe4 task=4 frame=0x10fe0
+2231992.915 svc       0x000003 number=3
+2231992.950 epilogue  0x000028
+2231992.974 svc       0x000001 number=1
+2231992.988 svc       0x000002 number=2
+2231993.018 svc       0x000003 number=3
+2231993.050 epilogue  0x000026
+2232000.005 irq       0x000018 vector=24
+2232000.010 tick      0x99e081
+2232000.105 irq       0x000024 vector=36
+2232000.143 dispatch  0x008fe0 task=0 frame=0x8fe0
+2232000.155 svc       0x000001 number=1
+2232000.169 svc       0x000002 number=2
+2232000.202 svc       0x000001 number=1
+2232000.216 svc       0x000002 number=2
+2232000.249 svc       0x000003 number=3
+2232000.285 epilogue  0x000024
+2232000.297 irq       0x000029 vector=41
+2232000.335 dispatch  0x018fe5 task=5 frame=0x18fe0
+2232000.347 svc       0x000001 number=1
+2232000.362 svc       0x000002 number=2
+2232000.394 svc       0x000003 number=3
+2232000.430 epilogue  0x000029
+2232000.442 irq       0x000027 vector=39
+2232000.480 dispatch  0x010fe3 task=3 frame=0x10fe0
+2232002.985 irq       0x000018 vector=24
+2232002.990 tick      0x9a9ac2
+2232003.506 svc       0x000003 number=3
+2232003.541 epilogue  0x000027
+2232003.553 irq       0x000026 vector=38
+2232003.590 dispatch  0x008fe2 task=2 frame=0x8fe0
+2232003.603 svc       0x000001 number=1
+2232003.616 svc       0x000002 number=2
+2232003.649 svc       0x000001 number=1
+2232005.974 irq       0x000016 vector=22
+2232010.009 irq       0x000018 vector=24
+2232010.014 tick      0x9c51c0
+2232012.667 irq       0x000018 vector=24
+2232012.673 tick      0x9cf7e4
+2232015.679 svc       0x000002 number=2
+2232015.713 irq       0x000024 vector=36
+2232015.751 dispatch  0x008f70 task=0 frame=0x8f70
+2232015.764 irq       0x000018 vector=24
+2232015.770 tick      0x9db97a
+2232015.820 svc       0x000001 number=1
+2232015.834 svc       0x000002 number=2
+2232015.865 svc       0x000001 number=1
+2232015.879 svc       0x000002 number=2
+2232015.911 svc       0x000003 number=3
+2232015.948 epilogue  0x000024
+2232015.972 irq       0x000028 vector=40
+2232016.011 dispatch  0x010fe4 task=4 frame=0x10fe0
+2232016.024 svc       0x000003 number=3
+2232016.060 epilogue  0x000028
+2232016.083 svc       0x000001 number=1
+2232016.097 svc       0x000002 number=2
+2232016.128 svc       0x000003 number=3
+2232016.162 epilogue  0x000026
+2232016.174 irq       0x000038 vector=56
+2232016.210 dispatch  0x018fe6 task=6 frame=0x18fe0
+2232016.223 svc       0x000006 number=6
+2232016.237 svc       0x000001 number=1
+2232016.251 svc       0x000002 number=2
+2232016.281 irq       0x000018 vector=24
+2232016.286 tick      0x9dd9bd
+2232016.332 svc       0x000003 number=3
+2232016.364 epilogue  0x000038
+2232020.005 irq       0x000018 vector=24
+2232020.010 tick      0x9ec281
+2232020.073 irq       0x000024 vector=36
+2232020.109 dispatch  0x008fe0 task=0 frame=0x8fe0
+2232020.121 svc       0x000001 number=1
+2232020.135 svc       0x000002 number=2
+2232020.166 svc       0x000001 number=1
+2232020.179 svc       0x000002 number=2
+2232020.210 svc       0x000007 number=7
+2232020.245 svc       0x000003 number=3
+2232020.279 epilogue  0x000024
+2232020.291 irq       0x000025 vector=37
+2232020.327 dispatch  0x008fe1 task=1 frame=0x8fe0
+2232020.339 svc       0x000003 number=3
+2232020.374 epilogue  0x000025
+2232020.386 irq       0x000026 vector=38
+2232020.422 dispatch  0x008fe2 task=2 frame=0x8fe0
+2232020.435 svc       0x000001 number=1
+2232020.449 svc       0x000002 number=2
+2232020.479 svc       0x000001 number=1
+2232020.985 irq       0x000018 vector=24
+2232020.990 tick      0x9effc2
+2232023.970 irq       0x000016 vector=22
+2232025.011 irq       0x000018 vector=24
+2232025.017 tick      0x9ffb66
+2232030.006 irq       0x000018 vector=24
+2232030.011 tick      0xa13390
+2232032.509 svc       0x000002 number=2
+2232032.542 irq       0x000024 vector=36
+2232032.581 dispatch  0x008f70 task=0 frame=0x8f70
+2232032.594 irq       0x000018 vector=24
+2232032.600 tick      0xa1d55b
+2232032.650 svc       0x000001 number=1
+2232032.664 svc       0x000002 number=2
+2232032.696 svc       0x000001 number=1
+2232032.710 svc       0x000002 number=2
+2232032.742 svc       0x000003 number=3
+2232032.779 epilogue  0x000024
+2232032.803 irq       0x000028 vector=40
+2232032.843 dispatch  0x010fe4 task=4 frame=0x10fe0
+2232032.856 svc       0x000003 number=3
+2232032.893 epilogue  0x000028
+2232032.917 irq       0x000029 vector=41
+2232032.957 dispatch  0x018fe5 task=5 frame=0x18fe0
+2232032.970 svc       0x000001 number=1
+2232032.984 svc       0x000002 number=2
+2232033.015 svc       0x000003 number=3
+2232033.050 epilogue  0x000029
+2232033.073 svc       0x000001 number=1
+2232033.087 svc       0x000002 number=2
+2232033.118 svc       0x000003 number=3
+2232033.150 epilogue  0x000026
+2232038.976 irq       0x000018 vector=24
+2232038.982 tick      0xa3643c
+2232040.005 irq       0x000018 vector=24
+2232040.010 tick      0xa3a481
+2232040.085 irq       0x000024 vector=36
+2232040.121 dispatch  0x008fe0 task=0 frame=0x8fe0
+2232040.134 svc       0x000001 number=1
+2232040.147 svc       0x000002 number=2
+2232040.180 svc       0x000001 number=1
+2232040.194 svc       0x000002 number=2
+2232040.227 irq       0x000018 vector=24
+2232040.233 tick      0xa3b264
+2232040.281 svc       0x000003 number=3
+2232040.317 epilogue  0x000024
+2232040.328 irq       0x000027 vector=39
+2232040.365 dispatch  0x010fe3 task=3 frame=0x10fe0
+2232041.973 irq       0x000016 vector=22
+2232042.016 irq       0x000028 vector=40
+2232042.055 dispatch  0x010fac task=4 frame=0x10fa8
+2232042.068 svc       0x000003 number=3
+2232042.104 epilogue  0x000028
+2232043.388 svc       0x000003 number=3
+2232043.422 epilogue  0x000027
+2232043.434 irq       0x000026 vector=38
+2232043.470 dispatch  0x008fe2 task=2 frame=0x8fe0
+2232043.482 svc       0x000001 number=1
+2232043.496 svc       0x000002 number=2
+2232043.526 svc       0x000001 number=1
+2232050.008 irq       0x000018 vector=24
+2232050.014 tick      0xa615bc
+2232054.987 irq       0x000018 vector=24
+2232054.992 tick      0xa74cde
+2232055.550 svc       0x000002 number=2
+2232055.583 irq       0x000024 vector=36
+2232055.621 dispatch  0x008f70 task=0 frame=0x8f70
+2232055.634 svc       0x000001 number=1
+2232055.648 svc       0x000002 number=2
+2232055.680 svc       0x000001 number=1
+2232055.693 svc       0x000002 number=2
+2232055.725 svc       0x000007 number=7
+2232055.760 svc       0x000003 number=3
+2232055.798 epilogue  0x000024
+2232055.822 irq       0x000025 vector=37
+2232055.860 dispatch  0x008f71 task=1 frame=0x8f70
+2232055.873 svc       0x000003 number=3
+2232055.911 epilogue  0x000025
+2232055.934 irq       0x000029 vector=41
+2232055.974 dispatch  0x018fe5 task=5 frame=0x18fe0
+2232055.987 svc       0x000001 number=1
+2232056.001 svc       0x000002 number=2
+2232056.032 svc       0x000003 number=3
+2232056.067 epilogue  0x000029
+2232056.090 svc       0x000001 number=1
+2232056.104 svc       0x000002 number=2
+2232056.135 svc       0x000003 number=3
+2232056.167 epilogue  0x000026
+2232056.980 irq       0x000018 vector=24
+2232056.986 tick      0xa7c974
+2232059.965 irq       0x000016 vector=22
+2232060.005 irq       0x000018 vector=24
+2232060.010 tick      0xa88681
+2232060.074 irq       0x000024 vector=36
+2232060.111 dispatch  0x008fe0 task=0 frame=0x8fe0
+2232060.123 fault     0x000004
+2232060.154 reinit    0x000000

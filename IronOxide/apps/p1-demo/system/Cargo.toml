@@ -33,6 +33,8 @@ cycles = ["nrf52840", "p1-demo-decl/nrf52840_cycles", "p1-demo-part0/cycles", "p
 cycles-fpu = ["nrf52840", "p1-demo-decl/nrf52840_cycles_fpu", "p1-demo-part0/cycles", "p1-demo-part1/cycles", "p1-demo-part2/cycles"]
 # The plain measurement configuration of task 19.4: no injection, the measurement instrumentation alone.
 plain-measure = ["nrf52840", "measure", "p1-demo-decl/nrf52840_measure"]
+# The Kernel coverage configuration of task 19.5: the plain measurement configuration on the enlarged-Kernel Target.
+coverage-kernel = ["nrf52840", "measure", "p1-demo-decl/nrf52840_coverage"]
 # HIL builds: the Hardware_Model differential tests (task 3.3).
 hw-dt = ["rsk-kernel/hw-dt", "rsk/hw-dt"]
 # HIL builds: the boot-check suite's mutation word (task 7.2).

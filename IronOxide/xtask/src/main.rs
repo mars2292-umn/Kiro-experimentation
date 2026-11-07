@@ -406,6 +406,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut short = false;
     let mut plain = false;
     let mut fpu = false;
+    let mut kernel = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -429,6 +430,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--short" => short = true,
             "--plain" => plain = true,
             "--fpu" => fpu = true,
+            "--kernel" => kernel = true,
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
@@ -474,7 +476,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
         return print_report(&report, "hil");
     };
-    let kind = if stress { "stress" } else if plain { "measure" } else { "release-timing" };
+    let kind = if stress { "stress" } else if plain { "measure" } else if kernel && coverage { "coverage-kernel" } else { "release-timing" };
     if coverage {
         return coverage_command(&ws, &rig, &bin, &stimulus_bin, kind, &target_dir, report);
     }
@@ -596,6 +598,7 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
         loop_bounds: loop_bounds.as_deref(),
         configuration: variant,
         binary_hash: &target.binary.hash,
+        timing_bounds: true,
     };
     let out = rsk_hil::release_timing::run(&inputs);
     let text = rsk_hil::release_timing::render(rig, &inputs, &out);
@@ -777,6 +780,14 @@ fn measured_wcrt_step(ws: &xtask::workspace::Workspace, _bin: &str, variant: &st
     s.push_str(&format!("The Analyzer on this run's records ({}{}): exit {status}. {measured_line}\n\n", ws.rel(&timing), if extra.is_empty() { String::new() } else { format!(", with {}", extra.iter().map(|e| ws.rel(e)).collect::<Vec<_>>().join(", ")) }));
     if status == 2 {
         let why = text.lines().find(|l| l.contains("[R")).unwrap_or("").trim().to_string();
+        // The release-timing configuration's injected 50 ms Jobs put a measured
+        // WCET above the Budget by design (11.5, 11.6): its rejection under
+        // R28.4 is the configuration's finding, not the run's failure.
+        if kind == "release-timing" && why.contains("[R28.4]") {
+            s.push_str(&format!("Not judged, as the configuration intends: {why} (the injected overruns of the release-timing configuration, Verification_Plan 11.6; the schedulability claim is the plain and stress configurations' of 11.14).\n"));
+            report.note(format!("task 19.4: the release-timing configuration's measured analysis rejected under R28.4 by design: {why}"));
+            return (true, s);
+        }
         return fail(&mut s, &format!("the Analyzer rejected the inputs: {why}"));
     }
     let Ok(rep) = std::fs::read_to_string(out_dir.join("report.json")).map_err(|e| e.to_string()).and_then(|t| rsk_model::read_report(&t).map_err(|e| format!("{e:?}"))) else {
@@ -833,9 +844,13 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     let Some(tools) = xtask::hil::coverage_tools(&mut report) else {
         return print_report(&report, "hil");
     };
+    // The Kernel coverage build (task 19.5): the HIL build with the Kernel
+    // crates instrumented too, on the enlarged-Kernel Target (its RAM holds
+    // the counters beside the records).
+    let kernel = kind == "coverage-kernel";
     let features = format!("{},{feature},coverage", xtask::hil::FEATURES);
     let dir = target_dir.join("coverage").join(variant);
-    let Some(target) = xtask::hil::coverage_build(ws, bin, &features, &dir, &mut report) else {
+    let Some(target) = xtask::hil::coverage_build(ws, bin, &features, &dir, kernel, &mut report) else {
         return print_report(&report, "hil");
     };
     let stimulus = if stress {
@@ -873,6 +888,7 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
         loop_bounds: loop_bounds.as_deref(),
         configuration: variant,
         binary_hash: &target.binary.hash,
+        timing_bounds: !kernel,
     };
     let out = rsk_hil::release_timing::run(&inputs);
     let mut text = rsk_hil::release_timing::render(rig, &inputs, &out);
@@ -880,11 +896,26 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     // The counters, the raw profile, and the branch report.
     let board = rsk_hil::board::Target { chip: &rig.chip, serial: &rig.target.serial };
     let crates = xtask::hil::partition_crates(ws, bin);
-    let sources: Vec<std::path::PathBuf> = crates.iter().map(|(_, _, s)| s.clone()).collect();
+    let mut sources: Vec<std::path::PathBuf> = crates.iter().map(|(_, _, s)| s.clone()).collect();
+    if kernel {
+        for c in xtask::hil::KERNEL_COVERAGE_CRATES {
+            let dir = if *c == "rsk_system" { ws.root.join("apps").join(bin).join("system").join("src") } else { ws.root.join("crates").join(c.replace('_', "-")).join("src") };
+            sources.push(dir);
+        }
+    }
     let task_model = std::fs::read_to_string(&model).ok().and_then(|t| rsk_model::read_task_model(&t).ok());
+    let mut kernel_report: Option<rsk_hil::coverage::KernelReport> = None;
     let coverage = match (task_model.as_ref(), rsk_hil::coverage::collect(&board, &target.elf, &work)) {
         (Some(m), Ok((profraw, ranges))) => match rsk_hil::coverage::export(&tools, &target.elf, &profraw, &work, &sources) {
             Ok(export) => {
+                if kernel {
+                    // The Kernel's figures: the export over the Kernel sources alone.
+                    let kernel_sources: Vec<std::path::PathBuf> = sources.iter().filter(|s| !s.starts_with(ws.root.join("apps").join(bin).join("part"))).cloned().collect();
+                    match rsk_hil::coverage::export(&tools, &target.elf, &profraw, &work.join("kernel"), &kernel_sources) {
+                        Ok(kexport) => kernel_report = Some(rsk_hil::coverage::kernel_report(&kexport, &ws.root.display().to_string(), variant, &target.binary.hash)),
+                        Err(e) => report.error(xtask::diag::Rule::Step, None, format!("the Kernel's coverage export: {e}")),
+                    }
+                }
                 let functions = rsk_hil::coverage::functions(&export);
                 let tasks: Vec<(String, String, String, Vec<String>)> = m
                     .tasks
@@ -912,6 +943,11 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
         }
         Err(e) => text.push_str(&format!("\n## Branch coverage of the measurement inputs (R34.4)\n\nNot collected: {e}\n")),
     }
+    if let Some(k) = &kernel_report {
+        text.push_str("\n## Structural coverage of the Kernel on the Target (task 19.5, R53.3)\n\n");
+        text.push_str(&format!("{}\n\n", k.summary()));
+        text.push_str(&k.render());
+    }
     print!("{text}");
     let _ = std::fs::write(work.join("report.md"), &text);
     let record = ws.root.join("docs").join("hil");
@@ -932,6 +968,18 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     match std::fs::write(&path, r.print()) {
         Ok(()) => report.note(format!("branch coverage written to {}: {}", ws.rel(&path), r.summary())),
         Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&path))),
+    }
+    if kernel {
+        let Some(k) = &kernel_report else {
+            report.error(xtask::diag::Rule::Step, None, "the Kernel's coverage was not collected".to_string());
+            return print_report(&report, "hil");
+        };
+        let kpath = xtask::hil::kernel_coverage_record_path(&ws.root, variant);
+        match std::fs::write(&kpath, k.print()) {
+            Ok(()) => report.note(format!("Kernel coverage written to {}: {}", ws.rel(&kpath), k.summary())),
+            Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", ws.rel(&kpath))),
+        }
+        return print_report(&report, "Kernel coverage run passed");
     }
     // The committed WCET_Records of the configuration take the figures
     // (R33.1's coverage field), each with a condition naming the build.
@@ -1209,7 +1257,7 @@ fn cycles_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, 
                     v
                 }
                 None => {
-                    report.error(xtask::diag::Rule::Step, None, format!("Δ_fp: the floating-point variant's per-entry excess ({:?}) does not exceed the plain configuration's Δ_entry ({delta_entry:?}; run `cargo xtask hil --cycles` first), so the stacking was not observed", rsk_hil::cycles::per_entry_excess(st, rsk_hil::cycles::LOW_FPU)));
+                    report.error(xtask::diag::Rule::Step, None, format!("Δ_fp: no plain cycle record with Δ_entry ({delta_entry:?}; run `cargo xtask hil --cycles` first) or no interruption counts ({:?})", rsk_hil::cycles::per_entry_excess(st, rsk_hil::cycles::LOW_FPU)));
                     return print_report(&report, "hil");
                 }
             }
@@ -1250,17 +1298,26 @@ fn nightly_command(args: &[String]) -> ExitCode {
     };
     let dir = root.join("target").join("xtask-nightly").join(&stamp);
     let _ = std::fs::create_dir_all(&dir);
-    let steps: [(&str, &[&str]); 7] = [
+    // The job first (its Build_Manifest is what the measurement runs' own
+    // analyses key the cycle records on), then the records' refresh in the
+    // order a Kernel change requires (the cycle configurations' Δ_entry
+    // and Δ_fp, the short configurations, the plain one), the hour-long
+    // campaigns, the coverage runs (task 19.2, 19.4, 19.5), and the job
+    // again on the refreshed records.
+    let steps: [(&str, &[&str]); 13] = [
         ("verify", &["verify"]),
+        ("cycles", &["hil", "--cycles"]),
+        ("cycles-fpu", &["hil", "--cycles", "--fpu"]),
+        ("timing-short", &["hil", "--release-timing", "--short"]),
+        ("stress-short", &["hil", "--stress", "--short"]),
+        ("measure", &["hil", "--plain"]),
         ("release-timing", &["hil", "--release-timing"]),
         ("stress", &["hil", "--stress"]),
-        // Task 19.2 (R34.4): the branch coverage of the measurement inputs,
-        // one coverage run per short configuration.
         ("coverage-timing", &["hil", "--coverage"]),
         ("coverage-stress", &["hil", "--coverage", "--stress"]),
-        // Task 19.4: the plain measurement configuration and its coverage.
-        ("measure", &["hil", "--plain"]),
         ("coverage-plain", &["hil", "--coverage", "--plain"]),
+        ("coverage-kernel", &["hil", "--coverage", "--kernel"]),
+        ("verify-final", &["verify"]),
     ];
     let mut summary = format!("# Nightly HIL campaign {stamp}\n\n| Step | Verdict | Log | Minutes |\n|---|---|---|---|\n");
     let mut all_ok = true;

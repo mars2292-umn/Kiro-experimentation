@@ -1,0 +1,513 @@
+# 512 entries; t_ms tag value
+168675.099 dispatch  0x018fe5 task=5 frame=0x18fe0
+168675.111 svc       0x000001 number=1
+168675.125 svc       0x000002 number=2
+168675.156 svc       0x000003 number=3
+168675.188 epilogue  0x000029
+168675.788 irq       0x000018 vector=24
+168675.794 tick      0xdc9cf6
+168676.977 irq       0x000018 vector=24
+168676.983 tick      0xdce748
+168679.966 irq       0x000016 vector=22
+168680.005 irq       0x000018 vector=24
+168680.011 tick      0xdda485
+168680.080 irq       0x000024 vector=36
+168680.117 dispatch  0x008fe0 task=0 frame=0x8fe0
+168680.129 svc       0x000001 number=1
+168680.143 svc       0x000002 number=2
+168680.174 svc       0x000001 number=1
+168680.188 svc       0x000002 number=2
+168680.219 svc       0x000007 number=7
+168680.255 svc       0x000003 number=3
+168680.291 epilogue  0x000024
+168680.302 irq       0x000025 vector=37
+168680.339 dispatch  0x008fe1 task=1 frame=0x8fe0
+168680.351 svc       0x000003 number=3
+168680.387 epilogue  0x000025
+168680.399 irq       0x000028 vector=40
+168680.436 dispatch  0x010fe4 task=4 frame=0x10fe0
+168680.449 svc       0x000003 number=3
+168680.484 epilogue  0x000028
+168680.496 irq       0x000027 vector=39
+168680.534 dispatch  0x010fe3 task=3 frame=0x10fe0
+168683.556 svc       0x000003 number=3
+168683.590 epilogue  0x000027
+168683.602 irq       0x000026 vector=38
+168683.639 dispatch  0x008fe2 task=2 frame=0x8fe0
+168683.652 svc       0x000001 number=1
+168683.665 svc       0x000002 number=2
+168683.696 svc       0x000001 number=1
+168690.006 irq       0x000018 vector=24
+168690.011 tick      0xe0158d
+168693.230 irq       0x000018 vector=24
+168693.236 tick      0xe0df19
+168694.975 irq       0x000018 vector=24
+168694.981 tick      0xe14c23
+168695.719 svc       0x000002 number=2
+168695.753 irq       0x000024 vector=36
+168695.791 dispatch  0x008f70 task=0 frame=0x8f70
+168695.803 svc       0x000001 number=1
+168695.817 svc       0x000002 number=2
+168695.849 svc       0x000001 number=1
+168695.862 svc       0x000002 number=2
+168695.894 svc       0x000003 number=3
+168695.930 epilogue  0x000024
+168695.954 irq       0x000018 vector=24
+168695.959 tick      0xe18952
+168696.007 svc       0x000001 number=1
+168696.021 svc       0x000002 number=2
+168696.052 svc       0x000003 number=3
+168696.085 epilogue  0x000026
+168697.966 irq       0x000016 vector=22
+168698.006 irq       0x000028 vector=40
+168698.042 dispatch  0x010fe4 task=4 frame=0x10fe0
+168698.055 svc       0x000003 number=3
+168698.088 epilogue  0x000028
+168700.005 irq       0x000018 vector=24
+168700.010 tick      0xe28681
+168700.089 irq       0x000024 vector=36
+168700.127 dispatch  0x008fe0 task=0 frame=0x8fe0
+168700.139 svc       0x000001 number=1
+168700.152 svc       0x000002 number=2
+168700.185 svc       0x000001 number=1
+168700.198 svc       0x000002 number=2
+168700.231 irq       0x000018 vector=24
+168700.237 tick      0xe294a9
+168700.286 svc       0x000003 number=3
+168700.321 epilogue  0x000024
+168700.333 irq       0x000029 vector=41
+168700.370 dispatch  0x018fe5 task=5 frame=0x18fe0
+168700.382 svc       0x000001 number=1
+168700.397 svc       0x000002 number=2
+168700.428 svc       0x000003 number=3
+168700.463 epilogue  0x000029
+168700.475 irq       0x000026 vector=38
+168700.511 dispatch  0x008fe2 task=2 frame=0x8fe0
+168700.524 svc       0x000001 number=1
+168700.538 svc       0x000002 number=2
+168700.569 svc       0x000001 number=1
+168710.010 irq       0x000018 vector=24
+168710.015 tick      0xe4f7d0
+168712.597 svc       0x000002 number=2
+168712.630 irq       0x000024 vector=36
+168712.668 dispatch  0x008f70 task=0 frame=0x8f70
+168712.682 irq       0x000018 vector=24
+168712.687 tick      0xe59ecd
+168712.737 svc       0x000001 number=1
+168712.750 svc       0x000002 number=2
+168712.782 svc       0x000001 number=1
+168712.796 svc       0x000002 number=2
+168712.827 svc       0x000007 number=7
+168712.863 svc       0x000003 number=3
+168712.900 epilogue  0x000024
+168712.924 irq       0x000025 vector=37
+168712.963 dispatch  0x008f71 task=1 frame=0x8f70
+168712.976 irq       0x000018 vector=24
+168712.982 tick      0xe5b134
+168713.030 svc       0x000003 number=3
+168713.068 epilogue  0x000025
+168713.091 svc       0x000001 number=1
+168713.105 svc       0x000002 number=2
+168713.137 svc       0x000003 number=3
+168713.173 epilogue  0x000026
+168713.185 irq       0x000038 vector=56
+168713.221 dispatch  0x018fe6 task=6 frame=0x18fe0
+168713.234 svc       0x000006 number=6
+168713.247 svc       0x000001 number=1
+168713.261 svc       0x000002 number=2
+168713.292 svc       0x000003 number=3
+168713.325 epilogue  0x000038
+168715.966 irq       0x000016 vector=22
+168716.005 irq       0x000028 vector=40
+168716.042 dispatch  0x010fe4 task=4 frame=0x10fe0
+168716.055 svc       0x000003 number=3
+168716.087 epilogue  0x000028
+168720.005 irq       0x000018 vector=24
+168720.010 tick      0xe76881
+168720.080 irq       0x000024 vector=36
+168720.117 dispatch  0x008fe0 task=0 frame=0x8fe0
+168720.129 svc       0x000001 number=1
+168720.143 svc       0x000002 number=2
+168720.175 svc       0x000001 number=1
+168720.188 svc       0x000002 number=2
+168720.220 svc       0x000003 number=3
+168720.255 epilogue  0x000024
+168720.267 irq       0x000027 vector=39
+168720.305 dispatch  0x010fe3 task=3 frame=0x10fe0
+168723.327 svc       0x000003 number=3
+168723.361 epilogue  0x000027
+168723.373 irq       0x000026 vector=38
+168723.410 dispatch  0x008fe2 task=2 frame=0x8fe0
+168723.422 svc       0x000001 number=1
+168723.436 svc       0x000002 number=2
+168723.467 svc       0x000001 number=1
+168725.007 irq       0x000018 vector=24
+168725.013 tick      0xe8a123
+168730.008 irq       0x000018 vector=24
+168730.014 tick      0xe9d9b8
+168730.974 irq       0x000018 vector=24
+168730.980 tick      0xea1617
+168732.840 irq       0x000018 vector=24
+168732.846 tick      0xea8ab6
+168733.015 irq       0x000018 vector=24
+168733.021 tick      0xea95a4
+168733.967 irq       0x000016 vector=22
+168735.492 svc       0x000002 number=2
+168735.526 irq       0x000024 vector=36
+168735.564 dispatch  0x008f70 task=0 frame=0x8f70
+168735.577 irq       0x000018 vector=24
+168735.583 tick      0xeb35c7
+168735.633 svc       0x000001 number=1
+168735.646 svc       0x000002 number=2
+168735.678 svc       0x000001 number=1
+168735.692 svc       0x000002 number=2
+168735.723 svc       0x000003 number=3
+168735.760 epilogue  0x000024
+168735.784 irq       0x000028 vector=40
+168735.823 dispatch  0x010fe4 task=4 frame=0x10fe0
+168735.836 svc       0x000003 number=3
+168735.873 epilogue  0x000028
+168735.897 irq       0x000029 vector=41
+168735.936 dispatch  0x018fe5 task=5 frame=0x18fe0
+168735.949 svc       0x000001 number=1
+168735.964 svc       0x000002 number=2
+168735.994 svc       0x000003 number=3
+168736.028 epilogue  0x000029
+168736.052 svc       0x000001 number=1
+168736.066 svc       0x000002 number=2
+168736.096 svc       0x000003 number=3
+168736.127 epilogue  0x000026
+168740.005 irq       0x000018 vector=24
+168740.010 tick      0xec4a81
+168740.070 irq       0x000024 vector=36
+168740.106 dispatch  0x008fe0 task=0 frame=0x8fe0
+168740.119 svc       0x000001 number=1
+168740.132 svc       0x000002 number=2
+168740.163 svc       0x000001 number=1
+168740.177 svc       0x000002 number=2
+168740.207 svc       0x000007 number=7
+168740.242 svc       0x000003 number=3
+168740.277 epilogue  0x000024
+168740.288 irq       0x000025 vector=37
+168740.325 dispatch  0x008fe1 task=1 frame=0x8fe0
+168740.337 svc       0x000003 number=3
+168740.372 epilogue  0x000025
+168740.384 irq       0x000026 vector=38
+168740.420 dispatch  0x008fe2 task=2 frame=0x8fe0
+168740.433 svc       0x000001 number=1
+168740.447 svc       0x000002 number=2
+168740.477 svc       0x000001 number=1
+168748.978 irq       0x000018 vector=24
+168748.983 tick      0xee7b4e
+168750.005 irq       0x000018 vector=24
+168750.011 tick      0xeebb85
+168751.972 irq       0x000016 vector=22
+168752.505 svc       0x000002 number=2
+168752.539 irq       0x000024 vector=36
+168752.578 dispatch  0x008f70 task=0 frame=0x8f70
+168752.590 svc       0x000001 number=1
+168752.604 svc       0x000002 number=2
+168752.636 svc       0x000001 number=1
+168752.650 svc       0x000002 number=2
+168752.682 svc       0x000003 number=3
+168752.719 epilogue  0x000024
+168752.743 irq       0x000028 vector=40
+168752.783 dispatch  0x010fe4 task=4 frame=0x10fe0
+168752.796 irq       0x000018 vector=24
+168752.802 tick      0xef69f4
+168752.851 irq       0x000018 vector=24
+168752.857 tick      0xef6d6b
+168752.905 svc       0x000003 number=3
+168752.943 epilogue  0x000028
+168752.967 irq       0x000029 vector=41
+168753.006 dispatch  0x018fe5 task=5 frame=0x18fe0
+168753.019 svc       0x000001 number=1
+168753.033 svc       0x000002 number=2
+168753.065 svc       0x000003 number=3
+168753.099 epilogue  0x000029
+168753.123 svc       0x000001 number=1
+168753.136 svc       0x000002 number=2
+168753.167 svc       0x000003 number=3
+168753.199 epilogue  0x000026
+168760.005 irq       0x000018 vector=24
+168760.010 tick      0xf12c81
+168760.080 irq       0x000024 vector=36
+168760.117 dispatch  0x008fe0 task=0 frame=0x8fe0
+168760.129 svc       0x000001 number=1
+168760.143 svc       0x000002 number=2
+168760.175 svc       0x000001 number=1
+168760.188 svc       0x000002 number=2
+168760.221 irq       0x000018 vector=24
+168760.226 tick      0xf13a00
+168760.274 svc       0x000003 number=3
+168760.309 epilogue  0x000024
+168760.321 irq       0x000027 vector=39
+168760.358 dispatch  0x010fe3 task=3 frame=0x10fe0
+168763.380 svc       0x000003 number=3
+168763.414 epilogue  0x000027
+168763.426 irq       0x000026 vector=38
+168763.462 dispatch  0x008fe2 task=2 frame=0x8fe0
+168763.475 svc       0x000001 number=1
+168763.488 svc       0x000002 number=2
+168763.518 svc       0x000001 number=1
+168766.628 irq       0x000018 vector=24
+168766.634 tick      0xf2ca79
+168766.980 irq       0x000018 vector=24
+168766.986 tick      0xf2e07b
+168769.973 irq       0x000016 vector=22
+168770.014 irq       0x000018 vector=24
+168770.019 tick      0xf39e10
+168773.230 irq       0x000018 vector=24
+168773.235 tick      0xf4670f
+168775.009 irq       0x000018 vector=24
+168775.014 tick      0xf4d63e
+168775.543 svc       0x000002 number=2
+168775.576 irq       0x000024 vector=36
+168775.615 dispatch  0x008f70 task=0 frame=0x8f70
+168775.628 svc       0x000001 number=1
+168775.641 svc       0x000002 number=2
+168775.673 svc       0x000001 number=1
+168775.687 svc       0x000002 number=2
+168775.718 svc       0x000007 number=7
+168775.754 svc       0x000003 number=3
+168775.792 epilogue  0x000024
+168775.816 irq       0x000025 vector=37
+168775.854 dispatch  0x008f71 task=1 frame=0x8f70
+168775.867 svc       0x000003 number=3
+168775.904 epilogue  0x000025
+168775.928 irq       0x000028 vector=40
+168775.968 dispatch  0x010fe4 task=4 frame=0x10fe0
+168775.981 svc       0x000003 number=3
+168776.019 epilogue  0x000028
+168776.043 irq       0x000029 vector=41
+168776.082 dispatch  0x018fe5 task=5 frame=0x18fe0
+168776.095 svc       0x000001 number=1
+168776.109 svc       0x000002 number=2
+168776.140 svc       0x000003 number=3
+168776.175 epilogue  0x000029
+168776.199 svc       0x000001 number=1
+168776.212 svc       0x000002 number=2
+168776.243 svc       0x000003 number=3
+168776.275 epilogue  0x000026
+168780.005 irq       0x000018 vector=24
+168780.010 tick      0xf60e81
+168780.071 irq       0x000024 vector=36
+168780.107 dispatch  0x008fe0 task=0 frame=0x8fe0
+168780.120 svc       0x000001 number=1
+168780.133 svc       0x000002 number=2
+168780.165 svc       0x000001 number=1
+168780.178 svc       0x000002 number=2
+168780.210 svc       0x000003 number=3
+168780.244 epilogue  0x000024
+168780.256 irq       0x000026 vector=38
+168780.292 dispatch  0x008fe2 task=2 frame=0x8fe0
+168780.305 svc       0x000001 number=1
+168780.319 svc       0x000002 number=2
+168780.349 svc       0x000001 number=1
+168784.986 irq       0x000018 vector=24
+168784.991 tick      0xf745d0
+168787.971 irq       0x000016 vector=22
+168790.013 irq       0x000018 vector=24
+168790.018 tick      0xf87ffc
+168792.375 svc       0x000002 number=2
+168792.408 irq       0x000024 vector=36
+168792.447 dispatch  0x008f70 task=0 frame=0x8f70
+168792.460 irq       0x000018 vector=24
+168792.466 tick      0xf918f5
+168792.515 svc       0x000001 number=1
+168792.529 svc       0x000002 number=2
+168792.560 svc       0x000001 number=1
+168792.574 svc       0x000002 number=2
+168792.606 svc       0x000003 number=3
+168792.642 epilogue  0x000024
+168792.666 irq       0x000028 vector=40
+168792.705 dispatch  0x010fe4 task=4 frame=0x10fe0
+168792.718 svc       0x000003 number=3
+168792.754 epilogue  0x000028
+168792.777 svc       0x000001 number=1
+168792.791 svc       0x000002 number=2
+168792.821 svc       0x000003 number=3
+168792.853 epilogue  0x000026
+168795.725 irq       0x000018 vector=24
+168795.731 tick      0xf9e50a
+168800.005 irq       0x000018 vector=24
+168800.010 tick      0xfaf081
+168800.098 irq       0x000024 vector=36
+168800.135 dispatch  0x008fe0 task=0 frame=0x8fe0
+168800.147 svc       0x000001 number=1
+168800.161 svc       0x000002 number=2
+168800.194 svc       0x000001 number=1
+168800.207 svc       0x000002 number=2
+168800.239 svc       0x000007 number=7
+168800.276 svc       0x000003 number=3
+168800.313 epilogue  0x000024
+168800.324 irq       0x000025 vector=37
+168800.362 dispatch  0x008fe1 task=1 frame=0x8fe0
+168800.374 svc       0x000003 number=3
+168800.411 epilogue  0x000025
+168800.423 irq       0x000029 vector=41
+168800.460 dispatch  0x018fe5 task=5 frame=0x18fe0
+168800.473 svc       0x000001 number=1
+168800.487 svc       0x000002 number=2
+168800.520 svc       0x000003 number=3
+168800.556 epilogue  0x000029
+168800.568 irq       0x000027 vector=39
+168800.606 dispatch  0x010fe3 task=3 frame=0x10fe0
+168802.981 irq       0x000018 vector=24
+168802.987 tick      0xfbaa8b
+168803.631 svc       0x000003 number=3
+168803.667 epilogue  0x000027
+168803.679 irq       0x000026 vector=38
+168803.715 dispatch  0x008fe2 task=2 frame=0x8fe0
+168803.728 svc       0x000001 number=1
+168803.742 svc       0x000002 number=2
+168803.775 svc       0x000001 number=1
+168805.970 irq       0x000016 vector=22
+168810.005 irq       0x000018 vector=24
+168810.011 tick      0xfd6189
+168815.802 svc       0x000002 number=2
+168815.836 irq       0x000024 vector=36
+168815.875 dispatch  0x008f70 task=0 frame=0x8f70
+168815.888 irq       0x000018 vector=24
+168815.893 tick      0xfed12f
+168815.944 svc       0x000001 number=1
+168815.957 svc       0x000002 number=2
+168815.990 irq       0x000018 vector=24
+168815.996 tick      0xfed796
+168816.045 svc       0x000001 number=1
+168816.058 svc       0x000002 number=2
+168816.090 svc       0x000003 number=3
+168816.127 epilogue  0x000024
+168816.151 irq       0x000028 vector=40
+168816.191 dispatch  0x010fe4 task=4 frame=0x10fe0
+168816.204 svc       0x000003 number=3
+168816.240 epilogue  0x000028
+168816.264 svc       0x000001 number=1
+168816.278 svc       0x000002 number=2
+168816.309 svc       0x000003 number=3
+168816.343 epilogue  0x000026
+168816.355 irq       0x000038 vector=56
+168816.392 dispatch  0x018fe6 task=6 frame=0x18fe0
+168816.405 svc       0x000006 number=6
+168816.418 svc       0x000001 number=1
+168816.432 svc       0x000002 number=2
+168816.462 svc       0x000003 number=3
+168816.495 epilogue  0x000038
+168820.005 irq       0x000018 vector=24
+168820.010 tick      0xffd281
+168820.071 irq       0x000024 vector=36
+168820.107 dispatch  0x008fe0 task=0 frame=0x8fe0
+168820.120 svc       0x000001 number=1
+168820.133 svc       0x000002 number=2
+168820.165 svc       0x000001 number=1
+168820.178 svc       0x000002 number=2
+168820.210 svc       0x000003 number=3
+168820.244 epilogue  0x000024
+168820.256 irq       0x000018 vector=24
+168820.261 tick      0xffe22f
+168820.306 irq       0x000026 vector=38
+168820.342 dispatch  0x008fe2 task=2 frame=0x8fe0
+168820.355 svc       0x000001 number=1
+168820.368 svc       0x000002 number=2
+168820.398 svc       0x000001 number=1
+168820.981 irq       0x000018 vector=24
+168820.987 tick      0x000f87
+168823.974 irq       0x000016 vector=22
+168825.006 irq       0x000018 vector=24
+168825.012 tick      0x010b19
+168830.007 irq       0x000018 vector=24
+168830.013 tick      0x0243ab
+168832.422 svc       0x000002 number=2
+168832.456 irq       0x000024 vector=36
+168832.494 dispatch  0x008f70 task=0 frame=0x8f70
+168832.507 irq       0x000018 vector=24
+168832.513 tick      0x02dfe7
+168832.562 svc       0x000001 number=1
+168832.576 svc       0x000002 number=2
+168832.608 svc       0x000001 number=1
+168832.622 svc       0x000002 number=2
+168832.653 svc       0x000007 number=7
+168832.689 svc       0x000003 number=3
+168832.727 epilogue  0x000024
+168832.751 irq       0x000025 vector=37
+168832.789 dispatch  0x008f71 task=1 frame=0x8f70
+168832.802 svc       0x000003 number=3
+168832.839 epilogue  0x000025
+168832.863 irq       0x000028 vector=40
+168832.903 dispatch  0x010fe4 task=4 frame=0x10fe0
+168832.916 svc       0x000003 number=3
+168832.954 epilogue  0x000028
+168832.978 irq       0x000029 vector=41
+168833.017 dispatch  0x018fe5 task=5 frame=0x18fe0
+168833.030 svc       0x000001 number=1
+168833.044 svc       0x000002 number=2
+168833.076 svc       0x000003 number=3
+168833.110 epilogue  0x000029
+168833.134 svc       0x000001 number=1
+168833.147 svc       0x000002 number=2
+168833.178 svc       0x000003 number=3
+168833.210 epilogue  0x000026
+168838.981 irq       0x000018 vector=24
+168838.986 tick      0x047481
+168840.005 irq       0x000018 vector=24
+168840.010 tick      0x04b481
+168840.081 irq       0x000024 vector=36
+168840.118 dispatch  0x008fe0 task=0 frame=0x8fe0
+168840.130 svc       0x000001 number=1
+168840.144 svc       0x000002 number=2
+168840.176 svc       0x000001 number=1
+168840.190 svc       0x000002 number=2
+168840.223 svc       0x000003 number=3
+168840.258 epilogue  0x000024
+168840.270 irq       0x000027 vector=39
+168840.307 dispatch  0x010fe3 task=3 frame=0x10fe0
+168841.967 irq       0x000016 vector=22
+168842.011 irq       0x000028 vector=40
+168842.050 dispatch  0x010fac task=4 frame=0x10fa8
+168842.063 svc       0x000003 number=3
+168842.100 epilogue  0x000028
+168843.332 svc       0x000003 number=3
+168843.366 epilogue  0x000027
+168843.378 irq       0x000026 vector=38
+168843.414 dispatch  0x008fe2 task=2 frame=0x8fe0
+168843.427 svc       0x000001 number=1
+168843.441 svc       0x000002 number=2
+168843.471 svc       0x000001 number=1
+168850.005 irq       0x000018 vector=24
+168850.011 tick      0x072589
+168852.661 irq       0x000018 vector=24
+168852.667 tick      0x07cb86
+168854.974 irq       0x000018 vector=24
+168854.980 tick      0x085c1a
+168855.495 svc       0x000002 number=2
+168855.528 irq       0x000024 vector=36
+168855.566 dispatch  0x008f70 task=0 frame=0x8f70
+168855.579 svc       0x000001 number=1
+168855.592 svc       0x000002 number=2
+168855.624 svc       0x000001 number=1
+168855.638 svc       0x000002 number=2
+168855.669 svc       0x000003 number=3
+168855.706 epilogue  0x000024
+168855.730 irq       0x000029 vector=41
+168855.769 dispatch  0x018fe5 task=5 frame=0x18fe0
+168855.782 svc       0x000001 number=1
+168855.796 irq       0x000018 vector=24
+168855.802 tick      0x088f79
+168855.851 irq       0x000018 vector=24
+168855.856 tick      0x0892dd
+168855.903 svc       0x000002 number=2
+168855.933 svc       0x000003 number=3
+168855.967 epilogue  0x000029
+168855.991 svc       0x000001 number=1
+168856.005 svc       0x000002 number=2
+168856.035 svc       0x000003 number=3
+168856.066 epilogue  0x000026
+168856.974 irq       0x000018 vector=24
+168856.980 tick      0x08d916
+168859.966 irq       0x000016 vector=22
+168860.005 irq       0x000018 vector=24
+168860.010 tick      0x099681
+168860.071 irq       0x000024 vector=36
+168860.107 dispatch  0x008fe0 task=0 frame=0x8fe0
+168860.119 fault     0x000004
+168860.150 reinit    0x000000

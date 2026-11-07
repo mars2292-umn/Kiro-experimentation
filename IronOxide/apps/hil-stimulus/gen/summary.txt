@@ -12,7 +12,7 @@ Timer: IRQ 8 (vector 24)
 
 Partitions:
   stim (crate hil_stimulus_part, level C): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
-    code 32768 bytes at 0x00020000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
+    code 32768 bytes at 0x00030000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
     window 0x50000000 (2^12, srd 0x00, read-write): P0
 
 Tasks:

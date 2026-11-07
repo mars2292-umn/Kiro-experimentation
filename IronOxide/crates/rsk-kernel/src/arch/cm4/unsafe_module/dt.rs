@@ -524,6 +524,7 @@ fn svc_frame_probe() -> u32 {
 /// HW-10: FPSCR as the Job finds it (its new FP context takes FPDSCR's
 /// value at the Job's first FP instruction). For FPU Tasks only (PR-31).
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn fpscr_read() -> u32 {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -543,6 +544,7 @@ pub fn fpscr_read() -> u32 {
 /// the Job meanwhile), and compares: bit i set for the i-th register that
 /// changed. 0 when every register came back as it was.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn register_patterns(iterations: u32) -> u32 {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -626,6 +628,7 @@ pub fn register_patterns(iterations: u32) -> u32 {
 /// 24 to 27 the count of S16 to S31 that changed (at most 15). For FPU
 /// Tasks only (PR-31).
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn register_patterns_fp(iterations: u32) -> u32 {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -1002,6 +1005,7 @@ pub fn register_patterns_fp(iterations: u32) -> u32 {
 /// suite records as a mismatch (the address is then executed as code,
 /// which is the failure under test).
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn fetch(addr: u32) {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {

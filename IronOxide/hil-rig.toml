@@ -86,6 +86,16 @@ delta_irq_cycles = 2600
 # (Δ_stamp): the loopback step allows a wire latency later than the
 # deadline by at most this lag when the Kernel logged no deadline miss.
 l_kernel_cycles = 7000
+# Δ_stamp (Table 13-1), measured since 2026-11-06 by the probe (PPI routes
+# the stimulus edge to a TIMER0 capture; the intake handler records the lag
+# to its timestamp): 3,112 cycles (48.6 µs) over 10,000 edges of the plain
+# measurement run, 4,908 (76.7 µs) under the release-timing configuration
+# (its 12 ms Critical_Section and late Jobs make the entry that masks the
+# edge longer). The bound covers every measurement configuration, below
+# L_kernel plus Δ_irq. The loopback step allows a wire answer later than
+# the deadline by at most this when the Kernel logged no miss, and fails a
+# run whose observed lag exceeds it (R13.4).
+delta_stamp_cycles = 8000
 
 # Task 19.2 (R34.9): the Application loops whose Loop_Bound_Annotation no
 # input reaches, with the justification the Verification_Plan records

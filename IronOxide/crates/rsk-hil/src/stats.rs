@@ -6,7 +6,7 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 49;
+const PER_TASK: usize = 52;
 /// Kernel-entry kinds of the entry table (the Kernel's `ENTRY_*`).
 pub const ENTRY_KINDS: usize = 16;
 pub const ENTRY_NAMES: [&str; 16] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "view"];
@@ -44,6 +44,10 @@ pub struct TaskStats {
     pub exec_sum_cycles: u64,
     /// Kernel entries that interrupted the Task's executing Job (task 19.3).
     pub interrupted: u32,
+    /// Δ_stamp (Table 13-1): latched stimulus edges and the largest lag, in
+    /// ticks, from the edge to the intake handler's timestamp.
+    pub stamp_count: u32,
+    pub stamp_max_ticks: u32,
 }
 
 /// One Kernel-entry kind's record: runs, the largest, the sum (task 19.3).
@@ -141,6 +145,8 @@ impl Stats {
                 exec_min_cycles: words[b + 45],
                 exec_sum_cycles: (words[b + 47] as u64) << 32 | words[b + 46] as u64,
                 interrupted: words[b + 48],
+                stamp_count: words[b + 49],
+                stamp_max_ticks: words[b + 50],
             });
         }
         let cs_at = HEADER + n * PER_TASK;

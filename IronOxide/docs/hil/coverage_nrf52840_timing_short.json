@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_timing_short",
-  "binary_hash": "sha256:f955d17fb5a24d1ce135cf7ed9bb10b60392a93469795fffc4e3156b71fa77be",
+  "binary_hash": "sha256:016a5e351dcef835544da25b1eb86652c9dbe365a3e2f01e041070c04fe398d5",
   "threshold_percent": 50,
   "items": [
     {
@@ -236,7 +236,7 @@
         "p1_demo_part2::traffic_step: 127:12 false",
         "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler: 396:8 false"
+        "p1_demo_part2::sampler: 407:8 false"
       ]
     },
     {
@@ -266,7 +266,7 @@
         "p1_demo_part2::traffic_step: 127:12 false",
         "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler: 396:8 false"
+        "p1_demo_part2::sampler: 407:8 false"
       ]
     }
   ],
@@ -362,7 +362,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "396:8 false"
+        "407:8 false"
       ]
     },
     {

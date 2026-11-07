@@ -135,6 +135,7 @@ pub mod addr {
 /// (UJ-001). Every address the Kernel computes is computed above this
 /// function by code that Flight_Builds and the Kani harnesses share; only
 /// the volatile instruction itself, in `raw`, differs between them.
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn mmio_read(a: u32) -> u32 {
     raw::read_word(a)
 }
@@ -216,6 +217,7 @@ pub fn coverage_reset() {
 #[cfg(feature = "coverage")]
 #[no_mangle]
 #[link_section = ".text.rsk_shared"]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub extern "C" fn __atomic_fetch_add_8(counter: *mut u64, value: u64, _order: i32) -> u64 {
     // SAFETY (UJ-050): the pointer is the compiler's, to a counter of the
     // calling Partition's coverage range (`__rsk_cov_table`), aligned and
@@ -275,6 +277,7 @@ pub fn partition_reinit(p: u8) {
 
 /// Writes a memory-mapped register. Precondition: `addr::kernel_access_ok(a)`
 /// (UJ-002); see `mmio_read`.
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn mmio_write(a: u32, v: u32) {
     raw::write_word(a, v)
 }
@@ -293,6 +296,7 @@ fn mmio_write_u8(a: u32, v: u8) {
 /// receives (R45.1; verification_plan.md 6.1).
 mod raw {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn read_word(a: u32) -> u32 {
         // SAFETY (UJ-001): `a` satisfies `addr::kernel_access_ok` (a
         // Kernel register of the PPB or a word of the peripheral region:
@@ -304,12 +308,14 @@ mod raw {
     }
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn write_word(a: u32, v: u32) {
         // SAFETY (UJ-002): as UJ-001, for writes.
         unsafe { core::ptr::write_volatile(a as usize as *mut u32, v) }
     }
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn write_byte(a: u32, v: u8) {
         // SAFETY (UJ-009): as UJ-001; `a` satisfies `addr::kernel_byte_access_ok`,
         // a byte of the NVIC_IPR array, which the Armv7-M ARM defines as
@@ -318,16 +324,19 @@ mod raw {
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn read_word(a: u32) -> u32 {
         super::super::sim::read(a)
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn write_word(a: u32, v: u32) {
         super::super::sim::write(a, v)
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn write_byte(a: u32, v: u8) {
         super::super::sim::write_u8(a, v)
     }
@@ -779,6 +788,40 @@ pub fn dma_program(ptr_reg: u32, ptr: u32, cnt_reg: u32, len: u32) {
     }
 }
 
+/// The Δ_stamp probe of HIL builds (Table 13-1; 2026-11-06): PPI channel
+/// 15 routes GPIOTE's IN[0] event (the stimulus edge that releases
+/// `pulse`) to TIMER0's CAPTURE[3] task, so that the time base latches
+/// the edge's instant in hardware; the intake handler reads CC[3] and
+/// records the lag to its own timestamp. Kernel-owned PPI and TIMER0 (DD-08,
+/// DD-05); the channel is set after the boot's clearing of every channel.
+#[cfg(all(feature = "trace-ram", not(feature = "board-qemu-mps2")))]
+pub fn stamp_probe_init() {
+    const PPI: u32 = 0x4001_F000;
+    const CHENSET: u32 = 0x504;
+    const CH15_EEP: u32 = 0x510 + 15 * 8;
+    const CH15_TEP: u32 = 0x514 + 15 * 8;
+    const GPIOTE_EVENTS_IN0: u32 = 0x4000_6100;
+    const TIMER0_TASKS_CAPTURE3: u32 = 0x04C;
+    mmio_write(PPI + CH15_EEP, GPIOTE_EVENTS_IN0);
+    mmio_write(PPI + CH15_TEP, addr::NRF_TIMER0 + TIMER0_TASKS_CAPTURE3);
+    mmio_write(PPI + CHENSET, 1 << 15);
+}
+
+/// The time-base instant the probe latched at the last stimulus edge
+/// (TIMER0 CC[3]; 0 before any edge).
+#[cfg(all(feature = "trace-ram", not(feature = "board-qemu-mps2")))]
+pub fn stamp_capture() -> u32 {
+    mmio_read(addr::NRF_TIMER0 + 0x54C)
+}
+
+#[cfg(all(feature = "trace-ram", feature = "board-qemu-mps2"))]
+pub fn stamp_probe_init() {}
+
+#[cfg(all(feature = "trace-ram", feature = "board-qemu-mps2"))]
+pub fn stamp_capture() -> u32 {
+    0
+}
+
 /// Triggers a stop task (R17.6).
 pub fn dma_stop(reg: u32) {
     if addr::peripheral(reg) {
@@ -818,6 +861,7 @@ pub fn ppi_disable_all() {
 /// Partition's windows is a MemManage fault of that Partition (R16.4),
 /// which is the isolation argument.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn peripheral_read(a: u32) -> u32 {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -835,6 +879,7 @@ pub fn peripheral_read(a: u32) -> u32 {
 
 /// A Partition's write of one of its peripheral registers (see `peripheral_read`).
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn peripheral_write(a: u32, v: u32) {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {
@@ -1050,6 +1095,7 @@ pub fn timebase_ack() {
 /// Semihosting SYS_WRITE0 (QEMU `-semihosting`, HIL probe console).
 /// Inlined so that unprivileged callers execute it from their own region.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn semihosting_write(s: &[u8]) {
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     {

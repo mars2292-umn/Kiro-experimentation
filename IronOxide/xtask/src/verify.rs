@@ -2461,9 +2461,43 @@ fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, st
             }
         }
     }
-    // (b) The Partitions on the Target: the committed reports.
+    // (b) The Kernel on the Target: the committed report of the Kernel
+    // coverage build (`cargo xtask hil --coverage --kernel`), when any.
     let Some(bin) = ws.policy.qemu_spikes().next() else { return commands };
-    for m in crate::hil::MEASUREMENTS.iter().filter(|m| m.duration_secs < 10 * 60) {
+    for m in crate::hil::MEASUREMENTS.iter().filter(|m| m.kind == "coverage-kernel") {
+        let path = crate::hil::kernel_coverage_record_path(&ws.root, m.variant);
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            report.note(format!("R53.3: no on-target Kernel coverage report at {} (`cargo xtask hil --coverage --kernel`)", ws.rel(&path)));
+            continue;
+        };
+        let k: rsk_hil::coverage::KernelReport = match serde_json::from_str(&text) {
+            Ok(k) => k,
+            Err(e) => {
+                report.error(Rule::Evidence, None, format!("{}: not a Kernel coverage report: {e}", ws.rel(&path)));
+                continue;
+            }
+        };
+        let mut notes = vec![k.summary()];
+        notes.extend(k.files.iter().map(|f| format!("{}: lines {} ({} of {}), branch outcomes {} ({} of {})", f.file, rsk_hil::coverage::KernelReport::pct(f.lines_covered, f.lines), f.lines_covered, f.lines, rsk_hil::coverage::KernelReport::pct(f.branches_covered, f.branches), f.branches_covered, f.branches)));
+        for n in &notes {
+            report.note(format!("R53.3 (Kernel, {}): {n}", m.variant));
+        }
+        let mut item = Item::new(
+            "coverage-kernel-target",
+            Kind::Measurement,
+            &format!("Structural coverage of the Kernel on the Target (R53.1, R53.3): the Kernel crates instrumented in the Kernel coverage build `{}` (the enlarged-Kernel Target, the lean HIL build), its counters read over the probe after the plain measurement run, llvm-cov's totals over the Kernel sources; from the committed report {} (coverage build {})", m.variant, ws.rel(&path), k.binary_hash),
+            Tool { name: "rsk-hil coverage (llvm-cov)".to_string(), version: crate::hil::COVERAGE_TOOLCHAIN.to_string(), solvers: vec![] },
+            Verdict::from_bool(k.totals.lines > 0),
+        )
+        .covers(&["R53.1", "R53.3"]);
+        item.notes = notes;
+        item.build_manifest = Some(manifest_id.to_string());
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    // (c) The Partitions on the Target: the committed reports.
+    for m in crate::hil::MEASUREMENTS.iter().filter(|m| m.duration_secs < 10 * 60 && m.kind != "coverage-kernel") {
         let path = crate::hil::coverage_record_path(&ws.root, m.variant);
         let Ok(text) = std::fs::read_to_string(&path) else {
             report.note(format!("R53.3: no on-target coverage report for `{}` at {} (`cargo xtask hil --coverage{}`)", m.variant, ws.rel(&path), match m.kind { "stress" => " --stress", "measure" => " --plain", _ => "" }));

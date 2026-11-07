@@ -56,6 +56,11 @@ pub struct Inputs<'a> {
     /// The configuration and the HIL build's hash, for the loop report.
     pub configuration: &'a str,
     pub binary_hash: &'a str,
+    /// Whether the run's timing is judged against the exported bounds
+    /// (J_rel, Δ_irq, Δ_stamp, the wire deadline): false for the Kernel
+    /// coverage build, whose instrumented Kernel is no timing evidence
+    /// (task 19.5); its figures are reported, not judged.
+    pub timing_bounds: bool,
 }
 
 /// What the stress configuration expects (task 7.5).
@@ -197,7 +202,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     match target.read_stats(inputs.target_elf, &scratch) {
         Ok(Some(st)) => {
             let max = st.max_cycles();
-            let ok = st.nominal_mismatches == 0 && max <= rig.expect.j_rel_cycles && st.total() > 0;
+            let ok = st.nominal_mismatches == 0 && (max <= rig.expect.j_rel_cycles || !inputs.timing_bounds) && st.total() > 0;
             out.step(
                 "release timing (R9.10)",
                 ok,
@@ -377,7 +382,13 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             // (L_kernel's masking plus Δ_irq) with no deadline miss logged
             // by the Kernel is the stamp lag, not a miss (task 19.2); what
             // executed inside each late window is listed from the trace pins.
-            let stamp_us = (rig.expect.l_kernel_cycles as f64 + rig.expect.delta_irq_cycles as f64) * 1e6 / inputs.cpu_hz as f64;
+            // The exported Δ_stamp bound when the rig has one, else L_kernel
+            // plus Δ_irq (its parts); the run's own largest lag is checked
+            // against the bound too (R13.4).
+            let stamp_bound = if rig.expect.delta_stamp_cycles > 0 { rig.expect.delta_stamp_cycles as u64 } else { rig.expect.l_kernel_cycles as u64 + rig.expect.delta_irq_cycles as u64 };
+            let stamp_us = stamp_bound as f64 * 1e6 / inputs.cpu_hz as f64;
+            let observed_stamp = out.stats.as_ref().map(|st| st.tasks.iter().map(|t| t.stamp_max_ticks as u64 * (inputs.cpu_hz / inputs.tick_hz)).max().unwrap_or(0)).unwrap_or(0);
+            let stamp_within = rig.expect.delta_stamp_cycles == 0 || observed_stamp <= rig.expect.delta_stamp_cycles as u64;
             let deadline_us = rig.expect.response_deadline_ms as f64 * 1000.0;
             let kernel_misses = out.events.as_ref().map(|ev| ev.counts().iter().filter(|((k, t), _)| crate::events::kind_name(*k) == "deadline_miss" && *t == 4).map(|(_, n)| *n).sum::<usize>()).unwrap_or(0);
             let mut late_text = Vec::new();
@@ -392,10 +403,10 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                 };
                 late_text.push(format!("{:.0} µs at {:.3} s{what}", l, s as f64 / inputs.samplerate_hz as f64));
             }
-            let late_ok = late == 0 || (kernel_misses == 0 && late_within_stamp);
+            let late_ok = late == 0 || (kernel_misses == 0 && late_within_stamp) || !inputs.timing_bounds;
             out.step(
                 "loopback over the run",
-                a.matched() >= rig.expect.min_matched && late_ok && a.unanswered_in_window == 0,
+                a.matched() >= rig.expect.min_matched && late_ok && a.unanswered_in_window == 0 && (stamp_within || !inputs.timing_bounds),
                 format!(
                     "{} stimulus pulses answered (target counted {}; {} rises and {} response edges in the capture); latency {} to {} µs, median {} µs, {late} later than {} ms{}; {} unanswered inside the run{}",
                     a.matched(),
@@ -406,7 +417,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                     a.latency_max_us().map(|v| format!("{v:.0}")).unwrap_or("-".into()),
                     a.latency_median_us().map(|v| format!("{v:.0}")).unwrap_or("-".into()),
                     rig.expect.response_deadline_ms,
-                    if late == 0 { String::new() } else { format!(" ({}; the Kernel logged {kernel_misses} deadline misses of Task 4; the stamp lag allowed beyond the deadline {stamp_us:.0} µs: {})", late_text.join(", "), if late_ok { "within it, the stamp lag and not a miss" } else { "EXCEEDED" }) },
+                    format!("{}; Δ_stamp observed {observed_stamp} cycles ({:.1} µs) against the exported bound {}", if late == 0 { String::new() } else { format!(" ({}; the Kernel logged {kernel_misses} deadline misses of Task 4; the stamp lag allowed beyond the deadline {stamp_us:.0} µs: {})", late_text.join(", "), if late_ok { "within it, the stamp lag and not a miss" } else { "EXCEEDED" }) }, observed_stamp as f64 * 1e6 / inputs.cpu_hz as f64, if rig.expect.delta_stamp_cycles > 0 { format!("{} cycles{}", rig.expect.delta_stamp_cycles, if stamp_within { "" } else { " EXCEEDED" }) } else { "(none recorded)".to_string() }),
                     a.unanswered_in_window,
                     if a.unanswered_at_s.is_empty() {
                         String::new()

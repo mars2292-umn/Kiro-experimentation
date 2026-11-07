@@ -57,6 +57,9 @@ pub struct Expect {
     /// timestamp of it (Δ_stamp), which the loopback's wire latency carries
     /// beyond the Kernel's own deadline (task 19.2, 2026-11-06).
     pub l_kernel_cycles: u32,
+    /// The exported bound of Δ_stamp (Table 13-1), in CPU cycles, measured
+    /// by the probe of 2026-11-06; 0 when none is recorded yet.
+    pub delta_stamp_cycles: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -182,7 +185,7 @@ impl Rig {
         }
         let ex = table.get("expect").and_then(Value::as_table).ok_or("no [expect] table")?;
         for key in ex.keys() {
-            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles", "delta_irq_cycles", "l_kernel_cycles"].contains(&key.as_str()) {
+            if !["period_ms", "pulse_us", "response_deadline_ms", "min_matched", "j_rel_cycles", "delta_irq_cycles", "l_kernel_cycles", "delta_stamp_cycles"].contains(&key.as_str()) {
                 return Err(format!("[expect]: unknown key `{key}`"));
             }
         }
@@ -194,6 +197,7 @@ impl Rig {
             j_rel_cycles: ex.get("j_rel_cycles").map(|_| int_of(ex, "j_rel_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
             delta_irq_cycles: ex.get("delta_irq_cycles").map(|_| int_of(ex, "delta_irq_cycles")).transpose()?.unwrap_or(u32::MAX as u64) as u32,
             l_kernel_cycles: ex.get("l_kernel_cycles").map(|_| int_of(ex, "l_kernel_cycles")).transpose()?.unwrap_or(0) as u32,
+            delta_stamp_cycles: ex.get("delta_stamp_cycles").map(|_| int_of(ex, "delta_stamp_cycles")).transpose()?.unwrap_or(0) as u32,
         };
         if expect.period_ms == 0 || expect.response_deadline_ms == 0 {
             return Err("[expect]: period_ms and response_deadline_ms must be positive".into());

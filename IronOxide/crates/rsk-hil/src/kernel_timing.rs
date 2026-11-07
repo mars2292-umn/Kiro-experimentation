@@ -18,6 +18,10 @@ use crate::release_timing::{Inputs, Outcome};
 
 pub const TOOL: &str = "rsk-hil release-timing record";
 
+fn instrumented_for_stamp() -> String {
+    "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".to_string()
+}
+
 /// What the record is bound to: the HIL build's hash, the Target and its
 /// core revision as the Task_Model names them, and the build's icache
 /// setting.
@@ -170,6 +174,31 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, binding: &Binding<'_>, margin_
                 });
             }
         }
+    }
+    // Δ_stamp (Table 13-1): the probe's lag from the stimulus edge to the
+    // intake handler's timestamp, over every latched edge of the run.
+    // Not under the storm: there the source is masked for most of each MIT
+    // window (DD-06) and GPIOTE's IN event, set at the window's first edge
+    // and cleared by the Partition's acknowledge, is what the probe
+    // latches, so the lag measured is the policy's deferral (up to the MIT),
+    // not the Kernel's stamp latency; the storm-free configurations
+    // measure it (2026-11-06: 2.5 ms under the storm against 77 µs).
+    let cycles_per_tick = inputs.cpu_hz / inputs.tick_hz;
+    let stamped: Vec<&crate::stats::TaskStats> = if inputs.stress.is_some() { vec![] } else { st.tasks.iter().filter(|t| t.stamp_count > 0).collect() };
+    if let Some(max_ticks) = stamped.iter().map(|t| t.stamp_max_ticks as u64).max() {
+        let runs: u64 = stamped.iter().map(|t| t.stamp_count as u64).sum();
+        let max = max_ticks * cycles_per_tick;
+        parameters.push(KernelTimingParameter {
+            symbol: "delta_stamp".into(),
+            cycles: bound(max, margin_percent),
+            method: "measured".into(),
+            tool: TOOL.into(),
+            conditions: vec![
+                format!("from the Release_Source edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3]), to the intake handler's timestamp of the event: the masking of any Kernel entry in progress, the exception entry, and the handler's own read ({max_ticks} ticks at {} per cycle group of {cycles_per_tick}; the Kernel's record, task 19.3)", inputs.tick_hz),
+                instrumented_for_stamp(),
+            ],
+            measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.clone()] }),
+        });
     }
     parameters.extend(entry_parameters(st, &scenario, margin_percent));
     if parameters.is_empty() {

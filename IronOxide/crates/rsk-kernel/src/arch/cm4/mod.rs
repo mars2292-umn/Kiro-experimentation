@@ -421,6 +421,9 @@ pub fn start<S: System>() {
     unsafe_module::stats_reset();
     #[cfg(feature = "trace-ram")]
     unsafe_module::stats_calibrate();
+    // The Δ_stamp probe (Table 13-1): the stimulus edge latched by the time base.
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::hw::stamp_probe_init();
     #[cfg(feature = "trace-ram")]
     unsafe_module::events_reset();
     #[cfg(feature = "trace-ram")]
@@ -477,6 +480,8 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
         let binding = S::binding((ipsr & 0x1FF) as u16);
         if let crate::arch::Binding::Intake { task, .. } = binding {
             unsafe_module::stats_intake(task, hw::dwt_cyccnt().wrapping_sub(entry_cycles));
+            // Δ_stamp: from the edge the probe latched to this entry's timestamp.
+            unsafe_module::stats_stamp(task, hw::stamp_capture(), entry_now as u32);
         }
         // Task 19.3: the entry's cycles by kind, and the Job it interrupted.
         let kind = match binding {

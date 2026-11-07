@@ -638,6 +638,17 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
     let _ = writeln!(s, "    *(.rsk.noinit .rsk.noinit.*);");
     let _ = writeln!(s, "    . = ALIGN(4);");
     let _ = writeln!(s, "  }} > KRAM");
+    // The Kernel coverage build's counters (task 19.5): every counter
+    // section the Partition rules above did not take, zeroed at instant 0
+    // through `__rsk_cov_table` like the Partitions'. Empty otherwise.
+    let _ = writeln!(s);
+    let _ = writeln!(s, "  .kernel.cov (NOLOAD) : ALIGN(8)");
+    let _ = writeln!(s, "  {{");
+    let _ = writeln!(s, "    _k_scov = .;");
+    let _ = writeln!(s, "    KEEP(*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))");
+    let _ = writeln!(s, "    . = ALIGN(8);");
+    let _ = writeln!(s, "    _k_ecov = .;");
+    let _ = writeln!(s, "  }} > KRAM");
     let _ = writeln!(s);
     // The coverage build's profile data and names (read by the host's
     // llvm-cov from the ELF; the Target never reads them) and the counter
@@ -673,6 +684,7 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
     for i in 0..g.partitions.len() {
         let _ = writeln!(s, "    LONG(_p{i}_scov); LONG(_p{i}_ecov); LONG(0);");
     }
+    let _ = writeln!(s, "    LONG(_k_scov); LONG(_k_ecov); LONG(0);");
     let _ = writeln!(s, "    LONG(0); LONG(0); LONG(0);");
     let _ = writeln!(s, "  }} > KFLASH");
     let _ = writeln!(s);

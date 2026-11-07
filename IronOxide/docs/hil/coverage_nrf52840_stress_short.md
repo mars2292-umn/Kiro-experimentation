@@ -12,25 +12,25 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 | EasyDMA traffic (R17.4) | pass | SPIM0 of part2 chaining 64-byte transfers on both channels at 8 Mbps: a transfer ended before 0 of 0 sampler Jobs; transfers still running after the Kernel's stop at a restart: 0; ENABLE 7, SHORTS 0x0, RXD.MAXCNT 64, TXD.MAXCNT 64, END 1, STOPPED 1 at the end |
 | loop iterations (R34.9, R35.4) | pass | 7 Application loops in the export, 7 observed: 0 reached the bound, 0 exceeded, 2 below the bound with the justification recorded, 0 below without one, 5 never completed in this configuration, 0 not observed |
 | target run | pass | RSK-OK after 204 s (operating duration 180 s) |
-| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 8337 cycles (130.3 µs) against J_rel 10000 cycles |
-| WCRT of the protected Partition (R18.8) | pass | part0.control: 18000 Jobs, response at most 1.619 ms (103624 cycles) against WCRT 9.887 ms (632800 cycles); part0.echo: 5999 Jobs, response at most 0.275 ms (17620 cycles) against WCRT 11.314 ms (724100 cycles); part0.sensor: 8999 Jobs, response at most 6.819 ms (436436 cycles) against WCRT 11.463 ms (733600 cycles) |
-| interrupt storm (R19.3) | pass | Task 4's source stormed for 180 s: 11952 intakes against at most 12001 MIT windows of 15 ms (99.6 % of the windows); intake handler at most 2141 cycles (33.5 µs), mean 1950 cycles: the measured Δ_irq (bound 2600 cycles, R13.4); processor time 0.2023 % of the run |
-| Kernel events | pass | 6754 events mirrored (512 held, 1 of them the post-detach reboot's): overrun of Task 3: 85, overrun of Task 5: 68, overrun of Task 6: 67, operating_end of Task none: 1, resource_released of Task 5: 68, partition_restart of Task none: 68, safe_state of Task none: 1, end_job of Task 3: 85, end_job of Task 6: 68; the trace never froze during the run |
+| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 8054 cycles (125.8 µs) against J_rel 10000 cycles |
+| WCRT of the protected Partition (R18.8) | pass | part0.control: 18000 Jobs, response at most 1.610 ms (103032 cycles) against WCRT 9.887 ms (632800 cycles); part0.echo: 5999 Jobs, response at most 0.274 ms (17528 cycles) against WCRT 11.314 ms (724100 cycles); part0.sensor: 8999 Jobs, response at most 6.806 ms (435600 cycles) against WCRT 11.463 ms (733600 cycles) |
+| interrupt storm (R19.3) | pass | Task 4's source stormed for 180 s: 11954 intakes against at most 12001 MIT windows of 15 ms (99.6 % of the windows); intake handler at most 2102 cycles (32.8 µs), mean 1891 cycles: the measured Δ_irq (bound 2600 cycles, R13.4); processor time 0.1962 % of the run |
+| Kernel events | pass | 6755 events mirrored (512 held, 2 of them the post-detach reboot's): overrun of Task 3: 85, overrun of Task 5: 68, overrun of Task 6: 67, operating_end of Task none: 1, resource_released of Task 5: 68, partition_restart of Task none: 68, safe_state of Task none: 1, end_job of Task 3: 85, end_job of Task 6: 67; the trace never froze during the run |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
-| responses under the storm | pass | 11951 response edges inside the run (target counted 11951) against 12001 MIT windows; 0 stimulus rises on the mirror |
-| dispatch timeline | pass | Tasks executing 39.2 % of the run, the Kernel 40.6 % over 252365 entries; runs per Task [18047, 6000, 20998, 5509, 12043, 7424, 2153] |
-| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 22619 cycles (0.353 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 21760 cycles (0.340 ms at 100000 samples/s; 18047 runs for 18000 Jobs) |
+| responses under the storm | pass | 11953 response edges inside the run (target counted 11953) against 12001 MIT windows; 0 stimulus rises on the mirror |
+| dispatch timeline | pass | Tasks executing 39.1 % of the run, the Kernel 40.4 % over 213638 entries; runs per Task [18053, 6002, 20997, 5474, 12050, 7366, 2177] |
+| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 22512 cycles (0.352 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 21760 cycles (0.340 ms at 100000 samples/s; 18053 runs for 18000 Jobs) |
 
 ## Loop iterations (R34.9, R35.4)
 
 | Loop | File:line | Bound | Observed | Verdict |
 |---|---|---|---|---|
 | `loop:part0:spin_ms:spin` | apps/p1-demo/part0/src/lib.rs:38 | 100_000_000 | 0 | not run |
-| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:237 | 10_000_000 | 583 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:237 | 10_000_000 | 586 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:275 | 50_000_000 | 0 | not run |
 | `loop:part1:spin_ms:spin` | apps/p1-demo/part1/src/lib.rs:30 | 100_000_000 | 0 | not run |
-| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:226 | 10_000_000 | 296 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:226 | 10_000_000 | 298 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part2:spin_ms:spin` | apps/p1-demo/part2/src/lib.rs:38 | 100_000_000 | 0 | not run |
 | `loop:part2:filter:hold` | apps/p1-demo/part2/src/lib.rs:325 | 10_000_000 | 0 | not run |
 
@@ -38,93 +38,93 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 17999 | 8337 / 130.3 | 3463 | 2^12:17868 2^13:128 2^14:3 |
-| 2 | 8999 | 7284 / 113.8 | 3211 | 2^12:8876 2^13:123 |
-| 3 | 4499 | 8032 / 125.5 | 3530 | 2^12:4450 2^13:49 |
-| 5 | 7199 | 8032 / 125.5 | 3532 | 2^12:7141 2^13:58 |
-| 6 | 1799 | 8032 / 125.5 | 3830 | 2^12:1782 2^13:17 |
+| 0 | 17999 | 8017 / 125.3 | 3370 | 2^12:17903 2^13:96 |
+| 2 | 8999 | 8054 / 125.8 | 3133 | 2^12:8872 2^13:127 |
+| 3 | 4499 | 4874 / 76.2 | 3423 | 2^12:4498 2^13:1 |
+| 5 | 7199 | 7906 / 123.5 | 3436 | 2^12:7160 2^13:39 |
+| 6 | 1799 | 7574 / 118.3 | 3756 | 2^12:1781 2^13:18 |
 
 Releases recorded: 40495; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 18000 | 1.619 | 0 | 0 | 0 |
-| 1 | 5999 | 0.275 | 0 | 0 | 0 |
-| 2 | 8999 | 6.819 | 0 | 0 | 0 |
-| 3 | 3375 | 4.338 | 0 | 0 | 0 |
-| 4 | 11951 | 6.863 | 11952 | 2141 | 1950 |
-| 5 | 6300 | 7.440 | 0 | 0 | 0 |
-| 6 | 900 | 12.278 | 0 | 0 | 0 |
+| 0 | 18000 | 1.610 | 0 | 0 | 0 |
+| 1 | 5999 | 0.274 | 0 | 0 | 0 |
+| 2 | 8999 | 6.806 | 0 | 0 | 0 |
+| 3 | 3375 | 4.340 | 0 | 0 | 0 |
+| 4 | 11953 | 6.864 | 11954 | 2102 | 1891 |
+| 5 | 6300 | 7.423 | 0 | 0 | 0 |
+| 6 | 900 | 12.172 | 0 | 0 | 0 |
 
 Execution from the Budget accounting (task 19.1; cycle-counter read cost 1 cycles, R34.3):
 
 | Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |
 |---|---|---|---|
-| Task 0 entry | 18000 | 22619 / 0.353 (min 8896, mean 12104) | 0 above the Budget; 2^14:17229 2^15:771 |
-| Task 1 entry | 5999 | 9416 / 0.147 (min 3073, mean 3175) | 0 above the Budget; 2^12:5982 2^13:1 2^14:16 |
-| Task 2 entry | 8999 | 408207 / 6.378 (min 398327, mean 400175) | 0 above the Budget; 2^15:8999 |
-| Task 3 entry | 3375 | 204614 / 3.197 (min 190754, mean 195813) | 0 above the Budget; 2^15:3375 |
-| Task 4 entry | 11951 | 12042 / 0.188 (min 3199, mean 3359) | 0 above the Budget; 2^12:11668 2^13:207 2^14:76 |
-| Task 5 entry | 6300 | 37578 / 0.587 (min 20098, mean 26900) | 0 above the Budget; 2^15:6300 |
-| Task 6 entry | 900 | 39659 / 0.620 (min 17695, mean 27501) | 0 above the Budget; 2^15:900 |
-| Task 0 on Resource 0 | 18000 | 9784 / 0.153 | |
-| Task 0 on Resource 1 | 18000 | 9818 / 0.153 | |
-| Task 2 on Resource 0 | 8999 | 391639 / 6.119 | |
-| Task 2 on Resource 1 | 17998 | 6404 / 0.100 | |
-| Task 5 on Resource 2 | 12600 | 27103 / 0.423 | |
-| Task 6 on Resource 2 | 900 | 8046 / 0.126 | |
+| Task 0 entry | 18000 | 22512 / 0.352 (min 8862, mean 12058) | 0 above the Budget; 2^14:17800 2^15:200 |
+| Task 1 entry | 5999 | 9403 / 0.147 (min 3097, mean 3210) | 0 above the Budget; 2^12:5978 2^13:1 2^14:20 |
+| Task 2 entry | 8999 | 408233 / 6.379 (min 398157, mean 399778) | 0 above the Budget; 2^15:8999 |
+| Task 3 entry | 3375 | 204666 / 3.198 (min 190610, mean 195738) | 0 above the Budget; 2^15:3375 |
+| Task 4 entry | 11953 | 11889 / 0.186 (min 3225, mean 3369) | 0 above the Budget; 2^12:11703 2^13:164 2^14:86 |
+| Task 5 entry | 6300 | 35726 / 0.558 (min 20314, mean 26710) | 0 above the Budget; 2^15:6300 |
+| Task 6 entry | 900 | 36711 / 0.574 (min 17537, mean 27522) | 0 above the Budget; 2^15:900 |
+| Task 0 on Resource 0 | 18000 | 9880 / 0.154 | |
+| Task 0 on Resource 1 | 18000 | 9866 / 0.154 | |
+| Task 2 on Resource 0 | 8999 | 391004 / 6.109 | |
+| Task 2 on Resource 1 | 17998 | 6299 / 0.098 | |
+| Task 5 on Resource 2 | 12600 | 26885 / 0.420 | |
+| Task 6 on Resource 2 | 900 | 381 / 0.006 | |
 
 Kernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):
 
 | Entry | Runs | Max (cycles / µs) | Mean (cycles) |
 |---|---|---|---|
-| dispatch | 58449 | 2787 / 43.55 | 2606 |
-| timer | 64503 | 4698 / 73.41 | 2965 |
-| intake | 11952 | 2206 / 34.47 | 2014 |
-| lock | 77397 | 494 / 7.72 | 492 |
-| unlock | 76497 | 1806 / 28.22 | 1638 |
-| job_end | 55524 | 2036 / 31.81 | 1788 |
-| now | 6950901 | 237 / 3.70 | 237 |
-| raise | 6000 | 2055 / 32.11 | 1975 |
-| dma | 8999 | 825 / 12.89 | 574 |
-| epilogue | 58449 | 1205 / 18.83 | 579 |
-| restart | 900 | 4698 / 73.41 | 4555 |
-| enforce | 2925 | 4698 / 73.41 | 3586 |
-| view | 72122 | 310 / 4.84 | 279 |
+| dispatch | 58451 | 2827 / 44.17 | 2632 |
+| timer | 64562 | 4613 / 72.08 | 2894 |
+| intake | 11954 | 2217 / 34.64 | 1999 |
+| lock | 77397 | 483 / 7.55 | 481 |
+| unlock | 76497 | 1768 / 27.62 | 1618 |
+| job_end | 55526 | 1982 / 30.97 | 1754 |
+| now | 6991042 | 237 / 3.70 | 237 |
+| raise | 6000 | 2023 / 31.61 | 1953 |
+| dma | 8999 | 816 / 12.75 | 569 |
+| epilogue | 58451 | 1206 / 18.84 | 584 |
+| restart | 900 | 4613 / 72.08 | 4483 |
+| enforce | 2925 | 4613 / 72.08 | 3512 |
+| view | 72057 | 310 / 4.84 | 279 |
 
-Entries that interrupted an executing Job: Task 0: 11359, Task 1: 33, Task 2: 31084, Task 3: 5461, Task 4: 383, Task 5: 3489, Task 6: 3250
+Entries that interrupted an executing Job: Task 0: 11426, Task 1: 41, Task 2: 31022, Task 3: 5299, Task 4: 348, Task 5: 3310, Task 6: 3333
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 179930.000 ms, 3401 cycles
-- Task 0 at 179940.000 ms, 3124 cycles
-- Task 2 at 179945.000 ms, 3128 cycles
-- Task 0 at 179950.000 ms, 3857 cycles
-- Task 5 at 179950.000 ms, 3857 cycles
-- Task 0 at 179960.000 ms, 3368 cycles
-- Task 3 at 179960.000 ms, 3368 cycles
-- Task 2 at 179965.000 ms, 3128 cycles
+- Task 0 at 179930.000 ms, 3313 cycles
+- Task 0 at 179940.000 ms, 3046 cycles
+- Task 2 at 179945.000 ms, 3046 cycles
+- Task 0 at 179950.000 ms, 3637 cycles
+- Task 5 at 179950.000 ms, 3637 cycles
+- Task 0 at 179960.000 ms, 3286 cycles
+- Task 3 at 179960.000 ms, 3286 cycles
+- Task 2 at 179965.000 ms, 3046 cycles
 - Task 0 at 179970.000 ms, 3457 cycles
-- Task 5 at 179975.000 ms, 3132 cycles
-- Task 0 at 179980.000 ms, 3124 cycles
-- Task 0 at 179990.000 ms, 3044 cycles
+- Task 5 at 179975.000 ms, 3046 cycles
+- Task 0 at 179980.000 ms, 3046 cycles
+- Task 0 at 179990.000 ms, 2970 cycles
 
 ## The Kernel's events
 
-6754 events mirrored (512 held, 1 of them the post-detach reboot's): overrun of Task 3: 85, overrun of Task 5: 68, overrun of Task 6: 67, operating_end of Task none: 1, resource_released of Task 5: 68, partition_restart of Task none: 68, safe_state of Task none: 1, end_job of Task 3: 85, end_job of Task 6: 68; the trace never froze during the run
+6755 events mirrored (512 held, 2 of them the post-detach reboot's): overrun of Task 3: 85, overrun of Task 5: 68, overrun of Task 6: 67, operating_end of Task none: 1, resource_released of Task 5: 68, partition_restart of Task none: 68, safe_state of Task none: 1, end_job of Task 3: 85, end_job of Task 6: 67; the trace never froze during the run
 
 ## Dispatch timeline (trace pins)
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 321464 | 18047 | 0.340 |
-| 1 | 23652 | 6000 | 0.140 |
-| 2 | 5674229 | 20998 | 6.270 |
-| 3 | 1485773 | 5509 | 4.090 |
-| 4 | 49514 | 12043 | 0.140 |
-| 5 | 334487 | 7424 | 0.890 |
-| 6 | 113140 | 2153 | 0.880 |
-| none | 12433709 | 44777 | 16479.100 |
+| 0 | 318440 | 18053 | 0.340 |
+| 1 | 23388 | 6002 | 0.140 |
+| 2 | 5668527 | 20997 | 6.260 |
+| 3 | 1484867 | 5474 | 4.040 |
+| 4 | 48554 | 12050 | 0.130 |
+| 5 | 332081 | 7366 | 0.890 |
+| 6 | 113175 | 2177 | 0.880 |
+| none | 12440792 | 44846 | 16409.360 |
 
 ## Commands
 
@@ -141,7 +141,7 @@ RSK-SAFE-STATE
 control=18000
 sensor=8999
 log=3375
-pulse=11951
+pulse=11953
 echo=5999
 blocked_releases=8999
 filter=0
@@ -149,10 +149,10 @@ filter_state_bits=0
 sampler=0
 dma_ok=0
 loop:part0:spin_ms:spin=0
-loop:part0:sensor:hold=583
+loop:part0:sensor:hold=586
 loop:part0:sensor:late=0
 loop:part1:spin_ms:spin=0
-loop:part1:log:busy=296
+loop:part1:log:busy=298
 loop:part2:filter:hold=0
 loop:part2:spin_ms:spin=0
 dma_end=0
@@ -169,7 +169,7 @@ events=32
 event=6
   task=6
   at_ms=179301
-  detail=51714
+  detail=51923
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -181,7 +181,7 @@ event=19
 event=6
   task=3
   at_ms=179324
-  detail=256986
+  detail=256508
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -193,7 +193,7 @@ event=19
 event=6
   task=5
   at_ms=179375
-  detail=51806
+  detail=52103
   prs_lo=134217728
   prs_hi=0
 event=16
@@ -211,7 +211,7 @@ event=11
 event=6
   task=3
   at_ms=179484
-  detail=256514
+  detail=256767
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -223,7 +223,7 @@ event=19
 event=6
   task=6
   at_ms=179501
-  detail=52174
+  detail=51847
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -235,7 +235,7 @@ event=19
 event=6
   task=5
   at_ms=179575
-  detail=51806
+  detail=52103
   prs_lo=134217728
   prs_hi=0
 event=16
@@ -253,7 +253,7 @@ event=11
 event=6
   task=3
   at_ms=179644
-  detail=256514
+  detail=256775
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -265,7 +265,7 @@ event=19
 event=6
   task=6
   at_ms=179701
-  detail=51714
+  detail=51915
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -277,7 +277,7 @@ event=19
 event=6
   task=5
   at_ms=179775
-  detail=51746
+  detail=52035
   prs_lo=134217728
   prs_hi=0
 event=16
@@ -295,7 +295,7 @@ event=11
 event=6
   task=3
   at_ms=179804
-  detail=256514
+  detail=256740
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -307,7 +307,7 @@ event=19
 event=6
   task=6
   at_ms=179901
-  detail=51714
+  detail=51923
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -319,7 +319,7 @@ event=19
 event=6
   task=3
   at_ms=179964
-  detail=256901
+  detail=256767
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -331,7 +331,7 @@ event=19
 event=6
   task=5
   at_ms=179975
-  detail=51806
+  detail=52103
   prs_lo=134217728
   prs_hi=0
 event=16
@@ -363,12 +363,12 @@ expected_sensor=9000
 part0_events=0
 RSK-OK
 Firmware exited successfully
-     Finished in 7.72s
+     Finished in 7.73s
 ```
 
 ## Branch coverage of the measurement inputs (R34.4)
 
-branch coverage of the measurement inputs against the 50 % threshold (R34.4): part0.control 100 % (4 of 4 branch outcomes), part0.echo 100 % (0 of 0 branch outcomes), part0.sensor 83 % (5 of 6 branch outcomes), part1.log 90 % (20 of 22 branch outcomes), part1.pulse 100 % (10 of 10 branch outcomes), part2.filter 70 % (17 of 24 branch outcomes), part2.sampler 63 % (14 of 22 branch outcomes); 0 below
+branch coverage of the measurement inputs against the 50 % threshold (R34.4): part0.control 100 % (4 of 4 branch outcomes), part0.echo 100 % (0 of 0 branch outcomes), part0.sensor 83 % (5 of 6 branch outcomes), part1.log 86 % (19 of 22 branch outcomes), part1.pulse 90 % (9 of 10 branch outcomes), part2.filter 70 % (17 of 24 branch outcomes), part2.sampler 59 % (13 of 22 branch outcomes); 0 below
 
 | Item | Functions | Branch outcomes | Covered | Percent | Verdict |
 |---|---|---|---|---|---|
@@ -379,12 +379,12 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `part0.sensor` | 7 | 6 | 5 | 83 % | pass |
 | `part0.sensor#cs:state` | 7 | 6 | 5 | 83 % | pass |
 | `part0.sensor#cs:in_cs` | 7 | 6 | 5 | 83 % | pass |
-| `part1.log` | 9 | 22 | 20 | 90 % | pass |
-| `part1.pulse` | 7 | 10 | 10 | 100 % | pass |
+| `part1.log` | 9 | 22 | 19 | 86 % | pass |
+| `part1.pulse` | 7 | 10 | 9 | 90 % | pass |
 | `part2.filter` | 16 | 24 | 17 | 70 % | pass |
 | `part2.filter#cs:stats` | 16 | 24 | 17 | 70 % | pass |
-| `part2.sampler` | 15 | 22 | 14 | 63 % | pass |
-| `part2.sampler#cs:stats` | 15 | 22 | 14 | 63 % | pass |
+| `part2.sampler` | 15 | 22 | 13 | 59 % | pass |
+| `part2.sampler#cs:stats` | 15 | 22 | 13 | 59 % | pass |
 
 | Function | Branch outcomes | Covered | Uncovered (line:col outcome) |
 |---|---|---|---|
@@ -396,12 +396,12 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::Stats::record` | 2 | 1 | 253:12 false |
 | `p1_demo_part2::filter` | 0 | 0 |  |
-| `p1_demo_part2::filter::{closure}` | 6 | 5 | 325:67 false |
+| `p1_demo_part2::filter::{closure}` | 6 | 6 |  |
 | `p1_demo_part2::filter::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::filter::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::filter::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::filter::{closure}::{closure}` | 2 | 2 |  |
-| `p1_demo_part2::inject::spin_ms` | 4 | 4 |  |
+| `p1_demo_part2::inject::spin_ms` | 4 | 3 | 38:84 false |
 | `p1_demo_part2::lowpass` | 0 | 0 |  |
 | `p1_demo_part2::sampler` | 4 | 4 |  |
 | `p1_demo_part2::sampler::{closure}` | 0 | 0 |  |
@@ -421,7 +421,7 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `p1_demo_part1::log::{closure}` | 0 | 0 |  |
 | `p1_demo_part1::pulse` | 0 | 0 |  |
 | `p1_demo_part1::pulse::{closure}` | 0 | 0 |  |
-| `p1_demo_part1::inject::spin_ms` | 4 | 4 |  |
+| `p1_demo_part1::inject::spin_ms` | 4 | 3 | 30:84 false |
 | `p1_demo_part1::rsk_jobs::log` | 0 | 0 |  |
 | `p1_demo_part1::rsk_jobs::pulse` | 0 | 0 |  |
 | `p1_demo_part0::rsk_target::ms` | 0 | 0 |  |

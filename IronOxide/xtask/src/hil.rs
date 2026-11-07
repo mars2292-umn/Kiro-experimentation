@@ -63,7 +63,19 @@ pub const MEASUREMENTS: &[Measurement] = &[
     Measurement { variant: "nrf52840_stress_short", feature: "stress-short", duration_secs: 3 * 60, stress: true, kind: "stress" },
     Measurement { variant: "nrf52840_stress", feature: "stress", duration_secs: 61 * 60, stress: true, kind: "stress" },
     Measurement { variant: "nrf52840_measure", feature: "plain-measure", duration_secs: 3 * 60, stress: false, kind: "measure" },
+    // The Kernel coverage configuration (task 19.5): the plain measurement
+    // configuration on the enlarged-Kernel Target, run only as a coverage
+    // build (`cargo xtask hil --coverage --kernel`); no timing record.
+    Measurement { variant: "nrf52840_coverage", feature: "coverage-kernel", duration_secs: 3 * 60, stress: false, kind: "coverage-kernel" },
 ];
+
+/// The committed Kernel coverage report (`docs/hil/coverage_kernel_<variant>.json`, task 19.5).
+pub fn kernel_coverage_record_path(root: &Path, variant: &str) -> PathBuf {
+    root.join("docs").join("hil").join(format!("coverage_kernel_{variant}.json"))
+}
+
+/// The Kernel crates the Kernel coverage build instruments (crate names).
+pub const KERNEL_COVERAGE_CRATES: &[&str] = &["rsk_kernel", "rsk_logic", "rsk_entry", "rsk_system"];
 
 /// The per-Task counters the P1 demo's safe state reports: all 0 when no
 /// Task was released (the boot-check suite, task 7.2).
@@ -127,7 +139,7 @@ pub fn partition_crates(ws: &Workspace, bin: &str) -> Vec<(String, String, PathB
 /// Builds the coverage build of `bin` with `features` (which name the
 /// configuration and `coverage`): the coverage toolchain with a rustc
 /// wrapper that instruments the Partition crates alone.
-pub fn coverage_build(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, report: &mut Report) -> Option<HilBuild> {
+pub fn coverage_build(ws: &Workspace, bin: &str, features: &str, target_dir: &Path, kernel: bool, report: &mut Report) -> Option<HilBuild> {
     let crates = partition_crates(ws, bin);
     if crates.is_empty() {
         report.error(Rule::Step, None, format!("no Partition crate of `{bin}` to instrument"));
@@ -135,12 +147,18 @@ pub fn coverage_build(ws: &Workspace, bin: &str, features: &str, target_dir: &Pa
     }
     let _ = std::fs::create_dir_all(target_dir);
     let wrapper = target_dir.join("rustc-wrapper.sh");
-    let cases: Vec<String> = crates.iter().map(|(_, k, _)| format!("*\" --crate-name {k} \"*")).collect();
+    let mut names: Vec<String> = crates.iter().map(|(_, k, _)| k.clone()).collect();
+    if kernel {
+        names.extend(KERNEL_COVERAGE_CRATES.iter().map(|k| k.to_string()));
+    }
+    let cases: Vec<String> = names.iter().map(|k| format!("*\" --crate-name {k} \"*")).collect();
     // Legacy symbol mangling for every crate: the Link_Checker (R37) reads
     // the Task entries by their legacy names, which the pinned toolchain
-    // emits and the nightly does not by default.
+    // emits and the nightly does not by default. The gate of the `coverage`
+    // attribute goes to every crate too: rsk-kernel uses it under its
+    // `coverage` feature whether or not it is instrumented itself.
     let script = format!(
-        "#!/bin/sh\n# The coverage build's RUSTC_WRAPPER (cargo xtask hil --coverage): the Partition crates alone are instrumented; every crate keeps the legacy symbol mangling the Link_Checker reads.\nrustc=\"$1\"; shift\ncase \" $* \" in\n  {})\n    exec \"$rustc\" \"$@\" -Z unstable-options -C symbol-mangling-version=legacy -C instrument-coverage -Z no-profiler-runtime -Z coverage-options=branch ;;\n  *) exec \"$rustc\" \"$@\" -Z unstable-options -C symbol-mangling-version=legacy ;;\nesac\n",
+        "#!/bin/sh\n# The coverage build's RUSTC_WRAPPER (cargo xtask hil --coverage): the Partition crates (and, for the Kernel coverage build, the Kernel crates) are instrumented; every crate keeps the legacy symbol mangling the Link_Checker reads.\nrustc=\"$1\"; shift\ncase \" $* \" in\n  {})\n    exec \"$rustc\" \"$@\" -Z unstable-options -C symbol-mangling-version=legacy -C instrument-coverage -Z no-profiler-runtime -Z coverage-options=branch -Z crate-attr=feature\\(coverage_attribute\\) ;;\n  *) exec \"$rustc\" \"$@\" -Z unstable-options -C symbol-mangling-version=legacy -Z crate-attr=feature\\(coverage_attribute\\) ;;\nesac\n",
         cases.join("|")
     );
     if let Err(e) = std::fs::write(&wrapper, script) {

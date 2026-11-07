@@ -93,6 +93,14 @@ SECTIONS
     . = ALIGN(4);
   } > KRAM
 
+  .kernel.cov (NOLOAD) : ALIGN(8)
+  {
+    _k_scov = .;
+    KEEP(*(__llvm_prf_cnts __llvm_prf_cnts.* __llvm_prf_bits __llvm_prf_bits.*))
+    . = ALIGN(8);
+    _k_ecov = .;
+  } > KRAM
+
   __llvm_prf_data : ALIGN(8)
   {
     __start___llvm_prf_data = .;
@@ -120,6 +128,7 @@ SECTIONS
     LONG(0); LONG(0); LONG(0);
     __rsk_cov_table = .;
     LONG(_p0_scov); LONG(_p0_ecov); LONG(0);
+    LONG(_k_scov); LONG(_k_ecov); LONG(0);
     LONG(0); LONG(0); LONG(0);
   } > KFLASH
 

@@ -26,6 +26,8 @@ nrf52840_cycles = ["nrf52840"]
 nrf52840_cycles_fpu = ["nrf52840"]
 # The plain measurement configuration of task 19.4 (`src/nrf52840_measure.rs`).
 nrf52840_measure = ["nrf52840"]
+# The Kernel coverage configuration of task 19.5 (`src/nrf52840_coverage.rs`).
+nrf52840_coverage = ["nrf52840"]
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

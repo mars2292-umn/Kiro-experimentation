@@ -294,6 +294,7 @@ pub unsafe extern "C" fn job_end_trampoline() {
 /// into the calling crate so that the code executes from the caller's
 /// region, never from Kernel flash.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_lock(r: u8) -> bool {
     let out: u32;
     // SAFETY (UJ-030): the SVC instruction transfers to the Kernel; `r` is
@@ -303,6 +304,7 @@ pub fn svc_lock(r: u8) -> bool {
 }
 
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_unlock(r: u8) -> bool {
     let out: u32;
     // SAFETY (UJ-031): as UJ-030.
@@ -311,6 +313,7 @@ pub fn svc_unlock(r: u8) -> bool {
 }
 
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_now() -> u64 {
     let lo: u32;
     let hi: u32;
@@ -322,6 +325,7 @@ pub fn svc_now() -> u64 {
 /// The EasyDMA request SVC (DD-08): channel `i`, buffer `ptr` of `len`
 /// bytes; `true` when the Kernel accepted and programmed the transfer.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
     let out: u32;
     // SAFETY (UJ-035): as UJ-030; r0 to r2 in, r0 out (0 accepted, 1 refused).
@@ -334,6 +338,7 @@ pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
 /// Kernel accepted and wrote it. The same SVC number as the request, bit
 /// 31 of r0 set.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_dma_write(i: u8, offset: u32, value: u32) -> bool {
     let out: u32;
     // SAFETY (UJ-035b): as UJ-035; r0 to r2 in, r0 out (0 accepted, 1 refused).
@@ -344,6 +349,7 @@ pub fn svc_dma_write(i: u8, offset: u32, value: u32) -> bool {
 /// The Release_Signal raise SVC (R10.5): `true` when the Kernel took the
 /// raise as a Release_Source event of the bound Task.
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_raise(signal: u8) -> bool {
     let out: u32;
     // SAFETY (UJ-038): as UJ-030; r0 in, r0 out (0 accepted, 1 refused).
@@ -353,6 +359,7 @@ pub fn svc_raise(signal: u8) -> bool {
 
 /// The panic SVC of unprivileged Jobs (PR-19).
 #[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
 pub fn svc_panic() {
     // SAFETY (UJ-034): as UJ-030; no result.
     unsafe { core::arch::asm!("svc #5", options(nostack)) };

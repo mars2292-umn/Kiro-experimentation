@@ -158,12 +158,21 @@ pub fn per_entry_excess(st: &Stats, low: usize) -> Option<u64> {
 /// plain configuration (`delta_entry_cycles`, the measured value before
 /// the margin) is the stacking's cost, recorded half as the save and half
 /// as the restore (the hardware does both, the sum is what was measured),
-/// each with the margin. `None` without the counts, or when the variant's
-/// excess does not exceed Δ_entry (then the stacking was not observed).
+/// each with the margin. The method is the difference of two per-entry
+/// means, whose run-to-run spread is about `FP_RESOLUTION_CYCLES` (the
+/// two configurations' Δ_entry differed by 9 cycles between runs of
+/// 2026-11-06 with 118 measured the first time), so a difference below
+/// the resolution records the resolution's half for each parameter: a
+/// bound of the method, above the architecture's 17 words each way.
+/// `None` without the counts.
+pub const FP_RESOLUTION_CYCLES: u64 = 100;
+
 pub fn delta_fp(st: &Stats, delta_entry_cycles: u64, margin_percent: u64) -> Option<Vec<rsk_model::wcet::KernelTimingParameter>> {
     let per_entry = per_entry_excess(st, LOW_FPU)?;
     let l = st.tasks.get(LOW_FPU)?;
-    let stacking = per_entry.checked_sub(delta_entry_cycles)?;
+    let difference = per_entry.saturating_sub(delta_entry_cycles);
+    let resolved = difference >= FP_RESOLUTION_CYCLES;
+    let stacking = difference.max(FP_RESOLUTION_CYCLES);
     let half = stacking.div_ceil(2);
     let make = |symbol: &str, what: &str| rsk_model::wcet::KernelTimingParameter {
         symbol: symbol.into(),
@@ -171,7 +180,7 @@ pub fn delta_fp(st: &Stats, delta_entry_cycles: u64, margin_percent: u64) -> Opt
         method: "measured".into(),
         tool: crate::kernel_timing::TOOL.into(),
         conditions: vec![
-            format!("{what}: half of the floating-point context stacking per interrupting entry ({stacking} cycles: filter's excess over control per entry, {per_entry}, less Δ_entry of the plain cycle configuration, {delta_entry_cycles}; the FPU Task's {} Jobs, {} interrupting entries; task 19.3)", l.exec_count, l.interrupted),
+            format!("{what}: half of the floating-point context stacking per interrupting entry ({stacking} cycles: filter's excess over control per entry, {per_entry}, less Δ_entry of the plain cycle configuration, {delta_entry_cycles}, is {difference}{}; the FPU Task's {} Jobs, {} interrupting entries; task 19.3)", if resolved { String::new() } else { format!(", below the method's resolution of {FP_RESOLUTION_CYCLES} cycles, which is recorded instead") }, l.exec_count, l.interrupted),
             "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".into(),
         ],
         measured: Some(rsk_model::wcet::Measured { runs: l.interrupted as u64, max_observed: half, margin_percent, coverage_branch_percent: 0, scenarios: vec!["nrf52840_cycles_fpu (2 s)".into()] }),

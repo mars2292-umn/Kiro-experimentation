@@ -432,7 +432,8 @@ mod tests {
         assert_eq!(w[2].task, 6);
         let a = &w[1].attempts; // part1 against part0, part2, the Kernel
         assert_eq!(a.len(), 2 * 8 + 9);
-        assert_eq!(a[0].address, Some(0x0002_0100));
+        // part1's code: after the Kernel's 128 KiB of flash and the 64 KiB shared region (2026-11-06).
+        assert_eq!(a[0].address, Some(0x0003_0100));
         assert_eq!(a[2].class, Class::Fetch);
         assert_eq!(a[3].address, Some(0x2000_8000 + 4096 + 0x100));
         assert_eq!(a[5].address, Some(0x2000_8010));

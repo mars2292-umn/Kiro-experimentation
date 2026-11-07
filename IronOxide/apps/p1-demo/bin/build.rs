@@ -18,6 +18,17 @@ fn main() {
         "gen-nrf52840_stress"
     } else if std::env::var_os("CARGO_FEATURE_STRESS_SHORT").is_some() {
         "gen-nrf52840_stress_short"
+    } else if std::env::var_os("CARGO_FEATURE_ISOLATION").is_some() {
+        "gen-nrf52840_isolation"
+    } else if std::env::var_os("CARGO_FEATURE_CYCLES_FPU").is_some() {
+        "gen-nrf52840_cycles_fpu"
+    } else if std::env::var_os("CARGO_FEATURE_CYCLES").is_some() {
+        "gen-nrf52840_cycles"
+    } else if std::env::var_os("CARGO_FEATURE_PLAIN_MEASURE").is_some() {
+        "gen-nrf52840_measure"
+    } else if std::env::var_os("CARGO_FEATURE_COVERAGE_KERNEL").is_some() {
+        // The Kernel coverage build (task 19.5): the enlarged-Kernel layout.
+        "gen-nrf52840_coverage"
     } else if std::env::var_os("CARGO_FEATURE_NRF52840").is_some() {
         "gen-nrf52840"
     } else {

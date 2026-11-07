@@ -116,7 +116,9 @@ const NRF52840_PERIPHERALS: &[Peripheral] = &[
 
 /// nRF52840 (Cortex-M4F r0p1): 64 MHz CPU, TIMER0 at 16 MHz as the time
 /// base (DD-05), 3 priority bits, 8 MPU regions, 48 interrupt lines, SWI/EGU
-/// lines 20 to 25 as dispatch vectors.
+/// lines 20 to 25 as dispatch vectors. The Kernel's flash is 128 KiB since
+/// 2026-11-06: the HIL isolation build (the differential-test probes, the
+/// trace, the Δ_stamp probe) outgrew 64 KiB by 840 bytes.
 pub const NRF52840: Target = Target {
     name: "nrf52840",
     model_name: "nrf52840",
@@ -133,9 +135,35 @@ pub const NRF52840: Target = Target {
     peripherals: NRF52840_PERIPHERALS,
     flash: MemoryRegion { name: "FLASH", base: 0x0000_0000, size: 0x10_0000, flash: true },
     ram: MemoryRegion { name: "RAM", base: 0x2000_0000, size: 0x4_0000, flash: false },
-    kernel_flash: 0x1_0000,
+    kernel_flash: 0x2_0000,
     shared_code: 0x1_0000,
     kernel_ram: 0x8000,
+};
+
+/// The nRF52840 with the Kernel's regions enlarged (256 KiB of flash,
+/// 64 KiB of RAM: powers of two, as the layout's intervals are) for the Kernel coverage build of task 19.5 (Verification_Plan
+/// section 14): the instrumented Kernel's code and its counters do not fit
+/// the Flight layout's 64 KiB and 32 KiB. The Partitions' regions follow as
+/// on the plain Target; the model name stays `nrf52840` (the same silicon).
+pub const NRF52840_COVERAGE: Target = Target {
+    name: "nrf52840_coverage",
+    model_name: "nrf52840_coverage",
+    core_revision: "r0p1",
+    cpuid: 0x410F_C241,
+    hfclk_xtal: true,
+    cpu_hz: 64_000_000,
+    tick_hz: 16_000_000,
+    priority_bits: 3,
+    mpu_regions: 8,
+    irq_count: 48,
+    timer_irq: 8,
+    dispatch_irqs: &[20, 21, 22, 23, 24, 25, 40],
+    peripherals: NRF52840_PERIPHERALS,
+    flash: MemoryRegion { name: "FLASH", base: 0x0000_0000, size: 0x10_0000, flash: true },
+    ram: MemoryRegion { name: "RAM", base: 0x2000_0000, size: 0x4_0000, flash: false },
+    kernel_flash: 0x4_0000,
+    shared_code: 0x1_0000,
+    kernel_ram: 0x1_0000,
 };
 
 const MPS2_PERIPHERALS: &[Peripheral] = &[
@@ -183,7 +211,7 @@ pub const QEMU_MPS2_AN386: Target = Target {
     kernel_ram: 0x8000,
 };
 
-pub const TARGETS: &[&Target] = &[&NRF52840, &QEMU_MPS2_AN386];
+pub const TARGETS: &[&Target] = &[&NRF52840, &NRF52840_COVERAGE, &QEMU_MPS2_AN386];
 
 impl Target {
     pub fn by_name(name: &str) -> Option<&'static Target> {

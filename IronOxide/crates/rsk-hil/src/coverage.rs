@@ -41,6 +41,9 @@ const NUM_COUNTERS_AT: usize = 36;
 /// against it).
 const VIRTUAL_COUNTERS_DELTA: i64 = 0x1000_0000;
 
+/// The Kernel's counter range, as `Range::partition`.
+pub const KERNEL_RANGE: usize = 255;
+
 /// A Partition's counter range in RAM: `_p<i>_scov` to `_p<i>_ecov`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Range {
@@ -59,6 +62,14 @@ pub fn ranges(elf: &rsk_elf::Elf) -> Result<Vec<Range>, String> {
         match (start, end) {
             (Some(start), Some(end)) if end > start => out.push(Range { partition: i, start, end }),
             _ => {}
+        }
+    }
+    // The Kernel's counters (the Kernel coverage build, task 19.5): `_k_scov` to `_k_ecov`, Partition 255.
+    let start = symbols.iter().find(|s| s.name == "_k_scov").map(|s| s.value);
+    let end = symbols.iter().find(|s| s.name == "_k_ecov").map(|s| s.value);
+    if let (Some(start), Some(end)) = (start, end) {
+        if end > start {
+            out.push(Range { partition: KERNEL_RANGE, start, end });
         }
     }
     Ok(out)
@@ -157,6 +168,7 @@ pub struct Tools {
 /// Runs `llvm-profdata merge` and `llvm-cov export` over the raw profile
 /// and the binary, restricted to `sources`; returns the export (JSON).
 pub fn export(tools: &Tools, elf: &Path, profraw: &Path, work: &Path, sources: &[PathBuf]) -> Result<serde_json::Value, String> {
+    let _ = std::fs::create_dir_all(work);
     let profdata = work.join("coverage.profdata");
     let out = Command::new(&tools.profdata).arg("merge").arg("-o").arg(&profdata).arg(profraw).output().map_err(|e| format!("cannot run {}: {e}", tools.profdata.display()))?;
     if !out.status.success() {
@@ -444,6 +456,105 @@ fn v0_path(b: &[u8], pos: &mut usize) -> Option<Vec<String>> {
         }
         b'I' => v0_path(b, pos),
         _ => None,
+    }
+}
+
+/// The Kernel's coverage report (task 19.5, R53.3): llvm-cov's totals and
+/// per-file figures over the Kernel sources from the Kernel coverage build.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KernelFile {
+    pub file: String,
+    pub lines_covered: u64,
+    pub lines: u64,
+    pub branches_covered: u64,
+    pub branches: u64,
+    pub functions_covered: u64,
+    pub functions: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KernelReport {
+    pub schema: String,
+    pub configuration: String,
+    pub binary_hash: String,
+    pub totals: KernelFile,
+    pub files: Vec<KernelFile>,
+}
+
+pub const KERNEL_SCHEMA: &str = "rsk-kernel-coverage/1";
+
+fn kernel_file(name: &str, s: &serde_json::Value) -> KernelFile {
+    let n = |k: &str, f: &str| s[k][f].as_u64().unwrap_or(0);
+    KernelFile { file: name.to_string(), lines_covered: n("lines", "covered"), lines: n("lines", "count"), branches_covered: n("branches", "covered"), branches: n("branches", "count"), functions_covered: n("functions", "covered"), functions: n("functions", "count") }
+}
+
+/// From an export restricted to the Kernel sources; `root` is stripped
+/// from the file names.
+pub fn kernel_report(export: &serde_json::Value, root: &str, configuration: &str, binary_hash: &str) -> KernelReport {
+    let d = &export["data"][0];
+    let totals = kernel_file("total", &d["totals"]);
+    let mut files: Vec<KernelFile> = d["files"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|f| {
+            let name = f["filename"].as_str().unwrap_or("");
+            kernel_file(name.strip_prefix(root).unwrap_or(name).trim_start_matches('/'), &f["summary"])
+        })
+        .collect();
+    files.sort_by(|a, b| a.file.cmp(&b.file));
+    KernelReport { schema: KERNEL_SCHEMA.into(), configuration: configuration.into(), binary_hash: binary_hash.into(), totals, files }
+}
+
+impl KernelReport {
+    pub fn pct(c: u64, n: u64) -> String {
+        if n == 0 {
+            "-".to_string()
+        } else {
+            format!("{:.1} %", c as f64 * 100.0 / n as f64)
+        }
+    }
+
+    pub fn summary(&self) -> String {
+        let t = &self.totals;
+        format!(
+            "the Kernel on the Target: lines {} ({} of {}), branch outcomes {} ({} of {}), functions {} ({} of {}) of the Kernel sources",
+            Self::pct(t.lines_covered, t.lines),
+            t.lines_covered,
+            t.lines,
+            Self::pct(t.branches_covered, t.branches),
+            t.branches_covered,
+            t.branches,
+            Self::pct(t.functions_covered, t.functions),
+            t.functions_covered,
+            t.functions
+        )
+    }
+
+    pub fn render(&self) -> String {
+        let mut s = String::from("| File | Lines | Branch outcomes | Functions |\n|---|---|---|---|\n");
+        for f in self.files.iter().chain(std::iter::once(&self.totals)) {
+            s.push_str(&format!(
+                "| {} | {} ({} of {}) | {} ({} of {}) | {} ({} of {}) |\n",
+                if f.file == "total" { "**total**" } else { &f.file },
+                Self::pct(f.lines_covered, f.lines),
+                f.lines_covered,
+                f.lines,
+                Self::pct(f.branches_covered, f.branches),
+                f.branches_covered,
+                f.branches,
+                Self::pct(f.functions_covered, f.functions),
+                f.functions_covered,
+                f.functions
+            ));
+        }
+        s
+    }
+
+    pub fn print(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_default() + "\n"
     }
 }
 
