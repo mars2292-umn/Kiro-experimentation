@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_measure",
-  "binary_hash": "sha256:87773056f8bf4206532f88c9b8315494f7078a5cedccbfb01520e48b9f710208",
+  "binary_hash": "sha256:99eaca9e9d14c588f18cd8e1cc2977c4442ed65ffc30d888fb4f6f62fdcdb2ca",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -23,7 +23,7 @@
       "label": "hold",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 558,
+      "observed": 549,
       "verdict": "unreachable",
       "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
@@ -59,7 +59,7 @@
       "label": "busy",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 280,
+      "observed": 277,
       "verdict": "unreachable",
       "justification": "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },

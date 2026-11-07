@@ -1914,8 +1914,21 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
         // (task 19.2, 2026-11-05): FAIL and R28.4 are recorded as
         // inconclusive, with the reason, not as the set's verdict.
         let fault_injection = crate::hil::MEASUREMENTS.iter().any(|m| m.variant == variant && m.stress);
+        // The stress configuration's documented claim (11.14, 2026-11-07):
+        // the Tasks of the highest Criticality_Level are schedulable, the
+        // lower-criticality Tasks need not be (the configuration's overload
+        // is its purpose, R18.7). The item passes on that claim.
+        let protected: Vec<String> = crate::hil::task_model(ws, &bin, variant)
+            .map(|m| {
+                let top = m.partitions.iter().map(|p| p.level.clone()).min().unwrap_or_default();
+                let ids: Vec<String> = m.partitions.iter().filter(|p| p.level == top).map(|p| p.id.clone()).collect();
+                m.tasks.iter().filter(|t| ids.contains(&t.partition)).map(|t| format!("`{}`", t.id)).collect()
+            })
+            .unwrap_or_default();
+        let protected_schedulable = fault_injection && status == 1 && !protected.is_empty() && !unschedulable.iter().any(|l| protected.iter().any(|t| l.contains(t.as_str())));
         let verdict = match status {
             0 => Verdict::Pass,
+            1 if protected_schedulable => Verdict::Pass,
             1 if fault_injection => Verdict::Inconclusive,
             1 => Verdict::Fail,
             _ => Verdict::Inconclusive,
@@ -1926,6 +1939,12 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
         };
         match status {
             0 => report.note(format!("task 19.3: `{variant}`: schedulable with the measured Kernel_Timing_Parameters of {} and {wcet_used}; {measured_line}", ws.rel(record))),
+            1 if protected_schedulable => report.note(format!(
+                "task 19.3: `{variant}`: the protected Partition's Tasks ({}) schedulable with the measured Kernel_Timing_Parameters of {} and {wcet_used}, the lower-criticality Tasks not, as the fault-injection configuration claims (R18.7, 11.14): {}; {measured_line}",
+                protected.join(", "),
+                ws.rel(record),
+                unschedulable.join(" | ")
+            )),
             1 => report.note(format!(
                 "task 19.3 FINDING: `{variant}`: NOT schedulable with the measured Kernel_Timing_Parameters of {} and {wcet_used}{}: {}; {measured_line}",
                 ws.rel(record),
@@ -1957,6 +1976,7 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
             crate::hil::MARGIN_PERCENT,
             match status {
                 0 => "schedulable".to_string(),
+                1 if protected_schedulable => format!("the protected Partition's Tasks schedulable, the lower-criticality Tasks not, the fault-injection configuration's documented property (R18.7, 11.14): {}", unschedulable.join(" | ")),
                 1 => format!("NOT schedulable under these inputs, a finding of task 19.3 pending measured WCET_Records: {}", unschedulable.join(" | ")),
                 _ if budget_rejection => "REJECTED under R28.4: a measured WCET above its Task's Budget, the configuration's injected overruns (task 19.1)".to_string(),
                 _ => format!("the Analyzer did not run to a verdict (exit {status})"),

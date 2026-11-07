@@ -60,11 +60,11 @@ pub const ENTRY_PARAMETERS: &[(&str, &[usize], &str)] = &[
 /// L_kernel: the longest Kernel entry of any kind (every entry runs with
 /// preemption masked), the stub's portion being Δ_entry where the run
 /// measured it (`delta_entry_cycles`).
-pub fn entry_parameters(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, span: Option<crate::release_timing::Span>) -> Vec<KernelTimingParameter> {
+pub fn entry_parameters(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, span: Option<&crate::release_timing::Span>) -> Vec<KernelTimingParameter> {
     entry_parameters_with(st, scenario, margin_percent, None, span)
 }
 
-pub fn entry_parameters_with(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, delta_entry_cycles: Option<u64>, span: Option<crate::release_timing::Span>) -> Vec<KernelTimingParameter> {
+pub fn entry_parameters_with(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, delta_entry_cycles: Option<u64>, span: Option<&crate::release_timing::Span>) -> Vec<KernelTimingParameter> {
     let instrumented = "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".to_string();
     let mut out = Vec::new();
     // L_kernel: the longest masked span measured end to end (11.13,
@@ -75,11 +75,12 @@ pub fn entry_parameters_with(st: &crate::stats::Stats, scenario: &str, margin_pe
     let longest = st.entries.iter().enumerate().filter(|(k, _)| *k != 15).map(|(_, e)| e.max_cycles as u64).max().unwrap_or(0);
     let half = longest + delta_entry_cycles.unwrap_or(0);
     let span_max = span.map(|s| s.max_cycles as u64 + delta_entry_cycles.unwrap_or(0)).unwrap_or(0);
+    let by_kind = span.map(|s| s.by_kind.iter().enumerate().filter(|(_, (n, _))| *n > 0).map(|(k, (n, m))| format!("{} {n} (longest {m})", crate::stats::ENTRY_NAMES.get(k).copied().unwrap_or("?"))).collect::<Vec<_>>().join(", ")).unwrap_or_default();
     if longest > 0 || span_max > 0 {
         let runs: u64 = match span { Some(s) if s.max_cycles > 0 => s.count as u64, _ => st.entries.iter().map(|e| e.count as u64).sum() };
         let max = half.max(span_max);
         let basis = match span {
-            Some(s) if s.max_cycles as u64 + delta_entry_cycles.unwrap_or(0) >= half => format!("the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; {} cycles, closed by a {} entry; the longest single Rust half {longest}){}", s.max_cycles, crate::stats::ENTRY_NAMES.get(s.kind as usize).copied().unwrap_or("?"), match delta_entry_cycles { Some(d) => format!(" plus the stub's measured {d} cycles outside the charge points (Δ_entry)"), None => String::new() }),
+            Some(s) if s.max_cycles as u64 + delta_entry_cycles.unwrap_or(0) >= half => format!("the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; {} cycles, closed by a {} entry; the spans by closing entry: {by_kind}; the longest single Rust half {longest}){}", s.max_cycles, crate::stats::ENTRY_NAMES.get(s.kind as usize).copied().unwrap_or("?"), match delta_entry_cycles { Some(d) => format!(" plus the stub's measured {d} cycles outside the charge points (Δ_entry)"), None => String::new() }),
             _ => format!("the longest Kernel entry of the run (every entry masks preemption, DD-01): the largest Rust half of any kind{}", match delta_entry_cycles { Some(d) => format!(" plus the stub's measured {d} cycles outside the charge points (Δ_entry)"), None => " (the stub's cycles outside the charge points, Δ_entry, come from the cycle configuration's record)".to_string() }),
         };
         out.push(KernelTimingParameter {
@@ -209,7 +210,7 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, binding: &Binding<'_>, margin_
             measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.clone()] }),
         });
     }
-    parameters.extend(entry_parameters(st, &scenario, margin_percent, out.span));
+    parameters.extend(entry_parameters(st, &scenario, margin_percent, out.span.as_ref()));
     if parameters.is_empty() {
         return None;
     }

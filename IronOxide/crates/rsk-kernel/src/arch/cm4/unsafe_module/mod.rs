@@ -708,23 +708,33 @@ fn windows() -> &'static mut [u32; 2] {
 /// pending Kernel-level exception, a dispatch vector the resumed BASEPRI
 /// admits, or its own unwind (`rsk_unwind`'s epilogues) keeps the span
 /// open. `ARCH_SPAN`: magic, max cycles, spans counted, the span's start,
-/// open (1) or closed, the entry kind that closed the longest span.
+/// open (1) or closed, the entry kind that closed the longest span; then
+/// a histogram of the spans' lengths by their binary order of magnitude
+/// (`SPAN_BUCKETS` buckets from 2^6 cycles, the last one open-ended) and,
+/// per closing entry kind (`ENTRY_KINDS`), the spans' count and maximum.
 #[cfg(feature = "trace-ram")]
-struct SpanCell(UnsafeCell<[u32; 6]>);
+pub const SPAN_BUCKETS: usize = 16;
+#[cfg(feature = "trace-ram")]
+const SPAN_HEADER: usize = 6;
+#[cfg(feature = "trace-ram")]
+const SPAN_WORDS: usize = SPAN_HEADER + SPAN_BUCKETS + 2 * ENTRY_KINDS;
+#[cfg(feature = "trace-ram")]
+struct SpanCell(UnsafeCell<[u32; SPAN_WORDS]>);
 // SAFETY (UJ-005g): as UJ-005.
 #[cfg(feature = "trace-ram")]
 unsafe impl Sync for SpanCell {}
 #[cfg(feature = "trace-ram")]
 #[no_mangle]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
-static ARCH_SPAN: SpanCell = SpanCell(UnsafeCell::new([0; 6]));
+static ARCH_SPAN: SpanCell = SpanCell(UnsafeCell::new([0; SPAN_WORDS]));
 
 #[cfg(feature = "trace-ram")]
-fn span() -> &'static mut [u32; 6] {
+fn span() -> &'static mut [u32; SPAN_WORDS] {
     // SAFETY (UJ-006g): as UJ-006.
     let s = unsafe { &mut *ARCH_SPAN.0.get() };
     if s[0] != ACTIONS_MAGIC {
-        *s = [ACTIONS_MAGIC, 0, 0, 0, 0, 0];
+        *s = [0; SPAN_WORDS];
+        s[0] = ACTIONS_MAGIC;
     }
     s
 }
@@ -732,7 +742,9 @@ fn span() -> &'static mut [u32; 6] {
 /// Clears the masked-span record (at instant 0).
 #[cfg(feature = "trace-ram")]
 pub fn span_reset() {
-    *span() = [ACTIONS_MAGIC, 0, 0, 0, 0, 0];
+    let s = span();
+    *s = [0; SPAN_WORDS];
+    s[0] = ACTIONS_MAGIC;
 }
 
 /// A Kernel entry's Rust half begins: opens a span unless one is open
@@ -763,6 +775,19 @@ pub fn span_leave(kind: u8, chained: bool) {
     if len > s[1] {
         s[1] = len;
         s[5] = kind as u32;
+    }
+    // The histogram: bucket b holds the spans of 2^(b+6) to 2^(b+7)-1
+    // cycles, the first everything below 2^7, the last everything from
+    // 2^21 on.
+    let order = 32 - len.leading_zeros() as usize;
+    let b = order.saturating_sub(7).min(SPAN_BUCKETS - 1);
+    s[SPAN_HEADER + b] = s[SPAN_HEADER + b].saturating_add(1);
+    if (kind as usize) < ENTRY_KINDS {
+        let k = SPAN_HEADER + SPAN_BUCKETS + 2 * kind as usize;
+        s[k] = s[k].saturating_add(1);
+        if len > s[k + 1] {
+            s[k + 1] = len;
+        }
     }
 }
 

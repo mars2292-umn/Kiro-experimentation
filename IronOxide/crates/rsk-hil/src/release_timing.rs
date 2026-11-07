@@ -109,11 +109,41 @@ pub struct Outcome {
     pub span: Option<Span>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Span {
     pub max_cycles: u32,
     pub count: u32,
     pub kind: u8,
+    /// Spans by binary order of magnitude: bucket b holds those of
+    /// 2^(b+6) to 2^(b+7)-1 cycles (the first everything below 2^7, the
+    /// last everything from 2^21 on).
+    pub histogram: Vec<u32>,
+    /// Per closing entry kind (`stats::ENTRY_NAMES`): count and maximum.
+    pub by_kind: Vec<(u32, u32)>,
+}
+
+impl Span {
+    /// The histogram and the closing kinds as a table (cycles at `cpu_hz`).
+    pub fn render(&self, cpu_hz: u64) -> String {
+        let us = |c: u32| c as f64 * 1e6 / cpu_hz as f64;
+        let mut s = String::from("| Span (cycles) | Spans |\n|---|---|\n");
+        for (b, n) in self.histogram.iter().enumerate() {
+            if *n == 0 {
+                continue;
+            }
+            let lo: u64 = if b == 0 { 0 } else { 1u64 << (b + 6) };
+            let label = if b + 1 == self.histogram.len() { format!("{lo} and above ({:.0} µs and above)", us(lo as u32)) } else { format!("{lo} to {} ({:.1} to {:.1} µs)", (1u64 << (b + 7)) - 1, us(lo as u32), us(((1u64 << (b + 7)) - 1) as u32)) };
+            s.push_str(&format!("| {label} | {n} |\n"));
+        }
+        s.push_str("\n| Closing entry | Spans | Longest (cycles / µs) |\n|---|---|---|\n");
+        for (k, (n, max)) in self.by_kind.iter().enumerate() {
+            if *n == 0 {
+                continue;
+            }
+            s.push_str(&format!("| {} | {n} | {max} / {:.1} |\n", crate::stats::ENTRY_NAMES.get(k).copied().unwrap_or("?"), us(*max)));
+        }
+        s
+    }
 }
 
 impl Outcome {
@@ -400,8 +430,10 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     // The masked span (11.13; the basis of L_kernel since 2026-11-07).
     match target.read_words(inputs.target_elf, "ARCH_SPAN", &scratch) {
         Ok(Some(w)) if w.len() >= 6 && w[0] == 0x5253_4b41 => {
-            let span = Span { max_cycles: w[1], count: w[2], kind: w[5] as u8 };
-            out.span = Some(span);
+            let histogram: Vec<u32> = w.get(6..22).map(|h| h.to_vec()).unwrap_or_default();
+            let by_kind: Vec<(u32, u32)> = w.get(22..54).map(|k| k.chunks(2).map(|c| (c[0], c[1])).collect()).unwrap_or_default();
+            let span = Span { max_cycles: w[1], count: w[2], kind: w[5] as u8, histogram, by_kind };
+            out.span = Some(span.clone());
             let name = crate::stats::ENTRY_NAMES.get(span.kind as usize).copied().unwrap_or("?");
             out.step(
                 "masked span (L_kernel)",
@@ -585,6 +617,11 @@ pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome) -> String {
     if let Some(st) = &out.stats {
         s.push_str("\n## The Kernel's release-timing record\n\n");
         s.push_str(&st.render(inputs.cpu_hz, inputs.tick_hz));
+    }
+    if let Some(sp) = &out.span {
+        s.push_str("\n## The Kernel's masked spans (11.13)\n\n");
+        s.push_str(&format!("Every stretch without a Kernel-level interrupt taken, {} of them, the longest {} cycles ({:.1} µs), closed by a {} entry:\n\n", sp.count, sp.max_cycles, sp.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, crate::stats::ENTRY_NAMES.get(sp.kind as usize).copied().unwrap_or("?")));
+        s.push_str(&sp.render(inputs.cpu_hz));
     }
     if let Some(f) = &out.faults {
         if f.written > 0 {
