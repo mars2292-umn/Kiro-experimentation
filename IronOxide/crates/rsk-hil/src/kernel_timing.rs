@@ -60,26 +60,35 @@ pub const ENTRY_PARAMETERS: &[(&str, &[usize], &str)] = &[
 /// L_kernel: the longest Kernel entry of any kind (every entry runs with
 /// preemption masked), the stub's portion being Δ_entry where the run
 /// measured it (`delta_entry_cycles`).
-pub fn entry_parameters(st: &crate::stats::Stats, scenario: &str, margin_percent: u64) -> Vec<KernelTimingParameter> {
-    entry_parameters_with(st, scenario, margin_percent, None)
+pub fn entry_parameters(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, span: Option<crate::release_timing::Span>) -> Vec<KernelTimingParameter> {
+    entry_parameters_with(st, scenario, margin_percent, None, span)
 }
 
-pub fn entry_parameters_with(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, delta_entry_cycles: Option<u64>) -> Vec<KernelTimingParameter> {
+pub fn entry_parameters_with(st: &crate::stats::Stats, scenario: &str, margin_percent: u64, delta_entry_cycles: Option<u64>, span: Option<crate::release_timing::Span>) -> Vec<KernelTimingParameter> {
     let instrumented = "HIL build (trace-ram, trace-pins): the instrumentation's cost is included".to_string();
     let mut out = Vec::new();
-    // L_kernel: the longest Rust half of any entry kind but the view load
-    // (inside a dispatch), plus the stub's cycles outside the charge points.
+    // L_kernel: the longest masked span measured end to end (11.13,
+    // 2026-11-07: a Kernel entry whose return tail-chains into another or
+    // unwinds a Job masks for the sum, not the longest Rust half), or,
+    // without the span record, the longest Rust half of any entry kind but
+    // the view load plus the stub's cycles outside the charge points.
     let longest = st.entries.iter().enumerate().filter(|(k, _)| *k != 15).map(|(_, e)| e.max_cycles as u64).max().unwrap_or(0);
-    if longest > 0 {
-        let runs: u64 = st.entries.iter().map(|e| e.count as u64).sum();
-        let max = longest + delta_entry_cycles.unwrap_or(0);
+    let half = longest + delta_entry_cycles.unwrap_or(0);
+    let span_max = span.map(|s| s.max_cycles as u64 + delta_entry_cycles.unwrap_or(0)).unwrap_or(0);
+    if longest > 0 || span_max > 0 {
+        let runs: u64 = match span { Some(s) if s.max_cycles > 0 => s.count as u64, _ => st.entries.iter().map(|e| e.count as u64).sum() };
+        let max = half.max(span_max);
+        let basis = match span {
+            Some(s) if s.max_cycles as u64 + delta_entry_cycles.unwrap_or(0) >= half => format!("the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; {} cycles, closed by a {} entry; the longest single Rust half {longest}){}", s.max_cycles, crate::stats::ENTRY_NAMES.get(s.kind as usize).copied().unwrap_or("?"), match delta_entry_cycles { Some(d) => format!(" plus the stub's measured {d} cycles outside the charge points (Δ_entry)"), None => String::new() }),
+            _ => format!("the longest Kernel entry of the run (every entry masks preemption, DD-01): the largest Rust half of any kind{}", match delta_entry_cycles { Some(d) => format!(" plus the stub's measured {d} cycles outside the charge points (Δ_entry)"), None => " (the stub's cycles outside the charge points, Δ_entry, come from the cycle configuration's record)".to_string() }),
+        };
         out.push(KernelTimingParameter {
             symbol: "l_kernel".into(),
             cycles: bound(max, margin_percent),
             method: "measured".into(),
             tool: TOOL.into(),
             conditions: vec![
-                format!("the longest Kernel entry of the run (every entry masks preemption, DD-01): the largest Rust half of any kind{} (task 19.3; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)", match delta_entry_cycles { Some(d) => format!(" plus the stub's measured {d} cycles outside the charge points (Δ_entry)"), None => " (the stub's cycles outside the charge points, Δ_entry, come from the cycle configuration's record)".to_string() }),
+                format!("{basis} (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)"),
                 instrumented.clone(),
             ],
             measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.to_string()] }),
@@ -108,7 +117,7 @@ pub fn entry_parameters_with(st: &crate::stats::Stats, scenario: &str, margin_pe
 /// parameters given (`extra`, such as Δ_entry from the cycle test).
 pub fn record_from_stats(st: &crate::stats::Stats, binding: &Binding<'_>, cpu_hz: u64, scenario: &str, margin_percent: u64, extra: Vec<KernelTimingParameter>) -> Option<KernelTiming> {
     let delta_entry = extra.iter().find(|p| p.symbol == "delta_entry").and_then(|p| p.measured.as_ref()).map(|m| m.max_observed);
-    let mut parameters = entry_parameters_with(st, scenario, margin_percent, delta_entry);
+    let mut parameters = entry_parameters_with(st, scenario, margin_percent, delta_entry, None);
     parameters.extend(extra);
     if parameters.is_empty() {
         return None;
@@ -200,7 +209,7 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, binding: &Binding<'_>, margin_
             measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.clone()] }),
         });
     }
-    parameters.extend(entry_parameters(st, &scenario, margin_percent));
+    parameters.extend(entry_parameters(st, &scenario, margin_percent, out.span));
     if parameters.is_empty() {
         return None;
     }

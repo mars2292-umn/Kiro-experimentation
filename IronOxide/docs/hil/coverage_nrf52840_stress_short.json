@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:f35d2c54b5ef9f4d0fc72de8c5aa882fec910e5403142d42711056ca6b6cccc1",
+  "binary_hash": "sha256:4b4a439dcb142c94cbcb1ec3e9682143a161c60ebe25e9976e4fca0b4f7bb57f",
   "threshold_percent": 50,
   "items": [
     {
@@ -170,15 +170,16 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 24,
-      "covered": 18,
-      "percent": 75,
+      "covered": 17,
+      "percent": 70,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
         "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::filter::{closure}: 325:67 false"
       ]
     },
     {
@@ -202,15 +203,16 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 24,
-      "covered": 18,
-      "percent": 75,
+      "covered": 17,
+      "percent": 70,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
         "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::Stats::record: 253:12 false",
+        "p1_demo_part2::filter::{closure}: 325:67 false"
       ]
     },
     {
@@ -349,8 +351,10 @@
       "name": "p1_demo_part2::filter::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 6,
-      "covered": 6,
-      "uncovered": []
+      "covered": 5,
+      "uncovered": [
+        "325:67 false"
+      ]
     },
     {
       "name": "p1_demo_part2::filter::{closure}",

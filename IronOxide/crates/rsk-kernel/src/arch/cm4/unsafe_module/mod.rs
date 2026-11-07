@@ -700,6 +700,72 @@ fn windows() -> &'static mut [u32; 2] {
     d
 }
 
+/// The masked span (Verification_Plan 11.13, 2026-11-07; the basis of
+/// L_kernel): the longest stretch during which a Kernel-level interrupt
+/// cannot be taken, measured end to end from the first Rust half of a
+/// Kernel entry to the last one that returns to Thread mode with nothing
+/// pending that will tail-chain: a handler whose return is followed by a
+/// pending Kernel-level exception, a dispatch vector the resumed BASEPRI
+/// admits, or its own unwind (`rsk_unwind`'s epilogues) keeps the span
+/// open. `ARCH_SPAN`: magic, max cycles, spans counted, the span's start,
+/// open (1) or closed, the entry kind that closed the longest span.
+#[cfg(feature = "trace-ram")]
+struct SpanCell(UnsafeCell<[u32; 6]>);
+// SAFETY (UJ-005g): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for SpanCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
+static ARCH_SPAN: SpanCell = SpanCell(UnsafeCell::new([0; 6]));
+
+#[cfg(feature = "trace-ram")]
+fn span() -> &'static mut [u32; 6] {
+    // SAFETY (UJ-006g): as UJ-006.
+    let s = unsafe { &mut *ARCH_SPAN.0.get() };
+    if s[0] != ACTIONS_MAGIC {
+        *s = [ACTIONS_MAGIC, 0, 0, 0, 0, 0];
+    }
+    s
+}
+
+/// Clears the masked-span record (at instant 0).
+#[cfg(feature = "trace-ram")]
+pub fn span_reset() {
+    *span() = [ACTIONS_MAGIC, 0, 0, 0, 0, 0];
+}
+
+/// A Kernel entry's Rust half begins: opens a span unless one is open
+/// (a tail-chained or unwinding continuation).
+#[cfg(feature = "trace-ram")]
+pub fn span_enter() {
+    let now = hw::dwt_cyccnt();
+    let s = span();
+    if s[4] == 0 {
+        s[3] = now;
+        s[4] = 1;
+    }
+}
+
+/// A Kernel entry's Rust half ends: closes the span unless `chained` (the
+/// return does not reach a Thread-mode context in which a Kernel-level
+/// interrupt is taken).
+#[cfg(feature = "trace-ram")]
+pub fn span_leave(kind: u8, chained: bool) {
+    let now = hw::dwt_cyccnt();
+    let s = span();
+    if chained || s[4] == 0 {
+        return;
+    }
+    let len = now.wrapping_sub(s[3]);
+    s[4] = 0;
+    s[2] = s[2].saturating_add(1);
+    if len > s[1] {
+        s[1] = len;
+        s[5] = kind as u32;
+    }
+}
+
 #[cfg(feature = "trace-ram")]
 fn actions() -> &'static mut [u32; ACTIONS_WORDS] {
     // SAFETY (UJ-006e): as UJ-006.

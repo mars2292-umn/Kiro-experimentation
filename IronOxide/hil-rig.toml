@@ -79,13 +79,18 @@ j_rel_cycles = 10000
 # for the Analyzer (task 19.3) carries the observed maximum with the
 # margin of R34.6.
 delta_irq_cycles = 2600
-# Task 19.2 (2026-11-06): the exported bound of L_kernel, the longest
-# Kernel entry (every entry masks preemption): 4,340 to 4,498 cycles
-# measured (plus Δ_entry's 1,765 outside the charge points). With Δ_irq
-# it bounds the lag from a Release_Source edge to the Kernel's timestamp
-# (Δ_stamp): the loopback step allows a wire latency later than the
-# deadline by at most this lag when the Kernel logged no deadline miss.
-l_kernel_cycles = 7000
+# Task 19.2 (2026-11-06): the exported bound of L_kernel. Since 2026-11-07
+# (Verification_Plan 11.13) the longest masked span measured end to end
+# by the HIL build (`ARCH_SPAN`: tail-chained entries and unwinds inside
+# one span): 18,748 cycles in the timing-short run and 26,123 in the
+# hour-long stress run (a timer entry ending a
+# Job, unwinding it, and tail-chaining into the next dispatch), plus
+# Δ_entry's 1,765, with the margin. Before: the longest single entry,
+# 4,340 to 4,498 cycles. With Δ_irq it bounds the lag from a Release_Source
+# edge to the Kernel's timestamp (Δ_stamp): the loopback step allows a wire
+# latency later than the deadline by at most this lag when the Kernel
+# logged no deadline miss.
+l_kernel_cycles = 35000
 # Δ_stamp (Table 13-1), measured since 2026-11-06 by the probe (PPI routes
 # the stimulus edge to a TIMER0 capture; the intake handler records the lag
 # to its timestamp): 3,112 cycles (48.6 µs) over 10,000 edges of the plain

@@ -432,6 +432,8 @@ pub fn start<S: System>() {
     unsafe_module::faults_reset();
     #[cfg(feature = "trace-ram")]
     unsafe_module::actions_reset();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::span_reset();
     // The coverage build (task 19.2): the Partitions' counters are a run's own.
     #[cfg(feature = "coverage")]
     unsafe_module::hw::coverage_reset();
@@ -458,6 +460,8 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     pins_enter();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
     // The time-base vector is served here (`Binding::Kernel`), so the
     // release-timing record of R9.10 is taken around this call.
     #[cfg(feature = "trace-ram")]
@@ -519,8 +523,33 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     if safe {
         S::safe_state();
     }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0);
     pins_running(k.top());
     plan
+}
+
+/// The masked-span record's close (11.13): the span stays open when the
+/// return will not reach a context in which a Kernel-level interrupt is
+/// taken: an unwind follows (`chained`), or the highest pending exception
+/// is a Kernel-level one (a fault, the SVC, the time base, an intake), or
+/// a dispatch vector the resumed BASEPRI admits (it tail-chains into its
+/// stub under PRIMASK). A pending dispatch vector BASEPRI masks, or
+/// nothing pending, closes it: the Job resumes and an intake is taken.
+#[cfg(feature = "trace-ram")]
+fn span_close<S: System>(k: &S::K, kind: u8, chained: bool) {
+    let chained = chained || {
+        let v = hw::vectpending();
+        v != 0
+            && match S::binding(v) {
+                crate::arch::Binding::Dispatch(t) => {
+                    let b = k.basepri_now();
+                    b == 0 || encode_level(k.job_info(t).priority) < b
+                }
+                _ => true,
+            }
+    };
+    unsafe_module::span_leave(kind, chained);
 }
 
 /// Trace pins (feature `trace-pins`): a Kernel handler begins.
@@ -545,6 +574,8 @@ pub fn timer<S: System>() -> ReturnPlan {
     let mut hw = Cm4Hw::new();
     pins_enter();
     #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
+    #[cfg(feature = "trace-ram")]
     let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     #[cfg(feature = "trace-ram")]
@@ -558,6 +589,8 @@ pub fn timer<S: System>() -> ReturnPlan {
     if safe {
         S::safe_state();
     }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0);
     pins_running(k.top());
     hop
 }
@@ -574,6 +607,8 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
         return plan;
     }
     pins_enter();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
     // A late-arriving SVC of a killed Job (found by the fault-injection
     // suite, task 7.5): a Job executes `SVC` and, during the exception
     // entry, a higher-priority Kernel exception (the time base) arrives and
@@ -587,6 +622,8 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     // response took the Target to the safe state.
     if number == entry::SVC_STALE {
         trace(b"svc", entry::SVC_STALE as u32);
+        #[cfg(feature = "trace-ram")]
+        span_close::<S>(k, unsafe_module::ENTRY_PANIC, false);
         pins_running(k.top());
         return 0;
     }
@@ -646,6 +683,8 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     if safe {
         S::safe_state();
     }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, unsafe_module::ENTRY_JOB_END, hop != 0);
     pins_running(k.top());
     hop
 }
@@ -665,6 +704,8 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     let mut hw = Cm4Hw::new();
     pins_enter();
     #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
+    #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     let (r, safe) = entry::epilogue_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), n);
     #[cfg(feature = "trace-ram")]
@@ -673,6 +714,8 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     if safe {
         S::safe_state();
     }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, unsafe_module::ENTRY_EPILOGUE, r.3 != 0);
     pins_running(k.top());
     r
 }
@@ -683,6 +726,8 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     let mut hw = Cm4Hw::new();
     pins_enter();
     #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
+    #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
@@ -692,6 +737,8 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     if safe {
         S::safe_state();
     }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
     pins_running(k.top());
     hop
 }

@@ -103,6 +103,17 @@ pub struct Outcome {
     pub wraps: u64,
     /// The loop-iteration report (task 19.2; R34.9, R35.4).
     pub loops: Option<crate::loops::Report>,
+    /// The masked span record (`ARCH_SPAN`, 11.13): the longest stretch
+    /// in cycles during which a Kernel-level interrupt could not be taken,
+    /// the spans counted, and the entry kind that closed the longest.
+    pub span: Option<Span>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Span {
+    pub max_cycles: u32,
+    pub count: u32,
+    pub kind: u8,
 }
 
 impl Outcome {
@@ -382,6 +393,21 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             vectors.sort();
             vectors.dedup();
             out.step("dispatch deferrals (5.8a)", ok, format!("{} entry-window occurrence(s) handled (a dispatch vector deferred, or an unwind owed to the stub, 0x1xxxx){}; {} actions recorded ({held} held, {} of them deferrals{}){}", total, if counted.is_none() { " (the record's held entries only)" } else { "" }, n, hits.len(), if vectors.is_empty() { String::new() } else { format!(": vectors {}", vectors.join(", ")) }, if inputs.expect_deferrals { if ok { "; the witness build's widened entry was entered and deferred" } else { "; the witness build's widened entry was never entered" } } else { "" }));
+        }
+        _ => {}
+    }
+
+    // The masked span (11.13; the basis of L_kernel since 2026-11-07).
+    match target.read_words(inputs.target_elf, "ARCH_SPAN", &scratch) {
+        Ok(Some(w)) if w.len() >= 6 && w[0] == 0x5253_4b41 => {
+            let span = Span { max_cycles: w[1], count: w[2], kind: w[5] as u8 };
+            out.span = Some(span);
+            let name = crate::stats::ENTRY_NAMES.get(span.kind as usize).copied().unwrap_or("?");
+            out.step(
+                "masked span (L_kernel)",
+                true,
+                format!("the longest stretch without a Kernel-level interrupt taken: {} cycles ({:.1} µs) over {} spans, closed by a {name} entry; against the record's L_kernel {} cycles", span.max_cycles, span.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, span.count, rig.expect.l_kernel_cycles),
+            );
         }
         _ => {}
     }

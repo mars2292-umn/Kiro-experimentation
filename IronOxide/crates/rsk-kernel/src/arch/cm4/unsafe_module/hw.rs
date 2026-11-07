@@ -433,6 +433,12 @@ pub fn irq_of(n: u16) -> Option<u32> {
     }
 }
 
+/// ICSR.VECTPENDING: the exception number of the highest-priority pending
+/// enabled exception, 0 for none (the masked-span record, HIL builds).
+pub fn vectpending() -> u16 {
+    ((mmio_read(addr::ICSR) >> 12) & 0x1FF) as u16
+}
+
 pub fn nvic_enable(n: u16) {
     if let Some(irq) = irq_of(n) {
         mmio_write(addr::NVIC_ISER + 4 * (irq / 32), 1 << (irq % 32));

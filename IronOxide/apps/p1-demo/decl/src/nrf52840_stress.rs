@@ -41,7 +41,7 @@ rsk::app! {
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
-                   budget = 300.us(), priority = 6);
+                   budget = 350.us(), priority = 6);
         task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8800.us(),
                      priority = 5, resources = [state, in_cs]);
     }
@@ -59,7 +59,7 @@ rsk::app! {
         // measured Kernel_Timing_Parameters the set's utilization passed
         // 100 % at 6 ms and the Analyzer computed no WCRT at all; at 4 ms the
         // fixed point exists and part0's WCRTs are the claim of task 19.4.
-        task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 4.ms(), priority = 2);
+        task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 4500.us(), priority = 2);
         task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
     }

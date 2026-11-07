@@ -12,41 +12,41 @@ Target 1366:1060:001050217737 with the stimulus board 1366:1061:001050279833; an
 | target run | pass | the report ran after 23.7 s (the safe state of 1.9 s, by design) |
 | responses (R14.5, R14.11) | pass | 29 events; overrun at 201 ms: control's Budget overrun, RECORD_AND_CONTINUE \| memmanage at 251 ms: filter's fault \| end_job at 251 ms: END_JOB as part2's fault response \| overrun at 413 ms: log's Budget overrun \| end_job at 413 ms: END_JOB as part1's Overrun_Response \| overrun at 501 ms: filter's Budget overrun inside its Critical_Section \| partition_restart at 501 ms: END_JOB escalated to RESTART_PARTITION (R18.4) \| resource_released at 501 ms: the Resource released by force (R8.9) \| memmanage at 800 ms: log's fault \| partition_restart at 800 ms: RESTART_PARTITION as part1's fault response \| deadline_miss at 1325 ms: sensor's own deadline miss (R9.6; KD-R9.6 fixed), RECORD_ONLY \| deadline_miss at 1345 ms: the deadline miss of sensor's held Release (R9.7), RECORD_ONLY \| deadline_miss at 1350 ms: filter's deadline missed while pending (its Release of 1,325 ms) \| partition_stop at 1350 ms: STOP_PARTITION as part2's deadline-miss response \| memmanage at 1900 ms: control's fault \| safe_state at 1900 ms: SAFE_STATE as part0's fault response \| overrun at 1314 ms: sensor's Budget overrun, RECORD_AND_CONTINUE |
 | part0 unchanged by the other Partitions' responses (R14.9) | pass | control 190 (189 or 190 expected), echo 63 (about 63), sensor 90 (90: 95 Releases less the five its 120 ms Job held and discarded) at the safe state of 1.9 s |
-| part1 restarted at 800 ms: state re-initialized, Releases resumed (R14.5) | pass | log 25 (about 25 since the restart; 47 had it kept its state), pulse 55 (about 56 since the restart) |
+| part1 restarted at 800 ms: state re-initialized, Releases resumed (R14.5) | pass | log 25 (about 25 since the restart; 47 had it kept its state), pulse 54 (about 56 since the restart) |
 | part2 restarted at 500 ms and stopped at 1,325 ms (R14.5) | pass | filter 32 (about 32 between the restart and the stop; 76 had it run to the end), sampler 8 (about 8) |
-| pulse answered throughout (the source restarted with its Partition; R14.9 after part2's stop) | pass | 44 answered pulses before part1's restart (of 43), 24 between the restart and sensor's 120 ms Job (of 23), 24 after part2's stop (of 23); 101 matched in all, latency 90 to 10330 µs |
+| pulse answered throughout (the source restarted with its Partition; R14.9 after part2's stop) | pass | 44 answered pulses before part1's restart (of 43), 24 between the restart and sensor's 120 ms Job (of 23), 24 after part2's stop (of 23); 99 matched in all, latency 90 to 8720 µs |
 
 ## The Kernel's events
 
 | Seq | Instant (ms) | Kind | Task | Partition | Detail |
 |---|---|---|---|---|---|
 | 0 | 0.000 | debugger | - | - | 0x1 |
-| 1 | 201.103 | overrun | 0 | 0 | 0xfd55 |
-| 2 | 251.522 | memmanage | 5 | 2 | 0x0 |
-| 3 | 251.522 | end_job | 5 | 2 | 0x2 |
-| 4 | 413.332 | overrun | 3 | 1 | 0x5deab |
-| 5 | 413.332 | end_job | 3 | 1 | 0x6 |
-| 6 | 501.293 | overrun | 5 | 2 | 0xca70 |
-| 7 | 501.293 | partition_restart | - | 2 | 0x6 |
-| 8 | 501.293 | resource_released | 5 | 2 | 0x1 |
-| 9 | 800.540 | memmanage | 3 | 1 | 0x0 |
-| 10 | 800.540 | partition_restart | - | 1 | 0x2 |
-| 11 | 1314.253 | overrun | 2 | 0 | 0x89a44 |
-| 12 | 1325.015 | deadline_miss | 2 | 0 | 0x0 |
-| 13 | 1325.015 | release_overlap | 2 | 0 | 0x0 |
-| 14 | 1337.548 | deadline_miss | 4 | 1 | 0x0 |
-| 15 | 1345.010 | deadline_miss | 2 | 0 | 0x0 |
-| 16 | 1345.010 | mit_violation | 2 | 0 | 0x0 |
+| 1 | 201.108 | overrun | 0 | 0 | 0xfdca |
+| 2 | 251.546 | memmanage | 5 | 2 | 0x0 |
+| 3 | 251.546 | end_job | 5 | 2 | 0x2 |
+| 4 | 413.411 | overrun | 3 | 1 | 0x5e0ca |
+| 5 | 413.411 | end_job | 3 | 1 | 0x6 |
+| 6 | 501.326 | overrun | 5 | 2 | 0xcc69 |
+| 7 | 501.326 | partition_restart | - | 2 | 0x6 |
+| 8 | 501.326 | resource_released | 5 | 2 | 0x1 |
+| 9 | 800.277 | memmanage | 3 | 1 | 0x0 |
+| 10 | 800.277 | partition_restart | - | 1 | 0x2 |
+| 11 | 1314.285 | overrun | 2 | 0 | 0x89c1b |
+| 12 | 1321.182 | deadline_miss | 4 | 1 | 0x0 |
+| 13 | 1325.014 | deadline_miss | 2 | 0 | 0x0 |
+| 14 | 1325.014 | release_overlap | 2 | 0 | 0x0 |
+| 15 | 1345.012 | deadline_miss | 2 | 0 | 0x0 |
+| 16 | 1345.012 | mit_violation | 2 | 0 | 0x0 |
 | 17 | 1350.015 | deadline_miss | 5 | 2 | 0x0 |
 | 18 | 1350.015 | partition_stop | - | 2 | 0x7 |
-| 19 | 1360.010 | deadline_miss | 3 | 1 | 0x0 |
-| 20 | 1360.010 | mit_violation | 3 | 1 | 0x0 |
-| 21 | 1365.013 | mit_violation | 2 | 0 | 0x0 |
-| 22 | 1385.009 | mit_violation | 2 | 0 | 0x0 |
-| 23 | 1400.015 | mit_violation | 3 | 1 | 0x0 |
-| 24 | 1405.009 | mit_violation | 2 | 0 | 0x0 |
-| 25 | 1425.013 | mit_violation | 2 | 0 | 0x0 |
-| 26 | 1440.015 | release_overlap | 3 | 1 | 0x0 |
+| 19 | 1360.015 | deadline_miss | 3 | 1 | 0x0 |
+| 20 | 1360.015 | mit_violation | 3 | 1 | 0x0 |
+| 21 | 1365.018 | mit_violation | 2 | 0 | 0x0 |
+| 22 | 1385.010 | mit_violation | 2 | 0 | 0x0 |
+| 23 | 1400.013 | mit_violation | 3 | 1 | 0x0 |
+| 24 | 1405.018 | mit_violation | 2 | 0 | 0x0 |
+| 25 | 1425.010 | mit_violation | 2 | 0 | 0x0 |
+| 26 | 1440.018 | release_overlap | 3 | 1 | 0x0 |
 | 27 | 1900.009 | memmanage | 0 | 0 | 0x0 |
 | 28 | 1900.009 | safe_state | - | - | 0x0 |
 
@@ -54,78 +54,78 @@ Target 1366:1060:001050217737 with the stimulus board 1366:1061:001050279833; an
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 190 | 4988 / 77.9 | 3418 | 2^12:187 2^13:3 |
-| 2 | 90 | 4296 / 67.1 | 3221 | 2^12:89 2^13:1 |
-| 3 | 45 | 4155 / 64.9 | 3544 | 2^12:44 2^13:1 |
-| 5 | 53 | 4296 / 67.1 | 3510 | 2^12:52 2^13:1 |
-| 6 | 13 | 4021 / 62.8 | 3818 | 2^12:13 |
+| 0 | 190 | 5031 / 78.6 | 3541 | 2^12:185 2^13:5 |
+| 2 | 90 | 4169 / 65.1 | 3254 | 2^12:89 2^13:1 |
+| 3 | 45 | 4333 / 67.7 | 3580 | 2^12:44 2^13:1 |
+| 5 | 53 | 4169 / 65.1 | 3604 | 2^12:51 2^13:2 |
+| 6 | 13 | 4072 / 63.6 | 3877 | 2^12:13 |
 
 Releases recorded: 391; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 190 | 2.336 | 0 | 0 | 0 |
-| 1 | 63 | 0.235 | 0 | 0 | 0 |
-| 2 | 90 | 126.759 | 0 | 0 | 0 |
-| 3 | 44 | 121.308 | 0 | 0 | 0 |
-| 4 | 100 | 115.636 | 100 | 2197 | 2015 |
-| 5 | 51 | 6.982 | 0 | 0 | 0 |
-| 6 | 13 | 13.548 | 0 | 0 | 0 |
+| 0 | 190 | 2.354 | 0 | 0 | 0 |
+| 1 | 63 | 0.244 | 0 | 0 | 0 |
+| 2 | 90 | 126.796 | 0 | 0 | 0 |
+| 3 | 44 | 121.387 | 0 | 0 | 0 |
+| 4 | 98 | 132.065 | 98 | 2126 | 1979 |
+| 5 | 51 | 7.087 | 0 | 0 | 0 |
+| 6 | 13 | 13.637 | 0 | 0 | 0 |
 
 Execution from the Budget accounting (task 19.1; cycle-counter read cost 1 cycles, R34.3):
 
 | Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |
 |---|---|---|---|
-| Task 0 entry | 190 | 141794 / 2.216 (min 10310, mean 14169) | 1 above the Budget; 2^14:155 2^15:35 |
-| Task 1 entry | 63 | 3246 / 0.051 (min 3042, mean 3140) | 0 above the Budget; 2^12:63 |
-| Task 2 entry | 90 | 7891913 / 123.311 (min 397365, mean 484271) | 1 above the Budget; 2^15:90 |
-| Task 3 entry | 44 | 201108 / 3.142 (min 160464, mean 195390) | 0 above the Budget; 2^15:44 |
-| Task 4 entry | 100 | 6623 / 0.103 (min 3199, mean 3289) | 0 above the Budget; 2^12:99 2^13:1 |
-| Task 5 entry | 51 | 12404 / 0.194 (min 7493, mean 7821) | 0 above the Budget; 2^13:49 2^14:2 |
-| Task 6 entry | 13 | 10876 / 0.170 (min 7372, mean 9262) | 0 above the Budget; 2^13:6 2^14:7 |
-| Task 0 on Resource 0 | 190 | 3840 / 0.060 | |
-| Task 0 on Resource 1 | 190 | 305 / 0.005 | |
-| Task 2 on Resource 0 | 90 | 388897 / 6.077 | |
-| Task 2 on Resource 1 | 180 | 3744 / 0.059 | |
-| Task 5 on Resource 2 | 51 | 4912 / 0.077 | |
-| Task 6 on Resource 2 | 13 | 381 / 0.006 | |
+| Task 0 entry | 190 | 142772 / 2.231 (min 10996, mean 15002) | 1 above the Budget; 2^14:144 2^15:46 |
+| Task 1 entry | 63 | 3406 / 0.053 (min 3190, mean 3291) | 0 above the Budget; 2^12:63 |
+| Task 2 entry | 90 | 7886433 / 123.226 (min 398629, mean 485840) | 1 above the Budget; 2^15:90 |
+| Task 3 entry | 44 | 201746 / 3.152 (min 158424, mean 196411) | 0 above the Budget; 2^15:44 |
+| Task 4 entry | 98 | 6899 / 0.108 (min 3351, mean 3439) | 0 above the Budget; 2^12:97 2^13:1 |
+| Task 5 entry | 51 | 11679 / 0.182 (min 8003, mean 8247) | 0 above the Budget; 2^13:23 2^14:28 |
+| Task 6 entry | 13 | 11482 / 0.179 (min 7786, mean 10295) | 0 above the Budget; 2^13:4 2^14:9 |
+| Task 0 on Resource 0 | 190 | 4022 / 0.063 | |
+| Task 0 on Resource 1 | 190 | 4058 / 0.063 | |
+| Task 2 on Resource 0 | 90 | 389172 / 6.081 | |
+| Task 2 on Resource 1 | 180 | 417 / 0.007 | |
+| Task 5 on Resource 2 | 51 | 3913 / 0.061 | |
+| Task 6 on Resource 2 | 13 | 4009 / 0.063 | |
 
 Kernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):
 
 | Entry | Runs | Max (cycles / µs) | Mean (cycles) |
 |---|---|---|---|
-| dispatch | 556 | 2834 / 44.28 | 2666 |
-| timer | 592 | 4348 / 67.94 | 2998 |
-| intake | 100 | 2321 / 36.27 | 2136 |
-| lock | 715 | 491 / 7.67 | 489 |
-| unlock | 714 | 1863 / 29.11 | 1679 |
-| job_end | 551 | 2042 / 31.91 | 1804 |
-| now | 76142 | 247 / 3.86 | 246 |
-| raise | 63 | 2100 / 32.81 | 1992 |
-| dma | 13 | 824 / 12.88 | 824 |
-| fault | 3 | 2494 / 38.97 | 2016 |
-| epilogue | 555 | 1210 / 18.91 | 612 |
-| restart | 2 | 4348 / 67.94 | 3421 |
-| stop | 1 | 4288 / 67.00 | 4288 |
-| enforce | 4 | 4348 / 67.94 | 3440 |
-| view | 705 | 309 / 4.83 | 275 |
+| dispatch | 554 | 2845 / 44.45 | 2691 |
+| timer | 592 | 4335 / 67.73 | 3004 |
+| intake | 98 | 2240 / 35.00 | 2094 |
+| lock | 715 | 481 / 7.52 | 480 |
+| unlock | 714 | 1806 / 28.22 | 1617 |
+| job_end | 549 | 2049 / 32.02 | 1780 |
+| now | 65385 | 237 / 3.70 | 236 |
+| raise | 63 | 2061 / 32.20 | 1957 |
+| dma | 13 | 821 / 12.83 | 820 |
+| fault | 3 | 2528 / 39.50 | 2035 |
+| epilogue | 553 | 1203 / 18.80 | 600 |
+| restart | 2 | 4335 / 67.73 | 3432 |
+| stop | 1 | 4299 / 67.17 | 4299 |
+| enforce | 4 | 4335 / 67.73 | 3451 |
+| view | 698 | 309 / 4.83 | 275 |
 
-Entries that interrupted an executing Job: Task 0: 114, Task 2: 355, Task 3: 37, Task 4: 1, Task 5: 5, Task 6: 7
+Entries that interrupted an executing Job: Task 0: 119, Task 2: 364, Task 3: 31, Task 4: 1, Task 5: 3, Task 6: 9
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 1840.000 ms, 3437 cycles
-- Task 3 at 1840.000 ms, 3437 cycles
-- Task 2 at 1845.000 ms, 3121 cycles
-- Task 0 at 1850.000 ms, 3417 cycles
-- Task 0 at 1860.000 ms, 3205 cycles
-- Task 2 at 1865.000 ms, 3157 cycles
-- Task 0 at 1870.000 ms, 3273 cycles
-- Task 0 at 1880.000 ms, 3445 cycles
-- Task 3 at 1880.000 ms, 3445 cycles
-- Task 2 at 1885.000 ms, 3157 cycles
-- Task 0 at 1890.000 ms, 3273 cycles
-- Task 0 at 1900.000 ms, 3521 cycles
+- Task 0 at 1840.000 ms, 3464 cycles
+- Task 3 at 1840.000 ms, 3464 cycles
+- Task 2 at 1845.000 ms, 3212 cycles
+- Task 0 at 1850.000 ms, 3983 cycles
+- Task 0 at 1860.000 ms, 3192 cycles
+- Task 2 at 1865.000 ms, 3188 cycles
+- Task 0 at 1870.000 ms, 3423 cycles
+- Task 0 at 1880.000 ms, 3488 cycles
+- Task 3 at 1880.000 ms, 3488 cycles
+- Task 2 at 1885.000 ms, 3188 cycles
+- Task 0 at 1890.000 ms, 3423 cycles
+- Task 0 at 1900.000 ms, 3628 cycles
 
 ## Commands
 
@@ -142,7 +142,7 @@ RSK-SAFE-STATE
 control=190
 sensor=90
 log=25
-pulse=55
+pulse=54
 echo=63
 blocked_releases=89
 filter=32
@@ -161,7 +161,7 @@ event=23
 event=6
   task=0
   at_ms=201
-  detail=64853
+  detail=64970
   prs_lo=134217728
   prs_hi=0
 event=2
@@ -179,7 +179,7 @@ event=19
 event=6
   task=3
   at_ms=413
-  detail=384683
+  detail=385226
   prs_lo=134217728
   prs_hi=0
 event=19
@@ -191,7 +191,7 @@ event=19
 event=6
   task=5
   at_ms=501
-  detail=51824
+  detail=52329
   prs_lo=134217728
   prs_hi=0
 event=16
@@ -221,7 +221,13 @@ event=16
 event=6
   task=2
   at_ms=1314
-  detail=563780
+  detail=564251
+  prs_lo=134217728
+  prs_hi=0
+event=7
+  task=4
+  at_ms=1321
+  detail=0
   prs_lo=134217728
   prs_hi=0
 event=7
@@ -235,12 +241,6 @@ event=8
   at_ms=1325
   detail=0
   prs_lo=4096
-  prs_hi=0
-event=7
-  task=4
-  at_ms=1337
-  detail=0
-  prs_lo=134217728
   prs_hi=0
 event=7
   task=2
