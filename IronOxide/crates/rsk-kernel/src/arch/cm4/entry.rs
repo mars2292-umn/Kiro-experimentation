@@ -435,7 +435,16 @@ impl KernelArch for Cm4Hw {
                 }
                 hw::watchdog_feed()
             }
-            Action::Trace(tag, v) => super::trace(super::trace_tag(tag), v),
+            Action::Trace(tag, v) => {
+                // The deferral of 5.8a goes to the actions record too (kind
+                // 3, the vector): the trace ring holds the last 512 entries
+                // only, the record survives the run.
+                #[cfg(feature = "trace-ram")]
+                if tag == TR_DEFER {
+                    super::unsafe_module::action_push(3, v);
+                }
+                super::trace(super::trace_tag(tag), v)
+            }
         }
     }
 
@@ -479,6 +488,8 @@ pub const TR_SVC: u8 = 9;
 pub const TR_EPILOGUE: u8 = 10;
 pub const TR_FAULT: u8 = 11;
 pub const TR_ARM: u8 = 12;
+/// A dispatch vector taken inside another handler's return window, re-pended (2026-11-06).
+pub const TR_DEFER: u8 = 17;
 
 /// A1: the model's BASEPRI is the Hardware_Model's value for the Kernel
 /// state (DD-01, HW-03).
@@ -963,6 +974,24 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     hw.apply(Action::Trace(TR_IRQ, n as u32));
     match tables.binding(n) {
         Binding::Dispatch(t) => {
+            // A dispatch vector taken while another handler is active: the
+            // preempted context is a handler (EXC_RETURN bit 3 clear), which
+            // can only be a dispatch stub in the window between its
+            // PRIMASK clear and its exception return (every other handler
+            // runs at the Kernel level, above every dispatch vector). A
+            // dispatch from here would return to Thread mode with that
+            // exception still active, which DD-01's invariant forbids and
+            // the processor refuses with NONBASETHRDENA clear (UFSR.INVPC:
+            // the finding of 2026-11-06, Verification_Plan section 13).
+            // The vector re-pends itself and returns into the preempted
+            // stub, whose return reaches Thread mode; the NVIC then takes
+            // the vector again from the base level, where the dispatch
+            // preempts the Job as the SRP intends.
+            if exc_return & 0x8 == 0 {
+                hw.apply(Action::Trace(TR_DEFER, n as u32));
+                hw.apply(Action::Pend(n));
+                return (no_change, false);
+            }
             if !k.eligible(t) {
                 // A stale pending bit (the Job was suppressed after it was
                 // pended): nothing to dispatch (A4).

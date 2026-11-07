@@ -822,6 +822,23 @@ pub fn stamp_capture() -> u32 {
     0
 }
 
+/// The stack pointers, for the UsageFault diagnostic of HIL builds (the
+/// INVPC finding of 2026-11-06, Verification_Plan section 13).
+#[cfg(feature = "trace-ram")]
+pub fn stack_pointers() -> (u32, u32) {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        let (psp, msp): (u32, u32);
+        // SAFETY (UJ-051): two register reads with no side effect.
+        unsafe { core::arch::asm!("mrs {0}, psp", "mrs {1}, msp", out(reg) psp, out(reg) msp, options(nomem, nostack, preserves_flags)) };
+        (psp, msp)
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    {
+        (0, 0)
+    }
+}
+
 /// Triggers a stop task (R17.6).
 pub fn dma_stop(reg: u32) {
     if addr::peripheral(reg) {

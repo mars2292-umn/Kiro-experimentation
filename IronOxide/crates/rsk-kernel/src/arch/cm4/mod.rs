@@ -96,6 +96,7 @@ fn trace(tag: &[u8], v: u32) {
             b"epilogue" => entry::TR_EPILOGUE,
             b"fault" => entry::TR_FAULT,
             b"arm" => entry::TR_ARM,
+            b"defer" => entry::TR_DEFER,
             b"cfsr" => 13,
             b"pc" => 14,
             b"dmastop" => 15,
@@ -159,6 +160,7 @@ fn trace_tag(tag: u8) -> &'static [u8] {
         entry::TR_EPILOGUE => b"epilogue",
         entry::TR_FAULT => b"fault",
         entry::TR_ARM => b"arm",
+        entry::TR_DEFER => b"defer",
         _ => b"?",
     }
 }
@@ -737,6 +739,24 @@ pub fn usage_fault<S: System>(in_kernel: bool) -> ReturnPlan {
     {
         let (cfsr, _) = hw::fault_status();
         unsafe_module::fault_push(cfsr, 0);
+        // The INVPC diagnostic (2026-11-06, Verification_Plan section 13):
+        // the processor's exception state and the faulting frame, as
+        // tagged entries of the fault record (`0xA1xx_xxxx`, the rig names
+        // them): ICSR, SHCSR, CCR, NVIC_IABR0, PSP, MSP, and the stacked
+        // xPSR, PC, and LR of the frame the return used (on the PSP when
+        // the fault is a Job's, the MSP otherwise).
+        let (psp, msp) = hw::stack_pointers();
+        let frame = if in_kernel { msp } else { psp };
+        let diag = |tag: u32, value: u32| unsafe_module::fault_push(0xA100_0000 | tag, value);
+        diag(1, hw::mmio_read(unsafe_module::hw::addr::ICSR));
+        diag(2, hw::mmio_read(unsafe_module::hw::addr::SHCSR));
+        diag(3, hw::mmio_read(unsafe_module::hw::addr::CCR));
+        diag(4, hw::mmio_read(0xE000_E300));
+        diag(5, psp);
+        diag(6, msp);
+        diag(7, hw::mmio_read(frame.wrapping_add(28)));
+        diag(8, hw::mmio_read(frame.wrapping_add(24)));
+        diag(9, hw::mmio_read(frame.wrapping_add(20)));
     }
     Cm4Hw::new().apply(Action::ClearFaultStatus);
     fault::<S>(EV_USAGEFAULT, in_kernel)

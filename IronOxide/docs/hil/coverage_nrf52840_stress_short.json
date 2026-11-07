@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:5c788d5d3541c09cab3ad2860314f8466ddc98843162fb2baed1227545fdf088",
+  "binary_hash": "sha256:e375552667f47878fa5d44cceeb87eddbd17bcc82d6b5254e51521acce3a25a8",
   "threshold_percent": 50,
   "items": [
     {
@@ -126,12 +126,11 @@
         "_ZN13p1_demo_part16inject7spin_ms17heb4e62659d01a7fcE"
       ],
       "branches": 22,
-      "covered": 19,
-      "percent": 86,
+      "covered": 20,
+      "percent": 90,
       "uncovered": [
         "p1_demo_part1::log::{closure}: 220:34 true",
-        "p1_demo_part1::log::{closure}: 220:34 false",
-        "p1_demo_part1::inject::spin_ms: 30:84 false"
+        "p1_demo_part1::log::{closure}: 220:34 false"
       ]
     },
     {
@@ -146,11 +145,9 @@
         "_ZN13p1_demo_part16inject7spin_ms17heb4e62659d01a7fcE"
       ],
       "branches": 10,
-      "covered": 9,
-      "percent": 90,
-      "uncovered": [
-        "p1_demo_part1::inject::spin_ms: 30:84 false"
-      ]
+      "covered": 10,
+      "percent": 100,
+      "uncovered": []
     },
     {
       "item": "part2.filter",
@@ -173,16 +170,15 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 24,
-      "covered": 17,
-      "percent": 70,
+      "covered": 18,
+      "percent": 75,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
         "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:84 false"
+        "p1_demo_part2::Stats::record: 253:12 false"
       ]
     },
     {
@@ -206,16 +202,15 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 24,
-      "covered": 17,
-      "percent": 70,
+      "covered": 18,
+      "percent": 75,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 127:12 true",
         "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:84 false"
+        "p1_demo_part2::Stats::record: 253:12 false"
       ]
     },
     {
@@ -238,8 +233,8 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 22,
-      "covered": 13,
-      "percent": 59,
+      "covered": 14,
+      "percent": 63,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
@@ -247,7 +242,6 @@
         "p1_demo_part2::traffic_step: 127:12 true",
         "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:84 false",
         "p1_demo_part2::sampler::{closure}: 372:34 true",
         "p1_demo_part2::sampler::{closure}: 372:34 false"
       ]
@@ -272,8 +266,8 @@
         "_ZN13p1_demo_part25Stats3new17hf0fda032a7d59a68E"
       ],
       "branches": 22,
-      "covered": 13,
-      "percent": 59,
+      "covered": 14,
+      "percent": 63,
       "uncovered": [
         "p1_demo_part2::traffic_step: 115:8 true",
         "p1_demo_part2::traffic_step: 117:12 true",
@@ -281,7 +275,6 @@
         "p1_demo_part2::traffic_step: 127:12 true",
         "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:84 false",
         "p1_demo_part2::sampler::{closure}: 372:34 true",
         "p1_demo_part2::sampler::{closure}: 372:34 false"
       ]
@@ -391,10 +384,8 @@
       "name": "p1_demo_part2::inject::spin_ms",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 4,
-      "covered": 3,
-      "uncovered": [
-        "38:84 false"
-      ]
+      "covered": 4,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part2::lowpass",
@@ -539,10 +530,8 @@
       "name": "p1_demo_part1::inject::spin_ms",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
       "branches": 4,
-      "covered": 3,
-      "uncovered": [
-        "30:84 false"
-      ]
+      "covered": 4,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part1::rsk_jobs::log",

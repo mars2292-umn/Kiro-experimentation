@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_timing_short",
-  "binary_hash": "sha256:016a5e351dcef835544da25b1eb86652c9dbe365a3e2f01e041070c04fe398d5",
+  "binary_hash": "sha256:4847a068d1726ef6dd8b7523d779f97630a8b92cc30629816fc419faa4769005",
   "threshold_percent": 50,
   "items": [
     {

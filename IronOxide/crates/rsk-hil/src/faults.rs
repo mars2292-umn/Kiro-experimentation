@@ -69,6 +69,12 @@ impl Fault {
         if ufsr & 0x100 != 0 { parts.push("UNALIGNED"); }
         if ufsr & 0x200 != 0 { parts.push("DIVBYZERO"); }
         if ufsr & !0x30F != 0 { parts.push("UFSR"); }
+        if self.cfsr >> 24 == 0xA1 {
+            let name = match self.cfsr & 0xFF {
+                1 => "ICSR", 2 => "SHCSR", 3 => "CCR", 4 => "NVIC_IABR0", 5 => "PSP", 6 => "MSP", 7 => "frame xPSR", 8 => "frame PC", 9 => "frame LR", _ => "diag",
+            };
+            return format!("diagnostic {name} = {:#010x}", self.address);
+        }
         format!("cfsr {:#010x} ({}) at {:#010x}", self.cfsr, parts.join("|"), self.address)
     }
 }

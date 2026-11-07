@@ -357,6 +357,20 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         Err(e) => out.step("Kernel trace", false, e),
     }
 
+    // The dispatch deferrals of 5.8a (the INVPC fix of 2026-11-06): the
+    // Kernel's actions record keeps one entry (kind 3, the vector) per
+    // dispatch vector taken inside another stub's return window and
+    // re-pended; the count is the run's and is reported, never judged.
+    match target.read_words(inputs.target_elf, "ARCH_ACTIONS", &scratch) {
+        Ok(Some(words)) if words.len() >= 2 && words[0] == 0x5253_4b41 => {
+            let n = words[1] as usize;
+            let held = n.min(32);
+            let defers: Vec<String> = (0..held).filter(|i| words.get(2 + 2 * i) == Some(&3)).map(|i| format!("{:#x}", words.get(3 + 2 * i).copied().unwrap_or(0))).collect();
+            out.step("dispatch deferrals (5.8a)", true, format!("{} actions recorded ({held} held): {} deferral(s) of a dispatch vector taken inside another stub's return window{}", n, defers.len(), if defers.is_empty() { String::new() } else { format!(" (vectors {})", defers.join(", ")) }));
+        }
+        _ => {}
+    }
+
     // The analyzer over the whole run.
     match samples {
         Ok(samples) => {

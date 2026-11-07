@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:436081405746510e6cb095c30e5671b51f64cef4762c2271911b6722dd38895d",
+  "binary_hash": "sha256:f4a0b9d9bb8652dd1fd58f273e52d89bd62ac45d1e9d9700ab46c1668d30a59d",
   "threshold_percent": 50,
   "items": [
     {
@@ -303,12 +303,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "710:12 true",
-        "710:12 false",
-        "712:41 true",
-        "712:41 false",
-        "717:44 true",
-        "717:44 false"
+        "712:12 true",
+        "712:12 false",
+        "714:41 true",
+        "714:41 false",
+        "719:44 true",
+        "719:44 false"
       ]
     },
     {
@@ -320,6 +320,16 @@
     },
     {
       "name": "rsk_kernel::arch::cm4::usage_fault",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 2,
+      "covered": 0,
+      "uncovered": [
+        "749:24 true",
+        "749:24 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::usage_fault::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
       "covered": 0,
@@ -338,9 +348,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "402:8 true",
-        "405:8 true",
-        "408:8 true"
+        "404:8 true",
+        "407:8 true",
+        "410:8 true"
       ]
     },
     {
@@ -356,9 +366,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "378:18 true",
-        "383:22 false",
-        "385:12 false"
+        "380:18 true",
+        "385:22 false",
+        "387:12 false"
       ]
     },
     {
@@ -374,8 +384,8 @@
       "branches": 8,
       "covered": 6,
       "uncovered": [
-        "351:22 true",
-        "354:26 false"
+        "353:22 true",
+        "356:26 false"
       ]
     },
     {
@@ -579,7 +589,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "1062:28 false"
+        "1079:28 false"
       ]
     },
     {
@@ -613,6 +623,13 @@
         "190:20 false",
         "190:34 true"
       ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::stack_pointers",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "rsk_kernel::arch::cm4::unsafe_module::hw::stamp_probe_init",
@@ -700,12 +717,12 @@
       "branches": 22,
       "covered": 16,
       "uncovered": [
-        "586:8 true",
-        "627:12 true",
-        "627:20 true",
-        "627:20 false",
-        "633:12 false",
-        "644:8 true"
+        "588:8 true",
+        "629:12 true",
+        "629:20 true",
+        "629:20 false",
+        "635:12 false",
+        "646:8 true"
       ]
     },
     {
@@ -759,9 +776,9 @@
       "branches": 14,
       "covered": 11,
       "uncovered": [
-        "566:48 true",
-        "596:12 true",
-        "599:12 true"
+        "577:48 true",
+        "607:12 true",
+        "610:12 true"
       ]
     },
     {
@@ -770,10 +787,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1237:18 true",
-        "1237:18 false",
-        "1237:31 true",
-        "1237:31 false"
+        "1266:18 true",
+        "1266:18 false",
+        "1266:31 true",
+        "1266:31 false"
       ]
     },
     {
@@ -782,9 +799,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "879:23 false",
-        "884:17 false",
-        "891:8 false"
+        "890:23 false",
+        "895:17 false",
+        "902:8 false"
       ]
     },
     {
@@ -793,7 +810,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "915:8 false"
+        "926:8 false"
       ]
     },
     {
@@ -809,7 +826,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "522:21 false"
+        "533:21 false"
       ]
     },
     {
@@ -832,9 +849,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "1194:8 false",
-        "1203:22 true",
-        "1210:16 true"
+        "1223:8 false",
+        "1232:22 true",
+        "1239:16 true"
       ]
     },
     {
@@ -843,30 +860,31 @@
       "branches": 24,
       "covered": 13,
       "uncovered": [
-        "833:8 false",
-        "833:17 false",
-        "833:36 false",
-        "851:16 false",
-        "852:20 true",
-        "852:36 true",
-        "852:55 true",
-        "852:76 true",
-        "858:20 false",
-        "858:29 false",
-        "860:8 false"
+        "844:8 false",
+        "844:17 false",
+        "844:36 false",
+        "862:16 false",
+        "863:20 true",
+        "863:36 true",
+        "863:55 true",
+        "863:76 true",
+        "869:20 false",
+        "869:29 false",
+        "871:8 false"
       ]
     },
     {
       "name": "rsk_kernel::arch::cm4::entry::irq_entry_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "branches": 12,
-      "covered": 7,
+      "branches": 14,
+      "covered": 8,
       "uncovered": [
-        "966:16 true",
-        "973:46 false",
-        "973:92 false",
-        "982:16 true",
-        "1041:16 false"
+        "990:16 true",
+        "995:16 true",
+        "1002:46 false",
+        "1002:92 false",
+        "1011:16 true",
+        "1070:16 false"
       ]
     },
     {
@@ -887,9 +905,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "789:23 false",
-        "794:17 false",
-        "801:8 false"
+        "800:23 false",
+        "805:17 false",
+        "812:8 false"
       ]
     },
     {
@@ -898,16 +916,16 @@
       "branches": 10,
       "covered": 0,
       "uncovered": [
-        "735:11 true",
-        "735:11 false",
-        "740:12 true",
-        "740:12 false",
-        "741:16 true",
-        "741:16 false",
-        "744:16 true",
-        "744:16 false",
-        "747:16 true",
-        "747:16 false"
+        "746:11 true",
+        "746:11 false",
+        "751:12 true",
+        "751:12 false",
+        "752:16 true",
+        "752:16 false",
+        "755:16 true",
+        "755:16 false",
+        "758:16 true",
+        "758:16 false"
       ]
     },
     {
@@ -923,12 +941,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "763:11 true",
-        "763:11 false",
-        "767:12 true",
-        "767:12 false",
-        "770:12 true",
-        "770:12 false"
+        "774:11 true",
+        "774:11 false",
+        "778:12 true",
+        "778:12 false",
+        "781:12 true",
+        "781:12 false"
       ]
     },
     {
@@ -937,12 +955,12 @@
       "branches": 24,
       "covered": 18,
       "uncovered": [
-        "1099:23 false",
-        "1104:23 false",
-        "1129:23 false",
-        "1130:12 false",
-        "1144:23 false",
-        "1150:15 false"
+        "1128:23 false",
+        "1133:23 false",
+        "1158:23 false",
+        "1159:12 false",
+        "1173:23 false",
+        "1179:15 false"
       ]
     },
     {
@@ -951,18 +969,18 @@
       "branches": 18,
       "covered": 6,
       "uncovered": [
-        "626:8 true",
         "637:8 true",
-        "640:8 true",
-        "643:8 false",
-        "647:8 true",
-        "655:8 false",
-        "672:11 true",
-        "672:11 false",
-        "703:11 true",
-        "703:11 false",
-        "703:21 true",
-        "703:21 false"
+        "648:8 true",
+        "651:8 true",
+        "654:8 false",
+        "658:8 true",
+        "666:8 false",
+        "683:11 true",
+        "683:11 false",
+        "714:11 true",
+        "714:11 false",
+        "714:21 true",
+        "714:21 false"
       ]
     },
     {
@@ -971,8 +989,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "690:8 true",
-        "690:8 false"
+        "692:8 true",
+        "692:8 false"
       ]
     },
     {
@@ -981,8 +999,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "762:8 true",
-        "762:8 false"
+        "782:8 true",
+        "782:8 false"
       ]
     },
     {
@@ -991,8 +1009,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "443:8 true",
-        "443:8 false"
+        "445:8 true",
+        "445:8 false"
       ]
     },
     {
@@ -1001,10 +1019,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "551:16 true",
-        "551:16 false",
-        "556:8 true",
-        "556:8 false"
+        "553:16 true",
+        "553:16 false",
+        "558:8 true",
+        "558:8 false"
       ]
     },
     {
@@ -1020,7 +1038,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "671:8 true"
+        "673:8 true"
       ]
     },
     {
@@ -1029,8 +1047,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "728:23 true",
-        "728:23 false"
+        "730:23 true",
+        "730:23 false"
       ]
     },
     {
@@ -1039,8 +1057,8 @@
       "branches": 18,
       "covered": 16,
       "uncovered": [
-        "465:37 false",
-        "505:37 false"
+        "467:37 false",
+        "507:37 false"
       ]
     },
     {
@@ -2112,10 +2130,8 @@
       "name": "rsk_logic::logic::sched::Sched<_$C$_$C$_>::recompute_ceiling",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/sched.rs",
       "branches": 4,
-      "covered": 1,
+      "covered": 3,
       "uncovered": [
-        "868:15 true",
-        "875:16 true",
         "875:16 false"
       ]
     },
@@ -2186,11 +2202,9 @@
       "name": "rsk_logic::logic::sched::Sched<_$C$_$C$_>::end_job",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/sched.rs",
       "branches": 4,
-      "covered": 1,
+      "covered": 3,
       "uncovered": [
-        "907:15 true",
-        "907:24 true",
-        "907:24 false"
+        "907:24 true"
       ]
     },
     {
@@ -3345,8 +3359,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1042:19 true",
-        "1042:19 false"
+        "1059:19 true",
+        "1059:19 false"
       ]
     },
     {
@@ -3419,8 +3433,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "844:8 true",
-        "844:8 false"
+        "861:8 true",
+        "861:8 false"
       ]
     },
     {
@@ -3683,8 +3697,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "827:8 true",
-        "827:8 false"
+        "844:8 true",
+        "844:8 false"
       ]
     },
     {
@@ -3721,7 +3735,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "837:8 false"
+        "854:8 false"
       ]
     },
     {
@@ -3755,9 +3769,11 @@
     {
       "name": "_<rsk_kernel::arch::cm4::entry::Cm4Hw$u20$as$u20$rsk_kernel::arch::cm4::entry::KernelArch>::apply",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
+      "branches": 2,
+      "covered": 1,
+      "uncovered": [
+        "443:20 true"
+      ]
     },
     {
       "name": "rsk_kernel::arch::placeholder_view",
@@ -3789,6 +3805,13 @@
     },
     {
       "name": "rsk_kernel::arch::cm4::usage_fault",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::usage_fault::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
       "covered": 0,
