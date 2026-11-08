@@ -73,11 +73,13 @@ pub mod parse;
 pub mod compose;
 pub mod progress;
 pub mod theory;
+pub mod multiparty;
 
 pub use ast::{Branch, Global, Local, Message};
 pub use check::{project, well_formed};
 pub use explore::{explore, Channel, Exploration};
-pub use theory::accept_two_role;
+pub use theory::{accept_two_role, flatten_two};
+pub use progress::explore_system;
 
 /// The result of checking a Protocol for one Endpoint.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,6 +133,24 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
         let (ge, _labels) = theory::to_theory(&global, roles);
         if !theory::accept_two_role(&ge) {
             return Err(ProtocolError { rule: "R41.3", message: "the Protocol passes the structural checks but not the verified two-role acceptance (theory::wf2_exec); the two disagree".into() });
+        }
+        // The verified chain from the syntax to the automaton (2026-11-09):
+        // the flattening of the projections (`theory::flatten_two`, which
+        // establishes `flattens`) and the exploration of the automaton
+        // (`progress::explore_system`, which establishes the certificate
+        // and the bound k). The untrusted explorer above remains the
+        // diagnosis and the cross-check: its bound must agree.
+        let Some((sys, _t0, _t1)) = theory::flatten_two(&ge, capacity as usize) else {
+            return Err(ProtocolError { rule: "R41.3", message: "the verified flattening of the projections refused the Protocol (a state table beyond its bound, an inadmissible entry, or an index overflow)".into() });
+        };
+        let Some((list, verified_k)) = progress::explore_system(&sys) else {
+            return Err(ProtocolError { rule: "R41.3", message: "the verified exploration of the automaton refused the Protocol (a waiting set, a channel over the capacity, or more configurations than its bound) where the explorer accepted it; the two disagree".into() });
+        };
+        if verified_k as u32 != exploration.channels.iter().map(|c| c.k).max().unwrap_or(0) {
+            return Err(ProtocolError { rule: "R41.1", message: format!("the verified exploration bounds the channels at {verified_k} message(s) in transit, the explorer at {}; the two disagree", exploration.channels.iter().map(|c| c.k).max().unwrap_or(0)) });
+        }
+        if !progress::certify(&sys, &list) {
+            return Err(ProtocolError { rule: "R41.3", message: "the certificate check refused the verified exploration's own list; the two disagree".into() });
         }
     }
     let k = exploration.channels.iter().map(|c| c.k).max().unwrap_or(0);

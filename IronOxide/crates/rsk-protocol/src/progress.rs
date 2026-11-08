@@ -892,6 +892,197 @@ pub fn certify(s: &System, list: &Vec<Config>) -> (r: bool)
     true
 }
 
+// ------------------------------------------- the verified exploration --
+
+/// The most configurations the exploration visits before refusing.
+pub const MAX_CONFIGURATIONS: usize = 200_000;
+
+fn copy_config(c: &Config) -> (r: Config)
+    ensures cfg(r) == cfg(*c),
+{
+    let states = copy_usize(&c.states);
+    let mut chans: Vec<Vec<u32>> = Vec::new();
+    let mut i = 0;
+    while i < c.chans.len()
+        invariant
+            i <= c.chans.len(), chans.len() == i,
+            forall|j: int| 0 <= j < i ==> (#[trigger] chans@[j])@ == c.chans@[j]@,
+        decreases c.chans.len() - i,
+    {
+        chans.push(copy_from(&c.chans[i], 0));
+        i += 1;
+    }
+    let r = Config { states, chans };
+    assert forall|j: int| 0 <= j < cfg(r).chans.len() implies #[trigger] cfg(r).chans[j] == cfg(*c).chans[j] by {
+        assert(cfg(r).chans[j] == chans@[j]@);
+        assert(cfg(*c).chans[j] == c.chans@[j]@);
+    }
+    assert(cfg(r).chans =~= cfg(*c).chans);
+    assert(cfg(r).states == cfg(*c).states);
+    r
+}
+
+fn copy_usize(src: &Vec<usize>) -> (r: Vec<usize>)
+    ensures r@ == src@,
+{
+    let mut out: Vec<usize> = Vec::new();
+    let mut i = 0;
+    while i < src.len()
+        invariant i <= src.len(), out@ == src@.subrange(0, i as int),
+        decreases src.len() - i,
+    {
+        out.push(src[i]);
+        i += 1;
+        assert(out@ =~= src@.subrange(0, i as int));
+    }
+    assert(out@ =~= src@);
+    out
+}
+
+/// The largest channel occupancy of a configuration.
+fn occupancy(c: &Config) -> (k: usize)
+    ensures
+        forall|ch: int| 0 <= ch < cfg(*c).chans.len() ==> (#[trigger] cfg(*c).chans[ch]).len() <= k,
+        k == 0 || exists|ch: int| 0 <= ch < cfg(*c).chans.len() && (#[trigger] cfg(*c).chans[ch]).len() == k,
+{
+    let mut k: usize = 0;
+    let mut i = 0;
+    while i < c.chans.len()
+        invariant
+            i <= c.chans.len(),
+            forall|ch: int| 0 <= ch < i ==> (#[trigger] cfg(*c).chans[ch]).len() <= k,
+            k == 0 || exists|ch: int| 0 <= ch < i && (#[trigger] cfg(*c).chans[ch]).len() == k,
+        decreases c.chans.len() - i,
+    {
+        if c.chans[i].len() > k {
+            k = c.chans[i].len();
+            assert(cfg(*c).chans[i as int].len() == k);
+        }
+        i += 1;
+    }
+    k
+}
+
+/// The exploration of every reachable configuration of `s` from the
+/// initial one, in breadth-first order: `Some((list, k))` when it
+/// completes within `MAX_CONFIGURATIONS` with every configuration well
+/// formed, within the capacity, and not deadlocked, in which case the
+/// list is a certificate (R41.3) and `k` the largest occupancy any
+/// reachable configuration reaches (R41.1, the universal bound, attained
+/// by some listed configuration); `None` when a configuration is
+/// deadlocked, exceeds the capacity, or the bound is reached (the
+/// checker then reports the refusal with the explorer's own diagnosis).
+pub fn explore_system(s: &System) -> (r: Option<(Vec<Config>, usize)>)
+    requires wf_sys(*s),
+    ensures
+        r is Some ==> certificate(*s, cfgs(r.unwrap().0)),
+        r is Some ==> forall|c: Cfg| reachable(*s, c) ==> !deadlocked(*s, c) && within_capacity(*s, c),
+        r is Some ==> r.unwrap().1 <= s.capacity,
+        r is Some ==> forall|i: int, ch: int| 0 <= i < cfgs(r.unwrap().0).len() && 0 <= ch < cfgs(r.unwrap().0)[i].chans.len()
+            ==> (#[trigger] cfgs(r.unwrap().0)[i].chans[ch]).len() <= r.unwrap().1,
+        r is Some ==> r.unwrap().1 == 0 || exists|i: int, ch: int| 0 <= i < cfgs(r.unwrap().0).len() && 0 <= ch < cfgs(r.unwrap().0)[i].chans.len()
+            && (#[trigger] cfgs(r.unwrap().0)[i].chans[ch]).len() == r.unwrap().1,
+{
+    let init = initial_config(s.roles);
+    // The initial configuration is checked like every other one.
+    if !wf_config(s, &init) || !capacity_ok(s, &init) || has_deadlock(s, &init) {
+        return None;
+    }
+    let mut list: Vec<Config> = Vec::new();
+    list.push(init);
+    let mut k: usize = 0;
+    let mut next: usize = 0;
+    assert(cfgs(list)[0] == initial(s.roles as int));
+    assert forall|a: int, ch: int| 0 <= a < list.len() && 0 <= ch < cfgs(list)[a].chans.len() implies (#[trigger] cfgs(list)[a].chans[ch]).len() <= k by {
+        assert(cfgs(list)[a] == initial(s.roles as int));
+    }
+    while next < list.len()
+        invariant
+            wf_sys(*s), next <= list.len(), list.len() <= MAX_CONFIGURATIONS,
+            in_list(cfgs(list), initial(s.roles as int)),
+            // Every visited configuration is well formed, within the
+            // capacity, not deadlocked, and no larger than `k`.
+            forall|a: int| 0 <= a < list.len() ==> wf_cfg(s.roles as int, #[trigger] cfgs(list)[a]) && within_capacity(*s, cfgs(list)[a]) && !deadlocked(*s, cfgs(list)[a]),
+            forall|a: int, ch: int| 0 <= a < list.len() && 0 <= ch < cfgs(list)[a].chans.len() ==> (#[trigger] cfgs(list)[a].chans[ch]).len() <= k,
+            k == 0 || exists|a: int, ch: int| 0 <= a < list.len() && 0 <= ch < cfgs(list)[a].chans.len() && (#[trigger] cfgs(list)[a].chans[ch]).len() == k,
+            k <= s.capacity,
+            // Every processed configuration's enabled steps lead into the list.
+            forall|a: int, j: int| 0 <= a < next && 0 <= j < s.trans@.len() && enabled(s.roles as int, #[trigger] cfgs(list)[a], #[trigger] s.trans@[j])
+                ==> in_list(cfgs(list), succ(s.roles as int, cfgs(list)[a], s.trans@[j])),
+        decreases MAX_CONFIGURATIONS - next,
+    {
+        let c = copy_config(&list[next]);
+        assert(cfg(c) == cfgs(list)[next as int]);
+        let mut j = 0;
+        while j < s.trans.len()
+            invariant
+                j <= s.trans.len(), wf_sys(*s), next < list.len(), list.len() <= MAX_CONFIGURATIONS,
+                wf_cfg(s.roles as int, cfg(c)), cfg(c) == cfgs(list)[next as int],
+                in_list(cfgs(list), initial(s.roles as int)),
+                forall|a: int| 0 <= a < list.len() ==> wf_cfg(s.roles as int, #[trigger] cfgs(list)[a]) && within_capacity(*s, cfgs(list)[a]) && !deadlocked(*s, cfgs(list)[a]),
+                forall|a: int, ch: int| 0 <= a < list.len() && 0 <= ch < cfgs(list)[a].chans.len() ==> (#[trigger] cfgs(list)[a].chans[ch]).len() <= k,
+                k == 0 || exists|a: int, ch: int| 0 <= a < list.len() && 0 <= ch < cfgs(list)[a].chans.len() && (#[trigger] cfgs(list)[a].chans[ch]).len() == k,
+                k <= s.capacity,
+                forall|a: int, jj: int| 0 <= a < next && 0 <= jj < s.trans@.len() && enabled(s.roles as int, #[trigger] cfgs(list)[a], #[trigger] s.trans@[jj])
+                    ==> in_list(cfgs(list), succ(s.roles as int, cfgs(list)[a], s.trans@[jj])),
+                forall|jj: int| 0 <= jj < j && enabled(s.roles as int, cfg(c), #[trigger] s.trans@[jj])
+                    ==> in_list(cfgs(list), succ(s.roles as int, cfg(c), s.trans@[jj])),
+            decreases s.trans.len() - j,
+        {
+            if is_enabled(s, &c, j) {
+                let n = successor(s, &c, j);
+                if !contains(&list, &n) {
+                    if list.len() >= MAX_CONFIGURATIONS {
+                        return None;
+                    }
+                    if !wf_config(s, &n) || !capacity_ok(s, &n) || has_deadlock(s, &n) {
+                        return None;
+                    }
+                    let occ = occupancy(&n);
+                    if occ > k {
+                        k = occ;
+                    }
+                    let ghost before = cfgs(list);
+                    list.push(n);
+                    proof {
+                        assert(cfgs(list) =~= before.push(cfg(n)));
+                        assert forall|a: int| 0 <= a < before.len() implies #[trigger] cfgs(list)[a] == before[a] by {}
+                        assert(cfgs(list)[before.len() as int] == cfg(n));
+                        assert(in_list(cfgs(list), cfg(n)));
+                        assert forall|x: Cfg| in_list(before, x) implies in_list(cfgs(list), x) by {
+                            let i = choose|i: int| 0 <= i < before.len() && before[i] == x;
+                            assert(cfgs(list)[i] == x);
+                        }
+                        // The bound's witness: the new configuration when it
+                        // raised `k`, the earlier one (unmoved) otherwise.
+                        if k == occ && occ != 0 {
+                            let ch = choose|ch: int| 0 <= ch < cfg(n).chans.len() && (#[trigger] cfg(n).chans[ch]).len() == occ;
+                            assert(cfgs(list)[before.len() as int].chans[ch].len() == k);
+                        } else if k != 0 {
+                            let (a, ch) = choose|a: int, ch: int| 0 <= a < before.len() && 0 <= ch < before[a].chans.len() && (#[trigger] before[a].chans[ch]).len() == k;
+                            assert(cfgs(list)[a] == before[a]);
+                            assert(cfgs(list)[a].chans[ch].len() == k);
+                        }
+                        assert forall|a: int, ch: int| 0 <= a < list.len() && 0 <= ch < cfgs(list)[a].chans.len() implies (#[trigger] cfgs(list)[a].chans[ch]).len() <= k by {
+                            if a < before.len() {
+                                assert(cfgs(list)[a] == before[a]);
+                            } else {
+                                assert(cfgs(list)[a] == cfg(n));
+                            }
+                        }
+                    }
+                }
+            }
+            j += 1;
+        }
+        next += 1;
+    }
+    proof {
+        theorem_r41_3(*s, cfgs(list));
+    }
+    Some((list, k))
+}
+
 } // verus!
 
 #[cfg(test)]

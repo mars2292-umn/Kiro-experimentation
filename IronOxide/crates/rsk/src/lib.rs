@@ -386,8 +386,10 @@ pub mod words {
 /// not expect, and by the Job wrapper when a Job returns with its RoleSlot
 /// empty. The Kernel records the event against this Task; the Job goes on.
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-pub fn report_protocol_violation() {
-    stubs::svc_violation(0)
+pub fn report_protocol_violation(id: u8, role: u8) {
+    // The Endpoint and role (task 21.7, finding 14(f) of the review): the
+    // Kernel records the violation and re-initializes the Endpoint.
+    stubs::svc_violation(2 | (id as u32) << 8 | ((role as u32) & 0xF) << 16)
 }
 
 /// Reports a message that the role's validation function rejected (task

@@ -183,7 +183,7 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let _ = writeln!(s, "        impl<S: Tag> Drop for {ty}<S> {{");
     let _ = writeln!(s, "            fn drop(&mut self) {{");
     let _ = writeln!(s, "                if S::REPORT_ON_DROP && !self.consumed {{");
-    let _ = writeln!(s, "                    ::rsk::report_protocol_violation();");
+    let _ = writeln!(s, "                    ::rsk::report_protocol_violation(ID, ROLE);");
     let _ = writeln!(s, "                }}");
     let _ = writeln!(s, "            }}");
     let _ = writeln!(s, "        }}");
@@ -289,7 +289,7 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                         }
                     }
                 }
-                let _ = writeln!(s, "                            _ => {{ ::rsk::report_protocol_violation(); Err(NotReceived::Unexpected(self)) }}");
+                let _ = writeln!(s, "                            _ => {{ ::rsk::report_protocol_violation(ID, ROLE); Err(NotReceived::Unexpected(self)) }}");
                 let _ = writeln!(s, "                        }}");
                 let _ = writeln!(s, "                    }}");
                 let _ = writeln!(s, "                }}");

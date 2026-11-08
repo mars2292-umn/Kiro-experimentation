@@ -382,3 +382,50 @@ find = "    if i < 0 { usize::MAX as int - 1 } else { recs.len() - 1 - i }\n"
 replace = "    if i < 0 { usize::MAX as int - 1 } else { i }\n"
 expect = ["theory.rs"]
 package = "rsk-protocol"
+
+# The verified flattening and exploration (2026-11-09).
+
+[[mutation]]
+id = "theory-flatten-any-peer"
+kills = "entry_ok_exec (a send entry must address the other role; with the peer unchecked the flattening would accept a table `flattens` refuses and its postcondition fails)"
+file = "crates/rsk-protocol/src/theory.rs"
+find = "            *to == 1 - r && cons\n"
+replace = "            cons\n"
+expect = ["theory.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "explore-without-deadlock-check"
+kills = "explore_system (every visited configuration must be checked for a waiting set, or the list is no certificate and the exploration's postcondition fails)"
+file = "crates/rsk-protocol/src/progress.rs"
+find = "                    if !wf_config(s, &n) || !capacity_ok(s, &n) || has_deadlock(s, &n) {\n"
+replace = "                    if !wf_config(s, &n) || !capacity_ok(s, &n) {\n"
+expect = ["progress.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "multiparty-sender-order-dropped"
+kills = "lemma_recv_exists (no message from the sender of a pending communication may be in transit below it; with the order dropped a receiver whose channel holds a label could stand at a pending communication from that sender, and the receive step's existence proof fails)"
+file = "crates/rsk-protocol/src/multiparty.rs"
+find = "        R::Comm { from, bs, .. } => no_sent_from_bs(*bs, from) && queues_agree_bs(*bs) && rgood_bs(*bs),\n"
+replace = "        R::Comm { from, bs, .. } => queues_agree_bs(*bs) && rgood_bs(*bs),\n"
+expect = ["multiparty.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "multiparty-reach-not-required"
+kills = "lemma_send_exists (a role with an action must be reached on every path of the runtime type, which bounds the search for its pending node; with the requirement dropped the step's existence proof has no bound and fails)"
+file = "crates/rsk-protocol/src/multiparty.rs"
+find = "    &&& (acting(hm) ==> reaches(x, u))\n"
+replace = "    &&& (acting(hm) ==> true)\n"
+expect = ["multiparty.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "multiparty-send-labels-superset"
+kills = "lemma_send_exists (a sender's labels must be exactly the pending communication's; with a superset allowed the role could send a label the communication lacks and the step's existence proof fails)"
+file = "crates/rsk-protocol/src/multiparty.rs"
+find = "                &&& labels_eq(*hm->Send_ls, *bs)\n"
+replace = "                &&& labels_sup(*hm->Send_ls, *bs)\n"
+expect = ["multiparty.rs"]
+package = "rsk-protocol"

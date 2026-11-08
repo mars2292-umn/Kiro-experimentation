@@ -63,7 +63,7 @@ pub mod rsk_roles {
         impl<S: Tag> Drop for Sink<S> {
             fn drop(&mut self) {
                 if S::REPORT_ON_DROP && !self.consumed {
-                    ::rsk::report_protocol_violation();
+                    ::rsk::report_protocol_violation(ID, ROLE);
                 }
             }
         }
@@ -100,7 +100,7 @@ pub mod rsk_roles {
                                 Ok(RecvS0::Req(v, self.advance::<S1>()))
                             }
                             LABEL_STOP => Ok(RecvS0::Stop(self.advance::<S2>())),
-                            _ => { ::rsk::report_protocol_violation(); Err(NotReceived::Unexpected(self)) }
+                            _ => { ::rsk::report_protocol_violation(ID, ROLE); Err(NotReceived::Unexpected(self)) }
                         }
                     }
                 }
@@ -178,7 +178,7 @@ pub mod rsk_roles {
         impl<S: Tag> Drop for Ctl<S> {
             fn drop(&mut self) {
                 if S::REPORT_ON_DROP && !self.consumed {
-                    ::rsk::report_protocol_violation();
+                    ::rsk::report_protocol_violation(ID, ROLE);
                 }
             }
         }
@@ -245,7 +245,7 @@ pub mod rsk_roles {
                                 let v = ::rsk::words::message_from_words::<u32, PW>(&p);
                                 Ok(RecvS1::Rep(v, self.advance::<S0>()))
                             }
-                            _ => { ::rsk::report_protocol_violation(); Err(NotReceived::Unexpected(self)) }
+                            _ => { ::rsk::report_protocol_violation(ID, ROLE); Err(NotReceived::Unexpected(self)) }
                         }
                     }
                 }
@@ -310,7 +310,7 @@ pub mod rsk_roles {
         impl<S: Tag> Drop for Mid<S> {
             fn drop(&mut self) {
                 if S::REPORT_ON_DROP && !self.consumed {
-                    ::rsk::report_protocol_violation();
+                    ::rsk::report_protocol_violation(ID, ROLE);
                 }
             }
         }
@@ -347,7 +347,7 @@ pub mod rsk_roles {
                                 Ok(RecvS0::Req(v, self.advance::<S1>()))
                             }
                             LABEL_STOP => Ok(RecvS0::Stop(self.advance::<S2>())),
-                            _ => { ::rsk::report_protocol_violation(); Err(NotReceived::Unexpected(self)) }
+                            _ => { ::rsk::report_protocol_violation(ID, ROLE); Err(NotReceived::Unexpected(self)) }
                         }
                     }
                 }
@@ -514,16 +514,16 @@ pub mod rsk_jobs {
             pingpong_gate: ::rsk::Gate::closed(),
         });
         if super::rsk_state::LOG_PINGPONG.with_unprivileged(|st| st.is_empty()) {
-            // Role `sink` of `pingpong`: the Job returned without storing its state (R41.2).
-            ::rsk::report_protocol_violation();
+            // Role `sink` of `pingpong`: the Job returned without storing its state (R41.2); the Kernel re-initializes the Endpoint (task 21.7).
+            ::rsk::report_protocol_violation(1, 1);
         }
         if super::rsk_state::LOG_RELAY.with_unprivileged(|st| st.is_empty()) {
-            // Role `ctl` of `relay`: the Job returned without storing its state (R41.2).
-            ::rsk::report_protocol_violation();
+            // Role `ctl` of `relay`: the Job returned without storing its state (R41.2); the Kernel re-initializes the Endpoint (task 21.7).
+            ::rsk::report_protocol_violation(2, 0);
         }
         if super::rsk_state::LOG_TRIANGLE.with_unprivileged(|st| st.is_empty()) {
-            // Role `mid` of `triangle`: the Job returned without storing its state (R41.2).
-            ::rsk::report_protocol_violation();
+            // Role `mid` of `triangle`: the Job returned without storing its state (R41.2); the Kernel re-initializes the Endpoint (task 21.7).
+            ::rsk::report_protocol_violation(4, 1);
         }
     }
     /// Job wrapper of `part1.pulse` (vector 40; Critical_Section sites: none).

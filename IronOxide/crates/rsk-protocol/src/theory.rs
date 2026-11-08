@@ -52,8 +52,8 @@
 use vstd::prelude::*;
 
 #[cfg(verus_keep_ghost)]
-use crate::progress::{at, blocked, chan_of, deadlock_set, deadlocked, enabled, has_trans, initial, reachable, run, step, succ, terminal, wf_cfg, Cfg, Trans};
-use crate::progress::System;
+use crate::progress::{at, blocked, chan_of, deadlock_set, deadlocked, enabled, has_trans, initial, reachable, run, step, succ, terminal, wf_cfg, Cfg};
+use crate::progress::{System, Trans};
 
 verus! {
 
@@ -2130,6 +2130,638 @@ pub open spec fn ndeadlocked(c: NC, n: int) -> bool {
     exists|set: Seq<bool>| ndeadlock_set(c, n, set)
 }
 
+// -------------------------------- the verified flattening (two roles) --
+
+/// The executable local type; its view is `L`.
+pub enum LE {
+    End,
+    Send { to: usize, ls: Box<LsE> },
+    Recv { from: usize, ls: Box<LsE> },
+    Rec { body: Box<LE> },
+    Var { n: usize },
+}
+
+pub enum LsE {
+    Nil,
+    Cons { label: u32, l: LE, rest: Box<LsE> },
+}
+
+impl LE {
+    pub open spec fn view(&self) -> L
+        decreases self,
+    {
+        match self {
+            LE::End => L::End,
+            LE::Send { to, ls } => L::Send { to: *to as int, ls: Box::new(ls.view()) },
+            LE::Recv { from, ls } => L::Recv { from: *from as int, ls: Box::new(ls.view()) },
+            LE::Rec { body } => L::Rec { body: Box::new(body.view()) },
+            LE::Var { n } => L::Var { n: *n as nat },
+        }
+    }
+}
+
+impl LsE {
+    pub open spec fn view(&self) -> Ls
+        decreases self,
+    {
+        match self {
+            LsE::Nil => Ls::Nil,
+            LsE::Cons { label, l, rest } => Ls::Cons { label: *label as int, l: l.view(), rest: Box::new(rest.view()) },
+        }
+    }
+}
+
+/// The projection of an executable global type onto role `r` (two roles;
+/// `proj`). A role the communication does not involve gives `End`, as
+/// the specification does.
+pub fn proj_exec(g: &GE, r: usize) -> (l: LE)
+    ensures l@ == proj(g@, r as int),
+    decreases g,
+{
+    match g {
+        GE::End => LE::End,
+        GE::Var { n } => LE::Var { n: *n },
+        GE::Rec { body } => LE::Rec { body: Box::new(proj_exec(body, r)) },
+        GE::Comm { from, to, bs } => {
+            if r == *from {
+                LE::Send { to: *to, ls: Box::new(proj_bs_exec(bs, r)) }
+            } else if r == *to {
+                LE::Recv { from: *from, ls: Box::new(proj_bs_exec(bs, r)) }
+            } else {
+                LE::End
+            }
+        }
+    }
+}
+
+fn proj_bs_exec(bs: &BE, r: usize) -> (ls: LsE)
+    ensures ls@ == proj_bs(bs@, r as int),
+    decreases bs,
+{
+    match bs {
+        BE::Nil => LsE::Nil,
+        BE::Cons { label, g, rest } => LsE::Cons { label: *label, l: proj_exec(g, r), rest: Box::new(proj_bs_exec(rest, r)) },
+    }
+}
+
+/// An executable type is a recursion exactly when its view is.
+proof fn lemma_view_rec(l: &LE)
+    ensures (l@ is Rec) == (l is Rec),
+{
+    match l {
+        LE::End => {}
+        LE::Var { .. } => {}
+        LE::Rec { .. } => {}
+        LE::Send { .. } => {}
+        LE::Recv { .. } => {}
+    }
+}
+
+/// A copy of an executable local type (the type is not `Clone` under
+/// Verus's erasure rules for `Box`; the copy's view is the original's).
+pub fn le_copy(l: &LE) -> (r: LE)
+    ensures r@ == l@,
+    decreases l,
+{
+    match l {
+        LE::End => LE::End,
+        LE::Var { n } => LE::Var { n: *n },
+        LE::Rec { body } => LE::Rec { body: Box::new(le_copy(body)) },
+        LE::Send { to, ls } => LE::Send { to: *to, ls: Box::new(lse_copy(ls)) },
+        LE::Recv { from, ls } => LE::Recv { from: *from, ls: Box::new(lse_copy(ls)) },
+    }
+}
+
+fn lse_copy(ls: &LsE) -> (r: LsE)
+    ensures r@ == ls@,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => LsE::Nil,
+        LsE::Cons { label, l, rest } => LsE::Cons { label: *label, l: le_copy(l), rest: Box::new(lse_copy(rest)) },
+    }
+}
+
+/// `lsubst` on executable local types; `None` when a substitution index
+/// would overflow (a nesting no Protocol reaches: the flattening then
+/// refuses rather than computes a wrong term).
+pub fn lsubst_exec(l: &LE, k: usize, by: &LE) -> (r: Option<LE>)
+    ensures r is Some ==> r.unwrap()@ == lsubst(l@, k as nat, by@),
+    decreases l,
+{
+    match l {
+        LE::End => Some(LE::End),
+        LE::Var { n } => {
+            if *n == k { Some(le_copy(by)) } else if *n > k { Some(LE::Var { n: *n - 1 }) } else { Some(LE::Var { n: *n }) }
+        }
+        LE::Rec { body } => {
+            if k == usize::MAX {
+                return None;
+            }
+            match lsubst_exec(body, k + 1, by) {
+                Some(b) => Some(LE::Rec { body: Box::new(b) }),
+                None => None,
+            }
+        }
+        LE::Send { to, ls } => match lsubst_ls_exec(ls, k, by) {
+            Some(x) => Some(LE::Send { to: *to, ls: Box::new(x) }),
+            None => None,
+        },
+        LE::Recv { from, ls } => match lsubst_ls_exec(ls, k, by) {
+            Some(x) => Some(LE::Recv { from: *from, ls: Box::new(x) }),
+            None => None,
+        },
+    }
+}
+
+fn lsubst_ls_exec(ls: &LsE, k: usize, by: &LE) -> (r: Option<LsE>)
+    ensures r is Some ==> r.unwrap()@ == lsubst_ls(ls@, k as nat, by@),
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => Some(LsE::Nil),
+        LsE::Cons { label, l, rest } => match (lsubst_exec(l, k, by), lsubst_ls_exec(rest, k, by)) {
+            (Some(a), Some(b)) => Some(LsE::Cons { label: *label, l: a, rest: Box::new(b) }),
+            _ => None,
+        },
+    }
+}
+
+/// The head normal form of an executable local type (`lhead`), or `None`
+/// when an unfolding would overflow an index.
+pub fn lhead_exec(l: &LE) -> (r: Option<LE>)
+    ensures r is Some ==> r.unwrap()@ == lhead(l@),
+{
+    let mut cur = le_copy(l);
+    let mut n = llead_recs_exec(&cur);
+    if n == usize::MAX {
+        return None;
+    }
+    let ghost total = n as nat;
+    assert(lhead(l@) == lhead_n(cur@, total));
+    while n > 0
+        invariant lhead_n(cur@, n as nat) == lhead(l@),
+        decreases n,
+    {
+        proof { lemma_view_rec(&cur); }
+        match &cur {
+            LE::Rec { body } => {
+                assert(cur@ == L::Rec { body: Box::new(body@) });
+                let unfolded = match lsubst_exec(body, 0, &cur) {
+                    Some(u) => u,
+                    None => return None,
+                };
+                assert(unfolded@ == lsubst(body@, 0, cur@));
+                assert(lunfold(cur@) == lsubst(body@, 0, cur@));
+                assert(lhead_n(cur@, n as nat) == lhead_n(unfolded@, (n - 1) as nat));
+                cur = unfolded;
+            }
+            _ => {
+                assert(lhead_n(cur@, n as nat) == cur@);
+                return Some(cur);
+            }
+        }
+        n -= 1;
+    }
+    assert(lhead_n(cur@, 0) == cur@);
+    Some(cur)
+}
+
+fn llead_recs_exec(l: &LE) -> (r: usize)
+    ensures r as nat == llead_recs(l@) || (r == usize::MAX && llead_recs(l@) >= usize::MAX),
+    decreases l,
+{
+    match l {
+        LE::Rec { body } => {
+            let m = llead_recs_exec(body);
+            if m == usize::MAX { usize::MAX } else { m + 1 }
+        }
+        _ => 0,
+    }
+}
+
+/// Structural equality of executable local types, deciding equality of
+/// their views.
+pub fn le_eq(a: &LE, b: &LE) -> (r: bool)
+    ensures r == (a@ == b@),
+    decreases a,
+{
+    match (a, b) {
+        (LE::End, LE::End) => true,
+        (LE::Var { n: x }, LE::Var { n: y }) => *x == *y,
+        (LE::Rec { body: x }, LE::Rec { body: y }) => le_eq(x, y),
+        (LE::Send { to: tx, ls: lx }, LE::Send { to: ty, ls: ly }) => *tx == *ty && lse_eq(lx, ly),
+        (LE::Recv { from: fx, ls: lx }, LE::Recv { from: fy, ls: ly }) => *fx == *fy && lse_eq(lx, ly),
+        _ => false,
+    }
+}
+
+fn lse_eq(a: &LsE, b: &LsE) -> (r: bool)
+    ensures r == (a@ == b@),
+    decreases a,
+{
+    match (a, b) {
+        (LsE::Nil, LsE::Nil) => true,
+        (LsE::Cons { label: la, l: xa, rest: ra }, LsE::Cons { label: lb, l: xb, rest: rb }) => *la == *lb && le_eq(xa, xb) && lse_eq(ra, rb),
+        _ => false,
+    }
+}
+
+/// The view of a state table.
+pub open spec fn tbl_view(v: Seq<LE>) -> Seq<L> {
+    v.map(|i: int, l: LE| l@)
+}
+
+/// The most states a role's table may hold before the flattening refuses.
+pub const MAX_STATES: usize = 4096;
+
+/// Finds the entry equal to `h` in `tbl`, or appends it; the index.
+fn intern(tbl: &mut Vec<LE>, h: LE) -> (j: Option<usize>)
+    requires old(tbl).len() <= MAX_STATES,
+    ensures
+        j is Some ==> (j.unwrap() as int) < final(tbl).len() && tbl_view(final(tbl)@)[j.unwrap() as int] == h@,
+        j is Some ==> final(tbl).len() <= MAX_STATES,
+        j is None ==> final(tbl)@ == old(tbl)@,
+        forall|i: int| 0 <= i < old(tbl).len() ==> #[trigger] tbl_view(final(tbl)@)[i] == tbl_view(old(tbl)@)[i],
+        final(tbl).len() >= old(tbl).len(),
+        j is Some && (j.unwrap() as int) >= old(tbl).len() ==> final(tbl).len() == old(tbl).len() + 1,
+{
+    let mut i = 0;
+    while i < tbl.len()
+        invariant i <= tbl.len(), tbl@ == old(tbl)@, tbl.len() <= MAX_STATES,
+        decreases tbl.len() - i,
+    {
+        if le_eq(&tbl[i], &h) {
+            assert(tbl_view(tbl@)[i as int] == tbl@[i as int]@);
+            assert(tbl@[i as int]@ == h@);
+            assert(tbl_view(tbl@)[i as int] == h@);
+            return Some(i);
+        }
+        i += 1;
+    }
+    if tbl.len() >= MAX_STATES {
+        return None;
+    }
+    let ghost before = tbl@;
+    tbl.push(h);
+    assert forall|k: int| 0 <= k < before.len() implies #[trigger] tbl_view(tbl@)[k] == tbl_view(before)[k] by {
+        assert(tbl@[k] == before[k]);
+    }
+    assert(tbl_view(tbl@)[before.len() as int] == tbl@[before.len() as int]@);
+    assert(tbl@[before.len() as int]@ == h@);
+    assert(tbl_view(tbl@)[before.len() as int] == h@);
+    assert(tbl.len() - 1 == before.len());
+    Some(tbl.len() - 1)
+}
+
+/// The branches of a head-normal executable entry (`ls_of` of the view).
+fn branches_of(e: &LE) -> (r: Option<&LsE>)
+    ensures
+        r is Some ==> r.unwrap()@ == ls_of(e@),
+        r is None ==> (e@ is End || e@ is Rec || e@ is Var),
+{
+    match e {
+        LE::Send { ls, .. } => Some(ls),
+        LE::Recv { ls, .. } => Some(ls),
+        _ => None,
+    }
+}
+
+/// Whether a head-normal entry of role `r` is admissible (`entry_ok`).
+fn entry_ok_exec(e: &LE, r: usize) -> (ok: bool)
+    requires r < 2,
+    ensures ok == entry_ok(e@, r as int),
+{
+    match e {
+        LE::End => true,
+        LE::Send { to, ls } => {
+            proof { lemma_lse_cons_view(ls); }
+            let cons = match &**ls { LsE::Cons { .. } => true, LsE::Nil => false };
+            *to == 1 - r && cons
+        }
+        LE::Recv { from, ls } => {
+            proof { lemma_lse_cons_view(ls); }
+            let cons = match &**ls { LsE::Cons { .. } => true, LsE::Nil => false };
+            *from == 1 - r && cons
+        }
+        _ => false,
+    }
+}
+
+proof fn lemma_lse_cons_view(ls: &LsE)
+    ensures (ls@ is Cons) == (ls is Cons),
+{
+    match ls {
+        LsE::Nil => {}
+        LsE::Cons { .. } => {}
+    }
+}
+
+/// A transition list and two state tables with the properties `flattens`
+/// asks of every entry processed so far.
+pub open spec fn processed_ok(trans: Seq<Trans>, tb: Seq<Seq<L>>, r: int, upto: int) -> bool {
+    forall|i: int, label: int| 0 <= i < upto && #[trigger] ls_lookup(ls_of(tb[r][i]), label) is Some
+        ==> exists|j: int| 0 <= j < tb[r].len() && tb[r][j] == lhead(ls_lookup(ls_of(tb[r][i]), label).unwrap())
+            && has_transition_seq(trans, Trans { role: r as usize, from: i as usize, send: tb[r][i] is Send, peer: other(r) as usize, label: label as u32, to: j as usize })
+}
+
+pub open spec fn has_transition_seq(trans: Seq<Trans>, t: Trans) -> bool {
+    exists|i: int| 0 <= i < trans.len() && trans[i] == t
+}
+
+/// Every transition of the list is a branch of its entry (`flattens`'
+/// last clause, over the tables' views).
+pub open spec fn trans_ok(trans: Seq<Trans>, tb: Seq<Seq<L>>) -> bool {
+    forall|k: int| 0 <= k < trans.len() ==> {
+        let t = #[trigger] trans[k];
+        &&& t.role < 2
+        &&& (t.from as int) < tb[t.role as int].len()
+        &&& (t.to as int) < tb[t.role as int].len()
+        &&& t.peer == other(t.role as int)
+        &&& (t.send ==> tb[t.role as int][t.from as int] is Send)
+        &&& (t.send == false ==> tb[t.role as int][t.from as int] is Recv)
+        &&& ls_lookup(ls_of(tb[t.role as int][t.from as int]), t.label as int) is Some
+        &&& tb[t.role as int][t.to as int] == lhead(ls_lookup(ls_of(tb[t.role as int][t.from as int]), t.label as int).unwrap())
+    }
+}
+
+/// The labels of an executable branch list.
+fn labels_of(ls: &LsE) -> (r: Vec<u32>)
+    ensures forall|label: int| ls_lookup(ls@, label) is Some <==> exists|i: int| 0 <= i < r@.len() && #[trigger] r@[i] as int == label,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => Vec::new(),
+        LsE::Cons { label, rest, .. } => {
+            let mut v = labels_of(rest);
+            let ghost before = v@;
+            let lab: u32 = *label;
+            v.push(lab);
+            assert(v@ == before.push(lab));
+            assert(v@.len() == before.len() + 1);
+            assert(v@[before.len() as int] == lab);
+            assert(forall|i: int| 0 <= i < before.len() ==> v@[i] == before[i]);
+            assert forall|lb: int| ls_lookup(ls@, lb) is Some implies exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb by {
+                assert(ls_lookup(ls@, lb) is Some == (lab as int == lb || ls_lookup(rest@, lb) is Some));
+                if lab as int == lb {
+                    assert(v@[before.len() as int] as int == lb);
+                } else {
+                    assert(ls_lookup(rest@, lb) is Some);
+                    let i = choose|i: int| 0 <= i < before.len() && #[trigger] before[i] as int == lb;
+                    assert(v@[i] == before[i]);
+                    assert(v@[i] as int == lb);
+                }
+            }
+            assert forall|lb: int| (exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb) implies ls_lookup(ls@, lb) is Some by {
+                let i = choose|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb;
+                assert(ls_lookup(ls@, lb) is Some == (lab as int == lb || ls_lookup(rest@, lb) is Some));
+                if i < before.len() {
+                    assert(v@[i] == before[i]);
+                    assert(before[i] as int == lb);
+                } else {
+                    assert(i == before.len());
+                    assert(lab as int == lb);
+                }
+            }
+            v
+        }
+    }
+}
+
+/// The continuation of `label` in `ls` (`ls_lookup`).
+fn lookup_exec<'a>(ls: &'a LsE, label: u32) -> (r: Option<&'a LE>)
+    ensures
+        r is Some ==> ls_lookup(ls@, label as int) == Some(r.unwrap()@),
+        r is None ==> ls_lookup(ls@, label as int) is None,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => None,
+        LsE::Cons { label: l, l: cont, rest } => if *l == label { Some(cont) } else { lookup_exec(rest, label) },
+    }
+}
+
+proof fn lemma_has_trans_push(trans: Seq<Trans>, t: Trans, x: Trans)
+    requires has_transition_seq(trans, x),
+    ensures has_transition_seq(trans.push(t), x),
+{
+    let i = choose|i: int| 0 <= i < trans.len() && trans[i] == x;
+    assert(trans.push(t)[i] == x);
+}
+
+/// `processed_ok` for one role's own table.
+pub open spec fn role_ok(trans: Seq<Trans>, tbl: Seq<L>, r: int, upto: int) -> bool {
+    forall|i: int, label: int| 0 <= i < upto && #[trigger] ls_lookup(ls_of(tbl[i]), label) is Some
+        ==> exists|j: int| 0 <= j < tbl.len() && tbl[j] == lhead(ls_lookup(ls_of(tbl[i]), label).unwrap())
+            && has_transition_seq(trans, Trans { role: r as usize, from: i as usize, send: tbl[i] is Send, peer: other(r) as usize, label: label as u32, to: j as usize })
+}
+
+/// The two tables as `flattens` sees them.
+pub open spec fn tables(t0: Seq<LE>, t1: Seq<LE>) -> Seq<Seq<L>> {
+    seq![tbl_view(t0), tbl_view(t1)]
+}
+
+/// Processes the branches of entry `i` of role `r`: a state for each
+/// continuation's head, a transition for each label.
+fn process_entry(entry: &LE, r: usize, i: usize, tbl: &mut Vec<LE>, trans: &mut Vec<Trans>, peer_tbl: &Vec<LE>) -> (ok: bool)
+    requires
+        r < 2, i < old(tbl).len(), old(tbl).len() <= MAX_STATES,
+        entry@ == tbl_view(old(tbl)@)[i as int],
+        entry_ok(entry@, r as int),
+        trans_ok(old(trans)@, if r == 0 { tables(old(tbl)@, peer_tbl@) } else { tables(peer_tbl@, old(tbl)@) }),
+    ensures
+        final(tbl).len() >= old(tbl).len(), final(tbl).len() <= MAX_STATES,
+        forall|k: int| 0 <= k < old(tbl).len() ==> #[trigger] tbl_view(final(tbl)@)[k] == tbl_view(old(tbl)@)[k],
+        forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(final(trans)@, x),
+        trans_ok(final(trans)@, if r == 0 { tables(final(tbl)@, peer_tbl@) } else { tables(peer_tbl@, final(tbl)@) }),
+        ok ==> forall|label: int| #[trigger] ls_lookup(ls_of(entry@), label) is Some
+            ==> exists|j: int| 0 <= j < final(tbl).len() && tbl_view(final(tbl)@)[j] == lhead(ls_lookup(ls_of(entry@), label).unwrap())
+                && has_transition_seq(final(trans)@, Trans { role: r, from: i, send: entry@ is Send, peer: (1 - r) as usize, label: label as u32, to: j as usize }),
+{
+    let ls = match branches_of(entry) {
+        None => {
+            assert(forall|label: int| !(ls_lookup(ls_of(entry@), label) is Some));
+            return true;
+        }
+        Some(ls) => ls,
+    };
+    let is_send = match entry { LE::Send { .. } => true, _ => false };
+    proof { lemma_view_rec(entry); }
+    assert(is_send == (entry@ is Send)) by {
+        match entry {
+            LE::End => {} LE::Var { .. } => {} LE::Rec { .. } => {} LE::Send { .. } => {} LE::Recv { .. } => {}
+        }
+    }
+    let labels = labels_of(ls);
+    let mut k = 0;
+    while k < labels.len()
+        invariant
+            k <= labels.len(), r < 2, i < tbl.len(), tbl.len() <= MAX_STATES,
+            ls@ == ls_of(entry@), entry_ok(entry@, r as int), is_send == (entry@ is Send),
+            forall|label: int| ls_lookup(ls@, label) is Some <==> exists|q: int| 0 <= q < labels@.len() && #[trigger] labels@[q] as int == label,
+            tbl.len() >= old(tbl).len(),
+            forall|q: int| 0 <= q < old(tbl).len() ==> #[trigger] tbl_view(tbl@)[q] == tbl_view(old(tbl)@)[q],
+            tbl_view(tbl@)[i as int] == entry@,
+            forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(trans@, x),
+            trans_ok(trans@, if r == 0 { tables(tbl@, peer_tbl@) } else { tables(peer_tbl@, tbl@) }),
+            forall|q: int| 0 <= q < k ==> exists|j: int| 0 <= j < tbl.len() && tbl_view(tbl@)[j] == lhead(ls_lookup(ls@, #[trigger] labels@[q] as int).unwrap())
+                && has_transition_seq(trans@, Trans { role: r, from: i, send: is_send, peer: (1 - r) as usize, label: labels@[q], to: j as usize }),
+        decreases labels.len() - k,
+    {
+        let label = labels[k];
+        assert(ls_lookup(ls@, label as int) is Some);
+        let cont = match lookup_exec(ls, label) {
+            Some(c) => c,
+            None => { assert(false); return false; }
+        };
+        let h = match lhead_exec(cont) {
+            Some(h) => h,
+            None => return false,
+        };
+        let ghost tbl_before = tbl@;
+        let ghost trans_before = trans@;
+        let j = match intern(tbl, h) {
+            Some(j) => j,
+            None => return false,
+        };
+        let t = Trans { role: r, from: i, send: is_send, peer: 1 - r, label, to: j };
+        trans.push(t);
+        proof {
+            assert forall|x: Trans| has_transition_seq(trans_before, x) implies has_transition_seq(trans@, x) by {
+                lemma_has_trans_push(trans_before, t, x);
+            }
+            assert(trans@[trans@.len() - 1] == t);
+            assert(has_transition_seq(trans@, t));
+            // The new transition is a branch of its entry.
+            assert(tbl_view(tbl@)[j as int] == lhead(ls_lookup(ls_of(entry@), label as int).unwrap()));
+            assert(tbl_view(tbl@)[i as int] == entry@);
+            // The old facts carry over the grown table and list.
+            assert forall|q: int| 0 <= q < k implies exists|jj: int| 0 <= jj < tbl.len() && tbl_view(tbl@)[jj] == lhead(ls_lookup(ls@, #[trigger] labels@[q] as int).unwrap())
+                && has_transition_seq(trans@, Trans { role: r, from: i, send: is_send, peer: (1 - r) as usize, label: labels@[q], to: jj as usize }) by {
+                let jj = choose|jj: int| 0 <= jj < tbl_before.len() && tbl_view(tbl_before)[jj] == lhead(ls_lookup(ls@, labels@[q] as int).unwrap())
+                    && has_transition_seq(trans_before, Trans { role: r, from: i, send: is_send, peer: (1 - r) as usize, label: labels@[q], to: jj as usize });
+                assert(tbl_view(tbl@)[jj] == tbl_view(tbl_before)[jj]);
+                lemma_has_trans_push(trans_before, t, Trans { role: r, from: i, send: is_send, peer: (1 - r) as usize, label: labels@[q], to: jj as usize });
+            }
+        }
+        k += 1;
+    }
+    assert forall|label: int| #[trigger] ls_lookup(ls_of(entry@), label) is Some
+        implies exists|j: int| 0 <= j < tbl.len() && tbl_view(tbl@)[j] == lhead(ls_lookup(ls_of(entry@), label).unwrap())
+            && has_transition_seq(trans@, Trans { role: r, from: i, send: entry@ is Send, peer: (1 - r) as usize, label: label as u32, to: j as usize }) by {
+        let q = choose|q: int| 0 <= q < labels@.len() && #[trigger] labels@[q] as int == label;
+    }
+    true
+}
+
+/// Builds role `r`'s state table and transitions: entry 0 the head of the
+/// projection, every entry admissible and processed.
+fn flatten_role(g: &GE, r: usize, tbl: &mut Vec<LE>, trans: &mut Vec<Trans>, peer_tbl: &Vec<LE>) -> (ok: bool)
+    requires
+        r < 2, old(tbl).len() == 0,
+        trans_ok(old(trans)@, if r == 0 { tables(old(tbl)@, peer_tbl@) } else { tables(peer_tbl@, old(tbl)@) }),
+    ensures
+        final(tbl).len() <= MAX_STATES,
+        forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(final(trans)@, x),
+        trans_ok(final(trans)@, if r == 0 { tables(final(tbl)@, peer_tbl@) } else { tables(peer_tbl@, final(tbl)@) }),
+        ok ==> final(tbl).len() >= 1 && tbl_view(final(tbl)@)[0] == lhead(proj(g@, r as int)),
+        ok ==> forall|k: int| 0 <= k < final(tbl).len() ==> entry_ok(#[trigger] tbl_view(final(tbl)@)[k], r as int),
+        ok ==> role_ok(final(trans)@, tbl_view(final(tbl)@), r as int, final(tbl).len() as int),
+{
+    let p = proj_exec(g, r);
+    let h0 = match lhead_exec(&p) {
+        Some(h) => h,
+        None => return false,
+    };
+    tbl.push(h0);
+    assert(tbl_view(tbl@)[0] == tbl@[0]@);
+    let mut i = 0;
+    while i < tbl.len()
+        invariant
+            r < 2, i <= tbl.len(), tbl.len() <= MAX_STATES, tbl.len() >= 1,
+            tbl_view(tbl@)[0] == lhead(proj(g@, r as int)),
+            forall|k: int| 0 <= k < i ==> entry_ok(#[trigger] tbl_view(tbl@)[k], r as int),
+            role_ok(trans@, tbl_view(tbl@), r as int, i as int),
+            forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(trans@, x),
+            trans_ok(trans@, if r == 0 { tables(tbl@, peer_tbl@) } else { tables(peer_tbl@, tbl@) }),
+        decreases MAX_STATES - i,
+    {
+        let entry = le_copy(&tbl[i]);
+        assert(entry@ == tbl_view(tbl@)[i as int]);
+        if !entry_ok_exec(&entry, r) {
+            return false;
+        }
+        let ghost tbl_before = tbl@;
+        let ghost trans_before = trans@;
+        if !process_entry(&entry, r, i, tbl, trans, peer_tbl) {
+            return false;
+        }
+        proof {
+            // The table's prefix and the transitions carry the earlier facts.
+            assert forall|k: int| 0 <= k < i + 1 implies entry_ok(#[trigger] tbl_view(tbl@)[k], r as int) by {
+                assert(tbl_view(tbl@)[k] == tbl_view(tbl_before)[k]);
+            }
+            assert forall|k: int, label: int| 0 <= k < i + 1 && #[trigger] ls_lookup(ls_of(tbl_view(tbl@)[k]), label) is Some
+                implies exists|j: int| 0 <= j < tbl.len() && tbl_view(tbl@)[j] == lhead(ls_lookup(ls_of(tbl_view(tbl@)[k]), label).unwrap())
+                    && has_transition_seq(trans@, Trans { role: r, from: k as usize, send: tbl_view(tbl@)[k] is Send, peer: other(r as int) as usize, label: label as u32, to: j as usize }) by {
+                assert(tbl_view(tbl@)[k] == tbl_view(tbl_before)[k]);
+                if k < i {
+                    let j = choose|j: int| 0 <= j < tbl_before.len() && tbl_view(tbl_before)[j] == lhead(ls_lookup(ls_of(tbl_view(tbl_before)[k]), label).unwrap())
+                        && has_transition_seq(trans_before, Trans { role: r, from: k as usize, send: tbl_view(tbl_before)[k] is Send, peer: other(r as int) as usize, label: label as u32, to: j as usize });
+                    assert(tbl_view(tbl@)[j] == tbl_view(tbl_before)[j]);
+                } else {
+                    assert(tbl_view(tbl@)[k] == entry@);
+                    assert(other(r as int) == 1 - r as int);
+                }
+            }
+        }
+        i += 1;
+    }
+    true
+}
+
+/// The verified flattening of a two-role Protocol: the automaton and the
+/// two state tables, related by `flattens`; `None` when the Protocol is
+/// refused (a state beyond `MAX_STATES`, an inadmissible entry, an index
+/// overflow), which the checker reports.
+pub fn flatten_two(g: &GE, capacity: usize) -> (r: Option<(System, Vec<LE>, Vec<LE>)>)
+    ensures r is Some ==> flattens(r.unwrap().0, g@, tables(r.unwrap().1@, r.unwrap().2@)),
+{
+    let mut t0: Vec<LE> = Vec::new();
+    let mut t1: Vec<LE> = Vec::new();
+    let mut trans: Vec<Trans> = Vec::new();
+    if !flatten_role(g, 0, &mut t0, &mut trans, &t1) {
+        return None;
+    }
+    if !flatten_role(g, 1, &mut t1, &mut trans, &t0) {
+        return None;
+    }
+    let s = System { roles: 2, capacity, trans };
+    proof {
+        let tb = tables(t0@, t1@);
+        assert(tb.len() == 2);
+        assert(tb[0] == tbl_view(t0@));
+        assert(tb[1] == tbl_view(t1@));
+        // Role 0's facts survived role 1's additions: its table did not
+        // change and the transitions only grew.
+        assert forall|i: int, label: int| 0 <= i < tb[0].len() && #[trigger] ls_lookup(ls_of(tb[0][i]), label) is Some
+            implies exists|j: int| 0 <= j < tb[0].len() && tb[0][j] == lhead(ls_lookup(ls_of(tb[0][i]), label).unwrap())
+                && has_transition(s, Trans { role: 0, from: i as usize, send: tb[0][i] is Send, peer: other(0) as usize, label: label as u32, to: j as usize }) by {
+            let j = choose|j: int| 0 <= j < tb[0].len() && tb[0][j] == lhead(ls_lookup(ls_of(tb[0][i]), label).unwrap())
+                && has_transition_seq(s.trans@, Trans { role: 0, from: i as usize, send: tb[0][i] is Send, peer: other(0) as usize, label: label as u32, to: j as usize });
+        }
+        assert forall|i: int, label: int| 0 <= i < tb[1].len() && #[trigger] ls_lookup(ls_of(tb[1][i]), label) is Some
+            implies exists|j: int| 0 <= j < tb[1].len() && tb[1][j] == lhead(ls_lookup(ls_of(tb[1][i]), label).unwrap())
+                && has_transition(s, Trans { role: 1, from: i as usize, send: tb[1][i] is Send, peer: other(1) as usize, label: label as u32, to: j as usize }) by {
+            let j = choose|j: int| 0 <= j < tb[1].len() && tb[1][j] == lhead(ls_lookup(ls_of(tb[1][i]), label).unwrap())
+                && has_transition_seq(s.trans@, Trans { role: 1, from: i as usize, send: tb[1][i] is Send, peer: other(1) as usize, label: label as u32, to: j as usize });
+        }
+    }
+    Some((s, t0, t1))
+}
+
 } // verus!
+
+
 
 

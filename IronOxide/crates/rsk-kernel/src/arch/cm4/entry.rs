@@ -1158,8 +1158,9 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
 }
 
 /// The Endpoint_Library's reports (`SVC_VIOLATION`; tasks 21.3 and 21.4).
-/// `arg` 0: a Protocol violation of the executing Task (R41.2), recorded
-/// with no response. `arg` = 1 | e << 8 | role << 16: a message that role
+/// `arg` = 2 | e << 8 | role << 16: a Protocol violation of role `role` of
+/// Endpoint `e` (R41.2), recorded with no response and the Endpoint
+/// re-initialized. `arg` = 1 | e << 8 | role << 16: a message that role
 /// `role` of Endpoint `e`, bound to the executing Task, received and its
 /// validation function rejected (R42.4): the fault of the sending
 /// Partition, recorded against the sending Task, whose Partition receives
@@ -1174,8 +1175,26 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut Ar
         Some(t) => t,
         None => return,
     };
-    if arg == 0 {
+    // Task 21.7, the review's finding 14(f): `arg` = 2 | e << 8 | role << 16
+    // reports a Protocol violation of role `role` of Endpoint `e` (a role
+    // value dropped mid-Protocol, an unexpected label, a slot left empty;
+    // R41.2): recorded against the executing Task with no response, and the
+    // Endpoint re-initialized, so that every role starts the Protocol over
+    // (A-P6) instead of one role staying blocked for ever.
+    if arg & 0xFF == 2 {
+        let e = ((arg >> 8) & 0xFF) as usize;
+        let role = ((arg >> 16) & 0xF) as usize;
+        if (arg >> 20) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS || role >= MAX_ROLES {
+            k.fault(EV_API_MISUSE, false);
+            return;
+        }
+        let cfg = tables.endpoint(e);
+        if (role as u8) >= cfg.roles || cfg.tasks[role] != t {
+            k.fault(EV_API_MISUSE, false);
+            return;
+        }
         k.record_event(EV_PROTOCOL_VIOLATION, t);
+        endpoint_reinit_one(state, e);
         return;
     }
     // Task 21.7: `arg` = 1 | e << 8 | role << 16 | from << 20, `from` the
@@ -1821,3 +1840,4 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
 }
 
 } // verus!
+

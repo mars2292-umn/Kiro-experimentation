@@ -117,6 +117,23 @@ fn participates(g: &Global, r: &str) -> bool {
     }
 }
 
+/// The projection of a recursion body in which the role takes no part,
+/// with the vacuous binder `name` removed: `end` stays `end`, a `continue`
+/// of an enclosing recursion stands for the whole, a `continue` of the
+/// vacuous recursion itself (a loop the role never acts in) is `end`, and
+/// nested vacuous recursions collapse the same way.
+fn collapse_vacuous(l: Local, name: &str) -> Local {
+    match l {
+        Local::End => Local::End,
+        Local::Continue(n) => if n == name { Local::End } else { Local::Continue(n) },
+        Local::Rec { name: inner, body } => match collapse_vacuous(*body, &inner) {
+            Local::Continue(n) if n == name => Local::End,
+            other => other,
+        },
+        other => other,
+    }
+}
+
 /// R38.3: the projection of `g` onto `r`, with the full merge for the
 /// roles a choice does not inform first.
 pub fn project(g: &Global, r: &str) -> Result<Local, ProtocolError> {
@@ -127,7 +144,16 @@ pub fn project(g: &Global, r: &str) -> Result<Local, ProtocolError> {
             if participates(body, r) {
                 Ok(Local::Rec { name: name.clone(), body: Box::new(project(body, r)?) })
             } else {
-                Ok(Local::End)
+                // The role takes no part in the body: the recursion is
+                // vacuous for it. Its body projects to `end`, or to a
+                // `continue` of an enclosing recursion, which then stands
+                // for the whole (`rec Y { continue X }` is `continue X`).
+                // Until 2026-11-09 this was `end`, which turned the
+                // unbounded stream `rec X { A: d -> a; rec Y { continue X } }`
+                // into a one-shot message; the verified exploration of the
+                // flattened projections (task 21.6) refused what this
+                // accepted, and found it.
+                Ok(collapse_vacuous(project(body, r)?, name))
             }
         }
         Global::Msg(m, rest) => {

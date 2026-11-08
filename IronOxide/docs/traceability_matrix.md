@@ -474,19 +474,19 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R38.1 | — | — | ○21.7; ✓21.3 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; +18 | — |
-| R38.2 | — | — | ○21.7; ✓21.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +5 | — |
-| R38.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ○21.7; ✓21.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +23 | — |
+| R38.1 | — | — | ✓21.3; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; +18 | — |
+| R38.2 | — | — | ✓21.1; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +5 | — |
+| R38.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ✓21.1; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +23 | — |
 | R38.4 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20; What the type system gives, and what it does not | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +11 | test-workspace-tests |
 | R38.5 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-protocol/Cargo.toml; +6 | test-workspace-tests |
-| R38.6 | — | Endpoint_Library and Protocol_Checker (Component F) | ○21.7; ✓21.1 | crates/rsk-protocol/src/lib.rs | — |
+| R38.6 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1; ✓21.7 | crates/rsk-protocol/src/lib.rs | — |
 | R38.7 | — | Endpoint_Library and Protocol_Checker (Component F); Reuse and Deviation Record | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +12 | — |
 
 ### Requirement 39: Static, heap-free, executor-free implementation (Phase P4)
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R39.1 | — | — | ○21.7; ✓21.2 | profile/profile.toml | — |
+| R39.1 | — | — | ✓21.2; ✓21.7 | profile/profile.toml | — |
 | R39.2 | — | — | ✓21.2 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs | — |
 | R39.3 | — | — | ✓21.2 | crates/rsk-hil/src/kernel_timing.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs | — |
 | R39.4 | P-09 | Property 11 | ✓21.2 | crates/rsk-logic/src/logic/endpoint.rs | — |
@@ -496,7 +496,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R40.1 | — | Requirements Impact | ✓10.3 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; +14 | — |
-| R40.2 | — | Endpoint_Library and Protocol_Checker (Component F) | ○21.7; ✓21.5 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +9 | test-workspace-tests |
+| R40.2 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.5; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +9 | test-workspace-tests |
 | R40.3 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/validate.rs; +4 | — |
 | R40.4 | — | Application API (`rsk`); Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +14 | — |
 | R40.5 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; +22 | — |
@@ -506,9 +506,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R41.1 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ○21.7; ✓21.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +24 | test-workspace-tests |
+| R41.1 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ✓21.1; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +24 | test-workspace-tests |
 | R41.2 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +17 | — |
-| R41.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property allocation (R43) | ○21.7; ✓21.6 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +27 | proof-kernel-verus; test-workspace-tests |
+| R41.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property allocation (R43) | ✓21.6; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +28 | proof-kernel-verus; test-workspace-tests |
 | R41.4 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.5 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; crates/rsk-analyzer/src/inputs.rs; +12 | test-workspace-tests |
 
 ### Requirement 42: Cross-partition messaging (Phase P4)
@@ -877,12 +877,12 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 
 | Criterion | Tasks | Design |
 |---|---|---|
-| R38.1 | ○21.7; ✓21.3 | — |
-| R38.2 | ○21.7; ✓21.1 | — |
-| R38.3 | ○21.7; ✓21.1 | Endpoint_Library and Protocol_Checker (Component F); Property 20 |
-| R38.6 | ○21.7; ✓21.1 | Endpoint_Library and Protocol_Checker (Component F) |
+| R38.1 | ✓21.3; ✓21.7 | — |
+| R38.2 | ✓21.1; ✓21.7 | — |
+| R38.3 | ✓21.1; ✓21.7 | Endpoint_Library and Protocol_Checker (Component F); Property 20 |
+| R38.6 | ✓21.1; ✓21.7 | Endpoint_Library and Protocol_Checker (Component F) |
 | R38.7 | ✓21.3 | Endpoint_Library and Protocol_Checker (Component F); Reuse and Deviation Record |
-| R39.1 | ○21.7; ✓21.2 | — |
+| R39.1 | ✓21.2; ✓21.7 | — |
 | R39.2 | ✓21.2 | — |
 | R39.3 | ✓21.2 | — |
 | R39.4 | ✓21.2 | Property 11 |
@@ -1131,25 +1131,25 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R37.2 | P2 | ✓12.2 | analysis-stack-p1-demo; analysis-stack-step |
 | R37.3 | P2 | ✓12.1 | analysis-stack-p1-demo; analysis-stack-step |
 | R37.4 | P2 | ✓12.2 | analysis-stack-p1-demo; analysis-stack-step |
-| R38.1 | P4 | ○21.7; ✓21.3 | — |
-| R38.2 | P4 | ○21.7; ✓21.1 | — |
-| R38.3 | P4 | ○21.7; ✓21.1 | — |
+| R38.1 | P4 | ✓21.3; ✓21.7 | — |
+| R38.2 | P4 | ✓21.1; ✓21.7 | — |
+| R38.3 | P4 | ✓21.1; ✓21.7 | — |
 | R38.4 | P4 | ✓21.3 | test-workspace-tests |
 | R38.5 | P4 | ✓21.1 | test-workspace-tests |
-| R38.6 | P4 | ○21.7; ✓21.1 | — |
+| R38.6 | P4 | ✓21.1; ✓21.7 | — |
 | R38.7 | P4 | ✓21.3 | — |
-| R39.1 | P4 | ○21.7; ✓21.2 | — |
+| R39.1 | P4 | ✓21.2; ✓21.7 | — |
 | R39.2 | P4 | ✓21.2 | — |
 | R39.3 | P4 | ✓21.2 | — |
 | R40.1 | P4 | ✓10.3 | — |
-| R40.2 | P4 | ○21.7; ✓21.5 | test-workspace-tests |
+| R40.2 | P4 | ✓21.5; ✓21.7 | test-workspace-tests |
 | R40.3 | P4 | ✓21.2 | — |
 | R40.4 | P4 | ✓21.2 | — |
 | R40.5 | P4 | ✓21.2 | — |
 | R40.6 | P4 | ✓21.2 | test-workspace-tests |
-| R41.1 | P4 | ○21.7; ✓21.1 | test-workspace-tests |
+| R41.1 | P4 | ✓21.1; ✓21.7 | test-workspace-tests |
 | R41.2 | P4 | ✓21.3 | — |
-| R41.3 | P4 | ○21.7; ✓21.6 | proof-kernel-verus; test-workspace-tests |
+| R41.3 | P4 | ✓21.6; ✓21.7 | proof-kernel-verus; test-workspace-tests |
 | R41.4 | P4 | ✓21.5 | test-workspace-tests |
 | R42.1 | P4 | ✓21.4 | test-workspace-tests |
 | R42.2 | P4 | ✓21.2 | — |

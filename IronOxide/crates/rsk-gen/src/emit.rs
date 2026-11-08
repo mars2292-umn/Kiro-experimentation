@@ -570,9 +570,10 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         // Task 21.3 (R41.2): a Job that returns with a RoleSlot empty failed to
         // store its role state: reported to the Health_Monitor.
         for (e, role) in protocol_roles(g, t) {
+            let ri = e.roles.iter().position(|(r, _)| *r == role).unwrap_or(0);
             let _ = writeln!(s, "        if super::rsk_state::{}_{}.with_unprivileged(|st| st.is_empty()) {{", task.name.to_uppercase(), e.name.to_uppercase());
-            let _ = writeln!(s, "            // Role `{role}` of `{}`: the Job returned without storing its state (R41.2).", e.name);
-            let _ = writeln!(s, "            ::rsk::report_protocol_violation();");
+            let _ = writeln!(s, "            // Role `{role}` of `{}`: the Job returned without storing its state (R41.2); the Kernel re-initializes the Endpoint (task 21.7).", e.name);
+            let _ = writeln!(s, "            ::rsk::report_protocol_violation({}, {ri});", e.index);
             let _ = writeln!(s, "        }}");
         }
         let _ = writeln!(s, "    }}");
