@@ -971,6 +971,10 @@ fn channel_index(e: usize, from: usize, to: usize) -> (r: usize)
     requires e < MAX_ENDPOINTS, from < MAX_ROLES, to < MAX_ROLES,
     ensures r as int == spec_channel_index(e as int, from as int, to as int), r < MAX_CHANNELS,
 {
+    assert(e * (MAX_ROLES * MAX_ROLES) <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES)) by (nonlinear_arith)
+        requires e < MAX_ENDPOINTS;
+    assert(from * MAX_ROLES <= (MAX_ROLES - 1) * MAX_ROLES) by (nonlinear_arith)
+        requires from < MAX_ROLES;
     e * (MAX_ROLES * MAX_ROLES) + from * MAX_ROLES + to
 }
 
@@ -979,6 +983,8 @@ fn role_slot(e: usize, r: usize) -> (i: usize)
     requires e < MAX_ENDPOINTS, r < MAX_ROLES,
     ensures i as int == e as int * MAX_ROLES as int + r as int, i < MAX_ROLE_SLOTS,
 {
+    assert(e * MAX_ROLES <= (MAX_ENDPOINTS - 1) * MAX_ROLES) by (nonlinear_arith)
+        requires e < MAX_ENDPOINTS;
     e * MAX_ROLES + r
 }
 
@@ -1003,12 +1009,17 @@ fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
 fn clear_channels(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
 {
+    assert(MAX_ROLES * MAX_ROLES == 16) by (compute);
+    assert(MAX_CHANNELS == 128) by (compute);
+    assert(e * 16 + 16 <= 128) by (nonlinear_arith)
+        requires e < 8;
+    let base = e * (MAX_ROLES * MAX_ROLES);
     let mut c: usize = 0;
     while c < MAX_ROLES * MAX_ROLES
-        invariant c <= MAX_ROLES * MAX_ROLES,
+        invariant c <= 16, base + 16 <= MAX_CHANNELS, MAX_ROLES * MAX_ROLES == 16,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
-        state.fifos[e * (MAX_ROLES * MAX_ROLES) + c].clear();
+        state.fifos[base + c].clear();
         c += 1;
     }
 }
@@ -1105,35 +1116,43 @@ fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
 fn endpoint_reinit_one(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
     ensures
-        forall|c: int| 0 <= c < (MAX_ROLES * MAX_ROLES) as int ==> final(state).fifos[e as int * (MAX_ROLES * MAX_ROLES) as int + c] == crate::logic::endpoint::Fifo::empty_spec(),
-        forall|r: int| 0 <= r < MAX_ROLES as int ==> final(state).peer_changed[e as int * MAX_ROLES as int + r],
-        forall|c: int| 0 <= c < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= c < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> final(state).fifos[c] == old(state).fifos[c],
-        forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int) ==> final(state).peer_changed[i] == old(state).peer_changed[i],
+        // The Endpoint's channels (indices `e * 16 .. (e + 1) * 16`) are
+        // empty, its roles' flags set, everything else unchanged.
+        forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> #[trigger] final(state).fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
+        forall|i: int| e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int ==> #[trigger] final(state).peer_changed[i],
+        forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).fifos[i] == old(state).fifos[i],
+        forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int) ==> #[trigger] final(state).peer_changed[i] == old(state).peer_changed[i],
 {
     let ghost before = *state;
+    assert(e * (MAX_ROLES * MAX_ROLES) <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES)) by (nonlinear_arith)
+        requires e < MAX_ENDPOINTS;
+    assert(e * MAX_ROLES <= (MAX_ENDPOINTS - 1) * MAX_ROLES) by (nonlinear_arith)
+        requires e < MAX_ENDPOINTS;
+    let base = e * (MAX_ROLES * MAX_ROLES);
     let mut c: usize = 0;
     while c < MAX_ROLES * MAX_ROLES
         invariant
-            c <= MAX_ROLES * MAX_ROLES, e < MAX_ENDPOINTS,
-            forall|k: int| 0 <= k < c ==> state.fifos[e as int * (MAX_ROLES * MAX_ROLES) as int + k] == crate::logic::endpoint::Fifo::empty_spec(),
-            forall|k: int| 0 <= k < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= k < e as int * (MAX_ROLES * MAX_ROLES) as int + c) ==> state.fifos[k] == before.fifos[k],
+            c <= MAX_ROLES * MAX_ROLES, e < MAX_ENDPOINTS, base == e * (MAX_ROLES * MAX_ROLES), base <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES),
+            forall|i: int| base as int <= i < base as int + c ==> #[trigger] state.fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c) ==> #[trigger] state.fifos[i] == before.fifos[i],
             state.peer_changed == before.peer_changed,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
-        state.fifos[e * (MAX_ROLES * MAX_ROLES) + c].clear();
+        state.fifos[base + c].clear();
         c += 1;
     }
+    let rbase = e * MAX_ROLES;
     let mut r: usize = 0;
     while r < MAX_ROLES
         invariant
-            r <= MAX_ROLES, e < MAX_ENDPOINTS,
-            forall|k: int| 0 <= k < (MAX_ROLES * MAX_ROLES) as int ==> state.fifos[e as int * (MAX_ROLES * MAX_ROLES) as int + k] == crate::logic::endpoint::Fifo::empty_spec(),
-            forall|k: int| 0 <= k < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= k < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> state.fifos[k] == before.fifos[k],
-            forall|q: int| 0 <= q < r ==> state.peer_changed[e as int * MAX_ROLES as int + q],
-            forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < e as int * MAX_ROLES as int + r) ==> state.peer_changed[i] == before.peer_changed[i],
+            r <= MAX_ROLES, e < MAX_ENDPOINTS, base == e * (MAX_ROLES * MAX_ROLES), rbase == e * MAX_ROLES, rbase <= (MAX_ENDPOINTS - 1) * MAX_ROLES, base <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES),
+            forall|i: int| base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int ==> #[trigger] state.fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] state.fifos[i] == before.fifos[i],
+            forall|i: int| rbase as int <= i < rbase as int + r ==> #[trigger] state.peer_changed[i],
+            forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(rbase as int <= i < rbase as int + r) ==> #[trigger] state.peer_changed[i] == before.peer_changed[i],
         decreases MAX_ROLES - r,
     {
-        state.peer_changed[e * MAX_ROLES + r] = true;
+        state.peer_changed[rbase + r] = true;
         r += 1;
     }
 }

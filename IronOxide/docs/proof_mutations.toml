@@ -331,8 +331,8 @@ package = "rsk-protocol"
 id = "endpoint-reinit-one-role-only"
 kills = "endpoint_reinit_one (every role is marked after a rejected message, so all return to the initial state; marking the first role alone leaves the others mid-Protocol; task 21.7: `MAX_ROLES` roles)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "        state.peer_changed[e * MAX_ROLES + r] = true;\n"
-replace = "        state.peer_changed[e * MAX_ROLES + r] = r == 0;\n"
+find = "        state.peer_changed[rbase + r] = true;\n"
+replace = "        state.peer_changed[rbase + r] = r == 0;\n"
 expect = ["entry.rs"]
 package = "rsk-kernel"
 
