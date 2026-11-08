@@ -373,3 +373,12 @@ find = "        &&& (!t.send ==> tb[t.role as int][t.from as int] is Recv)\n"
 replace = "        &&& true\n"
 expect = ["theory.rs"]
 package = "rsk-protocol"
+
+[[mutation]]
+id = "theory-rec-index-not-de-bruijn"
+kills = "rec_index (a recursion variable counts binders from the innermost; numbering from the outermost would bind `continue` to the wrong recursion and the verified conversion no longer matches its specification)"
+file = "crates/rsk-protocol/src/theory.rs"
+find = "    if i < 0 { usize::MAX as int - 1 } else { recs.len() - 1 - i }\n"
+replace = "    if i < 0 { usize::MAX as int - 1 } else { i }\n"
+expect = ["theory.rs"]
+package = "rsk-protocol"

@@ -445,7 +445,7 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
             d.push(Diagnostic::new("PR-28", eref(), format!("Endpoint `{}` is declared twice", e.name)));
         }
         if e.roles.len() != 2 {
-            d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` declares {} roles; two roles, each bound to a Task, until the Protocol_Checker of task 21.1", e.name, e.roles.len())));
+            d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` declares {} roles; an Endpoint binds exactly two roles: the deadlock-freedom proof of R41.3 is mechanized for the two-role fragment, and the multiparty case with the full merge (task 21.7) is required before the Generator admits more (Verification_Plan 5.15 and section 13)", e.name, e.roles.len())));
         }
         let mut role_names = BTreeSet::new();
         let mut bound_tasks = BTreeSet::new();

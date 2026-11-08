@@ -1261,5 +1261,518 @@ pub proof fn theorem_two_role_automaton(s: System, g: G, tb: Seq<Seq<L>>)
     }
 }
 
+// ------------------------------ the conversion from the parsed Protocol --
+
+/// The parser's types, made visible to the specifications (their fields
+/// are public; nothing is assumed about them).
+#[verifier::external_type_specification]
+#[allow(dead_code)]
+pub struct ExGlobal(crate::ast::Global);
+
+#[verifier::external_type_specification]
+#[allow(dead_code)]
+pub struct ExMessage(crate::ast::Message);
+
+/// The first position of `name` in `names`, or -1.
+pub open spec fn index_of(names: Seq<Seq<char>>, name: Seq<char>) -> int
+    decreases names.len(),
+{
+    if names.len() == 0 {
+        -1
+    } else if names[0] == name {
+        0
+    } else {
+        let r = index_of(names.drop_first(), name);
+        if r < 0 { -1 } else { r + 1 }
+    }
+}
+
+/// The last position of `name` in `names`, or -1.
+pub open spec fn last_index_of(names: Seq<Seq<char>>, name: Seq<char>) -> int
+    decreases names.len(),
+{
+    if names.len() == 0 {
+        -1
+    } else if names.last() == name {
+        names.len() - 1
+    } else {
+        last_index_of(names.drop_last(), name)
+    }
+}
+
+/// A role's number: its position among the Endpoint's roles, or
+/// `usize::MAX` for a name that is not one (which `wf2` then refuses).
+pub open spec fn role_of(roles: Seq<Seq<char>>, name: Seq<char>) -> int {
+    let i = index_of(roles, name);
+    if i < 0 { usize::MAX as int } else { i }
+}
+
+/// A label's number: its position in the collected labels (every label
+/// of the Protocol is collected, `labels_complete`, so the default is
+/// never taken).
+pub open spec fn label_of(labels: Seq<Seq<char>>, name: Seq<char>) -> int {
+    let i = index_of(labels, name);
+    if i < 0 { 0 } else { i }
+}
+
+/// A recursion variable in de Bruijn form: the innermost binder of its
+/// name is 0; an unbound name (which well-formedness refuses) is out of
+/// every range.
+pub open spec fn rec_of(recs: Seq<Seq<char>>, name: Seq<char>) -> int {
+    let i = last_index_of(recs, name);
+    if i < 0 { usize::MAX as int - 1 } else { recs.len() - 1 - i }
+}
+
+/// The receiver of a choice: the receiver of its first message branch.
+pub open spec fn choice_to(bs: Seq<crate::ast::Global>, roles: Seq<Seq<char>>) -> int
+    decreases bs.len(),
+{
+    if bs.len() == 0 {
+        usize::MAX as int
+    } else {
+        match bs[0] {
+            crate::ast::Global::Msg(m, _) => role_of(roles, m.to@),
+            _ => choice_to(bs.drop_first(), roles),
+        }
+    }
+}
+
+/// The theory's view of a parsed global type.
+pub open spec fn gconv(g: crate::ast::Global, roles: Seq<Seq<char>>, labels: Seq<Seq<char>>, recs: Seq<Seq<char>>) -> G
+    decreases g, 0int,
+{
+    match g {
+        crate::ast::Global::End => G::End,
+        crate::ast::Global::Continue(name) => G::Var { n: rec_of(recs, name@) as nat },
+        crate::ast::Global::Msg(m, rest) => G::Comm {
+            from: role_of(roles, m.from@),
+            to: role_of(roles, m.to@),
+            bs: Box::new(Bs::Cons { label: label_of(labels, m.label@), g: gconv(*rest, roles, labels, recs), rest: Box::new(Bs::Nil) }),
+        },
+        crate::ast::Global::Choice { at, branches } => G::Comm {
+            from: role_of(roles, at@),
+            to: choice_to(branches@, roles),
+            bs: Box::new(bconv(branches@, 0, roles, labels, recs)),
+        },
+        crate::ast::Global::Rec { name, body } => G::Rec { body: Box::new(gconv(*body, roles, labels, recs.push(name@))) },
+    }
+}
+
+/// The branches of a choice from index `i` on, each a message branch.
+pub open spec fn bconv(bs: Seq<crate::ast::Global>, i: int, roles: Seq<Seq<char>>, labels: Seq<Seq<char>>, recs: Seq<Seq<char>>) -> Bs
+    decreases bs, bs.len() - i,
+{
+    if i < 0 || i >= bs.len() {
+        Bs::Nil
+    } else {
+        match bs[i] {
+            crate::ast::Global::Msg(m, rest) => Bs::Cons {
+                label: label_of(labels, m.label@),
+                g: gconv(*rest, roles, labels, recs),
+                rest: Box::new(bconv(bs, i + 1, roles, labels, recs)),
+            },
+            _ => bconv(bs, i + 1, roles, labels, recs),
+        }
+    }
+}
+
+/// `name` is a label of the Protocol.
+pub open spec fn has_label_in(g: crate::ast::Global, name: Seq<char>) -> bool
+    decreases g, 0int,
+{
+    match g {
+        crate::ast::Global::Msg(m, rest) => m.label@ == name || has_label_in(*rest, name),
+        crate::ast::Global::Choice { branches, .. } => has_label_in_bs(branches@, 0, name),
+        crate::ast::Global::Rec { body, .. } => has_label_in(*body, name),
+        _ => false,
+    }
+}
+
+pub open spec fn has_label_in_bs(bs: Seq<crate::ast::Global>, i: int, name: Seq<char>) -> bool
+    decreases bs, bs.len() - i,
+{
+    if i < 0 || i >= bs.len() {
+        false
+    } else {
+        has_label_in(bs[i], name) || has_label_in_bs(bs, i + 1, name)
+    }
+}
+
+pub open spec fn names_view(v: Seq<String>) -> Seq<Seq<char>> {
+    v.map(|i: int, s: String| s@)
+}
+
+pub open spec fn strs_view(v: Seq<&str>) -> Seq<Seq<char>> {
+    v.map(|i: int, s: &str| s@)
+}
+
+pub open spec fn distinct(names: Seq<Seq<char>>) -> bool {
+    forall|i: int, j: int| 0 <= i < names.len() && 0 <= j < names.len() && i != j ==> names[i] != names[j]
+}
+
+/// Adds `name` if absent: the list stays distinct and gains the name.
+fn push_name(out: &mut Vec<String>, name: &String)
+    requires distinct(names_view(old(out)@)),
+    ensures
+        distinct(names_view(final(out)@)),
+        index_of(names_view(final(out)@), name@) >= 0,
+        forall|n: Seq<char>| index_of(names_view(old(out)@), n) >= 0 ==> index_of(names_view(final(out)@), n) >= 0,
+{
+    let mut i = 0;
+    while i < out.len()
+        invariant
+            i <= out.len(),
+            out@ == old(out)@,
+            distinct(names_view(out@)),
+            forall|j: int| 0 <= j < i ==> out@[j]@ != name@,
+        decreases out.len() - i,
+    {
+        if out[i] == *name {
+            proof { lemma_index_of_found(names_view(out@), name@, i as int); }
+            return;
+        }
+        i += 1;
+    }
+    let ghost before = names_view(out@);
+    out.push(name.clone());
+    proof {
+        assert(names_view(out@) =~= before.push(name@));
+        lemma_push_distinct(before, name@);
+        lemma_index_of_found(names_view(out@), name@, before.len() as int);
+        assert forall|n: Seq<char>| index_of(before, n) >= 0 implies index_of(names_view(out@), n) >= 0 by {
+            lemma_index_of_push(before, name@, n);
+        }
+    }
+}
+
+proof fn lemma_index_of_found(names: Seq<Seq<char>>, name: Seq<char>, i: int)
+    requires 0 <= i < names.len(), names[i] == name,
+    ensures index_of(names, name) >= 0,
+    decreases names.len(),
+{
+    if names[0] != name {
+        lemma_index_of_found(names.drop_first(), name, i - 1);
+    }
+}
+
+proof fn lemma_index_of_bounds(names: Seq<Seq<char>>, name: Seq<char>)
+    ensures
+        index_of(names, name) >= 0 ==> index_of(names, name) < names.len() && names[index_of(names, name)] == name,
+        index_of(names, name) < 0 ==> forall|i: int| 0 <= i < names.len() ==> names[i] != name,
+    decreases names.len(),
+{
+    if names.len() > 0 && names[0] != name {
+        lemma_index_of_bounds(names.drop_first(), name);
+        let r = index_of(names.drop_first(), name);
+        if r < 0 {
+            assert forall|i: int| 0 <= i < names.len() implies names[i] != name by {
+                if i > 0 {
+                    assert(names.drop_first()[i - 1] == names[i]);
+                }
+            }
+        } else {
+            assert(names[r + 1] == names.drop_first()[r]);
+        }
+    }
+}
+
+proof fn lemma_index_of_push(names: Seq<Seq<char>>, added: Seq<char>, name: Seq<char>)
+    requires index_of(names, name) >= 0,
+    ensures index_of(names.push(added), name) >= 0,
+{
+    lemma_index_of_bounds(names, name);
+    let i = index_of(names, name);
+    assert(names.push(added)[i] == name);
+    lemma_index_of_found(names.push(added), name, i);
+}
+
+proof fn lemma_push_distinct(names: Seq<Seq<char>>, name: Seq<char>)
+    requires distinct(names), forall|j: int| 0 <= j < names.len() ==> names[j] != name,
+    ensures distinct(names.push(name)),
+{
+}
+
+/// Collects every label of the Protocol, each once (so the numbering by
+/// position is injective: `distinct`), in order of first appearance.
+fn collect_labels(g: &crate::ast::Global, out: &mut Vec<String>)
+    requires distinct(names_view(old(out)@)),
+    ensures
+        distinct(names_view(final(out)@)),
+        forall|n: Seq<char>| index_of(names_view(old(out)@), n) >= 0 ==> index_of(names_view(final(out)@), n) >= 0,
+        forall|n: Seq<char>| has_label_in(*g, n) ==> index_of(names_view(final(out)@), n) >= 0,
+    decreases g, 0int,
+{
+    match g {
+        crate::ast::Global::End | crate::ast::Global::Continue(_) => {
+            assert(forall|n: Seq<char>| !has_label_in(*g, n));
+        }
+        crate::ast::Global::Msg(m, rest) => {
+            push_name(out, &m.label);
+            let ghost mid = out@;
+            collect_labels(rest, out);
+            assert forall|n: Seq<char>| has_label_in(*g, n) implies index_of(names_view(out@), n) >= 0 by {
+                assert(has_label_in(*g, n) == (m.label@ == n || has_label_in(**rest, n)));
+                if m.label@ == n {
+                    assert(index_of(names_view(mid), n) >= 0);
+                }
+            }
+        }
+        crate::ast::Global::Choice { branches, .. } => {
+            collect_labels_bs(branches, 0, out);
+            assert forall|n: Seq<char>| has_label_in(*g, n) implies index_of(names_view(out@), n) >= 0 by {
+                assert(has_label_in(*g, n) == has_label_in_bs(branches@, 0, n));
+            }
+        }
+        crate::ast::Global::Rec { body, .. } => {
+            collect_labels(body, out);
+            assert forall|n: Seq<char>| has_label_in(*g, n) implies index_of(names_view(out@), n) >= 0 by {
+                assert(has_label_in(*g, n) == has_label_in(**body, n));
+            }
+        }
+    }
+}
+
+fn collect_labels_bs(bs: &Vec<crate::ast::Global>, i: usize, out: &mut Vec<String>)
+    requires distinct(names_view(old(out)@)), i <= bs.len(),
+    ensures
+        distinct(names_view(final(out)@)),
+        forall|n: Seq<char>| index_of(names_view(old(out)@), n) >= 0 ==> index_of(names_view(final(out)@), n) >= 0,
+        forall|n: Seq<char>| has_label_in_bs(bs@, i as int, n) ==> index_of(names_view(final(out)@), n) >= 0,
+    decreases bs, bs.len() - i,
+{
+    if i < bs.len() {
+        collect_labels(&bs[i], out);
+        let ghost mid = out@;
+        collect_labels_bs(bs, i + 1, out);
+        assert forall|n: Seq<char>| has_label_in_bs(bs@, i as int, n) implies index_of(names_view(out@), n) >= 0 by {
+            assert(has_label_in_bs(bs@, i as int, n) == (has_label_in(bs@[i as int], n) || has_label_in_bs(bs@, i as int + 1, n)));
+            if has_label_in(bs@[i as int], n) {
+                assert(index_of(names_view(mid), n) >= 0);
+            }
+        }
+    } else {
+        assert(forall|n: Seq<char>| !has_label_in_bs(bs@, i as int, n));
+    }
+}
+
+fn role_index(roles: &[&str], name: &String) -> (r: usize)
+    ensures r as int == role_of(strs_view(roles@), name@),
+{
+    let mut i = 0;
+    while i < roles.len()
+        invariant
+            i <= roles.len(),
+            forall|j: int| 0 <= j < i ==> roles@[j]@ != name@,
+        decreases roles.len() - i,
+    {
+        if roles[i] == name.as_str() {
+            proof { lemma_index_of_found(strs_view(roles@), name@, i as int); lemma_index_of_bounds(strs_view(roles@), name@); lemma_index_of_unique(strs_view(roles@), name@, i as int); }
+            return i;
+        }
+        i += 1;
+    }
+    proof { lemma_index_of_bounds(strs_view(roles@), name@); }
+    usize::MAX
+}
+
+/// The first position is the found one when nothing before it matches.
+proof fn lemma_index_of_unique(names: Seq<Seq<char>>, name: Seq<char>, i: int)
+    requires 0 <= i < names.len(), names[i] == name, forall|j: int| 0 <= j < i ==> names[j] != name,
+    ensures index_of(names, name) == i,
+    decreases names.len(),
+{
+    if i > 0 {
+        lemma_index_of_unique(names.drop_first(), name, i - 1);
+    }
+}
+
+fn label_index(labels: &Vec<String>, name: &String) -> (r: u32)
+    requires labels.len() < u32::MAX as usize,
+    ensures r as int == label_of(names_view(labels@), name@),
+{
+    let mut i = 0;
+    while i < labels.len()
+        invariant
+            i <= labels.len(),
+            labels.len() < u32::MAX as usize,
+            forall|j: int| 0 <= j < i ==> labels@[j]@ != name@,
+        decreases labels.len() - i,
+    {
+        if labels[i] == *name {
+            proof { lemma_index_of_unique(names_view(labels@), name@, i as int); }
+            return i as u32;
+        }
+        i += 1;
+    }
+    proof { lemma_index_of_bounds(names_view(labels@), name@); }
+    0
+}
+
+fn rec_index(recs: &Vec<String>, name: &String) -> (r: usize)
+    ensures r as int == rec_of(names_view(recs@), name@),
+{
+    let mut i = recs.len();
+    while i > 0
+        invariant
+            i <= recs.len(),
+            forall|j: int| i <= j < recs.len() ==> recs@[j]@ != name@,
+        decreases i,
+    {
+        i -= 1;
+        if recs[i] == *name {
+            proof { lemma_last_index_of_unique(names_view(recs@), name@, i as int); }
+            return recs.len() - 1 - i;
+        }
+    }
+    proof { lemma_last_index_of_none(names_view(recs@), name@); }
+    usize::MAX - 1
+}
+
+proof fn lemma_last_index_of_unique(names: Seq<Seq<char>>, name: Seq<char>, i: int)
+    requires 0 <= i < names.len(), names[i] == name, forall|j: int| i < j < names.len() ==> names[j] != name,
+    ensures last_index_of(names, name) == i,
+    decreases names.len(),
+{
+    if i < names.len() - 1 {
+        lemma_last_index_of_unique(names.drop_last(), name, i);
+    }
+}
+
+proof fn lemma_last_index_of_none(names: Seq<Seq<char>>, name: Seq<char>)
+    requires forall|j: int| 0 <= j < names.len() ==> names[j] != name,
+    ensures last_index_of(names, name) < 0,
+    decreases names.len(),
+{
+    if names.len() > 0 {
+        lemma_last_index_of_none(names.drop_last(), name);
+    }
+}
+
+fn convert(g: &crate::ast::Global, roles: &[&str], labels: &Vec<String>, recs: &mut Vec<String>) -> (r: GE)
+    requires labels.len() < u32::MAX as usize,
+    ensures r@ == gconv(*g, strs_view(roles@), names_view(labels@), names_view(old(recs)@)), final(recs)@ == old(recs)@,
+    decreases g, 0int,
+{
+    let ghost rv = strs_view(roles@);
+    let ghost lv = names_view(labels@);
+    let ghost nv = names_view(recs@);
+    match g {
+        crate::ast::Global::End => {
+            assert(gconv(*g, rv, lv, nv) == G::End);
+            let r = GE::End;
+            assert(r@ == gconv(*g, rv, lv, nv));
+            r
+        }
+        crate::ast::Global::Continue(name) => {
+            let n = rec_index(recs, name);
+            let r = GE::Var { n };
+            assert(r@ == G::Var { n: n as nat });
+            assert(gconv(*g, rv, lv, nv) == G::Var { n: rec_of(nv, name@) as nat });
+            assert(r@ == gconv(*g, rv, lv, nv));
+            r
+        }
+        crate::ast::Global::Msg(m, rest) => {
+            let cont = convert(rest, roles, labels, recs);
+            let from = role_index(roles, &m.from);
+            let to = role_index(roles, &m.to);
+            let label = label_index(labels, &m.label);
+            let r = GE::Comm { from, to, bs: Box::new(BE::Cons { label, g: cont, rest: Box::new(BE::Nil) }) };
+            assert(gconv(*g, rv, lv, nv) == G::Comm { from: role_of(rv, m.from@), to: role_of(rv, m.to@), bs: Box::new(Bs::Cons { label: label_of(lv, m.label@), g: gconv(**rest, rv, lv, nv), rest: Box::new(Bs::Nil) }) });
+            // The nested list needs its own unfolding of the view.
+            assert((BE::Nil).view() == Bs::Nil);
+            assert((BE::Cons { label, g: cont, rest: Box::new(BE::Nil) }).view() == Bs::Cons { label: label as int, g: cont@, rest: Box::new(Bs::Nil) });
+            assert(r@ == G::Comm { from: from as int, to: to as int, bs: Box::new(Bs::Cons { label: label as int, g: cont@, rest: Box::new(Bs::Nil) }) });
+            assert(r@ == gconv(*g, rv, lv, nv));
+            r
+        }
+        crate::ast::Global::Choice { at, branches } => {
+            let bs = convert_bs(branches, 0, roles, labels, recs);
+            let to = choice_to_exec(branches, roles);
+            let from = role_index(roles, at);
+            let r = GE::Comm { from, to, bs: Box::new(bs) };
+            assert(gconv(*g, rv, lv, nv) == G::Comm { from: role_of(rv, at@), to: choice_to(branches@, rv), bs: Box::new(bconv(branches@, 0, rv, lv, nv)) });
+            assert(r@ == G::Comm { from: from as int, to: to as int, bs: Box::new(bs@) });
+            assert(r@ == gconv(*g, rv, lv, nv));
+            r
+        }
+        crate::ast::Global::Rec { name, body } => {
+            let ghost before = recs@;
+            recs.push(name.clone());
+            assert(names_view(recs@) =~= names_view(before).push(name@));
+            let b = convert(body, roles, labels, recs);
+            recs.pop();
+            assert(recs@ =~= before);
+            assert(gconv(*g, rv, lv, nv) == G::Rec { body: Box::new(gconv(**body, rv, lv, nv.push(name@))) });
+            let r = GE::Rec { body: Box::new(b) };
+            assert(r@ == G::Rec { body: Box::new(b@) });
+            assert(b@ == gconv(**body, rv, lv, nv.push(name@)));
+            assert(r@ == gconv(*g, rv, lv, nv));
+            r
+        }
+    }
+}
+
+fn convert_bs(bs: &Vec<crate::ast::Global>, i: usize, roles: &[&str], labels: &Vec<String>, recs: &mut Vec<String>) -> (r: BE)
+    requires labels.len() < u32::MAX as usize, i <= bs.len(),
+    ensures r@ == bconv(bs@, i as int, strs_view(roles@), names_view(labels@), names_view(old(recs)@)), final(recs)@ == old(recs)@,
+    decreases bs, bs.len() - i,
+{
+    if i >= bs.len() {
+        return BE::Nil;
+    }
+    match &bs[i] {
+        crate::ast::Global::Msg(m, rest) => {
+            let cont = convert(rest, roles, labels, recs);
+            let tail = convert_bs(bs, i + 1, roles, labels, recs);
+            BE::Cons { label: label_index(labels, &m.label), g: cont, rest: Box::new(tail) }
+        }
+        _ => convert_bs(bs, i + 1, roles, labels, recs),
+    }
+}
+
+fn choice_to_exec(bs: &Vec<crate::ast::Global>, roles: &[&str]) -> (r: usize)
+    ensures r as int == choice_to(bs@, strs_view(roles@)),
+{
+    let mut i = 0;
+    assert(bs@.skip(0) =~= bs@);
+    while i < bs.len()
+        invariant
+            i <= bs.len(),
+            choice_to(bs@, strs_view(roles@)) == choice_to(bs@.skip(i as int), strs_view(roles@)),
+        decreases bs.len() - i,
+    {
+        if let crate::ast::Global::Msg(m, _) = &bs[i] {
+            assert(bs@.skip(i as int)[0] == bs@[i as int]);
+            return role_index(roles, &m.to);
+        }
+        assert(bs@.skip(i as int).drop_first() =~= bs@.skip(i as int + 1));
+        i += 1;
+    }
+    assert(bs@.skip(i as int).len() == 0);
+    usize::MAX
+}
+
+/// The theory's type of a parsed Protocol: roles numbered by position in
+/// `roles`, labels by first appearance (collected, distinct, complete),
+/// recursion in de Bruijn form. Verified: the result is `gconv` of the
+/// parsed type, so `accept_two_role` on it decides `wf2` of exactly that.
+pub fn to_theory(global: &crate::ast::Global, roles: &[&str]) -> (r: (GE, Vec<String>))
+    ensures
+        distinct(names_view(r.1@)),
+        forall|n: Seq<char>| has_label_in(*global, n) ==> index_of(names_view(r.1@), n) >= 0,
+        r.1.len() < u32::MAX as usize ==> r.0@ == gconv(*global, strs_view(roles@), names_view(r.1@), Seq::<Seq<char>>::empty()),
+{
+    let mut labels: Vec<String> = Vec::new();
+    collect_labels(global, &mut labels);
+    if labels.len() >= u32::MAX as usize {
+        return (GE::End, labels);
+    }
+    let mut recs: Vec<String> = Vec::new();
+    assert(names_view(recs@) =~= Seq::<Seq<char>>::empty());
+    let ge = convert(global, roles, &labels, &mut recs);
+    (ge, labels)
+}
+
 } // verus!
+
 

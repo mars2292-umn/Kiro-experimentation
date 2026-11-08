@@ -123,10 +123,12 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
     if roles.len() == 2 {
         // The general theorem's hypothesis for two roles (theory.rs,
         // `theorem_two_role_progress`): the structural acceptance decided
-        // by the verified `accept_two_role` over the Protocol's view. The
+        // by the verified `accept_two_role` over the verified conversion
+        // `theory::to_theory` of the parsed type (roles by position, labels
+        // by first appearance, recursion in de Bruijn form). The
         // structural checks above accept exactly these Protocols, so a
         // refusal here is a discrepancy, reported as such.
-        let ge = to_theory(&global, roles);
+        let (ge, _labels) = theory::to_theory(&global, roles);
         if !theory::accept_two_role(&ge) {
             return Err(ProtocolError { rule: "R41.3", message: "the Protocol passes the structural checks but not the verified two-role acceptance (theory::wf2_exec); the two disagree".into() });
         }
@@ -135,64 +137,3 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
     Ok(Checked { global, locals, channels: exploration.channels, k, configurations: exploration.configurations })
 }
 
-/// The theory's view of a parsed global type: roles numbered by their
-/// position in `roles`, labels by first appearance, recursion in de
-/// Bruijn form (an unbound `continue`, which well-formedness rejects,
-/// becomes a variable out of range).
-fn to_theory(global: &Global, roles: &[&str]) -> theory::GE {
-    fn labels(g: &Global, out: &mut Vec<String>) {
-        match g {
-            Global::End | Global::Continue(_) => {}
-            Global::Msg(m, rest) => {
-                if !out.contains(&m.label) {
-                    out.push(m.label.clone());
-                }
-                labels(rest, out);
-            }
-            Global::Choice { branches, .. } => {
-                for b in branches {
-                    labels(b, out);
-                }
-            }
-            Global::Rec { body, .. } => labels(body, out),
-        }
-    }
-    fn go(g: &Global, roles: &[&str], labels: &[String], recs: &mut Vec<String>) -> theory::GE {
-        let role = |r: &str| roles.iter().position(|x| *x == r).unwrap_or(usize::MAX);
-        let label = |l: &str| labels.iter().position(|x| x == l).unwrap_or(0) as u32;
-        match g {
-            Global::End => theory::GE::End,
-            Global::Continue(name) => {
-                // de Bruijn: the innermost binder is 0.
-                let n = recs.iter().rev().position(|x| x == name).unwrap_or(usize::MAX - 1);
-                theory::GE::Var { n }
-            }
-            Global::Msg(m, rest) => {
-                let cont = go(rest, roles, labels, recs);
-                theory::GE::Comm { from: role(&m.from), to: role(&m.to), bs: Box::new(theory::BE::Cons { label: label(&m.label), g: cont, rest: Box::new(theory::BE::Nil) }) }
-            }
-            Global::Choice { at, branches } => {
-                // Every branch is `Msg(at -> to, label, rest)` by well-formedness.
-                let mut bs = theory::BE::Nil;
-                let mut to = usize::MAX;
-                for b in branches.iter().rev() {
-                    if let Global::Msg(m, rest) = b {
-                        to = role(&m.to);
-                        let cont = go(rest, roles, labels, recs);
-                        bs = theory::BE::Cons { label: label(&m.label), g: cont, rest: Box::new(bs) };
-                    }
-                }
-                theory::GE::Comm { from: role(at), to, bs: Box::new(bs) }
-            }
-            Global::Rec { name, body } => {
-                recs.push(name.clone());
-                let b = go(body, roles, labels, recs);
-                recs.pop();
-                theory::GE::Rec { body: Box::new(b) }
-            }
-        }
-    }
-    let mut ls = Vec::new();
-    labels(global, &mut ls);
-    go(global, roles, &ls, &mut Vec::new())
-}

@@ -278,13 +278,14 @@ pub struct EndpointRole {
     /// Task 21.5 (R40.2): the declared operations per Job of the role.
     #[serde(default = "one")]
     pub ops: u32,
+    /// Task 21.6 (R41.3, A-P8): the Endpoints whose receives this role's
+    /// operations may wait for (emitted before `validate`; the field order
+    /// is the Generator's, so the demo model round-trips).
+    #[serde(default)]
+    pub after: Vec<String>,
     /// Task 21.4 (R42.4): the role's validation functions.
     #[serde(default)]
     pub validate: Vec<Validator>,
-    /// Task 21.6 (R41.3, A-P8): the Endpoints whose receives this role's
-    /// operations may wait for.
-    #[serde(default)]
-    pub after: Vec<String>,
 }
 
 fn one() -> u32 {
