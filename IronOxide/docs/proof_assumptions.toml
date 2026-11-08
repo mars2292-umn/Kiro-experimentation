@@ -73,3 +73,23 @@ construct = "#[verifier::external_body]"
 item = "corrupt_config_for_test"
 why = "The boot-check suite's table corruption (feature `boot-mutation`, HIL builds only, task 7.2): one value of the `Config` copy in memory changed before the checks, so that the computed checksum differs from the recorded one (R12.3, R12.6). Compiled into no Flight_Build; it establishes nothing for the proofs."
 evidence = "hil-boot-checks case 7 (2026-11-04: the corrupted table fails checksum bit 5 alone, no Task released); the Flight_Build's symbol table holds no such function (the feature is off)."
+
+# Task 21.6 (2026-11-08): the verified conversion of the parsed Protocol
+# (crates/rsk-protocol/src/theory.rs) makes the parser's two types visible
+# to Verus. An external type specification asserts nothing about them: it
+# only lets the specifications match on the enum's variants and read its
+# public fields, which are what the parser produces.
+
+[[assumption]]
+file = "crates/rsk-protocol/src/theory.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExGlobal: `rsk_protocol::ast::Global`, the parser's global type (an enum with public fields: String, Option<String>, Box<Global>, Vec<Global>), is declared outside `verus!`; the specification `gconv` and the exec `to_theory` match on its variants. The declaration adds no axiom about the type's values."
+evidence = "The parser's unit tests and Property 20 (the rendered text round-trips, the projections agree with the global type's traces); `cargo test -p rsk-protocol`."
+
+[[assumption]]
+file = "crates/rsk-protocol/src/theory.rs"
+construct = "#[verifier::external_type_specification]"
+item = ""
+why = "ExMessage: `rsk_protocol::ast::Message` (label, payload, from, to: all public Strings), the message of the parser's global type, read by `gconv` and `to_theory`. No axiom about its values."
+evidence = "As for ExGlobal."
