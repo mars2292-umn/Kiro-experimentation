@@ -93,7 +93,7 @@ rsk::app! {
         state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
-        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 650.us(),
                       priority = 1, resources = [stats]);
     }
 }

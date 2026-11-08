@@ -363,9 +363,9 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     // 3,900.
     assert_eq!(by("part0.echo").o, 3_900);
     // log (periodic, no Critical_Section): 3,300, plus its roles' declared
-    // operations (`telemetry` sink `ops = 4`, `pingpong` sink 1: 1,500):
-    // 4,800.
-    assert_eq!(by("part1.log").o, 4_800);
+    // operations (`telemetry` sink `ops = 4`, `pingpong` sink `ops = 2`, a
+    // receive and a reply per Job: 1,800): 5,100.
+    assert_eq!(by("part1.log").o, 5_100);
     // J is J_rel for every Task (Table 13-1).
     assert!(p.tasks.iter().all(|x| x.j == 500));
 }
@@ -667,7 +667,7 @@ fn r40_2_endpoint_operations_are_kernel_level_critical_sections() {
 }
 
 /// R40.2 on the demo: `log` (role `sink` of `telemetry`, `ops = 4`, and of
-/// `pingpong`) carries 4 + 1 operations × max(Δ_send, Δ_recv) in O_i, and
+/// `pingpong`, `ops = 2`) carries 4 + 2 operations × max(Δ_send, Δ_recv) in O_i, and
 /// the sites appear in the blocking provenance when they determine B_i.
 #[test]
 fn r40_2_the_demo_charges_the_declared_operations_per_job() {
@@ -676,7 +676,7 @@ fn r40_2_the_demo_charges_the_declared_operations_per_job() {
     let op = |t: &KernelTiming, s: &str| t.parameters.iter().find(|p| p.symbol == s).unwrap().cycles;
     let base = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap().tasks;
     let log = base.iter().find(|x| x.id == "part1.log").unwrap();
-    assert_eq!(log.endpoint_cost, 5 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    assert_eq!(log.endpoint_cost, 6 * op(&t, "delta_send").max(op(&t, "delta_recv")));
     let control = base.iter().find(|x| x.id == "part0.control").unwrap();
     assert_eq!(control.endpoint_cost, 2 * op(&t, "delta_send").max(op(&t, "delta_recv")));
     assert!(base.iter().filter(|x| x.id == "part0.echo" || x.id == "part1.pulse").all(|x| x.endpoint_cost == 0));

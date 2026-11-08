@@ -1,25 +1,25 @@
 {
   "schema": "rsk-kernel-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:eaf022f4d7e5bf54e2429dbde55b9cca8a3bc8db659c8b778abf5a20f475286c",
+  "binary_hash": "sha256:8493521ff0117827c3733b6a297ec34f9a4816c08db2f865195e6ec5f53b21f3",
   "totals": {
     "file": "total",
-    "lines_covered": 3080,
-    "lines": 4533,
-    "branches_covered": 747,
-    "branches": 1352,
+    "lines_covered": 3092,
+    "lines": 4814,
+    "branches_covered": 754,
+    "branches": 1456,
     "functions_covered": 285,
-    "functions": 380
+    "functions": 406
   },
   "files": [
     {
       "file": "apps/p1-demo/part0/src/lib.rs",
       "lines_covered": 42,
-      "lines": 42,
+      "lines": 45,
       "branches_covered": 9,
       "branches": 10,
       "functions_covered": 12,
-      "functions": 12
+      "functions": 13
     },
     {
       "file": "apps/p1-demo/part1/src/lib.rs",
@@ -41,10 +41,10 @@
     },
     {
       "file": "apps/p1-demo/system/src/lib.rs",
-      "lines_covered": 107,
-      "lines": 109,
-      "branches_covered": 39,
-      "branches": 52,
+      "lines_covered": 108,
+      "lines": 110,
+      "branches_covered": 40,
+      "branches": 54,
       "functions_covered": 3,
       "functions": 3
     },
@@ -60,34 +60,34 @@
     {
       "file": "crates/rsk-kernel/src/arch/bound.rs",
       "lines_covered": 297,
-      "lines": 324,
+      "lines": 343,
       "branches_covered": 86,
-      "branches": 134,
+      "branches": 140,
       "functions_covered": 56,
-      "functions": 59
+      "functions": 62
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "lines_covered": 322,
-      "lines": 507,
-      "branches_covered": 85,
-      "branches": 178,
+      "lines_covered": 324,
+      "lines": 649,
+      "branches_covered": 88,
+      "branches": 258,
       "functions_covered": 19,
-      "functions": 23
+      "functions": 29
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/mod.rs",
       "lines_covered": 263,
-      "lines": 403,
+      "lines": 415,
       "branches_covered": 59,
       "branches": 96,
       "functions_covered": 32,
-      "functions": 44
+      "functions": 47
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/plan.rs",
       "lines_covered": 24,
-      "lines": 49,
+      "lines": 51,
       "branches_covered": 8,
       "branches": 10,
       "functions_covered": 3,
@@ -96,18 +96,18 @@
     {
       "file": "crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
       "lines_covered": 208,
-      "lines": 391,
+      "lines": 409,
       "branches_covered": 57,
       "branches": 144,
       "functions_covered": 35,
-      "functions": 63
+      "functions": 69
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
-      "lines_covered": 242,
-      "lines": 377,
-      "branches_covered": 60,
-      "branches": 114,
+      "lines_covered": 251,
+      "lines": 390,
+      "branches_covered": 63,
+      "branches": 118,
       "functions_covered": 27,
       "functions": 41
     },
@@ -130,13 +130,22 @@
       "functions": 6
     },
     {
+      "file": "crates/rsk-logic/src/logic/endpoint.rs",
+      "lines_covered": 0,
+      "lines": 41,
+      "branches_covered": 0,
+      "branches": 8,
+      "functions_covered": 0,
+      "functions": 4
+    },
+    {
       "file": "crates/rsk-logic/src/logic/kernel.rs",
       "lines_covered": 677,
-      "lines": 1191,
+      "lines": 1211,
       "branches_covered": 85,
       "branches": 190,
       "functions_covered": 25,
-      "functions": 40
+      "functions": 42
     },
     {
       "file": "crates/rsk-logic/src/logic/log.rs",
@@ -159,11 +168,11 @@
     {
       "file": "crates/rsk-logic/src/logic/mpu.rs",
       "lines_covered": 233,
-      "lines": 265,
+      "lines": 275,
       "branches_covered": 90,
-      "branches": 152,
+      "branches": 156,
       "functions_covered": 11,
-      "functions": 11
+      "functions": 12
     },
     {
       "file": "crates/rsk-logic/src/logic/sched.rs",

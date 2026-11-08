@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:d42f8d366010de3d6f99af4ff0b4a15c5a52bf105330b8deb86be6f384ad8d7b",
+  "binary_hash": "sha256:c534d6037ffc863d4a5344864116b41a56950e342ba979b81dd6ae22ced8d71d",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -18,19 +18,19 @@
     {
       "key": "loop:part0:sensor:hold",
       "file": "apps/p1-demo/part0/src/lib.rs",
-      "line": 237,
+      "line": 310,
       "function": "sensor",
       "label": "hold",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 552,
+      "observed": 546,
       "verdict": "unreachable",
       "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
     {
       "key": "loop:part0:sensor:late",
       "file": "apps/p1-demo/part0/src/lib.rs",
-      "line": 275,
+      "line": 348,
       "function": "sensor",
       "label": "late",
       "bound": "50_000_000",
@@ -52,14 +52,26 @@
       "justification": null
     },
     {
+      "key": "loop:part1:log:drain",
+      "file": "apps/p1-demo/part1/src/lib.rs",
+      "line": 179,
+      "function": "log",
+      "label": "drain",
+      "bound": "4",
+      "bound_value": 4,
+      "observed": null,
+      "verdict": "not observed",
+      "justification": null
+    },
+    {
       "key": "loop:part1:log:busy",
       "file": "apps/p1-demo/part1/src/lib.rs",
-      "line": 226,
+      "line": 280,
       "function": "log",
       "label": "busy",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 279,
+      "observed": 275,
       "verdict": "unreachable",
       "justification": "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },

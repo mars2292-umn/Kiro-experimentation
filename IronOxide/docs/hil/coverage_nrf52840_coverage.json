@@ -1,17 +1,18 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:eaf022f4d7e5bf54e2429dbde55b9cca8a3bc8db659c8b778abf5a20f475286c",
+  "binary_hash": "sha256:8493521ff0117827c3733b6a297ec34f9a4816c08db2f865195e6ec5f53b21f3",
   "threshold_percent": 50,
   "items": [
     {
       "item": "part0.control",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part07control17h1beab90022be38beE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0dd8c0be7e60d3f6E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17ha2b3c4c2f748b5eeE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd9eae9c40f054ff9E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part07control17h0bb5c3c4be8619c1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h767fa3eabec193ffE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h9daa211fbc5c9f63E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hf0b2cf0483a975a5E",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 4,
       "covered": 4,
@@ -21,11 +22,12 @@
     {
       "item": "part0.control#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part07control17h1beab90022be38beE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0dd8c0be7e60d3f6E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17ha2b3c4c2f748b5eeE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd9eae9c40f054ff9E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part07control17h0bb5c3c4be8619c1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h767fa3eabec193ffE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h9daa211fbc5c9f63E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hf0b2cf0483a975a5E",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 4,
       "covered": 4,
@@ -35,11 +37,12 @@
     {
       "item": "part0.control#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part07control17h1beab90022be38beE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0dd8c0be7e60d3f6E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17ha2b3c4c2f748b5eeE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd9eae9c40f054ff9E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part07control17h0bb5c3c4be8619c1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h767fa3eabec193ffE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h9daa211fbc5c9f63E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hf0b2cf0483a975a5E",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 4,
       "covered": 4,
@@ -49,9 +52,10 @@
     {
       "item": "part0.echo",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part04echo17hc5a6d91b0c4209ffE",
-        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h19317583a7669004E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part04echo17heff72bd73b5ec648E",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17hc71c5e48f52c0f92E",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 0,
       "covered": 0,
@@ -61,84 +65,87 @@
     {
       "item": "part0.sensor",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part06sensor17h1de8b9f3d4925a98E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h141014223eb660cdE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h811ee965f53c2bb8E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h9693557b2ff7dd9dE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha55963f150ca1499E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17hd11c8b3be0cbc683E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part06sensor17he64afaf48498d62aE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h2c61369ee994339cE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h41a2e5c23ca3e447E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdc0337f4cea3bcaeE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hef8f3271dabd561cE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h042054fc82b3720cE",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 237:80 false"
+        "p1_demo_part0::sensor::{closure}: 310:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part06sensor17h1de8b9f3d4925a98E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h141014223eb660cdE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h811ee965f53c2bb8E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h9693557b2ff7dd9dE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha55963f150ca1499E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17hd11c8b3be0cbc683E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part06sensor17he64afaf48498d62aE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h2c61369ee994339cE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h41a2e5c23ca3e447E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdc0337f4cea3bcaeE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hef8f3271dabd561cE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h042054fc82b3720cE",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 237:80 false"
+        "p1_demo_part0::sensor::{closure}: 310:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h7caefc0039f48996E",
-        "_ZN13p1_demo_part06sensor17h1de8b9f3d4925a98E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h141014223eb660cdE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h811ee965f53c2bb8E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h9693557b2ff7dd9dE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha55963f150ca1499E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17hd11c8b3be0cbc683E"
+        "_ZN13p1_demo_part010rsk_target2ms17ha410479d5d8d8f1dE",
+        "_ZN13p1_demo_part06sensor17he64afaf48498d62aE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h2c61369ee994339cE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h41a2e5c23ca3e447E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdc0337f4cea3bcaeE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hef8f3271dabd561cE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h042054fc82b3720cE",
+        "_ZN13p1_demo_part012validate_rep17hb76275049b14c124E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 237:80 false"
+        "p1_demo_part0::sensor::{closure}: 310:80 false"
       ]
     },
     {
       "item": "part1.log",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h4c152ee2f8432584E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17h43bf95c5d2a30711E",
-        "_ZN13p1_demo_part112pulse_source5start17haa1104c1101520daE",
-        "_ZN13p1_demo_part112pulse_source7respond17h7130995258381e0cE",
-        "_ZN13p1_demo_part13log17h9a77f4ac94874ce0E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hbf56c3539db5182eE",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hdada9c5b91467c77E"
+        "_ZN13p1_demo_part110rsk_target2ms17h0c43ceb3457a17f3E",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h1644de0d0dd33ee3E",
+        "_ZN13p1_demo_part112pulse_source5start17h5ed5eaf72be64fdeE",
+        "_ZN13p1_demo_part112pulse_source7respond17h7736646af69e2c9cE",
+        "_ZN13p1_demo_part13log17hceffd7dccdbbc588E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h4a396272800d5f88E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hb8ae3e1826b601c7E"
       ],
       "branches": 14,
       "covered": 13,
       "percent": 92,
       "uncovered": [
-        "p1_demo_part1::log: 226:72 false"
+        "p1_demo_part1::log: 280:72 false"
       ]
     },
     {
       "item": "part1.pulse",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h4c152ee2f8432584E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17h43bf95c5d2a30711E",
-        "_ZN13p1_demo_part112pulse_source5start17haa1104c1101520daE",
-        "_ZN13p1_demo_part112pulse_source7respond17h7130995258381e0cE",
-        "_ZN13p1_demo_part15pulse17h1e48ad7bf46f290cE",
-        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h2a3ebb81b3888c99E"
+        "_ZN13p1_demo_part110rsk_target2ms17h0c43ceb3457a17f3E",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h1644de0d0dd33ee3E",
+        "_ZN13p1_demo_part112pulse_source5start17h5ed5eaf72be64fdeE",
+        "_ZN13p1_demo_part112pulse_source7respond17h7736646af69e2c9cE",
+        "_ZN13p1_demo_part15pulse17h57c68cceedf8753bE",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h97f9802e79cd3f16E"
       ],
       "branches": 6,
       "covered": 6,
@@ -148,19 +155,19 @@
     {
       "item": "part2.filter",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h187f8331bd9b7537E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h098fdd8559d63f89E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h19d48a30d9bb3878E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h87cbe0132a52f10bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hef0223a9a372b884E",
-        "_ZN13p1_demo_part25Stats6record17hde16072d3bfe5d83E",
-        "_ZN13p1_demo_part26filter17ha598ad1796f28637E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h860278a6d2f008e1E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h9495741ecccbb39cE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he80b8ab12bec316dE",
-        "_ZN13p1_demo_part27lowpass17h1bd815bff41689ecE",
-        "_ZN13p1_demo_part210rsk_target2ms17h74b1d306e289b057E",
-        "_ZN13p1_demo_part25Stats3new17haff01b0b27dad9a7E"
+        "_ZN13p1_demo_part212traffic_step17h467cd32ce745ce43E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33bd1b3db891bfb6E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3d8b567de2eb8c8bE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9d8fa47e39c2704E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17he6a930966e4979ebE",
+        "_ZN13p1_demo_part25Stats6record17h457a0f3e4eca626eE",
+        "_ZN13p1_demo_part26filter17ha9c8d4dc26d7453cE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h749bf2a3da873d4bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17ha6e7626965020cebE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hc787657e187697b8E",
+        "_ZN13p1_demo_part27lowpass17h90f796192a4cafa8E",
+        "_ZN13p1_demo_part210rsk_target2ms17h10c2e1059550d2a5E",
+        "_ZN13p1_demo_part25Stats3new17hbbfe191c476dfc9dE"
       ],
       "branches": 12,
       "covered": 6,
@@ -177,19 +184,19 @@
     {
       "item": "part2.filter#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h187f8331bd9b7537E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h098fdd8559d63f89E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h19d48a30d9bb3878E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h87cbe0132a52f10bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hef0223a9a372b884E",
-        "_ZN13p1_demo_part25Stats6record17hde16072d3bfe5d83E",
-        "_ZN13p1_demo_part26filter17ha598ad1796f28637E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h860278a6d2f008e1E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h9495741ecccbb39cE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he80b8ab12bec316dE",
-        "_ZN13p1_demo_part27lowpass17h1bd815bff41689ecE",
-        "_ZN13p1_demo_part210rsk_target2ms17h74b1d306e289b057E",
-        "_ZN13p1_demo_part25Stats3new17haff01b0b27dad9a7E"
+        "_ZN13p1_demo_part212traffic_step17h467cd32ce745ce43E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33bd1b3db891bfb6E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3d8b567de2eb8c8bE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9d8fa47e39c2704E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17he6a930966e4979ebE",
+        "_ZN13p1_demo_part25Stats6record17h457a0f3e4eca626eE",
+        "_ZN13p1_demo_part26filter17ha9c8d4dc26d7453cE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h749bf2a3da873d4bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17ha6e7626965020cebE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hc787657e187697b8E",
+        "_ZN13p1_demo_part27lowpass17h90f796192a4cafa8E",
+        "_ZN13p1_demo_part210rsk_target2ms17h10c2e1059550d2a5E",
+        "_ZN13p1_demo_part25Stats3new17hbbfe191c476dfc9dE"
       ],
       "branches": 12,
       "covered": 6,
@@ -206,19 +213,19 @@
     {
       "item": "part2.sampler",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h187f8331bd9b7537E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h098fdd8559d63f89E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h19d48a30d9bb3878E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h87cbe0132a52f10bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hef0223a9a372b884E",
-        "_ZN13p1_demo_part25Stats6record17hde16072d3bfe5d83E",
-        "_ZN13p1_demo_part27lowpass17h1bd815bff41689ecE",
-        "_ZN13p1_demo_part27sampler17hbf3b6a6b5be060c7E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h948781262829ab0aE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17had1aa95ec9f1f950E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hdeb45203a1fede28E",
-        "_ZN13p1_demo_part210rsk_target2ms17h74b1d306e289b057E",
-        "_ZN13p1_demo_part25Stats3new17haff01b0b27dad9a7E"
+        "_ZN13p1_demo_part212traffic_step17h467cd32ce745ce43E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33bd1b3db891bfb6E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3d8b567de2eb8c8bE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9d8fa47e39c2704E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17he6a930966e4979ebE",
+        "_ZN13p1_demo_part25Stats6record17h457a0f3e4eca626eE",
+        "_ZN13p1_demo_part27lowpass17h90f796192a4cafa8E",
+        "_ZN13p1_demo_part27sampler17h713959bbb60ecef2E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h7b8f892f6c873703E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h91f12cec9a8747e6E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h9d37707b15950c62E",
+        "_ZN13p1_demo_part210rsk_target2ms17h10c2e1059550d2a5E",
+        "_ZN13p1_demo_part25Stats3new17hbbfe191c476dfc9dE"
       ],
       "branches": 14,
       "covered": 7,
@@ -236,19 +243,19 @@
     {
       "item": "part2.sampler#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h187f8331bd9b7537E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h098fdd8559d63f89E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h19d48a30d9bb3878E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h87cbe0132a52f10bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hef0223a9a372b884E",
-        "_ZN13p1_demo_part25Stats6record17hde16072d3bfe5d83E",
-        "_ZN13p1_demo_part27lowpass17h1bd815bff41689ecE",
-        "_ZN13p1_demo_part27sampler17hbf3b6a6b5be060c7E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h948781262829ab0aE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17had1aa95ec9f1f950E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hdeb45203a1fede28E",
-        "_ZN13p1_demo_part210rsk_target2ms17h74b1d306e289b057E",
-        "_ZN13p1_demo_part25Stats3new17haff01b0b27dad9a7E"
+        "_ZN13p1_demo_part212traffic_step17h467cd32ce745ce43E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33bd1b3db891bfb6E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3d8b567de2eb8c8bE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9d8fa47e39c2704E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17he6a930966e4979ebE",
+        "_ZN13p1_demo_part25Stats6record17h457a0f3e4eca626eE",
+        "_ZN13p1_demo_part27lowpass17h90f796192a4cafa8E",
+        "_ZN13p1_demo_part27sampler17h713959bbb60ecef2E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h7b8f892f6c873703E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h91f12cec9a8747e6E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h9d37707b15950c62E",
+        "_ZN13p1_demo_part210rsk_target2ms17h10c2e1059550d2a5E",
+        "_ZN13p1_demo_part25Stats3new17hbbfe191c476dfc9dE"
       ],
       "branches": 14,
       "covered": 7,
@@ -303,12 +310,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "759:12 true",
-        "759:12 false",
-        "761:41 true",
-        "761:41 false",
-        "766:44 true",
-        "766:44 false"
+        "772:12 true",
+        "772:12 false",
+        "774:41 true",
+        "774:41 false",
+        "779:44 true",
+        "779:44 false"
       ]
     },
     {
@@ -331,8 +338,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "796:24 true",
-        "796:24 false"
+        "809:24 true",
+        "809:24 false"
       ]
     },
     {
@@ -355,9 +362,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "404:8 true",
-        "407:8 true",
-        "410:8 true"
+        "413:8 true",
+        "416:8 true",
+        "419:8 true"
       ]
     },
     {
@@ -373,9 +380,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "380:18 true",
-        "385:22 false",
-        "387:12 false"
+        "389:18 true",
+        "394:22 false",
+        "396:12 false"
       ]
     },
     {
@@ -391,8 +398,8 @@
       "branches": 8,
       "covered": 6,
       "uncovered": [
-        "353:22 true",
-        "356:26 false"
+        "362:22 true",
+        "365:26 false"
       ]
     },
     {
@@ -419,10 +426,11 @@
     {
       "name": "rsk_kernel::arch::cm4::unsafe_module::span_leave",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
-      "branches": 6,
-      "covered": 5,
+      "branches": 10,
+      "covered": 8,
       "uncovered": [
-        "757:19 true"
+        "774:19 true",
+        "790:8 false"
       ]
     },
     {
@@ -438,7 +446,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "944:12 true"
+        "974:12 true"
       ]
     },
     {
@@ -447,7 +455,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "522:8 true"
+        "527:8 true"
       ]
     },
     {
@@ -463,10 +471,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "376:8 true",
-        "376:37 true",
-        "380:8 true",
-        "385:8 true"
+        "381:8 true",
+        "381:37 true",
+        "385:8 true",
+        "390:8 true"
       ]
     },
     {
@@ -489,7 +497,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "397:8 true"
+        "402:8 true"
       ]
     },
     {
@@ -519,8 +527,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "495:8 true",
-        "495:37 true"
+        "500:8 true",
+        "500:37 true"
       ]
     },
     {
@@ -529,8 +537,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "507:8 true",
-        "507:37 true"
+        "512:8 true",
+        "512:37 true"
       ]
     },
     {
@@ -539,8 +547,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "355:8 true",
-        "360:16 true"
+        "360:8 true",
+        "365:16 true"
       ]
     },
     {
@@ -549,7 +557,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "551:8 true"
+        "556:8 true"
       ]
     },
     {
@@ -565,10 +573,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "417:11 true",
-        "417:11 false",
-        "421:12 true",
-        "421:12 false"
+        "422:11 true",
+        "422:11 false",
+        "426:12 true",
+        "426:12 false"
       ]
     },
     {
@@ -577,10 +585,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "474:8 true",
-        "474:8 false",
-        "485:8 true",
-        "485:8 false"
+        "479:8 true",
+        "479:8 false",
+        "490:8 true",
+        "490:8 false"
       ]
     },
     {
@@ -589,7 +597,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "539:8 true"
+        "544:8 true"
       ]
     },
     {
@@ -619,7 +627,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "1085:28 false"
+        "1263:28 false"
       ]
     },
     {
@@ -656,9 +664,9 @@
       "branches": 10,
       "covered": 7,
       "uncovered": [
-        "188:19 false",
-        "190:20 false",
-        "190:34 true"
+        "195:19 false",
+        "197:20 false",
+        "197:34 true"
       ]
     },
     {
@@ -683,6 +691,20 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<_>::len",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<_>::base",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::unsafe_module::hw::timebase::now",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
       "branches": 0,
@@ -695,10 +717,10 @@
       "branches": 8,
       "covered": 4,
       "uncovered": [
-        "721:8 false",
-        "731:12 false",
-        "731:32 false",
-        "734:12 false"
+        "899:8 false",
+        "909:12 false",
+        "909:32 false",
+        "912:12 false"
       ]
     },
     {
@@ -707,7 +729,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "726:8 true"
+        "740:8 true"
       ]
     },
     {
@@ -716,7 +738,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "303:8 true"
+        "308:8 true"
       ]
     },
     {
@@ -725,7 +747,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "808:8 true"
+        "838:8 true"
       ]
     },
     {
@@ -734,7 +756,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "899:8 true"
+        "929:8 true"
       ]
     },
     {
@@ -743,8 +765,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "630:8 true",
-        "630:8 false"
+        "635:8 true",
+        "635:8 false"
       ]
     },
     {
@@ -753,8 +775,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "773:8 true",
-        "773:8 false"
+        "803:8 true",
+        "803:8 false"
       ]
     },
     {
@@ -763,8 +785,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "697:8 true",
-        "697:8 false"
+        "702:8 true",
+        "702:8 false"
       ]
     },
     {
@@ -773,12 +795,12 @@
       "branches": 22,
       "covered": 16,
       "uncovered": [
-        "623:8 true",
-        "666:12 true",
-        "666:20 true",
-        "666:20 false",
-        "672:12 false",
-        "683:8 true"
+        "632:8 true",
+        "679:12 true",
+        "679:20 true",
+        "679:20 false",
+        "685:12 false",
+        "696:8 true"
       ]
     },
     {
@@ -815,8 +837,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "166:8 true",
-        "175:8 true"
+        "199:8 true",
+        "208:8 true"
       ]
     },
     {
@@ -832,9 +854,9 @@
       "branches": 14,
       "covered": 11,
       "uncovered": [
-        "583:48 true",
-        "613:12 true",
-        "616:12 true"
+        "616:48 true",
+        "646:12 true",
+        "654:12 true"
       ]
     },
     {
@@ -843,10 +865,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1340:18 true",
-        "1340:18 false",
-        "1340:31 true",
-        "1340:31 false"
+        "1626:18 true",
+        "1626:18 false",
+        "1626:31 true",
+        "1626:31 false"
       ]
     },
     {
@@ -855,9 +877,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "896:23 false",
-        "901:17 false",
-        "908:8 false"
+        "934:23 false",
+        "939:17 false",
+        "946:8 false"
       ]
     },
     {
@@ -866,7 +888,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "932:8 false"
+        "1185:8 false"
       ]
     },
     {
@@ -882,7 +904,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "539:21 false"
+        "572:21 false"
       ]
     },
     {
@@ -900,14 +922,58 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_args",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 22,
+      "covered": 0,
+      "uncovered": [
+        "1032:26 true",
+        "1032:26 false",
+        "1033:8 true",
+        "1033:8 false",
+        "1033:27 true",
+        "1033:27 false",
+        "1033:59 true",
+        "1033:59 false",
+        "1039:13 true",
+        "1039:13 false",
+        "1040:20 true",
+        "1040:20 false",
+        "1041:20 true",
+        "1041:20 false",
+        "1042:20 true",
+        "1042:20 false",
+        "1043:20 true",
+        "1043:20 false",
+        "1044:20 true",
+        "1044:20 false",
+        "1049:8 true",
+        "1049:8 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_slot",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 6,
+      "covered": 0,
+      "uncovered": [
+        "1068:31 true",
+        "1068:31 false",
+        "1070:8 true",
+        "1070:8 false",
+        "1070:41 true",
+        "1070:41 false"
+      ]
+    },
+    {
       "name": "rsk_kernel::arch::cm4::entry::epilogue_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "1297:8 false",
-        "1306:22 true",
-        "1313:16 true"
+        "1583:8 false",
+        "1592:22 true",
+        "1599:16 true"
       ]
     },
     {
@@ -916,17 +982,17 @@
       "branches": 24,
       "covered": 13,
       "uncovered": [
-        "850:8 false",
-        "850:17 false",
-        "850:36 false",
-        "868:16 false",
-        "869:20 true",
-        "869:36 true",
-        "869:55 true",
-        "869:76 true",
-        "875:20 false",
-        "875:29 false",
-        "877:8 false"
+        "888:8 false",
+        "888:17 false",
+        "888:36 false",
+        "906:16 false",
+        "907:20 true",
+        "907:36 true",
+        "907:55 true",
+        "907:76 true",
+        "913:20 false",
+        "913:29 false",
+        "915:8 false"
       ]
     },
     {
@@ -935,35 +1001,81 @@
       "branches": 50,
       "covered": 21,
       "uncovered": [
-        "986:8 false",
-        "986:24 false",
-        "996:16 true",
-        "1011:16 false",
-        "1011:32 false",
-        "1011:57 true",
-        "1034:16 false",
-        "1034:32 true",
-        "1039:23 true",
-        "1039:23 false",
-        "1043:24 true",
-        "1043:24 false",
-        "1043:38 true",
-        "1043:38 false",
-        "1043:64 true",
-        "1043:64 false",
-        "1048:20 true",
-        "1048:20 false",
-        "1056:16 true",
-        "1063:46 false",
-        "1063:92 false",
-        "1072:16 true",
-        "1131:16 false",
-        "1153:8 false",
-        "1153:40 true",
-        "1153:56 true",
-        "1153:56 false",
-        "1153:81 true",
-        "1153:81 false"
+        "1239:8 false",
+        "1239:24 false",
+        "1249:16 true",
+        "1264:16 false",
+        "1264:32 false",
+        "1264:57 true",
+        "1287:16 false",
+        "1287:32 true",
+        "1292:23 true",
+        "1292:23 false",
+        "1296:24 true",
+        "1296:24 false",
+        "1296:38 true",
+        "1296:38 false",
+        "1296:64 true",
+        "1296:64 false",
+        "1301:20 true",
+        "1301:20 false",
+        "1309:16 true",
+        "1316:46 false",
+        "1316:92 false",
+        "1325:16 true",
+        "1384:16 false",
+        "1406:8 false",
+        "1406:40 true",
+        "1406:56 true",
+        "1406:56 false",
+        "1406:81 true",
+        "1406:81 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::violation_core",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 14,
+      "covered": 0,
+      "uncovered": [
+        "1002:8 true",
+        "1002:8 false",
+        "1007:26 true",
+        "1007:26 false",
+        "1008:8 true",
+        "1008:8 false",
+        "1008:27 true",
+        "1008:27 false",
+        "1008:47 true",
+        "1008:47 false",
+        "1008:79 true",
+        "1008:79 false",
+        "1013:8 true",
+        "1013:8 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_reinit",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 16,
+      "covered": 0,
+      "uncovered": [
+        "967:11 true",
+        "967:11 false",
+        "967:20 true",
+        "967:20 false",
+        "972:12 true",
+        "972:12 false",
+        "972:38 true",
+        "972:38 false",
+        "975:16 true",
+        "975:16 false",
+        "975:42 true",
+        "975:42 false",
+        "978:16 true",
+        "978:16 false",
+        "978:42 true",
+        "978:42 false"
       ]
     },
     {
@@ -972,10 +1084,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "118:8 true",
-        "118:8 false",
-        "123:8 true",
-        "123:8 false"
+        "140:8 true",
+        "140:8 false",
+        "145:8 true",
+        "145:8 false"
       ]
     },
     {
@@ -984,9 +1096,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "806:23 false",
-        "811:17 false",
-        "818:8 false"
+        "844:23 false",
+        "849:17 false",
+        "856:8 false"
       ]
     },
     {
@@ -995,16 +1107,42 @@
       "branches": 10,
       "covered": 0,
       "uncovered": [
-        "752:11 true",
-        "752:11 false",
-        "757:12 true",
-        "757:12 false",
-        "758:16 true",
-        "758:16 false",
-        "761:16 true",
-        "761:16 false",
-        "764:16 true",
-        "764:16 false"
+        "790:11 true",
+        "790:11 false",
+        "795:12 true",
+        "795:12 false",
+        "796:16 true",
+        "796:16 false",
+        "799:16 true",
+        "799:16 false",
+        "802:16 true",
+        "802:16 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_recv_core",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 4,
+      "covered": 0,
+      "uncovered": [
+        "1146:8 true",
+        "1146:8 false",
+        "1152:8 true",
+        "1152:8 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_send_core",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 6,
+      "covered": 0,
+      "uncovered": [
+        "1099:8 true",
+        "1099:8 false",
+        "1104:8 true",
+        "1104:8 false",
+        "1123:8 true",
+        "1123:8 false"
       ]
     },
     {
@@ -1020,26 +1158,35 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "780:11 true",
-        "780:11 false",
-        "784:12 true",
-        "784:12 false",
-        "787:12 true",
-        "787:12 false"
+        "818:11 true",
+        "818:11 false",
+        "822:12 true",
+        "822:12 false",
+        "825:12 true",
+        "825:12 false"
       ]
     },
     {
       "name": "rsk_kernel::arch::cm4::entry::svc_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "branches": 24,
-      "covered": 18,
+      "branches": 36,
+      "covered": 21,
       "uncovered": [
-        "1201:23 false",
-        "1206:23 false",
-        "1231:23 false",
-        "1232:12 false",
-        "1246:23 false",
-        "1252:15 false"
+        "1454:23 false",
+        "1459:23 false",
+        "1484:23 false",
+        "1485:12 false",
+        "1499:23 false",
+        "1505:15 true",
+        "1519:15 true",
+        "1519:37 true",
+        "1525:23 true",
+        "1525:23 false",
+        "1531:12 true",
+        "1531:12 false",
+        "1531:34 true",
+        "1531:34 false",
+        "1538:15 false"
       ]
     },
     {
@@ -1048,18 +1195,18 @@
       "branches": 18,
       "covered": 6,
       "uncovered": [
-        "643:8 true",
-        "654:8 true",
-        "657:8 true",
-        "660:8 false",
-        "664:8 true",
-        "672:8 false",
-        "689:11 true",
-        "689:11 false",
-        "720:11 true",
-        "720:11 false",
-        "720:21 true",
-        "720:21 false"
+        "681:8 true",
+        "692:8 true",
+        "695:8 true",
+        "698:8 false",
+        "702:8 true",
+        "710:8 false",
+        "727:11 true",
+        "727:11 false",
+        "758:11 true",
+        "758:11 false",
+        "758:21 true",
+        "758:21 false"
       ]
     },
     {
@@ -1068,8 +1215,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "737:8 true",
-        "737:8 false"
+        "750:8 true",
+        "750:8 false"
       ]
     },
     {
@@ -1078,8 +1225,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "829:8 true",
-        "829:8 false"
+        "842:8 true",
+        "842:8 false"
       ]
     },
     {
@@ -1088,8 +1235,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "447:8 true",
-        "447:8 false"
+        "456:8 true",
+        "456:8 false"
       ]
     },
     {
@@ -1098,10 +1245,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "584:16 true",
-        "584:16 false",
-        "589:8 true",
-        "589:8 false"
+        "593:16 true",
+        "593:16 false",
+        "598:8 true",
+        "598:8 false"
       ]
     },
     {
@@ -1117,7 +1264,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "714:8 true"
+        "727:8 true"
       ]
     },
     {
@@ -1126,8 +1273,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "777:23 true",
-        "777:23 false"
+        "790:23 true",
+        "790:23 false"
       ]
     },
     {
@@ -1136,8 +1283,8 @@
       "branches": 20,
       "covered": 18,
       "uncovered": [
-        "471:37 false",
-        "511:37 false"
+        "480:37 false",
+        "520:37 false"
       ]
     },
     {
@@ -1204,7 +1351,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "631:12 false"
+        "650:12 false"
       ]
     },
     {
@@ -1213,7 +1360,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "733:12 false"
+        "752:12 false"
       ]
     },
     {
@@ -1229,7 +1376,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "644:12 true"
+        "663:12 true"
       ]
     },
     {
@@ -1259,7 +1406,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "565:12 false"
+        "584:12 false"
       ]
     },
     {
@@ -1268,7 +1415,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "741:12 false"
+        "760:12 false"
       ]
     },
     {
@@ -1277,8 +1424,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "703:12 true",
-        "707:12 true"
+        "722:12 true",
+        "726:12 true"
       ]
     },
     {
@@ -1301,8 +1448,18 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "573:12 true",
-        "573:12 false"
+        "592:12 true",
+        "592:12 false"
+      ]
+    },
+    {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::record_event",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 2,
+      "covered": 0,
+      "uncovered": [
+        "808:12 true",
+        "808:12 false"
       ]
     },
     {
@@ -1311,7 +1468,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "552:12 false"
+        "571:12 false"
       ]
     },
     {
@@ -1327,7 +1484,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "769:12 true"
+        "788:12 true"
       ]
     },
     {
@@ -1336,7 +1493,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "749:12 false"
+        "768:12 false"
       ]
     },
     {
@@ -1345,7 +1502,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "694:12 false"
+        "713:12 false"
       ]
     },
     {
@@ -1354,8 +1511,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "714:12 true",
-        "718:12 true"
+        "733:12 true",
+        "737:12 true"
       ]
     },
     {
@@ -1364,7 +1521,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "698:20 false"
+        "717:20 false"
       ]
     },
     {
@@ -1389,15 +1546,25 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::message_permitted",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 2,
+      "covered": 0,
+      "uncovered": [
+        "798:12 true",
+        "798:12 false"
+      ]
+    },
+    {
       "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::overrun_continues",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "577:12 true",
-        "577:12 false",
-        "579:13 true",
-        "579:13 false"
+        "596:12 true",
+        "596:12 false",
+        "598:13 true",
+        "598:13 false"
       ]
     },
     {
@@ -1406,7 +1573,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "765:12 false"
+        "784:12 false"
       ]
     },
     {
@@ -1443,7 +1610,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "522:12 false"
+        "541:12 false"
       ]
     },
     {
@@ -1452,10 +1619,10 @@
       "branches": 8,
       "covered": 4,
       "uncovered": [
-        "668:12 false",
-        "669:16 false",
-        "670:16 false",
-        "671:16 false"
+        "687:12 false",
+        "688:16 false",
+        "689:16 false",
+        "690:16 false"
       ]
     },
     {
@@ -1478,7 +1645,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "561:12 false"
+        "580:12 false"
       ]
     },
     {
@@ -1501,8 +1668,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "625:12 false",
-        "625:35 false"
+        "644:12 false",
+        "644:35 false"
       ]
     },
     {
@@ -1511,10 +1678,20 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "611:12 true",
-        "616:9 false",
-        "617:16 false",
-        "618:16 false"
+        "630:12 true",
+        "635:9 false",
+        "636:16 false",
+        "637:16 false"
+      ]
+    },
+    {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::fault_of",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 2,
+      "covered": 0,
+      "uncovered": [
+        "814:12 true",
+        "814:12 false"
       ]
     },
     {
@@ -1523,7 +1700,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "536:12 false"
+        "555:12 false"
       ]
     },
     {
@@ -1532,7 +1709,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "729:12 false"
+        "748:12 false"
       ]
     },
     {
@@ -1541,7 +1718,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "737:12 false"
+        "756:12 false"
       ]
     },
     {
@@ -1550,7 +1727,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "603:12 false"
+        "622:12 false"
       ]
     },
     {
@@ -1559,8 +1736,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "637:12 true",
-        "637:44 true"
+        "656:12 true",
+        "656:44 true"
       ]
     },
     {
@@ -1569,11 +1746,11 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "496:9 false",
-        "497:16 false",
-        "498:16 false",
-        "499:16 false",
-        "500:16 false"
+        "515:9 false",
+        "516:16 false",
+        "517:16 false",
+        "518:16 false",
+        "519:16 false"
       ]
     },
     {
@@ -1589,7 +1766,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "569:12 false"
+        "588:12 false"
       ]
     },
     {
@@ -1598,7 +1775,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "607:12 false"
+        "626:12 false"
       ]
     },
     {
@@ -1630,6 +1807,13 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_system::Sys$u20$as$u20$rsk_kernel::arch::System>::endpoint_storage",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_coverage.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "_<rsk_system::Sys$u20$as$u20$rsk_kernel::arch::System>::dma",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_coverage.rs",
       "branches": 0,
@@ -1652,6 +1836,13 @@
     },
     {
       "name": "_<rsk_system::Sys$u20$as$u20$rsk_kernel::arch::System>::binding",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_coverage.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<rsk_system::Sys$u20$as$u20$rsk_kernel::arch::System>::endpoint",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_coverage.rs",
       "branches": 0,
       "covered": 0,
@@ -1721,6 +1912,13 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::endpoint_count",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::config_checksum",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
@@ -1736,6 +1934,13 @@
     },
     {
       "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::layout_checksum",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::endpoint_storage",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
       "covered": 0,
@@ -1784,6 +1989,13 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::endpoint",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::dma_count",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
@@ -1817,23 +2029,23 @@
       "branches": 44,
       "covered": 27,
       "uncovered": [
-        "411:12 true",
-        "428:22 false",
-        "428:46 false",
-        "428:70 false",
-        "429:21 true",
-        "429:40 false",
-        "429:64 false",
-        "429:74 false",
-        "430:21 false",
-        "431:16 true",
-        "448:36 false",
-        "448:47 false",
-        "448:58 false",
-        "449:29 true",
-        "449:46 false",
-        "449:57 false",
-        "450:24 true"
+        "412:12 true",
+        "429:22 false",
+        "429:46 false",
+        "429:70 false",
+        "430:21 true",
+        "430:40 false",
+        "430:64 false",
+        "430:74 false",
+        "431:21 false",
+        "432:16 true",
+        "449:36 false",
+        "449:47 false",
+        "449:58 false",
+        "450:29 true",
+        "450:46 false",
+        "450:57 false",
+        "451:24 true"
       ]
     },
     {
@@ -1842,21 +2054,21 @@
       "branches": 36,
       "covered": 21,
       "uncovered": [
-        "364:28 true",
-        "364:65 false",
-        "365:20 true",
-        "365:20 false",
-        "366:69 true",
-        "367:20 true",
-        "367:66 true",
-        "369:31 true",
-        "369:81 true",
-        "370:20 true",
-        "371:18 false",
-        "371:35 false",
-        "371:47 false",
-        "371:61 false",
-        "386:24 true"
+        "365:28 true",
+        "365:65 false",
+        "366:20 true",
+        "366:20 false",
+        "367:69 true",
+        "368:20 true",
+        "368:66 true",
+        "370:31 true",
+        "370:81 true",
+        "371:20 true",
+        "372:18 false",
+        "372:35 false",
+        "372:47 false",
+        "372:61 false",
+        "387:24 true"
       ]
     },
     {
@@ -1865,34 +2077,34 @@
       "branches": 66,
       "covered": 38,
       "uncovered": [
-        "241:14 false",
-        "241:24 false",
-        "241:37 false",
-        "241:50 false",
-        "241:60 false",
-        "242:16 false",
-        "242:47 false",
-        "257:22 false",
-        "257:44 false",
-        "258:20 false",
-        "259:51 false",
-        "260:20 false",
+        "242:14 false",
+        "242:24 false",
+        "242:37 false",
+        "242:50 false",
+        "242:60 false",
+        "243:16 false",
+        "243:47 false",
+        "258:22 false",
+        "258:44 false",
+        "259:20 false",
+        "260:51 false",
         "261:20 false",
-        "261:41 false",
         "262:20 false",
-        "263:21 false",
-        "263:53 true",
-        "263:53 false",
-        "264:20 false",
-        "266:16 true",
-        "287:18 false",
-        "287:51 false",
-        "287:71 false",
-        "310:24 true",
-        "310:55 true",
-        "335:16 true",
-        "343:12 true",
-        "346:12 true"
+        "262:41 false",
+        "263:20 false",
+        "264:21 false",
+        "264:53 true",
+        "264:53 false",
+        "265:20 false",
+        "267:16 true",
+        "288:18 false",
+        "288:51 false",
+        "288:71 false",
+        "311:24 true",
+        "311:55 true",
+        "336:16 true",
+        "344:12 true",
+        "347:12 true"
       ]
     },
     {
@@ -1901,7 +2113,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "147:22 true"
+        "151:22 true"
       ]
     },
     {
@@ -1917,10 +2129,10 @@
       "branches": 6,
       "covered": 2,
       "uncovered": [
-        "113:12 false",
-        "114:26 true",
-        "127:28 true",
-        "127:28 false"
+        "117:12 false",
+        "118:26 true",
+        "131:28 true",
+        "131:28 false"
       ]
     },
     {
@@ -1929,7 +2141,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "525:16 true"
+        "551:16 true"
       ]
     },
     {
@@ -1938,24 +2150,24 @@
       "branches": 42,
       "covered": 24,
       "uncovered": [
-        "606:14 false",
-        "606:40 false",
-        "606:65 false",
-        "606:91 false",
-        "609:14 false",
-        "609:48 false",
-        "609:81 false",
-        "609:114 false",
-        "614:12 true",
-        "614:32 true",
-        "628:16 true",
-        "631:18 false",
-        "631:48 false",
-        "642:20 true",
-        "645:20 true",
-        "665:16 true",
-        "668:18 false",
-        "668:48 false"
+        "632:14 false",
+        "632:40 false",
+        "632:65 false",
+        "632:91 false",
+        "635:14 false",
+        "635:48 false",
+        "635:81 false",
+        "635:114 false",
+        "640:12 true",
+        "640:32 true",
+        "654:16 true",
+        "657:18 false",
+        "657:48 false",
+        "668:20 true",
+        "671:20 true",
+        "691:16 true",
+        "694:18 false",
+        "694:48 false"
       ]
     },
     {
@@ -1964,29 +2176,29 @@
       "branches": 48,
       "covered": 25,
       "uncovered": [
-        "539:14 false",
-        "539:39 false",
-        "539:63 false",
-        "543:14 false",
-        "543:35 false",
-        "546:12 true",
-        "549:12 true",
-        "552:14 false",
-        "552:60 false",
-        "552:104 false",
-        "553:16 false",
-        "553:61 false",
-        "553:104 false",
-        "558:14 false",
-        "558:44 false",
-        "574:16 true",
-        "577:18 false",
-        "577:49 false",
-        "577:81 false",
-        "578:20 false",
+        "565:14 false",
+        "565:39 false",
+        "565:63 false",
+        "569:14 false",
+        "569:35 false",
+        "572:12 true",
+        "575:12 true",
+        "578:14 false",
         "578:60 false",
-        "583:16 true",
-        "589:16 true"
+        "578:104 false",
+        "579:16 false",
+        "579:61 false",
+        "579:104 false",
+        "584:14 false",
+        "584:44 false",
+        "600:16 true",
+        "603:18 false",
+        "603:49 false",
+        "603:81 false",
+        "604:20 false",
+        "604:60 false",
+        "609:16 true",
+        "615:16 true"
       ]
     },
     {
@@ -1995,9 +2207,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "490:12 true",
-        "501:16 true",
-        "504:16 true"
+        "516:12 true",
+        "527:16 true",
+        "530:16 true"
       ]
     },
     {
@@ -2013,16 +2225,16 @@
       "branches": 24,
       "covered": 14,
       "uncovered": [
-        "435:14 false",
-        "435:48 false",
-        "435:83 false",
-        "438:14 false",
-        "438:69 false",
-        "439:16 false",
-        "443:12 true",
-        "457:16 true",
-        "468:22 false",
-        "468:50 false"
+        "461:14 false",
+        "461:48 false",
+        "461:83 false",
+        "464:14 false",
+        "464:69 false",
+        "465:16 false",
+        "469:12 true",
+        "483:16 true",
+        "494:22 false",
+        "494:50 false"
       ]
     },
     {
@@ -2031,10 +2243,22 @@
       "branches": 14,
       "covered": 10,
       "uncovered": [
-        "286:12 true",
-        "293:12 true",
-        "293:49 true",
-        "318:16 true"
+        "312:12 true",
+        "319:12 true",
+        "319:49 true",
+        "344:16 true"
+      ]
+    },
+    {
+      "name": "rsk_logic::logic::mpu::PartitionLayout::message_permitted_exec",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/mpu.rs",
+      "branches": 4,
+      "covered": 0,
+      "uncovered": [
+        "296:12 true",
+        "296:12 false",
+        "303:9 true",
+        "303:9 false"
       ]
     },
     {
@@ -2350,7 +2574,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "1702:21 true"
+        "1718:21 true"
       ]
     },
     {
@@ -2359,9 +2583,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "1759:12 true",
-        "1761:27 true",
-        "1761:27 false"
+        "1775:12 true",
+        "1777:27 true",
+        "1777:27 false"
       ]
     },
     {
@@ -2377,11 +2601,11 @@
       "branches": 20,
       "covered": 15,
       "uncovered": [
-        "2487:19 false",
-        "2490:23 true",
-        "2492:23 true",
-        "2496:23 false",
-        "2506:20 false"
+        "2503:19 false",
+        "2506:23 true",
+        "2508:23 true",
+        "2512:23 false",
+        "2522:20 false"
       ]
     },
     {
@@ -2390,8 +2614,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "1924:12 false",
-        "1932:12 true"
+        "1940:12 false",
+        "1948:12 true"
       ]
     },
     {
@@ -2400,8 +2624,8 @@
       "branches": 18,
       "covered": 16,
       "uncovered": [
-        "2279:12 true",
-        "2310:60 true"
+        "2295:12 true",
+        "2326:60 true"
       ]
     },
     {
@@ -2417,10 +2641,17 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "2797:12 true",
-        "2800:12 true",
-        "2803:12 true"
+        "2813:12 true",
+        "2816:12 true",
+        "2819:12 true"
       ]
+    },
+    {
+      "name": "rsk_logic::logic::kernel::Kernel<_$C$_$C$_$C$_$C$_$C$_>::record_event",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/kernel.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "rsk_logic::logic::kernel::Kernel<_$C$_$C$_$C$_$C$_$C$_>::deadline_miss",
@@ -2435,8 +2666,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "2213:12 true",
-        "2213:12 false"
+        "2229:12 true",
+        "2229:12 false"
       ]
     },
     {
@@ -2452,22 +2683,22 @@
       "branches": 16,
       "covered": 0,
       "uncovered": [
-        "2882:12 true",
-        "2882:12 false",
-        "2882:44 true",
-        "2882:44 false",
-        "2888:12 true",
-        "2888:12 false",
-        "2891:16 true",
-        "2891:16 false",
-        "2893:20 true",
-        "2893:20 false",
-        "2895:24 true",
-        "2895:24 false",
-        "2913:12 true",
-        "2913:12 false",
-        "2917:12 true",
-        "2917:12 false"
+        "2930:12 true",
+        "2930:12 false",
+        "2930:44 true",
+        "2930:44 false",
+        "2936:12 true",
+        "2936:12 false",
+        "2939:16 true",
+        "2939:16 false",
+        "2941:20 true",
+        "2941:20 false",
+        "2943:24 true",
+        "2943:24 false",
+        "2961:12 true",
+        "2961:12 false",
+        "2965:12 true",
+        "2965:12 false"
       ]
     },
     {
@@ -2476,8 +2707,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "1852:12 false",
-        "1852:25 false"
+        "1868:12 false",
+        "1868:25 false"
       ]
     },
     {
@@ -2486,16 +2717,16 @@
       "branches": 16,
       "covered": 6,
       "uncovered": [
-        "2089:12 true",
-        "2089:31 true",
-        "2089:48 true",
-        "2105:12 false",
-        "2122:16 true",
-        "2122:16 false",
-        "2122:37 true",
-        "2122:37 false",
-        "2132:29 true",
-        "2132:29 false"
+        "2105:12 true",
+        "2105:31 true",
+        "2105:48 true",
+        "2121:12 false",
+        "2138:16 true",
+        "2138:16 false",
+        "2138:37 true",
+        "2138:37 false",
+        "2148:29 true",
+        "2148:29 false"
       ]
     },
     {
@@ -2511,7 +2742,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "1819:12 true"
+        "1835:12 true"
       ]
     },
     {
@@ -2520,8 +2751,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "2951:12 true",
-        "2951:12 false"
+        "2999:12 true",
+        "2999:12 false"
       ]
     },
     {
@@ -2530,12 +2761,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "2689:12 true",
-        "2689:12 false",
-        "2689:48 true",
-        "2689:48 false",
-        "2700:12 true",
-        "2700:12 false"
+        "2705:12 true",
+        "2705:12 false",
+        "2705:48 true",
+        "2705:48 false",
+        "2716:12 true",
+        "2716:12 false"
       ]
     },
     {
@@ -2551,10 +2782,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "2567:12 true",
-        "2578:12 false",
-        "2579:16 false",
-        "2580:20 true"
+        "2583:12 true",
+        "2594:12 false",
+        "2595:16 false",
+        "2596:20 true"
       ]
     },
     {
@@ -2577,10 +2808,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "3238:12 true",
-        "3238:12 false",
-        "3243:16 true",
-        "3243:16 false"
+        "3286:12 true",
+        "3286:12 false",
+        "3291:16 true",
+        "3291:16 false"
       ]
     },
     {
@@ -2589,12 +2820,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "3098:15 true",
-        "3098:15 false",
-        "3117:16 true",
-        "3117:16 false",
-        "3117:64 true",
-        "3117:64 false"
+        "3146:15 true",
+        "3146:15 false",
+        "3165:16 true",
+        "3165:16 false",
+        "3165:64 true",
+        "3165:64 false"
       ]
     },
     {
@@ -2603,10 +2834,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1796:15 true",
-        "1796:15 false",
-        "1801:16 true",
-        "1801:16 false"
+        "1812:15 true",
+        "1812:15 false",
+        "1817:16 true",
+        "1817:16 false"
       ]
     },
     {
@@ -2615,18 +2846,18 @@
       "branches": 12,
       "covered": 0,
       "uncovered": [
-        "3154:15 true",
-        "3154:15 false",
-        "3165:16 true",
-        "3165:16 false",
-        "3174:20 true",
-        "3174:20 false",
-        "3174:58 true",
-        "3174:58 false",
-        "3190:20 true",
-        "3190:20 false",
-        "3190:58 true",
-        "3190:58 false"
+        "3202:15 true",
+        "3202:15 false",
+        "3213:16 true",
+        "3213:16 false",
+        "3222:20 true",
+        "3222:20 false",
+        "3222:58 true",
+        "3222:58 false",
+        "3238:20 true",
+        "3238:20 false",
+        "3238:58 true",
+        "3238:58 false"
       ]
     },
     {
@@ -2642,9 +2873,9 @@
       "branches": 4,
       "covered": 1,
       "uncovered": [
-        "2850:12 false",
-        "2850:22 true",
-        "2850:22 false"
+        "2866:12 false",
+        "2866:22 true",
+        "2866:22 false"
       ]
     },
     {
@@ -2653,7 +2884,7 @@
       "branches": 6,
       "covered": 5,
       "uncovered": [
-        "1611:24 false"
+        "1627:24 false"
       ]
     },
     {
@@ -2662,11 +2893,11 @@
       "branches": 6,
       "covered": 1,
       "uncovered": [
-        "1991:12 true",
-        "1991:23 true",
-        "1991:23 false",
-        "1991:50 true",
-        "1991:50 false"
+        "2007:12 true",
+        "2007:23 true",
+        "2007:23 false",
+        "2007:50 true",
+        "2007:50 false"
       ]
     },
     {
@@ -2682,7 +2913,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "3436:31 true"
+        "3484:31 true"
       ]
     },
     {
@@ -2691,8 +2922,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "2984:12 true",
-        "2984:12 false"
+        "3032:12 true",
+        "3032:12 false"
       ]
     },
     {
@@ -2717,13 +2948,20 @@
       "uncovered": []
     },
     {
+      "name": "rsk_logic::logic::kernel::Kernel<_$C$_$C$_$C$_$C$_$C$_>::fault_of",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/kernel.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_logic::logic::kernel::Kernel<_$C$_$C$_$C$_$C$_$C$_>::svc_lock",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/kernel.rs",
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "1890:12 false",
-        "1898:12 true"
+        "1906:12 false",
+        "1914:12 true"
       ]
     },
     {
@@ -2732,8 +2970,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "3384:12 false",
-        "3387:12 false"
+        "3432:12 false",
+        "3435:12 false"
       ]
     },
     {
@@ -2746,6 +2984,45 @@
         "144:15 true",
         "144:38 true",
         "146:15 true"
+      ]
+    },
+    {
+      "name": "rsk_logic::logic::endpoint::Fifo::pop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/endpoint.rs",
+      "branches": 2,
+      "covered": 0,
+      "uncovered": [
+        "96:12 true",
+        "96:12 false"
+      ]
+    },
+    {
+      "name": "rsk_logic::logic::endpoint::Fifo::push",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/endpoint.rs",
+      "branches": 2,
+      "covered": 0,
+      "uncovered": [
+        "70:12 true",
+        "70:12 false"
+      ]
+    },
+    {
+      "name": "rsk_logic::logic::endpoint::Fifo::clear",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/endpoint.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_logic::logic::endpoint::Fifo::is_wf",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/endpoint.rs",
+      "branches": 4,
+      "covered": 0,
+      "uncovered": [
+        "54:9 true",
+        "54:9 false",
+        "54:21 true",
+        "54:21 false"
       ]
     },
     {
@@ -2884,22 +3161,23 @@
     {
       "name": "rsk_system::report_and_exit",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs",
-      "branches": 44,
-      "covered": 31,
+      "branches": 46,
+      "covered": 32,
       "uncovered": [
-        "254:19 true",
-        "256:57 true",
-        "284:23 false",
-        "284:38 false",
-        "284:53 false",
-        "284:64 false",
-        "284:74 false",
-        "284:84 false",
-        "284:100 false",
-        "284:110 false",
-        "285:12 false",
-        "285:22 false",
-        "285:35 false"
+        "314:19 true",
+        "316:57 true",
+        "359:23 false",
+        "359:38 false",
+        "359:53 false",
+        "359:64 false",
+        "359:74 false",
+        "359:84 false",
+        "359:100 false",
+        "359:110 false",
+        "360:12 false",
+        "360:22 false",
+        "360:35 false",
+        "360:45 false"
       ]
     },
     {
@@ -2922,7 +3200,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "733:12 false"
+        "752:12 false"
       ]
     },
     {
@@ -2931,7 +3209,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "741:12 false"
+        "760:12 false"
       ]
     },
     {
@@ -2947,7 +3225,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "745:12 false"
+        "764:12 false"
       ]
     },
     {
@@ -2956,7 +3234,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "729:12 false"
+        "748:12 false"
       ]
     },
     {
@@ -2965,7 +3243,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "737:12 false"
+        "756:12 false"
       ]
     },
     {
@@ -2974,7 +3252,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "147:22 true"
+        "151:22 true"
       ]
     },
     {
@@ -3168,7 +3446,7 @@
       "branches": 6,
       "covered": 5,
       "uncovered": [
-        "226:72 false"
+        "280:72 false"
       ]
     },
     {
@@ -3279,25 +3557,25 @@
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
-    },
-    {
-      "name": "p1_demo_part0::sensor::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
-    },
-    {
-      "name": "p1_demo_part0::sensor::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "237:80 false"
+        "310:80 false"
       ]
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part0::sensor::{closure}",
@@ -3363,13 +3641,20 @@
       "uncovered": []
     },
     {
+      "name": "p1_demo_part0::validate_rep",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::unsafe_module::stats_exec",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
       "branches": 10,
       "covered": 8,
       "uncovered": [
-        "438:8 true",
-        "446:8 true"
+        "443:8 true",
+        "451:8 true"
       ]
     },
     {
@@ -3378,8 +3663,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "792:8 true",
-        "792:8 false"
+        "822:8 true",
+        "822:8 false"
       ]
     },
     {
@@ -3395,18 +3680,18 @@
       "branches": 22,
       "covered": 10,
       "uncovered": [
-        "857:8 true",
-        "875:20 false",
-        "875:33 true",
-        "875:61 true",
-        "875:61 false",
-        "879:21 true",
-        "880:8 false",
-        "880:21 true",
-        "880:40 true",
-        "880:40 false",
-        "880:53 true",
-        "880:53 false"
+        "887:8 true",
+        "905:20 false",
+        "905:33 true",
+        "905:61 true",
+        "905:61 false",
+        "909:21 true",
+        "910:8 false",
+        "910:21 true",
+        "910:40 true",
+        "910:40 false",
+        "910:53 true",
+        "910:53 false"
       ]
     },
     {
@@ -3422,10 +3707,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "325:8 true",
-        "328:8 true",
-        "328:23 true",
-        "328:39 true"
+        "330:8 true",
+        "333:8 true",
+        "333:23 true",
+        "333:39 true"
       ]
     },
     {
@@ -3441,8 +3726,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1065:19 true",
-        "1065:19 false"
+        "1243:19 true",
+        "1243:19 false"
       ]
     },
     {
@@ -3451,21 +3736,21 @@
       "branches": 32,
       "covered": 17,
       "uncovered": [
-        "648:8 true",
-        "651:8 true",
-        "654:8 true",
-        "663:8 true",
-        "667:8 true",
-        "667:40 true",
-        "670:8 true",
-        "673:8 true",
-        "691:12 false",
-        "695:19 false",
-        "702:12 true",
-        "702:24 true",
-        "705:12 true",
-        "709:8 false",
-        "709:29 true"
+        "826:8 true",
+        "829:8 true",
+        "832:8 true",
+        "841:8 true",
+        "845:8 true",
+        "845:40 true",
+        "848:8 true",
+        "851:8 true",
+        "869:12 false",
+        "873:19 false",
+        "880:12 true",
+        "880:24 true",
+        "883:12 true",
+        "887:8 false",
+        "887:29 true"
       ]
     },
     {
@@ -3474,9 +3759,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "789:8 false",
-        "792:8 false",
-        "792:24 false"
+        "967:8 false",
+        "970:8 false",
+        "970:24 false"
       ]
     },
     {
@@ -3485,7 +3770,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "443:12 false"
+        "621:12 false"
       ]
     },
     {
@@ -3515,8 +3800,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "867:8 true",
-        "867:8 false"
+        "1045:8 true",
+        "1045:8 false"
       ]
     },
     {
@@ -3525,7 +3810,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "449:12 false"
+        "627:12 false"
       ]
     },
     {
@@ -3583,8 +3868,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "489:32 true",
-        "489:32 false"
+        "667:32 true",
+        "667:32 false"
       ]
     },
     {
@@ -3607,7 +3892,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "455:12 false"
+        "633:12 false"
       ]
     },
     {
@@ -3616,18 +3901,18 @@
       "branches": 12,
       "covered": 0,
       "uncovered": [
-        "251:19 true",
-        "251:19 false",
-        "253:20 true",
-        "253:20 false",
-        "253:34 true",
-        "253:34 false",
-        "256:20 true",
-        "256:20 false",
-        "260:27 true",
-        "260:27 false",
-        "260:39 true",
-        "260:39 false"
+        "258:19 true",
+        "258:19 false",
+        "260:20 true",
+        "260:20 false",
+        "260:34 true",
+        "260:34 false",
+        "263:20 true",
+        "263:20 false",
+        "267:27 true",
+        "267:27 false",
+        "267:39 true",
+        "267:39 false"
       ]
     },
     {
@@ -3636,8 +3921,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "467:12 true",
-        "467:12 false"
+        "645:12 true",
+        "645:12 false"
       ]
     },
     {
@@ -3653,7 +3938,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "461:12 false"
+        "639:12 false"
       ]
     },
     {
@@ -3662,8 +3947,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "483:30 true",
-        "483:30 false"
+        "661:30 true",
+        "661:30 false"
       ]
     },
     {
@@ -3672,8 +3957,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "551:33 true",
-        "551:33 false"
+        "729:33 true",
+        "729:33 false"
       ]
     },
     {
@@ -3762,8 +4047,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "429:8 true",
-        "429:18 true"
+        "466:8 true",
+        "466:18 true"
       ]
     },
     {
@@ -3779,8 +4064,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "850:8 true",
-        "850:8 false"
+        "1028:8 true",
+        "1028:8 false"
       ]
     },
     {
@@ -3817,7 +4102,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "860:8 false"
+        "1038:8 false"
       ]
     },
     {
@@ -3854,7 +4139,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "443:20 true"
+        "476:20 true"
       ]
     },
     {
@@ -3984,7 +4269,49 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::Words<_>::fits",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::Words<_>::zero",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<_>::len",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<_>::new",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<_>::base",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::unsafe_module::hw::addr::kernel_byte_access_ok",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::addr::ram_word",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
       "branches": 0,
       "covered": 0,
@@ -4089,6 +4416,20 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_args",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_slot",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::entry::epilogue_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
       "branches": 0,
@@ -4110,6 +4451,20 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::entry::violation_core",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_reinit",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::entry::dma_request_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
       "branches": 0,
@@ -4118,6 +4473,20 @@
     },
     {
       "name": "rsk_kernel::arch::cm4::entry::dma_stop_partition",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_recv_core",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::endpoint_send_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
       "branches": 0,
       "covered": 0,
@@ -4299,6 +4668,13 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::record_event",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::release_info",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 0,
@@ -4363,6 +4739,13 @@
     },
     {
       "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::partition_count",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::message_permitted",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 0,
       "covered": 0,
@@ -4488,6 +4871,13 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::fault_of",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::job_info",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 0,
@@ -4593,6 +4983,13 @@
       "uncovered": []
     },
     {
+      "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::endpoint_count",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::config_checksum",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
@@ -4608,6 +5005,13 @@
     },
     {
       "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::layout_checksum",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::endpoint_storage",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
       "covered": 0,
@@ -4650,6 +5054,13 @@
     },
     {
       "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::tick_hz",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<rsk_kernel::arch::cm4::SysTables<S>$u20$as$u20$rsk_kernel::arch::cm4::entry::Tables>::endpoint",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 0,
       "covered": 0,

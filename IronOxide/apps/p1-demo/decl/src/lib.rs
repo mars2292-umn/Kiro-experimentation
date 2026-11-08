@@ -201,7 +201,7 @@ rsk::app! {
     // proven total by the App_Prover with the bodies; a rejected reply is
     // the fault of `part1` (its STOP_PARTITION), whose peer-state change
     // `control` then sees on both Endpoints (R42.3).
-    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log } capacity = 1, payload = 8;
+    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log ops = 2 } capacity = 1, payload = 8;
 
     // Task 21.5 (R41.4): the end-to-end deadline of the telemetry path: a
     // word `control` sends is read by `log`, a Periodic_Task that samples

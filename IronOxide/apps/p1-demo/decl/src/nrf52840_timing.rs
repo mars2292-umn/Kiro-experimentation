@@ -91,7 +91,13 @@ rsk::app! {
         state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
-        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
+        // Task 21.5's campaign (2026-11-08): 650 us (500 before). The hour-long
+        // timing run recorded one sampler Job charged 32,617 cycles against
+        // the 32,000 of 500 us (the Job preempted by log and interrupted
+        // throughout, each entry's Delta_entry charged to it); the previous
+        // record's measured maximum, 31,477 cycles, already exceeded the
+        // Budget with the margin (R28.4). 650 us holds 39,347 with headroom.
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 650.us(),
                       priority = 1, resources = [stats]);
     }
 }

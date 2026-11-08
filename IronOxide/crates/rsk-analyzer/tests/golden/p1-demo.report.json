@@ -138,7 +138,7 @@
       "c_cycles": 150000,
       "b_cycles": 13100,
       "b_source": "part2.sampler#cs:stats",
-      "o_cycles": 4800,
+      "o_cycles": 5100,
       "j_cycles": 500,
       "interference": [
         {
@@ -172,9 +172,9 @@
           "cycles": 89000
         }
       ],
-      "r_cycles": 898100,
+      "r_cycles": 898400,
       "schedulable": true,
-      "slack_cycles": 101900,
+      "slack_cycles": 101600,
       "wcet_provenance": [
         "part1.log: 150000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -297,9 +297,9 @@
         },
         {
           "task": "part1.log",
-          "e_cycles": 155700,
+          "e_cycles": 156000,
           "jobs": 1,
-          "cycles": 155700
+          "cycles": 156000
         },
         {
           "task": "part1.pulse",
@@ -314,9 +314,9 @@
           "cycles": 89000
         }
       ],
-      "r_cycles": 907300,
+      "r_cycles": 907600,
       "schedulable": true,
-      "slack_cycles": 1592700,
+      "slack_cycles": 1592400,
       "wcet_provenance": [
         "part2.sampler: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part2.sampler#cs:stats: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
@@ -342,13 +342,13 @@
         "part0.control",
         "part1.log"
       ],
-      "bound_cycles": 2148050,
+      "bound_cycles": 2148350,
       "deadline_cycles": 2500000,
       "result": "PASS",
       "terms": [
         "R of `part0.control`: 249950 cycles",
         "T of `part1.log` (a Periodic_Task samples the Endpoint once per period): 1000000 cycles",
-        "R of `part1.log`: 898100 cycles"
+        "R of `part1.log`: 898400 cycles"
       ]
     }
   ]

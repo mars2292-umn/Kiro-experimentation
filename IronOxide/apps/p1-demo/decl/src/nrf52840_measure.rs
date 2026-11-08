@@ -43,7 +43,13 @@ rsk::app! {
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
                    budget = 300.us(), priority = 6);
-        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8800.us(),
+        // Task 21.5 (2026-11-07): 8.25 ms here (8.8 ms before, as the other HIL
+        // configurations): with the Endpoint operations charged (R40.2) the
+        // measured analysis put `log` 58 us and `sampler` 1.3 ms over their
+        // deadlines; sensor's measured Job is about 6.4 ms (7.9 ms with the
+        // margin), so the Budget keeps its headroom and the two lowest Tasks
+        // their schedulability.
+        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8250.us(),
                      priority = 5, resources = [state, in_cs]);
     }
 
@@ -112,6 +118,6 @@ rsk::app! {
             }
         }
     }
-    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log } capacity = 1, payload = 8;
+    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log ops = 2 } capacity = 1, payload = 8;
     chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }

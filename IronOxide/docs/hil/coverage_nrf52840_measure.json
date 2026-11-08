@@ -1,57 +1,141 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_measure",
-  "binary_hash": "sha256:c5217c8f9d2086ab740f211b1d270dc34dd17404cf010710e7d590e5f163636f",
+  "binary_hash": "sha256:3235be5e796599526cde40e71f57c7252eb9355704306d4eecbc94c390b20965",
   "threshold_percent": 50,
   "items": [
     {
       "item": "part0.control",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part07control17h0a1d6595cdb4dbeeE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8dc1612aa25709a5E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcb4c64fc5e119821E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he4cc695f3bc1acbcE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part07control17h5c7474b912704526E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0945548123ee562dE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1a039aea3f1b68dcE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2caec269dbc6fd8fE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4270bcaf7885552fE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h704269c54ae47544E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h7dbe4904b28a2ff1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc127ab0c2da86ccaE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcd1b8854a4e6f9ebE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hef35c7715d7cf857E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
-      "branches": 4,
-      "covered": 4,
-      "percent": 100,
-      "uncovered": []
+      "branches": 6,
+      "covered": 5,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::control: 181:12 false"
+      ]
     },
     {
       "item": "part0.control#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part07control17h0a1d6595cdb4dbeeE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8dc1612aa25709a5E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcb4c64fc5e119821E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he4cc695f3bc1acbcE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part07control17h5c7474b912704526E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0945548123ee562dE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1a039aea3f1b68dcE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2caec269dbc6fd8fE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4270bcaf7885552fE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h704269c54ae47544E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h7dbe4904b28a2ff1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc127ab0c2da86ccaE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcd1b8854a4e6f9ebE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hef35c7715d7cf857E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
-      "branches": 4,
-      "covered": 4,
-      "percent": 100,
-      "uncovered": []
+      "branches": 6,
+      "covered": 5,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::control: 181:12 false"
+      ]
     },
     {
       "item": "part0.control#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part07control17h0a1d6595cdb4dbeeE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8dc1612aa25709a5E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcb4c64fc5e119821E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he4cc695f3bc1acbcE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part07control17h5c7474b912704526E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0945548123ee562dE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1a039aea3f1b68dcE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2caec269dbc6fd8fE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4270bcaf7885552fE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h704269c54ae47544E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h7dbe4904b28a2ff1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc127ab0c2da86ccaE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcd1b8854a4e6f9ebE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hef35c7715d7cf857E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
-      "branches": 4,
-      "covered": 4,
-      "percent": 100,
-      "uncovered": []
+      "branches": 6,
+      "covered": 5,
+      "percent": 83,
+      "uncovered": [
+        "p1_demo_part0::control: 181:12 false"
+      ]
     },
     {
       "item": "part0.echo",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part04echo17h688756a41a208a20E",
-        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h949faafbbaf78f7dE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part04echo17h1467637e99c5ba2cE",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h32bd46b8de67bfdfE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
       "branches": 0,
       "covered": 0,
@@ -61,84 +145,157 @@
     {
       "item": "part0.sensor",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part06sensor17h330cef3661ed716fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h63b0fe6628128337E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h6a16fb03a44e7e54E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbd9c50c46b4940b0E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbf6db6c0ac32e8f2E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h797112c7168d2b5eE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part06sensor17h2d56319d6e487a61E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc10c66b4048f24f9E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hce53f775c544e9e5E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdb6a99d04036ef70E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17heb3f71644272f31fE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h2b9bcf39380fb130E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 237:80 false"
+        "p1_demo_part0::sensor::{closure}: 310:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part06sensor17h330cef3661ed716fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h63b0fe6628128337E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h6a16fb03a44e7e54E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbd9c50c46b4940b0E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbf6db6c0ac32e8f2E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h797112c7168d2b5eE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part06sensor17h2d56319d6e487a61E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc10c66b4048f24f9E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hce53f775c544e9e5E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdb6a99d04036ef70E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17heb3f71644272f31fE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h2b9bcf39380fb130E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 237:80 false"
+        "p1_demo_part0::sensor::{closure}: 310:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h63e752c8db473e43E",
-        "_ZN13p1_demo_part06sensor17h330cef3661ed716fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h63b0fe6628128337E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h6a16fb03a44e7e54E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbd9c50c46b4940b0E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbf6db6c0ac32e8f2E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h797112c7168d2b5eE"
+        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
+        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
+        "_ZN13p1_demo_part06sensor17h2d56319d6e487a61E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc10c66b4048f24f9E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hce53f775c544e9e5E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdb6a99d04036ef70E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17heb3f71644272f31fE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h2b9bcf39380fb130E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 237:80 false"
+        "p1_demo_part0::sensor::{closure}: 310:80 false"
       ]
     },
     {
       "item": "part1.log",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h85a2b2ed78068897E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17ha6c9449f96555d9fE",
-        "_ZN13p1_demo_part112pulse_source5start17hfc3a5a5843ce4650E",
-        "_ZN13p1_demo_part112pulse_source7respond17h5764b3d2c7c4e86cE",
-        "_ZN13p1_demo_part13log17h16c1d0719a84b925E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h52c2853e8f381096E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hf25059c1b529ea23E"
+        "_ZN13p1_demo_part110rsk_target2ms17ha590c8e12fd4b1eeE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h7c89eddeeff51036E",
+        "_ZN13p1_demo_part112pulse_source5start17h6cd708dea500bb1fE",
+        "_ZN13p1_demo_part112pulse_source7respond17h023add4d6399ec86E",
+        "_ZN13p1_demo_part13log17h98bea8c5a848ea5aE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h00fc6b41348bc64dE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h3815d18c647d7b50E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h62b7d42b74e567c4E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hc46fad14a92e0087E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h3bf69f26e6858a39E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h704242200e6e1f81E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hdfcb84f4b2411d93E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h0830c7fb56d63878E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h3b15a33173bae7bdE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h8686d9ff6873aa34E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h9e982e3044a8a90eE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink3raw17hfaf1912bfc7447d8E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S0$GT$8try_recv17hdb69c6ddc18cd190E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S1$GT$8send_rep17hdd86bdac149f4883E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S2$GT$6finish17ha44a8bb6ba18489cE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State8is_empty17hc4f7ef8906973381E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State7initial17h3fe8623207af5f1bE"
       ],
-      "branches": 14,
-      "covered": 13,
-      "percent": 92,
+      "branches": 16,
+      "covered": 15,
+      "percent": 93,
       "uncovered": [
-        "p1_demo_part1::log: 226:72 false"
+        "p1_demo_part1::log: 280:72 false"
       ]
     },
     {
       "item": "part1.pulse",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h85a2b2ed78068897E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17ha6c9449f96555d9fE",
-        "_ZN13p1_demo_part112pulse_source5start17hfc3a5a5843ce4650E",
-        "_ZN13p1_demo_part112pulse_source7respond17h5764b3d2c7c4e86cE",
-        "_ZN13p1_demo_part15pulse17h3fc0673da6e34110E",
-        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h2afdf86eda95cee5E"
+        "_ZN13p1_demo_part110rsk_target2ms17ha590c8e12fd4b1eeE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h7c89eddeeff51036E",
+        "_ZN13p1_demo_part112pulse_source5start17h6cd708dea500bb1fE",
+        "_ZN13p1_demo_part112pulse_source7respond17h023add4d6399ec86E",
+        "_ZN13p1_demo_part15pulse17h05131cc3989f6b96E",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h04f1d861f3883337E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h3bf69f26e6858a39E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h704242200e6e1f81E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hdfcb84f4b2411d93E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h0830c7fb56d63878E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h3b15a33173bae7bdE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h8686d9ff6873aa34E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h9e982e3044a8a90eE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink3raw17hfaf1912bfc7447d8E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S0$GT$8try_recv17hdb69c6ddc18cd190E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S1$GT$8send_rep17hdd86bdac149f4883E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S2$GT$6finish17ha44a8bb6ba18489cE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State8is_empty17hc4f7ef8906973381E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State7initial17h3fe8623207af5f1bE"
       ],
       "branches": 6,
       "covered": 6,
@@ -148,19 +305,19 @@
     {
       "item": "part2.filter",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h246a7414fabd6fb5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4068c46741c4918fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h904e989a9609235bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc5ed811b120ab7bbE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9ca7b3baf84a1b9E",
-        "_ZN13p1_demo_part25Stats6record17hcf6860166b2fe637E",
-        "_ZN13p1_demo_part26filter17h167a4bf2dd3ecc56E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h807ba7264affadeaE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17ha9ca6c2a1164abddE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hb3e12769d7caac32E",
-        "_ZN13p1_demo_part27lowpass17h9482a242f3c7d761E",
-        "_ZN13p1_demo_part210rsk_target2ms17hee45cdb25b218996E",
-        "_ZN13p1_demo_part25Stats3new17h0e61fd5c206394ffE"
+        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
+        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
+        "_ZN13p1_demo_part26filter17h704fcfc7b36e01bdE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h481d70887604176bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd34ee82c7049fffeE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he4ac49cef72da050E",
+        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
+        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
+        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
       ],
       "branches": 12,
       "covered": 6,
@@ -177,19 +334,19 @@
     {
       "item": "part2.filter#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h246a7414fabd6fb5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4068c46741c4918fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h904e989a9609235bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc5ed811b120ab7bbE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9ca7b3baf84a1b9E",
-        "_ZN13p1_demo_part25Stats6record17hcf6860166b2fe637E",
-        "_ZN13p1_demo_part26filter17h167a4bf2dd3ecc56E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h807ba7264affadeaE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17ha9ca6c2a1164abddE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hb3e12769d7caac32E",
-        "_ZN13p1_demo_part27lowpass17h9482a242f3c7d761E",
-        "_ZN13p1_demo_part210rsk_target2ms17hee45cdb25b218996E",
-        "_ZN13p1_demo_part25Stats3new17h0e61fd5c206394ffE"
+        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
+        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
+        "_ZN13p1_demo_part26filter17h704fcfc7b36e01bdE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h481d70887604176bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd34ee82c7049fffeE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he4ac49cef72da050E",
+        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
+        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
+        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
       ],
       "branches": 12,
       "covered": 6,
@@ -206,19 +363,19 @@
     {
       "item": "part2.sampler",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h246a7414fabd6fb5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4068c46741c4918fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h904e989a9609235bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc5ed811b120ab7bbE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9ca7b3baf84a1b9E",
-        "_ZN13p1_demo_part25Stats6record17hcf6860166b2fe637E",
-        "_ZN13p1_demo_part27lowpass17h9482a242f3c7d761E",
-        "_ZN13p1_demo_part27sampler17h038bbbcabaa5cc75E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h2d34808caba88fc3E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h5e5be58694a60788E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h6afdba82a0e20835E",
-        "_ZN13p1_demo_part210rsk_target2ms17hee45cdb25b218996E",
-        "_ZN13p1_demo_part25Stats3new17h0e61fd5c206394ffE"
+        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
+        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
+        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
+        "_ZN13p1_demo_part27sampler17h31b6e9c474e11c44E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h02bbd435407433beE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hdc6a08ba69d3a0acE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hee4b44806b5eae8dE",
+        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
+        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
       ],
       "branches": 14,
       "covered": 7,
@@ -236,19 +393,19 @@
     {
       "item": "part2.sampler#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h246a7414fabd6fb5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4068c46741c4918fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h904e989a9609235bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc5ed811b120ab7bbE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc9ca7b3baf84a1b9E",
-        "_ZN13p1_demo_part25Stats6record17hcf6860166b2fe637E",
-        "_ZN13p1_demo_part27lowpass17h9482a242f3c7d761E",
-        "_ZN13p1_demo_part27sampler17h038bbbcabaa5cc75E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h2d34808caba88fc3E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h5e5be58694a60788E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h6afdba82a0e20835E",
-        "_ZN13p1_demo_part210rsk_target2ms17hee45cdb25b218996E",
-        "_ZN13p1_demo_part25Stats3new17h0e61fd5c206394ffE"
+        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
+        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
+        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
+        "_ZN13p1_demo_part27sampler17h31b6e9c474e11c44E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h02bbd435407433beE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hdc6a08ba69d3a0acE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hee4b44806b5eae8dE",
+        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
+        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
       ],
       "branches": 14,
       "covered": 7,
@@ -439,17 +596,17 @@
     {
       "name": "p1_demo_part1::log",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
-      "branches": 6,
-      "covered": 5,
+      "branches": 8,
+      "covered": 7,
       "uncovered": [
-        "226:72 false"
+        "280:72 false"
       ]
     },
     {
       "name": "p1_demo_part1::log::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
-      "branches": 2,
-      "covered": 2,
+      "branches": 0,
+      "covered": 0,
       "uncovered": []
     },
     {
@@ -457,6 +614,20 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
       "branches": 0,
       "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
       "uncovered": []
     },
     {
@@ -481,7 +652,147 @@
       "uncovered": []
     },
     {
+      "name": "p1_demo_part1::rsk_jobs::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "p1_demo_part1::rsk_jobs::pulse",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<p1_demo_part1::rsk_roles::pingpong_sink::S0>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<p1_demo_part1::rsk_roles::pingpong_sink::S1>::send_rep",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::Sink<p1_demo_part1::rsk_roles::pingpong_sink::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::pingpong_sink::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::pingpong_sink::Sink<p1_demo_part1::rsk_roles::pingpong_sink::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::pingpong_sink::Sink<p1_demo_part1::rsk_roles::pingpong_sink::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::pingpong_sink::Sink<p1_demo_part1::rsk_roles::pingpong_sink::S2>>>::from",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -490,6 +801,13 @@
     {
       "name": "p1_demo_part0::rsk_target::ms",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::validate_rep",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
       "branches": 0,
       "covered": 0,
       "uncovered": []
@@ -532,18 +850,18 @@
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "310:80 false"
+      ]
     },
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 4,
-      "covered": 3,
-      "uncovered": [
-        "237:80 false"
-      ]
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part0::sensor::{closure}::{closure}",
@@ -555,8 +873,52 @@
     {
       "name": "p1_demo_part0::control",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 4,
-      "covered": 4,
+      "branches": 6,
+      "covered": 5,
+      "uncovered": [
+        "181:12 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
       "uncovered": []
     },
     {
@@ -596,6 +958,160 @@
     },
     {
       "name": "p1_demo_part0::rsk_jobs::control",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_jobs::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S0>::send_req",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S0>::send_stop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S1>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::pingpong_ctl::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_validate::telemetry_ctl$u20$as$u20$rsk::Validate<u32>>::accept",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,

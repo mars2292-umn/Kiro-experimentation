@@ -653,7 +653,7 @@
           "role": "sink",
           "task": "part1.log",
           "release": false,
-          "ops": 1,
+          "ops": 2,
           "validate": []
         }
       ],

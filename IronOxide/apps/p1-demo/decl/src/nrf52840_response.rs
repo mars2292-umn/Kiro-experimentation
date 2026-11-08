@@ -74,7 +74,7 @@ rsk::app! {
         state sampler.buf: [u8; 16] = [0; 16];
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
-        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 650.us(),
                       priority = 1, resources = [stats]);
     }
 
@@ -93,6 +93,6 @@ rsk::app! {
             }
         }
     }
-    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log } capacity = 1, payload = 8;
+    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log ops = 2 } capacity = 1, payload = 8;
     chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }
