@@ -5,7 +5,7 @@
 //! No timestamp is written, so identical inputs give identical reports
 //! (R30.5).
 
-use rsk_model::report::{CrossCheck, Inputs, Interference, Profile, Report, TaskResult};
+use rsk_model::report::{ChainResult, CrossCheck, Inputs, Interference, Profile, Report, TaskResult};
 
 pub use rsk_model::report::SCHEMA;
 
@@ -30,6 +30,7 @@ pub fn build(
     placeholders: &[String],
     measured_parameters: &[String],
     unprotected_partitions: &[String],
+    chains: Vec<ChainResult>,
 ) -> Report {
     let mut statements = vec![
         "This analysis assumes a single core (R27.5): it is no evidence for a multi-core configuration.".to_string(),
@@ -68,6 +69,7 @@ pub fn build(
         cross_check,
         omitted_terms,
         rejections,
+        chains,
     }
 }
 
@@ -115,6 +117,17 @@ pub fn render_text(r: &Report) -> String {
         }
         for p in &t.wcet_provenance {
             s.push_str(&format!("      WCET {p}\n"));
+        }
+    }
+    // Task 21.5 (R41.4): the end-to-end chains.
+    if !r.chains.is_empty() {
+        s.push_str("End-to-end chains (R41.4):\n");
+        for c in &r.chains {
+            let bound = if c.bound_cycles == u64::MAX { "no bound".to_string() } else { format!("bound {} cycles", c.bound_cycles) };
+            s.push_str(&format!("  {}: {}: {bound}, deadline {} cycles: {}\n", c.id, c.tasks.join(" -> "), c.deadline_cycles, c.result));
+            for t in &c.terms {
+                s.push_str(&format!("      {t}\n"));
+            }
         }
     }
     s.push_str(&format!("UPPAAL cross-check: {} ({})\n", r.cross_check.status, r.cross_check.detail));

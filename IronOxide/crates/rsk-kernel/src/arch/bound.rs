@@ -430,6 +430,12 @@ pub trait KernelOps: Sized {
     fn record_event(&mut self, kind: u8, t: u8)
         requires old(self).inv(),
         ensures final(self).inv();
+    /// R42.4 (task 21.4): a fault of Task `t`'s Partition raised by another
+    /// Partition's Job (a rejected message): the event against `t` and
+    /// `t`'s Partition's fault response.
+    fn fault_of(&mut self, kind: u8, t: u8)
+        requires old(self).inv(),
+        ensures final(self).inv();
     spec fn partition_count_spec(&self) -> int;
 }
 
@@ -801,6 +807,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn record_event(&mut self, kind: u8, t: u8) {
         if (t as usize) < NT {
             self.kernel.record_event(&self.cfg, kind, t);
+        }
+    }
+
+    fn fault_of(&mut self, kind: u8, t: u8) {
+        if (t as usize) < NT {
+            self.kernel.fault_of(&self.cfg, kind, t);
         }
     }
 }

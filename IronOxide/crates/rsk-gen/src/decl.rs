@@ -231,6 +231,16 @@ pub struct RoleDecl {
     pub role: String,
     pub partition: String,
     pub task: String,
+    /// Task 21.4 (R42.4): the receiver-side validation functions of the
+    /// role, `(label, path)`: the label `None` for the plain form (one
+    /// function for the payload type), a Protocol label otherwise (one per
+    /// received label that carries a payload). Required for a role that
+    /// receives from a Partition of lower Criticality_Level.
+    pub validate: Vec<(Option<String>, String)>,
+    /// Task 21.5 (R40.2): the most Endpoint operations a Job of the Task
+    /// performs on this role (`ops = N`, 1 by default), the count of
+    /// Critical_Sections the Analyzer charges per Job.
+    pub ops: u32,
 }
 
 /// An Endpoint (task 21.2; R38.1 in its pre-Protocol form): `endpoint NAME:
@@ -365,6 +375,19 @@ pub struct Declaration {
     pub endpoints: Vec<EndpointDecl>,
     /// Protocols (task 21.1), declared anywhere after the header.
     pub protocols: Vec<ProtocolDecl>,
+    /// End-to-end chains (task 21.5; R41.4).
+    pub chains: Vec<ChainDecl>,
+}
+
+/// An end-to-end chain (task 21.5; R41.4): `chain NAME { PART.TASK ->
+/// PART.TASK [-> ..] } deadline = T;`, each consecutive pair the two roles
+/// of one Endpoint, the message flowing from the first to the second.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChainDecl {
+    pub name: String,
+    /// `(partition, task)` in order.
+    pub tasks: Vec<(String, String)>,
+    pub deadline: Time,
 }
 
 /// Where a diagnostic points (the front end maps it to a span).
@@ -381,6 +404,7 @@ pub enum ItemRef {
     Peripheral(String, String),
     Endpoint(String),
     Protocol(String),
+    Chain(String),
 }
 
 impl std::fmt::Display for ItemRef {
@@ -390,6 +414,7 @@ impl std::fmt::Display for ItemRef {
             ItemRef::Field(x) => write!(f, "app.{x}"),
             ItemRef::Endpoint(e) => write!(f, "endpoint {e}"),
             ItemRef::Protocol(p) => write!(f, "protocol {p}"),
+            ItemRef::Chain(c) => write!(f, "chain {c}"),
             ItemRef::Partition(p) => write!(f, "partition {p}"),
             ItemRef::PartitionField(p, x) => write!(f, "partition {p}.{x}"),
             ItemRef::Task(p, t) => write!(f, "task {p}.{t}"),

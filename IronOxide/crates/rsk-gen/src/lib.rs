@@ -138,6 +138,7 @@ mod tests {
             fp_flush_to_zero: false,
             endpoints: vec![],
             protocols: vec![],
+            chains: vec![],
             partitions: vec![
                 partition(
                     "part0",
@@ -206,7 +207,7 @@ mod tests {
     #[test]
     fn protocols_are_checked_and_their_bound_recorded() {
         use crate::decl::{EndpointDecl, ProtocolDecl, RoleDecl};
-        let roles = || vec![RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into() }, RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into() }];
+        let roles = || vec![RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1 }, RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into(), validate: vec![], ops: 1 }];
         let loop_text = "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }";
         let mut d = demo();
         d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: loop_text.into() });

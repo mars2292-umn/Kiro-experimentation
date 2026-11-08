@@ -144,6 +144,11 @@ fn tolerated(e: &EventRecMs) -> bool {
         // RECORD_AND_CONTINUE re-arms the Budget event: the overrun is
         // recorded again as the Job runs on.
         OVERRUN => hog && e.task == 2,
+        // Task 21.4 (R40.5): while sensor's 120 ms Job keeps `log` from
+        // running, `control`'s telemetry sends find the channel of four
+        // full from the fifth send on; each is the reported bound
+        // violation of the sending Partition, by design.
+        25 => hog && e.task == 0,
         23 => true, // debugger
         _ => false,
     }
@@ -263,6 +268,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         if run_ok { format!("the report ran after {:.1} s (the safe state of 1.9 s, by design)", run.seconds) } else if run.timed_out { "no report within the timeout".to_string() } else { "the run ended without a report".to_string() },
     );
     let (control, echo, sensor, log, pulse, filter, sampler) = (counts("control"), counts("echo"), counts("sensor"), counts("log"), counts("pulse"), counts("filter"), counts("sampler"));
+    let (telemetry_peer, pingpong_peer, pingpong_rejected, pingpong_reps) = (counts("telemetry_peer"), counts("pingpong_peer"), counts("pingpong_rejected"), counts("pingpong_reps"));
     out.run = Some(run);
 
     // The events.
@@ -296,6 +302,17 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         "part1 restarted at 800 ms: state re-initialized, Releases resumed (R14.5)",
         part1_ok,
         format!("log {} (about 25 since the restart; 47 had it kept its state), pulse {} (about 56 since the restart)", fmt(log), fmt(pulse)),
+    );
+    // Task 21.4 (R42.3; the HIL Partition-restart case): part1's restart
+    // re-initializes its Endpoint roles, and `control`'s next operation on
+    // each of its two Endpoints to part1 reports the peer-state change,
+    // once; the PingPong rounds go on after it (one per `log` Job before
+    // and after the restart); no reply was rejected (R42.4).
+    let peer_ok = within(telemetry_peer, 1, 1) && within(pingpong_peer, 1, 1) && within(pingpong_rejected, 0, 0) && within(pingpong_reps, 30, 47);
+    out.step(
+        "peer-state errors after part1's restart (R42.3, task 21.4)",
+        peer_ok,
+        format!("telemetry_peer {} (1 expected), pingpong_peer {} (1 expected), pingpong_rejected {} (0 expected), pingpong_reps {} (about 45: one round per log Job but the restart's)", fmt(telemetry_peer), fmt(pingpong_peer), fmt(pingpong_rejected), fmt(pingpong_reps)),
     );
     // part2 restarted at 500 ms and stopped at 1,325 ms: filter 33 Jobs
     // between (less the one that faulted at... none after 500), sampler 8.

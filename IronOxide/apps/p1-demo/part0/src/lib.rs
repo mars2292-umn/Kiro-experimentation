@@ -83,6 +83,18 @@ pub const CYCLES_SPIN: u32 = 8_000;
 /// accepted against echo's 20 ms MIT). `in_cs` says whether this Release
 /// fell inside sensor's Critical_Section: a control Release during that
 /// window was blocked by the Ceiling, not preempting (R8.4).
+/// The receiver-side validation function of `Rep` on `pingpong` and of the
+/// `telemetry` payload (task 21.4; R42.4): a reply echoes a request,
+/// `control`'s Job count, a 31-bit value, so a word with bit 31 set is no
+/// reply this Partition asked for (the QEMU configuration's injected reply
+/// is 0xFFFF_FFFF). Total and panic-free (the App_Prover proves it with the
+/// bodies, with its postcondition); the Endpoint_Library delivers only
+/// replies it accepts and reports a rejected one as `part1`'s fault.
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result == ((*v)@ < 0x8000_0000)))]
+pub fn validate_rep(v: &u32) -> bool {
+    *v < 0x8000_0000
+}
+
 // App_Prover (task 17.1): the body assumes its Resources' declared
 // invariants (`in_cs` is 0 or 1) and proves, beyond panic freedom, that
 // the Job advances its counter by one (saturating).
@@ -115,24 +127,34 @@ pub fn control(mut cx: rsk_ctx::Control) {
     #[cfg(feature = "telemetry")]
     {
         let word = cx.count.get();
-        if cx.telemetry.send(&word).is_err() {
-            cx.telemetry_full.with(|f| *f = f.saturating_add(1));
+        match cx.telemetry.send(&word) {
+            Ok(()) => {}
+            // Task 21.4 (R42.3): the peer Partition was stopped or restarted.
+            Err(rsk::SendError::PeerChanged) => cx.telemetry_peer.with(|n| *n = n.saturating_add(1)),
+            Err(_) => cx.telemetry_full.with(|f| *f = f.saturating_add(1)),
         }
     }
     // Task 21.3 (R38.4, R38.7, R41.2): the `ctl` role of `PingPong` on
     // `pingpong`, one step per Job: in S0 send a request, in S1 take the
-    // reply when it has arrived; the state goes back to the slot. The
-    // Job of count 19 (the run's last) drops its state in S1 instead of
-    // storing it: the dropped value and the empty slot are each reported
-    // to the Health_Monitor, which the safe state counts.
-    #[cfg(all(feature = "telemetry", not(creusot)))]
+    // reply when it has arrived; the state goes back to the slot. Task
+    // 21.4: a reply the validation function rejects (R42.4) is counted and
+    // the state kept; a peer-state change (R42.3) resets the role, which
+    // is counted. In the QEMU configuration the Job of count 19 (the run's
+    // last) drops its state in S1 instead of storing it: the dropped value
+    // and the empty slot are each reported to the Health_Monitor, which the
+    // safe state counts.
+    #[cfg(feature = "telemetry")]
     {
-        use rsk_roles::pingpong_ctl::{RecvS1, State};
+        use rsk_roles::pingpong_ctl::{NotReceived, NotSent, RecvS1, State};
         let state = cx.pingpong.take(State::Empty);
         let next = match state {
             State::S0(c) => match c.send_req(cx.count.get()) {
                 Ok(c1) => State::S1(c1),
-                Err((c0, _)) => State::S0(c0),
+                Err(NotSent::Full(c0)) | Err(NotSent::Refused(c0)) => State::S0(c0),
+                Err(NotSent::PeerChanged(c0)) => {
+                    cx.pingpong_peer.with(|n| *n = n.saturating_add(1));
+                    State::S0(c0)
+                }
             },
             State::S1(c) => match c.try_recv() {
                 Ok(RecvS1::Rep(v, c0)) => {
@@ -140,11 +162,23 @@ pub fn control(mut cx: rsk_ctx::Control) {
                     cx.pingpong_last.set(v);
                     State::S0(c0)
                 }
-                Err(c1) => State::S1(c1),
+                Err(NotReceived::Rejected(c1)) => {
+                    cx.pingpong_rejected.with(|n| *n = n.saturating_add(1));
+                    State::S1(c1)
+                }
+                Err(NotReceived::Empty(c1)) | Err(NotReceived::Unexpected(c1)) => State::S1(c1),
+                Err(NotReceived::PeerChanged(c0)) => {
+                    cx.pingpong_peer.with(|n| *n = n.saturating_add(1));
+                    State::S0(c0)
+                }
             },
             other => other,
         };
-        if cx.count.get() != 19 || matches!(next, State::S0(_)) {
+        #[cfg(feature = "qemu-inject")]
+        let keep = cx.count.get() != 19 || matches!(next, State::S0(_));
+        #[cfg(not(feature = "qemu-inject"))]
+        let keep = true;
+        if keep {
             cx.pingpong.store(next);
         }
     }

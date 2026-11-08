@@ -30,6 +30,14 @@ pub struct CratePolicy {
     pub unsafe_module: Option<String>,
     /// The whole library belongs to the Kernel_Unsafe_Module.
     pub unsafe_crate: bool,
+    /// A host proc-macro crate whose derive emits an `unsafe impl` of a
+    /// trait of the Kernel_Unsafe_Module into Application crates (task
+    /// 21.4: `#[derive(rsk::Plain)]`, R42.1). The `unsafe` keyword may occur
+    /// in its sources inside `quote!` bodies only, each such body carrying
+    /// a justification identifier (PR-20, R6.4) that the Kernel crate's
+    /// register defines; the emitted impl is checked by the compiler against
+    /// the bounds the derive states.
+    pub unsafe_derive: bool,
     /// A Flight_Build root whose binaries the verification job runs on
     /// QEMU (the dispatch spike of task 3.1).
     pub qemu_spike: bool,
@@ -182,6 +190,7 @@ fn parse_crate(name: &str, entry: &Value, target: &str) -> Result<CratePolicy, S
                 }
             }
             "unsafe-crate" => policy.unsafe_crate = value.as_bool().ok_or_else(bad)?,
+            "unsafe-derive" => policy.unsafe_derive = value.as_bool().ok_or_else(bad)?,
             "unsafe-module" => {
                 let path = value.as_str().ok_or_else(bad)?;
                 let plain = Path::new(path)
@@ -215,6 +224,11 @@ fn parse_crate(name: &str, entry: &Value, target: &str) -> Result<CratePolicy, S
     if policy.unsafe_module.is_some() && policy.unsafe_crate {
         return Err(format!(
             "policy entry `{name}`: `unsafe-module` and `unsafe-crate` are mutually exclusive"
+        ));
+    }
+    if policy.unsafe_derive && (policy.kernel || policy.targets.iter().any(|t| t != HOST)) {
+        return Err(format!(
+            "policy entry `{name}`: `unsafe-derive` names a host proc-macro crate, not a Kernel or Target crate"
         ));
     }
     Ok(policy)

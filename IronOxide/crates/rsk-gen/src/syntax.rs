@@ -327,6 +327,7 @@ impl Parse for Parsed {
         let mut partitions = Vec::new();
         let mut endpoints = Vec::new();
         let mut protocols = Vec::new();
+        let mut chains = Vec::new();
         while !input.is_empty() {
             let kw: Ident = input.parse()?;
             if kw == "protocol" {
@@ -366,7 +367,39 @@ impl Parse for Parsed {
                     let part: Ident = body.parse()?;
                     body.parse::<Token![.]>()?;
                     let task: Ident = body.parse()?;
-                    roles.push(RoleDecl { role: role.to_string(), partition: part.to_string(), task: task.to_string() });
+                    // Task 21.4 (R42.4): `validate = PATH` (plain form) or
+                    // `validate = { LABEL = PATH, .. }` (Protocol form); task
+                    // 21.5 (R40.2): `ops = N`.
+                    let mut validate = Vec::new();
+                    let mut ops: u32 = 1;
+                    while body.peek(Ident) {
+                        let kw: Ident = body.parse()?;
+                        body.parse::<Token![=]>()?;
+                        if kw == "validate" {
+                            if body.peek(syn::token::Brace) {
+                                let inner;
+                                braced!(inner in body);
+                                while !inner.is_empty() {
+                                    let label: Ident = inner.parse()?;
+                                    inner.parse::<Token![=]>()?;
+                                    let path: syn::Path = inner.parse()?;
+                                    validate.push((Some(label.to_string()), tokens_to_string(&path).replace(' ', "")));
+                                    if !inner.is_empty() {
+                                        inner.parse::<Token![,]>()?;
+                                    }
+                                }
+                            } else {
+                                let path: syn::Path = body.parse()?;
+                                validate.push((None, tokens_to_string(&path).replace(' ', "")));
+                            }
+                        } else if kw == "ops" {
+                            let n: syn::LitInt = body.parse()?;
+                            ops = n.base10_parse::<u32>()?;
+                        } else {
+                            return err(kw.span(), "expected `validate` or `ops` after the role's Task");
+                        }
+                    }
+                    roles.push(RoleDecl { role: role.to_string(), partition: part.to_string(), task: task.to_string(), validate, ops });
                     if !body.is_empty() {
                         body.parse::<Token![,]>()?;
                     }
@@ -380,8 +413,35 @@ impl Parse for Parsed {
                 endpoints.push(EndpointDecl { name: ename, ty, protocol, roles, capacity, payload });
                 continue;
             }
+            if kw == "chain" {
+                // Task 21.5 (R41.4): `chain NAME { PART.TASK -> PART.TASK [-> ..] }
+                // deadline = T;`.
+                let name: Ident = input.parse()?;
+                let cname = name.to_string();
+                spans.add(ItemRef::Chain(cname.clone()), name.span());
+                let body;
+                braced!(body in input);
+                let mut tasks = Vec::new();
+                loop {
+                    let part: Ident = body.parse()?;
+                    body.parse::<Token![.]>()?;
+                    let task: Ident = body.parse()?;
+                    tasks.push((part.to_string(), task.to_string()));
+                    if body.is_empty() {
+                        break;
+                    }
+                    body.parse::<Token![->]>()?;
+                }
+                let attrs = parse_attrs(input)?;
+                input.parse::<Token![;]>()?;
+                let mut ca = Attrs { items: attrs, owner: name.span(), what: "a chain" };
+                let deadline = time(ca.required("deadline")?)?;
+                ca.finish()?;
+                chains.push(ChainDecl { name: cname, tasks, deadline });
+                continue;
+            }
             if kw != "partition" {
-                return err(kw.span(), "expected `partition`, `endpoint`, or `protocol`");
+                return err(kw.span(), "expected `partition`, `endpoint`, `protocol`, or `chain`");
             }
             let name: Ident = input.parse()?;
             let pname = name.to_string();
@@ -636,6 +696,7 @@ impl Parse for Parsed {
                 partitions,
                 endpoints,
                 protocols,
+                chains,
             },
             spans,
         })

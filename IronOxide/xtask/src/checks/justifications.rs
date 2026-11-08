@@ -216,6 +216,27 @@ pub fn check(ws: &Workspace, report: &mut Report) {
 
     let mut constructs = 0usize;
     let mut by_kind: BTreeMap<&str, usize> = BTreeMap::new();
+    // Task 21.4: the citations of the `unsafe-derive` crates (the `quote!`
+    // bodies that emit an `unsafe impl`), counted as uses of the entries
+    // they cite; the PR-20 check requires each such body to cite one.
+    let mut derive_citations: Vec<String> = Vec::new();
+    for pkg in ws.member_packages() {
+        let Some(policy) = ws.policy.crates.get(&pkg.name) else { continue };
+        if !policy.unsafe_derive {
+            continue;
+        }
+        for file in crate::workspace::rust_files(&pkg.dir) {
+            let Ok(tokens) = lex_file(&file) else { continue };
+            let (_, quoted) = crate::tokens::unsafe_constructs_outside_quote(&tokens);
+            let text = std::fs::read_to_string(&file).unwrap_or_default();
+            let lines: Vec<&str> = text.lines().collect();
+            for q in quoted {
+                if let Some(id) = marker_for(&lines, q) {
+                    derive_citations.push(id);
+                }
+            }
+        }
+    }
     for pkg in ws.member_packages() {
         let Some(policy) = ws.policy.crates.get(&pkg.name) else { continue };
         if policy.unsafe_module.is_none() && !policy.unsafe_crate {
@@ -328,6 +349,12 @@ pub fn check(ws: &Workspace, report: &mut Report) {
                         }
                     }
                 }
+            }
+        }
+        for id in &derive_citations {
+            if entries.contains_key(id) {
+                *used.entry(id.clone()).or_default() += 1;
+                *by_kind.entry("emitted by a derive (recorded review)").or_default() += 1;
             }
         }
         if crate_constructs > 0 && register.is_none() {

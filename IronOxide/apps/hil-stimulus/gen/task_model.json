@@ -187,5 +187,6 @@
   "resources": [],
   "signals": [],
   "endpoints": [],
+  "chains": [],
   "conversions": []
 }

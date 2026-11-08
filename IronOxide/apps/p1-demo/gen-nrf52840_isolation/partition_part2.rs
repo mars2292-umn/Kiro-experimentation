@@ -31,8 +31,9 @@ pub mod rsk_state {
     /// Per-Task state `part2.sampler.survived` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_SURVIVED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
-#[cfg(not(creusot))]
 pub mod rsk_roles {
+}
+pub mod rsk_validate {
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {

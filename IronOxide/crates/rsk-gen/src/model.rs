@@ -186,7 +186,20 @@ pub fn task_model(g: &Generated) -> Value {
                     e.roles
                         .iter()
                         .enumerate()
-                        .map(|(i, (r, ti))| Value::obj().with("role", r.as_str()).with("task", g.tasks[*ti].id.as_str()).with("release", e.release.get(i).copied().unwrap_or(false)))
+                        .map(|(i, (r, ti))| {
+                            Value::obj()
+                                .with("role", r.as_str())
+                                .with("task", g.tasks[*ti].id.as_str())
+                                .with("release", e.release.get(i).copied().unwrap_or(false))
+                                .with("ops", e.ops.get(i).copied().unwrap_or(1) as u64)
+                                .with(
+                                    "validate",
+                                    e.validators
+                                        .get(i)
+                                        .map(|v| v.iter().map(|(l, f)| Value::obj().with("label", l.clone().map(Value::from).unwrap_or(Value::Null)).with("function", f.as_str())).collect::<Vec<_>>())
+                                        .unwrap_or_default(),
+                                )
+                        })
                         .collect::<Vec<_>>(),
                 )
                 .with("storage_offset", e.storage as u64)
@@ -248,5 +261,25 @@ pub fn task_model(g: &Generated) -> Value {
         .with("resources", resources)
         .with("signals", signals)
         .with("endpoints", endpoints)
+        .with(
+            "chains",
+            g.chains
+                .iter()
+                .map(|c| {
+                    Value::obj()
+                        .with("id", c.name.as_str())
+                        .with(
+                            "hops",
+                            c.tasks
+                                .windows(2)
+                                .zip(c.endpoints.iter())
+                                .map(|(w, e)| Value::obj().with("from", g.tasks[w[0]].id.as_str()).with("to", g.tasks[w[1]].id.as_str()).with("endpoint", g.endpoints[*e].name.as_str()))
+                                .collect::<Vec<_>>(),
+                        )
+                        .with("deadline_ticks", c.deadline_ticks)
+                        .with("derived", vec!["deadline_ticks".to_string()])
+                })
+                .collect::<Vec<_>>(),
+        )
         .with("conversions", conversions)
 }

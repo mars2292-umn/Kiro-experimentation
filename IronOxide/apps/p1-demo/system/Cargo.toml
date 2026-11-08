@@ -11,14 +11,16 @@ publish.workspace = true
 # (`--no-default-features --features nrf52840`): the Kernel's board support,
 # the declaration's variant, and Partition 1's timer follow.
 default = ["qemu-mps2"]
-qemu-mps2 = ["rsk-kernel/board-qemu-mps2", "p1-demo-part0/telemetry", "p1-demo-part1/telemetry"]
+qemu-mps2 = ["rsk-kernel/board-qemu-mps2", "endpoints", "p1-demo-part0/qemu-inject", "p1-demo-part1/qemu-inject"]
+# Tasks 21.2 to 21.5: the configurations that declare the demo's Endpoints (the Partition crates' `telemetry` feature) and report their counters.
+endpoints = ["p1-demo-part0/telemetry", "p1-demo-part1/telemetry"]
 nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
 # The release-timing configurations of task 7.3 (with `nrf52840`): the
 # declaration variant, Partition 0's late Jobs, and this crate's report.
 timing = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing", "p1-demo-part0/timing"]
 timing-short = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing_short", "p1-demo-part0/timing"]
 # The fault-injection configurations of task 7.5 (Verification_Plan 11.4).
-response = ["nrf52840", "p1-demo-decl/nrf52840_response", "p1-demo-part0/response", "p1-demo-part1/response", "p1-demo-part2/response"]
+response = ["nrf52840", "endpoints", "p1-demo-decl/nrf52840_response", "p1-demo-part0/response", "p1-demo-part1/response", "p1-demo-part2/response"]
 stress = ["nrf52840", "measure", "p1-demo-decl/nrf52840_stress", "p1-demo-part1/stress", "p1-demo-part2/stress"]
 stress-short = ["nrf52840", "measure", "p1-demo-decl/nrf52840_stress_short", "p1-demo-part1/stress", "p1-demo-part2/stress"]
 # The measurement configurations' instrumentation (task 19.2): the loop
@@ -32,7 +34,7 @@ cycles = ["nrf52840", "p1-demo-decl/nrf52840_cycles", "p1-demo-part0/cycles", "p
 # Its floating-point variant (task 19.3, Δ_fp_save and Δ_fp_restore): `filter` spins too.
 cycles-fpu = ["nrf52840", "p1-demo-decl/nrf52840_cycles_fpu", "p1-demo-part0/cycles", "p1-demo-part1/cycles", "p1-demo-part2/cycles"]
 # The plain measurement configuration of task 19.4: no injection, the measurement instrumentation alone.
-plain-measure = ["nrf52840", "measure", "p1-demo-decl/nrf52840_measure"]
+plain-measure = ["nrf52840", "measure", "endpoints", "p1-demo-decl/nrf52840_measure"]
 # The Kernel coverage configuration of task 19.5: the plain measurement configuration on the enlarged-Kernel Target.
 coverage-kernel = ["nrf52840", "measure", "p1-demo-decl/nrf52840_coverage"]
 # HIL builds: the Hardware_Model differential tests (task 3.3).

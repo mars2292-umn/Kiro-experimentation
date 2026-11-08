@@ -204,6 +204,7 @@ fn build(parts: Vec<PartitionSpec>, tasks: Vec<TaskSpec>, duration_s: u64, log_c
         safe_state: "crate::safe_outputs".into(),
         log_capacity,
         fp_flush_to_zero: false,
+        chains: vec![],
         partitions,
         endpoints: vec![],
         protocols: vec![],

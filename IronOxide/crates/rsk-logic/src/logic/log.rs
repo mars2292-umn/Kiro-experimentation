@@ -39,6 +39,8 @@ pub const EV_API_MISUSE: u8 = 22;
 pub const EV_DEBUGGER: u8 = 23;
 /// A send found its Endpoint buffer full (R40.5): recorded against the sending Partition, the message not taken.
 pub const EV_ENDPOINT_FULL: u8 = 25;
+/// A received message that the receiver's validation function rejected (R42.4, task 21.4): recorded against the sending Task, whose Partition receives its fault response.
+pub const EV_MESSAGE_REJECTED: u8 = 26;
 
 /// A bit set of Profile restriction identifiers: bit n stands for PR-n
 /// (R3.9, R14.6).

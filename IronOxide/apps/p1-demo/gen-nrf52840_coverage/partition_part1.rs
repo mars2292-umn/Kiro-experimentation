@@ -13,8 +13,9 @@ pub mod rsk_state {
     /// Per-Task state `part1.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
     pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
-#[cfg(not(creusot))]
 pub mod rsk_roles {
+}
+pub mod rsk_validate {
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {

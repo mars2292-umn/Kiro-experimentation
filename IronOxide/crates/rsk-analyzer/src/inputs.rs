@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use rsk_model::task_model::{Task, TaskModel};
+use rsk_model::task_model::{Source, Task, TaskModel};
 use rsk_model::{KernelTiming, WcetRecord, WcetSet};
 
 use crate::terms;
@@ -72,6 +72,14 @@ pub struct AnalysedTask {
     /// A Sporadic_Task (its period is the MIT), for the UPPAAL release generator (R31.2).
     pub sporadic: bool,
     pub longest_cs: u64,
+    /// Task 21.5 (R40.2): the Endpoint operation cost per Job charged in O_i.
+    pub endpoint_cost: u64,
+    /// Task 21.5 (R41.4): the Release_Source's kind for the chain terms: an
+    /// interrupt (Δ_stamp at the chain's start), an Endpoint (the arrival
+    /// releases the Task), and the `defer` MIT policy.
+    pub source_interrupt: bool,
+    pub source_endpoint: Option<String>,
+    pub defer: bool,
     pub wcet_provenance: Vec<String>,
     /// The WCET used for the Task entry (R28.4: at most C_i).
     pub wcet: u64,
@@ -81,12 +89,27 @@ pub struct AnalysedTask {
 #[derive(Clone, Debug)]
 pub struct Prepared {
     pub tasks: Vec<AnalysedTask>,
+    /// Task 21.5 (R41.4): the declared chains, resolved to Task indices.
+    pub chains: Vec<AnalysedChain>,
+    /// Δ_stamp in cycles, the first term of a chain that starts at an
+    /// interrupt event (R41.4).
+    pub stamp_cycles: u64,
     /// Overhead terms the model omits or approximates (R31.2, reported).
     pub omitted_terms: Vec<String>,
     pub placeholders: Vec<String>,
     /// The measured Kernel_Timing_Parameters used, with their provenance
     /// (task 19.3), and the manifest entry their binary hash matched.
     pub measured_parameters: Vec<String>,
+}
+
+/// An end-to-end chain (task 21.5; R41.4): the Tasks in order (indices into
+/// the analysed set), the Endpoint of each hop, and the deadline in cycles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AnalysedChain {
+    pub id: String,
+    pub tasks: Vec<usize>,
+    pub endpoints: Vec<String>,
+    pub deadline_cycles: u64,
 }
 
 /// Picks the WCET_Record for an item (R28.7).
@@ -283,6 +306,8 @@ pub fn prepare(
         j_rel: ktp("j_rel"),
         restart: ktp("delta_restart"),
         stop: ktp("delta_stop"),
+        send: ktp("delta_send"),
+        recv: ktp("delta_recv"),
     };
     if tick_hz == 0 {
         return Err(vec![reject("R29.8", "the Task_Model's tick_hz is 0: no clock ratio")]);
@@ -321,8 +346,28 @@ pub fn prepare(
                 .iter()
                 .find(|r| r.partition == t.partition && r.id.ends_with(&format!(".{resource_name}")))
                 .ok_or_else(|| vec![reject("R28.1", format!("Critical_Section site `{site}` names no Resource of Partition `{}`", t.partition))])?;
-            sites_in.push(terms::Site { task: index, ceiling: res.ceiling, wcet: r.wcet_cycles });
+            sites_in.push(terms::Site { task: index, ceiling: res.ceiling, wcet: r.wcet_cycles, endpoint: false });
             site_names.push(site.clone());
+        }
+        // Task 21.5 (R40.2): each Endpoint role of the Task is two
+        // Critical_Sections at the Kernel level, a send and a receive of
+        // Δ_send and Δ_recv (DD-09: the Kernel executes them inside the
+        // SVC, so their Ceiling is above every Priority), in the blocking
+        // terms of every Task; the role's declared operations per Job, each
+        // the larger of the two, in this Task's O_i.
+        let mut endpoint_cost: u64 = 0;
+        for er in &t.endpoint_roles {
+            let (ename, rname) = er.split_once('.').unwrap_or((er.as_str(), ""));
+            let role = model.endpoints.iter().find(|e| e.id == ename).and_then(|e| e.roles.iter().find(|r| r.role == rname));
+            let ops = role.map_or(1, |r| r.ops as u64);
+            for (what, wcet) in [("send", params.send), ("recv", params.recv)] {
+                sites_in.push(terms::Site { task: index, ceiling: u8::MAX, wcet, endpoint: true });
+                site_names.push(format!("{}:endpoint:{er}:{what} (Δ_{what}, R40.2)", t.id));
+            }
+            endpoint_cost = ops
+                .checked_mul(params.send.max(params.recv))
+                .and_then(|c| endpoint_cost.checked_add(c))
+                .ok_or_else(|| vec![reject("R29.6", format!("the Endpoint operation cost of `{}` exceeds u64", t.id))])?;
         }
         let period_cycles = terms::ticks_to_cycles_down(t.window_ticks(), tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("period overflow for `{}`", t.id))])?;
         let deadline_cycles = terms::ticks_to_cycles_down(t.deadline_ticks, tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("deadline overflow for `{}`", t.id))])?;
@@ -333,6 +378,7 @@ pub fn prepare(
             stops_overruns,
             periodic: t.is_periodic(),
             defer: t.mit_policy.as_deref() == Some("defer"),
+            endpoint_cost,
         });
         per_task.push((period_cycles, deadline_cycles, partition.level.clone(), provenance, entry.wcet_cycles));
     }
@@ -366,16 +412,51 @@ pub fn prepare(
             stops_overruns: task_in[i].stops_overruns,
             sporadic: !t.is_periodic(),
             longest_cs: d.longest_cs,
+            endpoint_cost: task_in[i].endpoint_cost,
+            source_interrupt: matches!(t.source, Some(Source::Interrupt { .. })),
+            source_endpoint: match &t.source {
+                Some(Source::Endpoint { endpoint, .. }) => Some(endpoint.clone()),
+                _ => None,
+            },
+            defer: task_in[i].defer,
             wcet_provenance: provenance,
             wcet,
         });
+    }
+    // Task 21.5 (R41.4): the chains, each hop's Tasks and Endpoint resolved
+    // against the model (the Generator validated the declaration; a model
+    // edited by hand is rejected here).
+    let mut chains = Vec::new();
+    for c in &model.chains {
+        let mut task_ix: Vec<usize> = Vec::new();
+        let mut endpoints = Vec::new();
+        for (h, hop) in c.hops.iter().enumerate() {
+            let from = model.tasks.iter().position(|t| t.id == hop.from).ok_or_else(|| vec![reject("R41.4", format!("chain `{}` names `{}`, which is no Task of the model", c.id, hop.from))])?;
+            let to = model.tasks.iter().position(|t| t.id == hop.to).ok_or_else(|| vec![reject("R41.4", format!("chain `{}` names `{}`, which is no Task of the model", c.id, hop.to))])?;
+            let e = model.endpoints.iter().find(|e| e.id == hop.endpoint).ok_or_else(|| vec![reject("R41.4", format!("chain `{}` names Endpoint `{}`, which the model does not declare", c.id, hop.endpoint))])?;
+            if !(e.roles.iter().any(|r| r.task == hop.from) && e.roles.iter().any(|r| r.task == hop.to)) {
+                return Err(vec![reject("R41.4", format!("chain `{}`: Endpoint `{}` does not connect `{}` to `{}`", c.id, hop.endpoint, hop.from, hop.to))]);
+            }
+            if h == 0 {
+                task_ix.push(from);
+            } else if task_ix.last() != Some(&from) {
+                return Err(vec![reject("R41.4", format!("chain `{}`: hop {} starts at `{}`, not where the previous hop ends", c.id, h, hop.from))]);
+            }
+            task_ix.push(to);
+            endpoints.push(hop.endpoint.clone());
+        }
+        if task_ix.len() < 2 {
+            return Err(vec![reject("R41.4", format!("chain `{}` has no hop", c.id))]);
+        }
+        let deadline_cycles = terms::ticks_to_cycles_down(c.deadline_ticks, tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("deadline overflow for chain `{}`", c.id))])?;
+        chains.push(AnalysedChain { id: c.id.clone(), tasks: task_ix, endpoints, deadline_cycles });
     }
     let mut omitted_terms = Vec::new();
     if model.endpoints.is_empty() {
         omitted_terms.push("Endpoint operations (Phase P4) are not modelled".to_string());
     } else {
         omitted_terms.push(format!(
-            "Endpoint operations (R40.2, task 21.5): the {} declared Endpoint(s) ({}) carry no explicit term; each send and receive runs inside the calling Job at the Kernel level (DD-09), so its execution is inside the Job's WCET and Budget and its masking inside the measured L_kernel, and the arrival release of a receive role is the Sporadic_Task's Release_Source as any other (R40.3)",
+            "Endpoint operations (R40.2, task 21.5) are approximated: for each of the {} declared Endpoint(s) ({}) a role's send and receive are Critical_Sections of Δ_send and Δ_recv at the Kernel level in every blocking term, and each role's declared operations per Job (`ops`, 1 unless declared) × the larger of the two is charged in its Task's O_i; the count per Job is the declaration's, not measured, and Δ_send and Δ_recv are the measured maxima over the configuration's payload sizes (R33.2)",
             model.endpoints.len(),
             model.endpoints.iter().map(|e| e.id.as_str()).collect::<Vec<_>>().join(", ")
         ));
@@ -388,6 +469,8 @@ pub fn prepare(
     }
     Ok(Prepared {
         tasks,
+        chains,
+        stamp_cycles: params.stamp,
         omitted_terms,
         placeholders,
         measured_parameters,

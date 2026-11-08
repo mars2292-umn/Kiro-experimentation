@@ -33,6 +33,9 @@ pub struct TaskModel {
     pub resources: Vec<Resource>,
     pub signals: Vec<Signal>,
     pub endpoints: Vec<Endpoint>,
+    /// Task 21.5 (R41.4): the declared end-to-end chains.
+    #[serde(default)]
+    pub chains: Vec<Chain>,
     pub conversions: Vec<Conversion>,
 }
 
@@ -268,6 +271,43 @@ pub struct EndpointRole {
     pub role: String,
     pub task: String,
     pub release: bool,
+    /// Task 21.5 (R40.2): the declared operations per Job of the role.
+    #[serde(default = "one")]
+    pub ops: u32,
+    /// Task 21.4 (R42.4): the role's validation functions.
+    #[serde(default)]
+    pub validate: Vec<Validator>,
+}
+
+fn one() -> u32 {
+    1
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Validator {
+    /// The Protocol label validated, `None` for a plain Endpoint's payload.
+    pub label: Option<String>,
+    pub function: String,
+}
+
+/// An end-to-end chain (task 21.5; R41.4): Tasks in order, each pair
+/// connected by the named Endpoint, and the declared deadline.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Chain {
+    pub id: String,
+    pub hops: Vec<Hop>,
+    pub deadline_ticks: u64,
+    pub derived: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Hop {
+    pub from: String,
+    pub to: String,
+    pub endpoint: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

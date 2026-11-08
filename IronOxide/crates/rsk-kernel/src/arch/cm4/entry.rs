@@ -53,7 +53,7 @@ use vstd::prelude::*;
 use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED};
 use crate::logic::mpu::View;
 
 verus! {
@@ -74,14 +74,19 @@ pub const SVC_RAISE: u8 = 7;
 /// The Endpoint send and receive services (task 21.2; DD-09, R42.2): r0 is
 /// the Endpoint index in its low byte and the role in bit 8, r1 the
 /// message's address in the Partition, r2 its length; r0 returns
-/// `ENDPOINT_OK`, `ENDPOINT_FULL` (send) or `ENDPOINT_EMPTY` (receive), or
-/// `ENDPOINT_REFUSED` (API misuse: a fault of the Partition).
+/// `ENDPOINT_OK`, `ENDPOINT_FULL` (send) or `ENDPOINT_EMPTY` (receive),
+/// `ENDPOINT_REFUSED` (API misuse: a fault of the Partition), or
+/// `ENDPOINT_PEER` (the peer-state change of R42.3, task 21.4).
 pub const SVC_SEND: u8 = 8;
 pub const SVC_RECV: u8 = 9;
 pub const ENDPOINT_OK: u32 = 0;
 pub const ENDPOINT_FULL: u32 = 1;
 pub const ENDPOINT_EMPTY: u32 = 1;
 pub const ENDPOINT_REFUSED: u32 = 2;
+/// R42.3 (task 21.4): the other role's Partition was stopped or restarted
+/// since this role's last operation; the Endpoint was re-initialized and
+/// the operation not performed. Returned once, by the next operation.
+pub const ENDPOINT_PEER: u32 = 3;
 /// A Protocol violation reported by the Endpoint_Library (task 21.3; R41.2):
 /// a role state dropped outside an end or recursion state, a Job that
 /// returned with its RoleSlot empty, or a message with a label the role's
@@ -640,14 +645,14 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         // so that a restarted Partition kept its state).
         if k.take_stop_dma(p as u8) {
             dma_stop_partition(hw, tables, p as u8);
+            // R14.10 (tasks 21.2 and 21.4): the Partition's Endpoint roles
+            // are re-initialized with it, on a stop as on a restart (the
+            // DMA stop marks both): both channels of each of its Endpoints
+            // are emptied and the other Partition's role is told (R42.3).
+            endpoint_reinit(tables, state, p as u8);
         }
         if k.take_reinit(p as u8) {
             hw.apply(Action::ReinitPartition(p as u8));
-            // R14.10 (task 21.2): the Partition's Endpoint roles are
-            // re-initialized with it: the channels its roles receive on are
-            // emptied (what it had not read went with its state); what it
-            // sent to other Partitions stays in their channels.
-            endpoint_reinit(tables, state, p as u8);
         }
         p += 1;
     }
@@ -948,7 +953,14 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     accepted
 }
 
-/// Empties the Endpoint channels Partition `p`'s roles receive on (R14.10).
+/// Re-initializes the Endpoints of Partition `p`'s roles when `p` is
+/// stopped or restarted (R14.10; R42.3, task 21.4): both channels of each
+/// such Endpoint are emptied (what `p` had sent is of a state that no
+/// longer exists; what it had not read went with its state), and the other
+/// role, when it belongs to another Partition, is marked so that its next
+/// operation reports the peer-state change and the two roles start over
+/// from the Protocol's initial state (the restarted role's zeroed slot is
+/// that state).
 fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
     let n = tables.endpoint_count();
     let mut e: usize = 0;
@@ -957,15 +969,52 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
         decreases MAX_ENDPOINTS - e,
     {
         let cfg = tables.endpoint(e);
-        // Role r receives on channel 2e + (1 - r), the other role's.
-        if cfg.partitions[0] == p {
-            state.fifos[2 * e + 1].clear();
-        }
-        if cfg.partitions[1] == p {
+        if cfg.partitions[0] == p || cfg.partitions[1] == p {
             state.fifos[2 * e].clear();
+            state.fifos[2 * e + 1].clear();
+            if cfg.partitions[0] == p && cfg.partitions[1] != p {
+                state.peer_changed[2 * e + 1] = true;
+            }
+            if cfg.partitions[1] == p && cfg.partitions[0] != p {
+                state.peer_changed[2 * e] = true;
+            }
         }
         e += 1;
     }
+}
+
+/// The Endpoint_Library's reports (`SVC_VIOLATION`; tasks 21.3 and 21.4).
+/// `arg` 0: a Protocol violation of the executing Task (R41.2), recorded
+/// with no response. `arg` = 1 | e << 8 | role << 16: a message that role
+/// `role` of Endpoint `e`, bound to the executing Task, received and its
+/// validation function rejected (R42.4): the fault of the sending
+/// Partition, recorded against the sending Task, whose Partition receives
+/// its fault response. A report naming a role the executing Task is not
+/// bound to, or an unknown form, is API misuse of the caller.
+fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, arg: u32)
+    requires old(k).inv(),
+    ensures final(k).inv(),
+{
+    let t = match k.top() {
+        Some(t) => t,
+        None => return,
+    };
+    if arg == 0 {
+        k.record_event(EV_PROTOCOL_VIOLATION, t);
+        return;
+    }
+    let e = ((arg >> 8) & 0xFF) as usize;
+    let role: usize = if (arg >> 16) & 1 == 1 { 1 } else { 0 };
+    if arg & 0xFF != 1 || (arg >> 17) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS {
+        k.fault(EV_API_MISUSE, false);
+        return;
+    }
+    let cfg = tables.endpoint(e);
+    if cfg.tasks[role] != t {
+        k.fault(EV_API_MISUSE, false);
+        return;
+    }
+    k.fault_of(EV_MESSAGE_REJECTED, cfg.tasks[1 - role]);
 }
 
 /// The checks shared by both Endpoint services (task 21.2): the Endpoint
@@ -1047,6 +1096,10 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return ENDPOINT_REFUSED;
         }
     };
+    if state.peer_changed[2 * e + role] {
+        state.peer_changed[2 * e + role] = false;
+        return ENDPOINT_PEER;
+    }
     let ch = 2 * e + role;
     if !state.fifos[ch].is_wf(cfg.capacity) {
         state.fifos[ch].clear();
@@ -1090,6 +1143,10 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return ENDPOINT_REFUSED;
         }
     };
+    if state.peer_changed[2 * e + role] {
+        state.peer_changed[2 * e + role] = false;
+        return ENDPOINT_PEER;
+    }
     let from = 1 - role;
     let ch = 2 * e + from;
     if !state.fifos[ch].is_wf(cfg.capacity) {
@@ -1449,13 +1506,16 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         // Task 21.3 (R41.2): the Endpoint_Library's report of a Protocol
         // violation, recorded against the executing Task; a Job that ends
         // without storing its role state is reported by its wrapper after
-        // the body, still inside the Job.
-        match k.top() {
-            Some(t) => k.record_event(EV_PROTOCOL_VIOLATION, t),
-            None => {}
-        }
+        // the body, still inside the Job. Task 21.4 (R42.4): the report of
+        // a rejected message, a fault of the sending Partition whose
+        // response may stop or restart it (never the executing Job's own
+        // Partition unless the sender is its own), hence the plan.
+        let top_before = k.top();
+        violation_core(k, tables, frame[0]);
         frame[0] = 0;
-        (0, false)
+        let safe = apply_core(k, hw, tables, state);
+        let hop = end_plan_core(k, state, top_before);
+        (hop, safe)
     } else if number == SVC_SEND || number == SVC_RECV {
         // Task 21.2: as for the raise, the executing Job is read before the
         // service; a refusal applies the fault response, and a send may

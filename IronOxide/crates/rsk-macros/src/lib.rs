@@ -73,6 +73,84 @@ fn expand(input: TokenStream2) -> TokenStream2 {
     out
 }
 
+/// `#[derive(rsk::Plain)]` (task 21.4; R42.1): implements `rsk::Plain` for
+/// a `#[repr(C)]` or `#[repr(transparent)]` struct each of whose fields is
+/// itself `Plain`, so that the type holds no reference, raw pointer,
+/// function pointer, or interior mutability and every bit pattern of its
+/// size is a value of it (the primitives and arrays of `Plain` types are
+/// the base cases; `bool`, `char`, enums, and references are not `Plain`,
+/// and a field of such a type is a trait-bound error naming it). Enums,
+/// unions, and structs without a defined layout are rejected: the bytes
+/// cross a Partition boundary as the Kernel copies them, so their layout
+/// is part of the interface. The `unsafe impl` is the derive's, inside the
+/// `rsk` boundary (PR-20): a Partition crate keeps `#![forbid(unsafe_code)]`.
+#[proc_macro_derive(Plain)]
+pub fn derive_plain(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+    match plain::expand(&input) {
+        Ok(t) => t.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+mod plain {
+    use proc_macro2::TokenStream;
+    use quote::quote;
+    use syn::{Data, DeriveInput, Fields, Meta};
+
+    pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
+        let name = &input.ident;
+        let fields = match &input.data {
+            Data::Struct(s) => match &s.fields {
+                Fields::Named(f) => f.named.iter().map(|f| f.ty.clone()).collect::<Vec<_>>(),
+                Fields::Unnamed(f) => f.unnamed.iter().map(|f| f.ty.clone()).collect::<Vec<_>>(),
+                Fields::Unit => Vec::new(),
+            },
+            Data::Enum(_) => return Err(syn::Error::new_spanned(name, "R42.1: `Plain` cannot be derived for an enum: not every bit pattern of its size is a value (declare a `#[repr(C)]` struct of `Plain` fields for the message)")),
+            Data::Union(_) => return Err(syn::Error::new_spanned(name, "R42.1: `Plain` cannot be derived for a union")),
+        };
+        let mut layout = false;
+        for attr in &input.attrs {
+            if attr.path().is_ident("repr") {
+                if let Meta::List(list) = &attr.meta {
+                    let text = list.tokens.to_string();
+                    if text.split(',').any(|r| matches!(r.trim(), "C" | "transparent")) {
+                        layout = true;
+                    }
+                }
+            }
+        }
+        if !layout {
+            return Err(syn::Error::new_spanned(name, "R42.1: a `Plain` message type must be `#[repr(C)]` or `#[repr(transparent)]`: its bytes cross a Partition boundary as the Kernel copies them, so their layout is part of the interface"));
+        }
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+        let mut bounds = Vec::new();
+        for ty in &fields {
+            bounds.push(quote!(#ty: ::rsk::Plain));
+        }
+        let where_all = match where_clause {
+            Some(w) if !w.predicates.is_empty() => quote!(#w, #(#bounds),*),
+            _ if bounds.is_empty() => quote!(),
+            _ => quote!(where #(#bounds),*),
+        };
+        let checks = fields.iter().map(|ty| quote!(__rsk_plain_field::<#ty>();));
+        // SAFETY (UJ-060): the emitted `unsafe impl Plain` holds for a
+        // `#[repr(C)]` or `#[repr(transparent)]` struct whose every field is
+        // `Plain` (the where-clause and the field assertions make the
+        // compiler check it in the deriving crate): the bytes are those of
+        // `Plain` fields and padding, every bit pattern of which is a value,
+        // and no field holds a reference, pointer, or interior mutability.
+        Ok(quote! {
+            const _: () = {
+                fn __rsk_plain_field<T: ::rsk::Plain>() {}
+                #[allow(dead_code)]
+                fn __rsk_plain_fields #impl_generics () #where_all { #(#checks)* }
+            };
+            unsafe impl #impl_generics ::rsk::Plain for #name #ty_generics #where_all {}
+        })
+    }
+}
+
 /// `#[rsk::bounds('label = BOUND, ...)]` (R35, PR-16): the Loop_Bound_Annotation
 /// of the labelled loops of one function. Each bound is an integer
 /// constant or an expression over compile-time constants and

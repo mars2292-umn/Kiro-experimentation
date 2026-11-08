@@ -13,7 +13,7 @@ pub mod rta;
 pub mod terms;
 pub mod uppaal;
 
-use rsk_model::report::{CrossCheck, Inputs, Interference, Profile, Report, TaskResult};
+use rsk_model::report::{ChainResult, CrossCheck, Inputs, Interference, Profile, Report, TaskResult};
 use rsk_model::task_model::TaskModel;
 use rsk_model::{KernelTiming, WcetSet};
 
@@ -139,6 +139,7 @@ pub fn analyze(
                 &[],
                 &[],
                 &[],
+                vec![],
             );
             return Analysis {
                 report,
@@ -190,6 +191,77 @@ pub fn analyze(
             wcet_provenance: t.wcet_provenance.clone(),
         });
     }
+    // Task 21.5 (R41.4): the end-to-end latency bound of each declared
+    // chain: Δ_stamp when the chain starts at an interrupt event, then for
+    // each Task its WCRT, preceded for a Periodic_Task after the first by
+    // its period (it samples the Endpoint once per period) and for a
+    // Sporadic_Task released by the hop's Endpoint under `defer` by its MIT
+    // (an arrival inside the window is released at the window's end); a
+    // Sporadic_Task released otherwise, or discarding arrivals, leaves the
+    // chain unbounded. PASS only when every Task of the chain is
+    // schedulable and the bound is within the deadline.
+    let mut chain_results = Vec::new();
+    for c in &prepared.chains {
+        let mut named: Vec<(String, u64)> = Vec::new();
+        let mut unbounded: Option<String> = None;
+        let mut every_task_schedulable = true;
+        for (pos, &ti) in c.tasks.iter().enumerate() {
+            let t = &prepared.tasks[ti];
+            let (r, sched) = wcrts.get(ti).map(|w| (w.r, w.schedulable && !w.overflow)).unwrap_or((0, false));
+            if !sched {
+                every_task_schedulable = false;
+            }
+            if pos == 0 {
+                if t.source_interrupt {
+                    named.push((format!("Δ_stamp (the chain starts at the interrupt event that releases `{}`)", t.id), prepared.stamp_cycles));
+                }
+            } else {
+                let e = &c.endpoints[pos - 1];
+                if t.sporadic {
+                    match &t.source_endpoint {
+                        Some(x) if x == e => {
+                            if t.defer {
+                                named.push((format!("MIT of `{}` (`defer`: an arrival inside the MIT window is released at its end, R10.2)", t.id), t.period_cycles));
+                            } else if unbounded.is_none() {
+                                unbounded = Some(format!("`{}` discards arrivals inside its MIT (R10.8 keeps the message for a later Release the chain does not bound)", t.id));
+                            }
+                        }
+                        _ => {
+                            if unbounded.is_none() {
+                                unbounded = Some(format!("`{}` is not released by its role of Endpoint `{e}`, so when it reads the message is not bounded by the chain", t.id));
+                            }
+                        }
+                    }
+                } else {
+                    named.push((format!("T of `{}` (a Periodic_Task samples the Endpoint once per period)", t.id), t.period_cycles));
+                }
+            }
+            named.push((format!("R of `{}`{}", t.id, if sched { "" } else { " (NOT schedulable: a lower bound)" }), r));
+        }
+        let values: Vec<u64> = named.iter().map(|(_, v)| *v).collect();
+        let (bound, result) = match (unbounded, terms::checked_sum(&values)) {
+            (Some(why), _) => {
+                named.push((why, 0));
+                (u64::MAX, "UNBOUNDED")
+            }
+            (None, None) => {
+                named.push(("the sum of the terms exceeds u64 (R29.6)".to_string(), 0));
+                (u64::MAX, "UNBOUNDED")
+            }
+            (None, Some(b)) => (b, if every_task_schedulable && b <= c.deadline_cycles { "PASS" } else { "FAIL" }),
+        };
+        if result != "PASS" {
+            all_ok = false;
+        }
+        chain_results.push(ChainResult {
+            id: c.id.clone(),
+            tasks: c.tasks.iter().map(|&i| prepared.tasks[i].id.clone()).collect(),
+            bound_cycles: bound,
+            deadline_cycles: c.deadline_cycles,
+            result: result.to_string(),
+            terms: named.iter().map(|(n, v)| if *v == 0 && n.contains("not ") || n.contains("exceeds u64") || n.contains("discards") { n.clone() } else { format!("{n}: {v} cycles") }).collect(),
+        });
+    }
     let (uppaal_xml, uppaal_query) = uppaal::export(&prepared.tasks);
     let result = if all_ok { "PASS" } else { "FAIL" };
     let report = report::build(
@@ -209,6 +281,7 @@ pub fn analyze(
         &prepared.placeholders,
         &prepared.measured_parameters,
         &unprotected_partitions(model),
+        chain_results,
     );
     Analysis {
         report,

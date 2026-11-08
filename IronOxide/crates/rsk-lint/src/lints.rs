@@ -252,7 +252,9 @@ fn creusot_variant(attrs: &[Attribute]) -> Option<String> {
 /// iteration).
 fn variant_bound(text: &str) -> Option<String> {
     let k = text.rfind(" - ")?;
-    let b = text[..k].trim();
+    // A constant's logical view (`PW@`, task 21.4: the generated role
+    // modules' loops) states the constant itself.
+    let b = text[..k].trim().trim_end_matches('@').trim();
     if b.is_empty() { None } else { Some(b.to_string()) }
 }
 

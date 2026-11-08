@@ -145,6 +145,12 @@ pub struct ArchState {
     /// The index state of every Endpoint channel (task 21.2; Property 11):
     /// channel `2 * e + d` carries what role `d` of Endpoint `e` sends.
     pub fifos: [crate::logic::endpoint::Fifo; MAX_CHANNELS],
+    /// R42.3 (task 21.4): entry `2 * e + r` is set when the other role of
+    /// Endpoint `e`, in another Partition, was re-initialized by its
+    /// Partition's stop or restart since role `r`'s last operation; the
+    /// next send or receive of role `r` returns the peer-state error and
+    /// clears it.
+    pub peer_changed: [bool; MAX_CHANNELS],
     pub first_fault_addr: u32,
 }
 
@@ -170,6 +176,7 @@ impl ArchState {
             deferred: [0; 8],
             pending_unwind: 0,
             fifos: [crate::logic::endpoint::Fifo { head: 0, count: 0 }; MAX_CHANNELS],
+            peer_changed: [false; MAX_CHANNELS],
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }

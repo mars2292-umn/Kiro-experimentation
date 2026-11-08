@@ -424,3 +424,12 @@ kind = "kani"
 link = "uj_058_059_message_words_round_trip"
 reviewed_by = "rsk kernel review (task 21.2)"
 reviewed_on = "2026-11-07"
+
+[[justification]]
+id = "UJ-060"
+summary = "derive(Plain): the `unsafe impl Plain` the rsk-macros derive emits into an Application crate for a #[repr(C)] or #[repr(transparent)] struct of Plain fields (task 21.4, R42.1)"
+kind = "review"
+why_no_machine_check = "The impl is emitted, not written: the derive (policy `unsafe-derive`, the only `unsafe` keyword outside the Kernel_Unsafe_Module, inside a `quote!` body) refuses enums, unions, and structs without a defined layout, and emits beside the impl a where-clause and one trait-bound assertion per field, so that the compiler of the deriving crate rejects any field that is not itself Plain (a reference, a pointer, a `bool`, an enum: the api-misuse fixture's `plain_fields` and `plain_enum` members). The soundness argument is then UJ-057's per field, plus padding bytes, which every bit pattern of a value may hold."
+reviewed_by = "rsk kernel review (task 21.4)"
+reviewed_on = "2026-11-07"
+

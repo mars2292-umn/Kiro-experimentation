@@ -20,9 +20,11 @@ check-cfg = ["cfg(creusot)"]
 # The fault-injection features of the Partition (never enabled here): named so
 # that the `cfg(feature = ..)` checks are known to the compiler.
 [features]
-default = ["telemetry"]
+default = ["telemetry", "qemu-inject"]
 # Task 21.2: the QEMU configuration's `telemetry` Endpoint (the send is proven with the body).
 telemetry = []
+# Task 21.4: the QEMU configuration's injected Endpoint faults (proven as run).
+qemu-inject = []
 fi-pr12 = []
 fi-pr19 = []
 fi-pr22 = []

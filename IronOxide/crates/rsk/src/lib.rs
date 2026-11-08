@@ -187,10 +187,12 @@ impl Signal {
 
 /// A message type an Endpoint may carry (R42.1): `Copy`, no references,
 /// pointers, or interior mutability, every bit pattern a valid value. The
-/// primitives and arrays of them implement it; the derive is task 21.4.
+/// primitives and arrays of them implement it; `#[derive(rsk::Plain)]`
+/// (task 21.4) extends it to `#[repr(C)]` structs of `Plain` fields.
 pub use rsk_kernel::arch::cm4::unsafe_module::hw::Plain;
+pub use rsk_macros::Plain;
 
-/// Why a send did not take the message (R40.5).
+/// Why a send did not take the message (R40.5, R42.3).
 // No derived `PartialEq`: the App_Prover would need a `DeepModel` for it
 // (task 17.1); callers match on the variant.
 #[derive(Clone, Copy, Debug)]
@@ -201,23 +203,62 @@ pub enum SendError {
     /// The Kernel refused the request as API misuse (a fault of the
     /// Partition, whose response may have let the Job continue).
     Refused,
+    /// R42.3 (task 21.4): the other role's Partition was stopped or
+    /// restarted since this role's last operation; the Endpoint was
+    /// re-initialized (both channels empty) and the message not sent. The
+    /// next operation proceeds.
+    PeerChanged,
+}
+
+/// Why a receive delivered no message although one may have been there
+/// (task 21.4).
+#[derive(Clone, Copy, Debug)]
+pub enum RecvError {
+    /// R42.3: the other role's Partition was stopped or restarted since
+    /// this role's last operation; the Endpoint was re-initialized.
+    PeerChanged,
+    /// R42.4: the oldest message was taken from the channel and the role's
+    /// validation function rejected it; the Kernel has recorded the fault
+    /// of the sending Partition. Nothing is delivered for it.
+    Rejected,
+}
+
+/// A receiver-side validation function (R42.4, task 21.4): the Generator
+/// requires one for each role that receives messages from a Partition of
+/// lower Criticality_Level and binds it through this trait, so that the
+/// `Endpoint` delivers only messages the function accepts. The function is
+/// Application code of the receiving Partition, proven total and
+/// panic-free by the App_Prover with the Task bodies (level A and B).
+pub trait Validate<T> {
+    fn accept(m: &T) -> bool;
+}
+
+/// The validator of a role that declares none: every message is accepted.
+pub struct Accept;
+
+impl<T> Validate<T> for Accept {
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result == true))]
+    fn accept(_m: &T) -> bool {
+        true
+    }
 }
 
 /// A Task's role of an Endpoint (task 21.2; DD-09, R38.1, R40.1), held in
 /// its Context: `T` is the declared payload type and `W` the words of the
 /// declared payload (`payload / 4`), so that `size_of::<T>() <= 4 * W`,
-/// which the Generator asserts at compile time. A send copies the message
-/// into the Kernel-owned channel from this role to the other and a receive
+/// which the Generator asserts at compile time; `V` the role's validation
+/// function (R42.4), `Accept` without one. A send copies the message into
+/// the Kernel-owned channel from this role to the other and a receive
 /// copies the oldest message of the channel from the other role to this
 /// one; both complete without waiting (R40.4), inside the Kernel at its
-/// level (R42.2). The typestate API of the Protocol is task 21.3.
-pub struct Endpoint<T: Plain, const W: usize> {
+/// level (R42.2). The typestate API of a Protocol is task 21.3's.
+pub struct Endpoint<T: Plain, const W: usize, V: Validate<T> = Accept> {
     id: u8,
     role: u8,
-    _payload: core::marker::PhantomData<T>,
+    _payload: core::marker::PhantomData<(T, V)>,
 }
 
-impl<T: Plain, const W: usize> Endpoint<T, W> {
+impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// R38.1: the payload type fits the declared payload (checked at compile
     /// time for every instantiation; the Generator asserts the same on the
     /// declaration's payload bytes).
@@ -226,7 +267,7 @@ impl<T: Plain, const W: usize> Endpoint<T, W> {
     /// Constructed by generated code only (PR-06): the Endpoint index of
     /// Generated_Config and the Task's role (0 or 1).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub const fn new(id: u8, role: u8) -> Endpoint<T, W> {
+    pub const fn new(id: u8, role: u8) -> Endpoint<T, W, V> {
         Endpoint { id, role, _payload: core::marker::PhantomData }
     }
 
@@ -237,7 +278,9 @@ impl<T: Plain, const W: usize> Endpoint<T, W> {
     /// Sends `m` to the other role: `Ok(())` when the Kernel copied it into
     /// the channel (and released the receiving Task when the arrival is its
     /// Release_Source, R40.3); `Err(SendError::Full)` when the channel holds
-    /// `capacity` messages (R40.5). Never waits (PR-08, R40.4).
+    /// `capacity` messages (R40.5); `Err(SendError::PeerChanged)` once after
+    /// the other Partition's stop or restart (R42.3). Never waits (PR-08,
+    /// R40.4).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn send(&self, m: &T) -> Result<(), SendError> {
         let () = Self::FITS;
@@ -245,28 +288,64 @@ impl<T: Plain, const W: usize> Endpoint<T, W> {
         match stubs::svc_send(self.arg(), words.0.as_ptr() as usize as u32, (4 * W) as u32) {
             0 => Ok(()),
             1 => Err(SendError::Full),
+            3 => Err(SendError::PeerChanged),
             _ => Err(SendError::Refused),
         }
     }
 
-    /// Receives the oldest message sent to this role, or `None` when the
-    /// channel is empty (R40.4). A refusal (API misuse, a fault of the
-    /// Partition) reads as `None` too, the Kernel having recorded it.
+    /// Receives the oldest message sent to this role: `Ok(Some(m))` when
+    /// one was there and the validation function accepts it, `Ok(None)`
+    /// when the channel is empty (R40.4), `Err(RecvError::Rejected)` when
+    /// the function rejected it (R42.4: the message is consumed and the
+    /// fault of the sending Partition reported), `Err(RecvError::
+    /// PeerChanged)` once after the other Partition's stop or restart
+    /// (R42.3). A refusal (API misuse, a fault of the Partition) reads as
+    /// empty, the Kernel having recorded it.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn recv(&self) -> Option<T> {
+    pub fn recv(&self) -> Result<Option<T>, RecvError> {
         let () = Self::FITS;
         let mut words = Words::<W>::zero();
         match stubs::svc_recv(self.arg(), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
-            0 => Some(message_from_words::<T, W>(&words)),
-            _ => None,
+            0 => {
+                let m = message_from_words::<T, W>(&words);
+                if V::accept(&m) {
+                    Ok(Some(m))
+                } else {
+                    report_rejected_message(self.id, self.role);
+                    Err(RecvError::Rejected)
+                }
+            }
+            3 => Err(RecvError::PeerChanged),
+            _ => Ok(None),
         }
     }
 }
 
 /// The word encoding of Protocol messages (task 21.3): the generated role
 /// APIs put the label in the first word and the payload's words after it.
+/// Trusted wrappers of the Kernel's message glue (UJ-058, UJ-059) for the
+/// App_Prover, which translates the generated role modules (task 21.4).
 pub mod words {
-    pub use rsk_kernel::arch::cm4::unsafe_module::hw::{message_from_words, message_to_words, Words};
+    pub use rsk_kernel::arch::cm4::unsafe_module::hw::Words;
+
+    /// A zeroed word buffer.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn zero<const W: usize>() -> Words<W> {
+        Words::<W>::zero()
+    }
+
+    /// The bits of `m` as words (the rest zero).
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn message_to_words<T: super::Plain, const W: usize>(m: &T) -> Words<W> {
+        rsk_kernel::arch::cm4::unsafe_module::hw::message_to_words::<T, W>(m)
+    }
+
+    /// The value whose bits are the first `size_of::<T>()` bytes of `words`
+    /// (every bit pattern is a value: `Plain`).
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn message_from_words<T: super::Plain, const W: usize>(words: &Words<W>) -> T {
+        rsk_kernel::arch::cm4::unsafe_module::hw::message_from_words::<T, W>(words)
+    }
 }
 
 /// Reports a Protocol violation to the Health_Monitor (task 21.3; R41.2):
@@ -276,7 +355,17 @@ pub mod words {
 /// empty. The Kernel records the event against this Task; the Job goes on.
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
 pub fn report_protocol_violation() {
-    stubs::svc_violation()
+    stubs::svc_violation(0)
+}
+
+/// Reports a message that the role's validation function rejected (task
+/// 21.4; R42.4): the Kernel records the fault against the sending Task and
+/// applies the sending Partition's fault response. Called by `Endpoint::
+/// recv` and the generated role APIs; `id` and `role` name the receiving
+/// role (the Kernel refuses a report for a role the Task is not bound to).
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+pub fn report_rejected_message(id: u8, role: u8) {
+    stubs::svc_violation(1 | (id as u32) << 8 | ((role as u32) & 1) << 16)
 }
 
 /// A Task's slot for the state of one Protocol role (task 21.3; R38.7,

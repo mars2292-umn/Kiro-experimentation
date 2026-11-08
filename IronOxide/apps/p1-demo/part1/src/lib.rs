@@ -178,36 +178,47 @@ pub fn log(mut cx: rsk_ctx::Log) {
         let mut i = 0u32;
         'drain: while i < 4 {
             match cx.telemetry.recv() {
-                Some(v) => {
+                Ok(Some(v)) => {
                     cx.telemetry_rx.with(|n| *n = n.saturating_add(1));
                     cx.telemetry_last.set(v);
                     i += 1;
                 }
-                None => break 'drain,
+                // Empty, or the peer-state change (R42.3) after a restart of
+                // `part0`: nothing more this Job.
+                Ok(None) | Err(_) => break 'drain,
             }
         }
     }
     // Task 21.3: the `sink` role of `PingPong` on `pingpong`: a request
-    // received is answered with its value in the same Job.
-    #[cfg(all(feature = "telemetry", not(creusot)))]
+    // received is answered with its value in the same Job. Task 21.4: in
+    // the QEMU configuration the fifth reply is 0xFFFF_FFFF, which
+    // `control`'s validation function rejects (R42.4): this Partition's
+    // fault, its STOP_PARTITION.
+    #[cfg(feature = "telemetry")]
     {
-        use rsk_roles::pingpong_sink::{RecvS0, State};
+        use rsk_roles::pingpong_sink::{NotReceived, NotSent, RecvS0, State};
         let state = cx.pingpong.take(State::Empty);
         let next = match state {
             State::S0(s) => match s.try_recv() {
-                Ok(RecvS0::Req(v, s1)) => match s1.send_rep(v) {
-                    Ok(s0) => {
-                        cx.pingpong_reqs.with(|n| *n = n.saturating_add(1));
-                        State::S0(s0)
+                Ok(RecvS0::Req(v, s1)) => {
+                    #[cfg(feature = "qemu-inject")]
+                    let v = if cx.pingpong_reqs.get() == 4 { 0xFFFF_FFFF } else { v };
+                    match s1.send_rep(v) {
+                        Ok(s0) => {
+                            cx.pingpong_reqs.with(|n| *n = n.saturating_add(1));
+                            State::S0(s0)
+                        }
+                        Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                        Err(NotSent::PeerChanged(s0)) => State::S0(s0),
                     }
-                    Err((s1, _)) => State::S1(s1),
-                },
+                }
                 Ok(RecvS0::Stop(e)) => e.finish(),
-                Err(s0) => State::S0(s0),
+                Err(NotReceived::Empty(s0)) | Err(NotReceived::Unexpected(s0)) | Err(NotReceived::Rejected(s0)) | Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
             },
             State::S1(s) => match s.send_rep(0) {
                 Ok(s0) => State::S0(s0),
-                Err((s1, _)) => State::S1(s1),
+                Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                Err(NotSent::PeerChanged(s0)) => State::S0(s0),
             },
             other => other,
         };

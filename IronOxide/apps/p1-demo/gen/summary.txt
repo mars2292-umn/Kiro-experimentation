@@ -3,12 +3,13 @@ Target: qemu_mps2_an386 (qemu), CPU 25000000 Hz, time base 25000000 Hz, 8 priori
 Profile: 0.6 Ravenscar
 Operating duration: 5000000 ticks
 Safe state: crate::report_and_exit
-Config checksum (CRC-32): 0xdeb810ce
+Config checksum (CRC-32): 0xe1736e5b
 Capacities: lock stack 6, timer slots 23, event log 32
-Endpoint telemetry (plain, `u32`): ctl => part0.control, sink => part1.log; capacity 4 each way, payload 4 bytes, storage offset 0
-Endpoint pingpong (Protocol PingPong): ctl => part0.control, sink => part1.log; capacity 1 each way, bound k 1 (ctl->sink k=1, sink->ctl k=1), payload 8 bytes, storage offset 32
+Endpoint telemetry (plain, `u32`): ctl => part0.control, sink => part1.log; capacity 4 each way, payload 4 bytes, storage offset 0; ctl validates the payload with crate::validate_rep, sink performs up to 4 operations per Job
+Endpoint pingpong (Protocol PingPong): ctl => part0.control, sink => part1.log; capacity 1 each way, bound k 1 (ctl->sink k=1, sink->ctl k=1), payload 8 bytes, storage offset 32; ctl validates Rep with crate::validate_rep
   projection onto ctl: rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}
   projection onto sink: rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}
+Chain telemetry_path (R41.4): part0.control -> part1.log; deadline 2500000 ticks
 Kernel levels: [0]; Task levels (level -> NVIC byte): 1 -> 0xe0, 2 -> 0xc0, 3 -> 0xa0, 4 -> 0x80, 5 -> 0x60, 6 -> 0x40, 7 -> 0x20
 Kernel-owned peripherals: CMSDK_TIMER0, CMSDK_TIMER1
 Kernel peripheral intervals (R16.2, outside every Partition view): PPB 0xe0000000 (2^20), CMSDK_TIMER0 0x40000000 (2^12), CMSDK_TIMER1 0x40001000 (2^12)
@@ -17,7 +18,7 @@ Timer: IRQ 9 (vector 25)
 Partitions:
   part0 (crate p1_demo_part0, level A): fault RESTART_PARTITION, overrun RECORD_AND_CONTINUE, deadline miss RECORD_ONLY, MIT threshold 10
     code 32768 bytes at 0x00020000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20008000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
-  part1 (crate p1_demo_part1, level C): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
+  part1 (crate p1_demo_part1, level C): fault STOP_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
     code 32768 bytes at 0x00028000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20010000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
     window 0x40002000 (2^12, srd 0x00, read-write): CMSDK_DUALTIMER
   part2 (crate p1_demo_part2, level B): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
@@ -25,7 +26,7 @@ Partitions:
     window 0x40010000 (2^12, srd 0x00, read-only): CMSDK_GPIO0
 
 Tasks:
-  part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 250000 ticks, deadline 250000 ticks, Budget 25000 cycles, fpu false, Resources [state, in_cs], state [count: u32, blocked: u32, telemetry_full: u32, pingpong_reps: u32, pingpong_last: u32], nesting depth 2, slots release 0 deadline 1 budget 2
+  part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 250000 ticks, deadline 250000 ticks, Budget 25000 cycles, fpu false, Resources [state, in_cs], state [count: u32, blocked: u32, telemetry_full: u32, pingpong_reps: u32, pingpong_last: u32, telemetry_peer: u32, pingpong_peer: u32, pingpong_rejected: u32], nesting depth 2, slots release 0 deadline 1 budget 2
   part0.echo (#1, Partition part0, Priority 6, vector 37): sporadic, MIT 500000 ticks, policy defer, source signal tick, deadline 500000 ticks, Budget 7500 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 3 deadline 4 budget 5
   part0.sensor (#2, Partition part0, Priority 5, vector 38): periodic, offset 125000 ticks, period 500000 ticks, deadline 500000 ticks, Budget 218750 cycles, fpu false, Resources [state, in_cs], state [count: u32], nesting depth 2, slots release 6 deadline 7 budget 8
   part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], state [count: u32, telemetry_rx: u32, telemetry_last: u32, pingpong_reqs: u32], nesting depth 0, slots release 9 deadline 10 budget 11

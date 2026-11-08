@@ -54,6 +54,10 @@ pub const ENTRY_PARAMETERS: &[(&str, &[usize], &str)] = &[
     ("delta_stop", &[12], "an entry that stopped a Partition (the Rust half, whole)"),
     ("delta_enforce", &[13], "an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole)"),
     ("delta_view", &[15], "one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6)"),
+    // Task 21.5 (R40.2, R39.3): the Endpoint operations, the Rust halves of
+    // the send and receive SVCs over the configuration's payload sizes.
+    ("delta_send", &[16], "one Endpoint send SVC: the checks, the slot, the word copy into the channel, and the arrival release when declared (the Rust half)"),
+    ("delta_recv", &[17], "one Endpoint receive SVC: the checks, the oldest slot, and the word copy into the Partition (the Rust half)"),
 ];
 
 /// The parameters of `ENTRY_PARAMETERS` the record `st` measured, and

@@ -81,7 +81,7 @@ proc-macro2 = { version = "=1.0.107", default-features = false, features = ["spa
 # for the host by every Flight_Build; Trust_Base_Register entries exist for
 # syn, proc-macro2, quote and unicode-ident (they are already in the graph
 # through verus_builtin_macros).
-syn = { version = "=2.0.119", default-features = false, features = ["parsing", "printing", "proc-macro", "clone-impls", "full"] }
+syn = { version = "=2.0.119", default-features = false, features = ["parsing", "printing", "proc-macro", "clone-impls", "full", "derive"] }
 quote = { version = "=1.0.47", default-features = false }
 serde = { version = "=1.0.229", default-features = false, features = ["std", "derive"] }
 serde_json = { version = "=1.0.151", default-features = false, features = ["std"] }
@@ -123,7 +123,7 @@ rsk-kernel = { targets = ["host", "thumbv7em-none-eabihf"], kernel = true, fligh
 rsk-entry = { targets = ["thumbv7em-none-eabihf"], kernel = true, flight = true, unsafe-crate = true }
 rsk = { targets = ["host", "thumbv7em-none-eabihf"], flight = true }
 # Generator front end: compiled for the host by every Flight_Build (PR-36).
-rsk-macros = { targets = ["host"], flight = true }
+rsk-macros = { targets = ["host"], flight = true, unsafe-derive = true }
 rsk-gen = { targets = ["host"] }
 rsk-model = { targets = ["host"] }
 rsk-link = { targets = ["host"] }

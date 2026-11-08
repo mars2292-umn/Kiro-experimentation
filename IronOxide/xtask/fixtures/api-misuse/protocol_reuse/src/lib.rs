@@ -6,14 +6,14 @@
 api_decl::rsk_partition_part0!();
 
 pub fn alpha(cx: rsk_ctx::Alpha) {
-    use rsk_roles::ping_a::State;
+    use rsk_roles::ping_a::{NotSent, State};
     let next = match cx.ping.take(State::Empty) {
         State::S0(a) => {
             let first = a.send_req(1);
             let second = a.send_req(2);
             match (first, second) {
                 (Ok(a1), _) => State::S1(a1),
-                (Err((a0, _)), _) => State::S0(a0),
+                (Err(NotSent::Full(a0)), _) | (Err(NotSent::Refused(a0)), _) | (Err(NotSent::PeerChanged(a0)), _) => State::S0(a0),
             }
         }
         other => other,

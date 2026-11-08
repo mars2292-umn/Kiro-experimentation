@@ -28,6 +28,14 @@ rsk::app! {
         // Per-Task state (PR-25): the demo's counters, read by the safe state.
         state control.count: u32 = 0;
         state control.blocked: u32 = 0;
+        // Tasks 21.2 to 21.4 (the `telemetry` feature of the Partition crates):
+        // the Endpoint counters the QEMU configuration declares.
+        state control.telemetry_full: u32 = 0;
+        state control.pingpong_reps: u32 = 0;
+        state control.pingpong_last: u32 = 0;
+        state control.telemetry_peer: u32 = 0;
+        state control.pingpong_peer: u32 = 0;
+        state control.pingpong_rejected: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
@@ -43,6 +51,9 @@ rsk::app! {
                      mit_threshold = 10) {
         peripherals = [GPIOTE, P0];
         state log.count: u32 = 0;
+        state log.telemetry_rx: u32 = 0;
+        state log.telemetry_last: u32 = 0;
+        state log.pingpong_reqs: u32 = 0;
         state pulse.count: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
@@ -66,4 +77,22 @@ rsk::app! {
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
                       priority = 1, resources = [stats]);
     }
+
+    // Tasks 21.2 to 21.5: the QEMU configuration's Endpoints, Protocol, and
+    // chain on the board: the response configuration's restart of `part1` at 800 ms shows `control` the peer-state error on each (task 21.4, R42.3; the HIL Partition-restart case).
+    endpoint telemetry: u32 { ctl => part0.control validate = crate::validate_rep, sink => part1.log ops = 4 } capacity = 4, payload = 4;
+    protocol PingPong {
+        rec Loop {
+            choice at ctl {
+                Req(u32): ctl -> sink;
+                Rep(u32): sink -> ctl;
+                continue Loop;
+            } or {
+                Stop(): ctl -> sink;
+                end;
+            }
+        }
+    }
+    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log } capacity = 1, payload = 8;
+    chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }

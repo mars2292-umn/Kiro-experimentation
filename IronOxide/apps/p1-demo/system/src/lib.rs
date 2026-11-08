@@ -155,8 +155,10 @@ pub fn report_and_exit() -> ! {
     print_kv(b"filter_state_bits", filter_bits);
     print_kv(b"sampler", g);
     print_kv(b"dma_ok", dma_ok);
-    // Task 21.2: the `telemetry` Endpoint's traffic (the QEMU configuration).
-    #[cfg(feature = "qemu-mps2")]
+    // Task 21.2: the `telemetry` Endpoint's traffic (the configurations
+    // that declare the Endpoints: the QEMU, response, and plain
+    // measurement configurations).
+    #[cfg(feature = "endpoints")]
     {
         print_kv(b"telemetry_rx", p1_demo_part1::rsk_state::LOG_TELEMETRY_RX.peek());
         print_kv(b"telemetry_last", p1_demo_part1::rsk_state::LOG_TELEMETRY_LAST.peek());
@@ -167,6 +169,11 @@ pub fn report_and_exit() -> ! {
         print_kv(b"pingpong_reps", p1_demo_part0::rsk_state::CONTROL_PINGPONG_REPS.peek());
         print_kv(b"pingpong_last", p1_demo_part0::rsk_state::CONTROL_PINGPONG_LAST.peek());
         print_kv(b"pingpong_reqs", p1_demo_part1::rsk_state::LOG_PINGPONG_REQS.peek());
+        // Task 21.4: the rejected reply (R42.4) and the peer-state errors
+        // `control` saw after `part1`'s stop (R42.3).
+        print_kv(b"pingpong_rejected", p1_demo_part0::rsk_state::CONTROL_PINGPONG_REJECTED.peek());
+        print_kv(b"pingpong_peer", p1_demo_part0::rsk_state::CONTROL_PINGPONG_PEER.peek());
+        print_kv(b"telemetry_peer", p1_demo_part0::rsk_state::CONTROL_TELEMETRY_PEER.peek());
         let len = k.log_len();
         let mut violations = 0u32;
         let mut i = 0;
@@ -256,9 +263,15 @@ pub fn report_and_exit() -> ! {
     // Task 21.3 (R41.2): the QEMU configuration's `control` drops its
     // PingPong state in its last Job on purpose: the dropped value and the
     // empty slot are two expected Protocol violations of Task 0; any other
-    // is a fault.
+    // is a fault. Task 21.4 (R42.4, R42.3): `log`'s fifth reply is invalid
+    // on purpose: one rejected message recorded against `log` (Task 3) and
+    // `part1`'s stop (its fault response) are expected, once each.
     #[cfg(feature = "qemu-mps2")]
     let mut expected_violations = 0u32;
+    #[cfg(feature = "qemu-mps2")]
+    let mut expected_rejections = 0u32;
+    #[cfg(feature = "qemu-mps2")]
+    let mut expected_stops = 0u32;
     let mut i = 0;
     'events: while i < len {
         let kind = k.log_kind(i);
@@ -272,6 +285,18 @@ pub fn report_and_exit() -> ! {
         #[cfg(feature = "qemu-mps2")]
         if task == 0 && kind == rsk_kernel::logic::log::EV_PROTOCOL_VIOLATION && expected_violations < 2 {
             expected_violations += 1;
+            i += 1;
+            continue;
+        }
+        #[cfg(feature = "qemu-mps2")]
+        if task == 3 && kind == rsk_kernel::logic::log::EV_MESSAGE_REJECTED && expected_rejections < 1 {
+            expected_rejections += 1;
+            i += 1;
+            continue;
+        }
+        #[cfg(feature = "qemu-mps2")]
+        if kind == rsk_kernel::logic::log::EV_PARTITION_STOP && k.log_partition(i) == 1 && expected_stops < 1 {
+            expected_stops += 1;
             i += 1;
             continue;
         }
@@ -317,8 +342,17 @@ pub fn report_and_exit() -> ! {
     };
     // Task 21.3: the QEMU demo's two injected Protocol violations, and its
     // PingPong rounds (at least four in 200 ms: one round per `log` Job).
+    // Task 21.4: exactly one rejected reply, `part1` stopped for it, and
+    // the peer-state error seen once on each Endpoint afterwards.
     #[cfg(feature = "qemu-mps2")]
-    let protocol_ok = expected_violations == 2 && p1_demo_part0::rsk_state::CONTROL_PINGPONG_REPS.peek() >= 4 && p1_demo_part1::rsk_state::LOG_PINGPONG_REQS.peek() >= 4;
+    let protocol_ok = expected_violations == 2
+        && p1_demo_part0::rsk_state::CONTROL_PINGPONG_REPS.peek() >= 4
+        && p1_demo_part1::rsk_state::LOG_PINGPONG_REQS.peek() >= 5
+        && expected_rejections == 1
+        && expected_stops == 1
+        && p1_demo_part0::rsk_state::CONTROL_PINGPONG_REJECTED.peek() == 1
+        && p1_demo_part0::rsk_state::CONTROL_PINGPONG_PEER.peek() == 1
+        && p1_demo_part0::rsk_state::CONTROL_TELEMETRY_PEER.peek() == 1;
     #[cfg(not(feature = "qemu-mps2"))]
     let protocol_ok = true;
     #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu")))]

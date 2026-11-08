@@ -18,6 +18,15 @@
 //! The `State` enum is `#[repr(u8)]` with the initial state as variant 0 and
 //! its value's only field a `false` flag, so that the zeroed image a
 //! Partition restart leaves (R14.10) is the initial state.
+//!
+//! Task 21.4: a peer-state change (R42.3, the other Partition's stop or
+//! restart) comes back from the next operation as `PeerChanged` carrying
+//! the role in its initial state, both roles starting over; a received
+//! payload the role's declared validation function rejects (R42.4) is
+//! reported as the sending Partition's fault and comes back as `Rejected`
+//! with the state unchanged. The module compiles under the App_Prover
+//! (`cfg(creusot)`) but for the `Drop` report, so that its code is proven
+//! with the Task bodies against `rsk`'s trusted Kernel glue.
 
 use std::fmt::Write;
 
@@ -131,7 +140,7 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let _ = writeln!(s, "        pub const W: usize = {words};");
     let _ = writeln!(s, "        pub const PW: usize = {payload_words};");
     let _ = writeln!(s, "        type Raw = ::rsk::Endpoint<[u32; W], W>;");
-    let _ = writeln!(s, "        const RAW: Raw = ::rsk::Endpoint::new(ID, ROLE);");
+    let _ = writeln!(s, "        fn raw() -> Raw {{ ::rsk::Endpoint::new(ID, ROLE) }}");
     for (i, l) in e.labels.iter().enumerate() {
         let _ = writeln!(s, "        pub const LABEL_{}: u32 = {i};", l.to_uppercase());
     }
@@ -155,6 +164,7 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let _ = writeln!(s, "        /// The role in state `S`: its only operations are those the projection permits there (R38.4).");
     let _ = writeln!(s, "        #[repr(C)]");
     let _ = writeln!(s, "        pub struct {ty}<S: Tag> {{ consumed: bool, _s: PhantomData<S> }}");
+    let _ = writeln!(s, "        #[cfg(not(creusot))]");
     let _ = writeln!(s, "        impl<S: Tag> Drop for {ty}<S> {{");
     let _ = writeln!(s, "            fn drop(&mut self) {{");
     let _ = writeln!(s, "                if S::REPORT_ON_DROP && !self.consumed {{");
@@ -166,6 +176,10 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let _ = writeln!(s, "            const fn fresh() -> {ty}<S> {{ {ty} {{ consumed: false, _s: PhantomData }} }}");
     let _ = writeln!(s, "            fn advance<T: Tag>(mut self) -> {ty}<T> {{ self.consumed = true; {ty}::<T>::fresh() }}");
     let _ = writeln!(s, "        }}");
+    let _ = writeln!(s, "        /// Why a send did not take the message, with the role: `Full` (a reported violation of the bound, R40.5) and `Refused` keep the state; `PeerChanged` (R42.3, task 21.4: the other Partition was stopped or restarted and the Endpoint re-initialized) gives the role back in its initial state.");
+    let _ = writeln!(s, "        pub enum NotSent<S: Tag> {{ Full({ty}<S>), Refused({ty}<S>), PeerChanged({ty}<S0>) }}");
+    let _ = writeln!(s, "        /// Why a receive delivered nothing, with the role: `Empty` (R40.4), `Unexpected` (a label the state does not expect, a reported Protocol violation, R41.2), and `Rejected` (a payload the role's validation function refused, the sending Partition's reported fault, R42.4) keep the state; `PeerChanged` (R42.3) gives the role back in its initial state.");
+    let _ = writeln!(s, "        pub enum NotReceived<S: Tag> {{ Empty({ty}<S>), Unexpected({ty}<S>), Rejected({ty}<S>), PeerChanged({ty}<S0>) }}");
     for (i, st) in sts.iter().enumerate() {
         match &st.kind {
             Kind::End => {
@@ -180,22 +194,29 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                     let fname = format!("send_{}", label.to_lowercase());
                     match payload {
                         Some(p) => {
-                            let _ = writeln!(s, "            /// Sends `{label}({p})` to `{to}` and moves to S{next}; `Err` gives the state back with the reason (a full channel is a reported violation of the bound, R40.5). Never waits (R40.4).");
-                            let _ = writeln!(s, "            pub fn {fname}(self, m: {p}) -> Result<{ty}<S{next}>, ({ty}<S{i}>, ::rsk::SendError)> {{");
+                            let _ = writeln!(s, "            /// Sends `{label}({p})` to `{to}` and moves to S{next}; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).");
+                            let _ = writeln!(s, "            pub fn {fname}(self, m: {p}) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
                             let _ = writeln!(s, "                let mut w = [0u32; W];");
                             let _ = writeln!(s, "                w[0] = LABEL_{};", label.to_uppercase());
                             let _ = writeln!(s, "                let p = ::rsk::words::message_to_words::<{p}, PW>(&m);");
-                            let _ = writeln!(s, "                let mut i = 0;");
+                            let _ = writeln!(s, "                let mut i: usize = 0;");
+                            let _ = writeln!(s, "                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]");
+                            let _ = writeln!(s, "                #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]");
                             let _ = writeln!(s, "                while i < PW {{ w[i + 1] = p.0[i]; i += 1; }}");
                         }
                         None => {
-                            let _ = writeln!(s, "            /// Sends `{label}()` to `{to}` and moves to S{next}; `Err` gives the state back with the reason. Never waits (R40.4).");
-                            let _ = writeln!(s, "            pub fn {fname}(self) -> Result<{ty}<S{next}>, ({ty}<S{i}>, ::rsk::SendError)> {{");
+                            let _ = writeln!(s, "            /// Sends `{label}()` to `{to}` and moves to S{next}; `Err` gives the role back with the reason. Never waits (R40.4).");
+                            let _ = writeln!(s, "            pub fn {fname}(self) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
                             let _ = writeln!(s, "                let mut w = [0u32; W];");
                             let _ = writeln!(s, "                w[0] = LABEL_{};", label.to_uppercase());
                         }
                     }
-                    let _ = writeln!(s, "                match RAW.send(&w) {{ Ok(()) => Ok(self.advance()), Err(e) => Err((self, e)) }}");
+                    let _ = writeln!(s, "                match raw().send(&w) {{");
+                    let _ = writeln!(s, "                    Ok(()) => Ok(self.advance()),");
+                    let _ = writeln!(s, "                    Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),");
+                    let _ = writeln!(s, "                    Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),");
+                    let _ = writeln!(s, "                    Err(::rsk::SendError::PeerChanged) => Err(NotSent::PeerChanged(self.advance::<S0>())),");
+                    let _ = writeln!(s, "                }}");
                     let _ = writeln!(s, "            }}");
                 }
                 let _ = writeln!(s, "        }}");
@@ -215,26 +236,40 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                 }
                 let _ = writeln!(s, "        }}");
                 let _ = writeln!(s, "        impl {ty}<S{i}> {{");
-                let _ = writeln!(s, "            /// Receives the next message from `{from}`, or `Err(self)` when none has arrived (R40.4). A label the state does not expect is a reported Protocol violation and leaves the state as it is (R41.2).");
-                let _ = writeln!(s, "            pub fn try_recv(self) -> Result<RecvS{i}, {ty}<S{i}>> {{");
-                let _ = writeln!(s, "                match RAW.recv() {{");
-                let _ = writeln!(s, "                    None => Err(self),");
-                let _ = writeln!(s, "                    Some(w) => {{");
-                let _ = writeln!(s, "                        let mut p = ::rsk::words::Words::<PW>::zero();");
-                let _ = writeln!(s, "                        let mut i = 0;");
+                let _ = writeln!(s, "            /// Receives the next message from `{from}`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).");
+                let _ = writeln!(s, "            pub fn try_recv(self) -> Result<RecvS{i}, NotReceived<S{i}>> {{");
+                let _ = writeln!(s, "                match raw().recv() {{");
+                let _ = writeln!(s, "                    Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),");
+                let _ = writeln!(s, "                    Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),");
+                let _ = writeln!(s, "                    Ok(Some(w)) => {{");
+                let _ = writeln!(s, "                        let mut p = ::rsk::words::zero::<PW>();");
+                let _ = writeln!(s, "                        let mut i: usize = 0;");
+                let _ = writeln!(s, "                        #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]");
+                let _ = writeln!(s, "                        #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]");
                 let _ = writeln!(s, "                        while i < PW {{ p.0[i] = w[i + 1]; i += 1; }}");
                 let _ = writeln!(s, "                        match w[0] {{");
                 for (label, payload, next) in branches {
                     match payload {
                         Some(p) => {
-                            let _ = writeln!(s, "                            LABEL_{} => Ok(RecvS{i}::{label}(::rsk::words::message_from_words::<{p}, PW>(&p), self.advance::<S{next}>())),", label.to_uppercase());
+                            let validator = e.validators.get(ri).and_then(|v| v.iter().find(|(l, _)| l.as_deref() == Some(label.as_str()))).map(|(_, f)| f.clone());
+                            let _ = writeln!(s, "                            LABEL_{} => {{", label.to_uppercase());
+                            let _ = writeln!(s, "                                let v = ::rsk::words::message_from_words::<{p}, PW>(&p);");
+                            if let Some(f) = validator {
+                                let _ = writeln!(s, "                                // R42.4: the declared validation function of `{label}`.");
+                                let _ = writeln!(s, "                                if !{f}(&v) {{");
+                                let _ = writeln!(s, "                                    ::rsk::report_rejected_message(ID, ROLE);");
+                                let _ = writeln!(s, "                                    return Err(NotReceived::Rejected(self));");
+                                let _ = writeln!(s, "                                }}");
+                            }
+                            let _ = writeln!(s, "                                Ok(RecvS{i}::{label}(v, self.advance::<S{next}>()))");
+                            let _ = writeln!(s, "                            }}");
                         }
                         None => {
                             let _ = writeln!(s, "                            LABEL_{} => Ok(RecvS{i}::{label}(self.advance::<S{next}>())),", label.to_uppercase());
                         }
                     }
                 }
-                let _ = writeln!(s, "                            _ => {{ ::rsk::report_protocol_violation(); Err(self) }}");
+                let _ = writeln!(s, "                            _ => {{ ::rsk::report_protocol_violation(); Err(NotReceived::Unexpected(self)) }}");
                 let _ = writeln!(s, "                        }}");
                 let _ = writeln!(s, "                    }}");
                 let _ = writeln!(s, "                }}");
@@ -253,7 +288,8 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let _ = writeln!(s, "            Empty = {},", sts.len());
     let _ = writeln!(s, "        }}");
     let _ = writeln!(s, "        impl State {{");
-    let _ = writeln!(s, "            pub const INITIAL: State = State::S0({ty}::<S0>::fresh());");
+    let _ = writeln!(s, "            /// The initial state, the slot's initializer (a `const fn`, not a `const` item: the App_Prover would make the item transparent and refuse the private constructor it calls).");
+    let _ = writeln!(s, "            pub const fn initial() -> State {{ State::S0({ty}::<S0>::fresh()) }}");
     let _ = writeln!(s, "            pub fn is_empty(&self) -> bool {{ matches!(self, State::Empty) }}");
     let _ = writeln!(s, "        }}");
     for i in 0..sts.len() {

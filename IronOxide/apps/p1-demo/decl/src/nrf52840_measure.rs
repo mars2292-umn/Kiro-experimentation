@@ -23,6 +23,14 @@ rsk::app! {
         // Per-Task state (PR-25): the demo's counters, read by the safe state.
         state control.count: u32 = 0;
         state control.blocked: u32 = 0;
+        // Tasks 21.2 to 21.4 (the `telemetry` feature of the Partition crates):
+        // the Endpoint counters the QEMU configuration declares.
+        state control.telemetry_full: u32 = 0;
+        state control.pingpong_reps: u32 = 0;
+        state control.pingpong_last: u32 = 0;
+        state control.telemetry_peer: u32 = 0;
+        state control.pingpong_peer: u32 = 0;
+        state control.pingpong_rejected: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         // The measurement build (task 19.2, R34.9, R35.4; the Partition crates'
@@ -44,6 +52,9 @@ rsk::app! {
                      mit_threshold = 10) {
         peripherals = [GPIOTE, P0];
         state log.count: u32 = 0;
+        state log.telemetry_rx: u32 = 0;
+        state log.telemetry_last: u32 = 0;
+        state log.pingpong_reqs: u32 = 0;
         state pulse.count: u32 = 0;
         state log.loop_spin: u32 = 0;
         state log.loop_busy: u32 = 0;
@@ -85,4 +96,22 @@ rsk::app! {
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 600.us(),
                       priority = 1, resources = [stats]);
     }
+
+    // Tasks 21.2 to 21.5: the QEMU configuration's Endpoints, Protocol, and
+    // chain on the board: the measurement configuration measures Δ_send and Δ_recv on them (task 21.5, R40.2) and the span record their masking.
+    endpoint telemetry: u32 { ctl => part0.control validate = crate::validate_rep, sink => part1.log ops = 4 } capacity = 4, payload = 4;
+    protocol PingPong {
+        rec Loop {
+            choice at ctl {
+                Req(u32): ctl -> sink;
+                Rep(u32): sink -> ctl;
+                continue Loop;
+            } or {
+                Stop(): ctl -> sink;
+                end;
+            }
+        }
+    }
+    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log } capacity = 1, payload = 8;
+    chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }

@@ -497,7 +497,118 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                 }
             }
         }
+        // Task 21.4 (R42.4): a role that receives messages from a Partition
+        // of lower Criticality_Level declares a validation function for
+        // each message type it receives (the plain payload, or each Protocol
+        // label it receives that carries a payload); a declared function
+        // names a message the role receives. Task 21.5 (R40.2): `ops`.
+        if e.roles.len() == 2 {
+            let level_of = |r: &crate::decl::RoleDecl| decl.partitions.iter().find(|p| p.name == r.partition).map(|p| p.level.code());
+            let received: Vec<Vec<Option<String>>> = match &e.protocol {
+                None => vec![vec![None], vec![None]],
+                Some(pname) => {
+                    let roles: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
+                    match decl.protocols.iter().find(|p| &p.name == pname).and_then(|p| rsk_protocol::check_protocol(&p.text, &roles, e.capacity).ok()) {
+                        Some(checked) => e
+                            .roles
+                            .iter()
+                            .map(|r| {
+                                let mut out = Vec::new();
+                                if let Some((_, local)) = checked.locals.iter().find(|(n, _)| n == &r.role) {
+                                    received_labels(local, &mut out);
+                                }
+                                out.sort();
+                                out.dedup();
+                                out.into_iter().map(Some).collect()
+                            })
+                            .collect(),
+                        None => vec![Vec::new(), Vec::new()],
+                    }
+                }
+            };
+            for (ri, r) in e.roles.iter().enumerate() {
+                let other = &e.roles[1 - ri];
+                let upward = r.partition != other.partition && matches!((level_of(r), level_of(other)), (Some(mine), Some(theirs)) if mine < theirs);
+                if upward {
+                    for label in &received[ri] {
+                        if !r.validate.iter().any(|(l, _)| l == label) {
+                            let what = match label {
+                                None => format!("the payload `{}`", e.ty),
+                                Some(l) => format!("label `{l}`"),
+                            };
+                            d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` (`{}.{}`, level {}) receives {what} from `{}.{}` of lower Criticality_Level {} and declares no validation function for it (`validate = ..`)", r.role, e.name, r.partition, r.task, decl.partitions.iter().find(|p| p.name == r.partition).map(|p| p.level.name()).unwrap_or("?"), other.partition, other.task, decl.partitions.iter().find(|p| p.name == other.partition).map(|p| p.level.name()).unwrap_or("?"))));
+                        }
+                    }
+                }
+                let mut seen = BTreeSet::new();
+                for (label, path) in &r.validate {
+                    if !seen.insert(label.clone()) {
+                        d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` declares two validation functions for {}", r.role, e.name, label.as_deref().unwrap_or("the payload"))));
+                    }
+                    match (label, &e.protocol) {
+                        (Some(l), None) => d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` validates label `{l}`, but the Endpoint has no Protocol: `validate = {path}` validates the payload", r.role, e.name))),
+                        (None, Some(_)) => d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` validates the payload, but the Endpoint has a Protocol: `validate = {{ LABEL = {path} }}` names the label", r.role, e.name))),
+                        (Some(l), Some(_)) if !received[ri].contains(&Some(l.clone())) => d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` validates label `{l}`, which it does not receive with a payload", r.role, e.name))),
+                        _ => {}
+                    }
+                }
+                if r.ops == 0 || r.ops > 255 {
+                    d.push(Diagnostic::new("PR-14", eref(), format!("role `{}` of Endpoint `{}` declares ops = {}; 1 to 255 operations per Job", r.role, e.name, r.ops)));
+                }
+            }
+        }
         storage_bytes += 2 * e.capacity as u64 * e.payload as u64;
+    }
+    // Chains (task 21.5; R41.4): unique names, at least two Tasks, each a
+    // declared Task, each consecutive pair the two roles of one Endpoint;
+    // a Sporadic_Task after the first is released by that Endpoint's role
+    // (any other Release_Source would leave its latency unbounded by the
+    // chain), and no hop into a `discard` policy (a discarded arrival
+    // leaves the message waiting for a Release the chain does not bound).
+    let mut chain_names = BTreeSet::new();
+    for c in &decl.chains {
+        let cref = || ItemRef::Chain(c.name.clone());
+        if !chain_names.insert(c.name.as_str()) {
+            d.push(Diagnostic::new("PR-28", cref(), format!("chain `{}` is declared twice", c.name)));
+        }
+        if c.tasks.len() < 2 {
+            d.push(Diagnostic::new("R41.4", cref(), format!("chain `{}` names {} Task(s); a chain is at least two Tasks connected by Endpoints", c.name, c.tasks.len())));
+        }
+        let task_of = |pt: &(String, String)| decl.partitions.iter().find(|p| p.name == pt.0).and_then(|p| p.tasks.iter().find(|t| t.name == pt.1));
+        for (i, pt) in c.tasks.iter().enumerate() {
+            let Some(t) = task_of(pt) else {
+                d.push(Diagnostic::new("R22.5", cref(), format!("chain `{}` names `{}.{}`, which is no declared Task", c.name, pt.0, pt.1)));
+                continue;
+            };
+            if i == 0 {
+                continue;
+            }
+            let prev = &c.tasks[i - 1];
+            let link = decl.endpoints.iter().find(|e| {
+                e.roles.len() == 2
+                    && e.roles.iter().any(|r| r.partition == prev.0 && r.task == prev.1)
+                    && e.roles.iter().any(|r| r.partition == pt.0 && r.task == pt.1)
+            });
+            match link {
+                None => d.push(Diagnostic::new("R41.4", cref(), format!("chain `{}`: no Endpoint connects `{}.{}` to `{}.{}`", c.name, prev.0, prev.1, pt.0, pt.1))),
+                Some(e) => {
+                    if let Release::Sporadic { source, policy, .. } = &t.release {
+                        let role = e.roles.iter().find(|r| r.partition == pt.0 && r.task == pt.1).map(|r| r.role.clone()).unwrap_or_default();
+                        match source {
+                            Source::Endpoint(name) if name == &e.name => {
+                                if *policy == crate::decl::MitPolicy::Discard {
+                                    d.push(Diagnostic::new("R41.4", cref(), format!("chain `{}`: `{}.{}` discards arrivals inside its MIT (`mit_policy = discard`), so a message may wait for a Release the chain cannot bound; declare `defer`", c.name, pt.0, pt.1)));
+                                }
+                            }
+                            _ => d.push(Diagnostic::new("R41.4", cref(), format!("chain `{}`: the Sporadic_Task `{}.{}` is not released by its role `{role}` of Endpoint `{}` (`endpoint = {}`), so the chain does not bound when it reads the message", c.name, pt.0, pt.1, e.name, e.name))),
+                        }
+                    }
+                }
+            }
+        }
+        if c.deadline.value == 0 {
+            d.push(Diagnostic::new("R41.4", cref(), format!("chain `{}` declares a zero deadline", c.name)));
+        }
     }
     // Protocols (task 21.1): unique names; one bound to no Endpoint is a
     // declaration error, like a Resource with no accessor (R22.5).
@@ -536,5 +647,27 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
         Ok(target)
     } else {
         Err(d)
+    }
+}
+
+/// The labels a role's local type receives with a payload (task 21.4).
+fn received_labels(l: &rsk_protocol::Local, out: &mut Vec<String>) {
+    use rsk_protocol::Local;
+    match l {
+        Local::End | Local::Continue(_) => {}
+        Local::Rec { body, .. } => received_labels(body, out),
+        Local::Send { branches, .. } => {
+            for b in branches {
+                received_labels(&b.cont, out);
+            }
+        }
+        Local::Recv { branches, .. } => {
+            for b in branches {
+                if b.payload.is_some() {
+                    out.push(b.label.clone());
+                }
+                received_labels(&b.cont, out);
+            }
+        }
     }
 }

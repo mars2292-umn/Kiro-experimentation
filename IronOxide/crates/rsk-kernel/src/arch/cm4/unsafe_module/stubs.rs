@@ -423,13 +423,15 @@ pub fn svc_recv(arg: u32, ptr: u32, len: u32) -> u32 {
     out
 }
 
-/// The Protocol-violation report SVC (task 21.3; R41.2): recorded against
-/// the executing Task, no response.
+/// The Endpoint_Library's report SVC (tasks 21.3 and 21.4): `arg` 0 is a
+/// Protocol violation of the executing Task (R41.2), recorded with no
+/// response; `1 | endpoint << 8 | role << 16` a message the role received
+/// and rejected (R42.4), a fault of the sending Partition.
 #[inline(always)]
 #[cfg_attr(feature = "coverage", coverage(off))]
-pub fn svc_violation() {
-    // SAFETY (UJ-038a): as UJ-038; no argument, no result read.
-    unsafe { core::arch::asm!("svc #10", out("r0") _, options(nostack)) };
+pub fn svc_violation(arg: u32) {
+    // SAFETY (UJ-038a): as UJ-038; r0 in, no result read.
+    unsafe { core::arch::asm!("svc #10", inout("r0") arg => _, options(nostack)) };
 }
 
 /// The panic SVC of unprivileged Jobs (PR-19).

@@ -2883,6 +2883,38 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
     }
 
+    /// R42.4 (task 21.4): a fault attributed to Task `t`'s Partition by a
+    /// Job of another Partition: the receiver of a message `t` sent whose
+    /// validation function rejected it. The event is recorded against `t`
+    /// and `t`'s Partition receives its declared fault response, whether
+    /// or not one of its Jobs is executing (an END_JOB response with no
+    /// executing Job of `t` escalates to the restart, as R18.4 has it for
+    /// a Job holding a Resource). The executing Job's Partition is left as
+    /// R14.9 requires unless it is `t`'s own.
+    pub fn fault_of(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, t: u8)
+        requires old(self).inv(cfg), (t as int) < NT,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+            final(self).response_applied(old(self), cfg,
+                cfg.tasks[t as int].partition as int,
+                cfg.partitions[cfg.tasks[t as int].partition as int].fault_response,
+                t as int),
+            final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
+    {
+        let prs = fault_prs(kind);
+        proof {
+            assert(cfg.task_ok(t as int));
+        }
+        let partition = cfg.tasks[t as usize].partition;
+        self.push_event(cfg, kind, t, partition, prs, 0);
+        let ghost mid = *self;
+        let response = cfg.partitions[partition as usize].fault_response;
+        self.apply_response(cfg, partition, response, kind, t);
+        proof {
+            self.lemma_same_but_log(&mid, old(self), cfg, partition as int, response, t as int);
+            self.lemma_response_keeps_timing(&mid, cfg, partition as int, response, t as int);
+        }
+    }
+
     /// DD-10, R14.5: applies one response of the closed sets.
     fn apply_response(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, response: u8, cause: u8, t: u8)
         requires old(self).inv(cfg), (partition as int) < NP, (t as int) < NT,

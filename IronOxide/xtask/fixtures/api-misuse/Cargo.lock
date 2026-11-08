@@ -42,6 +42,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_plain_enum"
+version = "0.1.0"
+dependencies = [
+ "api_decl",
+ "rsk",
+]
+
+[[package]]
+name = "api_plain_fields"
+version = "0.1.0"
+dependencies = [
+ "api_decl",
+ "rsk",
+]
+
+[[package]]
 name = "api_protocol_reuse"
 version = "0.1.0"
 dependencies = [

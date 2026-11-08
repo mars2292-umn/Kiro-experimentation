@@ -6,7 +6,7 @@
 
 use rsk_analyzer::inputs::{self, AnalysedTask, Options};
 use rsk_analyzer::rta::{self, Outcome, Term};
-use rsk_analyzer::{analyze, load, placeholders, response_times, EXIT_FAIL, EXIT_PASS, EXIT_REJECTED};
+use rsk_analyzer::{analyze, load, placeholders, report, response_times, EXIT_FAIL, EXIT_PASS, EXIT_REJECTED};
 use rsk_model::report::Inputs;
 use rsk_model::task_model::TaskModel;
 use rsk_model::{KernelTiming, WcetRecord, WcetSet};
@@ -232,6 +232,10 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         stops_overruns: false,
         sporadic: false,
         longest_cs: 0,
+        endpoint_cost: 0,
+        source_interrupt: false,
+        source_endpoint: None,
+        defer: false,
         wcet_provenance: vec![],
         wcet: c,
     }
@@ -350,13 +354,18 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     // Placeholders: every Δ is 300 cycles. control: release + dispatch +
     // complete + wake (1,200), three timed events (900), two Critical_Section
     // sites' lock in + out (1,200), Δ_hm (300), FP save + restore because the
-    // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,500.
-    assert_eq!(by("part0.control").o, 4_500);
-    // echo (sporadic, deferral policy, no Critical_Section): the same
-    // without the lock terms plus Δ_irq and Δ_stamp: 3,900.
+    // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,500; plus,
+    // since task 21.5 (R40.2), its two Endpoint roles' one operation per
+    // Job each at max(Δ_send, Δ_recv) (600): 5,100.
+    assert_eq!(by("part0.control").o, 5_100);
+    // echo (sporadic, deferral policy, no Critical_Section, no Endpoint):
+    // the same without the lock and Endpoint terms plus Δ_irq and Δ_stamp:
+    // 3,900.
     assert_eq!(by("part0.echo").o, 3_900);
-    // log (periodic, no Critical_Section): 3,300.
-    assert_eq!(by("part1.log").o, 3_300);
+    // log (periodic, no Critical_Section): 3,300, plus its roles' declared
+    // operations (`telemetry` sink `ops = 4`, `pingpong` sink 1: 1,500):
+    // 4,800.
+    assert_eq!(by("part1.log").o, 4_800);
     // J is J_rel for every Task (Table 13-1).
     assert!(p.tasks.iter().all(|x| x.j == 500));
 }
@@ -371,10 +380,13 @@ fn r29_4_interference_bounds_depend_on_the_partition_overrun_response() {
     let control = by("part0.control");
     assert!(!control.stops_overruns);
     assert_eq!(control.e, control.c + control.o);
-    // part1 END_JOB: E = Budget + Δ_detect + Δ_enforce + L_j + O (L_j = 0: no Critical_Section).
+    // part1 END_JOB: E = Budget + Δ_detect + Δ_enforce + L_j + O (L_j = 300:
+    // no Resource Critical_Section, but since task 21.5 its Endpoint
+    // operations are Critical_Sections of Δ_send and Δ_recv, R40.2).
     let log = by("part1.log");
     assert!(log.stops_overruns);
-    assert_eq!(log.e, log.c + 300 + 300 + 0 + log.o);
+    assert_eq!(log.longest_cs, 300);
+    assert_eq!(log.e, log.c + 300 + 300 + 300 + log.o);
 }
 
 #[test]
@@ -619,3 +631,139 @@ fn task_19_1_a_measured_critical_section_record_replaces_the_placeholder_blockin
     assert_rejects(&r, "R28.3", "sha256:elsewhere");
 }
 
+// ------------------------------------------------------------- R40.2, R41.4 (task 21.5)
+
+/// R40.2: an Endpoint operation is a Critical_Section at the Kernel level
+/// in the blocking term of every higher Task, costing its WCET whatever the
+/// holder's Partition does with Overruns (the operation runs to its end
+/// inside the SVC, R40.6), while a Resource site of a stopping Partition
+/// costs Budget + Δ_detect + Δ_enforce; the declared operations per Job are
+/// charged in O_i and cost no lock entry and exit.
+#[test]
+fn r40_2_endpoint_operations_are_kernel_level_critical_sections() {
+    use rsk_analyzer::terms::{blocking, overhead, site_stats, Params, Site, TaskIn};
+    let p = Params { release: 1, dispatch: 1, complete: 1, wake: 1, timer: 1, fp_save: 0, fp_restore: 0, lock_in: 10, lock_out: 10, detect: 100, enforce: 100, hm: 1, irq: 1, stamp: 1, entry: 1, l_kernel: 1_000, j_rel: 0, restart: 0, stop: 0, send: 3_000, recv: 2_500 };
+    let lo = TaskIn { priority: 2, partition: 1, budget: 50_000, stops_overruns: true, periodic: true, defer: false, endpoint_cost: 4 * 3_000 };
+    let hi = TaskIn { priority: 7, partition: 0, budget: 1_000, stops_overruns: false, periodic: true, defer: false, endpoint_cost: 0 };
+    let tasks = vec![lo, hi];
+    // The send of `lo`'s role blocks `hi` by Δ_send, above the Kernel floor.
+    let sites = vec![Site { task: 0, ceiling: u8::MAX, wcet: p.send, endpoint: true }, Site { task: 0, ceiling: u8::MAX, wcet: p.recv, endpoint: true }];
+    let b = blocking(&tasks, &sites, 1, p).unwrap();
+    assert_eq!((b.b, b.site), (3_000, Some(0)));
+    // A Resource site of the same Task, in another Partition that stops
+    // overrunning Jobs, costs the Budget rule instead.
+    let sites = vec![Site { task: 0, ceiling: 7, wcet: 3_000, endpoint: false }];
+    let b = blocking(&tasks, &sites, 1, p).unwrap();
+    assert_eq!((b.b, b.site), (50_200, Some(0)));
+    // Sites: the Endpoint ones count for L_i, not for the lock cost of O_i;
+    // the operations per Job are in O_i.
+    let sites = vec![Site { task: 0, ceiling: u8::MAX, wcet: 3_000, endpoint: true }, Site { task: 0, ceiling: 7, wcet: 2_000, endpoint: false }];
+    let st = site_stats(&sites, 0);
+    assert_eq!((st.count, st.longest), (1, 3_000));
+    let with = overhead(lo, p, st.count, false).unwrap();
+    let without = overhead(TaskIn { endpoint_cost: 0, ..lo }, p, st.count, false).unwrap();
+    assert_eq!(with - without, 4 * 3_000);
+    assert_eq!(without - overhead(TaskIn { endpoint_cost: 0, ..lo }, p, 0, false).unwrap(), 20, "one lock entry and exit per Resource site");
+}
+
+/// R40.2 on the demo: `log` (role `sink` of `telemetry`, `ops = 4`, and of
+/// `pingpong`) carries 4 + 1 operations × max(Δ_send, Δ_recv) in O_i, and
+/// the sites appear in the blocking provenance when they determine B_i.
+#[test]
+fn r40_2_the_demo_charges_the_declared_operations_per_job() {
+    let m = model();
+    let (w, mut t) = placeholders::make(&m, HASH, "off");
+    let op = |t: &KernelTiming, s: &str| t.parameters.iter().find(|p| p.symbol == s).unwrap().cycles;
+    let base = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap().tasks;
+    let log = base.iter().find(|x| x.id == "part1.log").unwrap();
+    assert_eq!(log.endpoint_cost, 5 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    let control = base.iter().find(|x| x.id == "part0.control").unwrap();
+    assert_eq!(control.endpoint_cost, 2 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    assert!(base.iter().filter(|x| x.id == "part0.echo" || x.id == "part1.pulse").all(|x| x.endpoint_cost == 0));
+    // A Δ_send above the Kernel floor becomes the blocking term of every
+    // Task above `log`, named as the site.
+    for p in &mut t.parameters {
+        if p.symbol == "delta_send" {
+            p.cycles = 1_000_000;
+        }
+    }
+    let heavy = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap().tasks;
+    let sensor = heavy.iter().find(|x| x.id == "part0.sensor").unwrap();
+    assert_eq!(sensor.b, 1_000_000);
+    assert!(sensor.b_source.contains("part1.log:endpoint:") && sensor.b_source.contains(":send"), "{}", sensor.b_source);
+}
+
+/// R41.4: the end-to-end bound of the demo's chain is R_control + T_log +
+/// R_log (a Periodic_Task samples the Endpoint once per period), PASS
+/// within its deadline; a chain into a Sporadic_Task released by the hop's
+/// Endpoint adds its MIT under `defer` and has no bound under `discard` or
+/// under another Release_Source; a chain that starts at an interrupt event
+/// adds Δ_stamp; a hand-edited chain the model's Endpoints do not connect
+/// is rejected naming R41.4.
+#[test]
+fn r41_4_chain_bounds_follow_the_hops() {
+    let m = model();
+    let (w, t) = placeholders::make(&m, HASH, "off");
+    let a = analyze(&m, &w, &t, &manifest(&m), names(), &dev());
+    assert_eq!(a.exit, EXIT_PASS);
+    let c = a.report.chains.iter().find(|c| c.id == "telemetry_path").expect("the demo declares the chain");
+    let r = |id: &str| a.report.tasks.iter().find(|x| x.id == id).unwrap();
+    let t_log = r("part1.log").period_cycles;
+    assert_eq!(c.bound_cycles, r("part0.control").r_cycles + t_log + r("part1.log").r_cycles);
+    assert_eq!((c.result.as_str(), c.tasks.as_slice()), ("PASS", &["part0.control".to_string(), "part1.log".to_string()][..]));
+    assert!(c.bound_cycles <= c.deadline_cycles);
+    assert!(report::render_text(&a.report).contains("End-to-end chains (R41.4)"));
+
+    // A hand-edited model: `log` becomes a Sporadic_Task released by its
+    // `telemetry` role (MIT 40 ms, `defer`): the bound is R_control + MIT +
+    // R_log; under `discard` no bound.
+    let sporadic_log = |policy: &str, source: serde_json::Value| -> TaskModel {
+        let mut v = serde_json::to_value(&m).unwrap();
+        let task = v["tasks"].as_array_mut().unwrap().iter_mut().find(|x| x["id"] == "part1.log").unwrap();
+        let obj = task.as_object_mut().unwrap();
+        obj.insert("kind".into(), "sporadic".into());
+        obj.remove("offset_ticks");
+        let period = obj.remove("period_ticks").unwrap();
+        obj.insert("mit_ticks".into(), period);
+        obj.insert("mit_policy".into(), policy.into());
+        obj.insert("source".into(), source);
+        serde_json::from_value(v).unwrap()
+    };
+    let m2 = sporadic_log("defer", serde_json::json!({"endpoint": "telemetry", "role": "sink"}));
+    let a2 = analyze(&m2, &w, &t, &manifest(&m2), names(), &dev());
+    let c2 = a2.report.chains.iter().find(|c| c.id == "telemetry_path").unwrap();
+    let r2 = |id: &str| a2.report.tasks.iter().find(|x| x.id == id).unwrap();
+    assert_eq!(c2.bound_cycles, r2("part0.control").r_cycles + t_log + r2("part1.log").r_cycles);
+    assert!(c2.terms.iter().any(|x| x.contains("MIT of `part1.log`")), "{:?}", c2.terms);
+    let m3 = sporadic_log("discard", serde_json::json!({"endpoint": "telemetry", "role": "sink"}));
+    let a3 = analyze(&m3, &w, &t, &manifest(&m3), names(), &dev());
+    let c3 = a3.report.chains.iter().find(|c| c.id == "telemetry_path").unwrap();
+    assert_eq!((c3.result.as_str(), c3.bound_cycles, a3.exit), ("UNBOUNDED", u64::MAX, EXIT_FAIL));
+    let m4 = sporadic_log("defer", serde_json::json!({"signal": "tick"}));
+    let a4 = analyze(&m4, &w, &t, &manifest(&m4), names(), &dev());
+    let c4 = a4.report.chains.iter().find(|c| c.id == "telemetry_path").unwrap();
+    assert_eq!(c4.result, "UNBOUNDED");
+    assert!(c4.terms.iter().any(|x| x.contains("not released by its role")), "{:?}", c4.terms);
+
+    // A chain that starts at an interrupt event: `pulse` (released by the
+    // dual timer) in `control`'s place on the `telemetry` Endpoint.
+    let mut v = serde_json::to_value(&m).unwrap();
+    v["endpoints"][0]["roles"][0]["task"] = "part1.pulse".into();
+    v["chains"][0]["hops"][0]["from"] = "part1.pulse".into();
+    let m5: TaskModel = serde_json::from_value(v).unwrap();
+    let a5 = analyze(&m5, &w, &t, &manifest(&m5), names(), &dev());
+    let c5 = a5.report.chains.iter().find(|c| c.id == "telemetry_path").unwrap();
+    let stamp = t.parameters.iter().find(|p| p.symbol == "delta_stamp").unwrap().cycles;
+    let r5 = |id: &str| a5.report.tasks.iter().find(|x| x.id == id).unwrap();
+    assert_eq!(c5.bound_cycles, stamp + r5("part1.pulse").r_cycles + t_log + r5("part1.log").r_cycles);
+    assert!(c5.terms[0].starts_with("Δ_stamp"), "{:?}", c5.terms);
+
+    // A hop no Endpoint connects is rejected.
+    let mut v = serde_json::to_value(&m).unwrap();
+    v["chains"][0]["hops"][0]["endpoint"] = "pingpong".into();
+    v["chains"][0]["hops"][0]["from"] = "part0.sensor".into();
+    let m6: TaskModel = serde_json::from_value(v).unwrap();
+    let a6 = analyze(&m6, &w, &t, &manifest(&m6), names(), &dev());
+    assert_eq!(a6.exit, EXIT_REJECTED);
+    assert!(a6.report.rejections.iter().any(|r| r.contains("R41.4") && r.contains("does not connect")), "{:?}", a6.report.rejections);
+}

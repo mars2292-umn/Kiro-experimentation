@@ -308,7 +308,10 @@ fn kani_run_with_a_failed_unwinding_assertion_is_rejected() {
 /// wrapper's `let () =`), and a `#[rsk::bounds]` annotation with a
 /// non-constant bound or a dangling label (PR-16, task 11.1), and, since
 /// task 21.3 (R38.4), a Protocol role operation its state does not permit
-/// (E0599) and a role value used after its operation consumed it (E0382).
+/// (E0599) and a role value used after its operation consumed it (E0382),
+/// and, since task 21.4 (R42.1), a `Plain` derive on a struct with a
+/// reference or `bool` field (E0277) and on an enum or a struct without a
+/// defined layout (the derive's own error naming R42.1).
 /// Each member is checked with `cargo check` from the vendored sources.
 #[test]
 fn api_misuse_is_rejected_by_the_type_system() {
@@ -334,6 +337,9 @@ fn api_misuse_is_rejected_by_the_type_system() {
         // Task 21.3 (R38.4): the typestate role APIs.
         ("api_protocol_state", &["error[E0599]", "no method named `try_recv` found"]),
         ("api_protocol_reuse", &["error[E0382]", "use of moved value: `a`"]),
+        // Task 21.4 (R42.1): the `Plain` derive.
+        ("api_plain_fields", &["error[E0277]", "`&'static u32: Plain` is not satisfied", "`bool: Plain` is not satisfied"]),
+        ("api_plain_enum", &["R42.1: `Plain` cannot be derived for an enum", "R42.1: a `Plain` message type must be `#[repr(C)]` or `#[repr(transparent)]`"]),
     ];
     for (member, expected) in cases {
         let (ok, text) = check(member);

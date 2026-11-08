@@ -367,6 +367,63 @@ pub fn unsafe_constructs(tokens: &[TokenTree]) -> Vec<Finding> {
     out
 }
 
+/// `unsafe_constructs` for an `unsafe-derive` crate (task 21.4): the
+/// `unsafe` keyword is admitted inside the body of a `quote!` or
+/// `quote_spanned!` invocation (the tokens the derive emits, which the
+/// compiler checks in the crate that derives), nowhere else. Returns the
+/// findings and the lines of the admitted `quote!` bodies, for the
+/// justification check.
+pub fn unsafe_constructs_outside_quote(tokens: &[TokenTree]) -> (Vec<Finding>, Vec<usize>) {
+    let mut quoted = Vec::new();
+    let stripped = strip_quote_bodies(tokens, &mut quoted);
+    (unsafe_constructs(&stripped), quoted)
+}
+
+/// `tokens` with every `quote!(..)` body that contains the `unsafe` keyword
+/// replaced by an empty group, its line pushed to `quoted`.
+fn strip_quote_bodies(tokens: &[TokenTree], quoted: &mut Vec<usize>) -> Vec<TokenTree> {
+    let mut out: Vec<TokenTree> = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        let tt = &tokens[i];
+        let is_quote = matches!(tt, TokenTree::Ident(id) if id == "quote" || id == "quote_spanned")
+            && is_punct(tokens.get(i + 1), '!')
+            && is_group(tokens.get(i + 2));
+        if is_quote {
+            let TokenTree::Group(g) = &tokens[i + 2] else { unreachable!() };
+            let body: Vec<TokenTree> = g.stream().into_iter().collect();
+            let mut has_unsafe = false;
+            for_each_level(&body, &mut |level| {
+                if level.iter().any(|t| is_ident(t, "unsafe")) {
+                    has_unsafe = true;
+                }
+            });
+            out.push(tt.clone());
+            out.push(tokens[i + 1].clone());
+            if has_unsafe {
+                quoted.push(line(tt));
+                out.push(TokenTree::Group(proc_macro2::Group::new(g.delimiter(), proc_macro2::TokenStream::new())));
+            } else {
+                out.push(tokens[i + 2].clone());
+            }
+            i += 3;
+            continue;
+        }
+        match tt {
+            TokenTree::Group(g) => {
+                let body: Vec<TokenTree> = g.stream().into_iter().collect();
+                let inner = strip_quote_bodies(&body, quoted);
+                let mut ng = proc_macro2::Group::new(g.delimiter(), inner.into_iter().collect());
+                ng.set_span(g.span());
+                out.push(TokenTree::Group(ng));
+            }
+            other => out.push(other.clone()),
+        }
+        i += 1;
+    }
+    out
+}
+
 /// `include!(...)` invocations and `#[path = ...]` attributes. Both bring in
 /// source text from outside the scanned files.
 pub fn source_inclusions(tokens: &[TokenTree]) -> Vec<Finding> {

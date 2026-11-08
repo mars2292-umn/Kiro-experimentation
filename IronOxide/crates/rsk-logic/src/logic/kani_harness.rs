@@ -18,7 +18,7 @@
 
 use super::sched::{Sched, JOB_NONE, JOB_RUNNING, REL_NONE, REL_PENDING};
 use super::{Config, PartitionCfg, ResourceCfg, TaskCfg, KIND_PERIODIC, KIND_SPORADIC, MIT_DEFER, RESP_END_JOB,
-    RESP_RECORD_AND_CONTINUE, RESP_RECORD_ONLY, RESP_RESTART_PARTITION};
+    RESP_RECORD_AND_CONTINUE, RESP_RECORD_ONLY, RESP_RESTART_PARTITION, RESP_STOP_PARTITION};
 
 const NT: usize = 7;
 const NR: usize = 3;
@@ -70,7 +70,7 @@ fn config() -> Config<NT, NR, NP> {
         ],
         partitions: [
             PartitionCfg { level: 0, fault_response: RESP_RESTART_PARTITION, overrun_response: RESP_RECORD_AND_CONTINUE, deadline_response: RESP_RECORD_ONLY, mit_threshold: 10 }, // part0
-            PartitionCfg { level: 2, fault_response: RESP_RESTART_PARTITION, overrun_response: RESP_END_JOB, deadline_response: RESP_RECORD_ONLY, mit_threshold: 10 }, // part1
+            PartitionCfg { level: 2, fault_response: RESP_STOP_PARTITION, overrun_response: RESP_END_JOB, deadline_response: RESP_RECORD_ONLY, mit_threshold: 10 }, // part1
             PartitionCfg { level: 1, fault_response: RESP_RESTART_PARTITION, overrun_response: RESP_END_JOB, deadline_response: RESP_RECORD_ONLY, mit_threshold: 10 }, // part2
         ],
         operating_duration: 5000000,

@@ -68,6 +68,10 @@ pub struct TaskIn {
     pub periodic: bool,
     /// A Sporadic_Task with the `defer` MIT policy (a deferral event).
     pub defer: bool,
+    /// Task 21.5 (R40.2): the Kernel time of the Task's Endpoint operations
+    /// per Job, Σ over its roles of the declared operations × the larger of
+    /// Δ_send and Δ_recv, charged in O_i.
+    pub endpoint_cost: u64,
 }
 
 /// One Critical_Section site: the Task that holds it, the Ceiling of its
@@ -77,6 +81,11 @@ pub struct Site {
     pub task: usize,
     pub ceiling: u8,
     pub wcet: u64,
+    /// Task 21.5 (R40.2): an Endpoint send or receive, a Critical_Section
+    /// at the Kernel level inside the SVC: it blocks like any site, costs
+    /// no lock entry and exit of its own (its cost is `endpoint_cost`), and
+    /// cannot be overrun-ended (R40.6), so its blocking is its WCET.
+    pub endpoint: bool,
 }
 
 /// The Kernel_Timing_Parameters of Table 13-1 the terms use, in cycles.
@@ -101,6 +110,9 @@ pub struct Params {
     pub j_rel: u64,
     pub restart: u64,
     pub stop: u64,
+    /// Task 21.5 (R40.2): Δ_send and Δ_recv, the Endpoint operations.
+    pub send: u64,
+    pub recv: u64,
 }
 
 /// The terms of one Task.
@@ -143,6 +155,7 @@ pub open spec fn spec_o(t: TaskIn, p: Params, sites: int, any_fpu: bool) -> int 
         + p.hm as int + p.entry as int
         + (if any_fpu { p.fp_save as int + p.fp_restore as int } else { 0 })
         + (if t.periodic { 0 } else { p.irq as int + p.stamp as int })
+        + t.endpoint_cost as int
 }
 
 /// E_j of R29.4.
@@ -154,11 +167,12 @@ pub open spec fn spec_e(t: TaskIn, p: Params, longest_cs: int, o: int) -> int {
     }
 }
 
-/// The number of sites of Task `t` among the first `n`.
+/// The number of Resource sites of Task `t` among the first `n` (the
+/// Endpoint sites cost no lock entry and exit, task 21.5).
 pub open spec fn site_count(sites: Seq<Site>, t: int, n: int) -> int
     decreases n,
 {
-    if n <= 0 { 0 } else { site_count(sites, t, n - 1) + (if sites[n - 1].task as int == t { 1int } else { 0int }) }
+    if n <= 0 { 0 } else { site_count(sites, t, n - 1) + (if sites[n - 1].task as int == t && !sites[n - 1].endpoint { 1int } else { 0int }) }
 }
 
 /// The longest site of Task `t` among the first `n` (0 without one).
@@ -185,11 +199,13 @@ pub open spec fn blocks(tasks: Seq<TaskIn>, sites: Seq<Site>, i: int, k: int) ->
 }
 
 /// The blocking a site of a lower Task costs Task `i`: the site's WCET, or
-/// Budget_l + Δ_detect + Δ_enforce for a site of a Task of another
-/// Partition that stops overrunning Jobs (R29.2, R18.7).
+/// Budget_l + Δ_detect + Δ_enforce for a Resource site of a Task of another
+/// Partition that stops overrunning Jobs (R29.2, R18.7); an Endpoint site
+/// is its WCET in every case (task 21.5: the operation runs to its end
+/// inside the SVC, R40.6).
 pub open spec fn candidate(tasks: Seq<TaskIn>, sites: Seq<Site>, i: int, k: int, p: Params) -> int {
     let l = tasks[sites[k].task as int];
-    if l.partition != tasks[i].partition && l.stops_overruns {
+    if !sites[k].endpoint && l.partition != tasks[i].partition && l.stops_overruns {
         l.budget as int + p.detect as int + p.enforce as int
     } else {
         sites[k].wcet as int
@@ -334,7 +350,9 @@ pub fn site_stats(sites: &Vec<Site>, t: usize) -> (r: SiteStats)
     {
         let s = sites[k];
         if s.task == t {
-            count = count + 1;
+            if !s.endpoint {
+                count = count + 1;
+            }
             if s.wcet > longest {
                 longest = s.wcet;
             }
@@ -390,7 +408,53 @@ pub fn overhead(t: TaskIn, p: Params, sites: u64, any_fpu: bool) -> (r: Option<u
     let s7 = match add(s6, p.entry) { Some(v) => v, None => return None };
     let s8 = match add(s7, fp_cost) { Some(v) => v, None => return None };
     let s9 = match add(s8, irq_cost) { Some(v) => v, None => return None };
-    Some(s9)
+    let s10 = match add(s9, t.endpoint_cost) { Some(v) => v, None => return None };
+    Some(s10)
+}
+
+/// The sum of a sequence of terms (task 21.5, R41.4: an end-to-end bound).
+pub open spec fn seq_sum(xs: Seq<u64>, n: int) -> int
+    decreases n,
+{
+    if n <= 0 { 0 } else { seq_sum(xs, n - 1) + xs[n - 1] as int }
+}
+
+/// The checked sum of `xs` (R29.6: `None` when it exceeds `u64`).
+pub fn checked_sum(xs: &Vec<u64>) -> (r: Option<u64>)
+    ensures
+        r.is_some() <==> seq_sum(xs@, xs.len() as int) <= u64_max(),
+        r matches Some(v) ==> v as int == seq_sum(xs@, xs.len() as int),
+{
+    let mut sum: u64 = 0;
+    let mut k: usize = 0;
+    while k < xs.len()
+        invariant
+            k <= xs.len(),
+            sum as int == seq_sum(xs@, k as int),
+        decreases xs.len() - k,
+    {
+        sum = match add(sum, xs[k]) {
+            Some(v) => v,
+            None => {
+                proof {
+                    lemma_seq_sum_monotone(xs@, k as int + 1, xs.len() as int);
+                }
+                return None;
+            }
+        };
+        k = k + 1;
+    }
+    Some(sum)
+}
+
+proof fn lemma_seq_sum_monotone(xs: Seq<u64>, m: int, n: int)
+    requires 0 <= m <= n,
+    ensures seq_sum(xs, m) <= seq_sum(xs, n),
+    decreases n - m,
+{
+    if m < n {
+        lemma_seq_sum_monotone(xs, m, n - 1);
+    }
 }
 
 /// E_i (R29.4) from the Budget, L_i, and O_i; `None` when it exceeds `u64`.
@@ -447,7 +511,7 @@ pub fn blocking(tasks: &Vec<TaskIn>, sites: &Vec<Site>, i: usize, p: Params) -> 
         let s = sites[k];
         let l = tasks[s.task];
         if l.priority < ti.priority && s.ceiling >= ti.priority {
-            let c: u64 = if l.partition != ti.partition && l.stops_overruns {
+            let c: u64 = if !s.endpoint && l.partition != ti.partition && l.stops_overruns {
                 let s1 = match add(l.budget, p.detect) {
                     Some(v) => v,
                     None => {

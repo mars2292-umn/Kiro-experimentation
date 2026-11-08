@@ -33,6 +33,7 @@ use crate::diag::{Report, Rule};
 use crate::policy::CratePolicy;
 use crate::tokens::{
     has_lint_level, leading_inner_attrs, lex_file, source_inclusions, unsafe_constructs,
+    unsafe_constructs_outside_quote,
 };
 use crate::workspace::{canonical, rust_files, Package, Workspace};
 
@@ -62,7 +63,34 @@ pub fn check(ws: &Workspace, report: &mut Report) {
                     continue;
                 }
             };
-            for finding in unsafe_constructs(&tokens) {
+            // An `unsafe-derive` crate (task 21.4): the `unsafe` keyword
+            // inside a `quote!` body is the derive's emitted `unsafe impl`,
+            // admitted when the body cites a justification of the
+            // Kernel crate's register (checked with the register, R6.4).
+            let findings = if policy.unsafe_derive {
+                let (findings, quoted) = unsafe_constructs_outside_quote(&tokens);
+                let text = std::fs::read_to_string(&file).unwrap_or_default();
+                let lines: Vec<&str> = text.lines().collect();
+                for q in quoted {
+                    match crate::checks::justifications::marker_for(&lines, q) {
+                        Some(id) if justification_ids(ws, report).contains(&id) => {}
+                        Some(id) => report.error(
+                            Rule::UnsafeConfinement,
+                            Some(format!("{}:{q}", ws.rel(&file))),
+                            format!("the emitted `unsafe` of this `quote!` cites `{id}`, which no Kernel crate's unsafe_justifications.toml defines"),
+                        ),
+                        None => report.error(
+                            Rule::UnsafeConfinement,
+                            Some(format!("{}:{q}", ws.rel(&file))),
+                            "an `unsafe-derive` crate's `quote!` body that emits `unsafe` lacks a justification identifier (UJ-nnn in a comment on or above it; PR-20, R6.4)",
+                        ),
+                    }
+                }
+                findings
+            } else {
+                unsafe_constructs(&tokens)
+            };
+            for finding in findings {
                 report.error(
                     Rule::UnsafeConfinement,
                     Some(format!("{}:{}", ws.rel(&file), finding.line)),
@@ -86,6 +114,20 @@ pub fn check(ws: &Workspace, report: &mut Report) {
         "PR-20/R6.3: {roots} crate roots checked for forbid(unsafe_code); {scanned} files scanned; \
          {unsafe_module_files} files in the Kernel_Unsafe_Module"
     ));
+}
+
+/// The justification identifiers every Kernel crate's register defines
+/// (for the `unsafe-derive` crates' citations, task 21.4).
+fn justification_ids(ws: &Workspace, report: &mut Report) -> BTreeSet<String> {
+    let mut ids = BTreeSet::new();
+    for name in ws.policy.kernel_crates() {
+        let Some(pkg) = ws.package_named(name) else { continue };
+        let location = format!("{}/{}", ws.rel(&pkg.dir), crate::checks::justifications::REGISTER);
+        for j in crate::checks::justifications::read_register(&pkg.dir, report, &location).unwrap_or_default() {
+            ids.insert(j.id);
+        }
+    }
+    ids
 }
 
 /// The files of the Kernel_Unsafe_Module in `pkg`.

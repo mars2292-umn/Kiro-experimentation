@@ -70,6 +70,21 @@
       }
     },
     "omitted_terms": { "type": "array", "items": { "type": "string" } },
+    "chains": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "tasks", "bound_cycles", "deadline_cycles", "result", "terms"],
+        "properties": {
+          "id": { "type": "string" },
+          "tasks": { "type": "array", "items": { "type": "string" } },
+          "bound_cycles": { "type": "integer", "minimum": 0 },
+          "deadline_cycles": { "type": "integer", "minimum": 0 },
+          "result": { "enum": ["PASS", "FAIL", "UNBOUNDED"] },
+          "terms": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "rejections": { "type": "array", "items": { "type": "string" } }
   }
 }

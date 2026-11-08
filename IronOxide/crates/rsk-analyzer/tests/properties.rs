@@ -51,6 +51,10 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         stops_overruns: false,
         sporadic: false,
         longest_cs: 0,
+        endpoint_cost: 0,
+        source_interrupt: false,
+        source_endpoint: None,
+        defer: false,
         wcet_provenance: vec![],
         wcet: c,
     }
@@ -184,6 +188,9 @@ fn r32_3_lower_priority_tasks_without_a_relevant_resource_do_not_change_wcrts() 
     let full = response_times(&inputs::prepare(&m, &w, &t, &manifest, &dev()).unwrap().tasks);
     let mut without = m.clone();
     without.tasks.retain(|x| x.id != "part1.log");
+    // The chain through `part1.log` goes with it (the Analyzer rejects a
+    // chain naming a Task the model lacks, R41.4).
+    without.chains.retain(|c| c.hops.iter().all(|h| h.from != "part1.log" && h.to != "part1.log"));
     let reduced = response_times(&inputs::prepare(&without, &w, &t, &manifest, &dev()).unwrap().tasks);
     for x in &reduced {
         let r = by_id(&full, &x.id).r;
@@ -382,6 +389,8 @@ fn analysed(set: &SimSet) -> Vec<AnalysedTask> {
 struct Job {
     task: usize,
     release: u64,
+    /// The instant of the Job's first unit of execution.
+    start: Option<u64>,
     /// Units still to execute, including the Overrun extension.
     remaining: u64,
     /// Total units this Job executes (C, or C + extension for an Overrun).
@@ -398,9 +407,26 @@ struct Job {
 /// largest response time of Jobs that completed normally, and the
 /// Partitions in which an Overrun occurred.
 fn simulate(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bool) -> (Vec<u64>, Vec<usize>) {
+    let (worst, overran, _) = simulate_trace(set, horizon, rng, inject_overruns);
+    (worst, overran)
+}
+
+/// One completed Job of the simulation: its Task, release, first unit of
+/// execution, and completion (the instant after its last unit).
+#[derive(Clone, Copy, Debug)]
+struct JobTrace {
+    task: usize,
+    release: u64,
+    start: u64,
+    finish: u64,
+}
+
+/// `simulate` with the trace of every completed Job (task 21.5, R41.4).
+fn simulate_trace(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bool) -> (Vec<u64>, Vec<usize>, Vec<JobTrace>) {
     let n = set.tasks.len();
     let mut worst = vec![0u64; n];
     let mut overran_partitions = Vec::new();
+    let mut trace = Vec::new();
     let mut pending: Vec<Job> = Vec::new();
     let mut running: Option<usize> = None; // index into pending
     for t in 0..horizon {
@@ -408,7 +434,7 @@ fn simulate(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bool) ->
             if t % task.period == 0 {
                 let overrun = inject_overruns && task.stops && rng.range(0, 3) == 0;
                 let total = if overrun { task.c + rng.range(1, set.delta) } else { task.c };
-                pending.push(Job { task: i, release: t, remaining: total, total, executed: 0, overran: overrun });
+                pending.push(Job { task: i, release: t, remaining: total, total, executed: 0, overran: overrun, start: None });
             }
         }
         // The system Ceiling: the Resources held by Jobs inside their Critical_Section.
@@ -433,6 +459,9 @@ fn simulate(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bool) ->
         running = best;
         if let Some(k) = running {
             let j = &mut pending[k];
+            if j.start.is_none() {
+                j.start = Some(t);
+            }
             j.executed += 1;
             j.remaining -= 1;
             let task = &set.tasks[j.task];
@@ -440,6 +469,7 @@ fn simulate(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bool) ->
             if j.remaining == 0 || killed {
                 if !j.overran {
                     worst[j.task] = worst[j.task].max(t + 1 - j.release);
+                    trace.push(JobTrace { task: j.task, release: j.release, start: j.start.unwrap_or(t), finish: t + 1 });
                 } else if !overran_partitions.contains(&task.partition) {
                     overran_partitions.push(task.partition);
                 }
@@ -449,7 +479,58 @@ fn simulate(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bool) ->
         }
     }
     let _ = running;
-    (worst, overran_partitions)
+    (worst, overran_partitions, trace)
+}
+
+/// Task 21.5 (R41.4): for every pair of Tasks of a set the Analyzer finds
+/// schedulable, the simulated end-to-end latency of a message sent at the
+/// end of a sender's Job and read by the first receiver Job that starts
+/// after it (a Periodic_Task samples the Endpoint at its start), measured
+/// from the sender's Release to that Job's completion, never exceeds the
+/// chain bound R_sender + T_receiver + R_receiver that `analyze` computes
+/// for a periodic hop; and the bound is attained to within one period for
+/// at least some pair (not vacuous).
+#[test]
+fn r41_4_simulated_chain_latency_never_exceeds_the_bound() {
+    let mut rng = Rng(7);
+    let mut pairs = 0;
+    let mut tight = 0;
+    for _ in 0..300 {
+        let set = random_sim_set(&mut rng);
+        let a = analysed(&set);
+        if inputs::utilization_exceeds_one(&a) {
+            continue;
+        }
+        let w = response_times(&a);
+        if !w.iter().all(|x| x.schedulable) {
+            continue;
+        }
+        let hyper = set.tasks.iter().map(|t| t.period).fold(1, lcm).min(20_000);
+        let horizon = 3 * hyper + 2 * set.tasks.iter().map(|t| t.period).max().unwrap();
+        let (_, overran, trace) = simulate_trace(&set, horizon, &mut rng, false);
+        assert!(overran.is_empty());
+        for s in 0..set.tasks.len() {
+            for r in 0..set.tasks.len() {
+                if s == r {
+                    continue;
+                }
+                let bound = by_id(&w, &set.tasks[s].id).r + set.tasks[r].period + by_id(&w, &set.tasks[r].id).r;
+                let mut worst = 0;
+                for sj in trace.iter().filter(|j| j.task == s) {
+                    // The first receiver Job that starts at or after the message.
+                    let Some(rj) = trace.iter().filter(|j| j.task == r && j.start >= sj.finish).min_by_key(|j| j.start) else { continue };
+                    let latency = rj.finish - sj.release;
+                    assert!(latency <= bound, "{} -> {}: latency {latency} > bound {bound} (sender Job {sj:?}, receiver Job {rj:?}) in\n{set:#?}", set.tasks[s].id, set.tasks[r].id);
+                    worst = worst.max(latency);
+                }
+                pairs += 1;
+                if worst + set.tasks[r].period >= bound {
+                    tight += 1;
+                }
+            }
+        }
+    }
+    assert!(pairs >= 200 && tight >= 20, "{pairs} pairs, {tight} within a period of the bound");
 }
 
 fn lcm(a: u64, b: u64) -> u64 {

@@ -113,6 +113,11 @@ rsk::app! {
         // Task 21.3: replies received over `pingpong`, and the last one.
         state control.pingpong_reps: u32 = 0;
         state control.pingpong_last: u32 = 0;
+        // Task 21.4: peer-state errors seen on each Endpoint (R42.3) and
+        // replies the validation function rejected (R42.4).
+        state control.telemetry_peer: u32 = 0;
+        state control.pingpong_peer: u32 = 0;
+        state control.pingpong_rejected: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
@@ -123,8 +128,14 @@ rsk::app! {
                      priority = 5, resources = [state, in_cs]);
     }
 
+    // Task 21.4: `fault = STOP_PARTITION` since 2026-11-07 (RESTART_PARTITION
+    // before): the one fault of this Partition in the run is the reply its
+    // `log` sends to the level-A `control` that `control`'s validation
+    // function rejects (R42.4); the stop keeps the Partition's counters for
+    // the safe state's report where a restart would zero them, and shows
+    // the peer-state error on `control`'s next operations (R42.3).
     partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
-                     fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
+                     fault = STOP_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
         peripherals = [CMSDK_DUALTIMER];
         state log.count: u32 = 0;
@@ -161,7 +172,11 @@ rsk::app! {
     // level-A `control` to the level-C `log`: four `u32` messages each way
     // in Kernel-owned storage; `control` sends its count every Job and `log`
     // drains the channel every Job (no arrival release: `log` is periodic).
-    endpoint telemetry: u32 { ctl => part0.control, sink => part1.log } capacity = 4, payload = 4;
+    // Task 21.5 (R40.2): `log` drains up to the capacity per Job, `ops = 4`.
+    // Task 21.4 (R42.4): the channel from `log` (level C) back to `control`
+    // (level A) exists although `control` never reads it, so `ctl` declares
+    // its validation function like `pingpong`'s.
+    endpoint telemetry: u32 { ctl => part0.control validate = crate::validate_rep, sink => part1.log ops = 4 } capacity = 4, payload = 4;
 
     // Task 21.1 (R38.2, R38.3, R41.1): a Protocol-governed Endpoint between
     // the same Tasks, a request-response loop with a stop branch; the
@@ -181,5 +196,16 @@ rsk::app! {
             }
         }
     }
-    endpoint pingpong: protocol PingPong { ctl => part0.control, sink => part1.log } capacity = 1, payload = 8;
+    // Task 21.4 (R42.4): `Rep` crosses from level C to level A, so `ctl`
+    // declares its validation function, `control`'s `validate_rep`,
+    // proven total by the App_Prover with the bodies; a rejected reply is
+    // the fault of `part1` (its STOP_PARTITION), whose peer-state change
+    // `control` then sees on both Endpoints (R42.3).
+    endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log } capacity = 1, payload = 8;
+
+    // Task 21.5 (R41.4): the end-to-end deadline of the telemetry path: a
+    // word `control` sends is read by `log`, a Periodic_Task that samples
+    // the Endpoint once per period, so the Analyzer's bound is R_control +
+    // T_log + R_log, within 100 ms with the placeholder timing.
+    chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }

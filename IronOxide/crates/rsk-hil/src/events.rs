@@ -63,6 +63,7 @@ pub fn kind_name(kind: u8) -> &'static str {
         23 => "debugger",
         24 => "exec_over(diag)",
         25 => "endpoint_full",
+        26 => "message_rejected",
         _ => "?",
     }
 }

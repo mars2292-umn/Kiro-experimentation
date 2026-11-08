@@ -1,11 +1,12 @@
 # Fixture: the `rsk` API's type-system rules (task 5.6; R8.6, R8.7, R8.10,
-# PR-06, PR-07, PR-09; PR-16 for `#[rsk::bounds]`, task 11.1). `decl` is a valid App_Declaration; `ok` is a
+# PR-06, PR-07, PR-09; PR-16 for `#[rsk::bounds]`, task 11.1; R38.4, task 21.3;
+# R42.1, task 21.4). `decl` is a valid App_Declaration; `ok` is a
 # Partition crate that compiles; each other member breaks one rule and must
 # fail to compile (checked by xtask/tests/fixtures.rs, which runs
 # `cargo check` on each member).
 [workspace]
 resolver = "2"
-members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody", "bounds", "protocol_state", "protocol_reuse"]
+members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody", "bounds", "protocol_state", "protocol_reuse", "plain_fields", "plain_enum"]
 
 [workspace.package]
 version = "0.1.0"

@@ -303,7 +303,10 @@
       "raises": [
         "tick"
       ],
-      "endpoint_roles": [],
+      "endpoint_roles": [
+        "telemetry.ctl",
+        "pingpong.ctl"
+      ],
       "nesting_depth": 2,
       "slots": {
         "release": 0,
@@ -407,7 +410,10 @@
       "fpu": false,
       "resources": [],
       "raises": [],
-      "endpoint_roles": [],
+      "endpoint_roles": [
+        "telemetry.sink",
+        "pingpong.sink"
+      ],
       "nesting_depth": 0,
       "slots": {
         "release": 9,
@@ -582,6 +588,125 @@
       ]
     }
   ],
-  "endpoints": [],
+  "endpoints": [
+    {
+      "id": "telemetry",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 4,
+      "k": 4,
+      "ceiling": "kernel",
+      "payload_bytes": 4,
+      "payload_type": "u32",
+      "protocol": null,
+      "channels": [],
+      "projections": [],
+      "roles": [
+        {
+          "role": "ctl",
+          "task": "part0.control",
+          "release": false,
+          "ops": 1,
+          "validate": [
+            {
+              "label": null,
+              "function": "crate::validate_rep"
+            }
+          ]
+        },
+        {
+          "role": "sink",
+          "task": "part1.log",
+          "release": false,
+          "ops": 4,
+          "validate": []
+        }
+      ],
+      "storage_offset": 0,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "pingpong",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 1,
+      "k": 1,
+      "ceiling": "kernel",
+      "payload_bytes": 8,
+      "payload_type": "",
+      "protocol": "PingPong",
+      "channels": [
+        {
+          "from": "ctl",
+          "to": "sink",
+          "k": 1
+        },
+        {
+          "from": "sink",
+          "to": "ctl",
+          "k": 1
+        }
+      ],
+      "projections": [
+        {
+          "role": "ctl",
+          "local_type": "rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}"
+        },
+        {
+          "role": "sink",
+          "local_type": "rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}"
+        }
+      ],
+      "roles": [
+        {
+          "role": "ctl",
+          "task": "part0.control",
+          "release": false,
+          "ops": 1,
+          "validate": [
+            {
+              "label": "Rep",
+              "function": "crate::validate_rep"
+            }
+          ]
+        },
+        {
+          "role": "sink",
+          "task": "part1.log",
+          "release": false,
+          "ops": 1,
+          "validate": []
+        }
+      ],
+      "storage_offset": 32,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    }
+  ],
+  "chains": [
+    {
+      "id": "telemetry_path",
+      "hops": [
+        {
+          "from": "part0.control",
+          "to": "part1.log",
+          "endpoint": "telemetry"
+        }
+      ],
+      "deadline_ticks": 1600000,
+      "derived": [
+        "deadline_ticks"
+      ]
+    }
+  ],
   "conversions": []
 }

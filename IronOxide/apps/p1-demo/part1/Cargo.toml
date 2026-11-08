@@ -20,6 +20,8 @@ stress = []
 measure = []
 # Task 21.2: the `telemetry` Endpoint of the QEMU configuration (`log` receives).
 telemetry = []
+# Task 21.4: the QEMU configuration's injected Endpoint faults (the dropped role state of task 21.3 and the rejected reply of task 21.4), never in a HIL build.
+qemu-inject = []
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

@@ -21,6 +21,8 @@ rsk = { path = "../../../crates/rsk" }
 timing = []
 # Task 21.2: the `telemetry` Endpoint of the QEMU configuration (`control` sends).
 telemetry = []
+# Task 21.4: the QEMU configuration's injected Endpoint faults (the dropped role state of task 21.3 and the rejected reply of task 21.4), never in a HIL build.
+qemu-inject = []
 # The fault-injection suite (task 7.5): the response configuration's injections.
 response = []
 # The isolation suite (task 7.4): the access matrix and the DMA cases.

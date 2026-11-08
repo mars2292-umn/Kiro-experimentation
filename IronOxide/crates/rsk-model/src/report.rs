@@ -51,6 +51,21 @@ pub struct TaskResult {
     pub wcet_provenance: Vec<String>,
 }
 
+/// Task 21.5 (R41.4): the end-to-end latency bound of a declared chain.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainResult {
+    pub id: String,
+    pub tasks: Vec<String>,
+    /// The bound in cycles; `u64::MAX` when none exists (an unbounded hop).
+    pub bound_cycles: u64,
+    pub deadline_cycles: u64,
+    /// `PASS`, `FAIL`, or `UNBOUNDED`.
+    pub result: String,
+    /// The terms of the bound, each named.
+    pub terms: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CrossCheck {
@@ -72,4 +87,7 @@ pub struct Report {
     pub cross_check: CrossCheck,
     pub omitted_terms: Vec<String>,
     pub rejections: Vec<String>,
+    /// Task 21.5 (R41.4): one result per declared chain.
+    #[serde(default)]
+    pub chains: Vec<ChainResult>,
 }

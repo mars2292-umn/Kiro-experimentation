@@ -340,17 +340,38 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         // Task 21.3 (R38.7): the RoleSlot of every Protocol role the Task is bound to.
         for (e, role) in protocol_roles(g, t) {
             let _ = writeln!(s, "    /// The RoleSlot of role `{role}` of Endpoint `{}` (task 21.3, R38.7): `{}`'s state between its Jobs.", e.name, task.name);
-            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<super::rsk_roles::{}_{role}::State> = ::rsk::ResourceCell::new(super::rsk_roles::{}_{role}::State::INITIAL);", task.name.to_uppercase(), e.name.to_uppercase(), e.name, e.name);
+            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<super::rsk_roles::{}_{role}::State> = ::rsk::ResourceCell::new(super::rsk_roles::{}_{role}::State::initial());", task.name.to_uppercase(), e.name.to_uppercase(), e.name, e.name);
         }
     }
     let _ = writeln!(s, "}}");
-    // Task 21.3: the typestate role APIs of this Partition's Tasks (outside
-    // the App_Prover's translation at this revision, like the cells).
-    let _ = writeln!(s, "#[cfg(not(creusot))]");
+    // Task 21.3: the typestate role APIs of this Partition's Tasks; since
+    // task 21.4 inside the App_Prover's translation too (the Kernel glue
+    // they call is trusted in `rsk`, their own code is proven with the
+    // bodies; the `Drop` report alone is outside it).
     let _ = writeln!(s, "pub mod rsk_roles {{");
     for &t in &part.tasks {
         for (e, role) in protocol_roles(g, t) {
             s.push_str(&crate::roles::module(g, e, &role));
+        }
+    }
+    let _ = writeln!(s, "}}");
+    // Task 21.4 (R42.4): the validators of the plain Endpoints' roles, each
+    // binding the declared function to the `rsk::Validate` bound of the
+    // Context's `Endpoint` field.
+    let _ = writeln!(s, "pub mod rsk_validate {{");
+    for &t in &part.tasks {
+        for e in g.endpoints.iter().filter(|e| e.protocol.is_none()) {
+            if let Some(ri) = e.roles.iter().position(|(_, ti)| *ti == t) {
+                if let Some((_, path)) = e.validators.get(ri).and_then(|v| v.iter().find(|(l, _)| l.is_none())) {
+                    let (role, _) = &e.roles[ri];
+                    let _ = writeln!(s, "    /// The validation function of role `{role}` of Endpoint `{}` (R42.4): `{path}`.", e.name);
+                    let _ = writeln!(s, "    #[allow(non_camel_case_types)]");
+                    let _ = writeln!(s, "    pub struct {}_{role};", e.name);
+                    let _ = writeln!(s, "    impl ::rsk::Validate<{}> for {}_{role} {{", e.ty, e.name);
+                    let _ = writeln!(s, "        fn accept(m: &{}) -> bool {{ {path}(m) }}", e.ty);
+                    let _ = writeln!(s, "    }}");
+                }
+            }
         }
     }
     let _ = writeln!(s, "}}");
@@ -427,20 +448,21 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
             let role = e.roles.iter().find(|(_, ti)| *ti == t).map(|(n, _)| n.as_str()).unwrap_or("");
             match &e.protocol {
                 None => {
-                    let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` (task 21.2; R38.1, R40.1): {} messages of `{}` each way.", e.name, e.capacity, e.ty);
-                    let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}>,", e.name, e.ty, e.payload / 4);
+                    let ri = e.roles.iter().position(|(r, _)| r == role).unwrap_or(0);
+                    let validated = e.validators.get(ri).map_or(false, |v| v.iter().any(|(l, _)| l.is_none()));
+                    let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` (task 21.2; R38.1, R40.1): {} messages of `{}` each way{}.", e.name, e.capacity, e.ty, if validated { ", received through the role's validation function (R42.4)" } else { "" });
+                    if validated {
+                        let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}, super::rsk_validate::{}_{role}>,", e.name, e.ty, e.payload / 4, e.name);
+                    } else {
+                        let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}>,", e.name, e.ty, e.payload / 4);
+                    }
                 }
                 Some(pname) => {
                     // Task 21.3: the RoleSlot of the Protocol's projection onto
                     // the role (the API is `rsk_roles::<endpoint>_<role>`).
                     let proj = e.projections.iter().find(|(r, _)| r == role).map(|(_, l)| l.as_str()).unwrap_or("");
                     let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` under Protocol `{pname}` (tasks 21.1, 21.3; R38.3, R38.7): the slot of its state between Jobs, `{proj}`; bound k = {} (R41.1), capacity {}.", e.name, e.k, e.capacity);
-                    let _ = writeln!(s, "        #[cfg(not(creusot))]");
                     let _ = writeln!(s, "        pub {}: ::rsk::RoleSlot<'static, super::rsk_roles::{}_{role}::State>,", e.name, e.name);
-                    // The role API is outside the App_Prover's translation at this
-                    // revision; the field keeps the Context's shape there.
-                    let _ = writeln!(s, "        #[cfg(creusot)]");
-                    let _ = writeln!(s, "        pub {}: ::rsk::RoleSlot<'static, ()>,", e.name);
                 }
             }
         }
@@ -542,6 +564,26 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     }
     let _ = writeln!(s, "}}");
     s
+}
+
+/// The summary's note of an Endpoint's validation functions and operation
+/// counts (tasks 21.4 and 21.5).
+fn validators_note(e: &crate::derive::GenEndpoint) -> String {
+    let mut parts = Vec::new();
+    for (i, (role, _)) in e.roles.iter().enumerate() {
+        for (label, path) in e.validators.get(i).into_iter().flatten() {
+            parts.push(match label {
+                None => format!("{role} validates the payload with {path}"),
+                Some(l) => format!("{role} validates {l} with {path}"),
+            });
+        }
+        if let Some(n) = e.ops.get(i) {
+            if *n != 1 {
+                parts.push(format!("{role} performs up to {n} operations per Job"));
+            }
+        }
+    }
+    if parts.is_empty() { String::new() } else { format!("; {}", parts.join(", ")) }
 }
 
 /// The (Endpoint, role) pairs of Task `t` under a Protocol (task 21.3).
@@ -815,16 +857,20 @@ pub fn summary(g: &Generated) -> String {
         let roles: Vec<String> = e.roles.iter().map(|(r, t)| format!("{r} => {}", g.tasks[*t].id)).collect();
         match &e.protocol {
             None => {
-                let _ = writeln!(s, "Endpoint {} (plain, `{}`): {}; capacity {} each way, payload {} bytes, storage offset {}", e.name, e.ty, roles.join(", "), e.capacity, e.payload, e.storage);
+                let _ = writeln!(s, "Endpoint {} (plain, `{}`): {}; capacity {} each way, payload {} bytes, storage offset {}{}", e.name, e.ty, roles.join(", "), e.capacity, e.payload, e.storage, validators_note(e));
             }
             Some(p) => {
                 let channels: Vec<String> = e.channels.iter().map(|(f, t, k)| format!("{f}->{t} k={k}")).collect();
-                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage);
+                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}{}", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage, validators_note(e));
                 for (r, l) in &e.projections {
                     let _ = writeln!(s, "  projection onto {r}: {l}");
                 }
             }
         }
+    }
+    for c in &g.chains {
+        let path: Vec<&str> = c.tasks.iter().map(|&t| g.tasks[t].id.as_str()).collect();
+        let _ = writeln!(s, "Chain {} (R41.4): {}; deadline {} ticks", c.name, path.join(" -> "), c.deadline_ticks);
     }
     let _ = writeln!(s, "Kernel levels: {:?}; Task levels (level -> NVIC byte): {}", g.kernel_levels, g.priority_map.iter().map(|(l, n)| format!("{l} -> 0x{n:02x}")).collect::<Vec<_>>().join(", "));
     let _ = writeln!(s, "Kernel-owned peripherals: {}", g.target.peripherals.iter().filter(|p| p.kernel_owned).map(|p| p.name).collect::<Vec<_>>().join(", "));

@@ -45,6 +45,16 @@ pub enum ReleaseSource {
     Endpoint { endpoint: String, role: String },
 }
 
+/// An end-to-end chain (task 21.5; R41.4): global Task indices in order,
+/// the Endpoint index of each hop, and the deadline in ticks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenChain {
+    pub name: String,
+    pub tasks: Vec<usize>,
+    pub endpoints: Vec<usize>,
+    pub deadline_ticks: u64,
+}
+
 /// An Endpoint of Generated_Config (task 21.2): two roles bound to Tasks,
 /// two directed channels of `capacity` messages of `payload` bytes in the
 /// Kernel's Endpoint storage from byte `storage`.
@@ -72,6 +82,11 @@ pub struct GenEndpoint {
     pub roles: Vec<(String, usize)>,
     /// Whether a message arriving for the role releases its Task (R40.3).
     pub release: [bool; 2],
+    /// Per role (declaration order), the validation functions `(label,
+    /// path)` of task 21.4 (R42.4).
+    pub validators: Vec<Vec<(Option<String>, String)>>,
+    /// Per role, the declared operations per Job (task 21.5, R40.2).
+    pub ops: Vec<u32>,
     pub storage: u32,
 }
 
@@ -161,6 +176,8 @@ pub struct Generated {
     pub endpoints: Vec<GenEndpoint>,
     /// The bytes of the Kernel's Endpoint storage.
     pub endpoint_storage_bytes: u32,
+    /// End-to-end chains (task 21.5; R41.4).
+    pub chains: Vec<GenChain>,
     pub plan: Plan,
     /// Capacities (PR-14): lock stack, timed-event slots, event log.
     pub lock_capacity: usize,
@@ -374,10 +391,29 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                 )
             }
         };
-        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, projections, locals, labels, capacity: e.capacity, payload: e.payload, roles, release, storage });
+        let validators = e.roles.iter().map(|r| r.validate.clone()).collect();
+        let ops = e.roles.iter().map(|r| r.ops).collect();
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, projections, locals, labels, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
         storage += 2 * e.capacity * e.payload;
     }
     let endpoint_storage_bytes = storage;
+    // Chains (task 21.5): Tasks and connecting Endpoints by index, the
+    // deadline rounded down (R21.2).
+    let mut chains = Vec::new();
+    for c in &decl.chains {
+        let task_ix: Vec<usize> = c.tasks.iter().map(|(p, t)| tasks.iter().position(|x| x.id == format!("{p}.{t}")).expect("validated")).collect();
+        let mut hops = Vec::new();
+        for w in task_ix.windows(2) {
+            let ei = endpoints
+                .iter()
+                .position(|e: &GenEndpoint| e.roles.iter().any(|(_, t)| *t == w[0]) && e.roles.iter().any(|(_, t)| *t == w[1]))
+                .expect("validated");
+            hops.push(ei);
+        }
+        let (deadline_ticks, rd) = to_ticks(c.deadline, tick_hz, cpu_hz, Rounding::Down).expect("validated");
+        note(format!("chain.{}.deadline", c.name), c.deadline, deadline_ticks, "ticks", rd);
+        chains.push(GenChain { name: c.name.clone(), tasks: task_ix, endpoints: hops, deadline_ticks });
+    }
     // Ceilings (R23.1): the maximum Priority over the accessor set, a
     // function of the set alone (R23.2).
     for r in &mut resources {
@@ -423,6 +459,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         partitions,
         endpoints,
         endpoint_storage_bytes,
+        chains,
         plan,
         lock_capacity,
         slot_count,

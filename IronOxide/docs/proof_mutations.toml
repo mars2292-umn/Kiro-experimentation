@@ -262,7 +262,7 @@ package = "rsk-logic"
 id = "blocking-ignores-overrun-partition"
 kills = "R29.2's cross-Partition clause in the Analyzer's term derivation: a site of a lower Task of another Partition that stops overrunning Jobs must block for Budget_l + Δ_detect + Δ_enforce, not the site's WCET, else `blocking` no longer computes `spec_b`; 2026-11-06"
 file = "crates/rsk-analyzer/src/terms.rs"
-find = "            let c: u64 = if l.partition != ti.partition && l.stops_overruns {\n"
+find = "            let c: u64 = if !s.endpoint && l.partition != ti.partition && l.stops_overruns {\n"
 replace = "            let c: u64 = if false { // (mutant) every site blocks for its WCET\n"
 expect = ["terms.rs", "candidate"]
 package = "rsk-analyzer"

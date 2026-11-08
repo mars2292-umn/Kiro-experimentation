@@ -23,7 +23,8 @@
               "delta_lock_in", "delta_lock_out", "delta_release", "delta_dispatch", "delta_complete",
               "delta_timer", "delta_irq", "delta_stamp", "l_kernel", "delta_fp_save", "delta_fp_restore",
               "delta_detect", "delta_enforce", "delta_hm", "delta_wake", "j_rel",
-              "delta_svc", "delta_dma_write", "delta_view", "delta_restart", "delta_stop", "delta_entry"]
+              "delta_svc", "delta_dma_write", "delta_view", "delta_restart", "delta_stop", "delta_entry",
+              "delta_send", "delta_recv"]
           },
           "cycles": { "type": "integer", "minimum": 0 },
           "method": { "enum": ["measured", "static", "placeholder"] },
