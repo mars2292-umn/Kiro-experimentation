@@ -28,6 +28,8 @@ nrf52840_cycles_fpu = ["nrf52840"]
 nrf52840_measure = ["nrf52840"]
 # The Kernel coverage configuration of task 19.5 (`src/nrf52840_coverage.rs`).
 nrf52840_coverage = ["nrf52840"]
+# The flood configuration of task 21.6 (`src/qemu_flood.rs`, the A-P7 evidence): the QEMU declaration with `part1` at `fault = RESTART_PARTITION` over 500 ms.
+qemu_flood = []
 
 [dependencies]
 rsk = { path = "../../../crates/rsk" }

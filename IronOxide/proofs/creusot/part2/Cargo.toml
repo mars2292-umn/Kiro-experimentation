@@ -16,3 +16,15 @@ creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot
 [lints.rust.unexpected_cfgs]
 level = "warn"
 check-cfg = ["cfg(creusot)"]
+
+# The Partition's features as the QEMU configuration enables them (the others
+# named so that the compiler knows them).
+[features]
+default = ["gating"]
+# Task 21.6: the gated Endpoints `relay` and `report` (`filter` plays `relay`'s sink and `report`'s ctl).
+gating = []
+response = []
+isolation = []
+stress = []
+measure = []
+cycles = []

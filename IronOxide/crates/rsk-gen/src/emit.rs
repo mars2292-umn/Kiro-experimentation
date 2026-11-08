@@ -470,6 +470,13 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
             let _ = writeln!(s, "        /// Per-Task state `{}` (PR-25).", st.name);
             let _ = writeln!(s, "        pub {}: ::rsk::PerTask<'static, {}>,", st.name, st.ty);
         }
+        // Task 21.6 (R41.3, A-P8): one gate per Endpoint that gates a role
+        // of this Task; closed at every Job's start, opened by that
+        // Endpoint's receive outcome, required open by the gated operations.
+        for e in gating_endpoints(g, t) {
+            let _ = writeln!(s, "        /// The gate of this Job's receive on Endpoint `{e}` (task 21.6, A-P8): the operations of the roles declared `after = {e}` require it open.");
+            let _ = writeln!(s, "        pub {e}_gate: ::rsk::Gate,");
+        }
         let _ = writeln!(s, "    }}");
     }
     let _ = writeln!(s, "}}");
@@ -501,13 +508,17 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     }
     for &t in &part.tasks {
         let task = &g.tasks[t];
-        let _ = writeln!(s, "    /// The precondition of `{}`'s body: its Resources carry their invariants.", task.id);
+        let _ = writeln!(s, "    /// The precondition of `{}`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).", task.id);
         let _ = writeln!(s, "    #[logic(open)]");
         let _ = writeln!(s, "    pub fn {}_pre(cx: &super::rsk_ctx::{}) -> bool {{", task.name, ctx_name(&task.name));
         let mut terms: Vec<String> = Vec::new();
         for &r in &task.resources {
             let res = &g.resources[r];
             terms.push(format!("(forall<x: {}> (*cx).{}@[x] == {}_inv(x))", res.ty, res.name, res.name));
+        }
+        // Task 21.6 (A-P8): every gate is closed when the Job starts.
+        for e in gating_endpoints(g, t) {
+            terms.push(format!("!(*cx).{e}_gate@"));
         }
         if terms.is_empty() {
             terms.push("true".to_string());
@@ -551,6 +562,9 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         for st in &task.state {
             let _ = writeln!(s, "            {}: ::rsk::PerTask::new(&super::rsk_state::{}_{}),", st.name, task.name.to_uppercase(), st.name.to_uppercase());
         }
+        for e in gating_endpoints(g, t) {
+            let _ = writeln!(s, "            {e}_gate: ::rsk::Gate::closed(),");
+        }
         let _ = writeln!(s, "        }});");
         // Task 21.3 (R41.2): a Job that returns with a RoleSlot empty failed to
         // store its role state: reported to the Health_Monitor.
@@ -586,6 +600,20 @@ fn validators_note(e: &crate::derive::GenEndpoint) -> String {
     if parts.is_empty() { String::new() } else { format!("; {}", parts.join(", ")) }
 }
 
+/// The summary's note of a Protocol-governed Endpoint's place in the gating
+/// order (task 21.6, R41.3, A-P8): its rank, and the Endpoints each of its
+/// roles declares `after`.
+fn gating_note(e: &crate::derive::GenEndpoint) -> String {
+    let mut parts = Vec::new();
+    for (i, (role, _)) in e.roles.iter().enumerate() {
+        if let Some(gates) = e.after.get(i).filter(|g| !g.is_empty()) {
+            parts.push(format!("{role} after {}", gates.join(", ")));
+        }
+    }
+    let after = if parts.is_empty() { String::new() } else { format!(": {}", parts.join(", ")) };
+    format!("; gating rank {}{after}", e.gating_rank)
+}
+
 /// The (Endpoint, role) pairs of Task `t` under a Protocol (task 21.3).
 fn protocol_roles(g: &Generated, t: usize) -> Vec<(&crate::derive::GenEndpoint, String)> {
     g.endpoints
@@ -593,6 +621,21 @@ fn protocol_roles(g: &Generated, t: usize) -> Vec<(&crate::derive::GenEndpoint, 
         .filter(|e| e.protocol.is_some())
         .filter_map(|e| e.roles.iter().find(|(_, ti)| *ti == t).map(|(r, _)| (e, r.clone())))
         .collect()
+}
+
+/// The Endpoints that gate a role of Task `t` (`after`; task 21.6, A-P8),
+/// each once, in declaration order.
+fn gating_endpoints(g: &Generated, t: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (e, role) in protocol_roles(g, t) {
+        let ri = e.roles.iter().position(|(r, _)| *r == role).unwrap_or(0);
+        for x in e.after.get(ri).into_iter().flatten() {
+            if !out.contains(x) {
+                out.push(x.clone());
+            }
+        }
+    }
+    out
 }
 
 /// `|v: u32| v <= 1` -> ("v: u32", "v <= 1").
@@ -861,7 +904,7 @@ pub fn summary(g: &Generated) -> String {
             }
             Some(p) => {
                 let channels: Vec<String> = e.channels.iter().map(|(f, t, k)| format!("{f}->{t} k={k}")).collect();
-                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}{}; deadlock-free over {} configuration(s) (R41.3, the certificate of task 21.6)", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage, validators_note(e), e.configurations);
+                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}{}; deadlock-free over {} configuration(s) (R41.3, the certificate of task 21.6){}", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage, validators_note(e), e.configurations, gating_note(e));
                 for (r, l) in &e.projections {
                     let _ = writeln!(s, "  projection onto {r}: {l}");
                 }

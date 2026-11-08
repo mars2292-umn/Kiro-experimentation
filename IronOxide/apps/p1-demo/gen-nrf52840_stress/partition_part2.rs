@@ -108,12 +108,12 @@ pub mod rsk_spec {
         let init: crate :: Stats = crate :: Stats :: new ();
         proof_assert!(stats_inv(init));
     }
-    /// The precondition of `part2.filter`'s body: its Resources carry their invariants.
+    /// The precondition of `part2.filter`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn filter_pre(cx: &super::rsk_ctx::Filter) -> bool {
         pearlite! { (forall<x: crate :: Stats> (*cx).stats@[x] == stats_inv(x)) }
     }
-    /// The precondition of `part2.sampler`'s body: its Resources carry their invariants.
+    /// The precondition of `part2.sampler`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn sampler_pre(cx: &super::rsk_ctx::Sampler) -> bool {
         pearlite! { (forall<x: crate :: Stats> (*cx).stats@[x] == stats_inv(x)) }

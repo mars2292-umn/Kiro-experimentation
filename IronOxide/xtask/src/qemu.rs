@@ -35,6 +35,14 @@ pub struct Run {
 /// Builds `bin` for the Target in the release profile and runs it on QEMU.
 /// Returns the semihosting exit code.
 pub fn run(root: &Path, bin: &str, timeout_secs: u64) -> Result<u32, String> {
+    run_with(root, bin, timeout_secs, None)
+}
+
+/// [`run`] with a feature set in place of the binary's defaults (the flood
+/// configuration of task 21.6, `cargo xtask qemu --flood`: `qemu-flood`,
+/// built `--no-default-features --features ..` as the HIL builds are); its
+/// build goes to its own target directory and its log to its own file.
+pub fn run_with(root: &Path, bin: &str, timeout_secs: u64, features: Option<&str>) -> Result<u32, String> {
     let mut report = Report::default();
     let ws = Workspace::load(root, &mut report).ok_or_else(|| {
         report
@@ -44,9 +52,14 @@ pub fn run(root: &Path, bin: &str, timeout_secs: u64) -> Result<u32, String> {
             .collect::<Vec<_>>()
             .join("\n")
     })?;
-    let target_dir = root.join("target").join("qemu");
-    let build = Cmd::cargo_frozen("build")
-        .args(["--release", "--target", &ws.policy.target, "-p", bin])
+    let suffix = features.map(|f| format!("-{f}")).unwrap_or_default();
+    let target_dir = root.join("target").join(format!("qemu{suffix}"));
+    let build = Cmd::cargo_frozen("build").args(["--release", "--target", &ws.policy.target, "-p", bin]);
+    let build = match features {
+        Some(f) => build.args(["--no-default-features", "--features", f]),
+        None => build,
+    };
+    let build = build
         .arg("--manifest-path")
         .arg(root.join("Cargo.toml"))
         .arg("--target-dir")
@@ -64,7 +77,7 @@ pub fn run(root: &Path, bin: &str, timeout_secs: u64) -> Result<u32, String> {
     println!("--- QEMU output ---\n{}\n--- end ({:.1}s) ---", run.log, run.seconds);
     let log_dir = target_dir.join("logs");
     let _ = std::fs::create_dir_all(&log_dir);
-    let _ = std::fs::write(log_dir.join(format!("{bin}.log")), &run.log);
+    let _ = std::fs::write(log_dir.join(format!("{bin}{suffix}.log")), &run.log);
     Ok(run.exit_code)
 }
 

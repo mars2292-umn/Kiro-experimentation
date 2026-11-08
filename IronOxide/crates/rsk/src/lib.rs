@@ -49,6 +49,17 @@ mod spec {
         }
     }
 
+    // The gate's model is opaque (the field is private, so that no body
+    // can forge an open gate); the three operations carry the trusted
+    // contracts: closed at construction, open after `open`, read by `is_open`.
+    impl View for super::Gate {
+        type ViewTy = bool;
+        #[logic(opaque)]
+        fn view(self) -> bool {
+            dead
+        }
+    }
+
     impl<'a, T: 'static> View for super::Shared<'a, T> {
         type ViewTy = Mapping<T, bool>;
         #[logic(opaque)]
@@ -375,6 +386,44 @@ pub fn report_rejected_message(id: u8, role: u8) {
 /// wrapper reports a Protocol violation when the slot is left empty
 /// (R41.2). `S` is the generated `State` enum of the role, whose `Empty`
 /// variant marks a taken slot.
+/// Task 21.6 (R41.3, A-P8): the record, within one Job, of a completed
+/// receive on a gating Endpoint. A role declared `after = E` takes
+/// `&Gate` on every operation, with the App_Prover precondition that the
+/// gate is open; only a receive outcome of `E`'s role (a value of its
+/// generated `RecvS*` type, which implements `Received`) opens it, and
+/// every Job starts with it closed (the generated Context constructs it
+/// so, and the body's precondition states it). A body that operates on
+/// the gated role before `E`'s receive fails its proof.
+pub struct Gate {
+    open: bool,
+}
+
+impl Gate {
+    /// Closed: no receive has completed in this Job.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ == false))]
+    pub const fn closed() -> Gate {
+        Gate { open: false }
+    }
+
+    /// Opens the gate on the evidence of a completed receive.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures((^self)@ == true))]
+    pub fn open<W: Received>(&mut self, _witness: &W) {
+        self.open = true;
+    }
+
+    /// Whether a receive has completed in this Job.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result == (*self)@))]
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+}
+
+/// A completed receive's outcome (the generated `RecvS*` enums).
+pub trait Received {}
+
 pub struct RoleSlot<'a, S: 'static> {
     cell: &'a ResourceCell<S>,
 }

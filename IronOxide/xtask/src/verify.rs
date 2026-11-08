@@ -1117,6 +1117,29 @@ fn app_prover(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manifest_id:
         }
         verdicts.push(format!("{label}: {}", pair.join(", ")));
     }
+    // Task 21.6 (R41.3, A-P8; Verification_Plan 5.15): the proofs that must
+    // FAIL, in proofs/creusot-negative: each member a fixture body that
+    // violates a generated obligation. The step passes only when Creusot
+    // refuses every member; a member that proves is an error (the
+    // obligation would be vacuous).
+    let negative = ws.root.join("proofs").join("creusot-negative");
+    if negative.join("Cargo.toml").is_file() {
+        let _ = Command::new("pkill").args(["-f", "why3find"]).status();
+        creusot_session_clear(&negative);
+        let mut cmd = Cmd::cargo().arg("creusot").args(SET_A).args(["--", "--offline"]).cwd(&negative);
+        let command = format!("(cd proofs/creusot-negative && {})", cmd.display());
+        let (run_ok, text, _) = run_once(&mut cmd);
+        let refused = !run_ok && !text.contains("Proved (");
+        texts.push(format!("=== {command}\n{text}"));
+        commands.push(command);
+        creusot_session_clear(&negative);
+        if refused {
+            verdicts.push(format!("proofs that must fail (proofs/creusot-negative): refused as required ({})", verdict_of(&text)));
+        } else {
+            ok = false;
+            verdicts.push("proofs that must fail (proofs/creusot-negative): PROVED, the obligation is vacuous".to_string());
+        }
+    }
     let prover_note = provers.iter().map(|(p, n)| format!("{p} {n}")).collect::<Vec<_>>().join(", ");
     verdicts.push(format!("goals discharged per solver: {prover_note}"));
     let text = texts.join("\n");

@@ -185,6 +185,31 @@ pub fn report_and_exit() -> ! {
         }
         print_kv(b"protocol_violations", violations);
     }
+    // Task 21.6 (R41.3, A-P8): the gated Endpoints' traffic (the QEMU and
+    // plain measurement configurations): requests `log` relayed and
+    // `filter` answered on `relay`, rounds `log` completed there, requests
+    // `filter` sent on and `control` answered on `report`, and rounds
+    // `filter` completed there.
+    #[cfg(feature = "gating")]
+    {
+        print_kv(b"relay_reqs", p1_demo_part2::rsk_state::FILTER_RELAY_REQS.peek());
+        print_kv(b"relay_rounds", p1_demo_part1::rsk_state::LOG_RELAY_ROUNDS.peek());
+        print_kv(b"report_reqs", p1_demo_part0::rsk_state::CONTROL_REPORT_REQS.peek());
+        print_kv(b"report_rounds", p1_demo_part2::rsk_state::FILTER_REPORT_ROUNDS.peek());
+    }
+    // The flood configuration (task 21.6, the A-P7 limitation of
+    // Verification_Plan 5.15): `log` answers every `pingpong` request with
+    // an invalid reply; each is rejected by `control` (R42.4), each
+    // rejection re-initializes the Endpoint, and `control` sees the
+    // peer-state error (R42.3) in its next Job, so the Protocol never
+    // advances past a round while `control` keeps its deadlines. The event
+    // counts and the verdict follow the event loop below.
+    #[cfg(feature = "qemu-flood")]
+    {
+        print_kv(b"flood_pingpong_rejected", p1_demo_part0::rsk_state::CONTROL_PINGPONG_REJECTED.peek());
+        print_kv(b"flood_pingpong_peer", p1_demo_part0::rsk_state::CONTROL_PINGPONG_PEER.peek());
+        print_kv(b"flood_control_jobs", a);
+    }
     // The isolation suite (task 7.4) and the differential tests (task
     // 3.3): what the probes saw, judged by the rig (Verification_Plan 11.7).
     #[cfg(feature = "isolation")]
@@ -272,10 +297,48 @@ pub fn report_and_exit() -> ! {
     let mut expected_rejections = 0u32;
     #[cfg(feature = "qemu-mps2")]
     let mut expected_stops = 0u32;
+    // The flood configuration (task 21.6, A-P7): every rejection of `log`'s
+    // reply (Task 3) is the run's design, counted apart; `control`'s
+    // (Task 0) deadline misses are counted apart too and must be none.
+    #[cfg(feature = "qemu-flood")]
+    let mut flood_rejections = 0u32;
+    #[cfg(feature = "qemu-flood")]
+    let mut control_misses = 0u32;
+    // Each rejection applies `part1`'s fault response, the restart (expected
+    // once per rejection: the reset rate is the sender's rate); a restart
+    // shifts `log`'s drain of `telemetry` against `control`'s sends, so a
+    // full report of that plain Endpoint (R40.5, counted by `control`, the
+    // word not taken) is a consequence of the restarts, counted apart.
+    #[cfg(feature = "qemu-flood")]
+    let mut flood_restarts = 0u32;
+    #[cfg(feature = "qemu-flood")]
+    let mut flood_telemetry_full = 0u32;
     let mut i = 0;
     'events: while i < len {
         let kind = k.log_kind(i);
         let task = k.log_task(i);
+        #[cfg(feature = "qemu-flood")]
+        if task == 3 && kind == rsk_kernel::logic::log::EV_MESSAGE_REJECTED {
+            flood_rejections += 1;
+            i += 1;
+            continue;
+        }
+        #[cfg(feature = "qemu-flood")]
+        if kind == rsk_kernel::logic::log::EV_PARTITION_RESTART && k.log_partition(i) == 1 {
+            flood_restarts += 1;
+            i += 1;
+            continue;
+        }
+        #[cfg(feature = "qemu-flood")]
+        if task == 0 && kind == rsk_kernel::logic::log::EV_ENDPOINT_FULL {
+            flood_telemetry_full += 1;
+            i += 1;
+            continue;
+        }
+        #[cfg(feature = "qemu-flood")]
+        if task == 0 && kind == EV_DEADLINE_MISS {
+            control_misses += 1;
+        }
         #[cfg(any(feature = "timing", feature = "timing-short"))]
         if task == 2 && (kind == EV_OVERRUN || kind == EV_DEADLINE_MISS || kind == EV_MIT_VIOLATION || kind == EV_RELEASE_OVERLAP) {
             expected_late += 1;
@@ -352,14 +415,48 @@ pub fn report_and_exit() -> ! {
         && expected_stops == 1
         && p1_demo_part0::rsk_state::CONTROL_PINGPONG_REJECTED.peek() == 1
         && p1_demo_part0::rsk_state::CONTROL_PINGPONG_PEER.peek() == 1
-        && p1_demo_part0::rsk_state::CONTROL_TELEMETRY_PEER.peek() == 1;
+        && p1_demo_part0::rsk_state::CONTROL_TELEMETRY_PEER.peek() == 1
+        // Task 21.6 (R41.3): at least one full round on each gated Endpoint
+        // (in 200 ms: `relay` completes at 40 ms and 120 ms, `report` at
+        // 100 ms; `part1`'s stop at 170 ms re-initializes `relay`).
+        && p1_demo_part1::rsk_state::LOG_RELAY_ROUNDS.peek() >= 1
+        && p1_demo_part2::rsk_state::FILTER_RELAY_REQS.peek() >= 1
+        && p1_demo_part0::rsk_state::CONTROL_REPORT_REQS.peek() >= 1
+        && p1_demo_part2::rsk_state::FILTER_REPORT_ROUNDS.peek() >= 1;
     #[cfg(not(feature = "qemu-mps2"))]
     let protocol_ok = true;
-    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu")))]
+    #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu", feature = "qemu-flood")))]
     let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
         && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2 && protocol_ok;
-    #[cfg(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu"))]
+    #[cfg(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu", feature = "qemu-flood"))]
     let _ = protocol_ok;
+    // The flood configuration (task 21.6, A-P7): at least three rejections
+    // recorded (one per 80 ms: `log` answers every 40 ms, and the Job after
+    // a re-initialization sees the peer-state error instead of a request),
+    // each matched by a peer-state error on `control` (the last rejection
+    // may be unmatched when the run ends before `control`'s next Job),
+    // every rejection counted by `control` too, exactly one restart of
+    // `part1` per rejection (the resets are bounded by the sender's rate
+    // and its fault response), no deadline miss of `control` and no other
+    // fault or miss, the Protocol never past a round (no reply ever
+    // accepted), and part0's plain counts of the run (`log`'s count is
+    // the last incarnation's).
+    #[cfg(feature = "qemu-flood")]
+    let ok = {
+        let rejected = p1_demo_part0::rsk_state::CONTROL_PINGPONG_REJECTED.peek();
+        let peer = p1_demo_part0::rsk_state::CONTROL_PINGPONG_PEER.peek();
+        print_kv(b"flood_rejection_events", flood_rejections);
+        print_kv(b"flood_part1_restarts", flood_restarts);
+        print_kv(b"flood_telemetry_full_events", flood_telemetry_full);
+        print_kv(b"flood_control_misses", control_misses);
+        let _ = (c, f, g, dma_ok, filter_ok);
+        ended && faults == 0 && misses == 0 && control_misses == 0
+            && flood_rejections >= 3 && rejected == flood_rejections
+            && (peer == rejected || peer + 1 == rejected)
+            && flood_restarts == flood_rejections
+            && p1_demo_part0::rsk_state::CONTROL_PINGPONG_REPS.peek() == 0
+            && a >= 49 && b >= 24 && blocked >= 1
+    };
     // The release-timing configuration: every count within two Jobs of
     // the operating duration over the period (the last Jobs end with the
     // duration), `sensor` short by the Releases its late Jobs discarded

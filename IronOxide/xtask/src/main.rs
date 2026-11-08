@@ -63,7 +63,7 @@ commands:
       the linker script and memory map, the configuration summary and the
       manifests into the application's gen/ directory (R24.3, R25.1).
       --check only compares them with the tree (R24.4).
-  qemu [--bin <name>] [--timeout <seconds>]
+  qemu [--bin <name>] [--timeout <seconds>] [--flood]
       Task 3.1 dispatch spike: build the Flight_Build binary (default
       p1-demo) for the Target and run it on QEMU's mps2-an386 Cortex-M4
       board with semihosting; the exit status is the binary's semihosting
@@ -1508,6 +1508,7 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 fn qemu_command(args: &[String]) -> ExitCode {
     let mut bin = "p1-demo".to_string();
     let mut timeout = 60u64;
+    let mut flood = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -1515,6 +1516,9 @@ fn qemu_command(args: &[String]) -> ExitCode {
                 Some(b) => bin = b.clone(),
                 None => return usage_error("--bin takes a crate name"),
             },
+            // The flood configuration (task 21.6, A-P7): the demo built
+            // `--no-default-features --features qemu-flood`.
+            "--flood" => flood = true,
             "--timeout" => match args.next().and_then(|t| t.parse().ok()) {
                 Some(t) => timeout = t,
                 None => return usage_error("--timeout takes seconds"),
@@ -1522,7 +1526,8 @@ fn qemu_command(args: &[String]) -> ExitCode {
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
-    match xtask::qemu::run(&xtask::repository_root(), &bin, timeout) {
+    let features = if flood { Some("qemu-flood") } else { None };
+    match xtask::qemu::run_with(&xtask::repository_root(), &bin, timeout, features) {
         Ok(code) => ExitCode::from(code.min(255) as u8),
         Err(e) => {
             eprintln!("error: {e}");

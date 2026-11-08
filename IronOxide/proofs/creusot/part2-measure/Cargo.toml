@@ -24,7 +24,9 @@ check-cfg = ["cfg(creusot)"]
 # (`cargo creusot -- -p <member>`): the declaration's variant features are
 # exclusive, and a whole-workspace build would unify them.
 [features]
-default = ["measure"]
+default = ["measure", "gating"]
+# Task 21.6: the gated Endpoints `relay` and `report` of the plain measurement configuration.
+gating = []
 response = []
 isolation = []
 stress = []

@@ -83,8 +83,9 @@ pub const CYCLES_SPIN: u32 = 8_000;
 /// accepted against echo's 20 ms MIT). `in_cs` says whether this Release
 /// fell inside sensor's Critical_Section: a control Release during that
 /// window was blocked by the Ceiling, not preempting (R8.4).
-/// The receiver-side validation function of `Rep` on `pingpong` and of the
-/// `telemetry` payload (task 21.4; R42.4): a reply echoes a request,
+/// The receiver-side validation function of `Rep` on `pingpong`, of the
+/// `telemetry` payload (task 21.4; R42.4), and of `Req` on `report` (task
+/// 21.6: `filter` sends its Job count, a 31-bit value too): a reply echoes a request,
 /// `control`'s Job count, a 31-bit value, so a word with bit 31 set is no
 /// reply this Partition asked for (the QEMU configuration's injected reply
 /// is 0xFFFF_FFFF). Total and panic-free (the App_Prover proves it with the
@@ -181,6 +182,40 @@ pub fn control(mut cx: rsk_ctx::Control) {
         if keep {
             cx.pingpong.store(next);
         }
+    }
+    // Task 21.6 (R41.3, A-P8): the `sink` role of `PingPong` on `report`,
+    // the Endpoint of rank 2 in the gating order (pingpong -> relay ->
+    // report): a request `filter` sends on after answering `log`'s relay
+    // is answered with its value in the same Job, as `log` answers on
+    // `pingpong`; the count of answered requests is the safe state's
+    // evidence that a round went through all three Endpoints. The
+    // validation function of `Req` is `validate_rep` (R42.4: `filter`'s
+    // Partition is at level B, below this one).
+    #[cfg(feature = "gating")]
+    {
+        use rsk_roles::report_sink::{NotReceived, NotSent, RecvS0, State};
+        let state = cx.report.take(State::Empty);
+        let next = match state {
+            State::S0(s) => match s.try_recv() {
+                Ok(RecvS0::Req(v, s1)) => match s1.send_rep(v) {
+                    Ok(s0) => {
+                        cx.report_reqs.with(|n| *n = n.saturating_add(1));
+                        State::S0(s0)
+                    }
+                    Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                    Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                },
+                Ok(RecvS0::Stop(e)) => e.finish(),
+                Err(NotReceived::Empty(s0)) | Err(NotReceived::Unexpected(s0)) | Err(NotReceived::Rejected(s0)) | Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
+            },
+            State::S1(s) => match s.send_rep(0) {
+                Ok(s0) => State::S0(s0),
+                Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+            },
+            other => other,
+        };
+        cx.report.store(next);
     }
     #[cfg(feature = "cycles")]
     {

@@ -31,6 +31,8 @@ rsk::app! {
         state control.telemetry_peer: u32 = 0;
         state control.pingpong_peer: u32 = 0;
         state control.pingpong_rejected: u32 = 0;
+        // Task 21.6 (R41.3): requests answered as the `sink` of `report`.
+        state control.report_reqs: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         // The measurement build (task 19.2, R34.9, R35.4; the Partition crates'
@@ -61,6 +63,8 @@ rsk::app! {
         state log.telemetry_rx: u32 = 0;
         state log.telemetry_last: u32 = 0;
         state log.pingpong_reqs: u32 = 0;
+        // Task 21.6 (R41.3): rounds completed as the `ctl` of `relay`.
+        state log.relay_rounds: u32 = 0;
         state pulse.count: u32 = 0;
         state log.loop_spin: u32 = 0;
         state log.loop_busy: u32 = 0;
@@ -78,6 +82,10 @@ rsk::app! {
         resource stats: crate::Stats = crate::Stats::new() invariant |s: crate::Stats| s.ok@ <= s.total@;
         state filter.count: u32 = 0;
         state filter.y: f32 = 0.0;
+        // Task 21.6 (R41.3): requests answered as the `sink` of `relay`, and
+        // rounds completed as the `ctl` of `report`.
+        state filter.relay_reqs: u32 = 0;
+        state filter.report_rounds: u32 = 0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
@@ -119,5 +127,9 @@ rsk::app! {
         }
     }
     endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log ops = 2 } capacity = 1, payload = 8;
+    // Task 21.6 (R41.3, A-P8): the gated Endpoints of the QEMU configuration
+    // (pingpong -> relay -> report, ranks 0, 1, 2), measured on the board too.
+    endpoint relay: protocol PingPong { ctl => part1.log after = pingpong, sink => part2.filter validate = { Req = crate::validate_req } ops = 2 } capacity = 1, payload = 8;
+    endpoint report: protocol PingPong { ctl => part2.filter after = relay, sink => part0.control validate = { Req = crate::validate_rep } ops = 2 } capacity = 1, payload = 8;
     chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }

@@ -22,6 +22,10 @@ measure = []
 telemetry = []
 # Task 21.4: the QEMU configuration's injected Endpoint faults (the dropped role state of task 21.3 and the rejected reply of task 21.4), never in a HIL build.
 qemu-inject = []
+# Task 21.6 (A-P7, Verification_Plan 5.15): the flood configuration, `log` answers every `pingpong` request with an invalid reply.
+qemu-flood = []
+# Task 21.6 (R41.3): the gated Endpoints `relay` and `report` of the QEMU and plain measurement configurations (`log` plays `relay`'s ctl after its `pingpong` receive).
+gating = ["telemetry"]
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

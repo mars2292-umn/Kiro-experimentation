@@ -1,0 +1,14 @@
+# Fixture of the A-P8 proof obligation (task 21.6, R41.3; Verification_Plan
+# 5.15): a declaration the Generator accepts (`pong`'s role `a` gated by
+# `ping`, `after = ping`) with a Task body that operates on the gated role
+# WITHOUT the receive on `ping` that opens its gate. The body compiles; the
+# App_Prover must refuse it (proofs/creusot-negative, run by the
+# verification job as a proof that must fail).
+[workspace]
+resolver = "2"
+members = ["decl", "part"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+publish = false

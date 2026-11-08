@@ -127,6 +127,16 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let sts = states(&local);
     let ty = type_name(role);
     let ri = e.roles.iter().position(|(r, _)| r == role).unwrap_or(0);
+    // Task 21.6 (R41.3, A-P8): the Endpoints gating this role (`after`):
+    // every operation takes their gates with the App_Prover precondition
+    // that each is open (a receive on that Endpoint completed in this Job).
+    let gates: Vec<String> = e.after.get(ri).cloned().unwrap_or_default();
+    let gate_params: String = gates.iter().map(|x| format!(", gate_{x}: &::rsk::Gate")).collect();
+    let gate_requires = |s: &mut String| {
+        for x in &gates {
+            let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::requires((*gate_{x})@))]");
+        }
+    };
     let words = (e.payload / 4) as usize;
     let payload_words = words.saturating_sub(1);
     let protocol = e.protocol.clone().unwrap_or_default();
@@ -195,7 +205,8 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                     match payload {
                         Some(p) => {
                             let _ = writeln!(s, "            /// Sends `{label}({p})` to `{to}` and moves to S{next}; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).");
-                            let _ = writeln!(s, "            pub fn {fname}(self, m: {p}) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
+                            gate_requires(&mut s);
+                            let _ = writeln!(s, "            pub fn {fname}(self, m: {p}{gate_params}) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
                             let _ = writeln!(s, "                let mut w = [0u32; W];");
                             let _ = writeln!(s, "                w[0] = LABEL_{};", label.to_uppercase());
                             let _ = writeln!(s, "                let p = ::rsk::words::message_to_words::<{p}, PW>(&m);");
@@ -206,7 +217,8 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                         }
                         None => {
                             let _ = writeln!(s, "            /// Sends `{label}()` to `{to}` and moves to S{next}; `Err` gives the role back with the reason. Never waits (R40.4).");
-                            let _ = writeln!(s, "            pub fn {fname}(self) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
+                            gate_requires(&mut s);
+                            let _ = writeln!(s, "            pub fn {fname}(self{gate_params}) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
                             let _ = writeln!(s, "                let mut w = [0u32; W];");
                             let _ = writeln!(s, "                w[0] = LABEL_{};", label.to_uppercase());
                         }
@@ -235,9 +247,12 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                     }
                 }
                 let _ = writeln!(s, "        }}");
+                let _ = writeln!(s, "        /// A completed receive in this state: the evidence that opens a gate (task 21.6, A-P8).");
+                let _ = writeln!(s, "        impl ::rsk::Received for RecvS{i} {{}}");
                 let _ = writeln!(s, "        impl {ty}<S{i}> {{");
                 let _ = writeln!(s, "            /// Receives the next message from `{from}`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).");
-                let _ = writeln!(s, "            pub fn try_recv(self) -> Result<RecvS{i}, NotReceived<S{i}>> {{");
+                gate_requires(&mut s);
+                let _ = writeln!(s, "            pub fn try_recv(self{gate_params}) -> Result<RecvS{i}, NotReceived<S{i}>> {{");
                 let _ = writeln!(s, "                match raw().recv() {{");
                 let _ = writeln!(s, "                    Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),");
                 let _ = writeln!(s, "                    Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),");

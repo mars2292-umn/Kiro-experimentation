@@ -1,0 +1,8 @@
+[package]
+name = "api_gating_plain"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+rsk = { path = "../../../../crates/rsk" }

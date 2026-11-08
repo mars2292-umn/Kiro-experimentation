@@ -18,6 +18,8 @@ cycles = []
 # R35.4) and the EasyDMA traffic scenario (R17.4, R34.5): SPIM0
 # transferring continuously for the whole run.
 measure = []
+# Task 21.6 (R41.3): the gated Endpoints `relay` and `report` of the QEMU and plain measurement configurations (`filter` plays `relay`'s sink and `report`'s ctl).
+gating = []
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

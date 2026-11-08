@@ -34,6 +34,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_gating_cycle"
+version = "0.1.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "api_gating_plain"
+version = "0.1.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "api_gating_self"
+version = "0.1.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
 name = "api_ok"
 version = "0.1.0"
 dependencies = [

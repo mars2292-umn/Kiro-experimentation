@@ -48,7 +48,7 @@ fn config() -> Config<NT, NR, NP> {
         tasks: [
             TaskCfg { priority: 7, partition: 0, kind: KIND_PERIODIC, offset: 0, period: 250000, deadline: 250000, budget: 25000, mit_policy: MIT_DEFER, fpu: false }, // part0.control
             TaskCfg { priority: 6, partition: 0, kind: KIND_SPORADIC, offset: 0, period: 500000, deadline: 500000, budget: 7500, mit_policy: MIT_DEFER, fpu: false }, // part0.echo
-            TaskCfg { priority: 5, partition: 0, kind: KIND_PERIODIC, offset: 125000, period: 500000, deadline: 500000, budget: 218750, mit_policy: MIT_DEFER, fpu: false }, // part0.sensor
+            TaskCfg { priority: 5, partition: 0, kind: KIND_PERIODIC, offset: 125000, period: 500000, deadline: 500000, budget: 217500, mit_policy: MIT_DEFER, fpu: false }, // part0.sensor
             TaskCfg { priority: 2, partition: 1, kind: KIND_PERIODIC, offset: 0, period: 1000000, deadline: 1000000, budget: 150000, mit_policy: MIT_DEFER, fpu: false }, // part1.log
             TaskCfg { priority: 4, partition: 1, kind: KIND_SPORADIC, offset: 0, period: 375000, deadline: 375000, budget: 12500, mit_policy: MIT_DEFER, fpu: false }, // part1.pulse
             TaskCfg { priority: 3, partition: 2, kind: KIND_PERIODIC, offset: 0, period: 625000, deadline: 625000, budget: 20000, mit_policy: MIT_DEFER, fpu: true }, // part2.filter

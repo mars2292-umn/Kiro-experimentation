@@ -19,6 +19,8 @@ app-p1-demo = ["dep:rsk-system"]
 app-hil-stimulus = ["dep:hil-stimulus-system"]
 # The board, forwarded from the binary to the selected system crate.
 qemu-mps2 = ["rsk-system?/qemu-mps2"]
+# The P1 demo's flood configuration (task 21.6, A-P7), on QEMU.
+qemu-flood = ["rsk-system?/qemu-flood"]
 nrf52840 = ["rsk-system?/nrf52840", "hil-stimulus-system?/nrf52840"]
 # HIL builds only: the debug port stays open across resets (see rsk-kernel).
 debug-port = ["rsk-system?/debug-port", "hil-stimulus-system?/debug-port"]

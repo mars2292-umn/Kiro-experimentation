@@ -1,0 +1,18 @@
+[package]
+name = "gating-misuse-proof"
+description = "Must fail: a Task body operating on a gated role without the receive that opens its gate (task 21.6, A-P8)"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+path = "../../../xtask/fixtures/gating-misuse/part/src/lib.rs"
+
+[dependencies]
+gating-misuse-decl = { path = "../../../xtask/fixtures/gating-misuse/decl" }
+rsk = { path = "../../../crates/rsk", features = ["creusot"] }
+creusot-std = { git = "file:///Users/mars2292/repos/Kiro-experimentation/creusot", rev = "18f2d371ecb0019d37ecbd25e67f474bed2dda00" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

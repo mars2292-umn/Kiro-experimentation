@@ -194,25 +194,47 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // the QEMU configuration the fifth reply is 0xFFFF_FFFF, which
     // `control`'s validation function rejects (R42.4): this Partition's
     // fault, its STOP_PARTITION.
+    // Task 21.6 (R41.3, A-P8): whether this Job's `pingpong` receive
+    // delivered a request, the gate of its operations on `relay`.
+    #[cfg(feature = "gating")]
+    let mut pingpong_received = false;
     #[cfg(feature = "telemetry")]
     {
         use rsk_roles::pingpong_sink::{NotReceived, NotSent, RecvS0, State};
         let state = cx.pingpong.take(State::Empty);
         let next = match state {
             State::S0(s) => match s.try_recv() {
-                Ok(RecvS0::Req(v, s1)) => {
-                    #[cfg(feature = "qemu-inject")]
-                    let v = if cx.pingpong_reqs.get() == 4 { 0xFFFF_FFFF } else { v };
-                    match s1.send_rep(v) {
-                        Ok(s0) => {
-                            cx.pingpong_reqs.with(|n| *n = n.saturating_add(1));
-                            State::S0(s0)
+                Ok(received) => {
+                    // Task 21.6 (A-P8): the completed receive opens the gate
+                    // of this Job's operations on `relay`.
+                    #[cfg(feature = "gating")]
+                    {
+                        cx.pingpong_gate.open(&received);
+                        pingpong_received = true;
+                    }
+                    match received {
+                        RecvS0::Req(v, s1) => {
+                            #[cfg(feature = "qemu-inject")]
+                            let v = if cx.pingpong_reqs.get() == 4 { 0xFFFF_FFFF } else { v };
+                            // The flood configuration (task 21.6, A-P7): every
+                            // reply invalid, every one rejected by `control`.
+                            #[cfg(feature = "qemu-flood")]
+                            let v = {
+                                let _ = v;
+                                0xFFFF_FFFFu32
+                            };
+                            match s1.send_rep(v) {
+                                Ok(s0) => {
+                                    cx.pingpong_reqs.with(|n| *n = n.saturating_add(1));
+                                    State::S0(s0)
+                                }
+                                Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                                Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                            }
                         }
-                        Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
-                        Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                        RecvS0::Stop(e) => e.finish(),
                     }
                 }
-                Ok(RecvS0::Stop(e)) => e.finish(),
                 Err(NotReceived::Empty(s0)) | Err(NotReceived::Unexpected(s0)) | Err(NotReceived::Rejected(s0)) | Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
             },
             State::S1(s) => match s.send_rep(0) {
@@ -223,6 +245,37 @@ pub fn log(mut cx: rsk_ctx::Log) {
             other => other,
         };
         cx.pingpong.store(next);
+    }
+    // Task 21.6 (R41.3, A-P8): the `ctl` role of `PingPong` on `relay`
+    // (`after = pingpong`, rank 1): only a Job whose `pingpong` receive
+    // delivered a request steps the role, in S0 sending the count of
+    // answered requests on to `filter`, in S1 taking `filter`'s reply (a
+    // completed round); a Job that did not receive leaves the state as it
+    // was. The state goes back to the slot either way (R41.2).
+    #[cfg(feature = "gating")]
+    {
+        use rsk_roles::relay_ctl::{NotReceived, NotSent, RecvS1, State};
+        let state = cx.relay.take(State::Empty);
+        let next = if !pingpong_received {
+            state
+        } else {
+            match state {
+                State::S0(c) => match c.send_req(cx.pingpong_reqs.get(), &cx.pingpong_gate) {
+                    Ok(c1) => State::S1(c1),
+                    Err(NotSent::Full(c0)) | Err(NotSent::Refused(c0)) | Err(NotSent::PeerChanged(c0)) => State::S0(c0),
+                },
+                State::S1(c) => match c.try_recv(&cx.pingpong_gate) {
+                    Ok(RecvS1::Rep(_, c0)) => {
+                        cx.relay_rounds.with(|n| *n = n.saturating_add(1));
+                        State::S0(c0)
+                    }
+                    Err(NotReceived::Empty(c1)) | Err(NotReceived::Unexpected(c1)) | Err(NotReceived::Rejected(c1)) => State::S1(c1),
+                    Err(NotReceived::PeerChanged(c0)) => State::S0(c0),
+                },
+                other => other,
+            }
+        };
+        cx.relay.store(next);
     }
     // The isolation suite (task 7.4): one access attempt per Job, after
     // the source is started (the first Job's attempt would otherwise end

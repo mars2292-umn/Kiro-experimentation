@@ -311,7 +311,10 @@ fn kani_run_with_a_failed_unwinding_assertion_is_rejected() {
 /// (E0599) and a role value used after its operation consumed it (E0382),
 /// and, since task 21.4 (R42.1), a `Plain` derive on a struct with a
 /// reference or `bool` field (E0277) and on an enum or a struct without a
-/// defined layout (the derive's own error naming R42.1).
+/// defined layout (the derive's own error naming R42.1), and, since task
+/// 21.6 (R41.3, A-P8), an `after` gating of Protocol roles that is cyclic,
+/// names the role's own Endpoint, or names a plain Endpoint (the
+/// Generator's rejection, a compile error of the member's own `rsk::app!`).
 /// Each member is checked with `cargo check` from the vendored sources.
 #[test]
 fn api_misuse_is_rejected_by_the_type_system() {
@@ -340,6 +343,12 @@ fn api_misuse_is_rejected_by_the_type_system() {
         // Task 21.4 (R42.1): the `Plain` derive.
         ("api_plain_fields", &["error[E0277]", "`&'static u32: Plain` is not satisfied", "`bool: Plain` is not satisfied"]),
         ("api_plain_enum", &["R42.1: `Plain` cannot be derived for an enum", "R42.1: a `Plain` message type must be `#[repr(C)]` or `#[repr(transparent)]`"]),
+        // Task 21.6 (R41.3, A-P8): the `after` gating of Protocol roles; each
+        // member carries its own `rsk::app!` declaration, which the Generator
+        // refuses.
+        ("api_gating_cycle", &["[R41.3]", "cyclic", "`ping`", "`pong`"]),
+        ("api_gating_self", &["[R41.3]", "cannot gate itself"]),
+        ("api_gating_plain", &["[R41.3]", "plain Endpoint"]),
     ];
     for (member, expected) in cases {
         let (ok, text) = check(member);

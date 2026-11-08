@@ -344,3 +344,32 @@ find = "            && final(state).fifos[ch as int].view(cap as int) == channel
 replace = "            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).push(0),\n"
 expect = ["entry.rs", "postcondition not satisfied"]
 package = "rsk-kernel"
+
+# The general theorem of R41.3 for two roles (crates/rsk-protocol/src/theory.rs, 2026-11-08).
+
+[[mutation]]
+id = "theory-unguarded-variable"
+kills = "lemma_wf_spine (well-formedness must require a message between a recursion and its variable; with guardedness dropped the spine lemma fails and the head normal form would not terminate)"
+file = "crates/rsk-protocol/src/theory.rs"
+find = "        G::Var { n } => n < depth && guarded,\n"
+replace = "        G::Var { n } => n < depth,\n"
+expect = ["theory.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "theory-deadlock-without-waiter"
+kills = "lemma_no_deadlock (a waiting set needs an awaiting member; with the requirement dropped two finished roles would count as deadlocked and the theorem's end case fails)"
+file = "crates/rsk-protocol/src/theory.rs"
+find = "    &&& (lblocked(c, 0) || lblocked(c, 1))\n"
+replace = "    &&& true\n"
+expect = ["theory.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "theory-bridge-receive-entry"
+kills = "lemma_bridge_deadlock (a receive transition must come from a receiving entry of the table; without it a blocked automaton role need not be a waiting local role and the bridge to the automaton fails)"
+file = "crates/rsk-protocol/src/theory.rs"
+find = "        &&& (!t.send ==> tb[t.role as int][t.from as int] is Recv)\n"
+replace = "        &&& true\n"
+expect = ["theory.rs"]
+package = "rsk-protocol"

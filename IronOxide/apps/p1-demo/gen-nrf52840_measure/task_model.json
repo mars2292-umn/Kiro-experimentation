@@ -305,7 +305,8 @@
       ],
       "endpoint_roles": [
         "telemetry.ctl",
-        "pingpong.ctl"
+        "pingpong.ctl",
+        "report.sink"
       ],
       "nesting_depth": 2,
       "slots": {
@@ -412,7 +413,8 @@
       "raises": [],
       "endpoint_roles": [
         "telemetry.sink",
-        "pingpong.sink"
+        "pingpong.sink",
+        "relay.ctl"
       ],
       "nesting_depth": 0,
       "slots": {
@@ -480,7 +482,10 @@
         "part2.stats"
       ],
       "raises": [],
-      "endpoint_roles": [],
+      "endpoint_roles": [
+        "relay.sink",
+        "report.ctl"
+      ],
       "nesting_depth": 1,
       "slots": {
         "release": 15,
@@ -692,6 +697,138 @@
         }
       ],
       "storage_offset": 32,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "relay",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 1,
+      "k": 1,
+      "ceiling": "kernel",
+      "payload_bytes": 8,
+      "payload_type": "",
+      "protocol": "PingPong",
+      "gating_rank": 1,
+      "channels": [
+        {
+          "from": "ctl",
+          "to": "sink",
+          "k": 1
+        },
+        {
+          "from": "sink",
+          "to": "ctl",
+          "k": 1
+        }
+      ],
+      "projections": [
+        {
+          "role": "ctl",
+          "local_type": "rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}"
+        },
+        {
+          "role": "sink",
+          "local_type": "rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}"
+        }
+      ],
+      "roles": [
+        {
+          "role": "ctl",
+          "task": "part1.log",
+          "release": false,
+          "ops": 1,
+          "after": [
+            "pingpong"
+          ],
+          "validate": []
+        },
+        {
+          "role": "sink",
+          "task": "part2.filter",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": [
+            {
+              "label": "Req",
+              "function": "crate::validate_req"
+            }
+          ]
+        }
+      ],
+      "storage_offset": 48,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "report",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 1,
+      "k": 1,
+      "ceiling": "kernel",
+      "payload_bytes": 8,
+      "payload_type": "",
+      "protocol": "PingPong",
+      "gating_rank": 2,
+      "channels": [
+        {
+          "from": "ctl",
+          "to": "sink",
+          "k": 1
+        },
+        {
+          "from": "sink",
+          "to": "ctl",
+          "k": 1
+        }
+      ],
+      "projections": [
+        {
+          "role": "ctl",
+          "local_type": "rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}"
+        },
+        {
+          "role": "sink",
+          "local_type": "rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}"
+        }
+      ],
+      "roles": [
+        {
+          "role": "ctl",
+          "task": "part2.filter",
+          "release": false,
+          "ops": 1,
+          "after": [
+            "relay"
+          ],
+          "validate": []
+        },
+        {
+          "role": "sink",
+          "task": "part0.control",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": [
+            {
+              "label": "Req",
+              "function": "crate::validate_rep"
+            }
+          ]
+        }
+      ],
+      "storage_offset": 64,
       "derived": [
         "k",
         "storage_offset"

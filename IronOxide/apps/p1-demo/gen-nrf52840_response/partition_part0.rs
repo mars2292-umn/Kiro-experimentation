@@ -108,6 +108,8 @@ pub mod rsk_roles {
         pub enum RecvS1 {
             Rep(u32, Ctl<S0>),
         }
+        /// A completed receive in this state: the evidence that opens a gate (task 21.6, A-P8).
+        impl ::rsk::Received for RecvS1 {}
         impl Ctl<S1> {
             /// Receives the next message from `sink`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
             pub fn try_recv(self) -> Result<RecvS1, NotReceived<S1>> {
@@ -259,17 +261,17 @@ pub mod rsk_spec {
         let init: u32 = 0;
         proof_assert!(in_cs_inv(init));
     }
-    /// The precondition of `part0.control`'s body: its Resources carry their invariants.
+    /// The precondition of `part0.control`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn control_pre(cx: &super::rsk_ctx::Control) -> bool {
         pearlite! { (forall<x: u32> (*cx).state@[x] == state_inv(x)) && (forall<x: u32> (*cx).in_cs@[x] == in_cs_inv(x)) }
     }
-    /// The precondition of `part0.echo`'s body: its Resources carry their invariants.
+    /// The precondition of `part0.echo`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn echo_pre(cx: &super::rsk_ctx::Echo) -> bool {
         pearlite! { true }
     }
-    /// The precondition of `part0.sensor`'s body: its Resources carry their invariants.
+    /// The precondition of `part0.sensor`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn sensor_pre(cx: &super::rsk_ctx::Sensor) -> bool {
         pearlite! { (forall<x: u32> (*cx).state@[x] == state_inv(x)) && (forall<x: u32> (*cx).in_cs@[x] == in_cs_inv(x)) }

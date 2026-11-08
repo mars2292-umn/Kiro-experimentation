@@ -1,0 +1,14 @@
+# The App_Prover's proofs that must FAIL (task 21.6, R41.3, A-P8;
+# Verification_Plan 5.15): each member compiles a fixture Partition whose
+# body violates a generated obligation, and the verification job passes
+# only when `cargo creusot -- --offline` here reports the failure. Kept
+# apart from proofs/creusot, whose every member must prove. Run from this
+# directory: `cargo creusot -- --offline`.
+[workspace]
+resolver = "2"
+members = ["gating-misuse"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+publish = false

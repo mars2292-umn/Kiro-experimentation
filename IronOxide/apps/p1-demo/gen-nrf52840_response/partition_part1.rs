@@ -66,6 +66,8 @@ pub mod rsk_roles {
             Req(u32, Sink<S1>),
             Stop(Sink<S2>),
         }
+        /// A completed receive in this state: the evidence that opens a gate (task 21.6, A-P8).
+        impl ::rsk::Received for RecvS0 {}
         impl Sink<S0> {
             /// Receives the next message from `ctl`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
             pub fn try_recv(self) -> Result<RecvS0, NotReceived<S0>> {
@@ -190,12 +192,12 @@ pub mod rsk_ctx {
 #[allow(unused_imports, unused_variables)]
 pub mod rsk_spec {
     use ::rsk::creusot_std::prelude::*;
-    /// The precondition of `part1.log`'s body: its Resources carry their invariants.
+    /// The precondition of `part1.log`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn log_pre(cx: &super::rsk_ctx::Log) -> bool {
         pearlite! { true }
     }
-    /// The precondition of `part1.pulse`'s body: its Resources carry their invariants.
+    /// The precondition of `part1.pulse`'s body: its Resources carry their invariants, and its gates are closed (task 21.6, A-P8).
     #[logic(open)]
     pub fn pulse_pre(cx: &super::rsk_ctx::Pulse) -> bool {
         pearlite! { true }

@@ -256,6 +256,16 @@ impl Stats {
     }
 }
 
+/// The receiver-side validation function of `Req` on `relay` (task 21.6;
+/// R42.4: `log`'s Partition is at level C, below this one): `log` relays
+/// the count of requests it answered, a 31-bit value, so a word with bit
+/// 31 set is no request this Partition expects. Total and panic-free (the
+/// App_Prover proves it with the bodies, with its postcondition).
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures(result == ((*v)@ < 0x8000_0000)))]
+pub fn validate_req(v: &u32) -> bool {
+    *v < 0x8000_0000
+}
+
 /// y = y + (x - y) / 8 with x = 100.0, in `f32`: a first-order low-pass of
 /// a constant input converges to it, which the safe state checks. Creusot's
 /// floating-point support is partial (RN-10), so this function alone is
@@ -330,6 +340,74 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
             #[cfg(feature = "measure")]
             cx.loop_hold.with(|m| if i > *m { *m = i });
         });
+    }
+    // Task 21.6 (R41.3, A-P8): the `sink` role of `PingPong` on `relay`
+    // (rank 1): a request `log` relays is answered with its value in the
+    // same Job; then the `ctl` role on `report` (`after = relay`, rank 2),
+    // stepped only in a Job whose `relay` receive delivered a request: in
+    // S0 sending this Task's Job count on to `control`, in S1 taking
+    // `control`'s reply (a completed round). Both states go back to their
+    // slots either way (R41.2).
+    #[cfg(feature = "gating")]
+    {
+        let mut relay_received = false;
+        {
+            use rsk_roles::relay_sink::{NotReceived, NotSent, RecvS0, State};
+            let state = cx.relay.take(State::Empty);
+            let next = match state {
+                State::S0(s) => match s.try_recv() {
+                    Ok(received) => {
+                        // Task 21.6 (A-P8): the completed receive opens the
+                        // gate of this Job's operations on `report`.
+                        cx.relay_gate.open(&received);
+                        relay_received = true;
+                        match received {
+                            RecvS0::Req(v, s1) => match s1.send_rep(v) {
+                                Ok(s0) => {
+                                    cx.relay_reqs.with(|n| *n = n.saturating_add(1));
+                                    State::S0(s0)
+                                }
+                                Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                                Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                            },
+                            RecvS0::Stop(e) => e.finish(),
+                        }
+                    }
+                    Err(NotReceived::Empty(s0)) | Err(NotReceived::Unexpected(s0)) | Err(NotReceived::Rejected(s0)) | Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
+                },
+                State::S1(s) => match s.send_rep(0) {
+                    Ok(s0) => State::S0(s0),
+                    Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                    Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                },
+                other => other,
+            };
+            cx.relay.store(next);
+        }
+        {
+            use rsk_roles::report_ctl::{NotReceived, NotSent, RecvS1, State};
+            let state = cx.report.take(State::Empty);
+            let next = if !relay_received {
+                state
+            } else {
+                match state {
+                    State::S0(c) => match c.send_req(cx.count.get(), &cx.relay_gate) {
+                        Ok(c1) => State::S1(c1),
+                        Err(NotSent::Full(c0)) | Err(NotSent::Refused(c0)) | Err(NotSent::PeerChanged(c0)) => State::S0(c0),
+                    },
+                    State::S1(c) => match c.try_recv(&cx.relay_gate) {
+                        Ok(RecvS1::Rep(_, c0)) => {
+                            cx.report_rounds.with(|n| *n = n.saturating_add(1));
+                            State::S0(c0)
+                        }
+                        Err(NotReceived::Empty(c1)) | Err(NotReceived::Unexpected(c1)) | Err(NotReceived::Rejected(c1)) => State::S1(c1),
+                        Err(NotReceived::PeerChanged(c0)) => State::S0(c0),
+                    },
+                    other => other,
+                }
+            };
+            cx.report.store(next);
+        }
     }
     cx.y.with(|y| lowpass(y));
     // The floating-point variant of the cycle-attribution test (task 19.3,

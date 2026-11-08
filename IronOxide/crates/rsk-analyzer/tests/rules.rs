@@ -321,9 +321,10 @@ fn r29_2_blocking_is_the_longest_lower_priority_critical_section_with_a_ceiling_
     let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
     let by = |id: &str| p.tasks.iter().find(|x| x.id == id).unwrap();
     // control (P7) and echo (P6): sensor (P5) holds `state` (Ceiling 7) for
-    // its placeholder WCET, the Budget of 8.75 ms = 218,750 cycles.
-    assert_eq!((by("part0.control").b, by("part0.control").b_source.as_str()), (218_750, "part0.sensor#cs:state"));
-    assert_eq!(by("part0.echo").b, 218_750);
+    // its placeholder WCET, the Budget of 8.7 ms = 217,500 cycles (8.75 ms
+    // before task 21.6 added `control`'s `report` role).
+    assert_eq!((by("part0.control").b, by("part0.control").b_source.as_str()), (217_500, "part0.sensor#cs:state"));
+    assert_eq!(by("part0.echo").b, 217_500);
     // sensor itself and the Tasks below the Ceiling's reach with no lower
     // locker: the Kernel-level terms (L_kernel 2,000 or the stop/restart
     // work 5,000 of R14.10, whichever is larger).
@@ -355,17 +356,19 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     // complete + wake (1,200), three timed events (900), two Critical_Section
     // sites' lock in + out (1,200), Δ_hm (300), FP save + restore because the
     // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,500; plus,
-    // since task 21.5 (R40.2), its two Endpoint roles' one operation per
-    // Job each at max(Δ_send, Δ_recv) (600): 5,100.
-    assert_eq!(by("part0.control").o, 5_100);
+    // since task 21.5 (R40.2), its Endpoint roles' operations per Job at
+    // max(Δ_send, Δ_recv): one each on `telemetry` and `pingpong`, and
+    // since task 21.6 two on `report` (a receive and a reply) (1,200): 5,700.
+    assert_eq!(by("part0.control").o, 5_700);
     // echo (sporadic, deferral policy, no Critical_Section, no Endpoint):
     // the same without the lock and Endpoint terms plus Δ_irq and Δ_stamp:
     // 3,900.
     assert_eq!(by("part0.echo").o, 3_900);
     // log (periodic, no Critical_Section): 3,300, plus its roles' declared
     // operations (`telemetry` sink `ops = 4`, `pingpong` sink `ops = 2`, a
-    // receive and a reply per Job: 1,800): 5,100.
-    assert_eq!(by("part1.log").o, 5_100);
+    // receive and a reply per Job, and since task 21.6 `relay` ctl, one
+    // operation per Job: 2,100): 5,400.
+    assert_eq!(by("part1.log").o, 5_400);
     // J is J_rel for every Task (Table 13-1).
     assert!(p.tasks.iter().all(|x| x.j == 500));
 }
@@ -666,9 +669,11 @@ fn r40_2_endpoint_operations_are_kernel_level_critical_sections() {
     assert_eq!(without - overhead(TaskIn { endpoint_cost: 0, ..lo }, p, 0, false).unwrap(), 20, "one lock entry and exit per Resource site");
 }
 
-/// R40.2 on the demo: `log` (role `sink` of `telemetry`, `ops = 4`, and of
-/// `pingpong`, `ops = 2`) carries 4 + 2 operations × max(Δ_send, Δ_recv) in O_i, and
-/// the sites appear in the blocking provenance when they determine B_i.
+/// R40.2 on the demo: `log` (role `sink` of `telemetry`, `ops = 4`, of
+/// `pingpong`, `ops = 2`, and `ctl` of `relay`, one operation) carries 4 + 2 + 1
+/// operations × max(Δ_send, Δ_recv) in O_i, `control` (one each on `telemetry`
+/// and `pingpong`, two as the `sink` of `report`) 4, and the sites appear in
+/// the blocking provenance when they determine B_i.
 #[test]
 fn r40_2_the_demo_charges_the_declared_operations_per_job() {
     let m = model();
@@ -676,9 +681,9 @@ fn r40_2_the_demo_charges_the_declared_operations_per_job() {
     let op = |t: &KernelTiming, s: &str| t.parameters.iter().find(|p| p.symbol == s).unwrap().cycles;
     let base = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap().tasks;
     let log = base.iter().find(|x| x.id == "part1.log").unwrap();
-    assert_eq!(log.endpoint_cost, 6 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    assert_eq!(log.endpoint_cost, 7 * op(&t, "delta_send").max(op(&t, "delta_recv")));
     let control = base.iter().find(|x| x.id == "part0.control").unwrap();
-    assert_eq!(control.endpoint_cost, 2 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    assert_eq!(control.endpoint_cost, 4 * op(&t, "delta_send").max(op(&t, "delta_recv")));
     assert!(base.iter().filter(|x| x.id == "part0.echo" || x.id == "part1.pulse").all(|x| x.endpoint_cost == 0));
     // A Δ_send above the Kernel floor becomes the blocking term of every
     // Task above `log`, named as the site.

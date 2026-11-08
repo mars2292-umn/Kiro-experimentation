@@ -13,7 +13,7 @@
 //! `pulse`'s Budget is 500 µs (task 19.1, 2026-11-02): the HIL build's agent measured its Job at 0.278 ms with the Budget accounting charging the SVC handlers' time to the Job, over the 200 µs first declared, and under the storm the ended Jobs answered a third of the windows.
 //!
 //! `echo`'s Budget is 300 µs (200 first) and `filter`'s 800 µs (500 first) since the WCET_Records of task 19.1 (2026-11-02): the measured executions with the 25 % margin of R34.6 are 15,712 and 49,419 cycles, and R28.4 keeps every Budget at or above its WCET.
-//! `sensor`'s Budget is 8.75 ms here (8.8 ms first, and still 8.8 ms in the HIL configurations): its Critical_Section is 6 ms (8 first) since the same records, so that its measured Job (about 6.4 ms, 7.9 ms with the margin) fits the Budget and `control`'s measured blocking term (about 7.7 ms with the margin) fits its 10 ms deadline. With placeholder timing every Critical_Section is its Task's whole Budget, which put `control` at exactly its deadline (B = 8.8 ms, C = 1 ms, O and J the rest); the 50 µs give it the slack for the intake terms of R19.2 (`echo`'s and `pulse`'s sources, modelled since 2026-11-06) and stay above the measured Job.
+//! `sensor`'s Budget is 8.7 ms here (8.8 ms first, 8.75 ms from 2026-11-06 to 2026-11-08, and still 8.8 ms in the HIL configurations): its Critical_Section is 6 ms (8 first) since the same records, so that its measured Job (about 6.4 ms, 7.9 ms with the margin) fits the Budget and `control`'s measured blocking term (about 7.7 ms with the margin) fits its 10 ms deadline. With placeholder timing every Critical_Section is its Task's whole Budget, which put `control` at exactly its deadline (B = 8.8 ms, C = 1 ms, O and J the rest); the 50 µs of 2026-11-06 gave it the slack for the intake terms of R19.2 (`echo`'s and `pulse`'s sources), and the further 50 µs of 2026-11-08 (task 21.6) the slack for the two operations per Job of its `sink` role on `report` (R40.2: 2 × max(Δ_send, Δ_recv) in O_i, 22 µs with the placeholders), both staying above the measured Job.
 //! | `filter` | `part2` (level B) | 3 | 25 ms; uses the FPU | none |
 //! | `sampler` | `part2` (level B) | 1 | 100 ms; EasyDMA requests on CMSDK_GPIO0 | none |
 //!
@@ -90,8 +90,12 @@ mod nrf52840_cycles_fpu;
 mod nrf52840_measure;
 #[cfg(feature = "nrf52840_coverage")]
 mod nrf52840_coverage;
+// The flood configuration (task 21.6, A-P7): the QEMU declaration with
+// `part1` at `fault = RESTART_PARTITION` over 500 ms (`cargo xtask qemu --flood`).
+#[cfg(feature = "qemu_flood")]
+mod qemu_flood;
 
-#[cfg(not(feature = "nrf52840"))]
+#[cfg(not(any(feature = "nrf52840", feature = "qemu_flood")))]
 rsk::app! {
     target = qemu_mps2_an386, profile = Ravenscar, operating_duration = 200.ms(),
     safe_state = crate::report_and_exit, log_capacity = 32;
@@ -118,13 +122,16 @@ rsk::app! {
         state control.telemetry_peer: u32 = 0;
         state control.pingpong_peer: u32 = 0;
         state control.pingpong_rejected: u32 = 0;
+        // Task 21.6 (R41.3, the gating of Endpoints): requests answered as
+        // the `sink` of `report`.
+        state control.report_reqs: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
                    budget = 300.us(), priority = 6);
-        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8750.us(),
+        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8700.us(),
                      priority = 5, resources = [state, in_cs]);
     }
 
@@ -145,6 +152,8 @@ rsk::app! {
         state log.telemetry_last: u32 = 0;
         // Task 21.3: requests answered over `pingpong`.
         state log.pingpong_reqs: u32 = 0;
+        // Task 21.6 (R41.3): rounds completed as the `ctl` of `relay`.
+        state log.relay_rounds: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
@@ -159,6 +168,10 @@ rsk::app! {
         resource stats: crate::Stats = crate::Stats::new() invariant |s: crate::Stats| s.ok@ <= s.total@;
         state filter.count: u32 = 0;
         state filter.y: f32 = 0.0;
+        // Task 21.6 (R41.3): requests answered as the `sink` of `relay`, and
+        // rounds completed as the `ctl` of `report`.
+        state filter.relay_reqs: u32 = 0;
+        state filter.report_rounds: u32 = 0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
@@ -202,6 +215,23 @@ rsk::app! {
     // the fault of `part1` (its STOP_PARTITION), whose peer-state change
     // `control` then sees on both Endpoints (R42.3).
     endpoint pingpong: protocol PingPong { ctl => part0.control validate = { Rep = crate::validate_rep }, sink => part1.log ops = 2 } capacity = 1, payload = 8;
+
+    // Task 21.6 (R41.3, A-P8; 2026-11-08): the gating of Endpoints with a
+    // non-trivial ranking. Two more Endpoints under the same Protocol:
+    // `log` relays each request it answered on `pingpong` to `filter` as the
+    // `ctl` of `relay` (its operations on `relay` wait for its receives on
+    // `pingpong`: `after = pingpong`), and `filter` reports each request it
+    // answered on `relay` to `control` as the `ctl` of `report` (`after =
+    // relay`). The gating relation is pingpong -> relay -> report, ranks 0,
+    // 1, 2; `log` holds two Protocol roles (pingpong's sink, relay's ctl),
+    // `filter` two (relay's sink, report's ctl), and `control` two
+    // (pingpong's ctl, report's sink). R42.4: `relay`'s `Req` crosses from
+    // level C to level B and `report`'s from level B to level A, so each
+    // `sink` declares its validation function for `Req`; `Rep` travels
+    // upward in Criticality_Level on both and needs none. Each `sink`
+    // receives and replies in one Job (`ops = 2`).
+    endpoint relay: protocol PingPong { ctl => part1.log after = pingpong, sink => part2.filter validate = { Req = crate::validate_req } ops = 2 } capacity = 1, payload = 8;
+    endpoint report: protocol PingPong { ctl => part2.filter after = relay, sink => part0.control validate = { Req = crate::validate_rep } ops = 2 } capacity = 1, payload = 8;
 
     // Task 21.5 (R41.4): the end-to-end deadline of the telemetry path: a
     // word `control` sends is read by `log`, a Periodic_Task that samples
