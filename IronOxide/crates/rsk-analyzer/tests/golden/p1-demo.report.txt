@@ -11,59 +11,59 @@ Statement: Every offset is treated as zero (synchronous release, R29.1); release
 Statement: PLACEHOLDER TIMING DATA: 37 input value(s) carry the method `placeholder` (no measurement or analysis): part0.control, part0.control#cs:state, part0.control#cs:in_cs, part0.echo, part0.sensor, part0.sensor#cs:state, part0.sensor#cs:in_cs, part1.log, part1.pulse, part2.filter, part2.filter#cs:stats, part2.sampler, part2.sampler#cs:stats, delta_lock_in, delta_lock_out, delta_release, delta_dispatch, delta_complete, delta_timer, delta_irq, delta_stamp, l_kernel, delta_fp_save, delta_fp_restore, delta_detect, delta_enforce, delta_hm, delta_wake, j_rel, delta_svc, delta_dma_write, delta_view, delta_restart, delta_stop, delta_entry, delta_send, delta_recv. This report is not timing evidence.
 Utilization (Σ E_j/T_j): 88%
 Tasks:
-  part0.control (Partition part0, level A, Priority 7): T=250000 D=250000 C=25000 B=217500 (from part0.sensor#cs:state) O=5700 J=500 R=249300 schedulable slack=700
+  part0.control (Partition part0, level A, Priority 7): T=250000 D=250000 C=25000 B=217500 (from part0.sensor#cs:state) O=6000 J=500 R=249600 schedulable slack=400
       interference from part0.echo (intake, R19.2): 1 jobs × E=300 = 300 cycles
       interference from part1.pulse (intake, R19.2): 1 jobs × E=300 = 300 cycles
       WCET part0.control: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
       WCET part0.control#cs:state: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
       WCET part0.control#cs:in_cs: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
-  part0.echo (Partition part0, level A, Priority 6): T=500000 D=500000 C=7500 B=217500 (from part0.sensor#cs:state) O=3900 J=500 R=291100 schedulable slack=208900
-      interference from part0.control: 2 jobs × E=30700 = 61400 cycles
+  part0.echo (Partition part0, level A, Priority 6): T=500000 D=500000 C=7500 B=217500 (from part0.sensor#cs:state) O=3900 J=500 R=291700 schedulable slack=208300
+      interference from part0.control: 2 jobs × E=31000 = 62000 cycles
       interference from part1.pulse (intake, R19.2): 1 jobs × E=300 = 300 cycles
       WCET part0.echo: 7500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
-  part0.sensor (Partition part0, level A, Priority 5): T=500000 D=500000 C=217500 B=5000 (from Partition stop/restart work (R14.10)) O=4500 J=500 R=300600 schedulable slack=199400
-      interference from part0.control: 2 jobs × E=30700 = 61400 cycles
+  part0.sensor (Partition part0, level A, Priority 5): T=500000 D=500000 C=217500 B=5000 (from Partition stop/restart work (R14.10)) O=4500 J=500 R=301200 schedulable slack=198800
+      interference from part0.control: 2 jobs × E=31000 = 62000 cycles
       interference from part0.echo: 1 jobs × E=11400 = 11400 cycles
       interference from part1.pulse (intake, R19.2): 1 jobs × E=300 = 300 cycles
       WCET part0.sensor: 217500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
       WCET part0.sensor#cs:state: 217500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
       WCET part0.sensor#cs:in_cs: 217500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
-  part1.log (Partition part1, level C, Priority 2): T=1000000 D=1000000 C=150000 B=13100 (from part2.sampler#cs:stats) O=5400 J=500 R=900400 schedulable slack=99600
-      interference from part0.control: 4 jobs × E=30700 = 122800 cycles
+  part1.log (Partition part1, level C, Priority 2): T=1000000 D=1000000 C=150000 B=13100 (from part2.sampler#cs:stats) O=6000 J=500 R=903400 schedulable slack=96600
+      interference from part0.control: 4 jobs × E=31000 = 124000 cycles
       interference from part0.echo: 2 jobs × E=11400 = 22800 cycles
       interference from part0.sensor: 2 jobs × E=222000 = 444000 cycles
       interference from part1.pulse: 3 jobs × E=17000 = 51000 cycles
-      interference from part2.filter: 2 jobs × E=45400 = 90800 cycles
+      interference from part2.filter: 2 jobs × E=46000 = 92000 cycles
       WCET part1.log: 150000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
-  part1.pulse (Partition part1, level C, Priority 4): T=375000 D=375000 C=12500 B=5000 (from Partition stop/restart work (R14.10)) O=3900 J=500 R=316700 schedulable slack=58300
-      interference from part0.control: 2 jobs × E=30700 = 61400 cycles
+  part1.pulse (Partition part1, level C, Priority 4): T=375000 D=375000 C=12500 B=5000 (from Partition stop/restart work (R14.10)) O=3900 J=500 R=317300 schedulable slack=57700
+      interference from part0.control: 2 jobs × E=31000 = 62000 cycles
       interference from part0.echo: 1 jobs × E=11400 = 11400 cycles
       interference from part0.sensor: 1 jobs × E=222000 = 222000 cycles
       WCET part1.pulse: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
-  part2.filter (Partition part2, level B, Priority 3): T=625000 D=625000 C=20000 B=12500 (from part2.sampler#cs:stats) O=4800 J=500 R=349600 schedulable slack=275400
-      interference from part0.control: 2 jobs × E=30700 = 61400 cycles
+  part2.filter (Partition part2, level B, Priority 3): T=625000 D=625000 C=20000 B=12500 (from part2.sampler#cs:stats) O=5400 J=500 R=350800 schedulable slack=274200
+      interference from part0.control: 2 jobs × E=31000 = 62000 cycles
       interference from part0.echo: 1 jobs × E=11400 = 11400 cycles
       interference from part0.sensor: 1 jobs × E=222000 = 222000 cycles
       interference from part1.pulse: 1 jobs × E=17000 = 17000 cycles
       WCET part2.filter: 20000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
       WCET part2.filter#cs:stats: 20000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
-  part2.sampler (Partition part2, level B, Priority 1): T=2500000 D=2500000 C=12500 B=5000 (from Partition stop/restart work (R14.10)) O=3900 J=500 R=909600 schedulable slack=1590400
-      interference from part0.control: 4 jobs × E=30700 = 122800 cycles
+  part2.sampler (Partition part2, level B, Priority 1): T=2500000 D=2500000 C=12500 B=5000 (from Partition stop/restart work (R14.10)) O=3900 J=500 R=912600 schedulable slack=1587400
+      interference from part0.control: 4 jobs × E=31000 = 124000 cycles
       interference from part0.echo: 2 jobs × E=11400 = 22800 cycles
       interference from part0.sensor: 2 jobs × E=222000 = 444000 cycles
-      interference from part1.log: 1 jobs × E=156300 = 156300 cycles
+      interference from part1.log: 1 jobs × E=156900 = 156900 cycles
       interference from part1.pulse: 3 jobs × E=17000 = 51000 cycles
-      interference from part2.filter: 2 jobs × E=45400 = 90800 cycles
+      interference from part2.filter: 2 jobs × E=46000 = 92000 cycles
       WCET part2.sampler: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
       WCET part2.sampler#cs:stats: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)
 End-to-end chains (R41.4):
-  telemetry_path: part0.control -> part1.log: bound 2149700 cycles, deadline 2500000 cycles: PASS
-      R of `part0.control`: 249300 cycles
+  telemetry_path: part0.control -> part1.log: bound 2153000 cycles, deadline 2500000 cycles: PASS
+      R of `part0.control`: 249600 cycles
       T of `part1.log` (a Periodic_Task samples the Endpoint once per period): 1000000 cycles
-      R of `part1.log`: 900400 cycles
+      R of `part1.log`: 903400 cycles
 UPPAAL cross-check: not_run (run the UPPAAL cross-check with --uppaal)
 Omitted or approximated terms:
-  Endpoint operations (R40.2, task 21.5) are approximated: for each of the 4 declared Endpoint(s) (telemetry, pingpong, relay, report) a role's send and receive are Critical_Sections of Δ_send and Δ_recv at the Kernel level in every blocking term, and each role's declared operations per Job (`ops`, 1 unless declared) × the larger of the two is charged in its Task's O_i; the count per Job is the declaration's, not measured, and Δ_send and Δ_recv are the measured maxima over the configuration's payload sizes (R33.2)
+  Endpoint operations (R40.2, task 21.5) are approximated: for each of the 5 declared Endpoint(s) (telemetry, pingpong, relay, report, triangle) a role's send and receive are Critical_Sections of Δ_send and Δ_recv at the Kernel level in every blocking term, and each role's declared operations per Job (`ops`, 1 unless declared) × the larger of the two is charged in its Task's O_i; the count per Job is the declaration's, not measured, and Δ_send and Δ_recv are the measured maxima over the configuration's payload sizes (R33.2)
   the intake handling of a Sporadic_Task's Release_Source (R19.2, Δ_irq per MIT) interferes with every Task in the RTA; the UPPAAL model carries it only in E_j, on the Tasks the Task's Jobs preempt
   UPPAAL export: Critical_Sections and the System_Ceiling are approximated by the blocking interval B_i spent before each Job starts, not by locations that raise the ceiling
   UPPAAL export: the Kernel overheads of R29.3 are folded into each Task's execution-time bound E_i, not modelled as locations

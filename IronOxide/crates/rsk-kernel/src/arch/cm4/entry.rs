@@ -50,7 +50,7 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS};
+use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
 use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED};
@@ -961,6 +961,58 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
 /// operation reports the peer-state change and the two roles start over
 /// from the Protocol's initial state (the restarted role's zeroed slot is
 /// that state).
+/// The `ArchState::fifos` index of the channel from role `from` to role
+/// `to` of Endpoint `e` (task 21.7).
+pub open spec fn spec_channel_index(e: int, from: int, to: int) -> int {
+    e * (MAX_ROLES * MAX_ROLES) as int + from * MAX_ROLES as int + to
+}
+
+fn channel_index(e: usize, from: usize, to: usize) -> (r: usize)
+    requires e < MAX_ENDPOINTS, from < MAX_ROLES, to < MAX_ROLES,
+    ensures r as int == spec_channel_index(e as int, from as int, to as int), r < MAX_CHANNELS,
+{
+    e * (MAX_ROLES * MAX_ROLES) + from * MAX_ROLES + to
+}
+
+/// The peer-state flag of role `r` of Endpoint `e`.
+fn role_slot(e: usize, r: usize) -> (i: usize)
+    requires e < MAX_ENDPOINTS, r < MAX_ROLES,
+    ensures i as int == e as int * MAX_ROLES as int + r as int, i < MAX_ROLE_SLOTS,
+{
+    e * MAX_ROLES + r
+}
+
+/// Whether Partition `p` holds a role of `cfg`.
+fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
+{
+    let mut i: usize = 0;
+    let mut found = false;
+    while i < MAX_ROLES
+        invariant i <= MAX_ROLES,
+        decreases MAX_ROLES - i,
+    {
+        if (i as u8) < cfg.roles && cfg.partitions[i] == p {
+            found = true;
+        }
+        i += 1;
+    }
+    found
+}
+
+/// Empties every channel of Endpoint `e`.
+fn clear_channels(state: &mut ArchState, e: usize)
+    requires e < MAX_ENDPOINTS,
+{
+    let mut c: usize = 0;
+    while c < MAX_ROLES * MAX_ROLES
+        invariant c <= MAX_ROLES * MAX_ROLES,
+        decreases MAX_ROLES * MAX_ROLES - c,
+    {
+        state.fifos[e * (MAX_ROLES * MAX_ROLES) + c].clear();
+        c += 1;
+    }
+}
+
 fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
     let n = tables.endpoint_count();
     let mut e: usize = 0;
@@ -969,14 +1021,19 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
         decreases MAX_ENDPOINTS - e,
     {
         let cfg = tables.endpoint(e);
-        if cfg.partitions[0] == p || cfg.partitions[1] == p {
-            state.fifos[2 * e].clear();
-            state.fifos[2 * e + 1].clear();
-            if cfg.partitions[0] == p && cfg.partitions[1] != p {
-                state.peer_changed[2 * e + 1] = true;
-            }
-            if cfg.partitions[1] == p && cfg.partitions[0] != p {
-                state.peer_changed[2 * e] = true;
+        if partition_in(&cfg, p) {
+            clear_channels(state, e);
+            // Every role of another Partition is marked (task 21.7: all
+            // roles of a multiparty Endpoint start over together).
+            let mut r: usize = 0;
+            while r < MAX_ROLES
+                invariant r <= MAX_ROLES, e < MAX_ENDPOINTS,
+                decreases MAX_ROLES - r,
+            {
+                if (r as u8) < cfg.roles && cfg.partitions[r] != p {
+                    state.peer_changed[role_slot(e, r)] = true;
+                }
+                r += 1;
             }
         }
         e += 1;
@@ -1048,16 +1105,37 @@ fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
 fn endpoint_reinit_one(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
     ensures
-        final(state).fifos[2 * e as int] == crate::logic::endpoint::Fifo::empty_spec(),
-        final(state).fifos[2 * e as int + 1] == crate::logic::endpoint::Fifo::empty_spec(),
-        final(state).peer_changed[2 * e as int],
-        final(state).peer_changed[2 * e as int + 1],
-        forall|c: int| 0 <= c < MAX_CHANNELS && c != 2 * e && c != 2 * e + 1 ==> final(state).fifos[c] == old(state).fifos[c] && final(state).peer_changed[c] == old(state).peer_changed[c],
+        forall|c: int| 0 <= c < (MAX_ROLES * MAX_ROLES) as int ==> final(state).fifos[e as int * (MAX_ROLES * MAX_ROLES) as int + c] == crate::logic::endpoint::Fifo::empty_spec(),
+        forall|r: int| 0 <= r < MAX_ROLES as int ==> final(state).peer_changed[e as int * MAX_ROLES as int + r],
+        forall|c: int| 0 <= c < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= c < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> final(state).fifos[c] == old(state).fifos[c],
+        forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int) ==> final(state).peer_changed[i] == old(state).peer_changed[i],
 {
-    state.fifos[2 * e].clear();
-    state.fifos[2 * e + 1].clear();
-    state.peer_changed[2 * e] = true;
-    state.peer_changed[2 * e + 1] = true;
+    let ghost before = *state;
+    let mut c: usize = 0;
+    while c < MAX_ROLES * MAX_ROLES
+        invariant
+            c <= MAX_ROLES * MAX_ROLES, e < MAX_ENDPOINTS,
+            forall|k: int| 0 <= k < c ==> state.fifos[e as int * (MAX_ROLES * MAX_ROLES) as int + k] == crate::logic::endpoint::Fifo::empty_spec(),
+            forall|k: int| 0 <= k < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= k < e as int * (MAX_ROLES * MAX_ROLES) as int + c) ==> state.fifos[k] == before.fifos[k],
+            state.peer_changed == before.peer_changed,
+        decreases MAX_ROLES * MAX_ROLES - c,
+    {
+        state.fifos[e * (MAX_ROLES * MAX_ROLES) + c].clear();
+        c += 1;
+    }
+    let mut r: usize = 0;
+    while r < MAX_ROLES
+        invariant
+            r <= MAX_ROLES, e < MAX_ENDPOINTS,
+            forall|k: int| 0 <= k < (MAX_ROLES * MAX_ROLES) as int ==> state.fifos[e as int * (MAX_ROLES * MAX_ROLES) as int + k] == crate::logic::endpoint::Fifo::empty_spec(),
+            forall|k: int| 0 <= k < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= k < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> state.fifos[k] == before.fifos[k],
+            forall|q: int| 0 <= q < r ==> state.peer_changed[e as int * MAX_ROLES as int + q],
+            forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < e as int * MAX_ROLES as int + r) ==> state.peer_changed[i] == before.peer_changed[i],
+        decreases MAX_ROLES - r,
+    {
+        state.peer_changed[e * MAX_ROLES + r] = true;
+        r += 1;
+    }
 }
 
 /// The Endpoint_Library's reports (`SVC_VIOLATION`; tasks 21.3 and 21.4).
@@ -1081,18 +1159,21 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut Ar
         k.record_event(EV_PROTOCOL_VIOLATION, t);
         return;
     }
+    // Task 21.7: `arg` = 1 | e << 8 | role << 16 | from << 20, `from` the
+    // role that sent the rejected message.
     let e = ((arg >> 8) & 0xFF) as usize;
-    let role: usize = if (arg >> 16) & 1 == 1 { 1 } else { 0 };
-    if arg & 0xFF != 1 || (arg >> 17) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS {
+    let role = ((arg >> 16) & 0xF) as usize;
+    let from = ((arg >> 20) & 0xF) as usize;
+    if arg & 0xFF != 1 || (arg >> 24) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS || role >= MAX_ROLES || from >= MAX_ROLES {
         k.fault(EV_API_MISUSE, false);
         return;
     }
     let cfg = tables.endpoint(e);
-    if cfg.tasks[role] != t {
+    if (role as u8) >= cfg.roles || (from as u8) >= cfg.roles || from == role || cfg.tasks[role] != t {
         k.fault(EV_API_MISUSE, false);
         return;
     }
-    k.fault_of(EV_MESSAGE_REJECTED, cfg.tasks[1 - role]);
+    k.fault_of(EV_MESSAGE_REJECTED, cfg.tasks[from]);
     endpoint_reinit_one(state, e);
 }
 
@@ -1102,17 +1183,24 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut Ar
 /// word-aligned in the Partition's own RAM (R42.2; the Kernel copies under
 /// its own view and must never reach beyond the caller's memory). Returns
 /// the Endpoint index, the role, and its configuration.
-fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32, len: u32) -> (r: Option<(usize, usize, EndpointCfg)>)
+fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32, len: u32) -> (r: Option<(usize, usize, usize, EndpointCfg)>)
     requires k.inv(),
-    ensures r.is_some() ==> r.unwrap().0 < MAX_ENDPOINTS && r.unwrap().1 < 2
-        && r.unwrap().2.capacity >= 1 && r.unwrap().2.payload >= 4 && r.unwrap().2.payload % 4 == 0,
+    ensures r.is_some() ==> r.unwrap().0 < MAX_ENDPOINTS && r.unwrap().1 < MAX_ROLES && r.unwrap().2 < MAX_ROLES && r.unwrap().1 != r.unwrap().2
+        && (r.unwrap().1 as int) < r.unwrap().3.roles as int && (r.unwrap().2 as int) < r.unwrap().3.roles as int && r.unwrap().3.roles as int <= MAX_ROLES as int
+        && r.unwrap().3.capacity >= 1 && r.unwrap().3.payload >= 4 && r.unwrap().3.payload % 4 == 0,
 {
+    // Task 21.7: `arg` = e | role << 8 | peer << 12 (the role performing
+    // the operation, and the role it sends to or receives from).
     let e = (arg & 0xFF) as usize;
-    let role: usize = if (arg >> 8) & 1 == 1 { 1 } else { 0 };
-    if (arg >> 9) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS {
+    let role = ((arg >> 8) & 0xF) as usize;
+    let peer = ((arg >> 12) & 0xF) as usize;
+    if (arg >> 16) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS || role >= MAX_ROLES || peer >= MAX_ROLES || role == peer {
         return None;
     }
     let cfg = tables.endpoint(e);
+    if (cfg.roles as usize) > MAX_ROLES || (role as u8) >= cfg.roles || (peer as u8) >= cfg.roles {
+        return None;
+    }
     let ok = match k.top() {
         Some(t) => {
             t == cfg.tasks[role]
@@ -1125,26 +1213,30 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
         }
         None => false,
     };
-    if ok { Some((e, role, cfg)) } else { None }
+    if ok { Some((e, role, peer, cfg)) } else { None }
 }
 
 /// The Kernel storage address of slot `slot` of channel `d` of `cfg`, when
 /// the slot's bytes lie inside the Endpoint storage; `None` otherwise (a
 /// Generated_Config the Generator never emits: the backstop is a refusal).
 fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -> (a: Option<u32>)
-    requires d < 2,
+    requires d < MAX_ROLES * MAX_ROLES,
 {
     let (base, total) = tables.endpoint_storage();
     let payload = cfg.payload as u64;
     let capacity = cfg.capacity as u64;
     let slot64 = slot as u64;
-    // Every product below is of an 8-bit by a 16-bit quantity: under 2^24.
+    let d64 = d as u64;
+    // Every product below is of an 8-bit by a 16-bit quantity: under 2^24;
+    // the channel count per Endpoint is at most 16 (task 21.7).
     assert(capacity * payload <= 255 * 65535) by (nonlinear_arith)
         requires capacity <= 255, payload <= 65535;
     assert(slot64 * payload <= 255 * 65535) by (nonlinear_arith)
         requires slot64 <= 255, payload <= 65535;
     let per_channel: u64 = capacity * payload;
-    let channel_off: u64 = if d == 1 { per_channel } else { 0 };
+    assert(d64 * per_channel <= 16 * 255 * 65535) by (nonlinear_arith)
+        requires d64 < 16, per_channel <= 255 * 65535;
+    let channel_off: u64 = d64 * per_channel;
     let off: u64 = cfg.storage as u64 + channel_off + slot64 * payload;
     if off + payload <= total as u64 && base as u64 + off + payload <= 0xFFFF_FFFF {
         Some((base as u64 + off) as u32)
@@ -1168,18 +1260,21 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
 {
-    let (e, role, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
+    let (e, role, peer, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
         None => {
             k.fault(EV_API_MISUSE, false);
             return ENDPOINT_REFUSED;
         }
     };
-    if state.peer_changed[2 * e + role] {
-        state.peer_changed[2 * e + role] = false;
+    let rs = role_slot(e, role);
+    if state.peer_changed[rs] {
+        state.peer_changed[rs] = false;
         return ENDPOINT_PEER;
     }
-    let ch = 2 * e + role;
+    // The channel from `role` to `peer` (task 21.7): its storage is the
+    // dense channel `role * roles + peer` of the Endpoint.
+    let ch = channel_index(e, role, peer);
     let slot = match channel_push(state, ch, cfg.capacity) {
         Some(s) => s,
         None => {
@@ -1188,17 +1283,17 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return ENDPOINT_FULL;
         }
     };
-    match endpoint_slot(tables, &cfg, role, slot) {
+    let d = role * (cfg.roles as usize) + peer;
+    match endpoint_slot(tables, &cfg, d, slot) {
         Some(dst) => hw.apply(Action::Copy(dst, ptr, len)),
         None => {
             k.fault(EV_API_MISUSE, false);
             return ENDPOINT_REFUSED;
         }
     }
-    let other = 1 - role;
-    if cfg.release[other] {
+    if cfg.release[peer] {
         let now = hw.now();
-        k.intake(cfg.tasks[other], cfg.partitions[role], now);
+        k.intake(cfg.tasks[peer], cfg.partitions[role], now);
     }
     ENDPOINT_OK
 }
@@ -1212,24 +1307,26 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
 {
-    let (e, role, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
+    let (e, role, from, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
         None => {
             k.fault(EV_API_MISUSE, false);
             return ENDPOINT_REFUSED;
         }
     };
-    if state.peer_changed[2 * e + role] {
-        state.peer_changed[2 * e + role] = false;
+    let rs = role_slot(e, role);
+    if state.peer_changed[rs] {
+        state.peer_changed[rs] = false;
         return ENDPOINT_PEER;
     }
-    let from = 1 - role;
-    let ch = 2 * e + from;
+    // The channel from `from` to `role` (task 21.7).
+    let ch = channel_index(e, from, role);
     let slot = match channel_pop(state, ch, cfg.capacity) {
         Some(s) => s,
         None => return ENDPOINT_EMPTY,
     };
-    match endpoint_slot(tables, &cfg, from, slot) {
+    let d = from * (cfg.roles as usize) + role;
+    match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
             hw.apply(Action::Copy(ptr, src, len));
             ENDPOINT_OK

@@ -14,12 +14,16 @@ pub mod rsk_state {
     pub static FILTER_RELAY_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.filter.report_rounds` (PR-25): touched by `filter`'s Jobs only.
     pub static FILTER_REPORT_ROUNDS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part2.filter.triangle_acks` (PR-25): touched by `filter`'s Jobs only.
+    pub static FILTER_TRIANGLE_ACKS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.filter.loop_hold` (PR-25): touched by `filter`'s Jobs only.
     pub static FILTER_LOOP_HOLD: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// The RoleSlot of role `sink` of Endpoint `relay` (task 21.3, R38.7): `filter`'s state between its Jobs.
     pub static FILTER_RELAY: ::rsk::ResourceCell<super::rsk_roles::relay_sink::State> = ::rsk::ResourceCell::new(super::rsk_roles::relay_sink::State::initial());
     /// The RoleSlot of role `ctl` of Endpoint `report` (task 21.3, R38.7): `filter`'s state between its Jobs.
     pub static FILTER_REPORT: ::rsk::ResourceCell<super::rsk_roles::report_ctl::State> = ::rsk::ResourceCell::new(super::rsk_roles::report_ctl::State::initial());
+    /// The RoleSlot of role `sink` of Endpoint `triangle` (task 21.3, R38.7): `filter`'s state between its Jobs.
+    pub static FILTER_TRIANGLE: ::rsk::ResourceCell<super::rsk_roles::triangle_sink::State> = ::rsk::ResourceCell::new(super::rsk_roles::triangle_sink::State::initial());
     /// Per-Task state `part2.sampler.count` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part2.sampler.dma_ok` (PR-25): touched by `sampler`'s Jobs only.
@@ -49,6 +53,8 @@ pub mod rsk_roles {
         pub const PW: usize = 1;
         type Raw = ::rsk::Endpoint<[u32; W], W>;
         fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
+        pub const PEER_CTL: u8 = 0;
+        pub const PEER_SINK: u8 = 1;
         pub const LABEL_REQ: u32 = 0;
         pub const LABEL_REP: u32 = 1;
         pub const LABEL_STOP: u32 = 2;
@@ -91,7 +97,7 @@ pub mod rsk_roles {
         impl Sink<S0> {
             /// Receives the next message from `ctl`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
             pub fn try_recv(self) -> Result<RecvS0, NotReceived<S0>> {
-                match raw().recv() {
+                match raw().recv_from(PEER_CTL) {
                     Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
                     Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
                     Ok(Some(w)) => {
@@ -105,7 +111,7 @@ pub mod rsk_roles {
                                 let v = ::rsk::words::message_from_words::<u32, PW>(&p);
                                 // R42.4: the declared validation function of `Req`.
                                 if !crate::validate_req(&v) {
-                                    ::rsk::report_rejected_message(ID, ROLE);
+                                    ::rsk::report_rejected_message(ID, ROLE, PEER_CTL);
                                     return Err(NotReceived::Rejected(self));
                                 }
                                 Ok(RecvS0::Req(v, self.advance::<S1>()))
@@ -127,7 +133,7 @@ pub mod rsk_roles {
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
                 while i < PW { w[i + 1] = p.0[i]; i += 1; }
-                match raw().send(&w) {
+                match raw().send_to(PEER_CTL, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -167,6 +173,8 @@ pub mod rsk_roles {
         pub const PW: usize = 1;
         type Raw = ::rsk::Endpoint<[u32; W], W>;
         fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
+        pub const PEER_CTL: u8 = 0;
+        pub const PEER_SINK: u8 = 1;
         pub const LABEL_REQ: u32 = 0;
         pub const LABEL_REP: u32 = 1;
         pub const LABEL_STOP: u32 = 2;
@@ -210,7 +218,7 @@ pub mod rsk_roles {
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
                 while i < PW { w[i + 1] = p.0[i]; i += 1; }
-                match raw().send(&w) {
+                match raw().send_to(PEER_SINK, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -222,7 +230,7 @@ pub mod rsk_roles {
             pub fn send_stop(self, gate_relay: &::rsk::Gate) -> Result<Ctl<S2>, NotSent<S0>> {
                 let mut w = [0u32; W];
                 w[0] = LABEL_STOP;
-                match raw().send(&w) {
+                match raw().send_to(PEER_SINK, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -240,7 +248,7 @@ pub mod rsk_roles {
             /// Receives the next message from `sink`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
             #[cfg_attr(creusot, ::rsk::creusot_std::macros::requires((*gate_relay)@))]
             pub fn try_recv(self, gate_relay: &::rsk::Gate) -> Result<RecvS1, NotReceived<S1>> {
-                match raw().recv() {
+                match raw().recv_from(PEER_SINK) {
                     Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
                     Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
                     Ok(Some(w)) => {
@@ -280,6 +288,129 @@ pub mod rsk_roles {
         impl From<Ctl<S0>> for State { fn from(v: Ctl<S0>) -> State { State::S0(v) } }
         impl From<Ctl<S1>> for State { fn from(v: Ctl<S1>) -> State { State::S1(v) } }
         impl From<Ctl<S2>> for State { fn from(v: Ctl<S2>) -> State { State::S2(v) } }
+    }
+    /// Role `sink` of Endpoint `triangle` under Protocol `Triangle` (task 21.3): the projection `rec L.mid?{Fwd(u32).ctl!{Ack(u32).L}, Done().end}`, states S0 to S2, the initial state S0.
+    #[allow(non_camel_case_types, clippy::large_enum_variant)]
+    pub mod triangle_sink {
+        use ::core::marker::PhantomData;
+        const ID: u8 = 4;
+        const ROLE: u8 = 2;
+        /// Words per message (the declared payload / 4): the label, then the payload.
+        pub const W: usize = 2;
+        pub const PW: usize = 1;
+        type Raw = ::rsk::Endpoint<[u32; W], W>;
+        fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
+        pub const PEER_CTL: u8 = 0;
+        pub const PEER_MID: u8 = 1;
+        pub const PEER_SINK: u8 = 2;
+        pub const LABEL_REQ: u32 = 0;
+        pub const LABEL_FWD: u32 = 1;
+        pub const LABEL_ACK: u32 = 2;
+        pub const LABEL_STOP: u32 = 3;
+        pub const LABEL_DONE: u32 = 4;
+        const _: () = assert!(::core::mem::size_of::<u32>() <= 4 * PW, "the payload of `Fwd` exceeds Endpoint `triangle`'s declared payload less its label word (R38.1)");
+        const _: () = assert!(::core::mem::size_of::<u32>() <= 4 * PW, "the payload of `Ack` exceeds Endpoint `triangle`'s declared payload less its label word (R38.1)");
+        /// A state marker: whether dropping a role value in the state is a Protocol violation (R41.2: not at an end or a recursion state).
+        pub trait Tag { const REPORT_ON_DROP: bool; }
+        pub struct S0;
+        impl Tag for S0 { const REPORT_ON_DROP: bool = false; }
+        pub struct S1;
+        impl Tag for S1 { const REPORT_ON_DROP: bool = true; }
+        pub struct S2;
+        impl Tag for S2 { const REPORT_ON_DROP: bool = false; }
+        /// The role in state `S`: its only operations are those the projection permits there (R38.4).
+        #[repr(C)]
+        pub struct Sink<S: Tag> { consumed: bool, _s: PhantomData<S> }
+        #[cfg(not(creusot))]
+        impl<S: Tag> Drop for Sink<S> {
+            fn drop(&mut self) {
+                if S::REPORT_ON_DROP && !self.consumed {
+                    ::rsk::report_protocol_violation();
+                }
+            }
+        }
+        impl<S: Tag> Sink<S> {
+            const fn fresh() -> Sink<S> { Sink { consumed: false, _s: PhantomData } }
+            fn advance<T: Tag>(mut self) -> Sink<T> { self.consumed = true; Sink::<T>::fresh() }
+        }
+        /// Why a send did not take the message, with the role: `Full` (a reported violation of the bound, R40.5) and `Refused` keep the state; `PeerChanged` (R42.3, task 21.4: the other Partition was stopped or restarted and the Endpoint re-initialized) gives the role back in its initial state.
+        pub enum NotSent<S: Tag> { Full(Sink<S>), Refused(Sink<S>), PeerChanged(Sink<S0>) }
+        /// Why a receive delivered nothing, with the role: `Empty` (R40.4), `Unexpected` (a label the state does not expect, a reported Protocol violation, R41.2), and `Rejected` (a payload the role's validation function refused, the sending Partition's reported fault, R42.4) keep the state; `PeerChanged` (R42.3) gives the role back in its initial state.
+        pub enum NotReceived<S: Tag> { Empty(Sink<S>), Unexpected(Sink<S>), Rejected(Sink<S>), PeerChanged(Sink<S0>) }
+        /// What S0 may receive from `mid`, each with the state after it.
+        pub enum RecvS0 {
+            Fwd(u32, Sink<S1>),
+            Done(Sink<S2>),
+        }
+        /// A completed receive in this state: the evidence that opens a gate (task 21.6, A-P8).
+        impl ::rsk::Received for RecvS0 {}
+        impl Sink<S0> {
+            /// Receives the next message from `mid`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
+            pub fn try_recv(self) -> Result<RecvS0, NotReceived<S0>> {
+                match raw().recv_from(PEER_MID) {
+                    Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
+                    Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
+                    Ok(Some(w)) => {
+                        let mut p = ::rsk::words::zero::<PW>();
+                        let mut i: usize = 0;
+                        #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
+                        #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
+                        while i < PW { p.0[i] = w[i + 1]; i += 1; }
+                        match w[0] {
+                            LABEL_FWD => {
+                                let v = ::rsk::words::message_from_words::<u32, PW>(&p);
+                                // R42.4: the declared validation function of `Fwd`.
+                                if !crate::validate_req(&v) {
+                                    ::rsk::report_rejected_message(ID, ROLE, PEER_MID);
+                                    return Err(NotReceived::Rejected(self));
+                                }
+                                Ok(RecvS0::Fwd(v, self.advance::<S1>()))
+                            }
+                            LABEL_DONE => Ok(RecvS0::Done(self.advance::<S2>())),
+                            _ => { ::rsk::report_protocol_violation(); Err(NotReceived::Unexpected(self)) }
+                        }
+                    }
+                }
+            }
+        }
+        impl Sink<S1> {
+            /// Sends `Ack(u32)` to `ctl` and moves to S0; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).
+            pub fn send_ack(self, m: u32) -> Result<Sink<S0>, NotSent<S1>> {
+                let mut w = [0u32; W];
+                w[0] = LABEL_ACK;
+                let p = ::rsk::words::message_to_words::<u32, PW>(&m);
+                let mut i: usize = 0;
+                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
+                #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
+                while i < PW { w[i + 1] = p.0[i]; i += 1; }
+                match raw().send_to(PEER_CTL, &w) {
+                    Ok(()) => Ok(self.advance()),
+                    Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
+                    Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
+                    Err(::rsk::SendError::PeerChanged) => Err(NotSent::PeerChanged(self.advance::<S0>())),
+                }
+            }
+        }
+        impl Sink<S2> {
+            /// The Protocol has ended for this role: the state goes back to the slot as `State::S2`.
+            pub fn finish(self) -> State { State::S2(self) }
+        }
+        /// The role's state between Jobs (R38.7), held in the Task's `RoleSlot`: `Empty` while a Job holds it. `#[repr(u8)]` with S0 as 0, so a Partition restart's zeroed image is the initial state.
+        #[repr(u8)]
+        pub enum State {
+            S0(Sink<S0>) = 0,
+            S1(Sink<S1>) = 1,
+            S2(Sink<S2>) = 2,
+            Empty = 3,
+        }
+        impl State {
+            /// The initial state, the slot's initializer (a `const fn`, not a `const` item: the App_Prover would make the item transparent and refuse the private constructor it calls).
+            pub const fn initial() -> State { State::S0(Sink::<S0>::fresh()) }
+            pub fn is_empty(&self) -> bool { matches!(self, State::Empty) }
+        }
+        impl From<Sink<S0>> for State { fn from(v: Sink<S0>) -> State { State::S0(v) } }
+        impl From<Sink<S1>> for State { fn from(v: Sink<S1>) -> State { State::S1(v) } }
+        impl From<Sink<S2>> for State { fn from(v: Sink<S2>) -> State { State::S2(v) } }
     }
 }
 pub mod rsk_validate {
@@ -323,6 +454,8 @@ pub mod rsk_ctx {
         pub relay: ::rsk::RoleSlot<'static, super::rsk_roles::relay_sink::State>,
         /// Role `ctl` of Endpoint `report` under Protocol `PingPong` (tasks 21.1, 21.3; R38.3, R38.7): the slot of its state between Jobs, `rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}`; bound k = 1 (R41.1), capacity 1.
         pub report: ::rsk::RoleSlot<'static, super::rsk_roles::report_ctl::State>,
+        /// Role `sink` of Endpoint `triangle` under Protocol `Triangle` (tasks 21.1, 21.3; R38.3, R38.7): the slot of its state between Jobs, `rec L.mid?{Fwd(u32).ctl!{Ack(u32).L}, Done().end}`; bound k = 1 (R41.1), capacity 1.
+        pub triangle: ::rsk::RoleSlot<'static, super::rsk_roles::triangle_sink::State>,
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `y` (PR-25).
@@ -331,6 +464,8 @@ pub mod rsk_ctx {
         pub relay_reqs: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `report_rounds` (PR-25).
         pub report_rounds: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `triangle_acks` (PR-25).
+        pub triangle_acks: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `loop_hold` (PR-25).
         pub loop_hold: ::rsk::PerTask<'static, u32>,
         /// The gate of this Job's receive on Endpoint `relay` (task 21.6, A-P8): the operations of the roles declared `after = relay` require it open.
@@ -389,10 +524,12 @@ pub mod rsk_jobs {
             stats: ::rsk::Shared::new(&super::rsk_resources::STATS, 2),
             relay: ::rsk::RoleSlot::new(&super::rsk_state::FILTER_RELAY),
             report: ::rsk::RoleSlot::new(&super::rsk_state::FILTER_REPORT),
+            triangle: ::rsk::RoleSlot::new(&super::rsk_state::FILTER_TRIANGLE),
             count: ::rsk::PerTask::new(&super::rsk_state::FILTER_COUNT),
             y: ::rsk::PerTask::new(&super::rsk_state::FILTER_Y),
             relay_reqs: ::rsk::PerTask::new(&super::rsk_state::FILTER_RELAY_REQS),
             report_rounds: ::rsk::PerTask::new(&super::rsk_state::FILTER_REPORT_ROUNDS),
+            triangle_acks: ::rsk::PerTask::new(&super::rsk_state::FILTER_TRIANGLE_ACKS),
             loop_hold: ::rsk::PerTask::new(&super::rsk_state::FILTER_LOOP_HOLD),
             relay_gate: ::rsk::Gate::closed(),
         });
@@ -402,6 +539,10 @@ pub mod rsk_jobs {
         }
         if super::rsk_state::FILTER_REPORT.with_unprivileged(|st| st.is_empty()) {
             // Role `ctl` of `report`: the Job returned without storing its state (R41.2).
+            ::rsk::report_protocol_violation();
+        }
+        if super::rsk_state::FILTER_TRIANGLE.with_unprivileged(|st| st.is_empty()) {
+            // Role `sink` of `triangle`: the Job returned without storing its state (R41.2).
             ::rsk::report_protocol_violation();
         }
     }

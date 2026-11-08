@@ -85,7 +85,9 @@ pub struct GenEndpoint {
     /// (role name, global Task index), in declaration order.
     pub roles: Vec<(String, usize)>,
     /// Whether a message arriving for the role releases its Task (R40.3).
-    pub release: [bool; 2],
+    /// Whether a message arriving for each role releases its Task (R40.3),
+    /// per role (task 21.7: two to `MAX_ROLES` roles).
+    pub release: Vec<bool>,
     /// Per role (declaration order), the validation functions `(label,
     /// path)` of task 21.4 (R42.4).
     pub validators: Vec<Vec<(Option<String>, String)>>,
@@ -214,9 +216,16 @@ fn gating_rank(decl: &Declaration, name: &str) -> u32 {
             return 0;
         }
         let Some(e) = decl.endpoints.iter().find(|e| e.name == name) else { return 0 };
-        e.roles
+        let mut gates: Vec<String> = e.roles.iter().flat_map(|r| r.after.iter().cloned()).collect();
+        if e.protocol.is_some() {
+            for r in &e.roles {
+                if let Some(rel) = crate::validate::release_endpoint_of(decl, &r.partition, &r.task) {
+                    gates.push(rel);
+                }
+            }
+        }
+        gates
             .iter()
-            .flat_map(|r| r.after.iter())
             .filter(|g| decl.endpoints.iter().any(|x| &x.name == *g && x.protocol.is_some() && x.name != name))
             .map(|g| go(decl, g, depth + 1) + 1)
             .max()
@@ -400,10 +409,10 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
             .iter()
             .map(|r| (r.role.clone(), tasks.iter().position(|t| t.id == format!("{}.{}", r.partition, r.task)).expect("validated")))
             .collect();
-        let mut release = [false; 2];
-        for (ri, (role, ti)) in roles.iter().enumerate().take(2) {
-            release[ri] = matches!(&tasks[*ti].source, Some(ReleaseSource::Endpoint { endpoint, role: r }) if endpoint == &e.name && r == role);
-        }
+        let release: Vec<bool> = roles
+            .iter()
+            .map(|(role, ti)| matches!(&tasks[*ti].source, Some(ReleaseSource::Endpoint { endpoint, role: r }) if endpoint == &e.name && r == role))
+            .collect();
         // Task 21.1: the Protocol's bound and projections (validated: the
         // checker accepted it).
         let (k, channels, projections, locals, labels, configurations) = match &e.protocol {
@@ -424,10 +433,27 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         };
         let validators = e.roles.iter().map(|r| r.validate.clone()).collect();
         let ops = e.roles.iter().map(|r| r.ops).collect();
-        let after = e.roles.iter().map(|r| r.after.clone()).collect();
+        // Task 21.7 (R41.3): the explicit `after` edges, plus the implicit one
+        // from the Protocol Endpoint whose arrival releases the role's Task
+        // (its gate is the Release's receive; validate.rs checks the relation).
+        let after: Vec<Vec<String>> = e
+            .roles
+            .iter()
+            .map(|r| {
+                let mut a = r.after.clone();
+                if e.protocol.is_some() {
+                    if let Some(rel) = crate::validate::release_endpoint_of(decl, &r.partition, &r.task) {
+                        if rel != e.name && !a.contains(&rel) && decl.endpoints.iter().any(|x| x.name == rel && x.protocol.is_some()) {
+                            a.push(rel);
+                        }
+                    }
+                }
+                a
+            })
+            .collect();
         let gating_rank = gating_rank(decl, &e.name);
         endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, labels, after, gating_rank, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
-        storage += 2 * e.capacity * e.payload;
+        storage += (e.roles.len() * e.roles.len()) as u32 * e.capacity as u32 * e.payload as u32; // task 21.7: one channel per ordered pair, the diagonal unused
     }
     let endpoint_storage_bytes = storage;
     // Chains (task 21.5): Tasks and connecting Endpoints by index, the
@@ -576,10 +602,11 @@ pub fn checksum(g: &Generated) -> u32 {
     crc32(&config_bytes(g))
 }
 
-/// The canonical image of the Endpoint table (task 21.2; R26.4): the count
-/// as u32, then per Endpoint capacity u8, payload u16, the two role Tasks
-/// u8, their Partitions u8, the two arrival-release flags u8, and the
-/// storage offset u32; then the storage bytes as u32. The Kernel does not
+/// The canonical image of the Endpoint table (task 21.2; R26.4; task 21.7):
+/// the count as u32, then per Endpoint capacity u8, payload u16, the role
+/// count u8, `MAX_ROLES` role Tasks u8 (0xFF beyond the roles), their
+/// Partitions u8, the arrival-release flags u8, and the storage offset
+/// u32; then the storage bytes as u32. The Kernel does not
 /// hash it at boot (the table is an arch table like the Release_Signals'
 /// and the EasyDMA channels'); the Config_Checker compares it with the
 /// Task_Model (`RSK_ENDPOINT_IMAGE`, `RSK_ENDPOINT_CHECKSUM`).
@@ -589,14 +616,16 @@ pub fn endpoint_bytes(g: &Generated) -> Vec<u8> {
     for e in &g.endpoints {
         out.push(e.capacity as u8);
         out.extend_from_slice(&(e.payload as u16).to_le_bytes());
-        for r in 0..2 {
+        out.push(e.roles.len() as u8);
+        for r in 0..crate::validate::MAX_ROLES {
             out.push(e.roles.get(r).map_or(0xFF, |(_, t)| *t as u8));
         }
-        for r in 0..2 {
+        for r in 0..crate::validate::MAX_ROLES {
             out.push(e.roles.get(r).map_or(0xFF, |(_, t)| g.tasks[*t].partition as u8));
         }
-        out.push(e.release[0] as u8);
-        out.push(e.release[1] as u8);
+        for r in 0..crate::validate::MAX_ROLES {
+            out.push(e.release.get(r).copied().unwrap_or(false) as u8);
+        }
         out.extend_from_slice(&e.storage.to_le_bytes());
     }
     out.extend_from_slice(&g.endpoint_storage_bytes.to_le_bytes());

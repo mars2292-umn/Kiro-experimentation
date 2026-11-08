@@ -29,7 +29,7 @@
       "c_cycles": 25000,
       "b_cycles": 217500,
       "b_source": "part0.sensor#cs:state",
-      "o_cycles": 5700,
+      "o_cycles": 6000,
       "j_cycles": 500,
       "interference": [
         {
@@ -45,9 +45,9 @@
           "cycles": 300
         }
       ],
-      "r_cycles": 249300,
+      "r_cycles": 249600,
       "schedulable": true,
-      "slack_cycles": 700,
+      "slack_cycles": 400,
       "wcet_provenance": [
         "part0.control: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part0.control#cs:state: 25000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
@@ -69,9 +69,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 30700,
+          "e_cycles": 31000,
           "jobs": 2,
-          "cycles": 61400
+          "cycles": 62000
         },
         {
           "task": "part1.pulse (intake, R19.2)",
@@ -80,9 +80,9 @@
           "cycles": 300
         }
       ],
-      "r_cycles": 291100,
+      "r_cycles": 291700,
       "schedulable": true,
-      "slack_cycles": 208900,
+      "slack_cycles": 208300,
       "wcet_provenance": [
         "part0.echo: 7500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -102,9 +102,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 30700,
+          "e_cycles": 31000,
           "jobs": 2,
-          "cycles": 61400
+          "cycles": 62000
         },
         {
           "task": "part0.echo",
@@ -119,9 +119,9 @@
           "cycles": 300
         }
       ],
-      "r_cycles": 300600,
+      "r_cycles": 301200,
       "schedulable": true,
-      "slack_cycles": 199400,
+      "slack_cycles": 198800,
       "wcet_provenance": [
         "part0.sensor: 217500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part0.sensor#cs:state: 217500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
@@ -138,14 +138,14 @@
       "c_cycles": 150000,
       "b_cycles": 13100,
       "b_source": "part2.sampler#cs:stats",
-      "o_cycles": 5400,
+      "o_cycles": 6000,
       "j_cycles": 500,
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 30700,
+          "e_cycles": 31000,
           "jobs": 4,
-          "cycles": 122800
+          "cycles": 124000
         },
         {
           "task": "part0.echo",
@@ -167,14 +167,14 @@
         },
         {
           "task": "part2.filter",
-          "e_cycles": 45400,
+          "e_cycles": 46000,
           "jobs": 2,
-          "cycles": 90800
+          "cycles": 92000
         }
       ],
-      "r_cycles": 900400,
+      "r_cycles": 903400,
       "schedulable": true,
-      "slack_cycles": 99600,
+      "slack_cycles": 96600,
       "wcet_provenance": [
         "part1.log: 150000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -194,9 +194,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 30700,
+          "e_cycles": 31000,
           "jobs": 2,
-          "cycles": 61400
+          "cycles": 62000
         },
         {
           "task": "part0.echo",
@@ -211,9 +211,9 @@
           "cycles": 222000
         }
       ],
-      "r_cycles": 316700,
+      "r_cycles": 317300,
       "schedulable": true,
-      "slack_cycles": 58300,
+      "slack_cycles": 57700,
       "wcet_provenance": [
         "part1.pulse: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
       ]
@@ -228,14 +228,14 @@
       "c_cycles": 20000,
       "b_cycles": 12500,
       "b_source": "part2.sampler#cs:stats",
-      "o_cycles": 4800,
+      "o_cycles": 5400,
       "j_cycles": 500,
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 30700,
+          "e_cycles": 31000,
           "jobs": 2,
-          "cycles": 61400
+          "cycles": 62000
         },
         {
           "task": "part0.echo",
@@ -256,9 +256,9 @@
           "cycles": 17000
         }
       ],
-      "r_cycles": 349600,
+      "r_cycles": 350800,
       "schedulable": true,
-      "slack_cycles": 275400,
+      "slack_cycles": 274200,
       "wcet_provenance": [
         "part2.filter: 20000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part2.filter#cs:stats: 20000 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
@@ -279,9 +279,9 @@
       "interference": [
         {
           "task": "part0.control",
-          "e_cycles": 30700,
+          "e_cycles": 31000,
           "jobs": 4,
-          "cycles": 122800
+          "cycles": 124000
         },
         {
           "task": "part0.echo",
@@ -297,9 +297,9 @@
         },
         {
           "task": "part1.log",
-          "e_cycles": 156300,
+          "e_cycles": 156900,
           "jobs": 1,
-          "cycles": 156300
+          "cycles": 156900
         },
         {
           "task": "part1.pulse",
@@ -309,14 +309,14 @@
         },
         {
           "task": "part2.filter",
-          "e_cycles": 45400,
+          "e_cycles": 46000,
           "jobs": 2,
-          "cycles": 90800
+          "cycles": 92000
         }
       ],
-      "r_cycles": 909600,
+      "r_cycles": 912600,
       "schedulable": true,
-      "slack_cycles": 1590400,
+      "slack_cycles": 1587400,
       "wcet_provenance": [
         "part2.sampler: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)",
         "part2.sampler#cs:stats: 12500 cycles (placeholder, rsk-analyzer placeholders, conditions: placeholder: no measurement)"
@@ -329,7 +329,7 @@
     "detail": "run the UPPAAL cross-check with --uppaal"
   },
   "omitted_terms": [
-    "Endpoint operations (R40.2, task 21.5) are approximated: for each of the 4 declared Endpoint(s) (telemetry, pingpong, relay, report) a role's send and receive are Critical_Sections of Δ_send and Δ_recv at the Kernel level in every blocking term, and each role's declared operations per Job (`ops`, 1 unless declared) × the larger of the two is charged in its Task's O_i; the count per Job is the declaration's, not measured, and Δ_send and Δ_recv are the measured maxima over the configuration's payload sizes (R33.2)",
+    "Endpoint operations (R40.2, task 21.5) are approximated: for each of the 5 declared Endpoint(s) (telemetry, pingpong, relay, report, triangle) a role's send and receive are Critical_Sections of Δ_send and Δ_recv at the Kernel level in every blocking term, and each role's declared operations per Job (`ops`, 1 unless declared) × the larger of the two is charged in its Task's O_i; the count per Job is the declaration's, not measured, and Δ_send and Δ_recv are the measured maxima over the configuration's payload sizes (R33.2)",
     "the intake handling of a Sporadic_Task's Release_Source (R19.2, Δ_irq per MIT) interferes with every Task in the RTA; the UPPAAL model carries it only in E_j, on the Tasks the Task's Jobs preempt",
     "UPPAAL export: Critical_Sections and the System_Ceiling are approximated by the blocking interval B_i spent before each Job starts, not by locations that raise the ceiling",
     "UPPAAL export: the Kernel overheads of R29.3 are folded into each Task's execution-time bound E_i, not modelled as locations"
@@ -342,13 +342,13 @@
         "part0.control",
         "part1.log"
       ],
-      "bound_cycles": 2149700,
+      "bound_cycles": 2153000,
       "deadline_cycles": 2500000,
       "result": "PASS",
       "terms": [
-        "R of `part0.control`: 249300 cycles",
+        "R of `part0.control`: 249600 cycles",
         "T of `part1.log` (a Periodic_Task samples the Endpoint once per period): 1000000 cycles",
-        "R of `part1.log`: 900400 cycles"
+        "R of `part1.log`: 903400 cycles"
       ]
     }
   ]

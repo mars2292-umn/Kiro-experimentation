@@ -123,40 +123,73 @@ pub open spec fn bs_distinct(bs: Bs) -> bool
     }
 }
 
-/// Well-formedness of a two-role global type under `depth` enclosing
-/// recursions, `guarded` when a message separates it from the nearest
-/// enclosing `Rec`.
-pub open spec fn wf2_at(g: G, depth: nat, guarded: bool) -> bool
+/// The guard environment of a position in a type: one flag per enclosing
+/// recursion, outermost first, true when a message lies between that
+/// recursion and the position. Every recursion variable must be guarded
+/// (R38.5: a `continue` with no message between it and its `rec`); this
+/// is the standard guardedness, the checker's, and not the stricter "a
+/// message since the nearest recursion" (the search of 2026-11-08 found
+/// `rec X { D: d -> b; rec Y { continue X } }`, which the checker accepts
+/// and the stricter rule refused).
+pub open spec fn all_true(env: Seq<bool>) -> Seq<bool> {
+    Seq::new(env.len(), |i: int| true)
+}
+
+/// Well-formedness of a two-role global type under the guard environment
+/// `env`.
+pub open spec fn wf2_at(g: G, env: Seq<bool>) -> bool
     decreases g,
 {
     match g {
         G::End => true,
-        G::Var { n } => n < depth && guarded,
-        G::Rec { body } => wf2_at(*body, depth + 1, false),
+        G::Var { n } => n < env.len() && env[env.len() - 1 - n],
+        G::Rec { body } => wf2_at(*body, env.push(false)),
         G::Comm { from, to, bs } => {
             &&& (from == 0 || from == 1)
             &&& (to == 0 || to == 1)
             &&& from != to
             &&& bs_len(*bs) >= 1
             &&& bs_distinct(*bs)
-            &&& wf2_bs(*bs, depth)
+            &&& wf2_bs(*bs, all_true(env))
         }
     }
 }
 
-pub open spec fn wf2_bs(bs: Bs, depth: nat) -> bool
+pub open spec fn wf2_bs(bs: Bs, env: Seq<bool>) -> bool
     decreases bs,
 {
     match bs {
         Bs::Nil => true,
-        Bs::Cons { g, rest, .. } => wf2_at(g, depth, true) && wf2_bs(*rest, depth),
+        Bs::Cons { g, rest, .. } => wf2_at(g, env) && wf2_bs(*rest, env),
     }
 }
 
 /// The checker's structural acceptance of a two-role Protocol: closed and
 /// well formed.
 pub open spec fn wf2(g: G) -> bool {
-    wf2_at(g, 0, true)
+    wf2_at(g, Seq::<bool>::empty())
+}
+
+/// Every variable of `g` refers to one of the `m` innermost enclosing
+/// recursions (none to a recursion outside them).
+pub open spec fn closed_at(g: G, m: nat) -> bool
+    decreases g,
+{
+    match g {
+        G::End => true,
+        G::Var { n } => n < m,
+        G::Rec { body } => closed_at(*body, m + 1),
+        G::Comm { bs, .. } => closed_at_bs(*bs, m),
+    }
+}
+
+pub open spec fn closed_at_bs(bs: Bs, m: nat) -> bool
+    decreases bs,
+{
+    match bs {
+        Bs::Nil => true,
+        Bs::Cons { g, rest, .. } => closed_at(g, m) && closed_at_bs(*rest, m),
+    }
 }
 
 // --------------------------------------------------------- substitution --
@@ -213,15 +246,15 @@ pub open spec fn spine_ok(g: G) -> bool
     }
 }
 
-/// Under a recursion, before any message, the spine ends in a
-/// communication or an end: a variable there would be unguarded.
-proof fn lemma_wf_spine(g: G, depth: nat)
-    requires wf2_at(g, depth, false),
+/// Under recursions none of which a message has guarded, the spine ends
+/// in a communication or an end: a variable there would be unguarded.
+proof fn lemma_wf_spine(g: G, env: Seq<bool>)
+    requires wf2_at(g, env), forall|i: int| 0 <= i < env.len() ==> !env[i],
     ensures spine_ok(g),
     decreases g,
 {
     if let G::Rec { body } = g {
-        lemma_wf_spine(*body, depth + 1);
+        lemma_wf_spine(*body, env.push(false));
     }
 }
 
@@ -235,38 +268,118 @@ proof fn lemma_subst_spine(g: G, k: nat, by: G)
     }
 }
 
-/// Substituting a closed well-formed type for the outermost variable
-/// keeps well-formedness one level down.
-proof fn lemma_subst_wf(g: G, depth: nat, guarded: bool, by: G)
-    requires wf2_at(g, depth + 1, guarded), wf2_at(by, 0, true), spine_ok(by) || true,
-    ensures wf2_at(subst(g, depth, by), depth, guarded),
+/// Well-formedness bounds every variable by the environment's depth.
+proof fn lemma_wf_closed_at(g: G, env: Seq<bool>)
+    requires wf2_at(g, env),
+    ensures closed_at(g, env.len()),
+    decreases g,
+{
+    match g {
+        G::Rec { body } => lemma_wf_closed_at(*body, env.push(false)),
+        G::Comm { bs, .. } => lemma_wf_closed_at_bs(*bs, all_true(env)),
+        _ => {}
+    }
+}
+
+proof fn lemma_wf_closed_at_bs(bs: Bs, env: Seq<bool>)
+    requires wf2_bs(bs, env),
+    ensures closed_at_bs(bs, env.len()),
+    decreases bs,
+{
+    if let Bs::Cons { g, rest, .. } = bs {
+        lemma_wf_closed_at(g, env);
+        lemma_wf_closed_at_bs(*rest, env);
+    }
+}
+
+/// A type whose variables all point inside `inner` is well formed under
+/// any outer environment.
+proof fn lemma_env_swap(g: G, outer1: Seq<bool>, outer2: Seq<bool>, inner: Seq<bool>)
+    requires wf2_at(g, outer1.add(inner)), closed_at(g, inner.len()),
+    ensures wf2_at(g, outer2.add(inner)),
     decreases g,
 {
     match g {
         G::End => {}
         G::Var { n } => {
-            if n == depth {
-                lemma_wf_weaken(by, 0, depth, true);
-            }
+            let e1 = outer1.add(inner);
+            let e2 = outer2.add(inner);
+            assert(e1[e1.len() - 1 - n] == inner[inner.len() - 1 - n]);
+            assert(e2[e2.len() - 1 - n] == inner[inner.len() - 1 - n]);
         }
         G::Rec { body } => {
-            lemma_subst_wf(*body, depth + 1, false, by);
+            assert(outer1.add(inner).push(false) =~= outer1.add(inner.push(false)));
+            assert(outer2.add(inner).push(false) =~= outer2.add(inner.push(false)));
+            lemma_env_swap(*body, outer1, outer2, inner.push(false));
         }
-        G::Comm { from, to, bs } => {
-            lemma_subst_wf_bs(*bs, depth, by);
-            lemma_subst_bs_shape(*bs, depth, by);
+        G::Comm { bs, .. } => {
+            assert(all_true(outer1.add(inner)) =~= all_true(outer1).add(all_true(inner)));
+            assert(all_true(outer2.add(inner)) =~= all_true(outer2).add(all_true(inner)));
+            lemma_env_swap_bs(*bs, all_true(outer1), all_true(outer2), all_true(inner));
         }
     }
 }
 
-proof fn lemma_subst_wf_bs(bs: Bs, depth: nat, by: G)
-    requires wf2_bs(bs, depth + 1), wf2_at(by, 0, true),
-    ensures wf2_bs(subst_bs(bs, depth, by), depth),
+proof fn lemma_env_swap_bs(bs: Bs, outer1: Seq<bool>, outer2: Seq<bool>, inner: Seq<bool>)
+    requires wf2_bs(bs, outer1.add(inner)), closed_at_bs(bs, inner.len()),
+    ensures wf2_bs(bs, outer2.add(inner)),
     decreases bs,
 {
     if let Bs::Cons { g, rest, .. } = bs {
-        lemma_subst_wf(g, depth, true, by);
-        lemma_subst_wf_bs(*rest, depth, by);
+        lemma_env_swap(g, outer1, outer2, inner);
+        lemma_env_swap_bs(*rest, outer1, outer2, inner);
+    }
+}
+
+/// A closed well-formed type is well formed under any environment.
+proof fn lemma_closed_any_env(by: G, env: Seq<bool>)
+    requires wf2(by),
+    ensures wf2_at(by, env),
+{
+    lemma_wf_closed_at(by, Seq::<bool>::empty());
+    assert(Seq::<bool>::empty().add(Seq::<bool>::empty()) =~= Seq::<bool>::empty());
+    assert(env.add(Seq::<bool>::empty()) =~= env);
+    lemma_env_swap(by, Seq::<bool>::empty(), env, Seq::<bool>::empty());
+}
+
+/// Substituting a closed well-formed type for the outermost recursion's
+/// variable removes that recursion from the environment.
+proof fn lemma_subst_wf(g: G, e0: bool, rest: Seq<bool>, by: G)
+    requires wf2_at(g, seq![e0].add(rest)), wf2(by),
+    ensures wf2_at(subst(g, rest.len() as nat, by), rest),
+    decreases g,
+{
+    let env = seq![e0].add(rest);
+    match g {
+        G::End => {}
+        G::Var { n } => {
+            if n == rest.len() {
+                lemma_closed_any_env(by, rest);
+            } else {
+                assert(n < rest.len());
+                assert(env[env.len() - 1 - n] == rest[rest.len() - 1 - n]);
+            }
+        }
+        G::Rec { body } => {
+            assert(env.push(false) =~= seq![e0].add(rest.push(false)));
+            lemma_subst_wf(*body, e0, rest.push(false), by);
+        }
+        G::Comm { from, to, bs } => {
+            assert(all_true(env) =~= seq![true].add(all_true(rest)));
+            lemma_subst_wf_bs(*bs, true, all_true(rest), by);
+            lemma_subst_bs_shape(*bs, rest.len() as nat, by);
+        }
+    }
+}
+
+proof fn lemma_subst_wf_bs(bs: Bs, e0: bool, rest: Seq<bool>, by: G)
+    requires wf2_bs(bs, seq![e0].add(rest)), wf2(by),
+    ensures wf2_bs(subst_bs(bs, rest.len() as nat, by), rest),
+    decreases bs,
+{
+    if let Bs::Cons { g, rest: tail, .. } = bs {
+        lemma_subst_wf(g, e0, rest, by);
+        lemma_subst_wf_bs(*tail, e0, rest, by);
     }
 }
 
@@ -288,30 +401,6 @@ proof fn lemma_subst_bs_shape(bs: Bs, k: nat, by: G)
     }
 }
 
-/// A type well formed under `d` recursions is well formed under more.
-proof fn lemma_wf_weaken(g: G, d: nat, d2: nat, guarded: bool)
-    requires wf2_at(g, d, guarded), d <= d2,
-    ensures wf2_at(g, d2, guarded),
-    decreases g,
-{
-    match g {
-        G::Rec { body } => lemma_wf_weaken(*body, d + 1, d2 + 1, false),
-        G::Comm { bs, .. } => lemma_wf_weaken_bs(*bs, d, d2),
-        _ => {}
-    }
-}
-
-proof fn lemma_wf_weaken_bs(bs: Bs, d: nat, d2: nat)
-    requires wf2_bs(bs, d), d <= d2,
-    ensures wf2_bs(bs, d2),
-    decreases bs,
-{
-    if let Bs::Cons { g, rest, .. } = bs {
-        lemma_wf_weaken(g, d, d2, true);
-        lemma_wf_weaken_bs(*rest, d, d2);
-    }
-}
-
 /// Unfolding a closed well-formed recursion gives a closed well-formed
 /// type with one recursion fewer at the top.
 pub proof fn lemma_unfold_wf(g: G)
@@ -319,18 +408,10 @@ pub proof fn lemma_unfold_wf(g: G)
     ensures wf2(unfold(g)), lead_recs(unfold(g)) == lead_recs(g) - 1,
 {
     let body = *g->Rec_body;
-    lemma_subst_wf(body, 0, false, g);
-    lemma_wf_guarded_weaken(subst(body, 0, g), 0);
-    lemma_wf_spine(body, 1);
+    assert(Seq::<bool>::empty().push(false) =~= seq![false].add(Seq::<bool>::empty()));
+    lemma_subst_wf(body, false, Seq::<bool>::empty(), g);
+    lemma_wf_spine(body, seq![false]);
     lemma_subst_spine(body, 0, g);
-}
-
-/// A type well formed unguarded is well formed guarded.
-proof fn lemma_wf_guarded_weaken(g: G, d: nat)
-    requires wf2_at(g, d, false),
-    ensures wf2_at(g, d, true),
-    decreases g,
-{
 }
 
 // ---------------------------------------------------------------- head --
@@ -432,9 +513,9 @@ proof fn lemma_has_lookup(bs: Bs, label: int)
 }
 
 /// A branch of a closed well-formed communication is closed and well
-/// formed.
+/// formed (`all_true` of the empty environment is the empty environment).
 proof fn lemma_branch_wf(bs: Bs, label: int)
-    requires wf2_bs(bs, 0), bs_lookup(bs, label) is Some,
+    requires wf2_bs(bs, Seq::<bool>::empty()), bs_lookup(bs, label) is Some,
     ensures wf2(bs_lookup(bs, label).unwrap()),
     decreases bs,
 {
@@ -443,6 +524,14 @@ proof fn lemma_branch_wf(bs: Bs, label: int)
             lemma_branch_wf(*rest, label);
         }
     }
+}
+
+/// `wf2` of a communication gives its branches under the empty environment.
+proof fn lemma_comm_branches_wf(g: G)
+    requires wf2(g), g is Comm,
+    ensures wf2_bs(*g->Comm_bs, Seq::<bool>::empty()),
+{
+    assert(all_true(Seq::<bool>::empty()) =~= Seq::<bool>::empty());
 }
 
 // --------------------------------------------- local substitution, head --
@@ -677,6 +766,7 @@ proof fn lemma_follow_wf(g: G, w: Seq<int>, from: int, to: int)
         let h = head(g);
         lemma_head_wf(g);
         let cont = bs_lookup(*h->Comm_bs, w[0]).unwrap();
+        lemma_comm_branches_wf(h);
         lemma_branch_wf(*h->Comm_bs, w[0]);
         lemma_follow_wf(cont, w.drop_first(), from, to);
     }
@@ -697,6 +787,7 @@ proof fn lemma_follow_push(g: G, w: Seq<int>, from: int, to: int, label: int)
     lemma_follow_wf(g, w, from, to);
     let gk = follow(g, w, from, to).unwrap();
     lemma_head_wf(gk);
+    lemma_comm_branches_wf(head(gk));
     lemma_branch_wf(*head(gk)->Comm_bs, label);
     if w.len() == 0 {
         assert(gk == g);
@@ -773,6 +864,7 @@ pub proof fn lemma_step_inv(c: LC, c2: LC)
             let cont_g = bs_lookup(*h->Comm_bs, label).unwrap();
             assert(cont == proj(cont_g, leader));
             lemma_follow_push(g0, w, leader, lag, label);
+            lemma_comm_branches_wf(h);
             lemma_branch_wf(*h->Comm_bs, label);
             assert(c2.ch[leader] == w.push(label));
             assert(c2.ch[lag] == c.ch[lag]);
@@ -790,6 +882,7 @@ pub proof fn lemma_step_inv(c: LC, c2: LC)
             assert(gk == g0);
             lemma_lookup_proj(*h->Comm_bs, lag, label);
             let cont_g = bs_lookup(*h->Comm_bs, label).unwrap();
+            lemma_comm_branches_wf(h);
             lemma_branch_wf(*h->Comm_bs, label);
             assert(c2.ch[lag] == Seq::<int>::empty().push(label));
             assert(c2.ch[leader] == w);
@@ -817,6 +910,7 @@ pub proof fn lemma_step_inv(c: LC, c2: LC)
         let cont_g = bs_lookup(*h->Comm_bs, label).unwrap();
         let cont = ls_lookup(*lhead(c.l[lag])->Recv_ls, label).unwrap();
         assert(cont == proj(cont_g, lag));
+        lemma_comm_branches_wf(h);
         lemma_branch_wf(*h->Comm_bs, label);
         assert(follow(cont_g, w.drop_first(), leader, lag) == Some(gk));
         assert(c2.ch[leader] == w.drop_first());
@@ -974,37 +1068,55 @@ fn be_distinct(bs: &BE) -> (r: bool)
     }
 }
 
-/// Recursions nest no deeper than this in a Protocol the check accepts
-/// (the parser's input is a declaration of a few lines; the bound keeps
-/// the depth counter from overflowing).
-pub const MAX_REC_DEPTH: usize = 1 << 20;
-
-/// The checker's structural acceptance of a two-role Protocol, decided:
-/// `true` only when the specification `wf2_at` holds of the view (and
-/// always when it holds with recursions nested below `MAX_REC_DEPTH`).
-pub fn wf2_exec(g: &GE, depth: usize, guarded: bool) -> (r: bool)
-    requires depth <= MAX_REC_DEPTH,
-    ensures r ==> wf2_at(g.view(), depth as nat, guarded),
+/// The checker's structural acceptance of a two-role Protocol, decided
+/// under the guard environment `env` (one flag per enclosing recursion,
+/// outermost first): `true` exactly when `wf2_at` holds of the view.
+pub fn wf2_exec(g: &GE, env: &mut Vec<bool>) -> (r: bool)
+    ensures r == wf2_at(g.view(), old(env)@), final(env)@ == old(env)@,
     decreases g,
 {
     match g {
         GE::End => true,
-        GE::Var { n } => *n < depth && guarded,
-        GE::Rec { body } => depth < MAX_REC_DEPTH && wf2_exec(body, depth + 1, false),
+        GE::Var { n } => *n < env.len() && env[env.len() - 1 - *n],
+        GE::Rec { body } => {
+            env.push(false);
+            let r = wf2_exec(body, env);
+            env.pop();
+            assert(env@ =~= old(env)@);
+            r
+        }
         GE::Comm { from, to, bs } => {
-            (*from == 0 || *from == 1) && (*to == 0 || *to == 1) && *from != *to && be_len(bs) >= 1 && be_distinct(bs) && wf2_bs_exec(bs, depth)
+            let ok = (*from == 0 || *from == 1) && (*to == 0 || *to == 1) && *from != *to && be_len(bs) >= 1 && be_distinct(bs);
+            if !ok {
+                return false;
+            }
+            let mut guarded: Vec<bool> = Vec::new();
+            let mut i = 0;
+            while i < env.len()
+                invariant i <= env.len(), guarded@ == Seq::new(i as nat, |j: int| true),
+                decreases env.len() - i,
+            {
+                guarded.push(true);
+                i += 1;
+                assert(guarded@ =~= Seq::new(i as nat, |j: int| true));
+            }
+            assert(guarded@ =~= all_true(env@));
+            wf2_bs_exec(bs, &mut guarded)
         }
     }
 }
 
-fn wf2_bs_exec(bs: &BE, depth: usize) -> (r: bool)
-    requires depth <= MAX_REC_DEPTH,
-    ensures r ==> wf2_bs(bs.view(), depth as nat),
+fn wf2_bs_exec(bs: &BE, env: &mut Vec<bool>) -> (r: bool)
+    ensures r == wf2_bs(bs.view(), old(env)@), final(env)@ == old(env)@,
     decreases bs,
 {
     match bs {
         BE::Nil => true,
-        BE::Cons { g, rest, .. } => wf2_exec(g, depth, true) && wf2_bs_exec(rest, depth),
+        BE::Cons { g, rest, .. } => {
+            let a = wf2_exec(g, env);
+            let b = wf2_bs_exec(rest, env);
+            a && b
+        }
     }
 }
 
@@ -1014,8 +1126,10 @@ pub fn accept_two_role(g: &GE) -> (r: bool)
     ensures r ==> wf2(g.view()),
         r ==> forall|c: LC| lreachable(g.view(), c) ==> !ldeadlocked(c),
 {
-    let ok = wf2_exec(g, 0, true);
+    let mut env: Vec<bool> = Vec::new();
+    let ok = wf2_exec(g, &mut env);
     proof {
+        assert(env@ =~= Seq::<bool>::empty());
         if ok {
             theorem_two_role_progress(g.view());
         }
@@ -1186,6 +1300,7 @@ proof fn lemma_bridge_run(s: System, g: G, tb: Seq<Seq<L>>, path: Seq<Cfg>)
 }
 
 /// A waiting set of the automaton is a waiting set of the local types.
+#[verifier::rlimit(60)]
 proof fn lemma_bridge_deadlock(s: System, g: G, tb: Seq<Seq<L>>, c: Cfg, lc: LC)
     requires flattens(s, g, tb), corresponds(tb, c, lc), deadlocked(s, c),
     ensures ldeadlocked(lc),
@@ -1771,6 +1886,248 @@ pub fn to_theory(global: &crate::ast::Global, roles: &[&str]) -> (r: (GE, Vec<St
     assert(names_view(recs@) =~= Seq::<Seq<char>>::empty());
     let ge = convert(global, roles, &labels, &mut recs);
     (ge, labels)
+}
+
+// ------------------------------------------- the multiparty fragment (21.7) --
+
+/// Well-formedness of a global type over `n` roles (task 21.7): closed,
+/// every recursion variable guarded by a message since its own recursion,
+/// every communication between two distinct roles below `n` with at
+/// least one branch and pairwise distinct labels.
+pub open spec fn wfn_at(g: G, n: int, env: Seq<bool>) -> bool
+    decreases g,
+{
+    match g {
+        G::End => true,
+        G::Var { n: v } => v < env.len() && env[env.len() - 1 - v],
+        G::Rec { body } => wfn_at(*body, n, env.push(false)),
+        G::Comm { from, to, bs } => {
+            &&& 0 <= from < n
+            &&& 0 <= to < n
+            &&& from != to
+            &&& bs_len(*bs) >= 1
+            &&& bs_distinct(*bs)
+            &&& wfn_bs(*bs, n, all_true(env))
+        }
+    }
+}
+
+pub open spec fn wfn_bs(bs: Bs, n: int, env: Seq<bool>) -> bool
+    decreases bs,
+{
+    match bs {
+        Bs::Nil => true,
+        Bs::Cons { g, rest, .. } => wfn_at(g, n, env) && wfn_bs(*rest, n, env),
+    }
+}
+
+pub open spec fn wfn(g: G, n: int) -> bool {
+    wfn_at(g, n, Seq::<bool>::empty())
+}
+
+/// The full merge of two local types (R38.3; Rumpsteak's and Scribble's):
+/// equal types merge to themselves; two external choices from the same
+/// role merge branch by branch, a label present in both continuing as the
+/// merge of its continuations and a label present in one alone kept;
+/// anything else does not merge.
+pub open spec fn merge(a: L, b: L) -> Option<L>
+    decreases a, b,
+{
+    if a == b {
+        Some(a)
+    } else {
+        match (a, b) {
+            (L::Rec { body: ba }, L::Rec { body: bb }) => match merge(*ba, *bb) {
+                Some(m) => Some(L::Rec { body: Box::new(m) }),
+                None => None,
+            },
+            (L::Recv { from: fa, ls: la }, L::Recv { from: fb, ls: lb }) => {
+                if fa == fb {
+                    match merge_ls(*la, *lb) {
+                        Some(ls) => Some(L::Recv { from: fa, ls: Box::new(ls) }),
+                        None => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The merge of two branch lists: the branches of `a`, each merged with
+/// the branch of the same label in `b` when there is one, then the
+/// branches of `b` whose labels `a` lacks.
+pub open spec fn merge_ls(a: Ls, b: Ls) -> Option<Ls>
+    decreases a, b,
+{
+    match a {
+        Ls::Nil => Some(b),
+        Ls::Cons { label, l, rest } => {
+            let merged_l = match ls_lookup(b, label) {
+                Some(lb) => merge(l, lb),
+                None => Some(l),
+            };
+            match (merged_l, merge_ls(*rest, ls_remove(b, label))) {
+                (Some(m), Some(r)) => Some(Ls::Cons { label, l: m, rest: Box::new(r) }),
+                _ => None,
+            }
+        }
+    }
+}
+
+pub open spec fn ls_remove(ls: Ls, label: int) -> Ls
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => Ls::Nil,
+        Ls::Cons { label: l, l: cont, rest } => if l == label { ls_remove(*rest, label) } else { Ls::Cons { label: l, l: cont, rest: Box::new(ls_remove(*rest, label)) } },
+    }
+}
+
+/// The projection onto role `r` with the full merge (R38.3): a role that
+/// takes no part in a communication projects every branch and merges
+/// them; `None` when the merge fails (the Protocol_Checker's rejection).
+pub open spec fn projn(g: G, r: int) -> Option<L>
+    decreases g,
+{
+    match g {
+        G::End => Some(L::End),
+        G::Var { n: v } => Some(L::Var { n: v }),
+        G::Rec { body } => match projn(*body, r) {
+            Some(l) => Some(L::Rec { body: Box::new(l) }),
+            None => None,
+        },
+        G::Comm { from, to, bs } => {
+            if r == from {
+                match projn_bs(*bs, r) {
+                    Some(ls) => Some(L::Send { to, ls: Box::new(ls) }),
+                    None => None,
+                }
+            } else if r == to {
+                match projn_bs(*bs, r) {
+                    Some(ls) => Some(L::Recv { from, ls: Box::new(ls) }),
+                    None => None,
+                }
+            } else {
+                projn_merge(*bs, r)
+            }
+        }
+    }
+}
+
+pub open spec fn projn_bs(bs: Bs, r: int) -> Option<Ls>
+    decreases bs,
+{
+    match bs {
+        Bs::Nil => Some(Ls::Nil),
+        Bs::Cons { label, g, rest } => match (projn(g, r), projn_bs(*rest, r)) {
+            (Some(l), Some(ls)) => Some(Ls::Cons { label, l, rest: Box::new(ls) }),
+            _ => None,
+        },
+    }
+}
+
+/// The merge of the projections of every branch (the role not involved).
+pub open spec fn projn_merge(bs: Bs, r: int) -> Option<L>
+    decreases bs,
+{
+    match bs {
+        Bs::Nil => None,
+        Bs::Cons { g, rest, .. } => match projn(g, r) {
+            None => None,
+            Some(l) => match *rest {
+                Bs::Nil => Some(l),
+                _ => match projn_merge(*rest, r) {
+                    Some(m) => merge(l, m),
+                    None => None,
+                },
+            },
+        },
+    }
+}
+
+/// The acceptance condition of an `n`-role Protocol over its syntax: well
+/// formed and projectable onto every role.
+pub open spec fn acceptn(g: G, n: int) -> bool {
+    &&& n >= 2
+    &&& wfn(g, n)
+    &&& forall|r: int| 0 <= r < n ==> (#[trigger] projn(g, r)) is Some
+}
+
+/// An `n`-role configuration: every role's local type and the channel of
+/// every ordered pair, `ch[from * n + to]`.
+pub ghost struct NC {
+    pub l: Seq<L>,
+    pub ch: Seq<Seq<int>>,
+}
+
+pub open spec fn nc_wf(c: NC, n: int) -> bool {
+    c.l.len() == n && c.ch.len() == n * n
+}
+
+pub open spec fn ninit(g: G, n: int) -> NC {
+    NC { l: Seq::new(n as nat, |r: int| projn(g, r).unwrap()), ch: Seq::new((n * n) as nat, |i: int| Seq::<int>::empty()) }
+}
+
+pub open spec fn nsend(c: NC, n: int, r: int, to: int, label: int, cont: L) -> NC {
+    NC { l: c.l.update(r, cont), ch: c.ch.update(r * n + to, c.ch[r * n + to].push(label)) }
+}
+
+pub open spec fn nrecv(c: NC, n: int, r: int, from: int, cont: L) -> NC {
+    NC { l: c.l.update(r, cont), ch: c.ch.update(from * n + r, c.ch[from * n + r].drop_first()) }
+}
+
+pub open spec fn nrecv_enabled(c: NC, n: int, r: int) -> bool {
+    let h = lhead(c.l[r]);
+    &&& h is Recv
+    &&& 0 <= h->Recv_from < n
+    &&& c.ch[h->Recv_from * n + r].len() > 0
+    &&& ls_lookup(*h->Recv_ls, c.ch[h->Recv_from * n + r][0]) is Some
+}
+
+pub open spec fn nstep(c: NC, n: int, c2: NC) -> bool {
+    exists|r: int, label: int|
+        0 <= r < n && (
+            (lhead(c.l[r]) is Send && 0 <= lhead(c.l[r])->Send_to < n && lhead(c.l[r])->Send_to != r
+                && ls_lookup(*lhead(c.l[r])->Send_ls, label) is Some
+                && c2 == nsend(c, n, r, lhead(c.l[r])->Send_to, label, ls_lookup(*lhead(c.l[r])->Send_ls, label).unwrap()))
+            || (nrecv_enabled(c, n, r) && label == c.ch[lhead(c.l[r])->Recv_from * n + r][0]
+                && c2 == nrecv(c, n, r, lhead(c.l[r])->Recv_from, ls_lookup(*lhead(c.l[r])->Recv_ls, label).unwrap()))
+        )
+}
+
+pub open spec fn nrun(g: G, n: int, path: Seq<NC>) -> bool {
+    &&& path.len() > 0
+    &&& path[0] == ninit(g, n)
+    &&& forall|i: int| 1 <= i < path.len() ==> nstep(path[i - 1], n, #[trigger] path[i])
+}
+
+pub open spec fn nreachable(g: G, n: int, c: NC) -> bool {
+    exists|path: Seq<NC>| #[trigger] nrun(g, n, path) && path.last() == c
+}
+
+pub open spec fn nblocked(c: NC, n: int, r: int) -> bool {
+    lhead(c.l[r]) is Recv && !nrecv_enabled(c, n, r)
+}
+
+pub open spec fn nterminal(c: NC, r: int) -> bool {
+    lhead(c.l[r]) is End
+}
+
+/// R41.3's waiting set over `n` roles (as `progress::deadlock_set`, over
+/// local types): some member awaits, every member awaits or has finished,
+/// and the sender each awaiting member waits for is a member.
+pub open spec fn ndeadlock_set(c: NC, n: int, set: Seq<bool>) -> bool {
+    &&& set.len() == n
+    &&& exists|r: int| 0 <= r < n && set[r] && nblocked(c, n, r)
+    &&& forall|r: int| 0 <= r < n && #[trigger] set[r] ==> nblocked(c, n, r) || nterminal(c, r)
+    &&& forall|r: int| 0 <= r < n && #[trigger] set[r] && nblocked(c, n, r) ==> set[lhead(c.l[r])->Recv_from]
+}
+
+pub open spec fn ndeadlocked(c: NC, n: int) -> bool {
+    exists|set: Seq<bool>| ndeadlock_set(c, n, set)
 }
 
 } // verus!

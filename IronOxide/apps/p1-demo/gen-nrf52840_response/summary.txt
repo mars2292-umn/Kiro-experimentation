@@ -6,7 +6,7 @@ Safe state: crate::report_and_exit
 Config checksum (CRC-32): 0xe9ba1c83
 Capacities: lock stack 6, timer slots 23, event log 32
 Endpoint telemetry (plain, `u32`): ctl => part0.control, sink => part1.log; capacity 4 each way, payload 4 bytes, storage offset 0; ctl validates the payload with crate::validate_rep, sink performs up to 4 operations per Job
-Endpoint pingpong (Protocol PingPong): ctl => part0.control, sink => part1.log; capacity 1 each way, bound k 1 (ctl->sink k=1, sink->ctl k=1), payload 8 bytes, storage offset 32; ctl validates Rep with crate::validate_rep, sink performs up to 2 operations per Job; deadlock-free over 6 configuration(s) (R41.3, the certificate of task 21.6); gating rank 0
+Endpoint pingpong (Protocol PingPong): ctl => part0.control, sink => part1.log; capacity 1 each way, bound k 1 (ctl->sink k=1, sink->ctl k=1), payload 8 bytes, storage offset 64; ctl validates Rep with crate::validate_rep, sink performs up to 2 operations per Job; deadlock-free over 6 configuration(s) (R41.3, the certificate of task 21.6); gating rank 0
   projection onto ctl: rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}
   projection onto sink: rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}
 Chain telemetry_path (R41.4): part0.control -> part1.log; deadline 1600000 ticks

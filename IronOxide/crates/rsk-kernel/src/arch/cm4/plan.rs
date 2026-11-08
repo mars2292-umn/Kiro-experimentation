@@ -104,16 +104,25 @@ pub struct LevelRecord {
 pub struct EndpointCfg {
     pub capacity: u8,
     pub payload: u16,
-    pub tasks: [u8; 2],
-    pub partitions: [u8; 2],
-    pub release: [bool; 2],
+    /// The number of roles, 2 to `MAX_ROLES` (task 21.7: multiparty
+    /// Endpoints; one directed channel per ordered pair of distinct roles).
+    pub roles: u8,
+    pub tasks: [u8; MAX_ROLES],
+    pub partitions: [u8; MAX_ROLES],
+    pub release: [bool; MAX_ROLES],
     pub storage: u32,
 }
 
-/// The most Endpoints a configuration may declare (two channels each in
-/// `ArchState::fifos`; the Generator rejects more).
+/// The most roles an Endpoint may bind (task 21.7).
+pub const MAX_ROLES: usize = 4;
+/// The most Endpoints a configuration may declare (the Generator rejects
+/// more). Each Endpoint owns `MAX_ROLES * MAX_ROLES` channel slots in
+/// `ArchState::fifos` (channel `from * MAX_ROLES + to`; the diagonal and
+/// the slots beyond the Endpoint's roles are unused) and `MAX_ROLES`
+/// peer-state flags.
 pub const MAX_ENDPOINTS: usize = 8;
-pub const MAX_CHANNELS: usize = 2 * MAX_ENDPOINTS;
+pub const MAX_CHANNELS: usize = MAX_ENDPOINTS * MAX_ROLES * MAX_ROLES;
+pub const MAX_ROLE_SLOTS: usize = MAX_ENDPOINTS * MAX_ROLES;
 
 /// Per-level records (one Job in progress per level) and per-Partition
 /// stack floors.
@@ -150,7 +159,7 @@ pub struct ArchState {
     /// Partition's stop or restart since role `r`'s last operation; the
     /// next send or receive of role `r` returns the peer-state error and
     /// clears it.
-    pub peer_changed: [bool; MAX_CHANNELS],
+    pub peer_changed: [bool; MAX_ROLE_SLOTS],
     pub first_fault_addr: u32,
 }
 
@@ -176,7 +185,7 @@ impl ArchState {
             deferred: [0; 8],
             pending_unwind: 0,
             fifos: [crate::logic::endpoint::Fifo { head: 0, count: 0 }; MAX_CHANNELS],
-            peer_changed: [false; MAX_CHANNELS],
+            peer_changed: [false; MAX_ROLE_SLOTS],
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }

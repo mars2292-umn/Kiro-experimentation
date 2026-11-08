@@ -12,7 +12,7 @@
     "cpu_hz": 64000000,
     "tick_hz": 16000000
   },
-  "config_checksum": "0xac237309",
+  "config_checksum": "0xf682736b",
   "layout_checksum": "0xf81f3f5c",
   "operating_duration_ticks": 2880000000,
   "safe_state": "crate::report_and_exit",
@@ -306,7 +306,8 @@
       "endpoint_roles": [
         "telemetry.ctl",
         "pingpong.ctl",
-        "report.sink"
+        "report.sink",
+        "triangle.ctl"
       ],
       "nesting_depth": 2,
       "slots": {
@@ -370,7 +371,7 @@
       "period_ticks": 320000,
       "source": null,
       "deadline_ticks": 320000,
-      "budget_cycles": 528000,
+      "budget_cycles": 512000,
       "fpu": false,
       "resources": [
         "part0.state",
@@ -414,7 +415,8 @@
       "endpoint_roles": [
         "telemetry.sink",
         "pingpong.sink",
-        "relay.ctl"
+        "relay.ctl",
+        "triangle.mid"
       ],
       "nesting_depth": 0,
       "slots": {
@@ -484,7 +486,8 @@
       "raises": [],
       "endpoint_roles": [
         "relay.sink",
-        "report.ctl"
+        "report.ctl",
+        "triangle.sink"
       ],
       "nesting_depth": 1,
       "slots": {
@@ -696,7 +699,7 @@
           "validate": []
         }
       ],
-      "storage_offset": 32,
+      "storage_offset": 64,
       "derived": [
         "k",
         "storage_offset"
@@ -762,7 +765,7 @@
           ]
         }
       ],
-      "storage_offset": 48,
+      "storage_offset": 96,
       "derived": [
         "k",
         "storage_offset"
@@ -828,7 +831,93 @@
           ]
         }
       ],
-      "storage_offset": 64,
+      "storage_offset": 128,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    },
+    {
+      "id": "triangle",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 1,
+      "k": 1,
+      "ceiling": "kernel",
+      "payload_bytes": 8,
+      "payload_type": "",
+      "protocol": "Triangle",
+      "gating_rank": 0,
+      "channels": [
+        {
+          "from": "ctl",
+          "to": "mid",
+          "k": 1
+        },
+        {
+          "from": "mid",
+          "to": "sink",
+          "k": 1
+        },
+        {
+          "from": "sink",
+          "to": "ctl",
+          "k": 1
+        }
+      ],
+      "projections": [
+        {
+          "role": "ctl",
+          "local_type": "rec L.mid!{Req(u32).sink?{Ack(u32).L}, Stop().end}"
+        },
+        {
+          "role": "mid",
+          "local_type": "rec L.ctl?{Req(u32).sink!{Fwd(u32).L}, Stop().sink!{Done().end}}"
+        },
+        {
+          "role": "sink",
+          "local_type": "rec L.mid?{Fwd(u32).ctl!{Ack(u32).L}, Done().end}"
+        }
+      ],
+      "roles": [
+        {
+          "role": "ctl",
+          "task": "part0.control",
+          "release": false,
+          "ops": 1,
+          "after": [],
+          "validate": [
+            {
+              "label": "Ack",
+              "function": "crate::validate_rep"
+            }
+          ]
+        },
+        {
+          "role": "mid",
+          "task": "part1.log",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": []
+        },
+        {
+          "role": "sink",
+          "task": "part2.filter",
+          "release": false,
+          "ops": 2,
+          "after": [],
+          "validate": [
+            {
+              "label": "Fwd",
+              "function": "crate::validate_req"
+            }
+          ]
+        }
+      ],
+      "storage_offset": 160,
       "derived": [
         "k",
         "storage_offset"

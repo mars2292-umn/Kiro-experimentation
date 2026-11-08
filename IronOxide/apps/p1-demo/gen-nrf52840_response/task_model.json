@@ -691,7 +691,7 @@
           "validate": []
         }
       ],
-      "storage_offset": 32,
+      "storage_offset": 64,
       "derived": [
         "k",
         "storage_offset"

@@ -96,9 +96,11 @@ pub fn extract_endpoints(elf_bytes: &[u8]) -> Result<Option<Image>, String> {
 pub struct EndpointCfg {
     pub capacity: u8,
     pub payload: u16,
-    pub tasks: [u8; 2],
-    pub partitions: [u8; 2],
-    pub release: [bool; 2],
+    /// Task 21.7: the role count; the arrays carry `MAX_ROLES` = 4 slots.
+    pub roles: u8,
+    pub tasks: [u8; 4],
+    pub partitions: [u8; 4],
+    pub release: [bool; 4],
     pub storage: u32,
 }
 
@@ -113,11 +115,12 @@ pub fn decode_endpoints(bytes: &[u8]) -> Result<(Vec<EndpointCfg>, u32), String>
     for _ in 0..n {
         let capacity = r.u8()?;
         let payload = u16::from_le_bytes([r.u8()?, r.u8()?]);
-        let tasks = [r.u8()?, r.u8()?];
-        let partitions = [r.u8()?, r.u8()?];
-        let release = [r.u8()? != 0, r.u8()? != 0];
+        let roles = r.u8()?;
+        let tasks = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
+        let partitions = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
+        let release = [r.u8()? != 0, r.u8()? != 0, r.u8()? != 0, r.u8()? != 0];
         let storage = r.u32()?;
-        out.push(EndpointCfg { capacity, payload, tasks, partitions, release, storage });
+        out.push(EndpointCfg { capacity, payload, roles, tasks, partitions, release, storage });
     }
     let storage_bytes = r.u32()?;
     if r.pos != bytes.len() {

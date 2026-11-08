@@ -277,6 +277,46 @@ pub fn log(mut cx: rsk_ctx::Log) {
         };
         cx.relay.store(next);
     }
+    // Task 21.7 (multiparty Endpoints): the `mid` role of `Triangle` on
+    // `triangle`: a request from `ctl` (`control`) is forwarded to `sink`
+    // (`filter`) with its value in the same Job; a `Stop` is answered with
+    // `Done` to `sink` and the role finishes. A forward refused keeps the
+    // state for the next Job (S1 or S2); a peer-state change resets it.
+    #[cfg(feature = "gating")]
+    {
+        use rsk_roles::triangle_mid::{NotReceived, NotSent, RecvS0, State};
+        let state = cx.triangle.take(State::Empty);
+        let next = match state {
+            State::S0(m) => match m.try_recv() {
+                Ok(RecvS0::Req(v, m1)) => match m1.send_fwd(v) {
+                    Ok(m0) => {
+                        cx.triangle_fwd.with(|n| *n = n.saturating_add(1));
+                        State::S0(m0)
+                    }
+                    Err(NotSent::Full(m1)) | Err(NotSent::Refused(m1)) => State::S1(m1),
+                    Err(NotSent::PeerChanged(m0)) => State::S0(m0),
+                },
+                Ok(RecvS0::Stop(m2)) => match m2.send_done() {
+                    Ok(m3) => m3.finish(),
+                    Err(NotSent::Full(m2)) | Err(NotSent::Refused(m2)) => State::S2(m2),
+                    Err(NotSent::PeerChanged(m0)) => State::S0(m0),
+                },
+                Err(NotReceived::Empty(m0)) | Err(NotReceived::Unexpected(m0)) | Err(NotReceived::Rejected(m0)) | Err(NotReceived::PeerChanged(m0)) => State::S0(m0),
+            },
+            State::S1(m) => match m.send_fwd(0) {
+                Ok(m0) => State::S0(m0),
+                Err(NotSent::Full(m1)) | Err(NotSent::Refused(m1)) => State::S1(m1),
+                Err(NotSent::PeerChanged(m0)) => State::S0(m0),
+            },
+            State::S2(m) => match m.send_done() {
+                Ok(m3) => m3.finish(),
+                Err(NotSent::Full(m2)) | Err(NotSent::Refused(m2)) => State::S2(m2),
+                Err(NotSent::PeerChanged(m0)) => State::S0(m0),
+            },
+            other => other,
+        };
+        cx.triangle.store(next);
+    }
     // The isolation suite (task 7.4): one access attempt per Job, after
     // the source is started (the first Job's attempt would otherwise end
     // the Job before it).

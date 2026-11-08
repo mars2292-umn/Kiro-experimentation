@@ -289,6 +289,51 @@ mod tests {
         assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("plain Endpoint")), "{errs:?}");
     }
 
+    /// Task 21.7 (R41.3; the independent review's finding 3): a Task released
+    /// by a message arrival awaits it before every operation. Its role on the
+    /// releasing Endpoint must begin with a receive, and the releasing
+    /// Endpoint gates the Task's other Protocol Endpoints (an implicit `after`
+    /// that counts in the ranks and in the acyclicity check).
+    #[test]
+    fn r41_3_a_message_release_gates_the_tasks_other_endpoints() {
+        use crate::decl::{EndpointDecl, MitPolicy, ProtocolDecl, Release, RoleDecl, Source};
+        let loop_text = "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }";
+        // Both roles validate what they receive, so the R42.4 rule is quiet whichever Partition plays which.
+        let roles = |ctl: (&str, &str), sink: (&str, &str)| vec![
+            RoleDecl { role: "ctl".into(), partition: ctl.0.into(), task: ctl.1.into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1, after: vec![] },
+            RoleDecl { role: "sink".into(), partition: sink.0.into(), task: sink.1.into(), validate: vec![(Some("Req".into()), "crate::ok".into())], ops: 1, after: vec![] },
+        ];
+        // `log` becomes sporadic, released by `ping` (it plays `sink`, which receives first: accepted).
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: loop_text.into() });
+        d.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(("part0", "control"), ("part1", "log")), capacity: 1, payload: 4 });
+        let log = d.partitions.iter_mut().find(|p| p.name == "part1").unwrap().tasks.iter_mut().find(|t| t.name == "log").unwrap();
+        log.release = Release::Sporadic { mit: ms(40), policy: MitPolicy::Defer, source: Source::Endpoint("ping".into()) };
+        generate(&d).expect("a receive-first role released by its Endpoint is accepted");
+        // A second Protocol Endpoint `pong` on which `log` plays `ctl` (sends first): gated by `ping`
+        // implicitly, so `pong` ranks above `ping`.
+        let mut d2 = d.clone();
+        d2.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(("part1", "log"), ("part0", "control")), capacity: 1, payload: 4 });
+        let g = generate(&d2).expect("accepted");
+        let rank = |n: &str| g.endpoints.iter().find(|e| e.name == n).unwrap().gating_rank;
+        assert_eq!((rank("ping"), rank("pong")), (0, 1));
+        assert!(g.endpoints.iter().find(|e| e.name == "pong").unwrap().after[0].contains(&"ping".to_string()), "the implicit gate is recorded");
+        // The implicit edge closes a cycle with an explicit one: refused.
+        let mut d3 = d2.clone();
+        let ping_ix = d3.endpoints.len() - 2;
+        d3.endpoints[ping_ix].roles[1].after = vec!["pong".into()];
+        let errs = generate(&d3).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("cyclic")), "{errs:?}");
+        // A released role that sends first would never be released: refused.
+        let mut d4 = demo();
+        d4.protocols.push(ProtocolDecl { name: "PingPong".into(), text: loop_text.into() });
+        d4.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(("part1", "log"), ("part0", "control")), capacity: 1, payload: 4 });
+        let log = d4.partitions.iter_mut().find(|p| p.name == "part1").unwrap().tasks.iter_mut().find(|t| t.name == "log").unwrap();
+        log.release = Release::Sporadic { mit: ms(40), policy: MitPolicy::Defer, source: Source::Endpoint("ping".into()) };
+        let errs = generate(&d4).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("begins with a send")), "{errs:?}");
+    }
+
     #[test]
     fn multi_core_is_rejected_citing_ng01() {
         let mut d = demo();

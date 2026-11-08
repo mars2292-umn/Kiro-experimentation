@@ -282,8 +282,50 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
         Endpoint { id, role, _payload: core::marker::PhantomData }
     }
 
-    fn arg(&self) -> u32 {
-        self.id as u32 | ((self.role as u32 & 1) << 8)
+    /// The SVC argument (task 21.7): the Endpoint, this role, and the peer
+    /// role the operation addresses.
+    fn arg(&self, peer: u8) -> u32 {
+        self.id as u32 | ((self.role as u32 & 0xF) << 8) | ((peer as u32 & 0xF) << 12)
+    }
+
+    /// The other role of a two-role Endpoint (the plain form).
+    fn other(&self) -> u8 {
+        1 - (self.role & 1)
+    }
+
+    /// Sends `m` to role `peer` (task 21.7: one channel per ordered pair of
+    /// roles); the contract of `send` otherwise.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn send_to(&self, peer: u8, m: &T) -> Result<(), SendError> {
+        let () = Self::FITS;
+        let words = message_to_words::<T, W>(m);
+        match stubs::svc_send(self.arg(peer), words.0.as_ptr() as usize as u32, (4 * W) as u32) {
+            0 => Ok(()),
+            1 => Err(SendError::Full),
+            3 => Err(SendError::PeerChanged),
+            _ => Err(SendError::Refused),
+        }
+    }
+
+    /// Receives the oldest message role `peer` sent to this role (task
+    /// 21.7); the contract of `recv` otherwise.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn recv_from(&self, peer: u8) -> Result<Option<T>, RecvError> {
+        let () = Self::FITS;
+        let mut words = Words::<W>::zero();
+        match stubs::svc_recv(self.arg(peer), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
+            0 => {
+                let m = message_from_words::<T, W>(&words);
+                if V::accept(&m) {
+                    Ok(Some(m))
+                } else {
+                    report_rejected_message(self.id, self.role, peer);
+                    Err(RecvError::Rejected)
+                }
+            }
+            3 => Err(RecvError::PeerChanged),
+            _ => Ok(None),
+        }
     }
 
     /// Sends `m` to the other role: `Ok(())` when the Kernel copied it into
@@ -294,14 +336,7 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// R40.4).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn send(&self, m: &T) -> Result<(), SendError> {
-        let () = Self::FITS;
-        let words = message_to_words::<T, W>(m);
-        match stubs::svc_send(self.arg(), words.0.as_ptr() as usize as u32, (4 * W) as u32) {
-            0 => Ok(()),
-            1 => Err(SendError::Full),
-            3 => Err(SendError::PeerChanged),
-            _ => Err(SendError::Refused),
-        }
+        self.send_to(self.other(), m)
     }
 
     /// Receives the oldest message sent to this role: `Ok(Some(m))` when
@@ -314,21 +349,7 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// empty, the Kernel having recorded it.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn recv(&self) -> Result<Option<T>, RecvError> {
-        let () = Self::FITS;
-        let mut words = Words::<W>::zero();
-        match stubs::svc_recv(self.arg(), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
-            0 => {
-                let m = message_from_words::<T, W>(&words);
-                if V::accept(&m) {
-                    Ok(Some(m))
-                } else {
-                    report_rejected_message(self.id, self.role);
-                    Err(RecvError::Rejected)
-                }
-            }
-            3 => Err(RecvError::PeerChanged),
-            _ => Ok(None),
-        }
+        self.recv_from(self.other())
     }
 }
 
@@ -375,8 +396,9 @@ pub fn report_protocol_violation() {
 /// recv` and the generated role APIs; `id` and `role` name the receiving
 /// role (the Kernel refuses a report for a role the Task is not bound to).
 #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-pub fn report_rejected_message(id: u8, role: u8) {
-    stubs::svc_violation(1 | (id as u32) << 8 | ((role as u32) & 1) << 16)
+pub fn report_rejected_message(id: u8, role: u8, from: u8) {
+    // Task 21.7: the sending role `from` names whose Partition is at fault.
+    stubs::svc_violation(1 | (id as u32) << 8 | ((role as u32) & 0xF) << 16 | ((from as u32) & 0xF) << 20)
 }
 
 /// A Task's slot for the state of one Protocol role (task 21.3; R38.7,

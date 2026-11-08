@@ -217,6 +217,34 @@ pub fn control(mut cx: rsk_ctx::Control) {
         };
         cx.report.store(next);
     }
+    // Task 21.7 (multiparty Endpoints): the `ctl` role of `Triangle` on
+    // `triangle`, one operation per Job: in S0 send a request to `mid`
+    // (`log`), in S1 take `sink`'s (`filter`'s) acknowledgement, a round
+    // through all three roles; a peer-state change (R42.3: `part1`'s stop
+    // in the QEMU run re-initializes the Endpoint) resets the role. The
+    // validation function of `Ack` is `validate_rep` (R42.4: `filter`'s
+    // Partition is at level B, below this one).
+    #[cfg(feature = "gating")]
+    {
+        use rsk_roles::triangle_ctl::{NotReceived, NotSent, RecvS1, State};
+        let state = cx.triangle.take(State::Empty);
+        let next = match state {
+            State::S0(c) => match c.send_req(cx.count.get()) {
+                Ok(c1) => State::S1(c1),
+                Err(NotSent::Full(c0)) | Err(NotSent::Refused(c0)) | Err(NotSent::PeerChanged(c0)) => State::S0(c0),
+            },
+            State::S1(c) => match c.try_recv() {
+                Ok(RecvS1::Ack(_, c0)) => {
+                    cx.triangle_rounds.with(|n| *n = n.saturating_add(1));
+                    State::S0(c0)
+                }
+                Err(NotReceived::Empty(c1)) | Err(NotReceived::Unexpected(c1)) | Err(NotReceived::Rejected(c1)) => State::S1(c1),
+                Err(NotReceived::PeerChanged(c0)) => State::S0(c0),
+            },
+            other => other,
+        };
+        cx.triangle.store(next);
+    }
     #[cfg(feature = "cycles")]
     {
         rsk::spin::<CYCLES_SPIN>();

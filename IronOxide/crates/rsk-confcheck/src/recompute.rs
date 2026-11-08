@@ -330,13 +330,25 @@ pub fn check_endpoints(m: &Model, img: &Image, table: &[image::EndpointCfg], sto
         out.mismatch(item("payload"), e.payload_bytes, c.payload);
         out.require(item("payload % 4"), e.payload_bytes % 4 == 0 && e.payload_bytes >= 4, "a multiple of 4, at least 4", e.payload_bytes);
         out.mismatch(item("storage"), offset, c.storage);
-        for (r, (task, _)) in e.roles.iter().enumerate().take(2) {
-            let ti = m.task_index(task);
-            out.mismatch(item(&format!("tasks[{r}]")), ti.map_or(255, |t| t as u8), c.tasks[r]);
-            out.mismatch(item(&format!("partitions[{r}]")), ti.and_then(|t| m.partition_index(&m.tasks[t].partition)).map_or(255, |p| p as u8), c.partitions[r]);
-            out.mismatch(item(&format!("release[{r}]")), e.roles[r].1, c.release[r]);
+        // Task 21.7: two to four roles; the slots beyond them are 0xFF / false.
+        out.mismatch(item("roles"), e.roles.len() as u8, c.roles);
+        out.require(item("roles in range"), (2..=4).contains(&e.roles.len()), "2 to 4", e.roles.len());
+        for r in 0..4 {
+            match e.roles.get(r) {
+                Some((task, release)) => {
+                    let ti = m.task_index(task);
+                    out.mismatch(item(&format!("tasks[{r}]")), ti.map_or(255, |t| t as u8), c.tasks[r]);
+                    out.mismatch(item(&format!("partitions[{r}]")), ti.and_then(|t| m.partition_index(&m.tasks[t].partition)).map_or(255, |p| p as u8), c.partitions[r]);
+                    out.mismatch(item(&format!("release[{r}]")), *release, c.release[r]);
+                }
+                None => {
+                    out.mismatch(item(&format!("tasks[{r}]")), 255u8, c.tasks[r]);
+                    out.mismatch(item(&format!("partitions[{r}]")), 255u8, c.partitions[r]);
+                    out.mismatch(item(&format!("release[{r}]")), false, c.release[r]);
+                }
+            }
         }
-        offset += 2 * e.capacity * e.payload_bytes;
+        offset += (e.roles.len() * e.roles.len()) as u64 * e.capacity * e.payload_bytes;
     }
     out.mismatch("ENDPOINT_STORAGE_BYTES", offset, storage_bytes);
 }

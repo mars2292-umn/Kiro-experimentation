@@ -358,17 +358,19 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,500; plus,
     // since task 21.5 (R40.2), its Endpoint roles' operations per Job at
     // max(Δ_send, Δ_recv): one each on `telemetry` and `pingpong`, and
-    // since task 21.6 two on `report` (a receive and a reply) (1,200): 5,700.
-    assert_eq!(by("part0.control").o, 5_700);
+    // since task 21.6 two on `report` (a receive and a reply), and since
+    // task 21.7 one on the three-role `triangle` (1,500): 6,000.
+    assert_eq!(by("part0.control").o, 6_000);
     // echo (sporadic, deferral policy, no Critical_Section, no Endpoint):
     // the same without the lock and Endpoint terms plus Δ_irq and Δ_stamp:
     // 3,900.
     assert_eq!(by("part0.echo").o, 3_900);
     // log (periodic, no Critical_Section): 3,300, plus its roles' declared
     // operations (`telemetry` sink `ops = 4`, `pingpong` sink `ops = 2`, a
-    // receive and a reply per Job, and since task 21.6 `relay` ctl, one
-    // operation per Job: 2,100): 5,400.
-    assert_eq!(by("part1.log").o, 5_400);
+    // receive and a reply per Job, since task 21.6 `relay` ctl, one
+    // operation per Job, and since task 21.7 `triangle` mid, `ops = 2`:
+    // 2,700): 6,000.
+    assert_eq!(by("part1.log").o, 6_000);
     // J is J_rel for every Task (Table 13-1).
     assert!(p.tasks.iter().all(|x| x.j == 500));
 }
@@ -670,10 +672,11 @@ fn r40_2_endpoint_operations_are_kernel_level_critical_sections() {
 }
 
 /// R40.2 on the demo: `log` (role `sink` of `telemetry`, `ops = 4`, of
-/// `pingpong`, `ops = 2`, and `ctl` of `relay`, one operation) carries 4 + 2 + 1
-/// operations × max(Δ_send, Δ_recv) in O_i, `control` (one each on `telemetry`
-/// and `pingpong`, two as the `sink` of `report`) 4, and the sites appear in
-/// the blocking provenance when they determine B_i.
+/// `pingpong`, `ops = 2`, `ctl` of `relay`, one operation, and `mid` of the
+/// three-role `triangle`, `ops = 2`) carries 4 + 2 + 1 + 2 operations ×
+/// max(Δ_send, Δ_recv) in O_i, `control` (one each on `telemetry`,
+/// `pingpong`, and `triangle`, two as the `sink` of `report`) 5, and the
+/// sites appear in the blocking provenance when they determine B_i.
 #[test]
 fn r40_2_the_demo_charges_the_declared_operations_per_job() {
     let m = model();
@@ -681,9 +684,9 @@ fn r40_2_the_demo_charges_the_declared_operations_per_job() {
     let op = |t: &KernelTiming, s: &str| t.parameters.iter().find(|p| p.symbol == s).unwrap().cycles;
     let base = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap().tasks;
     let log = base.iter().find(|x| x.id == "part1.log").unwrap();
-    assert_eq!(log.endpoint_cost, 7 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    assert_eq!(log.endpoint_cost, 9 * op(&t, "delta_send").max(op(&t, "delta_recv")));
     let control = base.iter().find(|x| x.id == "part0.control").unwrap();
-    assert_eq!(control.endpoint_cost, 4 * op(&t, "delta_send").max(op(&t, "delta_recv")));
+    assert_eq!(control.endpoint_cost, 5 * op(&t, "delta_send").max(op(&t, "delta_recv")));
     assert!(base.iter().filter(|x| x.id == "part0.echo" || x.id == "part1.pulse").all(|x| x.endpoint_cost == 0));
     // A Δ_send above the Kernel floor becomes the blocking term of every
     // Task above `log`, named as the site.

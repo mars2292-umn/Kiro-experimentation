@@ -33,6 +33,8 @@ rsk::app! {
         state control.pingpong_rejected: u32 = 0;
         // Task 21.6 (R41.3): requests answered as the `sink` of `report`.
         state control.report_reqs: u32 = 0;
+        // Task 21.7 (multiparty Endpoints): rounds completed as the `ctl` of `triangle`.
+        state control.triangle_rounds: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         // The measurement build (task 19.2, R34.9, R35.4; the Partition crates'
@@ -51,7 +53,14 @@ rsk::app! {
         // deadlines; sensor's measured Job is about 6.4 ms (7.9 ms with the
         // margin), so the Budget keeps its headroom and the two lowest Tasks
         // their schedulability.
-        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8250.us(),
+        // Task 21.7 (2026-11-08): 8.0 ms (8.25 before): with the three-role
+        // `triangle`'s operations charged (two per Job of `log` and of
+        // `filter`, one of `control`) the measured analysis put `log` 233 us
+        // and `sampler` 1.6 ms over their deadlines; at 8.0 ms `log` keeps
+        // 17,109 cycles (267 us) and `sampler` 1,306,517 cycles of slack, and
+        // the Budget stays above the measured Job with the margin (7.9 ms,
+        // the floor R28.4 allows).
+        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8000.us(),
                      priority = 5, resources = [state, in_cs]);
     }
 
@@ -65,6 +74,8 @@ rsk::app! {
         state log.pingpong_reqs: u32 = 0;
         // Task 21.6 (R41.3): rounds completed as the `ctl` of `relay`.
         state log.relay_rounds: u32 = 0;
+        // Task 21.7: requests forwarded as the `mid` of `triangle`.
+        state log.triangle_fwd: u32 = 0;
         state pulse.count: u32 = 0;
         state log.loop_spin: u32 = 0;
         state log.loop_busy: u32 = 0;
@@ -86,6 +97,8 @@ rsk::app! {
         // rounds completed as the `ctl` of `report`.
         state filter.relay_reqs: u32 = 0;
         state filter.report_rounds: u32 = 0;
+        // Task 21.7: acknowledgements sent as the `sink` of `triangle`.
+        state filter.triangle_acks: u32 = 0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
@@ -131,5 +144,31 @@ rsk::app! {
     // (pingpong -> relay -> report, ranks 0, 1, 2), measured on the board too.
     endpoint relay: protocol PingPong { ctl => part1.log after = pingpong, sink => part2.filter validate = { Req = crate::validate_req } ops = 2 } capacity = 1, payload = 8;
     endpoint report: protocol PingPong { ctl => part2.filter after = relay, sink => part0.control validate = { Req = crate::validate_rep } ops = 2 } capacity = 1, payload = 8;
+
+    // Task 21.7 (multiparty Endpoints; R38.2, R38.3, R41.1, R41.3): a
+    // three-role Protocol, one channel per ordered pair of roles. `ctl`
+    // chooses; `mid` learns the choice from the label it receives; `sink`
+    // is not informed by the choice and receives the merge of the two
+    // branches (`Fwd` or `Done`). R42.4: `Fwd` crosses from level C to
+    // level B and `Ack` from level B to level A, so `sink` and `ctl`
+    // declare their validation functions; `Req` travels downward and
+    // needs none. `mid` and `sink` each receive and send in one Job
+    // (`ops = 2`); `ctl` performs one operation per Job. No `after`: the
+    // roles are independent of the Tasks' other roles.
+    protocol Triangle {
+        rec L {
+            choice at ctl {
+                Req(u32): ctl -> mid;
+                Fwd(u32): mid -> sink;
+                Ack(u32): sink -> ctl;
+                continue L;
+            } or {
+                Stop(): ctl -> mid;
+                Done(): mid -> sink;
+                end;
+            }
+        }
+    }
+    endpoint triangle: protocol Triangle { ctl => part0.control validate = { Ack = crate::validate_rep }, mid => part1.log ops = 2, sink => part2.filter validate = { Fwd = crate::validate_req } ops = 2 } capacity = 1, payload = 8;
     chain telemetry_path { part0.control -> part1.log } deadline = 100.ms();
 }

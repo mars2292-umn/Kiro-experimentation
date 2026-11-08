@@ -223,7 +223,7 @@
         "payload_bytes": { "type": "integer", "minimum": 0 },
         "payload_type": { "type": "string" },
         "roles": {
-          "type": "array", "minItems": 2, "maxItems": 2,
+          "type": "array", "minItems": 2, "maxItems": 4,
           "items": {
             "type": "object", "additionalProperties": false, "required": ["role", "task", "release"],
             "properties": {

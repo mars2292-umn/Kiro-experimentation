@@ -29,6 +29,8 @@ pub mod rsk_roles {
         pub const PW: usize = 1;
         type Raw = ::rsk::Endpoint<[u32; W], W>;
         fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
+        pub const PEER_CTL: u8 = 0;
+        pub const PEER_SINK: u8 = 1;
         pub const LABEL_REQ: u32 = 0;
         pub const LABEL_REP: u32 = 1;
         pub const LABEL_STOP: u32 = 2;
@@ -71,7 +73,7 @@ pub mod rsk_roles {
         impl Sink<S0> {
             /// Receives the next message from `ctl`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
             pub fn try_recv(self) -> Result<RecvS0, NotReceived<S0>> {
-                match raw().recv() {
+                match raw().recv_from(PEER_CTL) {
                     Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
                     Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
                     Ok(Some(w)) => {
@@ -102,7 +104,7 @@ pub mod rsk_roles {
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
                 while i < PW { w[i + 1] = p.0[i]; i += 1; }
-                match raw().send(&w) {
+                match raw().send_to(PEER_CTL, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),

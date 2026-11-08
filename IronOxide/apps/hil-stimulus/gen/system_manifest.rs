@@ -68,7 +68,7 @@ const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg {
 pub const SIGNALS: [::rsk_kernel::arch::SignalCfg; NSIG] = [
 ];
 pub const NEP: usize = 0;
-const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg { capacity: 0, payload: 0, tasks: [0xFF, 0xFF], partitions: [0xFF, 0xFF], release: [false, false], storage: 0 };
+const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg { capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0 };
 pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [
 ];
 pub const ENDPOINT_STORAGE_BYTES: usize = 0;

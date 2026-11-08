@@ -46,6 +46,8 @@ rsk::app! {
         // Task 21.6 (R41.3, the gating of Endpoints): requests answered as
         // the `sink` of `report`.
         state control.report_reqs: u32 = 0;
+        // Task 21.7 (multiparty Endpoints): rounds completed as the `ctl` of `triangle`.
+        state control.triangle_rounds: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
@@ -75,6 +77,8 @@ rsk::app! {
         state log.pingpong_reqs: u32 = 0;
         // Task 21.6 (R41.3): rounds completed as the `ctl` of `relay`.
         state log.relay_rounds: u32 = 0;
+        // Task 21.7: requests forwarded as the `mid` of `triangle`.
+        state log.triangle_fwd: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
@@ -93,6 +97,8 @@ rsk::app! {
         // rounds completed as the `ctl` of `report`.
         state filter.relay_reqs: u32 = 0;
         state filter.report_rounds: u32 = 0;
+        // Task 21.7: acknowledgements sent as the `sink` of `triangle`.
+        state filter.triangle_acks: u32 = 0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
         state sampler.buf: [u8; 16] = [0; 16];
@@ -153,6 +159,32 @@ rsk::app! {
     // receives and replies in one Job (`ops = 2`).
     endpoint relay: protocol PingPong { ctl => part1.log after = pingpong, sink => part2.filter validate = { Req = crate::validate_req } ops = 2 } capacity = 1, payload = 8;
     endpoint report: protocol PingPong { ctl => part2.filter after = relay, sink => part0.control validate = { Req = crate::validate_rep } ops = 2 } capacity = 1, payload = 8;
+
+    // Task 21.7 (multiparty Endpoints; R38.2, R38.3, R41.1, R41.3): a
+    // three-role Protocol, one channel per ordered pair of roles. `ctl`
+    // chooses; `mid` learns the choice from the label it receives; `sink`
+    // is not informed by the choice and receives the merge of the two
+    // branches (`Fwd` or `Done`). R42.4: `Fwd` crosses from level C to
+    // level B and `Ack` from level B to level A, so `sink` and `ctl`
+    // declare their validation functions; `Req` travels downward and
+    // needs none. `mid` and `sink` each receive and send in one Job
+    // (`ops = 2`); `ctl` performs one operation per Job. No `after`: the
+    // roles are independent of the Tasks' other roles.
+    protocol Triangle {
+        rec L {
+            choice at ctl {
+                Req(u32): ctl -> mid;
+                Fwd(u32): mid -> sink;
+                Ack(u32): sink -> ctl;
+                continue L;
+            } or {
+                Stop(): ctl -> mid;
+                Done(): mid -> sink;
+                end;
+            }
+        }
+    }
+    endpoint triangle: protocol Triangle { ctl => part0.control validate = { Ack = crate::validate_rep }, mid => part1.log ops = 2, sink => part2.filter validate = { Fwd = crate::validate_req } ops = 2 } capacity = 1, payload = 8;
 
     // Task 21.5 (R41.4): the end-to-end deadline of the telemetry path: a
     // word `control` sends is read by `log`, a Periodic_Task that samples

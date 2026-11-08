@@ -329,11 +329,11 @@ package = "rsk-protocol"
 
 [[mutation]]
 id = "endpoint-reinit-one-role-only"
-kills = "endpoint_reinit_one (both roles are marked after a rejected message, so both return to the initial state; marking the receiver's peer alone leaves the receiver mid-Protocol)"
+kills = "endpoint_reinit_one (every role is marked after a rejected message, so all return to the initial state; marking the first role alone leaves the others mid-Protocol; task 21.7: `MAX_ROLES` roles)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    state.peer_changed[2 * e] = true;\n    state.peer_changed[2 * e + 1] = true;\n"
-replace = "    state.peer_changed[2 * e] = true;\n"
-expect = ["entry.rs", "endpoint_reinit_one"]
+find = "        state.peer_changed[e * MAX_ROLES + r] = true;\n"
+replace = "        state.peer_changed[e * MAX_ROLES + r] = r == 0;\n"
+expect = ["entry.rs"]
 package = "rsk-kernel"
 
 [[mutation]]
@@ -351,8 +351,8 @@ package = "rsk-kernel"
 id = "theory-unguarded-variable"
 kills = "lemma_wf_spine (well-formedness must require a message between a recursion and its variable; with guardedness dropped the spine lemma fails and the head normal form would not terminate)"
 file = "crates/rsk-protocol/src/theory.rs"
-find = "        G::Var { n } => n < depth && guarded,\n"
-replace = "        G::Var { n } => n < depth,\n"
+find = "        G::Var { n } => n < env.len() && env[env.len() - 1 - n],\n"
+replace = "        G::Var { n } => n < env.len(),\n"
 expect = ["theory.rs"]
 package = "rsk-protocol"
 

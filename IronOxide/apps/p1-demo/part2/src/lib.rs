@@ -409,6 +409,39 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
             cx.report.store(next);
         }
     }
+    // Task 21.7 (multiparty Endpoints): the `sink` role of `Triangle` on
+    // `triangle`, the role the choice does not inform (its state is the
+    // merge of the two branches): a forwarded request from `mid` (`log`)
+    // is acknowledged to `ctl` (`control`) with its value in the same
+    // Job; a `Done` finishes the role. The validation function of `Fwd` is
+    // `validate_req` (R42.4: `log`'s Partition is at level C, below this
+    // one); a peer-state change resets the role.
+    #[cfg(feature = "gating")]
+    {
+        use rsk_roles::triangle_sink::{NotReceived, NotSent, RecvS0, State};
+        let state = cx.triangle.take(State::Empty);
+        let next = match state {
+            State::S0(s) => match s.try_recv() {
+                Ok(RecvS0::Fwd(v, s1)) => match s1.send_ack(v) {
+                    Ok(s0) => {
+                        cx.triangle_acks.with(|n| *n = n.saturating_add(1));
+                        State::S0(s0)
+                    }
+                    Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                    Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                },
+                Ok(RecvS0::Done(s2)) => s2.finish(),
+                Err(NotReceived::Empty(s0)) | Err(NotReceived::Unexpected(s0)) | Err(NotReceived::Rejected(s0)) | Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
+            },
+            State::S1(s) => match s.send_ack(0) {
+                Ok(s0) => State::S0(s0),
+                Err(NotSent::Full(s1)) | Err(NotSent::Refused(s1)) => State::S1(s1),
+                Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+            },
+            other => other,
+        };
+        cx.triangle.store(next);
+    }
     cx.y.with(|y| lowpass(y));
     // The floating-point variant of the cycle-attribution test (task 19.3,
     // Δ_fp_save and Δ_fp_restore): with the context active from the step

@@ -196,6 +196,12 @@ pub fn report_and_exit() -> ! {
         print_kv(b"relay_rounds", p1_demo_part1::rsk_state::LOG_RELAY_ROUNDS.peek());
         print_kv(b"report_reqs", p1_demo_part0::rsk_state::CONTROL_REPORT_REQS.peek());
         print_kv(b"report_rounds", p1_demo_part2::rsk_state::FILTER_REPORT_ROUNDS.peek());
+        // Task 21.7 (multiparty Endpoints): the three-role `triangle`'s
+        // traffic: requests `log` forwarded as `mid`, acknowledgements
+        // `filter` sent as `sink`, rounds `control` completed as `ctl`.
+        print_kv(b"triangle_fwd", p1_demo_part1::rsk_state::LOG_TRIANGLE_FWD.peek());
+        print_kv(b"triangle_acks", p1_demo_part2::rsk_state::FILTER_TRIANGLE_ACKS.peek());
+        print_kv(b"triangle_rounds", p1_demo_part0::rsk_state::CONTROL_TRIANGLE_ROUNDS.peek());
     }
     // The flood configuration (task 21.6, the A-P7 limitation of
     // Verification_Plan 5.15): `log` answers every `pingpong` request with
@@ -422,7 +428,10 @@ pub fn report_and_exit() -> ! {
         && p1_demo_part1::rsk_state::LOG_RELAY_ROUNDS.peek() >= 1
         && p1_demo_part2::rsk_state::FILTER_RELAY_REQS.peek() >= 1
         && p1_demo_part0::rsk_state::CONTROL_REPORT_REQS.peek() >= 1
-        && p1_demo_part2::rsk_state::FILTER_REPORT_ROUNDS.peek() >= 1;
+        && p1_demo_part2::rsk_state::FILTER_REPORT_ROUNDS.peek() >= 1
+        // Task 21.7: at least one full round of the three-role `triangle`
+        // (in 200 ms: rounds complete at 30, 60, 110, and 160 ms).
+        && p1_demo_part0::rsk_state::CONTROL_TRIANGLE_ROUNDS.peek() >= 1;
     #[cfg(not(feature = "qemu-mps2"))]
     let protocol_ok = true;
     #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu", feature = "qemu-flood")))]
