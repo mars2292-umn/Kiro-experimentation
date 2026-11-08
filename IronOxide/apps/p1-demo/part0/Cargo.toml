@@ -19,6 +19,8 @@ rsk = { path = "../../../crates/rsk" }
 [features]
 # The release-timing test (task 7.3): every 1024th `sensor` Job runs 50 ms.
 timing = []
+# Task 21.2: the `telemetry` Endpoint of the QEMU configuration (`control` sends).
+telemetry = []
 # The fault-injection suite (task 7.5): the response configuration's injections.
 response = []
 # The isolation suite (task 7.4): the access matrix and the DMA cases.

@@ -192,12 +192,80 @@ fn mpu_load_writes_every_region() {
 /// HW-07 (CCR), HW-09 (the MPU view and control), HW-10 (FPCCR, FPDSCR,
 /// CPACR), HW-11 (ACTLR), HW-12 (the compare), and the SHPR, SHCSR,
 /// AIRCR, DEMCR, DWT, EasyDMA, PPI, and watchdog writes.
+/// Task 21.2 (R45.2): the Endpoint message copy, `hw::copy_words`, is total
+/// and in bounds for every argument: with aligned ranges that do not wrap
+/// it copies exactly `len / 4` words from `src` to `dst`, and with any
+/// other argument it touches nothing.
+#[kani::proof]
+#[kani::unwind(112)]
+fn copy_words_is_total_and_in_bounds() {
+    sim::reset();
+    // Words of the SRAM (the stub asserts the range on every access, UJ-056);
+    // alignment and overlap stay free; the loops have constant trip counts
+    // so that the unwinding bound is the harness's own.
+    let dst: u32 = kani::any();
+    let src: u32 = kani::any();
+    let len: u32 = kani::any();
+    kani::assume(dst >= 0x2000_0000 && dst < 0x2000_0100);
+    kani::assume(src >= 0x2000_0000 && src < 0x2000_0100);
+    kani::assume(len <= 32);
+    let aligned = len % 4 == 0 && dst % 4 == 0 && src % 4 == 0;
+    let pattern: u32 = kani::any();
+    // Disjoint ranges (the Endpoint storage and a Partition's RAM never
+    // overlap, R16.1): the destination holds the source's words afterwards.
+    let disjoint = dst >= src + len || src >= dst + len;
+    if aligned {
+        for k in 0..8u32 {
+            if 4 * k < len {
+                sim::ram_write(src + 4 * k, pattern ^ k);
+            }
+        }
+    }
+    let before = sim::write_count();
+    hw::copy_words(dst, src, len);
+    let writes = sim::write_count() - before;
+    if aligned {
+        assert!(writes == len / 4);
+        if disjoint {
+            for k in 0..8u32 {
+                if 4 * k < len {
+                    assert!(sim::ram_read(dst + 4 * k) == pattern ^ k);
+                }
+            }
+        }
+    } else {
+        assert!(writes == 0);
+    }
+}
+
+/// UJ-058 and UJ-059 (task 21.2; R45.1): a message round-trips through
+/// the word buffer for a value smaller than the buffer and equal to it,
+/// for every value of four types (a type larger than its buffer does not
+/// compile).
+#[kani::proof]
+fn uj_058_059_message_words_round_trip() {
+    let a: u32 = kani::any();
+    let w = hw::message_to_words::<u32, 1>(&a);
+    assert!(w.0[0] == a);
+    assert!(hw::message_from_words::<u32, 1>(&w) == a);
+    let b: [u8; 6] = kani::any();
+    let w = hw::message_to_words::<[u8; 6], 2>(&b);
+    assert!(hw::message_from_words::<[u8; 6], 2>(&w) == b);
+    assert!(w.0[1] >> 16 == 0);
+    let c: u64 = kani::any();
+    let w = hw::message_to_words::<u64, 2>(&c);
+    assert!(hw::message_from_words::<u64, 2>(&w) == c);
+    let d: f32 = kani::any();
+    let w = hw::message_to_words::<f32, 1>(&d);
+    assert!(hw::message_from_words::<f32, 1>(&w).to_bits() == d.to_bits());
+}
+
 #[kani::proof]
 #[kani::unwind(48)]
 fn apply_every_action_is_total() {
     sim::reset();
     let which: u8 = kani::any();
-    kani::assume(which < 32);
+    kani::assume(which < 33);
     let n: u16 = kani::any();
     let p: u8 = kani::any();
     let on: bool = kani::any();
@@ -239,6 +307,13 @@ fn apply_every_action_is_total() {
         28 => Action::WatchdogFeed,
         29 => Action::DmaWrite(w, x),
         30 => Action::DmaShortsOff(w),
+        31 => {
+            // The Endpoint copy (task 21.2): words of the SRAM, as the cores
+            // guarantee (`message_permitted`, `endpoint_slot`).
+            kani::assume(w >= 0x2000_0000 && w < 0x2000_0100);
+            kani::assume(x >= 0x2000_0000 && x < 0x2000_0100);
+            Action::Copy(w, x, l & 0x1C)
+        }
         _ => Action::Trace(p, w),
     };
     let before = sim::write_count();
@@ -315,6 +390,13 @@ fn apply_every_action_is_total() {
         }
         19 => assert!(sim::read(addr::MPU_CTRL) == (1 << 2) | 1),
         20 => assert!(writes == 1),
+        31 => {
+            // The Endpoint copy (task 21.2): aligned, non-wrapping ranges copy
+            // their words; anything else touches nothing.
+            let len = l & 0x1C;
+            let aligned = w % 4 == 0 && x % 4 == 0;
+            assert!(writes == if aligned { len / 4 } else { 0 });
+        }
         22 => {
             let ptr_written = addr::peripheral(w);
             let cnt_written = c != 0 && addr::peripheral(c);

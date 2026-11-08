@@ -170,6 +170,23 @@ pub fn log(mut cx: rsk_ctx::Log) {
             rsk::mmio::write(P0_PIN_CNF + 4 * 16, 0);
         }
     }
+    // Task 21.2: drains the `telemetry` Endpoint (the QEMU configuration
+    // declares it): at most its capacity of messages per Job, the loop's
+    // bound; a receive never waits (R40.4).
+    #[cfg(feature = "telemetry")]
+    {
+        let mut i = 0u32;
+        'drain: while i < 4 {
+            match cx.telemetry.recv() {
+                Some(v) => {
+                    cx.telemetry_rx.with(|n| *n = n.saturating_add(1));
+                    cx.telemetry_last.set(v);
+                    i += 1;
+                }
+                None => break 'drain,
+            }
+        }
+    }
     // The isolation suite (task 7.4): one access attempt per Job, after
     // the source is started (the first Job's attempt would otherwise end
     // the Job before it).

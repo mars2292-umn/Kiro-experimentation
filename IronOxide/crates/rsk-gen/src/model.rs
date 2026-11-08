@@ -67,13 +67,20 @@ pub fn task_model(g: &Generated) -> Value {
                     Value::obj().with("interrupt", peripheral.as_str()).with("irq", *irq as u64)
                 }
                 Some(ReleaseSource::Signal(s)) => Value::obj().with("signal", s.as_str()),
+                Some(ReleaseSource::Endpoint { endpoint, role }) => Value::obj().with("endpoint", endpoint.as_str()).with("role", role.as_str()),
             };
+            let endpoint_roles: Vec<String> = g
+                .endpoints
+                .iter()
+                .filter_map(|e| e.roles.iter().find(|(_, ti)| *ti == t.index).map(|(r, _)| format!("{}.{r}", e.name)))
+                .collect();
             v.with("source", source)
                 .with("deadline_ticks", t.deadline_ticks)
                 .with("budget_cycles", t.budget_cycles)
                 .with("fpu", t.fpu)
                 .with("resources", t.resources.iter().map(|&r| g.resources[r].id.clone()).collect::<Vec<_>>())
                 .with("raises", t.raises.clone())
+                .with("endpoint_roles", endpoint_roles)
                 .with("nesting_depth", t.nesting_depth)
                 .with(
                     "slots",
@@ -156,6 +163,33 @@ pub fn task_model(g: &Generated) -> Value {
             })
         })
         .collect();
+    // Endpoints (task 21.2): the declared capacity and payload, the roles
+    // with their Tasks, and `k` as the capacity until the Protocol_Checker
+    // of task 21.1 computes the bound of R41.1.
+    let endpoints: Vec<Value> = g
+        .endpoints
+        .iter()
+        .map(|e| {
+            Value::obj()
+                .with("id", e.name.as_str())
+                .with("cores", vec![0u64, 0u64])
+                .with("capacity", e.capacity as u64)
+                .with("k", e.capacity as u64)
+                .with("ceiling", "kernel")
+                .with("payload_bytes", e.payload as u64)
+                .with("payload_type", e.ty.as_str())
+                .with(
+                    "roles",
+                    e.roles
+                        .iter()
+                        .enumerate()
+                        .map(|(i, (r, ti))| Value::obj().with("role", r.as_str()).with("task", g.tasks[*ti].id.as_str()).with("release", e.release.get(i).copied().unwrap_or(false)))
+                        .collect::<Vec<_>>(),
+                )
+                .with("storage_offset", e.storage as u64)
+                .with("derived", vec!["k".to_string(), "storage_offset".to_string()])
+        })
+        .collect();
     let conversions: Vec<Value> = g
         .changes
         .iter()
@@ -210,6 +244,6 @@ pub fn task_model(g: &Generated) -> Value {
         .with("tasks", tasks)
         .with("resources", resources)
         .with("signals", signals)
-        .with("endpoints", Vec::<Value>::new())
+        .with("endpoints", endpoints)
         .with("conversions", conversions)
 }

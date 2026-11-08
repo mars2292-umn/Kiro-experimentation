@@ -88,6 +88,20 @@ const NO_SIGNAL: ::rsk_kernel::arch::SignalCfg = ::rsk_kernel::arch::SignalCfg {
 pub const SIGNALS: [::rsk_kernel::arch::SignalCfg; NSIG] = [
     ::rsk_kernel::arch::SignalCfg { partition: 0, task: 1 }, // part0.tick
 ];
+pub const NEP: usize = 1;
+const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg { capacity: 0, payload: 0, tasks: [0xFF, 0xFF], partitions: [0xFF, 0xFF], release: [false, false], storage: 0 };
+pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [
+    ::rsk_kernel::arch::EndpointCfg { capacity: 4, payload: 4, tasks: [0, 3], partitions: [0, 1], release: [false, false], storage: 0 }, // telemetry (u32): ctl => part0.control, sink => part1.log
+];
+pub const ENDPOINT_STORAGE_BYTES: usize = 32;
+static ENDPOINT_STORAGE: ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<ENDPOINT_STORAGE_BYTES> = ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage::new();
+/// Canonical image of the Endpoint table, for the Config_Checker (R26.4).
+#[used]
+#[no_mangle]
+pub static RSK_ENDPOINT_IMAGE: [u8; 21] = [0x01, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00];
+#[used]
+#[no_mangle]
+pub static RSK_ENDPOINT_CHECKSUM: u32 = 0xa591316d;
 pub struct Sys;
 impl ::rsk_kernel::arch::System for Sys {
     type K = K;
@@ -103,6 +117,9 @@ impl ::rsk_kernel::arch::System for Sys {
     fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg { if i < ND { DMA[i] } else { NO_DMA } }
     const SIGNAL_COUNT: usize = NSIG;
     fn signal(i: usize) -> ::rsk_kernel::arch::SignalCfg { if i < NSIG { SIGNALS[i] } else { NO_SIGNAL } }
+    const ENDPOINT_COUNT: usize = NEP;
+    fn endpoint(i: usize) -> ::rsk_kernel::arch::EndpointCfg { if i < NEP { ENDPOINTS[i] } else { NO_ENDPOINT } }
+    fn endpoint_storage() -> (u32, u32) { (ENDPOINT_STORAGE.base(), ENDPOINT_STORAGE.len()) }
     const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;
     const LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;
     fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> { &KERNEL }

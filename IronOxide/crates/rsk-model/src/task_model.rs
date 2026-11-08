@@ -139,6 +139,8 @@ pub struct Partition {
 pub enum Source {
     Interrupt { interrupt: String, irq: u16 },
     Signal { signal: String },
+    /// A message arriving at the Task's role of an Endpoint (R40.3; task 21.2).
+    Endpoint { endpoint: String, role: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,6 +174,9 @@ pub struct Task {
     pub fpu: bool,
     pub resources: Vec<String>,
     pub raises: Vec<String>,
+    /// Task 21.2: `endpoint.role` for each Endpoint role the Task is bound to.
+    #[serde(default)]
+    pub endpoint_roles: Vec<String>,
     pub nesting_depth: u8,
     pub slots: Slots,
     pub cs_sites: Vec<String>,
@@ -220,6 +225,25 @@ pub struct Endpoint {
     pub k: u32,
     pub ceiling: String,
     pub payload_bytes: u32,
+    /// Task 21.2: the payload type as declared, the roles with their Tasks
+    /// and arrival-release flags, and the channels' offset in the Kernel's
+    /// Endpoint storage.
+    #[serde(default)]
+    pub payload_type: String,
+    #[serde(default)]
+    pub roles: Vec<EndpointRole>,
+    #[serde(default)]
+    pub storage_offset: u32,
+    #[serde(default)]
+    pub derived: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndpointRole {
+    pub role: String,
+    pub task: String,
+    pub release: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

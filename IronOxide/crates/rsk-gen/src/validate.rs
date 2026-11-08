@@ -19,6 +19,12 @@ pub const MAX_DURATION_TICKS: u64 = 1 << 62;
 /// Health_Monitor log capacity bound (R14.6; `Log<NE>` needs NE < 2^30).
 pub const MAX_LOG_CAPACITY: u32 = 1 << 30;
 
+/// The most Endpoints a configuration may declare (`rsk_kernel::arch::cm4::MAX_ENDPOINTS`).
+pub const MAX_ENDPOINTS: usize = 8;
+/// The Kernel storage every Endpoint channel may take together (PR-14): a
+/// quarter of the smallest Kernel RAM region of the Target table.
+pub const MAX_ENDPOINT_STORAGE: u64 = 8 * 1024;
+
 pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> {
     let mut d = Vec::new();
     let Some(target) = Target::by_name(&decl.target) else {
@@ -319,6 +325,17 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                         Source::Signal(name) => {
                             signal_bound.entry(name.as_str()).or_default().push(format!("{}.{}", p.name, t.name));
                         }
+                        Source::Endpoint(name) => {
+                            // Task 21.2 (R40.3): the Task is bound to a role of the named Endpoint.
+                            match decl.endpoints.iter().find(|e| &e.name == name) {
+                                None => d.push(Diagnostic::new("R21.3", field("endpoint"), format!("no Endpoint `{name}` is declared"))),
+                                Some(e) => {
+                                    if !e.roles.iter().any(|r| r.partition == p.name && r.task == t.name) {
+                                        d.push(Diagnostic::new("R22.5", field("endpoint"), format!("Task `{}` is bound to no role of Endpoint `{name}`, so no message arrives for it", t.name)));
+                                    }
+                                }
+                            }
+                        }
                     }
                     match to_ticks(*mit, tick_hz, cpu_hz, Rounding::Down) {
                         Some((0, _)) | None => {
@@ -416,6 +433,54 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                 1u8 << target.priority_bits.min(3)
             ),
         ));
+    }
+    // Endpoints (task 21.2; R38.1, R40.1, PR-14, PR-28, R42.1 by the type
+    // bound the Partition compiles): two roles each bound to a declared
+    // Task, distinct, with a capacity and a payload the Kernel can hold.
+    let mut endpoint_names = BTreeSet::new();
+    let mut storage_bytes: u64 = 0;
+    for e in &decl.endpoints {
+        let eref = || ItemRef::Endpoint(e.name.clone());
+        if !endpoint_names.insert(e.name.as_str()) {
+            d.push(Diagnostic::new("PR-28", eref(), format!("Endpoint `{}` is declared twice", e.name)));
+        }
+        if e.roles.len() != 2 {
+            d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` declares {} roles; two roles, each bound to a Task, until the Protocol_Checker of task 21.1", e.name, e.roles.len())));
+        }
+        let mut role_names = BTreeSet::new();
+        let mut bound_tasks = BTreeSet::new();
+        for r in &e.roles {
+            if !role_names.insert(r.role.as_str()) {
+                d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` declares role `{}` twice", e.name, r.role)));
+            }
+            match decl.partitions.iter().find(|p| p.name == r.partition).and_then(|p| p.tasks.iter().find(|t| t.name == r.task)) {
+                None => d.push(Diagnostic::new("R22.5", eref(), format!("role `{}` of Endpoint `{}` is bound to `{}.{}`, which is no declared Task", r.role, e.name, r.partition, r.task))),
+                Some(t) => {
+                    if !bound_tasks.insert(format!("{}.{}", r.partition, r.task)) {
+                        d.push(Diagnostic::new("R38.1", eref(), format!("both roles of Endpoint `{}` are bound to `{}.{}`", e.name, r.partition, r.task)));
+                    }
+                    if t.resources.iter().any(|x| x == &e.name) || t.raises.iter().any(|x| x == &e.name) || t.state.iter().any(|s| s.name == e.name) {
+                        d.push(Diagnostic::new("R21.3", eref(), format!("Endpoint `{}` has the name of a Resource, Release_Signal, or state of Task `{}`; the Context has one field per item", e.name, t.name)));
+                    }
+                }
+            }
+        }
+        if e.capacity == 0 || e.capacity > 255 {
+            d.push(Diagnostic::new("PR-14", eref(), format!("Endpoint `{}` has capacity {}; 1 to 255 messages per directed channel", e.name, e.capacity)));
+        }
+        if e.payload < 4 || e.payload > 65532 || e.payload % 4 != 0 {
+            d.push(Diagnostic::new("PR-14", eref(), format!("Endpoint `{}` has payload {} bytes; 4 to 65,532, a multiple of 4 (the Kernel copies words)", e.name, e.payload)));
+        }
+        if e.ty.is_empty() {
+            d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` names no payload type", e.name)));
+        }
+        storage_bytes += 2 * e.capacity as u64 * e.payload as u64;
+    }
+    if decl.endpoints.len() > MAX_ENDPOINTS {
+        d.push(Diagnostic::new("PR-14", ItemRef::Declaration, format!("{} Endpoints declared; the Kernel holds at most {MAX_ENDPOINTS}", decl.endpoints.len())));
+    }
+    if storage_bytes > MAX_ENDPOINT_STORAGE {
+        d.push(Diagnostic::new("PR-14", ItemRef::Declaration, format!("the Endpoints need {storage_bytes} bytes of Kernel storage; at most {MAX_ENDPOINT_STORAGE} (the Kernel's RAM region)")));
     }
     if task_count == 0 {
         d.push(Diagnostic::new("R21.3", ItemRef::Declaration, "at least one Task is required"));

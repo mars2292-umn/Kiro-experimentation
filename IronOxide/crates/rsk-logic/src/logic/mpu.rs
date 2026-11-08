@@ -277,6 +277,32 @@ impl PartitionLayout {
             ==> #[trigger] srd_bit(self.ram_srd, s) == 0
     }
 
+    /// R42.2 (task 21.2): a message buffer `[ptr, ptr + len)` a Job hands
+    /// to an Endpoint operation is permitted when it lies in the Partition's
+    /// RAM interval, stack included (a local is a valid message), and the
+    /// Kernel copies from or into it under its own view. Subregions do not
+    /// matter: the copy is the Kernel's, and the interval is the
+    /// Partition's own memory.
+    pub open spec fn message_permitted(&self, ptr: int, len: int) -> bool {
+        &&& len > 0
+        &&& ptr >= self.ram.base as int
+        &&& ptr + len <= self.ram.base as int + self.ram.size()
+    }
+
+    pub fn message_permitted_exec(&self, ptr: u32, len: u32) -> (ok: bool)
+        requires self.wf(),
+        ensures ok == self.message_permitted(ptr as int, len as int),
+    {
+        if len == 0 {
+            return false;
+        }
+        let size: u64 = pow2_u32(self.ram.size_log2) as u64;
+        let base: u64 = self.ram.base as u64;
+        let p: u64 = ptr as u64;
+        let l: u64 = len as u64;
+        p >= base && p + l <= base + size
+    }
+
     /// The executable check of `dma_permitted` (task 5.5): the Kernel's
     /// DMA mediation service refuses a request unless this holds (R17.2).
     pub fn dma_permitted_exec(&self, ptr: u32, len: u32) -> (ok: bool)

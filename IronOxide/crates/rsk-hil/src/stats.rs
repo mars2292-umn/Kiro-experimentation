@@ -8,8 +8,8 @@ pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
 const PER_TASK: usize = 52;
 /// Kernel-entry kinds of the entry table (the Kernel's `ENTRY_*`).
-pub const ENTRY_KINDS: usize = 16;
-pub const ENTRY_NAMES: [&str; 16] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "view"];
+pub const ENTRY_KINDS: usize = 18;
+pub const ENTRY_NAMES: [&str; 18] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "view", "send", "recv"];
 /// Resource slots of the Critical_Section table (the Kernel's `STATS_RES`).
 const RES: usize = 16;
 const RING: usize = 256;

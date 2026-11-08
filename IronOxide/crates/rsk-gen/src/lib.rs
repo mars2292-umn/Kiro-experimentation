@@ -135,6 +135,7 @@ mod tests {
             safe_state: "crate::report_and_exit".into(),
             log_capacity: 32,
             fp_flush_to_zero: false,
+            endpoints: vec![],
             partitions: vec![
                 partition(
                     "part0",

@@ -246,7 +246,7 @@ const STATS_CS_OPEN: usize = STATS_CS + STATS_TASKS * STATS_RES * 2;
 /// test as the preempted Job's excess over the interruptions counted per
 /// Task at word 48 of its record).
 #[cfg(feature = "trace-ram")]
-pub const ENTRY_KINDS: usize = 16;
+pub const ENTRY_KINDS: usize = 18;
 #[cfg(feature = "trace-ram")]
 const STATS_ENTRY: usize = STATS_CS_OPEN + STATS_TASKS * STATS_RES;
 #[cfg(feature = "trace-ram")]
@@ -284,6 +284,11 @@ pub const ENTRY_PANIC: u8 = 14;
 /// One MPU view load inside a dispatch (Δ_view, R13.6; task 19.3).
 #[cfg(feature = "trace-ram")]
 pub const ENTRY_VIEW: u8 = 15;
+/// The Endpoint send and receive SVCs (task 21.2; R39.3).
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_SEND: u8 = 16;
+#[cfg(feature = "trace-ram")]
+pub const ENTRY_RECV: u8 = 17;
 #[cfg(feature = "trace-ram")]
 const STATS_WORDS: usize = STATS_RING_AT + 1 + 4 * STATS_RING;
 #[cfg(feature = "trace-ram")]

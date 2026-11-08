@@ -41,6 +41,25 @@ pub enum ReleaseSource {
     /// A peripheral interrupt: the peripheral and its NVIC line.
     Interrupt { peripheral: String, irq: u16 },
     Signal(String),
+    /// A message arriving at role `role` of Endpoint `endpoint` (R40.3).
+    Endpoint { endpoint: String, role: String },
+}
+
+/// An Endpoint of Generated_Config (task 21.2): two roles bound to Tasks,
+/// two directed channels of `capacity` messages of `payload` bytes in the
+/// Kernel's Endpoint storage from byte `storage`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenEndpoint {
+    pub name: String,
+    pub index: usize,
+    pub ty: String,
+    pub capacity: u32,
+    pub payload: u32,
+    /// (role name, global Task index), in declaration order.
+    pub roles: Vec<(String, usize)>,
+    /// Whether a message arriving for the role releases its Task (R40.3).
+    pub release: [bool; 2],
+    pub storage: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -125,6 +144,10 @@ pub struct Generated {
     pub tasks: Vec<GenTask>,
     pub resources: Vec<GenResource>,
     pub partitions: Vec<GenPartition>,
+    /// Endpoints (task 21.2), in declaration order.
+    pub endpoints: Vec<GenEndpoint>,
+    /// The bytes of the Kernel's Endpoint storage.
+    pub endpoint_storage_bytes: u32,
     pub plan: Plan,
     /// Capacities (PR-14): lock stack, timed-event slots, event log.
     pub lock_capacity: usize,
@@ -219,6 +242,11 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                             }
                         }
                         Source::Signal(name) => ReleaseSource::Signal(name.clone()),
+                        Source::Endpoint(name) => {
+                            let e = decl.endpoints.iter().find(|e| &e.name == name).expect("validated");
+                            let role = e.roles.iter().find(|r| r.partition == p.name && r.task == t.name).expect("validated");
+                            ReleaseSource::Endpoint { endpoint: name.clone(), role: role.role.clone() }
+                        }
                     };
                     (Kind::Sporadic, mt, 0, *policy, Some(src))
                 }
@@ -277,6 +305,24 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
             signals: p.signals.iter().map(|s| s.name.clone()).collect(),
         });
     }
+    // Endpoints (task 21.2): roles resolved to Task indices, the arrival
+    // releases from the Tasks' sources, the storage laid out in order.
+    let mut endpoints = Vec::new();
+    let mut storage: u32 = 0;
+    for (ei, e) in decl.endpoints.iter().enumerate() {
+        let roles: Vec<(String, usize)> = e
+            .roles
+            .iter()
+            .map(|r| (r.role.clone(), tasks.iter().position(|t| t.id == format!("{}.{}", r.partition, r.task)).expect("validated")))
+            .collect();
+        let mut release = [false; 2];
+        for (ri, (role, ti)) in roles.iter().enumerate().take(2) {
+            release[ri] = matches!(&tasks[*ti].source, Some(ReleaseSource::Endpoint { endpoint, role: r }) if endpoint == &e.name && r == role);
+        }
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), capacity: e.capacity, payload: e.payload, roles, release, storage });
+        storage += 2 * e.capacity * e.payload;
+    }
+    let endpoint_storage_bytes = storage;
     // Ceilings (R23.1): the maximum Priority over the accessor set, a
     // function of the set alone (R23.2).
     for r in &mut resources {
@@ -320,6 +366,8 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         tasks,
         resources,
         partitions,
+        endpoints,
+        endpoint_storage_bytes,
         plan,
         lock_capacity,
         slot_count,
@@ -401,6 +449,33 @@ pub fn config_bytes(g: &Generated) -> Vec<u8> {
 
 pub fn checksum(g: &Generated) -> u32 {
     crc32(&config_bytes(g))
+}
+
+/// The canonical image of the Endpoint table (task 21.2; R26.4): the count
+/// as u32, then per Endpoint capacity u8, payload u16, the two role Tasks
+/// u8, their Partitions u8, the two arrival-release flags u8, and the
+/// storage offset u32; then the storage bytes as u32. The Kernel does not
+/// hash it at boot (the table is an arch table like the Release_Signals'
+/// and the EasyDMA channels'); the Config_Checker compares it with the
+/// Task_Model (`RSK_ENDPOINT_IMAGE`, `RSK_ENDPOINT_CHECKSUM`).
+pub fn endpoint_bytes(g: &Generated) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&(g.endpoints.len() as u32).to_le_bytes());
+    for e in &g.endpoints {
+        out.push(e.capacity as u8);
+        out.extend_from_slice(&(e.payload as u16).to_le_bytes());
+        for r in 0..2 {
+            out.push(e.roles.get(r).map_or(0xFF, |(_, t)| *t as u8));
+        }
+        for r in 0..2 {
+            out.push(e.roles.get(r).map_or(0xFF, |(_, t)| g.tasks[*t].partition as u8));
+        }
+        out.push(e.release[0] as u8);
+        out.push(e.release[1] as u8);
+        out.extend_from_slice(&e.storage.to_le_bytes());
+    }
+    out.extend_from_slice(&g.endpoint_storage_bytes.to_le_bytes());
+    out
 }
 
 /// The canonical image of the `LAYOUT` the system crate holds (R24.1), in

@@ -69,7 +69,7 @@ pub use entry::{
     Action, Binding, Cm4Hw, DispatchPlan, HwModel, KernelArch, ReturnPlan, Tables, CONTROL_JOB, EXC_RETURN_HANDLER_MSP,
     EXC_RETURN_THREAD_MSP, EXC_RETURN_THREAD_PSP, SVC_JOB_END, SVC_LOCK, SVC_NOW, SVC_PANIC, SVC_UNLOCK, XPSR_THUMB,
 };
-pub use plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, FRAME_BYTES, MAX_INSTANT};
+pub use plan::{compare_target, find_level, plan_frame, ArchState, EndpointCfg, LevelRecord, FRAME_BYTES, MAX_INSTANT, MAX_ENDPOINTS};
 pub use unsafe_module::KernelCell;
 
 use crate::arch::{KernelOps, System};
@@ -248,6 +248,15 @@ impl<S: System> Tables for SysTables<S> {
     }
     fn signal(&self, i: usize) -> plan::SignalCfg {
         S::signal(i)
+    }
+    fn endpoint_count(&self) -> usize {
+        S::ENDPOINT_COUNT
+    }
+    fn endpoint(&self, i: usize) -> plan::EndpointCfg {
+        S::endpoint(i)
+    }
+    fn endpoint_storage(&self) -> (u32, u32) {
+        S::endpoint_storage()
     }
 }
 
@@ -650,6 +659,8 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
             entry::SVC_NOW => unsafe_module::ENTRY_NOW,
             entry::SVC_RAISE => unsafe_module::ENTRY_RAISE,
             entry::SVC_DMA => unsafe_module::ENTRY_DMA,
+            entry::SVC_SEND => unsafe_module::ENTRY_SEND,
+            entry::SVC_RECV => unsafe_module::ENTRY_RECV,
             _ => unsafe_module::ENTRY_PANIC,
         };
         entry_record(k, kind, start, seq_before);
@@ -835,7 +846,7 @@ pub fn panic<S: System>(in_kernel: bool) -> ! {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
     k.fault(EV_PANIC, true);
-    let _ = entry::apply_core(k, &mut hw, &SysTables::<S>(PhantomData));
+    let _ = entry::apply_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     S::safe_state()
 }
 

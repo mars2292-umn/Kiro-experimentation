@@ -129,6 +129,10 @@
         {
           "type": "object", "additionalProperties": false, "required": ["signal"],
           "properties": { "signal": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["endpoint", "role"],
+          "properties": { "endpoint": { "type": "string" }, "role": { "type": "string" } }
         }
       ]
     },
@@ -152,6 +156,7 @@
         "fpu": { "type": "boolean" },
         "resources": { "type": "array", "items": { "type": "string" } },
         "raises": { "type": "array", "items": { "type": "string" } },
+        "endpoint_roles": { "type": "array", "items": { "type": "string" } },
         "nesting_depth": { "type": "integer", "minimum": 0 },
         "slots": {
           "type": "object", "additionalProperties": false, "required": ["release", "deadline", "budget"],
@@ -197,7 +202,17 @@
         "capacity": { "type": "integer", "minimum": 1 },
         "k": { "type": "integer", "minimum": 1 },
         "ceiling": { "const": "kernel" },
-        "payload_bytes": { "type": "integer", "minimum": 0 }
+        "payload_bytes": { "type": "integer", "minimum": 0 },
+        "payload_type": { "type": "string" },
+        "roles": {
+          "type": "array", "minItems": 2, "maxItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["role", "task", "release"],
+            "properties": { "role": { "type": "string" }, "task": { "type": "string" }, "release": { "type": "boolean" } }
+          }
+        },
+        "storage_offset": { "type": "integer", "minimum": 0 },
+        "derived": { "type": "array", "items": { "type": "string" } }
       }
     },
     "conversion": {

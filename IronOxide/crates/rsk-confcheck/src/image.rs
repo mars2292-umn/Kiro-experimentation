@@ -81,6 +81,51 @@ pub fn extract(elf_bytes: &[u8]) -> Result<Image, String> {
     extract_named(elf_bytes, "RSK_CONFIG_IMAGE", "RSK_CONFIG_CHECKSUM")
 }
 
+/// Locates and reads `RSK_ENDPOINT_IMAGE` and `RSK_ENDPOINT_CHECKSUM`
+/// (task 21.2), absent from binaries built before Endpoints existed.
+pub fn extract_endpoints(elf_bytes: &[u8]) -> Result<Option<Image>, String> {
+    match extract_named(elf_bytes, "RSK_ENDPOINT_IMAGE", "RSK_ENDPOINT_CHECKSUM") {
+        Ok(i) => Ok(Some(i)),
+        Err(e) if e.contains("RSK_ENDPOINT_IMAGE") => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// One Endpoint of the Kernel's table (task 21.2), as `rsk_gen::derive::endpoint_bytes` encodes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndpointCfg {
+    pub capacity: u8,
+    pub payload: u16,
+    pub tasks: [u8; 2],
+    pub partitions: [u8; 2],
+    pub release: [bool; 2],
+    pub storage: u32,
+}
+
+/// Decodes the Endpoint image: the count, the entries, the storage bytes.
+pub fn decode_endpoints(bytes: &[u8]) -> Result<(Vec<EndpointCfg>, u32), String> {
+    let mut r = Reader { bytes, pos: 0 };
+    let n = r.u32()? as usize;
+    if n > 8 {
+        return Err(format!("endpoint image: implausible count {n}"));
+    }
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        let capacity = r.u8()?;
+        let payload = u16::from_le_bytes([r.u8()?, r.u8()?]);
+        let tasks = [r.u8()?, r.u8()?];
+        let partitions = [r.u8()?, r.u8()?];
+        let release = [r.u8()? != 0, r.u8()? != 0];
+        let storage = r.u32()?;
+        out.push(EndpointCfg { capacity, payload, tasks, partitions, release, storage });
+    }
+    let storage_bytes = r.u32()?;
+    if r.pos != bytes.len() {
+        return Err(format!("endpoint image: {} trailing bytes after the table", bytes.len() - r.pos));
+    }
+    Ok((out, storage_bytes))
+}
+
 /// Locates and reads `RSK_LAYOUT_IMAGE` and `RSK_LAYOUT_CHECKSUM`.
 pub fn extract_layout(elf_bytes: &[u8]) -> Result<Image, String> {
     extract_named(elf_bytes, "RSK_LAYOUT_IMAGE", "RSK_LAYOUT_CHECKSUM")

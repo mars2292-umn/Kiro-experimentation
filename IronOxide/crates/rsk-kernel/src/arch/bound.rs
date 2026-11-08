@@ -421,6 +421,15 @@ pub trait KernelOps: Sized {
     fn dma_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool)
         requires self.inv(),
         ensures ok == ((p as int) < self.partition_count_spec() && self.dma_permitted_spec(p as int, ptr as int, len as int));
+    /// R42.2 (task 21.2): `[ptr, ptr + len)` lies in Partition `p`'s RAM interval.
+    spec fn message_permitted_spec(&self, p: int, ptr: int, len: int) -> bool;
+    fn message_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool)
+        requires self.inv(),
+        ensures ok == ((p as int) < self.partition_count_spec() && self.message_permitted_spec(p as int, ptr as int, len as int));
+    /// R40.5 (task 21.2): an event against Task `t` with no response.
+    fn record_event(&mut self, kind: u8, t: u8)
+        requires old(self).inv(),
+        ensures final(self).inv();
     spec fn partition_count_spec(&self) -> int;
 }
 
@@ -462,6 +471,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn dma_permitted_spec(&self, p: int, ptr: int, len: int) -> bool {
         self.layout.partitions[p].dma_permitted(ptr, len)
+    }
+
+    open spec fn message_permitted_spec(&self, p: int, ptr: int, len: int) -> bool {
+        self.layout.partitions[p].message_permitted(ptr, len)
     }
 
     open spec fn partition_count_spec(&self) -> int {
@@ -773,6 +786,22 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(self.layout.partition_ok(p as int));
         }
         self.layout.partitions[p as usize].dma_permitted_exec(ptr, len)
+    }
+
+    fn message_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool) {
+        if (p as usize) >= NP {
+            return false;
+        }
+        proof {
+            assert(self.layout.partition_ok(p as int));
+        }
+        self.layout.partitions[p as usize].message_permitted_exec(ptr, len)
+    }
+
+    fn record_event(&mut self, kind: u8, t: u8) {
+        if (t as usize) < NT {
+            self.kernel.record_event(&self.cfg, kind, t);
+        }
     }
 }
 

@@ -138,6 +138,15 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
             ));
             let layout = image::decode_layout(&limg.bytes)?;
             recompute::check_layout_binary(&model, &limg, &layout, &mut out);
+            // The Endpoint table (task 21.2): compared when the binary carries it.
+            match image::extract_endpoints(bytes)? {
+                Some(eimg) => {
+                    out.notes.push(format!("binary: RSK_ENDPOINT_IMAGE {} bytes at 0x{:08x}, RSK_ENDPOINT_CHECKSUM 0x{:08x}", eimg.bytes.len(), eimg.address, eimg.stored_checksum));
+                    let (table, storage_bytes) = image::decode_endpoints(&eimg.bytes)?;
+                    recompute::check_endpoints(&model, &eimg, &table, storage_bytes, &mut out);
+                }
+                None => out.require("RSK_ENDPOINT_IMAGE", model.endpoints.is_empty(), "present when the Task_Model declares Endpoints", "absent from the binary"),
+            }
         }
         None => out.notes.push("no binary given: the Task_Model's derived values were checked, not the linked binary (R26.4)".to_string()),
     }

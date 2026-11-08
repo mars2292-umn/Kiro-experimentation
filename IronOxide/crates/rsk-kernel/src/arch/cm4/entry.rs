@@ -50,10 +50,10 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg};
+use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL};
 use crate::logic::mpu::View;
 
 verus! {
@@ -71,6 +71,17 @@ pub const SVC_PANIC: u8 = 5;
 pub const SVC_DMA: u8 = 6;
 /// Release_Signal raise (R10.5): r0 signal; r0 out 0 accepted as an event, 1 refused.
 pub const SVC_RAISE: u8 = 7;
+/// The Endpoint send and receive services (task 21.2; DD-09, R42.2): r0 is
+/// the Endpoint index in its low byte and the role in bit 8, r1 the
+/// message's address in the Partition, r2 its length; r0 returns
+/// `ENDPOINT_OK`, `ENDPOINT_FULL` (send) or `ENDPOINT_EMPTY` (receive), or
+/// `ENDPOINT_REFUSED` (API misuse: a fault of the Partition).
+pub const SVC_SEND: u8 = 8;
+pub const SVC_RECV: u8 = 9;
+pub const ENDPOINT_OK: u32 = 0;
+pub const ENDPOINT_FULL: u32 = 1;
+pub const ENDPOINT_EMPTY: u32 = 1;
+pub const ENDPOINT_REFUSED: u32 = 2;
 /// Not an SVC number: an SVC entry whose frame's return address does not
 /// follow an SVC instruction (`unsafe_module::svc_number`): a stale,
 /// late-arriving SVC of a killed Job, ignored by `arch::cm4::svc`.
@@ -221,6 +232,11 @@ pub enum Action {
     WatchdogStart(u32),
     /// Feed the watchdog (every time-base event).
     WatchdogFeed,
+    /// Endpoint message copy (task 21.2; DD-09, R42.2): `len` bytes from
+    /// `src` to `dst`, both word-aligned and `len` a multiple of 4; the
+    /// cores have checked the Partition's buffer against its RAM interval
+    /// and the Kernel's slot against the Endpoint storage.
+    Copy(u32, u32, u32),
     /// Debug trace (feature `trace` only): tag, value.
     Trace(u8, u32),
 }
@@ -284,6 +300,7 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::DmaWrite(_, _) => h,
         Action::PpiDisableAll => h,
         Action::ReinitPartition(_) => h,
+        Action::Copy(_, _, _) => h,
         Action::WatchdogStart(_) => HwModel { watchdog_running: true, ..h },
         Action::WatchdogFeed => HwModel { watchdog_fed: true, ..h },
         Action::Trace(_, _) => h,
@@ -331,6 +348,10 @@ pub trait Tables {
     /// The EasyDMA channels (DD-08).
     fn dma_count(&self) -> usize;
     fn dma(&self, i: usize) -> DmaCfg;
+    /// The Endpoints (task 21.2) and their Kernel-owned storage (base, bytes).
+    fn endpoint_count(&self) -> usize;
+    fn endpoint(&self, i: usize) -> EndpointCfg;
+    fn endpoint_storage(&self) -> (u32, u32);
     /// The Release_Signals (R10.5).
     fn signal_count(&self) -> usize;
     fn signal(&self, i: usize) -> SignalCfg;
@@ -435,6 +456,7 @@ impl KernelArch for Cm4Hw {
                 }
                 hw::watchdog_feed()
             }
+            Action::Copy(dst, src, len) => hw::copy_words(dst, src, len),
             Action::Trace(tag, v) => {
                 // A window entry of 5.8a goes to the actions record too (kind
                 // 3, the vector): the trace ring holds the last 512 entries
@@ -547,7 +569,7 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
 /// masks, and the Partition requests. Returns whether the Kernel is in the
 /// safe state; the shell then enters `System::safe_state`.
 #[verifier::rlimit(40)]
-pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T) -> (safe: bool)
+pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
     requires old(k).inv(),
     ensures
         final(k).inv(),
@@ -615,6 +637,11 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         }
         if k.take_reinit(p as u8) {
             hw.apply(Action::ReinitPartition(p as u8));
+            // R14.10 (task 21.2): the Partition's Endpoint roles are
+            // re-initialized with it: the channels its roles receive on are
+            // emptied (what it had not read went with its state); what it
+            // sent to other Partitions stays in their channels.
+            endpoint_reinit(tables, state, p as u8);
         }
         p += 1;
     }
@@ -915,6 +942,169 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     accepted
 }
 
+/// Empties the Endpoint channels Partition `p`'s roles receive on (R14.10).
+fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
+    let n = tables.endpoint_count();
+    let mut e: usize = 0;
+    while e < n && e < MAX_ENDPOINTS
+        invariant e <= MAX_ENDPOINTS,
+        decreases MAX_ENDPOINTS - e,
+    {
+        let cfg = tables.endpoint(e);
+        // Role r receives on channel 2e + (1 - r), the other role's.
+        if cfg.partitions[0] == p {
+            state.fifos[2 * e + 1].clear();
+        }
+        if cfg.partitions[1] == p {
+            state.fifos[2 * e].clear();
+        }
+        e += 1;
+    }
+}
+
+/// The checks shared by both Endpoint services (task 21.2): the Endpoint
+/// exists, the role is one of its two, the executing Job is the role's
+/// Task, the length is the Endpoint's payload, and the message lies
+/// word-aligned in the Partition's own RAM (R42.2; the Kernel copies under
+/// its own view and must never reach beyond the caller's memory). Returns
+/// the Endpoint index, the role, and its configuration.
+fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32, len: u32) -> (r: Option<(usize, usize, EndpointCfg)>)
+    requires k.inv(),
+    ensures r.is_some() ==> r.unwrap().0 < MAX_ENDPOINTS && r.unwrap().1 < 2
+        && r.unwrap().2.capacity >= 1 && r.unwrap().2.payload >= 4 && r.unwrap().2.payload % 4 == 0,
+{
+    let e = (arg & 0xFF) as usize;
+    let role: usize = if (arg >> 8) & 1 == 1 { 1 } else { 0 };
+    if (arg >> 9) != 0 || e >= tables.endpoint_count() || e >= MAX_ENDPOINTS {
+        return None;
+    }
+    let cfg = tables.endpoint(e);
+    let ok = match k.top() {
+        Some(t) => {
+            t == cfg.tasks[role]
+                && cfg.capacity >= 1
+                && cfg.payload >= 4
+                && cfg.payload % 4 == 0
+                && len == cfg.payload as u32
+                && ptr % 4 == 0
+                && k.message_permitted(cfg.partitions[role], ptr, len)
+        }
+        None => false,
+    };
+    if ok { Some((e, role, cfg)) } else { None }
+}
+
+/// The Kernel storage address of slot `slot` of channel `d` of `cfg`, when
+/// the slot's bytes lie inside the Endpoint storage; `None` otherwise (a
+/// Generated_Config the Generator never emits: the backstop is a refusal).
+fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -> (a: Option<u32>)
+    requires d < 2,
+{
+    let (base, total) = tables.endpoint_storage();
+    let payload = cfg.payload as u64;
+    let capacity = cfg.capacity as u64;
+    let slot64 = slot as u64;
+    // Every product below is of an 8-bit by a 16-bit quantity: under 2^24.
+    assert(capacity * payload <= 255 * 65535) by (nonlinear_arith)
+        requires capacity <= 255, payload <= 65535;
+    assert(slot64 * payload <= 255 * 65535) by (nonlinear_arith)
+        requires slot64 <= 255, payload <= 65535;
+    let per_channel: u64 = capacity * payload;
+    let channel_off: u64 = if d == 1 { per_channel } else { 0 };
+    let off: u64 = cfg.storage as u64 + channel_off + slot64 * payload;
+    if off + payload <= total as u64 && base as u64 + off + payload <= 0xFFFF_FFFF {
+        Some((base as u64 + off) as u32)
+    } else {
+        None
+    }
+}
+
+/// The send service (task 21.2; R40.4, R40.5, R42.2): takes the next free
+/// slot of the role's outgoing channel, copies the message from the
+/// Partition into it, and, when the arriving message is the receiving
+/// Task's Release_Source, raises the Release attributed to the sending
+/// Partition (R40.3; MIT enforcement may discard the event, never the
+/// message, R10.8). A full channel returns `ENDPOINT_FULL` with the event
+/// recorded against the sender (R40.5); misuse is a fault of the Partition.
+/// The whole operation runs inside the SVC at the Kernel level with PRIMASK
+/// held, so no Job end can interrupt it (R40.6).
+fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+{
+    let (e, role, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
+        Some(a) => a,
+        None => {
+            k.fault(EV_API_MISUSE, false);
+            return ENDPOINT_REFUSED;
+        }
+    };
+    let ch = 2 * e + role;
+    if !state.fifos[ch].is_wf(cfg.capacity) {
+        state.fifos[ch].clear();
+    }
+    let slot = match state.fifos[ch].push(cfg.capacity) {
+        Some(s) => s,
+        None => {
+            let t = cfg.tasks[role];
+            k.record_event(EV_ENDPOINT_FULL, t);
+            return ENDPOINT_FULL;
+        }
+    };
+    match endpoint_slot(tables, &cfg, role, slot) {
+        Some(dst) => hw.apply(Action::Copy(dst, ptr, len)),
+        None => {
+            k.fault(EV_API_MISUSE, false);
+            return ENDPOINT_REFUSED;
+        }
+    }
+    let other = 1 - role;
+    if cfg.release[other] {
+        let now = hw.now();
+        k.intake(cfg.tasks[other], cfg.partitions[role], now);
+    }
+    ENDPOINT_OK
+}
+
+/// The receive service (task 21.2; R40.4, R42.2): takes the oldest message
+/// of the role's incoming channel, the other role's outgoing one, and
+/// copies it into the Partition; an empty channel returns `ENDPOINT_EMPTY`.
+fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+{
+    let (e, role, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
+        Some(a) => a,
+        None => {
+            k.fault(EV_API_MISUSE, false);
+            return ENDPOINT_REFUSED;
+        }
+    };
+    let from = 1 - role;
+    let ch = 2 * e + from;
+    if !state.fifos[ch].is_wf(cfg.capacity) {
+        state.fifos[ch].clear();
+    }
+    let slot = match state.fifos[ch].pop(cfg.capacity) {
+        Some(s) => s,
+        None => return ENDPOINT_EMPTY,
+    };
+    match endpoint_slot(tables, &cfg, from, slot) {
+        Some(src) => {
+            hw.apply(Action::Copy(ptr, src, len));
+            ENDPOINT_OK
+        }
+        None => {
+            k.fault(EV_API_MISUSE, false);
+            ENDPOINT_REFUSED
+        }
+    }
+}
+
 /// Instant 0: enables Releases (PR-34) and the compare of the first event,
 /// under PRIMASK. Returns whether the Kernel entered the safe state (the
 /// shell then enters `System::safe_state` with PRIMASK still set).
@@ -927,7 +1117,7 @@ pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     hw.apply(Action::PrimaskSet);
     state.last_switch = hw.cycles();
     k.start();
-    let safe = apply_core(k, hw, tables);
+    let safe = apply_core(k, hw, tables, state);
     hw.apply(Action::Trace(TR_START, 0));
     if !safe {
         hw.apply(Action::PrimaskClear);
@@ -1050,7 +1240,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                     return (no_change, false);
                 }
                 k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables);
+                let safe = apply_core(k, hw, tables, state);
                 return (no_change, safe);
             }
             if !k.eligible(t) {
@@ -1074,7 +1264,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 // configuration the Generator rejects; the backstop is a
                 // Kernel fault into the safe state.
                 k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables);
+                let safe = apply_core(k, hw, tables, state);
                 return (no_change, safe);
             }
             let floor_before = state.floor[info.partition as usize];
@@ -1086,7 +1276,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 Some(frame) => frame,
                 None => {
                     k.fault(EV_HARDFAULT, true);
-                    let safe = apply_core(k, hw, tables);
+                    let safe = apply_core(k, hw, tables, state);
                     return (no_change, safe);
                 }
             };
@@ -1123,7 +1313,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             hw.apply(Action::Disable(n));
             let top_before = k.top();
             k.intake(task, partition, now);
-            let safe = apply_core(k, hw, tables);
+            let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, top_before);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
@@ -1139,7 +1329,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             hw.apply(Action::Disable(n));
             let top_before = k.top();
             k.fault(EV_UNBOUND_IRQ, true);
-            let safe = apply_core(k, hw, tables);
+            let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, top_before);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
@@ -1175,7 +1365,7 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let running = charge_point(hw, state);
     let top_before = k.top();
     k.timer_event(now, running);
-    let safe = apply_core(k, hw, tables);
+    let safe = apply_core(k, hw, tables, state);
     let hop = end_plan_core(k, state, top_before);
     // Fed last: a handler that did not complete does not feed (ORQ-31).
     hw.apply(Action::WatchdogFeed);
@@ -1204,7 +1394,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     } else if number == SVC_UNLOCK {
         let ok = k.svc_unlock(frame[0] as u8);
         frame[0] = if ok { 1 } else { 0 };
-        let safe = apply_core(k, hw, tables);
+        let safe = apply_core(k, hw, tables, state);
         (0, safe)
     } else if number == SVC_NOW {
         let now = hw.now();
@@ -1232,7 +1422,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         if ok {
             (0, false)
         } else {
-            let safe = apply_core(k, hw, tables);
+            let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, top_before);
             (hop, safe)
         }
@@ -1246,14 +1436,33 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         frame[0] = if ok { 0 } else { 1 };
         // The released Task is pended if eligible; a refusal applied the
         // Partition's fault response, which may have ended the Job.
-        let safe = apply_core(k, hw, tables);
+        let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, top_before);
         (hop, safe)
+    } else if number == SVC_SEND || number == SVC_RECV {
+        // Task 21.2: as for the raise, the executing Job is read before the
+        // service; a refusal applies the fault response, and a send may
+        // release the receiving Task or, through the MIT policy's response
+        // to the sending Partition, end the Job.
+        let top_before = k.top();
+        let code = if number == SVC_SEND {
+            endpoint_send_core(k, hw, tables, state, frame[0], frame[1], frame[2])
+        } else {
+            endpoint_recv_core(k, hw, tables, state, frame[0], frame[1], frame[2])
+        };
+        frame[0] = code;
+        if number == SVC_RECV && code != ENDPOINT_REFUSED {
+            (0, false)
+        } else {
+            let safe = apply_core(k, hw, tables, state);
+            let hop = end_plan_core(k, state, top_before);
+            (hop, safe)
+        }
     } else if number == SVC_JOB_END {
         let elapsed = charge_point(hw, state);
         let top_before = k.top();
         k.job_return(elapsed);
-        let safe = apply_core(k, hw, tables);
+        let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, top_before);
         (hop, safe)
     } else {
@@ -1265,7 +1474,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         // dispatch took a UsageFault).
         let top_before = k.top();
         k.fault(EV_PANIC, false);
-        let safe = apply_core(k, hw, tables);
+        let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, top_before);
         (hop, safe)
     }
@@ -1312,7 +1521,7 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         Some(t) => {
             if k.is_killed(t) {
                 k.job_return(0);
-                let safe = apply_core(k, hw, tables);
+                let safe = apply_core(k, hw, tables, state);
                 let l = k.job_info(t).priority as usize;
                 let next = state.levels[l].exception_number as u32;
                 return ((rec.psp, rec.control, rec.exc_return, next), safe);
@@ -1328,7 +1537,7 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// its Partition, a fault at the Kernel level or with PRIMASK held, or any
 /// HardFault, to the Kernel.
 pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
-    k: &mut K, hw: &mut A, tables: &T, state: &ArchState, kind: u8, in_kernel: bool,
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, kind: u8, in_kernel: bool,
 ) -> (r: (ReturnPlan, bool))
     requires old(k).inv(),
     ensures
@@ -1340,7 +1549,7 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     let kernel = in_kernel || kind == EV_HARDFAULT || k.depth() == 0;
     let top_before = k.top();
     k.fault(kind, kernel);
-    let safe = apply_core(k, hw, tables);
+    let safe = apply_core(k, hw, tables, state);
     let hop = end_plan_core(k, state, top_before);
     (hop, safe)
 }

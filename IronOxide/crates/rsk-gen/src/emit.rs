@@ -225,6 +225,35 @@ pub fn system_source(g: &Generated) -> String {
         );
     }
     let _ = writeln!(s, "];");
+    // Endpoints (task 21.2; R40.1, DD-09): the table, the Kernel-owned
+    // storage of every channel (one static in the Kernel's RAM), and the
+    // table's image for the Config_Checker.
+    let _ = writeln!(s, "pub const NEP: usize = {};", g.endpoints.len());
+    let _ = writeln!(s, "const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg {{ capacity: 0, payload: 0, tasks: [0xFF, 0xFF], partitions: [0xFF, 0xFF], release: [false, false], storage: 0 }};");
+    let _ = writeln!(s, "pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [");
+    for e in &g.endpoints {
+        let task = |r: usize| e.roles.get(r).map_or("0xFF".to_string(), |(_, t)| t.to_string());
+        let part = |r: usize| e.roles.get(r).map_or("0xFF".to_string(), |(_, t)| g.tasks[*t].partition.to_string());
+        let _ = writeln!(
+            s,
+            "    ::rsk_kernel::arch::EndpointCfg {{ capacity: {}, payload: {}, tasks: [{}, {}], partitions: [{}, {}], release: [{}, {}], storage: {} }}, // {} ({}): {} => {}, {} => {}",
+            e.capacity, e.payload, task(0), task(1), part(0), part(1), e.release[0], e.release[1], e.storage,
+            e.name, e.ty,
+            e.roles.first().map_or("", |(n, _)| n.as_str()), e.roles.first().map_or("", |(_, t)| g.tasks[*t].id.as_str()),
+            e.roles.get(1).map_or("", |(n, _)| n.as_str()), e.roles.get(1).map_or("", |(_, t)| g.tasks[*t].id.as_str()),
+        );
+    }
+    let _ = writeln!(s, "];");
+    let _ = writeln!(s, "pub const ENDPOINT_STORAGE_BYTES: usize = {};", g.endpoint_storage_bytes);
+    let _ = writeln!(s, "static ENDPOINT_STORAGE: ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<ENDPOINT_STORAGE_BYTES> = ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage::new();");
+    let eimage = crate::derive::endpoint_bytes(g);
+    let _ = writeln!(s, "/// Canonical image of the Endpoint table, for the Config_Checker (R26.4).");
+    let _ = writeln!(s, "#[used]");
+    let _ = writeln!(s, "#[no_mangle]");
+    let _ = writeln!(s, "pub static RSK_ENDPOINT_IMAGE: [u8; {}] = [{}];", eimage.len(), eimage.iter().map(|b| format!("0x{b:02x}")).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "#[used]");
+    let _ = writeln!(s, "#[no_mangle]");
+    let _ = writeln!(s, "pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x{:08x};", crate::derive::crc32(&eimage));
     let _ = writeln!(s, "pub struct Sys;");
     let _ = writeln!(s, "impl ::rsk_kernel::arch::System for Sys {{");
     let _ = writeln!(s, "    type K = K;");
@@ -240,6 +269,9 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    fn dma(i: usize) -> ::rsk_kernel::arch::DmaCfg {{ if i < ND {{ DMA[i] }} else {{ NO_DMA }} }}");
     let _ = writeln!(s, "    const SIGNAL_COUNT: usize = NSIG;");
     let _ = writeln!(s, "    fn signal(i: usize) -> ::rsk_kernel::arch::SignalCfg {{ if i < NSIG {{ SIGNALS[i] }} else {{ NO_SIGNAL }} }}");
+    let _ = writeln!(s, "    const ENDPOINT_COUNT: usize = NEP;");
+    let _ = writeln!(s, "    fn endpoint(i: usize) -> ::rsk_kernel::arch::EndpointCfg {{ if i < NEP {{ ENDPOINTS[i] }} else {{ NO_ENDPOINT }} }}");
+    let _ = writeln!(s, "    fn endpoint_storage() -> (u32, u32) {{ (ENDPOINT_STORAGE.base(), ENDPOINT_STORAGE.len()) }}");
     let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
     let _ = writeln!(s, "    const LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;");
     let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
@@ -357,6 +389,12 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     let _ = writeln!(s, "        ];");
     let _ = writeln!(s, "    }}");
     let _ = writeln!(s, "}}");
+    // Task 21.2 (R38.1, R42.1): the payload type of each Endpoint a Task of
+    // this Partition is bound to fits the declared payload, and the
+    // Kernel's word copies cover it (`rsk::Plain` bounds the type itself).
+    for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| part.tasks.contains(ti))) {
+        let _ = writeln!(s, "const _: () = assert!(::core::mem::size_of::<{}>() <= {}, \"the payload of Endpoint `{}` exceeds its declared `payload` bytes (R38.1)\");", e.ty, e.payload, e.name);
+    }
     let _ = writeln!(s, "pub mod rsk_ctx {{");
     for &t in &part.tasks {
         let task = &g.tasks[t];
@@ -369,6 +407,11 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         for sg in &task.raises {
             let _ = writeln!(s, "        /// Release_Signal `{}.{sg}` (R10.5).", part.name);
             let _ = writeln!(s, "        pub {sg}: ::rsk::Signal,");
+        }
+        for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| *ti == t)) {
+            let role = e.roles.iter().find(|(_, ti)| *ti == t).map(|(n, _)| n.as_str()).unwrap_or("");
+            let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` (task 21.2; R38.1, R40.1): {} messages of `{}` each way.", e.name, e.capacity, e.ty);
+            let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}>,", e.name, e.ty, e.payload / 4);
         }
         for st in &task.state {
             let _ = writeln!(s, "        /// Per-Task state `{}` (PR-25).", st.name);
@@ -443,6 +486,10 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         for sg in &task.raises {
             let idx = sigs.iter().position(|(sp, n, _)| *sp == task.partition && n == sg).unwrap_or(0xFF);
             let _ = writeln!(s, "            {sg}: ::rsk::Signal::new({idx}),");
+        }
+        for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| *ti == t)) {
+            let role = e.roles.iter().position(|(_, ti)| *ti == t).unwrap_or(0);
+            let _ = writeln!(s, "            {}: ::rsk::Endpoint::new({}, {}),", e.name, e.index, role);
         }
         for st in &task.state {
             let _ = writeln!(s, "            {}: ::rsk::PerTask::new(&super::rsk_state::{}_{}),", st.name, task.name.to_uppercase(), st.name.to_uppercase());
@@ -742,6 +789,7 @@ pub fn summary(g: &Generated) -> String {
                 match &t.source {
                     Some(ReleaseSource::Interrupt { peripheral, irq }) => format!("interrupt {peripheral} (IRQ {irq})"),
                     Some(ReleaseSource::Signal(sg)) => format!("signal {sg}"),
+                    Some(ReleaseSource::Endpoint { endpoint, role }) => format!("endpoint {endpoint}.{role}"),
                     None => "none".to_string(),
                 }
             ),

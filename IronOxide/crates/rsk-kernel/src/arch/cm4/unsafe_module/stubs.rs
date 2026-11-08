@@ -399,6 +399,30 @@ pub fn svc_raise(signal: u8) -> bool {
     out == 0
 }
 
+/// The Endpoint send SVC (task 21.2; DD-09): `arg` is the Endpoint index
+/// with the role in bit 8, `ptr` the message's address, `len` its bytes;
+/// the result is the Kernel's code (`ENDPOINT_OK`, `ENDPOINT_FULL`, or
+/// `ENDPOINT_REFUSED`).
+#[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn svc_send(arg: u32, ptr: u32, len: u32) -> u32 {
+    let out: u32;
+    // SAFETY (UJ-035c): as UJ-035; r0 to r2 in, r0 out (the service's code).
+    unsafe { core::arch::asm!("svc #8", inout("r0") arg => out, in("r1") ptr, in("r2") len, options(nostack)) };
+    out
+}
+
+/// The Endpoint receive SVC (task 21.2): as `svc_send`, the Kernel writing
+/// the message at `ptr` when it returns `ENDPOINT_OK`.
+#[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn svc_recv(arg: u32, ptr: u32, len: u32) -> u32 {
+    let out: u32;
+    // SAFETY (UJ-035d): as UJ-035; r0 to r2 in, r0 out (the service's code).
+    unsafe { core::arch::asm!("svc #9", inout("r0") arg => out, in("r1") ptr, in("r2") len, options(nostack)) };
+    out
+}
+
 /// The panic SVC of unprivileged Jobs (PR-19).
 #[inline(always)]
 #[cfg_attr(feature = "coverage", coverage(off))]

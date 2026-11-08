@@ -37,6 +37,8 @@ pub const EV_UNBOUND_IRQ: u8 = 21;
 pub const EV_API_MISUSE: u8 = 22;
 /// A debugger was attached at boot (DHCSR.C_DEBUGEN, ORQ-30): timing evidence from this run is suspect.
 pub const EV_DEBUGGER: u8 = 23;
+/// A send found its Endpoint buffer full (R40.5): recorded against the sending Partition, the message not taken.
+pub const EV_ENDPOINT_FULL: u8 = 25;
 
 /// A bit set of Profile restriction identifiers: bit n stands for PR-n
 /// (R3.9, R14.6).

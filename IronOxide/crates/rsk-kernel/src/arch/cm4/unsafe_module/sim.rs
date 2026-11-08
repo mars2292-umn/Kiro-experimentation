@@ -111,6 +111,32 @@ pub fn partition_write(a: u32, v: u32) {
     }
 }
 
+/// The Endpoint copy's RAM words (UJ-056, task 21.2): the stub asserts
+/// the SRAM-range precondition on every access and keeps the words.
+pub fn ram_read(a: u32) -> u32 {
+    assert!(super::hw::addr::ram_word(a), "a RAM word access outside the SRAM (UJ-056)");
+    match slot(a) {
+        Some(i) => STORE.values[i].get(),
+        None => 0,
+    }
+}
+
+pub fn ram_write(a: u32, v: u32) {
+    assert!(super::hw::addr::ram_word(a), "a RAM word access outside the SRAM (UJ-056)");
+    STORE.writes.set(STORE.writes.get().wrapping_add(1));
+    match slot(a) {
+        Some(i) => STORE.values[i].set(v),
+        None => {
+            let n = STORE.used.get();
+            if n < SLOTS {
+                STORE.addrs[n].set(a);
+                STORE.values[n].set(v);
+                STORE.used.set(n + 1);
+            }
+        }
+    }
+}
+
 /// KS-01: asserts the precondition of UJ-002 (see `read`).
 pub fn write(a: u32, v: u32) {
     assert!(super::hw::addr::kernel_access_ok(a), "mmio_write of an address outside the Kernel's registers (UJ-002)");

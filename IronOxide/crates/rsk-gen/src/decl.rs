@@ -220,6 +220,35 @@ pub enum Release {
 pub enum Source {
     Interrupt(String),
     Signal(String),
+    /// A message arriving at the Task's role of the named Endpoint (R40.3;
+    /// `endpoint = NAME`): the Task is bound to exactly one role of it.
+    Endpoint(String),
+}
+
+/// One role of an Endpoint: its name and the Task it is bound to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleDecl {
+    pub role: String,
+    pub partition: String,
+    pub task: String,
+}
+
+/// An Endpoint (task 21.2; R38.1 in its pre-Protocol form): `endpoint NAME:
+/// TYPE { ROLE => PARTITION.TASK, ROLE => PARTITION.TASK } capacity = N,
+/// payload = BYTES;`. Two roles, each bound to a Task; one directed channel
+/// each way of `capacity` messages of the payload type, whose size is at
+/// most `payload` bytes (a multiple of 4, checked at compile time in the
+/// Partition); the Protocol and the k-MC bound of R41.1 are task 21.1,
+/// until which the capacity is the declared one and `k` is recorded as
+/// the capacity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EndpointDecl {
+    pub name: String,
+    /// The payload type, as written.
+    pub ty: String,
+    pub roles: Vec<RoleDecl>,
+    pub capacity: u32,
+    pub payload: u32,
 }
 
 /// Per-Task state (PR-25): `state <task>.<name>: <type> = <init>;` in a
@@ -317,6 +346,8 @@ pub struct Declaration {
     /// Cortex-M4 erratum 839676, task 3.4; `false` by default).
     pub fp_flush_to_zero: bool,
     pub partitions: Vec<PartitionDecl>,
+    /// Endpoints (task 21.2), declared after the Partitions.
+    pub endpoints: Vec<EndpointDecl>,
 }
 
 /// Where a diagnostic points (the front end maps it to a span).
@@ -331,6 +362,7 @@ pub enum ItemRef {
     Resource(String, String),
     Signal(String, String),
     Peripheral(String, String),
+    Endpoint(String),
 }
 
 impl std::fmt::Display for ItemRef {
@@ -338,6 +370,7 @@ impl std::fmt::Display for ItemRef {
         match self {
             ItemRef::Declaration => write!(f, "app"),
             ItemRef::Field(x) => write!(f, "app.{x}"),
+            ItemRef::Endpoint(e) => write!(f, "endpoint {e}"),
             ItemRef::Partition(p) => write!(f, "partition {p}"),
             ItemRef::PartitionField(p, x) => write!(f, "partition {p}.{x}"),
             ItemRef::Task(p, t) => write!(f, "task {p}.{t}"),

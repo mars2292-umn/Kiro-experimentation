@@ -275,6 +275,9 @@
       "raises": [
         "tick"
       ],
+      "endpoint_roles": [
+        "telemetry.ctl"
+      ],
       "nesting_depth": 2,
       "slots": {
         "release": 0,
@@ -310,6 +313,7 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 0,
       "slots": {
         "release": 3,
@@ -343,6 +347,7 @@
         "part0.in_cs"
       ],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 2,
       "slots": {
         "release": 6,
@@ -376,6 +381,9 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [
+        "telemetry.sink"
+      ],
       "nesting_depth": 0,
       "slots": {
         "release": 9,
@@ -409,6 +417,7 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 0,
       "slots": {
         "release": 12,
@@ -441,6 +450,7 @@
         "part2.stats"
       ],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 1,
       "slots": {
         "release": 15,
@@ -475,6 +485,7 @@
         "part2.stats"
       ],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 1,
       "slots": {
         "release": 18,
@@ -547,6 +558,36 @@
       ]
     }
   ],
-  "endpoints": [],
+  "endpoints": [
+    {
+      "id": "telemetry",
+      "cores": [
+        0,
+        0
+      ],
+      "capacity": 4,
+      "k": 4,
+      "ceiling": "kernel",
+      "payload_bytes": 4,
+      "payload_type": "u32",
+      "roles": [
+        {
+          "role": "ctl",
+          "task": "part0.control",
+          "release": false
+        },
+        {
+          "role": "sink",
+          "task": "part1.log",
+          "release": false
+        }
+      ],
+      "storage_offset": 0,
+      "derived": [
+        "k",
+        "storage_offset"
+      ]
+    }
+  ],
   "conversions": []
 }

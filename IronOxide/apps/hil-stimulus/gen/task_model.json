@@ -167,6 +167,7 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 0,
       "slots": {
         "release": 0,

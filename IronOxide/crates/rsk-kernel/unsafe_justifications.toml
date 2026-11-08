@@ -387,4 +387,40 @@ why_no_machine_check = "The ranges come from the linker script's __rsk_cov_table
 reviewed_by = "rsk kernel review (task 19.2)"
 reviewed_on = "2026-11-06"
 
+[[justification]]
+id = "UJ-055"
+summary = "EndpointStorage: Sync for the Kernel-owned Endpoint channel bytes (task 21.2)"
+kind = "review"
+why_no_machine_check = "As UJ-003: the bytes are read and written only by the send and receive SVCs at the Kernel level with PRIMASK held, through the address `base` hands to `copy_words`; no reference to the array is formed, and no Partition view maps the Kernel's RAM (Property 12)."
+reviewed_by = "rsk kernel review (task 21.2)"
+reviewed_on = "2026-11-07"
 
+[[justification]]
+id = "UJ-056"
+summary = "copy_words's RAM word leaves: the Endpoint message copy (task 21.2)"
+kind = "kani"
+link = "copy_words_is_total_and_in_bounds"
+
+[[justification]]
+id = "UJ-057"
+summary = "Plain: the message-type contract and its primitive and array implementations (task 21.2, R42.1)"
+kind = "review"
+why_no_machine_check = "A marker trait: the contract (Copy, no references, pointers, or interior mutability, every bit pattern a valid value) is a property of the type, stated by the implementor; the primitive integers and floats and arrays of Plain values have it by the language's definition of those types. The derive of task 21.4 extends it to structures of them with the same argument per field."
+reviewed_by = "rsk kernel review (task 21.2)"
+reviewed_on = "2026-11-07"
+
+[[justification]]
+id = "UJ-058"
+summary = "message_to_words: one aligned volatile write of the message into the 8-aligned word buffer of a send (task 21.2)"
+kind = "kani"
+link = "uj_058_059_message_words_round_trip"
+reviewed_by = "rsk kernel review (task 21.2)"
+reviewed_on = "2026-11-07"
+
+[[justification]]
+id = "UJ-059"
+summary = "message_from_words: one aligned volatile read of the message type from the received word buffer (task 21.2)"
+kind = "kani"
+link = "uj_058_059_message_words_round_trip"
+reviewed_by = "rsk kernel review (task 21.2)"
+reviewed_on = "2026-11-07"

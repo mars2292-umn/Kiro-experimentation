@@ -12,6 +12,8 @@ pub mod rsk_state {
     pub static CONTROL_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part0.control.blocked` (PR-25): touched by `control`'s Jobs only.
     pub static CONTROL_BLOCKED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part0.control.telemetry_full` (PR-25): touched by `control`'s Jobs only.
+    pub static CONTROL_TELEMETRY_FULL: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part0.echo.count` (PR-25): touched by `echo`'s Jobs only.
     pub static ECHO_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part0.sensor.count` (PR-25): touched by `sensor`'s Jobs only.
@@ -48,6 +50,7 @@ pub mod rsk_target {
         ];
     }
 }
+const _: () = assert!(::core::mem::size_of::<u32>() <= 4, "the payload of Endpoint `telemetry` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `part0.control` (Priority 7).
     pub struct Control {
@@ -55,10 +58,14 @@ pub mod rsk_ctx {
         pub in_cs: ::rsk::Shared<'static, u32>,
         /// Release_Signal `part0.tick` (R10.5).
         pub tick: ::rsk::Signal,
+        /// Role `ctl` of Endpoint `telemetry` (task 21.2; R38.1, R40.1): 4 messages of `u32` each way.
+        pub telemetry: ::rsk::Endpoint<u32, 1>,
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `blocked` (PR-25).
         pub blocked: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `telemetry_full` (PR-25).
+        pub telemetry_full: ::rsk::PerTask<'static, u32>,
     }
     /// The Context of Task `part0.echo` (Priority 6).
     pub struct Echo {
@@ -118,8 +125,10 @@ pub mod rsk_jobs {
             state: ::rsk::Shared::new(&super::rsk_resources::STATE, 0),
             in_cs: ::rsk::Shared::new(&super::rsk_resources::IN_CS, 1),
             tick: ::rsk::Signal::new(0),
+            telemetry: ::rsk::Endpoint::new(0, 0),
             count: ::rsk::PerTask::new(&super::rsk_state::CONTROL_COUNT),
             blocked: ::rsk::PerTask::new(&super::rsk_state::CONTROL_BLOCKED),
+            telemetry_full: ::rsk::PerTask::new(&super::rsk_state::CONTROL_TELEMETRY_FULL),
         });
     }
     /// Job wrapper of `part0.echo` (vector 37; Critical_Section sites: none).

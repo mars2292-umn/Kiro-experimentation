@@ -109,6 +109,16 @@ pub fn control(mut cx: rsk_ctx::Control) {
     // and nothing else (no lock, no raise: the SVCs' cost is the Job's own
     // and would not compare), at the highest Priority (about 1.2 ms; the
     // Budget is 2 ms in that configuration).
+    // Task 21.2: one telemetry word per Job to part1's `log` over the
+    // `telemetry` Endpoint (the QEMU configuration declares it); a full
+    // channel is counted, never waited for (R40.4, R40.5).
+    #[cfg(feature = "telemetry")]
+    {
+        let word = cx.count.get();
+        if cx.telemetry.send(&word).is_err() {
+            cx.telemetry_full.with(|f| *f = f.saturating_add(1));
+        }
+    }
     #[cfg(feature = "cycles")]
     {
         rsk::spin::<CYCLES_SPIN>();

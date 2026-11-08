@@ -11,7 +11,7 @@ publish.workspace = true
 # (`--no-default-features --features nrf52840`): the Kernel's board support,
 # the declaration's variant, and Partition 1's timer follow.
 default = ["qemu-mps2"]
-qemu-mps2 = ["rsk-kernel/board-qemu-mps2"]
+qemu-mps2 = ["rsk-kernel/board-qemu-mps2", "p1-demo-part0/telemetry", "p1-demo-part1/telemetry"]
 nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
 # The release-timing configurations of task 7.3 (with `nrf52840`): the
 # declaration variant, Partition 0's late Jobs, and this crate's report.

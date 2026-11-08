@@ -325,10 +325,42 @@ impl Parse for Parsed {
         h.finish()?;
 
         let mut partitions = Vec::new();
+        let mut endpoints = Vec::new();
         while !input.is_empty() {
             let kw: Ident = input.parse()?;
+            if kw == "endpoint" {
+                // Task 21.2: `endpoint NAME: TYPE { ROLE => PART.TASK, .. }
+                // capacity = N, payload = BYTES;`
+                let name: Ident = input.parse()?;
+                let ename = name.to_string();
+                spans.add(ItemRef::Endpoint(ename.clone()), name.span());
+                input.parse::<Token![:]>()?;
+                let ty: syn::Type = input.parse()?;
+                let body;
+                braced!(body in input);
+                let mut roles = Vec::new();
+                while !body.is_empty() {
+                    let role: Ident = body.parse()?;
+                    body.parse::<Token![=>]>()?;
+                    let part: Ident = body.parse()?;
+                    body.parse::<Token![.]>()?;
+                    let task: Ident = body.parse()?;
+                    roles.push(RoleDecl { role: role.to_string(), partition: part.to_string(), task: task.to_string() });
+                    if !body.is_empty() {
+                        body.parse::<Token![,]>()?;
+                    }
+                }
+                let attrs = parse_attrs(input)?;
+                input.parse::<Token![;]>()?;
+                let mut ea = Attrs { items: attrs, owner: name.span(), what: "an endpoint" };
+                let capacity = int(ea.required("capacity")?)? as u32;
+                let payload = int(ea.required("payload")?)? as u32;
+                ea.finish()?;
+                endpoints.push(EndpointDecl { name: ename, ty: tokens_to_string(&ty).replace(' ', ""), roles, capacity, payload });
+                continue;
+            }
             if kw != "partition" {
-                return err(kw.span(), "expected `partition`");
+                return err(kw.span(), "expected `partition` or `endpoint`");
             }
             let name: Ident = input.parse()?;
             let pname = name.to_string();
@@ -501,11 +533,14 @@ impl Parse for Parsed {
                             };
                             let binds = ta.take("binds");
                             let signal = ta.take("signal");
-                            let source = match (binds, signal) {
-                                (Some(b), None) => Source::Interrupt(ident(b)?.0),
-                                (None, Some(s)) => Source::Signal(ident(s)?.0),
-                                (Some(b), Some(_)) => return err(b.span, "a task has exactly one Release_Source: `binds` or `signal` (PR-11, R22.4)"),
-                                (None, None) => return err(tname.span(), "a sporadic task declares its Release_Source: `binds = PERIPHERAL` or `signal = NAME` (PR-11, R22.4)"),
+                            let endpoint = ta.take("endpoint");
+                            let source = match (binds, signal, endpoint) {
+                                (Some(b), None, None) => Source::Interrupt(ident(b)?.0),
+                                (None, Some(s), None) => Source::Signal(ident(s)?.0),
+                                (None, None, Some(e)) => Source::Endpoint(ident(e)?.0),
+                                (Some(b), _, _) => return err(b.span, "a task has exactly one Release_Source: `binds`, `signal`, or `endpoint` (PR-11, R22.4)"),
+                                (None, Some(s), Some(_)) => return err(s.span, "a task has exactly one Release_Source: `binds`, `signal`, or `endpoint` (PR-11, R22.4)"),
+                                (None, None, None) => return err(tname.span(), "a sporadic task declares its Release_Source: `binds = PERIPHERAL`, `signal = NAME`, or `endpoint = NAME` (PR-11, R22.4)"),
                             };
                             if let Some(a) = ta.take("period").or_else(|| ta.take("offset")) {
                                 return err(a.span, "a sporadic task has an `mit`, not a period or offset");
@@ -578,6 +613,7 @@ impl Parse for Parsed {
                 log_capacity,
                 fp_flush_to_zero,
                 partitions,
+                endpoints,
             },
             spans,
         })

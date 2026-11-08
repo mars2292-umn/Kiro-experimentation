@@ -36,4 +36,17 @@ pub fn svc_dma_write(i: u8, offset: u32, value: u32) -> bool {
     true
 }
 
+/// The host doubles of the Endpoint services (task 21.2): a send is always
+/// taken, a receive always finds the channel empty.
+pub fn svc_send(arg: u32, ptr: u32, len: u32) -> u32 {
+    sim::write(0xFFFF_FFF0, arg);
+    sim::write(0xFFFF_FFF4, ptr.wrapping_add(len));
+    0
+}
+
+pub fn svc_recv(arg: u32, _ptr: u32, _len: u32) -> u32 {
+    sim::write(0xFFFF_FFF0, arg);
+    1
+}
+
 pub fn svc_panic() {}

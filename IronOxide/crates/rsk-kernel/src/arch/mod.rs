@@ -21,7 +21,7 @@ pub mod cm4;
 
 pub use bound::{config_crc, layout_crc, Bound, Crc32, JobInfo, KernelOps};
 pub use cm4::entry::Binding;
-pub use cm4::plan::{DmaCfg, SignalCfg};
+pub use cm4::plan::{DmaCfg, SignalCfg, EndpointCfg};
 
 use crate::logic::kernel::Kernel;
 use crate::logic::mpu::View;
@@ -142,4 +142,9 @@ pub trait System: 'static {
     /// The Release_Signals (R10.5), in Generated_Config order.
     const SIGNAL_COUNT: usize;
     fn signal(i: usize) -> SignalCfg;
+    /// The Endpoints (task 21.2; R40.1), in Generated_Config order, and the
+    /// Kernel-owned storage of their channels as (base address, bytes).
+    const ENDPOINT_COUNT: usize;
+    fn endpoint(i: usize) -> EndpointCfg;
+    fn endpoint_storage() -> (u32, u32);
 }

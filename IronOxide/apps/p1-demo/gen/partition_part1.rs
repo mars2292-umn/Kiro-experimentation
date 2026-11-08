@@ -6,6 +6,10 @@ pub mod rsk_resources {
 pub mod rsk_state {
     /// Per-Task state `part1.log.count` (PR-25): touched by `log`'s Jobs only.
     pub static LOG_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part1.log.telemetry_rx` (PR-25): touched by `log`'s Jobs only.
+    pub static LOG_TELEMETRY_RX: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part1.log.telemetry_last` (PR-25): touched by `log`'s Jobs only.
+    pub static LOG_TELEMETRY_LAST: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part1.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
     pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
@@ -40,11 +44,18 @@ pub mod rsk_target {
         ];
     }
 }
+const _: () = assert!(::core::mem::size_of::<u32>() <= 4, "the payload of Endpoint `telemetry` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {
     /// The Context of Task `part1.log` (Priority 2).
     pub struct Log {
+        /// Role `sink` of Endpoint `telemetry` (task 21.2; R38.1, R40.1): 4 messages of `u32` each way.
+        pub telemetry: ::rsk::Endpoint<u32, 1>,
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `telemetry_rx` (PR-25).
+        pub telemetry_rx: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `telemetry_last` (PR-25).
+        pub telemetry_last: ::rsk::PerTask<'static, u32>,
     }
     /// The Context of Task `part1.pulse` (Priority 4).
     pub struct Pulse {
@@ -73,7 +84,10 @@ pub mod rsk_jobs {
     #[inline(never)]
     pub fn log() {
         let () = super::log(super::rsk_ctx::Log {
+            telemetry: ::rsk::Endpoint::new(0, 1),
             count: ::rsk::PerTask::new(&super::rsk_state::LOG_COUNT),
+            telemetry_rx: ::rsk::PerTask::new(&super::rsk_state::LOG_TELEMETRY_RX),
+            telemetry_last: ::rsk::PerTask::new(&super::rsk_state::LOG_TELEMETRY_LAST),
         });
     }
     /// Job wrapper of `part1.pulse` (vector 40; Critical_Section sites: none).

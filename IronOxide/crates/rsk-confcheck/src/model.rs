@@ -64,6 +64,18 @@ pub struct Resource {
     pub accessors: Vec<String>,
 }
 
+/// An Endpoint of the Task_Model (task 21.2): what the Kernel's table
+/// must say about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Endpoint {
+    pub id: String,
+    pub capacity: u64,
+    pub payload_bytes: u64,
+    /// (task id, arrival releases the Task) per role, in order.
+    pub roles: Vec<(String, bool)>,
+    pub storage_offset: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Model {
     pub target: String,
@@ -84,6 +96,7 @@ pub struct Model {
     pub partitions: Vec<Partition>,
     pub tasks: Vec<Task>,
     pub resources: Vec<Resource>,
+    pub endpoints: Vec<Endpoint>,
 }
 
 fn field<'a>(v: &'a Value, name: &str, at: &str) -> Result<&'a Value, String> {
@@ -173,6 +186,23 @@ impl Model {
                 resources: strings_of(p, "resources", &pat)?,
             });
         }
+        // Endpoints (task 21.2): absent from older models, an empty list then.
+        let mut endpoints = Vec::new();
+        for (i, e) in json.get("endpoints").and_then(|e| e.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
+            let eat = format!("endpoints[{i}]");
+            let mut roles = Vec::new();
+            for (j, r) in e.get("roles").and_then(|r| r.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
+                let rat = format!("{eat}.roles[{j}]");
+                roles.push((str_of(r, "task", &rat)?, bool_of(r, "release", &rat)?));
+            }
+            endpoints.push(Endpoint {
+                id: str_of(e, "id", &eat)?,
+                capacity: u64_of(e, "capacity", &eat)?,
+                payload_bytes: u64_of(e, "payload_bytes", &eat)?,
+                roles,
+                storage_offset: e.get("storage_offset").and_then(|v| v.as_u64()).unwrap_or(0),
+            });
+        }
         let mut tasks = Vec::new();
         for (i, t) in field(json, "tasks", at)?.as_array().ok_or("tasks is not a list")?.iter().enumerate() {
             let tat = format!("tasks[{i}]");
@@ -240,6 +270,7 @@ impl Model {
             partitions,
             tasks,
             resources,
+            endpoints,
         })
     }
 

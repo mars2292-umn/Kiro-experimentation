@@ -93,6 +93,28 @@ pub struct LevelRecord {
     pub previous_partition: u8,
 }
 
+/// One Endpoint of Generated_Config (task 21.2; R38.1, R40.1): two roles,
+/// each bound to a Task, and two directed channels of `capacity` messages
+/// of `payload` bytes each (`payload` a multiple of 4), in Kernel-owned
+/// storage at byte offset `storage` (channel `d`, the messages role `d`
+/// sends, at `storage + d * capacity * payload`). `release[r]` says that a
+/// message arriving for role `r` is a Release_Source event of its Task
+/// (R40.3). An absent entry has `capacity` 0.
+#[derive(Clone, Copy)]
+pub struct EndpointCfg {
+    pub capacity: u8,
+    pub payload: u16,
+    pub tasks: [u8; 2],
+    pub partitions: [u8; 2],
+    pub release: [bool; 2],
+    pub storage: u32,
+}
+
+/// The most Endpoints a configuration may declare (two channels each in
+/// `ArchState::fifos`; the Generator rejects more).
+pub const MAX_ENDPOINTS: usize = 8;
+pub const MAX_CHANNELS: usize = 2 * MAX_ENDPOINTS;
+
 /// Per-level records (one Job in progress per level) and per-Partition
 /// stack floors.
 #[derive(Clone, Copy)]
@@ -120,6 +142,9 @@ pub struct ArchState {
     /// its entry instruction (5.8a): the ended Job's level, unwound by that
     /// stub once it has pushed its own record. Zero when none.
     pub pending_unwind: u32,
+    /// The index state of every Endpoint channel (task 21.2; Property 11):
+    /// channel `2 * e + d` carries what role `d` of Endpoint `e` sends.
+    pub fifos: [crate::logic::endpoint::Fifo; MAX_CHANNELS],
     pub first_fault_addr: u32,
 }
 
@@ -144,6 +169,7 @@ impl ArchState {
             booted: false,
             deferred: [0; 8],
             pending_unwind: 0,
+            fifos: [crate::logic::endpoint::Fifo { head: 0, count: 0 }; MAX_CHANNELS],
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }

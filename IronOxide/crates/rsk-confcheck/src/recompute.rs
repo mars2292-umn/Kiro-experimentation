@@ -313,6 +313,34 @@ pub fn check_binary(m: &Model, img: &Image, t: &Tables, out: &mut Outcome) {
     }
 }
 
+/// R26.4 for the Endpoint table (task 21.2): the Kernel's table against
+/// the Task_Model's Endpoints, recomputed independently: each capacity and
+/// payload as declared, the role Tasks and their Partitions by the model's
+/// indices, the arrival-release flags from the Tasks' sources, and the
+/// storage offsets as the running sum of `2 * capacity * payload`.
+pub fn check_endpoints(m: &Model, img: &Image, table: &[image::EndpointCfg], storage_bytes: u32, out: &mut Outcome) {
+    let computed = image::crc32(&img.bytes);
+    out.mismatch("RSK_ENDPOINT_CHECKSUM (CRC-32 of the extracted image)", format!("0x{computed:08x}"), format!("0x{:08x}", img.stored_checksum));
+    out.mismatch("ENDPOINTS.count", m.endpoints.len(), table.len());
+    let mut offset: u64 = 0;
+    for (i, e) in m.endpoints.iter().enumerate() {
+        let item = |f: &str| format!("ENDPOINTS[{i}].{f} ({})", e.id);
+        let Some(c) = table.get(i) else { continue };
+        out.mismatch(item("capacity"), e.capacity, c.capacity);
+        out.mismatch(item("payload"), e.payload_bytes, c.payload);
+        out.require(item("payload % 4"), e.payload_bytes % 4 == 0 && e.payload_bytes >= 4, "a multiple of 4, at least 4", e.payload_bytes);
+        out.mismatch(item("storage"), offset, c.storage);
+        for (r, (task, _)) in e.roles.iter().enumerate().take(2) {
+            let ti = m.task_index(task);
+            out.mismatch(item(&format!("tasks[{r}]")), ti.map_or(255, |t| t as u8), c.tasks[r]);
+            out.mismatch(item(&format!("partitions[{r}]")), ti.and_then(|t| m.partition_index(&m.tasks[t].partition)).map_or(255, |p| p as u8), c.partitions[r]);
+            out.mismatch(item(&format!("release[{r}]")), e.roles[r].1, c.release[r]);
+        }
+        offset += 2 * e.capacity * e.payload_bytes;
+    }
+    out.mismatch("ENDPOINT_STORAGE_BYTES", offset, storage_bytes);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

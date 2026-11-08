@@ -1515,6 +1515,22 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.log.push(Event { kind, task, partition, prs, instant, detail });
     }
 
+    /// Records an event against Task `t` and its Partition with no response
+    /// (R40.5: a send that found its buffer full is reported to the
+    /// Health_Monitor and attributed to the sending Partition; task 21.2).
+    pub fn record_event(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, t: u8)
+        requires old(self).inv(cfg), (t as int) < NT,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+            final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
+            final(self).budget == old(self).budget, final(self).stopped == old(self).stopped,
+            final(self).safe_state == old(self).safe_state, final(self).now == old(self).now,
+    {
+        proof {
+            assert(cfg.task_ok(t as int));
+        }
+        self.push_event(cfg, kind, t, cfg.tasks[t as usize].partition, 1u64 << 14, 0);
+    }
+
     /// Advances the observed instant (monotone; Kernel_Arch reads the time base).
     pub fn observe(&mut self, cfg: &Config<NT, NR, NP>, now: u64)
         requires old(self).inv(cfg), now <= cfg.operating_duration,

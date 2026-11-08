@@ -124,6 +124,13 @@ pub mod addr {
         peripheral(a) || ppb_known(a)
     }
 
+    /// The precondition of UJ-056, the word accesses of `copy_words`: a
+    /// word of the SRAM (a Partition's RAM interval or the Kernel's Endpoint
+    /// storage, both inside it; the cores check the intervals themselves).
+    pub const fn ram_word(a: u32) -> bool {
+        a % 4 == 0 && a >= 0x2000_0000 && a < 0x2100_0000
+    }
+
     /// The precondition of UJ-009, the byte writes of `mmio_write_u8`: a
     /// byte of the NVIC_IPR array below `NVIC_LINES`.
     pub const fn kernel_byte_access_ok(a: u32) -> bool {
@@ -323,6 +330,36 @@ mod raw {
         unsafe { core::ptr::write_volatile(a as usize as *mut u8, v) }
     }
 
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
+    pub fn read_ram_word(a: u32) -> u32 {
+        // SAFETY (UJ-056): `a` satisfies `addr::ram_word` (a word of the
+        // SRAM), and the callers of `copy_words` pass only words of the
+        // calling Partition's RAM interval (`message_permitted`) or of the
+        // Kernel's Endpoint storage (`endpoint_slot`); the Kani stub asserts
+        // the range on every access of `copy_words_is_total_and_in_bounds`.
+        unsafe { core::ptr::read_volatile(a as usize as *const u32) }
+    }
+
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
+    pub fn write_ram_word(a: u32, v: u32) {
+        // SAFETY (UJ-056a): as UJ-056, for writes.
+        unsafe { core::ptr::write_volatile(a as usize as *mut u32, v) }
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
+    pub fn read_ram_word(a: u32) -> u32 {
+        super::super::sim::ram_read(a)
+    }
+
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg_attr(feature = "coverage", coverage(off))]
+    pub fn write_ram_word(a: u32, v: u32) {
+        super::super::sim::ram_write(a, v)
+    }
+
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     #[cfg_attr(feature = "coverage", coverage(off))]
     pub fn read_word(a: u32) -> u32 {
@@ -431,6 +468,147 @@ pub fn irq_of(n: u16) -> Option<u32> {
     } else {
         Some(n as u32 - 16)
     }
+}
+
+/// The Endpoint message copy (task 21.2; DD-09, R42.2): `len` bytes from
+/// `src` to `dst` by words. Total for every argument: nothing is copied
+/// unless both ranges are word-aligned, `len` is a multiple of 4, and
+/// neither range wraps the address space; the cores pass ranges they have
+/// checked against the Partition's RAM interval and the Endpoint storage.
+/// Every access goes through `raw` (UJ-001's leaf) and no `unsafe` of its
+/// own; the Kani harness `copy_words_is_total_and_in_bounds` runs it
+/// against the simulator (R45.2).
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn copy_words(dst: u32, src: u32, len: u32) {
+    if len % 4 != 0 || dst % 4 != 0 || src % 4 != 0 {
+        return;
+    }
+    let (Some(_), Some(_)) = (dst.checked_add(len), src.checked_add(len)) else { return };
+    let mut i: u32 = 0;
+    // The bound (PR-16): a message is at most `MAX_MESSAGE_BYTES` (the
+    // Generator's payload limit), so at most that many bytes are copied.
+    while i < len && i < MAX_MESSAGE_BYTES {
+        raw::write_ram_word(dst + i, raw::read_ram_word(src + i));
+        i += 4;
+    }
+}
+
+/// The largest Endpoint payload the Generator accepts (PR-14, task 21.2).
+pub const MAX_MESSAGE_BYTES: u32 = 65_532;
+
+/// The Kernel-owned storage of every Endpoint channel (task 21.2; R39.2,
+/// R40.1): one static of the generated system crate, sized by the
+/// Generator, in the Kernel's RAM where no Partition view reaches it
+/// (R16.1). Touched only by `copy_words` inside the send and receive SVCs,
+/// at the Kernel level with PRIMASK held.
+pub struct EndpointStorage<const N: usize>(core::cell::UnsafeCell<[u8; N]>);
+
+// SAFETY (UJ-055): as UJ-003 for `ResourceCell`: the bytes are read and
+// written only by Kernel-level code with PRIMASK held, one access at a
+// time, through the address `base` hands to `copy_words`; no reference to
+// the array is ever formed.
+unsafe impl<const N: usize> Sync for EndpointStorage<N> {}
+
+impl<const N: usize> EndpointStorage<N> {
+    pub const fn new() -> EndpointStorage<N> {
+        EndpointStorage(core::cell::UnsafeCell::new([0; N]))
+    }
+
+    /// The address of the first byte (a pointer-to-integer cast, no access).
+    pub fn base(&self) -> u32 {
+        self.0.get() as usize as u32
+    }
+
+    pub const fn len(&self) -> u32 {
+        N as u32
+    }
+}
+
+/// A message type an Endpoint may carry (R42.1; task 21.2): `Copy`, no
+/// references, pointers, or interior mutability, and every bit pattern of
+/// its size a valid value, so that bytes copied from another Partition are
+/// a value of the type. Implemented for the integer and floating-point
+/// primitives and arrays of them; the derive of task 21.4 extends it to
+/// structures of them.
+///
+/// # Safety
+/// An implementor promises the properties above; `message_from_words`
+/// relies on them.
+// SAFETY (UJ-057): the trait's contract, which the implementations below
+// and the derive of task 21.4 discharge.
+pub unsafe trait Plain: Copy {}
+// SAFETY (UJ-057a): every bit pattern of a u8 is a valid value; no pointer.
+unsafe impl Plain for u8 {}
+// SAFETY (UJ-057b): as UJ-057a, u16.
+unsafe impl Plain for u16 {}
+// SAFETY (UJ-057c): as UJ-057a, u32.
+unsafe impl Plain for u32 {}
+// SAFETY (UJ-057d): as UJ-057a, u64.
+unsafe impl Plain for u64 {}
+// SAFETY (UJ-057e): as UJ-057a, i8.
+unsafe impl Plain for i8 {}
+// SAFETY (UJ-057f): as UJ-057a, i16.
+unsafe impl Plain for i16 {}
+// SAFETY (UJ-057g): as UJ-057a, i32.
+unsafe impl Plain for i32 {}
+// SAFETY (UJ-057h): as UJ-057a, i64.
+unsafe impl Plain for i64 {}
+// SAFETY (UJ-057i): every bit pattern of an f32 is a value (NaNs included); no pointer.
+unsafe impl Plain for f32 {}
+// SAFETY (UJ-057j): as UJ-057i, f64.
+unsafe impl Plain for f64 {}
+// SAFETY (UJ-057k): an array of values every bit pattern of which is valid
+// is such a value, and holds no pointer.
+unsafe impl<T: Plain, const N: usize> Plain for [T; N] {}
+
+/// The word buffer an Endpoint operation hands to the Kernel (task 21.2):
+/// `W` words, 8-byte aligned, so that any `Plain` message of at most
+/// `4 * W` bytes and at most 8-byte alignment (every primitive and array
+/// of them) is read from and written into it with one aligned access.
+#[repr(C, align(8))]
+pub struct Words<const W: usize>(pub [u32; W]);
+
+impl<const W: usize> Words<W> {
+    pub const fn zero() -> Words<W> {
+        Words([0; W])
+    }
+
+    /// The message type `T` fits the buffer: checked once per
+    /// instantiation at compile time by the `rsk` API (R38.1), beside the
+    /// Generator's assertion on the declared payload.
+    pub const fn fits<T>() -> bool {
+        core::mem::size_of::<T>() <= 4 * W && core::mem::align_of::<T>() <= 8
+    }
+}
+
+/// The message as the word buffer of a send (task 21.2): the value's
+/// bytes at the start, the rest zero. An instantiation whose `T` does not
+/// fit the buffer does not compile (the `const` assertion, R38.1).
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn message_to_words<T: Plain, const W: usize>(m: &T) -> Words<W> {
+    const { assert!(Words::<W>::fits::<T>(), "the message type exceeds the word buffer or is more than 8-byte aligned (R38.1)") };
+    let mut words = Words::<W>::zero();
+    // SAFETY (UJ-058): `words` is a live, 8-byte-aligned buffer of `4 * W`
+    // bytes and `T` is at most that size and alignment (`fits`, asserted at
+    // compile time above), so the pointer is valid and aligned for one `T`;
+    // `T` is `Copy` (`Plain`), so the value is written by bits.
+    unsafe { core::ptr::write_volatile(words.0.as_mut_ptr() as *mut T, *m) };
+    words
+}
+
+/// The message the receive SVC wrote into the word buffer (task 21.2):
+/// `T` read from the buffer's first `size_of::<T>()` bytes, every bit
+/// pattern of which is a value of `T` (`Plain`). An instantiation whose
+/// `T` does not fit the buffer does not compile.
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn message_from_words<T: Plain, const W: usize>(words: &Words<W>) -> T {
+    const { assert!(Words::<W>::fits::<T>(), "the message type exceeds the word buffer or is more than 8-byte aligned (R38.1)") };
+    // SAFETY (UJ-059): `words` is a live, 8-byte-aligned buffer of `4 * W`
+    // bytes and `T` is at most that size and alignment (`fits`, asserted at
+    // compile time above), so the pointer is valid and aligned for one `T`;
+    // every bit pattern of `T` is a value (`Plain`), so the read yields a
+    // valid `T`.
+    unsafe { core::ptr::read_volatile(words.0.as_ptr() as *const T) }
 }
 
 /// ICSR.VECTPENDING: the exception number of the highest-priority pending

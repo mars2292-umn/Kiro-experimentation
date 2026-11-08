@@ -299,6 +299,7 @@
       "raises": [
         "tick"
       ],
+      "endpoint_roles": [],
       "nesting_depth": 2,
       "slots": {
         "release": 0,
@@ -334,6 +335,7 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 0,
       "slots": {
         "release": 3,
@@ -367,6 +369,7 @@
         "part0.in_cs"
       ],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 2,
       "slots": {
         "release": 6,
@@ -400,6 +403,7 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 0,
       "slots": {
         "release": 9,
@@ -433,6 +437,7 @@
       "fpu": false,
       "resources": [],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 0,
       "slots": {
         "release": 12,
@@ -465,6 +470,7 @@
         "part2.stats"
       ],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 1,
       "slots": {
         "release": 15,
@@ -499,6 +505,7 @@
         "part2.stats"
       ],
       "raises": [],
+      "endpoint_roles": [],
       "nesting_depth": 1,
       "slots": {
         "release": 18,

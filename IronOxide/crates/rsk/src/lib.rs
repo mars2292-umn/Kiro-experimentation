@@ -63,6 +63,7 @@ pub use rsk_macros::bounds;
 pub use rsk_kernel::arch::cm4::unsafe_module::ResourceCell;
 #[cfg(not(feature = "quiet"))]
 use rsk_kernel::arch::cm4::unsafe_module::hw;
+use rsk_kernel::arch::cm4::unsafe_module::hw::{message_from_words, message_to_words, Words};
 use rsk_kernel::arch::cm4::unsafe_module::stubs;
 
 /// The lock operation of a Resource proxy (design.md "Application API",
@@ -181,6 +182,84 @@ impl Signal {
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn raise(&self) -> bool {
         stubs::svc_raise(self.id)
+    }
+}
+
+/// A message type an Endpoint may carry (R42.1): `Copy`, no references,
+/// pointers, or interior mutability, every bit pattern a valid value. The
+/// primitives and arrays of them implement it; the derive is task 21.4.
+pub use rsk_kernel::arch::cm4::unsafe_module::hw::Plain;
+
+/// Why a send did not take the message (R40.5).
+// No derived `PartialEq`: the App_Prover would need a `DeepModel` for it
+// (task 17.1); callers match on the variant.
+#[derive(Clone, Copy, Debug)]
+pub enum SendError {
+    /// The directed channel holds `capacity` messages: the Kernel has
+    /// recorded the Protocol buffer-bound violation against this Partition.
+    Full,
+    /// The Kernel refused the request as API misuse (a fault of the
+    /// Partition, whose response may have let the Job continue).
+    Refused,
+}
+
+/// A Task's role of an Endpoint (task 21.2; DD-09, R38.1, R40.1), held in
+/// its Context: `T` is the declared payload type and `W` the words of the
+/// declared payload (`payload / 4`), so that `size_of::<T>() <= 4 * W`,
+/// which the Generator asserts at compile time. A send copies the message
+/// into the Kernel-owned channel from this role to the other and a receive
+/// copies the oldest message of the channel from the other role to this
+/// one; both complete without waiting (R40.4), inside the Kernel at its
+/// level (R42.2). The typestate API of the Protocol is task 21.3.
+pub struct Endpoint<T: Plain, const W: usize> {
+    id: u8,
+    role: u8,
+    _payload: core::marker::PhantomData<T>,
+}
+
+impl<T: Plain, const W: usize> Endpoint<T, W> {
+    /// R38.1: the payload type fits the declared payload (checked at compile
+    /// time for every instantiation; the Generator asserts the same on the
+    /// declaration's payload bytes).
+    const FITS: () = assert!(Words::<W>::fits::<T>(), "the Endpoint's payload type exceeds its declared payload or is more than 8-byte aligned (R38.1)");
+
+    /// Constructed by generated code only (PR-06): the Endpoint index of
+    /// Generated_Config and the Task's role (0 or 1).
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn new(id: u8, role: u8) -> Endpoint<T, W> {
+        Endpoint { id, role, _payload: core::marker::PhantomData }
+    }
+
+    fn arg(&self) -> u32 {
+        self.id as u32 | ((self.role as u32 & 1) << 8)
+    }
+
+    /// Sends `m` to the other role: `Ok(())` when the Kernel copied it into
+    /// the channel (and released the receiving Task when the arrival is its
+    /// Release_Source, R40.3); `Err(SendError::Full)` when the channel holds
+    /// `capacity` messages (R40.5). Never waits (PR-08, R40.4).
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn send(&self, m: &T) -> Result<(), SendError> {
+        let () = Self::FITS;
+        let words = message_to_words::<T, W>(m);
+        match stubs::svc_send(self.arg(), words.0.as_ptr() as usize as u32, (4 * W) as u32) {
+            0 => Ok(()),
+            1 => Err(SendError::Full),
+            _ => Err(SendError::Refused),
+        }
+    }
+
+    /// Receives the oldest message sent to this role, or `None` when the
+    /// channel is empty (R40.4). A refusal (API misuse, a fault of the
+    /// Partition) reads as `None` too, the Kernel having recorded it.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn recv(&self) -> Option<T> {
+        let () = Self::FITS;
+        let mut words = Words::<W>::zero();
+        match stubs::svc_recv(self.arg(), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
+            0 => Some(message_from_words::<T, W>(&words)),
+            _ => None,
+        }
     }
 }
 

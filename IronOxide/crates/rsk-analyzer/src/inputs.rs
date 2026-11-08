@@ -126,9 +126,12 @@ pub fn prepare(
     if model.profile.variant != "Ravenscar" {
         rejections.push(reject("R28.6", format!("Profile_Variant `{}` is not supported by this Analyzer", model.profile.variant)));
     }
-    if !model.endpoints.is_empty() {
-        rejections.push(reject("R28.6", "Endpoints (Phase P4) are not supported by this Analyzer version"));
-    }
+    // Endpoints (task 21.2): accepted. Their operations run inside the
+    // calling Job at the Kernel level (DD-09), so they are inside the Job's
+    // measured execution and Budget and inside the measured L_kernel; the
+    // explicit terms of R40.2 (the operations as Critical_Sections in the
+    // blocking terms and the Tasks' execution bounds) are task 21.5 and
+    // are reported as omitted below.
     // R28.5 / R27.2: single core.
     for t in &model.tasks {
         if t.core != 0 {
@@ -368,7 +371,15 @@ pub fn prepare(
         });
     }
     let mut omitted_terms = Vec::new();
-    omitted_terms.push("Endpoint operations (Phase P4) are not modelled".to_string());
+    if model.endpoints.is_empty() {
+        omitted_terms.push("Endpoint operations (Phase P4) are not modelled".to_string());
+    } else {
+        omitted_terms.push(format!(
+            "Endpoint operations (R40.2, task 21.5): the {} declared Endpoint(s) ({}) carry no explicit term; each send and receive runs inside the calling Job at the Kernel level (DD-09), so its execution is inside the Job's WCET and Budget and its masking inside the measured L_kernel, and the arrival release of a receive role is the Sporadic_Task's Release_Source as any other (R40.3)",
+            model.endpoints.len(),
+            model.endpoints.iter().map(|e| e.id.as_str()).collect::<Vec<_>>().join(", ")
+        ));
+    }
     if !any_fpu {
         omitted_terms.push("no FPU-using Task: Δ_fp_save and Δ_fp_restore are not charged".to_string());
     }

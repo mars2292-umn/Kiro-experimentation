@@ -155,6 +155,13 @@ pub fn report_and_exit() -> ! {
     print_kv(b"filter_state_bits", filter_bits);
     print_kv(b"sampler", g);
     print_kv(b"dma_ok", dma_ok);
+    // Task 21.2: the `telemetry` Endpoint's traffic (the QEMU configuration).
+    #[cfg(feature = "qemu-mps2")]
+    {
+        print_kv(b"telemetry_rx", p1_demo_part1::rsk_state::LOG_TELEMETRY_RX.peek());
+        print_kv(b"telemetry_last", p1_demo_part1::rsk_state::LOG_TELEMETRY_LAST.peek());
+        print_kv(b"telemetry_full", p1_demo_part0::rsk_state::CONTROL_TELEMETRY_FULL.peek());
+    }
     // The isolation suite (task 7.4) and the differential tests (task
     // 3.3): what the probes saw, judged by the rig (Verification_Plan 11.7).
     #[cfg(feature = "isolation")]

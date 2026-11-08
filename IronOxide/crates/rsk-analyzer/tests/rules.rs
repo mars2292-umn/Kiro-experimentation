@@ -150,12 +150,14 @@ fn r28_6_unsupported_variant_version_or_construct_is_rejected_naming_it() {
     let m = model_with(&format!("\"version\": \"{}\"", rsk_analyzer::profile_version::PROFILE_VERSION), "\"version\": \"0.1\"");
     let (w, t) = placeholders::make(&m, HASH, "off");
     assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "R28.6", "Profile 0.1");
-    let m = model_with(
-        "\"endpoints\": []",
-        "\"endpoints\": [{\"id\": \"link\", \"cores\": [0, 1], \"capacity\": 4, \"k\": 1, \"ceiling\": \"kernel\", \"payload_bytes\": 8}]",
-    );
+    // Endpoints are accepted since task 21.2 (the demo declares one): their
+    // operations are inside the Jobs' bounds and L_kernel, and the explicit
+    // terms of R40.2 are reported as omitted until task 21.5.
+    let m = model();
+    assert!(!m.endpoints.is_empty(), "the demo declares the `telemetry` Endpoint");
     let (w, t) = placeholders::make(&m, HASH, "off");
-    assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "R28.6", "Endpoints");
+    let prepared = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap_or_else(|r| panic!("{r:?}"));
+    assert!(prepared.omitted_terms.iter().any(|o| o.contains("R40.2") && o.contains("telemetry")), "{:?}", prepared.omitted_terms);
 }
 
 // ------------------------------------------------------------- R28.7

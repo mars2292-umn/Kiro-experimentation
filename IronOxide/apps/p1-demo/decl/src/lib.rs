@@ -108,6 +108,8 @@ rsk::app! {
         // Per-Task state (PR-25): the demo's counters, read by the safe state.
         state control.count: u32 = 0;
         state control.blocked: u32 = 0;
+        // Task 21.2: sends the `telemetry` Endpoint refused as full (R40.5).
+        state control.telemetry_full: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
@@ -124,6 +126,9 @@ rsk::app! {
         peripherals = [CMSDK_DUALTIMER];
         state log.count: u32 = 0;
         state pulse.count: u32 = 0;
+        // Task 21.2: messages received over `telemetry` and the last one.
+        state log.telemetry_rx: u32 = 0;
+        state log.telemetry_last: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
@@ -146,4 +151,10 @@ rsk::app! {
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),
                       priority = 1, resources = [stats]);
     }
+
+    // Task 21.2 (R38.1, R40.1, R42.2): a cross-Partition Endpoint from the
+    // level-A `control` to the level-C `log`: four `u32` messages each way
+    // in Kernel-owned storage; `control` sends its count every Job and `log`
+    // drains the channel every Job (no arrival release: `log` is periodic).
+    endpoint telemetry: u32 { ctl => part0.control, sink => part1.log } capacity = 4, payload = 4;
 }
