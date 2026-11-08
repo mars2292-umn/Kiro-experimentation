@@ -179,6 +179,7 @@ pub fn task_model(g: &Generated) -> Value {
                 .with("payload_bytes", e.payload as u64)
                 .with("payload_type", e.ty.as_str())
                 .with("protocol", e.protocol.clone().map(Value::from).unwrap_or(Value::Null))
+                .with("gating_rank", e.gating_rank as u64)
                 .with("channels", e.channels.iter().map(|(f, t, k)| Value::obj().with("from", f.as_str()).with("to", t.as_str()).with("k", *k as u64)).collect::<Vec<_>>())
                 .with("projections", e.projections.iter().map(|(r, l)| Value::obj().with("role", r.as_str()).with("local_type", l.as_str())).collect::<Vec<_>>())
                 .with(
@@ -192,6 +193,7 @@ pub fn task_model(g: &Generated) -> Value {
                                 .with("task", g.tasks[*ti].id.as_str())
                                 .with("release", e.release.get(i).copied().unwrap_or(false))
                                 .with("ops", e.ops.get(i).copied().unwrap_or(1) as u64)
+                                .with("after", e.after.get(i).cloned().unwrap_or_default())
                                 .with(
                                     "validate",
                                     e.validators

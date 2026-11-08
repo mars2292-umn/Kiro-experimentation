@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_timing_short",
-  "binary_hash": "sha256:792112a183cb2f2f6a53d20c2b2f68cd7a1b24aa2c053f50ea2c9ccd34e0f9ca",
+  "binary_hash": "sha256:263061a456f4866f016ba5b849d8f67e0c5955c6afd991c09b17606c7db579fd",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -35,7 +35,7 @@
       "label": "late",
       "bound": "50_000_000",
       "bound_value": 50000000,
-      "observed": 2990,
+      "observed": 2984,
       "verdict": "unreachable",
       "justification": "the injected late Job's 38 ms by the time base; the 50,000,000-iteration guard is the PR-16 backstop"
     },

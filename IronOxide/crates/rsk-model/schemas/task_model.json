@@ -229,6 +229,7 @@
             "properties": {
               "role": { "type": "string" }, "task": { "type": "string" }, "release": { "type": "boolean" },
               "ops": { "type": "integer", "minimum": 1, "maximum": 255 },
+              "after": { "type": "array", "items": { "type": "string" } },
               "validate": {
                 "type": "array",
                 "items": {
@@ -242,6 +243,7 @@
         "storage_offset": { "type": "integer", "minimum": 0 },
         "derived": { "type": "array", "items": { "type": "string" } },
         "protocol": { "type": ["string", "null"] },
+        "gating_rank": { "type": "integer", "minimum": 0 },
         "channels": {
           "type": "array",
           "items": {

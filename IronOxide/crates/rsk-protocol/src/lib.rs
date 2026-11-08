@@ -70,6 +70,7 @@ pub mod ast;
 pub mod check;
 pub mod explore;
 pub mod parse;
+pub mod compose;
 pub mod progress;
 
 pub use ast::{Branch, Global, Local, Message};

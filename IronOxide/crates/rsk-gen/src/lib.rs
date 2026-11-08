@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn protocols_are_checked_and_their_bound_recorded() {
         use crate::decl::{EndpointDecl, ProtocolDecl, RoleDecl};
-        let roles = || vec![RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1 }, RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into(), validate: vec![], ops: 1 }];
+        let roles = || vec![RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1, after: vec![] }, RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into(), validate: vec![], ops: 1, after: vec![] }];
         let loop_text = "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }";
         let mut d = demo();
         d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: loop_text.into() });
@@ -238,35 +238,55 @@ mod tests {
         assert!(errs.iter().any(|e| e.rule == "R22.5" && e.item.to_string() == "protocol Idle"), "{errs:?}");
     }
 
-    /// Task 21.6 (R41.3; Verification_Plan 5.15, A-P7 and A-P8): a validated
-    /// role's peer Partition must re-initialize on a fault, and a Task plays
-    /// at most one Protocol-governed role.
+    /// Task 21.6 (R41.3; Verification_Plan 5.15, A-P8): a Task may play roles
+    /// of several Protocol-governed Endpoints; the declared gating (`after`)
+    /// must name a Protocol Endpoint of the same Task and be acyclic across
+    /// the Application; the ranks rise along the edges. A rejected message
+    /// re-initializes its Endpoint in the Kernel (A-P7), so the peer's fault
+    /// response is unconstrained.
     #[test]
-    fn r41_3_assumptions_are_enforced_by_the_declaration() {
+    fn r41_3_gating_is_declared_acyclic_and_ranked() {
         use crate::decl::{EndpointDecl, ProtocolDecl, Response, RoleDecl};
-        let roles = || vec![RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1 }, RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into(), validate: vec![], ops: 1 }];
+        let roles = |after_ctl: &[&str], after_sink: &[&str]| vec![
+            RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1, after: after_ctl.iter().map(|s| s.to_string()).collect() },
+            RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into(), validate: vec![], ops: 1, after: after_sink.iter().map(|s| s.to_string()).collect() },
+        ];
         let loop_text = "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }";
-        // A-P7: `part1` (the validated role's peer) with END_JOB is refused;
-        // with STOP_PARTITION or RESTART_PARTITION it is accepted.
         let mut d = demo();
         d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: loop_text.into() });
-        d.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(), capacity: 1, payload: 4 });
+        d.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(&[], &[]), capacity: 1, payload: 4 });
+        // A-P7 is a Kernel rule: the validated role's peer may declare any response.
         d.partitions[1].fault = Response::EndJob;
-        let errs = generate(&d).unwrap_err();
-        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.item.to_string() == "endpoint ping" && e.message.contains("A-P7") && e.message.contains("END_JOB")), "{errs:?}");
-        d.partitions[1].fault = Response::StopPartition;
-        generate(&d).expect("accepted with STOP_PARTITION");
-        d.partitions[1].fault = Response::RestartPartition;
-        generate(&d).expect("accepted with RESTART_PARTITION");
-        // A-P8: a second Protocol-governed Endpoint on the same Tasks is
-        // refused naming the Task and both Endpoints; a plain one is not.
+        generate(&d).expect("accepted with END_JOB");
+        // Two independent Protocol Endpoints on the same Tasks: accepted, rank 0 each.
         let mut d2 = d.clone();
-        d2.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(), capacity: 1, payload: 4 });
-        let errs = generate(&d2).unwrap_err();
-        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.item.to_string() == "endpoint pong" && e.message.contains("`part0.control`") && e.message.contains("A-P8")), "{errs:?}");
+        d2.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(&[], &[]), capacity: 1, payload: 4 });
+        let g = generate(&d2).expect("independent Endpoints are accepted");
+        assert!(g.endpoints.iter().filter(|e| e.protocol.is_some()).all(|e| e.gating_rank == 0));
+        // Acyclic gating: `pong`'s ctl waits for `ping`; `pong` ranks above `ping`.
         let mut d3 = d.clone();
-        d3.endpoints.push(EndpointDecl { name: "plain".into(), ty: "u32".into(), protocol: None, roles: roles().into_iter().map(|mut r| { r.validate = if r.role == "ctl" { vec![(None, "crate::ok".into())] } else { vec![] }; r }).collect(), capacity: 1, payload: 4 });
-        generate(&d3).expect("a plain Endpoint beside the Protocol one is accepted");
+        d3.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(&["ping"], &[]), capacity: 1, payload: 4 });
+        let g = generate(&d3).expect("acyclic gating is accepted");
+        let rank = |g: &Generated, n: &str| g.endpoints.iter().find(|e| e.name == n).unwrap().gating_rank;
+        assert_eq!((rank(&g, "ping"), rank(&g, "pong")), (0, 1));
+        // A cycle through two Tasks: control waits for `ping` on `pong`, log waits for `pong` on `ping`.
+        let mut d4 = d.clone();
+        let last = d4.endpoints.len() - 1;
+        d4.endpoints[last].roles[1].after = vec!["pong".into()];
+        d4.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(&["ping"], &[]), capacity: 1, payload: 4 });
+        let errs = generate(&d4).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("cyclic") && e.message.contains("`ping`") && e.message.contains("`pong`")), "{errs:?}");
+        // `after` must name a Protocol Endpoint of the same Task, not itself, not a plain one.
+        let mut d5 = d.clone();
+        d5.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(&["pong"], &["nope"]), capacity: 1, payload: 4 });
+        let errs = generate(&d5).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("cannot gate itself")), "{errs:?}");
+        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("after = nope")), "{errs:?}");
+        let mut d6 = d.clone();
+        d6.endpoints.push(EndpointDecl { name: "plain".into(), ty: "u32".into(), protocol: None, roles: roles(&[], &[]).into_iter().map(|mut r| { r.validate = if r.role == "ctl" { vec![(None, "crate::ok".into())] } else { vec![] }; r }).collect(), capacity: 1, payload: 4 });
+        d6.endpoints.push(EndpointDecl { name: "pong".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(&["plain"], &[]), capacity: 1, payload: 4 });
+        let errs = generate(&d6).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R41.3" && e.message.contains("plain Endpoint")), "{errs:?}");
     }
 
     #[test]

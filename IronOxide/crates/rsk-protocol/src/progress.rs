@@ -22,10 +22,13 @@
 //!
 //! R41.3's deadlock is a non-empty set of roles each of which awaits a
 //! message that only another role of the set can send: `deadlock_set`
-//! says every role of the set is `blocked` (its state has operations, each
+//! says some role of the set is `blocked` (its state has operations, each
 //! a receive, none enabled, so the role awaits a message, within its
-//! Protocol or as its next Release) and the sender of each awaited channel
-//! is in the set (every channel has one sender, the role at the other end).
+//! Protocol or as its next Release), every role of the set is blocked or
+//! `terminal` (finished: it will never send again), and the sender of each
+//! awaited channel is in the set (every channel has one sender, the role
+//! at the other end). Counting finished senders makes a wait on a peer
+//! that has ended a deadlock too (strengthened 2026-11-08).
 //! `deadlocked` is the existence of such a set. The theorem
 //! (`theorem_r41_3`) is that no reachable configuration is deadlocked, and
 //! that every reachable channel content fits the declared capacity.
@@ -172,12 +175,20 @@ pub open spec fn blocked(s: System, c: Cfg, r: int) -> bool {
         ==> !s.trans@[i].send && !enabled(s.roles as int, c, s.trans@[i])
 }
 
-/// R41.3's waiting set: non-empty, every role of it awaits a message, and
-/// the sender of every awaited channel is in the set.
+/// The role has finished: no operation in its state (an `end`). It will
+/// never send again, so a role awaiting it waits for ever.
+pub open spec fn terminal(s: System, c: Cfg, r: int) -> bool {
+    !has_trans(s, c, r)
+}
+
+/// R41.3's waiting set, strengthened (2026-11-08): at least one role of
+/// the set awaits a message, every role of the set awaits or has finished,
+/// and the sender of every awaited channel is in the set (so it awaits
+/// too, or has finished and will never send).
 pub open spec fn deadlock_set(s: System, c: Cfg, set: Seq<bool>) -> bool {
     &&& set.len() == s.roles
-    &&& exists|r: int| 0 <= r < set.len() && set[r]
-    &&& forall|r: int| 0 <= r < set.len() && #[trigger] set[r] ==> blocked(s, c, r)
+    &&& exists|r: int| 0 <= r < set.len() && set[r] && blocked(s, c, r)
+    &&& forall|r: int| 0 <= r < set.len() && #[trigger] set[r] ==> blocked(s, c, r) || terminal(s, c, r)
     &&& forall|i: int| 0 <= i < s.trans@.len() && set[(#[trigger] s.trans@[i]).role as int] && at(c, s.trans@[i])
         ==> set[s.trans@[i].peer as int]
 }
@@ -248,7 +259,7 @@ pub proof fn theorem_r41_3(s: System, list: Seq<Cfg>)
     }
 }
 
-proof fn lemma_chan_in_range(n: int, a: int, b: int)
+pub proof fn lemma_chan_in_range(n: int, a: int, b: int)
     requires
         0 <= a < n,
         0 <= b < n,
@@ -639,9 +650,35 @@ fn is_blocked(s: &System, c: &Config, r: usize) -> (b: bool)
     any && waits
 }
 
+fn is_terminal(s: &System, c: &Config, r: usize) -> (b: bool)
+    requires
+        wf_sys(*s),
+        wf_cfg(s.roles as int, cfg(*c)),
+    ensures
+        b == terminal(*s, cfg(*c), r as int),
+{
+    let mut any = false;
+    let mut i = 0;
+    while i < s.trans.len()
+        invariant
+            i <= s.trans.len(),
+            wf_cfg(s.roles as int, cfg(*c)),
+            any == exists|j: int| 0 <= j < i && (#[trigger] s.trans@[j]).role == r && at(cfg(*c), s.trans@[j]),
+        decreases s.trans.len() - i,
+    {
+        let t = s.trans[i];
+        if t.role == r && t.role < c.states.len() && c.states[t.role] == t.from {
+            any = true;
+        }
+        i += 1;
+    }
+    !any
+}
+
 /// Decides `deadlocked` by the greatest fixed point: start from the
-/// blocked roles and remove any role that awaits a sender outside the set
-/// until none is left to remove.
+/// blocked and finished roles and remove any role that awaits a sender
+/// outside the set until none is left to remove; the result is a waiting
+/// set when it has a blocked member.
 fn has_deadlock(s: &System, c: &Config) -> (b: bool)
     requires
         wf_sys(*s),
@@ -662,10 +699,10 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
             cur.len() == r,
             remaining == count_true(cur@),
             remaining <= r,
-            forall|q: int| 0 <= q < r ==> cur@[q] == blocked(*s, v, q),
+            forall|q: int| 0 <= q < r ==> cur@[q] == (blocked(*s, v, q) || terminal(*s, v, q)),
         decreases s.roles - r,
     {
-        let b = is_blocked(s, c, r);
+        let b = is_blocked(s, c, r) || is_terminal(s, c, r);
         proof { lemma_count_push(cur@, b); }
         cur.push(b);
         proof {
@@ -683,7 +720,7 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
             v == cfg(*c),
             cur.len() == s.roles,
             remaining == count_true(cur@),
-            forall|q: int| 0 <= q < s.roles && cur@[q] ==> blocked(*s, v, q),
+            forall|q: int| 0 <= q < s.roles && cur@[q] ==> blocked(*s, v, q) || terminal(*s, v, q),
             forall|set: Seq<bool>, q: int| deadlock_set(*s, v, set) && 0 <= q < s.roles && set[q] ==> cur@[q],
             !changed ==> forall|i: int| 0 <= i < s.trans@.len() && cur@[(#[trigger] s.trans@[i]).role as int] && at(v, s.trans@[i])
                 ==> cur@[s.trans@[i].peer as int],
@@ -703,7 +740,7 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
                 remaining == count_true(cur@),
                 changed ==> remaining < old_remaining,
                 remaining <= old_remaining,
-                forall|x: int| 0 <= x < s.roles && cur@[x] ==> blocked(*s, v, x),
+                forall|x: int| 0 <= x < s.roles && cur@[x] ==> blocked(*s, v, x) || terminal(*s, v, x),
                 forall|set: Seq<bool>, x: int| deadlock_set(*s, v, set) && 0 <= x < s.roles && set[x] ==> cur@[x],
                 !changed ==> forall|i: int| 0 <= i < s.trans@.len() && (#[trigger] s.trans@[i]).role < q && cur@[s.trans@[i].role as int] && at(v, s.trans@[i])
                     ==> cur@[s.trans@[i].peer as int],
@@ -723,7 +760,7 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
                         remaining == count_true(cur@),
                         changed ==> remaining < old_remaining,
                         remaining <= old_remaining,
-                        forall|x: int| 0 <= x < s.roles && cur@[x] ==> blocked(*s, v, x),
+                        forall|x: int| 0 <= x < s.roles && cur@[x] ==> blocked(*s, v, x) || terminal(*s, v, x),
                         forall|set: Seq<bool>, x: int| deadlock_set(*s, v, set) && 0 <= x < s.roles && set[x] ==> cur@[x],
                         !changed ==> forall|j: int| 0 <= j < s.trans@.len() && (#[trigger] s.trans@[j]).role < q && cur@[s.trans@[j].role as int] && at(v, s.trans@[j])
                             ==> cur@[s.trans@[j].peer as int],
@@ -759,18 +796,21 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
             q += 1;
         }
     }
-    // The fixed point: a non-empty result is a deadlock set, and an empty
-    // one shows no deadlock set exists.
+    // The fixed point: a result with a blocked member is a deadlock set,
+    // and one without shows no deadlock set exists.
     let mut any = false;
     let mut x = 0;
     while x < s.roles
         invariant
             x <= s.roles,
+            wf_sys(*s),
+            wf_cfg(s.roles as int, v),
+            v == cfg(*c),
             cur.len() == s.roles,
-            any == exists|y: int| 0 <= y < x && cur@[y],
+            any == exists|y: int| 0 <= y < x && cur@[y] && blocked(*s, v, y),
         decreases s.roles - x,
     {
-        if cur[x] {
+        if cur[x] && is_blocked(s, c, x) {
             any = true;
         }
         x += 1;
@@ -778,15 +818,15 @@ fn has_deadlock(s: &System, c: &Config) -> (b: bool)
     proof {
         if any {
             assert(cur@.len() == s.roles);
-            assert(exists|r: int| 0 <= r < cur@.len() && cur@[r]);
-            assert(forall|r: int| 0 <= r < cur@.len() && cur@[r] ==> blocked(*s, v, r));
+            assert(exists|r: int| 0 <= r < cur@.len() && cur@[r] && blocked(*s, v, r));
+            assert(forall|r: int| 0 <= r < cur@.len() && cur@[r] ==> blocked(*s, v, r) || terminal(*s, v, r));
             assert(forall|i: int| 0 <= i < s.trans@.len() && cur@[(#[trigger] s.trans@[i]).role as int] && at(v, s.trans@[i])
                 ==> cur@[s.trans@[i].peer as int]);
             assert(deadlock_set(*s, v, cur@));
         } else {
             if deadlocked(*s, v) {
                 let set = choose|set: Seq<bool>| deadlock_set(*s, v, set);
-                let y = choose|y: int| 0 <= y < set.len() && set[y];
+                let y = choose|y: int| 0 <= y < set.len() && set[y] && blocked(*s, v, y);
                 assert(cur@[y]);
             }
         }

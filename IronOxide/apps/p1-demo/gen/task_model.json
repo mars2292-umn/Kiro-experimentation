@@ -573,6 +573,7 @@
       "payload_bytes": 4,
       "payload_type": "u32",
       "protocol": null,
+      "gating_rank": 0,
       "channels": [],
       "projections": [],
       "roles": [
@@ -581,6 +582,7 @@
           "task": "part0.control",
           "release": false,
           "ops": 1,
+          "after": [],
           "validate": [
             {
               "label": null,
@@ -593,6 +595,7 @@
           "task": "part1.log",
           "release": false,
           "ops": 4,
+          "after": [],
           "validate": []
         }
       ],
@@ -614,6 +617,7 @@
       "payload_bytes": 8,
       "payload_type": "",
       "protocol": "PingPong",
+      "gating_rank": 0,
       "channels": [
         {
           "from": "ctl",
@@ -642,6 +646,7 @@
           "task": "part0.control",
           "release": false,
           "ops": 1,
+          "after": [],
           "validate": [
             {
               "label": "Rep",
@@ -654,6 +659,7 @@
           "task": "part1.log",
           "release": false,
           "ops": 2,
+          "after": [],
           "validate": []
         }
       ],

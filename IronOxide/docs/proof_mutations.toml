@@ -301,7 +301,46 @@ package = "rsk-protocol"
 id = "progress-empty-waiting-set"
 kills = "has_deadlock's decision of `deadlocked` (R41.3's waiting set is non-empty; with the empty set admitted every configuration is deadlocked and the fixed point's empty result no longer refutes it)"
 file = "crates/rsk-protocol/src/progress.rs"
-find = "    &&& exists|r: int| 0 <= r < set.len() && set[r]\n"
+find = "    &&& exists|r: int| 0 <= r < set.len() && set[r] && blocked(s, c, r)\n"
 replace = "    &&& true\n"
 expect = ["progress.rs"]
 package = "rsk-protocol"
+
+# Task 21.6 follow-up (2026-11-08): the strengthened waiting set, the
+# composition over gated Endpoints, and the Kernel's channel steps.
+
+[[mutation]]
+id = "progress-terminal-is-active"
+kills = "is_terminal (a finished role has no operation; with the negation dropped a role with operations would count as finished and the decision of `deadlocked` no longer matches)"
+file = "crates/rsk-protocol/src/progress.rs"
+find = "    !has_trans(s, c, r)\n"
+replace = "    has_trans(s, c, r)\n"
+expect = ["progress.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "compose-ranked-not-strict"
+kills = "theorem_system_progress (the gating order must rise strictly along every edge; with `<=` a self-gating cycle of equal ranks passes `ranked` and the minimal-rank argument fails)"
+file = "crates/rsk-protocol/src/compose.rs"
+find = "    forall|e1: int, e2: int| 0 <= e1 < ms.len() && 0 <= e2 < ms.len() && #[trigger] gates(e1, e2) ==> ms[e1].rank < ms[e2].rank\n"
+replace = "    forall|e1: int, e2: int| 0 <= e1 < ms.len() && 0 <= e2 < ms.len() && #[trigger] gates(e1, e2) ==> ms[e1].rank <= ms[e2].rank\n"
+expect = ["compose.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "endpoint-reinit-one-role-only"
+kills = "endpoint_reinit_one (both roles are marked after a rejected message, so both return to the initial state; marking the receiver's peer alone leaves the receiver mid-Protocol)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    state.peer_changed[2 * e] = true;\n    state.peer_changed[2 * e + 1] = true;\n"
+replace = "    state.peer_changed[2 * e] = true;\n"
+expect = ["entry.rs", "endpoint_reinit_one"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "channel-push-wrong-slot"
+kills = "channel_push (the slot appended to the channel's view is the one the Kernel copies the message into; the model's send appends exactly that message)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).push(slot.unwrap() as int),\n"
+replace = "            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).push(0),\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"

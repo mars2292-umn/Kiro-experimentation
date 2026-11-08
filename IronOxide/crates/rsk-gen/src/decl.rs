@@ -241,6 +241,11 @@ pub struct RoleDecl {
     /// performs on this role (`ops = N`, 1 by default), the count of
     /// Critical_Sections the Analyzer charges per Job.
     pub ops: u32,
+    /// Task 21.6 (R41.3, A-P8): the Protocol-governed Endpoints of the same
+    /// Task whose receives the Task's operations on this role may wait for
+    /// (`after = NAME`, repeatable). The gating relation over an
+    /// Application's Endpoints must be acyclic; the Generator ranks it.
+    pub after: Vec<String>,
 }
 
 /// An Endpoint (task 21.2; R38.1 in its pre-Protocol form): `endpoint NAME:

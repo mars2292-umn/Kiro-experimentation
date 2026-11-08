@@ -1,6 +1,6 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:c534d6037ffc863d4a5344864116b41a56950e342ba979b81dd6ae22ced8d71d",
+  "binary_hash": "sha256:d903e4f02d0c38997d02582f6609883bf7c24f3b55c0813104fe6e6aa221aa2b",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
@@ -55,11 +55,11 @@
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
-        "the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; 19902 cycles, closed by a dispatch entry; the spans by closing entry: dispatch 49003 (longest 19902), timer 32283 (longest 19811), job_end 6664681 (longest 4521), epilogue 32937 (longest 12231); the longest single Rust half 4792) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
+        "the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; 19902 cycles, closed by a dispatch entry; the spans by closing entry: dispatch 49003 (longest 19902), timer 32283 (longest 19811), job_end 6664683 (longest 4521), epilogue 32937 (longest 12231); the longest single Rust half 4792) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 6778904,
+        "runs": 6778906,
         "max_observed": 19902,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -213,7 +213,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 6525271,
+        "runs": 6525272,
         "max_observed": 238,
         "margin_percent": 25,
         "coverage_branch_percent": 0,

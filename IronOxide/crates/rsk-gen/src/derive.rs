@@ -89,6 +89,12 @@ pub struct GenEndpoint {
     /// Per role (declaration order), the validation functions `(label,
     /// path)` of task 21.4 (R42.4).
     pub validators: Vec<Vec<(Option<String>, String)>>,
+    /// Task 21.6 (R41.3, A-P8): per role, the Endpoints whose receives its
+    /// operations may wait for (`after`).
+    pub after: Vec<Vec<String>>,
+    /// The Endpoint's rank in the acyclic gating order (every `after` edge
+    /// rises in rank; 0 for an Endpoint nothing gates, and for plain ones).
+    pub gating_rank: u32,
     /// Per role, the declared operations per Job (task 21.5, R40.2).
     pub ops: Vec<u32>,
     pub storage: u32,
@@ -199,6 +205,26 @@ pub struct Generated {
 
 /// The labels of a global Protocol in order of first appearance (the label
 /// word of a message, task 21.3).
+/// The rank of an Endpoint in the gating order (task 21.6, R41.3, A-P8):
+/// one more than the largest rank of the Endpoints that gate it, 0 when
+/// none does. The declaration is validated acyclic, so the recursion ends.
+fn gating_rank(decl: &Declaration, name: &str) -> u32 {
+    fn go(decl: &Declaration, name: &str, depth: usize) -> u32 {
+        if depth > decl.endpoints.len() {
+            return 0;
+        }
+        let Some(e) = decl.endpoints.iter().find(|e| e.name == name) else { return 0 };
+        e.roles
+            .iter()
+            .flat_map(|r| r.after.iter())
+            .filter(|g| decl.endpoints.iter().any(|x| &x.name == *g && x.protocol.is_some() && x.name != name))
+            .map(|g| go(decl, g, depth + 1) + 1)
+            .max()
+            .unwrap_or(0)
+    }
+    go(decl, name, 0)
+}
+
 fn global_labels(g: &rsk_protocol::Global) -> Vec<String> {
     fn walk(g: &rsk_protocol::Global, out: &mut Vec<String>) {
         match g {
@@ -398,7 +424,9 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         };
         let validators = e.roles.iter().map(|r| r.validate.clone()).collect();
         let ops = e.roles.iter().map(|r| r.ops).collect();
-        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, labels, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
+        let after = e.roles.iter().map(|r| r.after.clone()).collect();
+        let gating_rank = gating_rank(decl, &e.name);
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, labels, after, gating_rank, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
         storage += 2 * e.capacity * e.payload;
     }
     let endpoint_storage_bytes = storage;

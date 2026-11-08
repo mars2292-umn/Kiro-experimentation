@@ -372,6 +372,7 @@ impl Parse for Parsed {
                     // 21.5 (R40.2): `ops = N`.
                     let mut validate = Vec::new();
                     let mut ops: u32 = 1;
+                    let mut after = Vec::new();
                     while body.peek(Ident) {
                         let kw: Ident = body.parse()?;
                         body.parse::<Token![=]>()?;
@@ -395,11 +396,15 @@ impl Parse for Parsed {
                         } else if kw == "ops" {
                             let n: syn::LitInt = body.parse()?;
                             ops = n.base10_parse::<u32>()?;
+                        } else if kw == "after" {
+                            // Task 21.6 (R41.3, A-P8): `after = ENDPOINT`.
+                            let gate: Ident = body.parse()?;
+                            after.push(gate.to_string());
                         } else {
-                            return err(kw.span(), "expected `validate` or `ops` after the role's Task");
+                            return err(kw.span(), "expected `validate`, `ops`, or `after` after the role's Task");
                         }
                     }
-                    roles.push(RoleDecl { role: role.to_string(), partition: part.to_string(), task: task.to_string(), validate, ops });
+                    roles.push(RoleDecl { role: role.to_string(), partition: part.to_string(), task: task.to_string(), validate, ops, after });
                     if !body.is_empty() {
                         body.parse::<Token![,]>()?;
                     }

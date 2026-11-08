@@ -983,15 +983,93 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
     }
 }
 
+/// The channel a send or receive operates on, as the specification of
+/// the Protocol model sees it: the well-formed index state, or the empty
+/// channel when the state in RAM fails its invariant (no Kernel path
+/// produces that; the cores reset it rather than trust it).
+pub open spec fn channel_before(f: crate::logic::endpoint::Fifo, cap: int) -> crate::logic::endpoint::Fifo {
+    if f.wf(cap) { f } else { crate::logic::endpoint::Fifo::empty_spec() }
+}
+
+/// A send's channel step (task 21.6, goal 3 of the R41.3 link): the next
+/// free slot of channel `ch` is appended to its view (the model's
+/// `succ` for a send: `chans[ch].push(label)`, the label being the first
+/// word the Kernel then copies into the slot), or nothing changes when
+/// the channel is full (R40.5; the model's sends never meet a full
+/// channel, `progress::within_capacity`). No other channel and no
+/// peer-state flag changes.
+fn channel_push(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
+    requires ch < MAX_CHANNELS, cap >= 1,
+    ensures
+        final(state).fifos[ch as int].wf(cap as int),
+        slot.is_some() ==> channel_before(old(state).fifos[ch as int], cap as int).count < cap
+            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).push(slot.unwrap() as int),
+        slot.is_none() ==> channel_before(old(state).fifos[ch as int], cap as int).count == cap
+            && final(state).fifos[ch as int] == channel_before(old(state).fifos[ch as int], cap as int),
+        forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
+        final(state).peer_changed == old(state).peer_changed,
+{
+    if !state.fifos[ch].is_wf(cap) {
+        state.fifos[ch].clear();
+    }
+    state.fifos[ch].push(cap)
+}
+
+/// A receive's channel step: the oldest slot of channel `ch` is removed
+/// from the front of its view (the model's `succ` for a receive:
+/// `chans[ch].drop_first()`), or nothing changes when the channel is
+/// empty (R40.4; the model's receive is then not enabled). No other
+/// channel and no peer-state flag changes.
+fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
+    requires ch < MAX_CHANNELS, cap >= 1,
+    ensures
+        final(state).fifos[ch as int].wf(cap as int),
+        slot.is_some() ==> channel_before(old(state).fifos[ch as int], cap as int).count > 0
+            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).drop_first(),
+        slot.is_none() ==> channel_before(old(state).fifos[ch as int], cap as int).count == 0
+            && final(state).fifos[ch as int] == channel_before(old(state).fifos[ch as int], cap as int),
+        forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
+        final(state).peer_changed == old(state).peer_changed,
+{
+    if !state.fifos[ch].is_wf(cap) {
+        state.fifos[ch].clear();
+    }
+    state.fifos[ch].pop(cap)
+}
+
+/// Re-initializes one Endpoint after a rejected message (task 21.6,
+/// 2026-11-08; the A-P7 assumption of the R41.3 proof made a Kernel
+/// rule): both channels are emptied and both roles are marked, so that
+/// each role's next operation reports the peer-state change and returns
+/// the role to the Protocol's initial state (R42.3). The rejected message
+/// was consumed without a Protocol step; after this the Endpoint is in the
+/// initial configuration, which the proof covers, whatever the sending
+/// Partition's fault response.
+fn endpoint_reinit_one(state: &mut ArchState, e: usize)
+    requires e < MAX_ENDPOINTS,
+    ensures
+        final(state).fifos[2 * e as int] == crate::logic::endpoint::Fifo::empty_spec(),
+        final(state).fifos[2 * e as int + 1] == crate::logic::endpoint::Fifo::empty_spec(),
+        final(state).peer_changed[2 * e as int],
+        final(state).peer_changed[2 * e as int + 1],
+        forall|c: int| 0 <= c < MAX_CHANNELS && c != 2 * e && c != 2 * e + 1 ==> final(state).fifos[c] == old(state).fifos[c] && final(state).peer_changed[c] == old(state).peer_changed[c],
+{
+    state.fifos[2 * e].clear();
+    state.fifos[2 * e + 1].clear();
+    state.peer_changed[2 * e] = true;
+    state.peer_changed[2 * e + 1] = true;
+}
+
 /// The Endpoint_Library's reports (`SVC_VIOLATION`; tasks 21.3 and 21.4).
 /// `arg` 0: a Protocol violation of the executing Task (R41.2), recorded
 /// with no response. `arg` = 1 | e << 8 | role << 16: a message that role
 /// `role` of Endpoint `e`, bound to the executing Task, received and its
 /// validation function rejected (R42.4): the fault of the sending
 /// Partition, recorded against the sending Task, whose Partition receives
-/// its fault response. A report naming a role the executing Task is not
-/// bound to, or an unknown form, is API misuse of the caller.
-fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, arg: u32)
+/// its fault response, and the Endpoint re-initialized (`endpoint_reinit_one`,
+/// task 21.6). A report naming a role the executing Task is not bound to,
+/// or an unknown form, is API misuse of the caller.
+fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut ArchState, arg: u32)
     requires old(k).inv(),
     ensures final(k).inv(),
 {
@@ -1015,6 +1093,7 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, arg: u32)
         return;
     }
     k.fault_of(EV_MESSAGE_REJECTED, cfg.tasks[1 - role]);
+    endpoint_reinit_one(state, e);
 }
 
 /// The checks shared by both Endpoint services (task 21.2): the Endpoint
@@ -1101,10 +1180,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         return ENDPOINT_PEER;
     }
     let ch = 2 * e + role;
-    if !state.fifos[ch].is_wf(cfg.capacity) {
-        state.fifos[ch].clear();
-    }
-    let slot = match state.fifos[ch].push(cfg.capacity) {
+    let slot = match channel_push(state, ch, cfg.capacity) {
         Some(s) => s,
         None => {
             let t = cfg.tasks[role];
@@ -1149,10 +1225,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     }
     let from = 1 - role;
     let ch = 2 * e + from;
-    if !state.fifos[ch].is_wf(cfg.capacity) {
-        state.fifos[ch].clear();
-    }
-    let slot = match state.fifos[ch].pop(cfg.capacity) {
+    let slot = match channel_pop(state, ch, cfg.capacity) {
         Some(s) => s,
         None => return ENDPOINT_EMPTY,
     };
@@ -1511,7 +1584,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         // response may stop or restart it (never the executing Job's own
         // Partition unless the sender is its own), hence the plan.
         let top_before = k.top();
-        violation_core(k, tables, frame[0]);
+        violation_core(k, tables, state, frame[0]);
         frame[0] = 0;
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, top_before);

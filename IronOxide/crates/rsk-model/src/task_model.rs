@@ -238,6 +238,10 @@ pub struct Endpoint {
     /// field order is the Generator's (the demo model round-trips).
     #[serde(default)]
     pub protocol: Option<String>,
+    /// Task 21.6 (R41.3, A-P8): the Endpoint's rank in the acyclic gating
+    /// order (every `after` edge rises in rank); 0 when nothing gates it.
+    #[serde(default)]
+    pub gating_rank: u32,
     #[serde(default)]
     pub channels: Vec<EndpointChannel>,
     #[serde(default)]
@@ -277,6 +281,10 @@ pub struct EndpointRole {
     /// Task 21.4 (R42.4): the role's validation functions.
     #[serde(default)]
     pub validate: Vec<Validator>,
+    /// Task 21.6 (R41.3, A-P8): the Endpoints whose receives this role's
+    /// operations may wait for.
+    #[serde(default)]
+    pub after: Vec<String>,
 }
 
 fn one() -> u32 {

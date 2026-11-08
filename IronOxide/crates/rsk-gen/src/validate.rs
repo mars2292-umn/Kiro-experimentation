@@ -555,32 +555,40 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                 if r.ops == 0 || r.ops > 255 {
                     d.push(Diagnostic::new("PR-14", eref(), format!("role `{}` of Endpoint `{}` declares ops = {}; 1 to 255 operations per Job", r.role, e.name, r.ops)));
                 }
-                // Task 21.6, assumption A-P7 of the R41.3 proof (2026-11-08):
-                // a rejected message is consumed without a Protocol step, so
-                // the Partition whose messages a validated role rejects must
-                // have a fault response that re-initializes the Endpoint.
-                if !r.validate.is_empty() {
-                    if let Some(p) = decl.partitions.iter().find(|p| p.name == other.partition) {
-                        if !matches!(p.fault, crate::decl::Response::RestartPartition | crate::decl::Response::StopPartition) {
-                            d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of Endpoint `{}` validates messages from `{}.{}`, whose Partition `{}` declares `fault = {}`; a rejected message (R42.4) is consumed without a Protocol step, so the deadlock-freedom proof (Verification_Plan 5.15, A-P7) needs `fault = RESTART_PARTITION` or `fault = STOP_PARTITION` for `{}`, which re-initializes the Endpoint", r.role, e.name, other.partition, other.task, p.name, p.fault.name(), p.name)));
-                        }
-                    }
-                }
-            }
-            // Task 21.6, assumption A-P8 of the R41.3 proof (2026-11-08): the
-            // proof is per Protocol; a Task playing roles in two Protocols
-            // could couple them in its bodies into a waiting cycle no single
-            // Protocol describes, so a Task is bound to at most one
-            // Protocol-governed role (plain Endpoints have no Protocol state).
-            if e.protocol.is_some() {
-                for r in &e.roles {
-                    if let Some(prev) = decl.endpoints.iter().take_while(|p| p.name != e.name).find(|p| p.protocol.is_some() && p.roles.iter().any(|q| q.partition == r.partition && q.task == r.task)) {
-                        d.push(Diagnostic::new("R41.3", eref(), format!("`{}.{}` plays role `{}` of Endpoint `{}` (Protocol `{}`) and a role of Endpoint `{}` (Protocol `{}`); the deadlock-freedom proof is per Protocol (Verification_Plan 5.15, A-P8), so a Task is bound to at most one Protocol-governed role", r.partition, r.task, r.role, e.name, e.protocol.as_deref().unwrap_or("?"), prev.name, prev.protocol.as_deref().unwrap_or("?"))));
+                // Task 21.6 (R41.3, A-P8; 2026-11-08): `after = NAME` names a
+                // Protocol-governed Endpoint, other than this one, of which
+                // the same Task plays a role; the gating relation is checked
+                // acyclic after the loop.
+                for gate in &r.after {
+                    match decl.endpoints.iter().find(|g| &g.name == gate) {
+                        None => d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of Endpoint `{}` declares `after = {gate}`, which is not an Endpoint", r.role, e.name))),
+                        Some(g) if g.name == e.name => d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of Endpoint `{}` declares `after = {gate}`: an Endpoint cannot gate itself", r.role, e.name))),
+                        Some(g) if g.protocol.is_none() => d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of Endpoint `{}` declares `after = {gate}`, a plain Endpoint: gating is between Protocol-governed Endpoints (a plain Endpoint carries no Protocol state and no progress guarantee)", r.role, e.name))),
+                        Some(g) if !g.roles.iter().any(|q| q.partition == r.partition && q.task == r.task) => d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of Endpoint `{}` declares `after = {gate}`, but `{}.{}` plays no role of `{gate}`: a Task's operations can only wait for its own receives", r.role, e.name, r.partition, r.task))),
+                        Some(_) if e.protocol.is_none() => d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of plain Endpoint `{}` declares `after = {gate}`; gating is declared on Protocol-governed roles", r.role, e.name))),
+                        Some(_) => {}
                     }
                 }
             }
         }
         storage_bytes += 2 * e.capacity as u64 * e.payload as u64;
+    }
+    // Task 21.6 (R41.3, A-P8): the gating relation over the Protocol-governed
+    // Endpoints (`after` edges, from the gating Endpoint to the gated one) is
+    // acyclic, so that the composition theorem applies
+    // (`rsk_protocol::compose::theorem_system_r41_3`; Verification_Plan 5.15).
+    // Kahn's algorithm; a remainder is a cycle, reported at its first member.
+    {
+        let protocol_endpoints: Vec<&crate::decl::EndpointDecl> = decl.endpoints.iter().filter(|e| e.protocol.is_some()).collect();
+        let edges: Vec<(String, String)> = protocol_endpoints.iter().flat_map(|e| e.roles.iter().flat_map(move |r| r.after.iter().filter(|g| decl.endpoints.iter().any(|x| &&x.name == g && x.protocol.is_some() && x.name != e.name)).map(move |g| (g.clone(), e.name.clone())))).collect();
+        let mut remaining: Vec<String> = protocol_endpoints.iter().map(|e| e.name.clone()).collect();
+        loop {
+            let Some(pos) = remaining.iter().position(|n| !edges.iter().any(|(_, to)| to == n && remaining.contains(&edges.iter().find(|(f, t)| t == n && remaining.contains(f)).map(|(f, _)| f.clone()).unwrap_or_default()))) else { break };
+            remaining.remove(pos);
+        }
+        if let Some(first) = remaining.first() {
+            d.push(Diagnostic::new("R41.3", ItemRef::Endpoint(first.clone()), format!("the gating of Endpoints is cyclic among {}: a Task's operations on each wait for receives on another, which the deadlock-freedom proof cannot order (Verification_Plan 5.15, A-P8); declare `after` so that the relation is acyclic", remaining.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", "))));
+        }
     }
     // Chains (task 21.5; R41.4): unique names, at least two Tasks, each a
     // declared Task, each consecutive pair the two roles of one Endpoint;
