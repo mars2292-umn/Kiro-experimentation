@@ -189,6 +189,15 @@ pub fn target_crates(ws: &Workspace) -> Vec<String> {
         .iter()
         .filter(|(_, c)| (c.flight || c.targets.contains(&ws.policy.target)) && !c.hil_stimulus)
         .map(|(name, _)| name.clone())
+        // A proc-macro (rsk-macros) is compiled for the host as a dependency
+        // of `rsk` in every Target build. Named as a root of a `--target`
+        // build, Cargo unifies its host dependencies' features into the
+        // Target graph (vstd's `std`, enabled by rsk-protocol since task
+        // 21.6, would then be built for the Target), so it is not named.
+        .filter(|name| {
+            ws.package_named(name)
+                .is_none_or(|p| !p.targets.iter().any(|t| t.kinds.iter().any(|k| k == "proc-macro")))
+        })
         .collect()
 }
 

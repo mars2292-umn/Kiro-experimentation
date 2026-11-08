@@ -284,3 +284,24 @@ find = "    if t.stops_overruns {\n        let s1 = match add(t.budget, p.detect
 replace = "    if false { // (mutant) every Task interferes for Budget + O\n        let s1 = match add(t.budget, p.detect)"
 expect = ["terms.rs", "spec_e"]
 package = "rsk-analyzer"
+
+# Task 21.6 (2026-11-08): the communication deadlock-freedom certificate
+# (crates/rsk-protocol/src/progress.rs, R41.3).
+
+[[mutation]]
+id = "progress-certificate-without-root"
+kills = "lemma_run_in_list (a certificate must list the initial configuration, or a run's first configuration is unaccounted for)"
+file = "crates/rsk-protocol/src/progress.rs"
+find = "    &&& in_list(list, initial(s.roles as int))\n"
+replace = "    &&& true\n"
+expect = ["progress.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "progress-empty-waiting-set"
+kills = "has_deadlock's decision of `deadlocked` (R41.3's waiting set is non-empty; with the empty set admitted every configuration is deadlocked and the fixed point's empty result no longer refutes it)"
+file = "crates/rsk-protocol/src/progress.rs"
+find = "    &&& exists|r: int| 0 <= r < set.len() && set[r]\n"
+replace = "    &&& true\n"
+expect = ["progress.rs"]
+package = "rsk-protocol"

@@ -1,6 +1,6 @@
 # Proof assumption register (R50.2): every assumption construct in the
 # Kernel crates and in every crate that opts into Verus with a
-# `[package.metadata.verus]` table (rsk-analyzer) (Verus `assume`, `admit`,
+# `[package.metadata.verus]` table (rsk-analyzer, rsk-protocol) (Verus `assume`, `admit`,
 # `#[verifier::external_body]`,
 # `#[verifier::external_fn_specification]`, `assume_specification`,
 # `#[verifier::external]`; Kani `#[kani::stub]`) must have an entry here
@@ -15,8 +15,9 @@
 
 schema = 1
 
-# The logic, the Hardware_Model lemmas, the MPU view, the bound Kernel, and
-# the Analyzer's fixed-point core are proved without `assume`, `admit`, or
+# The logic, the Hardware_Model lemmas, the MPU view, the bound Kernel, the
+# Analyzer's fixed-point core, and the Protocol_Checker's deadlock-freedom
+# certificate (task 21.6) are proved without `assume`, `admit`, or
 # `external_body`. The only assumption constructs are the five trusted
 # functions of `Cm4Hw` below (tasks 5.7 and 5.2). The Kani stubs that replace inline
 # assembly are listed in docs/kani_stubs.toml.

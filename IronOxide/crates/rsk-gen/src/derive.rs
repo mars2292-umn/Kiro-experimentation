@@ -70,6 +70,10 @@ pub struct GenEndpoint {
     pub k: u32,
     /// Per directed channel (from role, to role, k), Protocol form only.
     pub channels: Vec<(String, String, u32)>,
+    /// The configurations of the product of the projections the
+    /// Protocol_Checker certified deadlock-free (task 21.6, R41.3); 0 for
+    /// the plain form.
+    pub configurations: usize,
     /// (role, its local type rendered), Protocol form only (R38.3).
     pub projections: Vec<(String, String)>,
     /// (role, its local type), for the role APIs of task 21.3.
@@ -376,8 +380,8 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         }
         // Task 21.1: the Protocol's bound and projections (validated: the
         // checker accepted it).
-        let (k, channels, projections, locals, labels) = match &e.protocol {
-            None => (e.capacity, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+        let (k, channels, projections, locals, labels, configurations) = match &e.protocol {
+            None => (e.capacity, Vec::new(), Vec::new(), Vec::new(), Vec::new(), 0),
             Some(pname) => {
                 let p = decl.protocols.iter().find(|p| &p.name == pname).expect("validated");
                 let role_names: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
@@ -388,12 +392,13 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                     checked.locals.iter().map(|(r, l)| (r.clone(), l.render())).collect(),
                     checked.locals.clone(),
                     global_labels(&checked.global),
+                    checked.configurations,
                 )
             }
         };
         let validators = e.roles.iter().map(|r| r.validate.clone()).collect();
         let ops = e.roles.iter().map(|r| r.ops).collect();
-        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, projections, locals, labels, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, labels, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
         storage += 2 * e.capacity * e.payload;
     }
     let endpoint_storage_bytes = storage;

@@ -51,13 +51,26 @@
 //! differential evidence for Property 20 is the agreement, over generated
 //! Protocols, between the synchronous traces of the global type and those
 //! of the product of its projections (`tests/property20.rs`).
+//!
+//! # Deadlock freedom (R41.3, task 21.6)
+//!
+//! The exploration is untrusted; its visited set is checked by
+//! `progress::certify`, verified in Verus: the set contains the initial
+//! configuration, is closed under every operation the local types enable,
+//! holds no channel over the capacity, and has no configuration in which a
+//! non-empty set of roles each awaits a message only another role of the
+//! set can send. `progress::theorem_r41_3` derives from that certificate
+//! the property for every run of the product. The assumptions connecting
+//! the product to an Application are in the Verification_Plan (5.15).
 
 #![forbid(unsafe_code)]
+#![cfg_attr(not(verus_keep_ghost), allow(unused_imports))]
 
 pub mod ast;
 pub mod check;
 pub mod explore;
 pub mod parse;
+pub mod progress;
 
 pub use ast::{Branch, Global, Local, Message};
 pub use check::{project, well_formed};
@@ -73,6 +86,9 @@ pub struct Checked {
     pub channels: Vec<Channel>,
     /// The largest bound over the channels (0 for a Protocol with no message).
     pub k: u32,
+    /// The configurations of the product of the projections, each certified
+    /// by the verified check of `progress` (task 21.6, R41.3).
+    pub configurations: usize,
 }
 
 /// Why a Protocol is rejected (R38.5): the rule and the offending
@@ -102,5 +118,5 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
     }
     let exploration = explore(&locals, capacity)?;
     let k = exploration.channels.iter().map(|c| c.k).max().unwrap_or(0);
-    Ok(Checked { global, locals, channels: exploration.channels, k })
+    Ok(Checked { global, locals, channels: exploration.channels, k, configurations: exploration.configurations })
 }

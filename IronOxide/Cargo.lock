@@ -759,6 +759,9 @@ name = "rsk-protocol"
 version = "0.0.0"
 dependencies = [
  "proptest",
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
 ]
 
 [[package]]

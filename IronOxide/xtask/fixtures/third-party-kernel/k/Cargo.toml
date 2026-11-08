@@ -5,6 +5,10 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+# The proc-macro is a dependency of the Target crate, as rsk-macros is of
+# rsk: the Target build compiles it (and proc-macro2) for the host as a
+# dependency, never as a root of the `--target` build (verify::target_crates).
+m = { path = "../m" }
 hashbrown = { version = "=0.17.1", default-features = false }
 itoa = { version = "=1.0.18" }
 memchr = { version = "=2.8.3", default-features = false }

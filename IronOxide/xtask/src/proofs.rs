@@ -397,13 +397,13 @@ pub fn run_verus(
 /// the Build_System counter, `checks::kernel_size`).
 /// The criteria the Verus Evidence_Item covers (task 8.4 follow-up,
 /// 2026-10-23): the `Complete` column of verification_plan.md section 9.5
-/// for the Kernel and Analyzer-core rows, the criterion the item itself
+/// for the Kernel, Analyzer-core, and Protocol_Checker rows, the criterion the item itself
 /// discharges (R44.6: the proofs run in the job), and the restrictions
 /// whose PO evidence the Profile names `proof-kernel-*`. Criteria the plan
 /// lists as partial are not claimed.
 pub fn verus_covers(root: &Path) -> Vec<String> {
     let plan = std::fs::read_to_string(root.join("docs/verification_plan.md")).unwrap_or_default();
-    let mut out = crate::trace::plan_complete_criteria(&plan, &["Verus, Kernel", "Verus, Analyzer core"]);
+    let mut out = crate::trace::plan_complete_criteria(&plan, &["Verus, Kernel", "Verus, Analyzer core", "Verus, Protocol_Checker"]);
     for fixed in ["R44.6", "PR-02", "PR-05", "PR-07", "PR-14", "PR-16", "PR-19", "PR-23", "PR-29", "PR-34"] {
         if !out.iter().any(|c| c == fixed) {
             out.push(fixed.to_string());

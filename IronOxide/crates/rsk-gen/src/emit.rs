@@ -861,7 +861,7 @@ pub fn summary(g: &Generated) -> String {
             }
             Some(p) => {
                 let channels: Vec<String> = e.channels.iter().map(|(f, t, k)| format!("{f}->{t} k={k}")).collect();
-                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}{}", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage, validators_note(e));
+                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}{}; deadlock-free over {} configuration(s) (R41.3, the certificate of task 21.6)", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage, validators_note(e), e.configurations);
                 for (r, l) in &e.projections {
                     let _ = writeln!(s, "  projection onto {r}: {l}");
                 }

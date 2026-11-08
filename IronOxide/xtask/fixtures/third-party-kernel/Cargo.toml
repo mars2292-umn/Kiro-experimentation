@@ -6,7 +6,8 @@
 # - hashbrown (default features off) is `no_std` but declares
 #   `extern crate alloc`. Its Target build succeeds, because `alloc` ships
 #   for thumbv7em-none-eabihf, so only the explicit R6.1 check rejects it.
-# - proc-macro2, a dependency of the proc-macro crate `m`, carries
+# - proc-macro2, a dependency of the proc-macro crate `m` (itself a
+#   dependency of `k`, as rsk-macros is of rsk), carries
 #   `cfg_attr(..., feature(...))` gates that the stable build leaves inactive.
 [workspace]
 resolver = "2"
