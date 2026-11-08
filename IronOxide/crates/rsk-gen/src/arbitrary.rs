@@ -206,6 +206,7 @@ fn build(parts: Vec<PartitionSpec>, tasks: Vec<TaskSpec>, duration_s: u64, log_c
         fp_flush_to_zero: false,
         partitions,
         endpoints: vec![],
+        protocols: vec![],
     }
 }
 

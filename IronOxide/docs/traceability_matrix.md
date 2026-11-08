@@ -282,7 +282,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R21.1 | — | — | ✓10.2 | apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840/partition_part1.rs; +40 | test-workspace-tests |
 | R21.2 | — | Property 14 | ✓10.3 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +19 | test-workspace-tests |
-| R21.3 | — | — | ✓10.2 | crates/rsk-gen/src/syntax.rs; crates/rsk-gen/src/validate.rs; profile/profile.toml | — |
+| R21.3 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; crates/rsk-gen/src/validate.rs; +1 | — |
 | R21.4 | — | — | ✓10.2 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; +2 | — |
 | R21.5 | — | — | ✓10.2 | crates/rsk-gen/src/target.rs; crates/rsk-gen/src/validate.rs | — |
 | R21.6 | — | — | ✓10.2 | crates/rsk-gen/src/validate.rs | — |
@@ -297,7 +297,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R22.4 | — | — | ✓10.2 | crates/rsk-gen/src/syntax.rs; profile/profile.toml | — |
 | R22.5 | — | — | ✓10.2 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; +1 | test-workspace-tests |
 | R22.6 | — | — | ✓10.2 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs | — |
-| R22.7 | — | — | ○21.1 | — | — |
+| R22.7 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1 | crates/rsk-gen/Cargo.toml; crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/lib.rs; +2 | — |
 
 ### Requirement 23: Ceiling and derived-value computation (Phase P2)
 
@@ -475,11 +475,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
 | R38.1 | — | — | ○21.3 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen/partition_part0.rs; apps/p1-demo/gen/partition_part1.rs; +7 | — |
-| R38.2 | — | — | ○21.1 | — | — |
-| R38.3 | — | Property 20 | ○21.1 | — | — |
+| R38.2 | — | — | ✓21.1 | apps/p1-demo/decl/src/lib.rs; crates/rsk-gen/src/decl.rs; crates/rsk-protocol/src/ast.rs; +3 | — |
+| R38.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ✓21.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen/partition_part0.rs; apps/p1-demo/gen/partition_part1.rs; +8 | — |
 | R38.4 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20; What the type system gives, and what it does not | ○21.3 | — | — |
-| R38.5 | — | — | ○21.1 | — | — |
-| R38.6 | — | — | ○21.1 | — | — |
+| R38.5 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-protocol/Cargo.toml; +4 | — |
+| R38.6 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1 | crates/rsk-protocol/src/lib.rs | — |
 | R38.7 | — | Endpoint_Library and Protocol_Checker (Component F); Reuse and Deviation Record | ○21.3 | — | — |
 
 ### Requirement 39: Static, heap-free, executor-free implementation (Phase P4)
@@ -499,14 +499,14 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R40.2 | — | — | ○21.5 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs | — |
 | R40.3 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/derive.rs; +5 | — |
 | R40.4 | — | Application API (`rsk`); Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; +2 | — |
-| R40.5 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/bound.rs; +5 | — |
+| R40.5 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/bound.rs; +6 | — |
 | R40.6 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | crates/rsk-kernel/src/arch/cm4/entry.rs | — |
 
 ### Requirement 41: Protocol safety, progress, and linear use (Phase P4)
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R41.1 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ○21.1 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/model.rs | — |
+| R41.1 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ✓21.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen/partition_part0.rs; apps/p1-demo/gen/partition_part1.rs; +11 | — |
 | R41.2 | — | Endpoint_Library and Protocol_Checker (Component F) | ○21.3 | — | — |
 | R41.3 | — | Property allocation (R43) | ○21.6 | — | — |
 | R41.4 | — | — | ○21.5 | — | — |
@@ -680,7 +680,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R58.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Memory and MPU layout (DD-07, DD-11); Profile_Conformance_Suite and HIL_Rig; +1 | ✓1.1 | crates/rsk-lint/src/lib.rs; profile/profile.toml; xtask/src/checks/ci.rs; +7 | check-static-checks; test-host-build; test-target-build; test-workspace-tests |
+| R58.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Endpoint_Library and Protocol_Checker (Component F); Memory and MPU layout (DD-07, DD-11); +2 | ✓1.1 | crates/rsk-lint/src/lib.rs; crates/rsk-protocol/src/lib.rs; crates/rsk-protocol/tests/property20.rs; +9 | check-static-checks; test-host-build; test-target-build; test-workspace-tests |
 | R58.2 | — | Trust-Base Analysis | ✓1.3 | profile/profile.toml; xtask/src/checks/deps.rs; xtask/src/checks/registers.rs; +3 | check-post-build |
 | R58.3 | — | — | ✓8.1 | profile/profile.toml | — |
 | R58.4 | — | — | ✓1.1 | apps/p1-demo/bin/build.rs; xtask/src/checks/config.rs; xtask/src/diag.rs; +4 | check-network-sandbox; check-static-checks; test-host-build; test-network-probe; test-target-build |
@@ -838,7 +838,7 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R22.3 | ✓10.2 | — |
 | R22.4 | ✓10.2 | — |
 | R22.6 | ✓10.2 | — |
-| R22.7 | ○21.1 | — |
+| R22.7 | ✓21.1 | Endpoint_Library and Protocol_Checker (Component F) |
 | R23.3 | ✓10.3 | — |
 | R23.5 | ✓10.3 | Task_Model (excerpt) |
 | R24.1 | ✓10.5 | App_Declaration and generation pipeline (Component C) |
@@ -880,11 +880,11 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | Criterion | Tasks | Design |
 |---|---|---|
 | R38.1 | ○21.3 | — |
-| R38.2 | ○21.1 | — |
-| R38.3 | ○21.1 | Property 20 |
+| R38.2 | ✓21.1 | — |
+| R38.3 | ✓21.1 | Endpoint_Library and Protocol_Checker (Component F); Property 20 |
 | R38.4 | ○21.3 | Endpoint_Library and Protocol_Checker (Component F); Property 20; +1 |
-| R38.5 | ○21.1 | — |
-| R38.6 | ○21.1 | — |
+| R38.5 | ✓21.1 | Endpoint_Library and Protocol_Checker (Component F) |
+| R38.6 | ✓21.1 | Endpoint_Library and Protocol_Checker (Component F) |
 | R38.7 | ○21.3 | Endpoint_Library and Protocol_Checker (Component F); Reuse and Deviation Record |
 | R39.1 | ✓21.2 | — |
 | R39.2 | ✓21.2 | — |
@@ -896,7 +896,7 @@ Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of
 | R40.4 | ✓21.2 | Application API (`rsk`); Endpoint_Library and Protocol_Checker (Component F) |
 | R40.5 | ✓21.2 | Endpoint_Library and Protocol_Checker (Component F) |
 | R40.6 | ✓21.2 | Endpoint_Library and Protocol_Checker (Component F) |
-| R41.1 | ○21.1 | Endpoint_Library and Protocol_Checker (Component F); Property 20 |
+| R41.1 | ✓21.1 | Endpoint_Library and Protocol_Checker (Component F); Property 20 |
 | R41.2 | ○21.3 | Endpoint_Library and Protocol_Checker (Component F) |
 | R41.3 | ○21.6 | Property allocation (R43) |
 | R41.4 | ○21.5 | — |
@@ -1047,7 +1047,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R22.4 | P2 | ✓10.2 | — |
 | R22.5 | P2 | ✓10.2 | test-workspace-tests |
 | R22.6 | P2 | ✓10.2 | — |
-| R22.7 | P2 | ○21.1 | — |
+| R22.7 | P2 | ✓21.1 | — |
 | R23.1 | P2 | ✓10.3 | test-workspace-tests |
 | R23.2 | P2 | ✓10.3 | test-workspace-tests |
 | R23.3 | P2 | ✓10.3 | — |
@@ -1142,11 +1142,11 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R37.3 | P2 | ✓12.1 | analysis-stack-p1-demo; analysis-stack-step |
 | R37.4 | P2 | ✓12.2 | analysis-stack-p1-demo; analysis-stack-step |
 | R38.1 | P4 | ○21.3 | — |
-| R38.2 | P4 | ○21.1 | — |
-| R38.3 | P4 | ○21.1 | — |
+| R38.2 | P4 | ✓21.1 | — |
+| R38.3 | P4 | ✓21.1 | — |
 | R38.4 | P4 | ○21.3 | — |
-| R38.5 | P4 | ○21.1 | — |
-| R38.6 | P4 | ○21.1 | — |
+| R38.5 | P4 | ✓21.1 | — |
+| R38.6 | P4 | ✓21.1 | — |
 | R38.7 | P4 | ○21.3 | — |
 | R39.1 | P4 | ✓21.2 | — |
 | R39.2 | P4 | ✓21.2 | — |
@@ -1157,7 +1157,7 @@ Each criterion that no row of verification_plan.md section 3 covers, with the Ph
 | R40.4 | P4 | ✓21.2 | — |
 | R40.5 | P4 | ✓21.2 | — |
 | R40.6 | P4 | ✓21.2 | — |
-| R41.1 | P4 | ○21.1 | — |
+| R41.1 | P4 | ✓21.1 | — |
 | R41.2 | P4 | ○21.3 | — |
 | R41.3 | P4 | ○21.6 | — |
 | R41.4 | P4 | ○21.5 | — |

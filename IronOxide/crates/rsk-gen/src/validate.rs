@@ -471,10 +471,44 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
         if e.payload < 4 || e.payload > 65532 || e.payload % 4 != 0 {
             d.push(Diagnostic::new("PR-14", eref(), format!("Endpoint `{}` has payload {} bytes; 4 to 65,532, a multiple of 4 (the Kernel copies words)", e.name, e.payload)));
         }
-        if e.ty.is_empty() {
-            d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` names no payload type", e.name)));
+        match &e.protocol {
+            None => {
+                if e.ty.is_empty() {
+                    d.push(Diagnostic::new("R38.1", eref(), format!("Endpoint `{}` names no payload type", e.name)));
+                }
+            }
+            Some(pname) => {
+                // Task 21.1 (R22.7, R38.5, R41.1): the Protocol exists, its
+                // roles are the Endpoint's, and the Protocol_Checker accepts
+                // it with a bound within the declared capacity.
+                match decl.protocols.iter().find(|p| &p.name == pname) {
+                    None => d.push(Diagnostic::new("R21.3", eref(), format!("Endpoint `{}` names no declared Protocol `{pname}`", e.name))),
+                    Some(p) => {
+                        let roles: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
+                        match rsk_protocol::check_protocol(&p.text, &roles, e.capacity) {
+                            Ok(_) => {}
+                            Err(err) => d.push(Diagnostic::new(
+                                if err.rule == "R41.1" { "R41.1" } else { "R22.7" },
+                                eref(),
+                                format!("Endpoint `{}`: the Protocol_Checker rejects Protocol `{pname}` {err}", e.name),
+                            )),
+                        }
+                    }
+                }
+            }
         }
         storage_bytes += 2 * e.capacity as u64 * e.payload as u64;
+    }
+    // Protocols (task 21.1): unique names; one bound to no Endpoint is a
+    // declaration error, like a Resource with no accessor (R22.5).
+    let mut protocol_names = BTreeSet::new();
+    for p in &decl.protocols {
+        if !protocol_names.insert(p.name.as_str()) {
+            d.push(Diagnostic::new("PR-28", ItemRef::Protocol(p.name.clone()), format!("Protocol `{}` is declared twice", p.name)));
+        }
+        if !decl.endpoints.iter().any(|e| e.protocol.as_deref() == Some(p.name.as_str())) {
+            d.push(Diagnostic::new("R22.5", ItemRef::Protocol(p.name.clone()), format!("Protocol `{}` governs no Endpoint", p.name)));
+        }
     }
     if decl.endpoints.len() > MAX_ENDPOINTS {
         d.push(Diagnostic::new("PR-14", ItemRef::Declaration, format!("{} Endpoints declared; the Kernel holds at most {MAX_ENDPOINTS}", decl.endpoints.len())));

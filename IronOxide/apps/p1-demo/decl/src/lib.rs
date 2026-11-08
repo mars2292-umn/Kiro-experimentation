@@ -157,4 +157,23 @@ rsk::app! {
     // in Kernel-owned storage; `control` sends its count every Job and `log`
     // drains the channel every Job (no arrival release: `log` is periodic).
     endpoint telemetry: u32 { ctl => part0.control, sink => part1.log } capacity = 4, payload = 4;
+
+    // Task 21.1 (R38.2, R38.3, R41.1): a Protocol-governed Endpoint between
+    // the same Tasks, a request-response loop with a stop branch; the
+    // Protocol_Checker projects it onto `ctl` and `sink` and bounds every
+    // channel at one message, which the capacity of 1 meets. The typestate
+    // API over it is task 21.3; the Tasks do not use it yet.
+    protocol PingPong {
+        rec Loop {
+            choice at ctl {
+                Req(u32): ctl -> sink;
+                Rep(u32): sink -> ctl;
+                continue Loop;
+            } or {
+                Stop(): ctl -> sink;
+                end;
+            }
+        }
+    }
+    endpoint pingpong: protocol PingPong { ctl => part0.control, sink => part1.log } capacity = 1, payload = 4;
 }

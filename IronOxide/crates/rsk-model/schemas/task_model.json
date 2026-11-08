@@ -212,7 +212,22 @@
           }
         },
         "storage_offset": { "type": "integer", "minimum": 0 },
-        "derived": { "type": "array", "items": { "type": "string" } }
+        "derived": { "type": "array", "items": { "type": "string" } },
+        "protocol": { "type": ["string", "null"] },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["from", "to", "k"],
+            "properties": { "from": { "type": "string" }, "to": { "type": "string" }, "k": { "type": "integer", "minimum": 0 } }
+          }
+        },
+        "projections": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["role", "local_type"],
+            "properties": { "role": { "type": "string" }, "local_type": { "type": "string" } }
+          }
+        }
       }
     },
     "conversion": {

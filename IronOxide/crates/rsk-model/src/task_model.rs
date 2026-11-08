@@ -230,12 +230,36 @@ pub struct Endpoint {
     /// Endpoint storage.
     #[serde(default)]
     pub payload_type: String,
+    /// Task 21.1: the governing Protocol, the Protocol_Checker's bound per
+    /// directed channel (R41.1), and each role's projection (R38.3); the
+    /// field order is the Generator's (the demo model round-trips).
+    #[serde(default)]
+    pub protocol: Option<String>,
+    #[serde(default)]
+    pub channels: Vec<EndpointChannel>,
+    #[serde(default)]
+    pub projections: Vec<EndpointProjection>,
     #[serde(default)]
     pub roles: Vec<EndpointRole>,
     #[serde(default)]
     pub storage_offset: u32,
     #[serde(default)]
     pub derived: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndpointChannel {
+    pub from: String,
+    pub to: String,
+    pub k: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndpointProjection {
+    pub role: String,
+    pub local_type: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

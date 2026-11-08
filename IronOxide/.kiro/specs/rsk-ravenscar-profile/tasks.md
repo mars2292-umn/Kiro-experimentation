@@ -390,9 +390,10 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
 ### Phase 4 — Session-typed Endpoints
 
 - [ ] 21. Protocol_Checker and Endpoints (Component F)
-  - [ ] 21.1 Implement the Protocol syntax, projection, well-formedness checks, and the k-MC buffer bound.
+  - [x] 21.1 Implement the Protocol syntax, projection, well-formedness checks, and the k-MC buffer bound.
     - Evidence: PBT for Property 20; differential runs against Rumpsteak's k-MC checker
     - _Requirements: 22.7, 38.2, 38.3, 38.5, 38.6, 41.1_
+    - Done 2026-11-07 (Verification_Plan 5.11; design "Endpoint_Library and Protocol_Checker"): `crates/rsk-protocol` (no dependency): the Scribble-like syntax (`Label(Type): from -> to;`, `choice at Role { .. } or { .. }`, `rec Name { .. }` / `continue Name;`, `end;`), well-formedness with every rejection naming the interaction (R38.5), projection with the full merge (R38.3), and the exploration of every interleaving of the projections over channels of the declared capacity, giving each channel's universal bound k and checking deadlock, orphan, and unspecified-reception freedom (R41.1); the declaration's `protocol NAME { .. }` items and `endpoint NAME: protocol PNAME { .. }`; the Generator rejects under R22.7 and R41.1 and records Protocol, k, channels, and projections in the Task_Model; the QEMU demo's `PingPong` on `pingpong` (k = 1). Evidence deviation (R38.6, R61): the bound is the universal occupancy, not k-MC's existential one (the Kernel's channels are finite); Rumpsteak is not vendored (R58.1) and not run, the Property 20 PBT (300 cases) checks projection faithfulness against the global type's synchronous traces, the tightness of k, and role-order independence instead; the out-of-tree cross-check is listed in section 13.
   - [x] 21.2 Implement Kernel-owned Endpoint buffers: SVC send and receive with copying, full-buffer errors, completion of operations interrupted by a forced Job end, and retention of messages whose arrival events are discarded.
     - Evidence: Verus proof of the Endpoint part of Property 11; Kani for the copy glue
     - _Requirements: 10.8, 39.1, 39.2, 39.3, 39.4, 40.3, 40.4, 40.5, 40.6, 42.2, 45.1, 45.2_

@@ -116,6 +116,7 @@ name = "rsk-gen"
 version = "0.0.0"
 dependencies = [
  "proc-macro2",
+ "rsk-protocol",
  "syn",
 ]
 
@@ -147,6 +148,10 @@ dependencies = [
  "rsk-gen",
  "syn",
 ]
+
+[[package]]
+name = "rsk-protocol"
+version = "0.0.0"
 
 [[package]]
 name = "syn"

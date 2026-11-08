@@ -60,6 +60,8 @@ pub mod rsk_ctx {
         pub tick: ::rsk::Signal,
         /// Role `ctl` of Endpoint `telemetry` (task 21.2; R38.1, R40.1): 4 messages of `u32` each way.
         pub telemetry: ::rsk::Endpoint<u32, 1>,
+        /// Role `ctl` of Endpoint `pingpong` under Protocol `PingPong` (task 21.1; R38.3): `rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}`; bound k = 1 (R41.1), capacity 1. The typestate API is task 21.3.
+        pub pingpong: ::rsk::Endpoint<[u32; 1], 1>,
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `blocked` (PR-25).
@@ -126,6 +128,7 @@ pub mod rsk_jobs {
             in_cs: ::rsk::Shared::new(&super::rsk_resources::IN_CS, 1),
             tick: ::rsk::Signal::new(0),
             telemetry: ::rsk::Endpoint::new(0, 0),
+            pingpong: ::rsk::Endpoint::new(1, 0),
             count: ::rsk::PerTask::new(&super::rsk_state::CONTROL_COUNT),
             blocked: ::rsk::PerTask::new(&super::rsk_state::CONTROL_BLOCKED),
             telemetry_full: ::rsk::PerTask::new(&super::rsk_state::CONTROL_TELEMETRY_FULL),

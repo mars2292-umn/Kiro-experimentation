@@ -23,6 +23,7 @@ members = [
     "crates/rsk-lint",
     "crates/rsk-confcheck",
     "crates/rsk-analyzer",
+    "crates/rsk-protocol",
     "crates/rsk-loom",
     "crates/rsk-wcet",
     "crates/rsk-wcet-agent",
@@ -69,6 +70,7 @@ debug = 2
 rsk-logic = { path = "crates/rsk-logic" }
 rsk-kernel = { path = "crates/rsk-kernel", default-features = false }
 rsk-gen = { path = "crates/rsk-gen" }
+rsk-protocol = { path = "crates/rsk-protocol" }
 rsk-macros = { path = "crates/rsk-macros" }
 rsk-digest = { path = "crates/rsk-digest" }
 rsk-elf = { path = "crates/rsk-elf" }
@@ -128,6 +130,8 @@ rsk-link = { targets = ["host"] }
 rsk-lint = { targets = ["host"] }
 rsk-confcheck = { targets = ["host"] }
 rsk-analyzer = { targets = ["host"] }
+# Protocol_Checker (task 21.1): a host library of the Generator.
+rsk-protocol = { targets = ["host"] }
 # Host_Test_Harness (R47): the Loom and Shuttle model of the Kernel logic; host only.
 rsk-loom = { targets = ["host"] }
 rsk-wcet = { targets = ["host"] }

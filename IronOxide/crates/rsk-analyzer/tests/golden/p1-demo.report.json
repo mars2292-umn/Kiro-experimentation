@@ -329,7 +329,7 @@
     "detail": "run the UPPAAL cross-check with --uppaal"
   },
   "omitted_terms": [
-    "Endpoint operations (R40.2, task 21.5): the 1 declared Endpoint(s) (telemetry) carry no explicit term; each send and receive runs inside the calling Job at the Kernel level (DD-09), so its execution is inside the Job's WCET and Budget and its masking inside the measured L_kernel, and the arrival release of a receive role is the Sporadic_Task's Release_Source as any other (R40.3)",
+    "Endpoint operations (R40.2, task 21.5): the 2 declared Endpoint(s) (telemetry, pingpong) carry no explicit term; each send and receive runs inside the calling Job at the Kernel level (DD-09), so its execution is inside the Job's WCET and Budget and its masking inside the measured L_kernel, and the arrival release of a receive role is the Sporadic_Task's Release_Source as any other (R40.3)",
     "the intake handling of a Sporadic_Task's Release_Source (R19.2, Δ_irq per MIT) interferes with every Task in the RTA; the UPPAAL model carries it only in E_j, on the Tasks the Task's Jobs preempt",
     "UPPAAL export: Critical_Sections and the System_Ceiling are approximated by the blocking interval B_i spent before each Job starts, not by locations that raise the ceiling",
     "UPPAAL export: the Kernel overheads of R29.3 are folded into each Task's execution-time bound E_i, not modelled as locations"

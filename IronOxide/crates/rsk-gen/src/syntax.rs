@@ -326,16 +326,37 @@ impl Parse for Parsed {
 
         let mut partitions = Vec::new();
         let mut endpoints = Vec::new();
+        let mut protocols = Vec::new();
         while !input.is_empty() {
             let kw: Ident = input.parse()?;
+            if kw == "protocol" {
+                // Task 21.1: `protocol NAME { <global type> }`, the body in the
+                // Protocol_Checker's syntax, kept as text.
+                let name: Ident = input.parse()?;
+                let pname = name.to_string();
+                spans.add(ItemRef::Protocol(pname.clone()), name.span());
+                let body;
+                braced!(body in input);
+                let tokens: TokenStream = body.parse()?;
+                protocols.push(ProtocolDecl { name: pname, text: tokens.to_string() });
+                continue;
+            }
             if kw == "endpoint" {
                 // Task 21.2: `endpoint NAME: TYPE { ROLE => PART.TASK, .. }
-                // capacity = N, payload = BYTES;`
+                // capacity = N, payload = BYTES;`; task 21.1: `endpoint NAME:
+                // protocol PNAME { .. } ..` for a Protocol-governed one.
                 let name: Ident = input.parse()?;
                 let ename = name.to_string();
                 spans.add(ItemRef::Endpoint(ename.clone()), name.span());
                 input.parse::<Token![:]>()?;
-                let ty: syn::Type = input.parse()?;
+                let (protocol, ty): (Option<String>, String) = if input.peek(Ident) && input.fork().parse::<Ident>().map(|i| i == "protocol").unwrap_or(false) {
+                    let _kw: Ident = input.parse()?;
+                    let p: Ident = input.parse()?;
+                    (Some(p.to_string()), String::new())
+                } else {
+                    let ty: syn::Type = input.parse()?;
+                    (None, tokens_to_string(&ty).replace(' ', ""))
+                };
                 let body;
                 braced!(body in input);
                 let mut roles = Vec::new();
@@ -356,11 +377,11 @@ impl Parse for Parsed {
                 let capacity = int(ea.required("capacity")?)? as u32;
                 let payload = int(ea.required("payload")?)? as u32;
                 ea.finish()?;
-                endpoints.push(EndpointDecl { name: ename, ty: tokens_to_string(&ty).replace(' ', ""), roles, capacity, payload });
+                endpoints.push(EndpointDecl { name: ename, ty, protocol, roles, capacity, payload });
                 continue;
             }
             if kw != "partition" {
-                return err(kw.span(), "expected `partition` or `endpoint`");
+                return err(kw.span(), "expected `partition`, `endpoint`, or `protocol`");
             }
             let name: Ident = input.parse()?;
             let pname = name.to_string();
@@ -614,6 +635,7 @@ impl Parse for Parsed {
                 fp_flush_to_zero,
                 partitions,
                 endpoints,
+                protocols,
             },
             spans,
         })

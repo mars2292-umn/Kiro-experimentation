@@ -671,6 +671,7 @@ dependencies = [
  "proptest",
  "rsk-gen",
  "rsk-model",
+ "rsk-protocol",
  "syn 2.0.119",
 ]
 
@@ -751,6 +752,13 @@ dependencies = [
  "rsk-gen",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "rsk-protocol"
+version = "0.0.0"
+dependencies = [
+ "proptest",
 ]
 
 [[package]]

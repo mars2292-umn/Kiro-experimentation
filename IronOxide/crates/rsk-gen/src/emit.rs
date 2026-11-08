@@ -392,7 +392,7 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     // Task 21.2 (R38.1, R42.1): the payload type of each Endpoint a Task of
     // this Partition is bound to fits the declared payload, and the
     // Kernel's word copies cover it (`rsk::Plain` bounds the type itself).
-    for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| part.tasks.contains(ti))) {
+    for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| part.tasks.contains(ti)) && e.protocol.is_none()) {
         let _ = writeln!(s, "const _: () = assert!(::core::mem::size_of::<{}>() <= {}, \"the payload of Endpoint `{}` exceeds its declared `payload` bytes (R38.1)\");", e.ty, e.payload, e.name);
     }
     let _ = writeln!(s, "pub mod rsk_ctx {{");
@@ -410,8 +410,20 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         }
         for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| *ti == t)) {
             let role = e.roles.iter().find(|(_, ti)| *ti == t).map(|(n, _)| n.as_str()).unwrap_or("");
-            let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` (task 21.2; R38.1, R40.1): {} messages of `{}` each way.", e.name, e.capacity, e.ty);
-            let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}>,", e.name, e.ty, e.payload / 4);
+            match &e.protocol {
+                None => {
+                    let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` (task 21.2; R38.1, R40.1): {} messages of `{}` each way.", e.name, e.capacity, e.ty);
+                    let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}>,", e.name, e.ty, e.payload / 4);
+                }
+                Some(pname) => {
+                    // Task 21.1: the Protocol's projection onto the role; the
+                    // typestate API over it is task 21.3, the raw word channel
+                    // stands in for it.
+                    let proj = e.projections.iter().find(|(r, _)| r == role).map(|(_, l)| l.as_str()).unwrap_or("");
+                    let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` under Protocol `{pname}` (task 21.1; R38.3): `{proj}`; bound k = {} (R41.1), capacity {}. The typestate API is task 21.3.", e.name, e.k, e.capacity);
+                    let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<[u32; {}], {}>,", e.name, e.payload / 4, e.payload / 4);
+                }
+            }
         }
         for st in &task.state {
             let _ = writeln!(s, "        /// Per-Task state `{}` (PR-25).", st.name);
@@ -759,6 +771,21 @@ pub fn summary(g: &Generated) -> String {
     let _ = writeln!(s, "Safe state: {}", g.safe_state);
     let _ = writeln!(s, "Config checksum (CRC-32): 0x{:08x}", g.checksum);
     let _ = writeln!(s, "Capacities: lock stack {}, timer slots {}, event log {}", g.lock_capacity, g.slot_count, g.log_capacity);
+    for e in &g.endpoints {
+        let roles: Vec<String> = e.roles.iter().map(|(r, t)| format!("{r} => {}", g.tasks[*t].id)).collect();
+        match &e.protocol {
+            None => {
+                let _ = writeln!(s, "Endpoint {} (plain, `{}`): {}; capacity {} each way, payload {} bytes, storage offset {}", e.name, e.ty, roles.join(", "), e.capacity, e.payload, e.storage);
+            }
+            Some(p) => {
+                let channels: Vec<String> = e.channels.iter().map(|(f, t, k)| format!("{f}->{t} k={k}")).collect();
+                let _ = writeln!(s, "Endpoint {} (Protocol {p}): {}; capacity {} each way, bound k {} ({}), payload {} bytes, storage offset {}", e.name, roles.join(", "), e.capacity, e.k, channels.join(", "), e.payload, e.storage);
+                for (r, l) in &e.projections {
+                    let _ = writeln!(s, "  projection onto {r}: {l}");
+                }
+            }
+        }
+    }
     let _ = writeln!(s, "Kernel levels: {:?}; Task levels (level -> NVIC byte): {}", g.kernel_levels, g.priority_map.iter().map(|(l, n)| format!("{l} -> 0x{n:02x}")).collect::<Vec<_>>().join(", "));
     let _ = writeln!(s, "Kernel-owned peripherals: {}", g.target.peripherals.iter().filter(|p| p.kernel_owned).map(|p| p.name).collect::<Vec<_>>().join(", "));
     let _ = writeln!(

@@ -1,0 +1,15 @@
+[package]
+name = "rsk-protocol"
+description = "rsk Protocol_Checker: global Protocol syntax, projection onto roles, well-formedness, and the per-channel buffer bound k (task 21.1)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+# A host library of the Generator (R38.3, R38.5, R41.1) with no dependency:
+# the Generator's front end hands it the Protocol's text and the Endpoint's
+# roles and capacity, and reads back the projections and the bound.
+[dependencies]
+
+[dev-dependencies]
+proptest = { workspace = true }

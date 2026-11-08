@@ -244,11 +244,26 @@ pub struct RoleDecl {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EndpointDecl {
     pub name: String,
-    /// The payload type, as written.
+    /// The payload type, as written (the plain form), or the message types'
+    /// common bound when a Protocol governs the Endpoint (task 21.1: the
+    /// Protocol's labels carry their own types; the Context field is then a
+    /// word buffer until the typestate API of task 21.3).
     pub ty: String,
+    /// The governing Protocol (task 21.1; R38.1, R22.7), `None` for the
+    /// plain form of task 21.2.
+    pub protocol: Option<String>,
     pub roles: Vec<RoleDecl>,
     pub capacity: u32,
     pub payload: u32,
+}
+
+/// A global Protocol (task 21.1; R38.2): `protocol NAME { .. }`, its body in
+/// the Protocol_Checker's syntax (`rsk-protocol`), kept as text and checked
+/// against each Endpoint that names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProtocolDecl {
+    pub name: String,
+    pub text: String,
 }
 
 /// Per-Task state (PR-25): `state <task>.<name>: <type> = <init>;` in a
@@ -348,6 +363,8 @@ pub struct Declaration {
     pub partitions: Vec<PartitionDecl>,
     /// Endpoints (task 21.2), declared after the Partitions.
     pub endpoints: Vec<EndpointDecl>,
+    /// Protocols (task 21.1), declared anywhere after the header.
+    pub protocols: Vec<ProtocolDecl>,
 }
 
 /// Where a diagnostic points (the front end maps it to a span).
@@ -363,6 +380,7 @@ pub enum ItemRef {
     Signal(String, String),
     Peripheral(String, String),
     Endpoint(String),
+    Protocol(String),
 }
 
 impl std::fmt::Display for ItemRef {
@@ -371,6 +389,7 @@ impl std::fmt::Display for ItemRef {
             ItemRef::Declaration => write!(f, "app"),
             ItemRef::Field(x) => write!(f, "app.{x}"),
             ItemRef::Endpoint(e) => write!(f, "endpoint {e}"),
+            ItemRef::Protocol(p) => write!(f, "protocol {p}"),
             ItemRef::Partition(p) => write!(f, "partition {p}"),
             ItemRef::PartitionField(p, x) => write!(f, "partition {p}.{x}"),
             ItemRef::Task(p, t) => write!(f, "task {p}.{t}"),

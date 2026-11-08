@@ -174,10 +174,13 @@ pub fn task_model(g: &Generated) -> Value {
                 .with("id", e.name.as_str())
                 .with("cores", vec![0u64, 0u64])
                 .with("capacity", e.capacity as u64)
-                .with("k", e.capacity as u64)
+                .with("k", e.k as u64)
                 .with("ceiling", "kernel")
                 .with("payload_bytes", e.payload as u64)
                 .with("payload_type", e.ty.as_str())
+                .with("protocol", e.protocol.clone().map(Value::from).unwrap_or(Value::Null))
+                .with("channels", e.channels.iter().map(|(f, t, k)| Value::obj().with("from", f.as_str()).with("to", t.as_str()).with("k", *k as u64)).collect::<Vec<_>>())
+                .with("projections", e.projections.iter().map(|(r, l)| Value::obj().with("role", r.as_str()).with("local_type", l.as_str())).collect::<Vec<_>>())
                 .with(
                     "roles",
                     e.roles

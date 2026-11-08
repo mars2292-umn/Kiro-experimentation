@@ -136,6 +136,7 @@ mod tests {
             log_capacity: 32,
             fp_flush_to_zero: false,
             endpoints: vec![],
+            protocols: vec![],
             partitions: vec![
                 partition(
                     "part0",
@@ -197,6 +198,44 @@ mod tests {
     }
 
     /// R27.2: a Task on a core other than 0 is rejected citing NG-01.
+    #[test]
+    /// Task 21.1 (R22.7, R38.5, R41.1, R21.3, R22.5): a Protocol-governed
+    /// Endpoint is accepted with the checker's bound, and the rejections name
+    /// their rule.
+    #[test]
+    fn protocols_are_checked_and_their_bound_recorded() {
+        use crate::decl::{EndpointDecl, ProtocolDecl, RoleDecl};
+        let roles = || vec![RoleDecl { role: "ctl".into(), partition: "part0".into(), task: "control".into() }, RoleDecl { role: "sink".into(), partition: "part1".into(), task: "log".into() }];
+        let loop_text = "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }";
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: loop_text.into() });
+        d.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: roles(), capacity: 1, payload: 4 });
+        let g = generate(&d).expect("accepted");
+        let e = g.endpoints.iter().find(|e| e.name == "ping").unwrap();
+        assert_eq!(e.k, 1);
+        assert_eq!(e.channels.len(), 2);
+        assert_eq!(e.projections[0].1, "rec L.sink!{Req(u32).sink?{Rep(u32).L}, Stop().end}");
+        // R41.1: two requests before a reply need two slots.
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "Two".into(), text: "rec L { A(u8): ctl -> sink; B(u8): ctl -> sink; C(u8): sink -> ctl; continue L; }".into() });
+        d.endpoints.push(EndpointDecl { name: "two".into(), ty: String::new(), protocol: Some("Two".into()), roles: roles(), capacity: 1, payload: 4 });
+        let errs = generate(&d).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R41.1" && e.item.to_string() == "endpoint two"), "{errs:?}");
+        // R22.7: an unprojectable Protocol is rejected naming the interaction.
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "Bad".into(), text: "rec X { continue X; }".into() });
+        d.endpoints.push(EndpointDecl { name: "bad".into(), ty: String::new(), protocol: Some("Bad".into()), roles: roles(), capacity: 2, payload: 4 });
+        let errs = generate(&d).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R22.7" && e.message.contains("unguarded")), "{errs:?}");
+        // R21.3 and R22.5: an unknown Protocol, and one governing no Endpoint.
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "Idle".into(), text: loop_text.into() });
+        d.endpoints.push(EndpointDecl { name: "x".into(), ty: String::new(), protocol: Some("Nope".into()), roles: roles(), capacity: 1, payload: 4 });
+        let errs = generate(&d).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "R21.3" && e.message.contains("Nope")), "{errs:?}");
+        assert!(errs.iter().any(|e| e.rule == "R22.5" && e.item.to_string() == "protocol Idle"), "{errs:?}");
+    }
+
     #[test]
     fn multi_core_is_rejected_citing_ng01() {
         let mut d = demo();
