@@ -53,7 +53,7 @@ use vstd::prelude::*;
 use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION};
 use crate::logic::mpu::View;
 
 verus! {
@@ -82,6 +82,12 @@ pub const ENDPOINT_OK: u32 = 0;
 pub const ENDPOINT_FULL: u32 = 1;
 pub const ENDPOINT_EMPTY: u32 = 1;
 pub const ENDPOINT_REFUSED: u32 = 2;
+/// A Protocol violation reported by the Endpoint_Library (task 21.3; R41.2):
+/// a role state dropped outside an end or recursion state, a Job that
+/// returned with its RoleSlot empty, or a message with a label the role's
+/// state does not expect. Recorded against the executing Task's Partition
+/// (`EV_PROTOCOL_VIOLATION`), no response.
+pub const SVC_VIOLATION: u8 = 10;
 /// Not an SVC number: an SVC entry whose frame's return address does not
 /// follow an SVC instruction (`unsafe_module::svc_number`): a stale,
 /// late-arriving SVC of a killed Job, ignored by `arch::cm4::svc`.
@@ -1439,6 +1445,17 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, top_before);
         (hop, safe)
+    } else if number == SVC_VIOLATION {
+        // Task 21.3 (R41.2): the Endpoint_Library's report of a Protocol
+        // violation, recorded against the executing Task; a Job that ends
+        // without storing its role state is reported by its wrapper after
+        // the body, still inside the Job.
+        match k.top() {
+            Some(t) => k.record_event(EV_PROTOCOL_VIOLATION, t),
+            None => {}
+        }
+        frame[0] = 0;
+        (0, false)
     } else if number == SVC_SEND || number == SVC_RECV {
         // Task 21.2: as for the raise, the executing Job is read before the
         // service; a refusal applies the fault response, and a send may

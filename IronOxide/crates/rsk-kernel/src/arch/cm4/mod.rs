@@ -661,6 +661,8 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
             entry::SVC_DMA => unsafe_module::ENTRY_DMA,
             entry::SVC_SEND => unsafe_module::ENTRY_SEND,
             entry::SVC_RECV => unsafe_module::ENTRY_RECV,
+            // A violation report is a signal to the Health_Monitor, like a raise.
+            entry::SVC_VIOLATION => unsafe_module::ENTRY_RAISE,
             _ => unsafe_module::ENTRY_PANIC,
         };
         entry_record(k, kind, start, seq_before);

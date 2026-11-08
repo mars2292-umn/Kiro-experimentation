@@ -22,4 +22,20 @@ rsk::app! {
         task gamma (sporadic, signal = tick, mit = 5.ms(), mit_policy = defer, deadline = 5.ms(),
                     budget = 1.ms(), priority = 3);
     }
+
+    // Task 21.3 (R38.4): a Protocol-governed Endpoint whose role APIs the
+    // `protocol_*` members misuse.
+    protocol Ping {
+        rec L {
+            choice at a {
+                Req(u32): a -> b;
+                Rep(u32): b -> a;
+                continue L;
+            } or {
+                Stop(): a -> b;
+                end;
+            }
+        }
+    }
+    endpoint ping: protocol Ping { a => part0.alpha, b => part0.beta } capacity = 1, payload = 8;
 }

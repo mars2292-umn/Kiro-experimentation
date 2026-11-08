@@ -110,6 +110,9 @@ rsk::app! {
         state control.blocked: u32 = 0;
         // Task 21.2: sends the `telemetry` Endpoint refused as full (R40.5).
         state control.telemetry_full: u32 = 0;
+        // Task 21.3: replies received over `pingpong`, and the last one.
+        state control.pingpong_reps: u32 = 0;
+        state control.pingpong_last: u32 = 0;
         state echo.count: u32 = 0;
         state sensor.count: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 1.ms(),
@@ -129,6 +132,8 @@ rsk::app! {
         // Task 21.2: messages received over `telemetry` and the last one.
         state log.telemetry_rx: u32 = 0;
         state log.telemetry_last: u32 = 0;
+        // Task 21.3: requests answered over `pingpong`.
+        state log.pingpong_reqs: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = CMSDK_DUALTIMER, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
                     budget = 500.us(), priority = 4);
@@ -161,8 +166,9 @@ rsk::app! {
     // Task 21.1 (R38.2, R38.3, R41.1): a Protocol-governed Endpoint between
     // the same Tasks, a request-response loop with a stop branch; the
     // Protocol_Checker projects it onto `ctl` and `sink` and bounds every
-    // channel at one message, which the capacity of 1 meets. The typestate
-    // API over it is task 21.3; the Tasks do not use it yet.
+    // channel at one message, which the capacity of 1 meets; the payload of
+    // 8 bytes is the label word and a `u32`. The typestate API over it is
+    // task 21.3: `control` plays `ctl` and `log` plays `sink`.
     protocol PingPong {
         rec Loop {
             choice at ctl {
@@ -175,5 +181,5 @@ rsk::app! {
             }
         }
     }
-    endpoint pingpong: protocol PingPong { ctl => part0.control, sink => part1.log } capacity = 1, payload = 4;
+    endpoint pingpong: protocol PingPong { ctl => part0.control, sink => part1.log } capacity = 1, payload = 8;
 }

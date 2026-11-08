@@ -187,6 +187,32 @@ pub fn log(mut cx: rsk_ctx::Log) {
             }
         }
     }
+    // Task 21.3: the `sink` role of `PingPong` on `pingpong`: a request
+    // received is answered with its value in the same Job.
+    #[cfg(all(feature = "telemetry", not(creusot)))]
+    {
+        use rsk_roles::pingpong_sink::{RecvS0, State};
+        let state = cx.pingpong.take(State::Empty);
+        let next = match state {
+            State::S0(s) => match s.try_recv() {
+                Ok(RecvS0::Req(v, s1)) => match s1.send_rep(v) {
+                    Ok(s0) => {
+                        cx.pingpong_reqs.with(|n| *n = n.saturating_add(1));
+                        State::S0(s0)
+                    }
+                    Err((s1, _)) => State::S1(s1),
+                },
+                Ok(RecvS0::Stop(e)) => e.finish(),
+                Err(s0) => State::S0(s0),
+            },
+            State::S1(s) => match s.send_rep(0) {
+                Ok(s0) => State::S0(s0),
+                Err((s1, _)) => State::S1(s1),
+            },
+            other => other,
+        };
+        cx.pingpong.store(next);
+    }
     // The isolation suite (task 7.4): one access attempt per Job, after
     // the source is started (the first Job's attempt would otherwise end
     // the Job before it).

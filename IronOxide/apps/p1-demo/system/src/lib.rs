@@ -115,7 +115,7 @@ fn print_kv(key: &[u8], v: u32) {
 }
 
 /// The system safe state of the demo (R14.4, R9.9): report and exit.
-#[rsk::bounds('events = NE, 'part0 = NE)]
+#[rsk::bounds('events = NE, 'part0 = NE, 'violations = NE)]
 pub fn report_and_exit() -> ! {
     let k = Sys::kernel().get();
     // The per-Task state cells the Generator emits (PR-25), read at the
@@ -161,6 +161,22 @@ pub fn report_and_exit() -> ! {
         print_kv(b"telemetry_rx", p1_demo_part1::rsk_state::LOG_TELEMETRY_RX.peek());
         print_kv(b"telemetry_last", p1_demo_part1::rsk_state::LOG_TELEMETRY_LAST.peek());
         print_kv(b"telemetry_full", p1_demo_part0::rsk_state::CONTROL_TELEMETRY_FULL.peek());
+        // Task 21.3: the `PingPong` rounds, and the Protocol violations the
+        // Health_Monitor recorded (two from the injected drop of a role state
+        // in `control`'s last Job, R41.2).
+        print_kv(b"pingpong_reps", p1_demo_part0::rsk_state::CONTROL_PINGPONG_REPS.peek());
+        print_kv(b"pingpong_last", p1_demo_part0::rsk_state::CONTROL_PINGPONG_LAST.peek());
+        print_kv(b"pingpong_reqs", p1_demo_part1::rsk_state::LOG_PINGPONG_REQS.peek());
+        let len = k.log_len();
+        let mut violations = 0u32;
+        let mut i = 0;
+        'violations: while i < len {
+            if k.log_kind(i) == rsk_kernel::logic::log::EV_PROTOCOL_VIOLATION {
+                violations += 1;
+            }
+            i += 1;
+        }
+        print_kv(b"protocol_violations", violations);
     }
     // The isolation suite (task 7.4) and the differential tests (task
     // 3.3): what the probes saw, judged by the rig (Verification_Plan 11.7).
@@ -237,6 +253,12 @@ pub fn report_and_exit() -> ! {
     // and counted apart, anything else is a fault.
     #[cfg(any(feature = "timing", feature = "timing-short"))]
     let mut expected_late = 0u32;
+    // Task 21.3 (R41.2): the QEMU configuration's `control` drops its
+    // PingPong state in its last Job on purpose: the dropped value and the
+    // empty slot are two expected Protocol violations of Task 0; any other
+    // is a fault.
+    #[cfg(feature = "qemu-mps2")]
+    let mut expected_violations = 0u32;
     let mut i = 0;
     'events: while i < len {
         let kind = k.log_kind(i);
@@ -244,6 +266,12 @@ pub fn report_and_exit() -> ! {
         #[cfg(any(feature = "timing", feature = "timing-short"))]
         if task == 2 && (kind == EV_OVERRUN || kind == EV_DEADLINE_MISS || kind == EV_MIT_VIOLATION || kind == EV_RELEASE_OVERLAP) {
             expected_late += 1;
+            i += 1;
+            continue;
+        }
+        #[cfg(feature = "qemu-mps2")]
+        if task == 0 && kind == rsk_kernel::logic::log::EV_PROTOCOL_VIOLATION && expected_violations < 2 {
+            expected_violations += 1;
             i += 1;
             continue;
         }
@@ -287,9 +315,17 @@ pub fn report_and_exit() -> ! {
         let _ = (filter_ok, a, b, c, d, e, f, g, dma_ok, blocked);
         ended && faults == 0 && misses == 0
     };
+    // Task 21.3: the QEMU demo's two injected Protocol violations, and its
+    // PingPong rounds (at least four in 200 ms: one round per `log` Job).
+    #[cfg(feature = "qemu-mps2")]
+    let protocol_ok = expected_violations == 2 && p1_demo_part0::rsk_state::CONTROL_PINGPONG_REPS.peek() >= 4 && p1_demo_part1::rsk_state::LOG_PINGPONG_REQS.peek() >= 4;
+    #[cfg(not(feature = "qemu-mps2"))]
+    let protocol_ok = true;
     #[cfg(not(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu")))]
     let ok = ended && faults == 0 && misses == 0 && a >= 19 && b >= 9 && c >= 4 && blocked >= 1 && d >= 9 && e >= 5
-        && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2;
+        && f >= 7 && filter_ok && g >= 2 && dma_ok >= 2 && protocol_ok;
+    #[cfg(any(feature = "timing", feature = "timing-short", feature = "response", feature = "stress", feature = "stress-short", feature = "isolation", feature = "cycles", feature = "cycles-fpu"))]
+    let _ = protocol_ok;
     // The release-timing configuration: every count within two Jobs of
     // the operating duration over the period (the last Jobs end with the
     // duration), `sensor` short by the Releases its late Jobs discarded

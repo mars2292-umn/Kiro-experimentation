@@ -226,7 +226,7 @@ impl<T: Plain, const W: usize> Endpoint<T, W> {
     /// Constructed by generated code only (PR-06): the Endpoint index of
     /// Generated_Config and the Task's role (0 or 1).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
-    pub fn new(id: u8, role: u8) -> Endpoint<T, W> {
+    pub const fn new(id: u8, role: u8) -> Endpoint<T, W> {
         Endpoint { id, role, _payload: core::marker::PhantomData }
     }
 
@@ -260,6 +260,59 @@ impl<T: Plain, const W: usize> Endpoint<T, W> {
             0 => Some(message_from_words::<T, W>(&words)),
             _ => None,
         }
+    }
+}
+
+/// The word encoding of Protocol messages (task 21.3): the generated role
+/// APIs put the label in the first word and the payload's words after it.
+pub mod words {
+    pub use rsk_kernel::arch::cm4::unsafe_module::hw::{message_from_words, message_to_words, Words};
+}
+
+/// Reports a Protocol violation to the Health_Monitor (task 21.3; R41.2):
+/// called by the generated role APIs when a role state is dropped outside
+/// an end or recursion state or a message carries a label the state does
+/// not expect, and by the Job wrapper when a Job returns with its RoleSlot
+/// empty. The Kernel records the event against this Task; the Job goes on.
+#[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+pub fn report_protocol_violation() {
+    stubs::svc_violation()
+}
+
+/// A Task's slot for the state of one Protocol role (task 21.3; R38.7,
+/// PR-25): per-Task state the Generator emits, holding the role's typestate
+/// between Jobs. A Job takes the state out, advances it through the typed
+/// operations, and stores the result before returning; the generated Job
+/// wrapper reports a Protocol violation when the slot is left empty
+/// (R41.2). `S` is the generated `State` enum of the role, whose `Empty`
+/// variant marks a taken slot.
+pub struct RoleSlot<'a, S: 'static> {
+    cell: &'a ResourceCell<S>,
+}
+
+impl<'a, S: 'static> RoleSlot<'a, S> {
+    /// Constructed by generated code only.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn new(cell: &'a ResourceCell<S>) -> RoleSlot<'a, S> {
+        RoleSlot { cell }
+    }
+
+    /// Takes the state out, leaving `empty` in the slot.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn take(&self, empty: S) -> S {
+        self.cell.with_unprivileged(|s| core::mem::replace(s, empty))
+    }
+
+    /// Stores the state for the Task's next Job.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn store(&self, state: S) {
+        self.cell.with_unprivileged(|s| *s = state)
+    }
+
+    /// Whether the slot holds a state (`f` reads it).
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn check(&self, f: impl FnOnce(&S) -> bool) -> bool {
+        self.cell.with_unprivileged(|s| f(s))
     }
 }
 

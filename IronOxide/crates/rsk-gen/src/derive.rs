@@ -62,6 +62,10 @@ pub struct GenEndpoint {
     pub channels: Vec<(String, String, u32)>,
     /// (role, its local type rendered), Protocol form only (R38.3).
     pub projections: Vec<(String, String)>,
+    /// (role, its local type), for the role APIs of task 21.3.
+    pub locals: Vec<(String, rsk_protocol::Local)>,
+    /// The Protocol's labels in order of appearance: the label word of a message.
+    pub labels: Vec<String>,
     pub capacity: u32,
     pub payload: u32,
     /// (role name, global Task index), in declaration order.
@@ -170,6 +174,31 @@ pub struct Generated {
     pub changes: Vec<Change>,
     /// CRC-32 over the Generated_Config tables (R24.1, R12.3).
     pub checksum: u32,
+}
+
+/// The labels of a global Protocol in order of first appearance (the label
+/// word of a message, task 21.3).
+fn global_labels(g: &rsk_protocol::Global) -> Vec<String> {
+    fn walk(g: &rsk_protocol::Global, out: &mut Vec<String>) {
+        match g {
+            rsk_protocol::Global::End | rsk_protocol::Global::Continue(_) => {}
+            rsk_protocol::Global::Msg(m, rest) => {
+                if !out.contains(&m.label) {
+                    out.push(m.label.clone());
+                }
+                walk(rest, out);
+            }
+            rsk_protocol::Global::Choice { branches, .. } => {
+                for b in branches {
+                    walk(b, out);
+                }
+            }
+            rsk_protocol::Global::Rec { body, .. } => walk(body, out),
+        }
+    }
+    let mut out = Vec::new();
+    walk(g, &mut out);
+    out
 }
 
 /// NVIC priority byte of a Task level (DD-02, `arch::cm4::encode_level`).
@@ -330,8 +359,8 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         }
         // Task 21.1: the Protocol's bound and projections (validated: the
         // checker accepted it).
-        let (k, channels, projections) = match &e.protocol {
-            None => (e.capacity, Vec::new(), Vec::new()),
+        let (k, channels, projections, locals, labels) = match &e.protocol {
+            None => (e.capacity, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
             Some(pname) => {
                 let p = decl.protocols.iter().find(|p| &p.name == pname).expect("validated");
                 let role_names: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
@@ -340,10 +369,12 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                     checked.k,
                     checked.channels.iter().map(|c| (c.from.clone(), c.to.clone(), c.k)).collect(),
                     checked.locals.iter().map(|(r, l)| (r.clone(), l.render())).collect(),
+                    checked.locals.clone(),
+                    global_labels(&checked.global),
                 )
             }
         };
-        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, projections, capacity: e.capacity, payload: e.payload, roles, release, storage });
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, projections, locals, labels, capacity: e.capacity, payload: e.payload, roles, release, storage });
         storage += 2 * e.capacity * e.payload;
     }
     let endpoint_storage_bytes = storage;

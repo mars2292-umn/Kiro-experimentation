@@ -119,6 +119,35 @@ pub fn control(mut cx: rsk_ctx::Control) {
             cx.telemetry_full.with(|f| *f = f.saturating_add(1));
         }
     }
+    // Task 21.3 (R38.4, R38.7, R41.2): the `ctl` role of `PingPong` on
+    // `pingpong`, one step per Job: in S0 send a request, in S1 take the
+    // reply when it has arrived; the state goes back to the slot. The
+    // Job of count 19 (the run's last) drops its state in S1 instead of
+    // storing it: the dropped value and the empty slot are each reported
+    // to the Health_Monitor, which the safe state counts.
+    #[cfg(all(feature = "telemetry", not(creusot)))]
+    {
+        use rsk_roles::pingpong_ctl::{RecvS1, State};
+        let state = cx.pingpong.take(State::Empty);
+        let next = match state {
+            State::S0(c) => match c.send_req(cx.count.get()) {
+                Ok(c1) => State::S1(c1),
+                Err((c0, _)) => State::S0(c0),
+            },
+            State::S1(c) => match c.try_recv() {
+                Ok(RecvS1::Rep(v, c0)) => {
+                    cx.pingpong_reps.with(|n| *n = n.saturating_add(1));
+                    cx.pingpong_last.set(v);
+                    State::S0(c0)
+                }
+                Err(c1) => State::S1(c1),
+            },
+            other => other,
+        };
+        if cx.count.get() != 19 || matches!(next, State::S0(_)) {
+            cx.pingpong.store(next);
+        }
+    }
     #[cfg(feature = "cycles")]
     {
         rsk::spin::<CYCLES_SPIN>();

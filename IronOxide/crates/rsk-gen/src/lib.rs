@@ -18,6 +18,7 @@ pub mod emit;
 pub mod json;
 pub mod layout;
 pub mod model;
+pub mod roles;
 pub mod profile_version;
 #[cfg(feature = "syntax")]
 pub mod syntax;

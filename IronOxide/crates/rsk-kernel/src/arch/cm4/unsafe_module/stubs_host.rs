@@ -49,4 +49,8 @@ pub fn svc_recv(arg: u32, _ptr: u32, _len: u32) -> u32 {
     1
 }
 
+pub fn svc_violation() {
+    sim::write(0xFFFF_FFF0, 10);
+}
+
 pub fn svc_panic() {}

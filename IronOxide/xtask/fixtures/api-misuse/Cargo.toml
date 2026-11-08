@@ -5,7 +5,7 @@
 # `cargo check` on each member).
 [workspace]
 resolver = "2"
-members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody", "bounds"]
+members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody", "bounds", "protocol_state", "protocol_reuse"]
 
 [workspace.package]
 version = "0.1.0"

@@ -423,6 +423,15 @@ pub fn svc_recv(arg: u32, ptr: u32, len: u32) -> u32 {
     out
 }
 
+/// The Protocol-violation report SVC (task 21.3; R41.2): recorded against
+/// the executing Task, no response.
+#[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn svc_violation() {
+    // SAFETY (UJ-038a): as UJ-038; no argument, no result read.
+    unsafe { core::arch::asm!("svc #10", out("r0") _, options(nostack)) };
+}
+
 /// The panic SVC of unprivileged Jobs (PR-19).
 #[inline(always)]
 #[cfg_attr(feature = "coverage", coverage(off))]

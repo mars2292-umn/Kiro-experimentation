@@ -29,6 +29,9 @@ pub mod rsk_state {
     /// Per-Task state `part2.sampler.dma_after_stop` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_DMA_AFTER_STOP: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
 }
+#[cfg(not(creusot))]
+pub mod rsk_roles {
+}
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {
     pub const TICK_HZ: u64 = 16000000;

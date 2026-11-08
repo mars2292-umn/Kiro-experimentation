@@ -59,7 +59,7 @@ pub mod check;
 pub mod explore;
 pub mod parse;
 
-pub use ast::{Global, Local, Message};
+pub use ast::{Branch, Global, Local, Message};
 pub use check::{project, well_formed};
 pub use explore::{explore, Channel, Exploration};
 

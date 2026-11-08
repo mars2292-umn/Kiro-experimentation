@@ -14,10 +14,115 @@ pub mod rsk_state {
     pub static CONTROL_BLOCKED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part0.control.telemetry_full` (PR-25): touched by `control`'s Jobs only.
     pub static CONTROL_TELEMETRY_FULL: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part0.control.pingpong_reps` (PR-25): touched by `control`'s Jobs only.
+    pub static CONTROL_PINGPONG_REPS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// Per-Task state `part0.control.pingpong_last` (PR-25): touched by `control`'s Jobs only.
+    pub static CONTROL_PINGPONG_LAST: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    /// The RoleSlot of role `ctl` of Endpoint `pingpong` (task 21.3, R38.7): `control`'s state between its Jobs.
+    pub static CONTROL_PINGPONG: ::rsk::ResourceCell<super::rsk_roles::pingpong_ctl::State> = ::rsk::ResourceCell::new(super::rsk_roles::pingpong_ctl::State::INITIAL);
     /// Per-Task state `part0.echo.count` (PR-25): touched by `echo`'s Jobs only.
     pub static ECHO_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
     /// Per-Task state `part0.sensor.count` (PR-25): touched by `sensor`'s Jobs only.
     pub static SENSOR_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+}
+#[cfg(not(creusot))]
+pub mod rsk_roles {
+    /// Role `ctl` of Endpoint `pingpong` under Protocol `PingPong` (task 21.3): the projection `rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}`, states S0 to S2, the initial state S0.
+    #[allow(non_camel_case_types, clippy::large_enum_variant)]
+    pub mod pingpong_ctl {
+        use ::core::marker::PhantomData;
+        const ID: u8 = 1;
+        const ROLE: u8 = 0;
+        /// Words per message (the declared payload / 4): the label, then the payload.
+        pub const W: usize = 2;
+        pub const PW: usize = 1;
+        type Raw = ::rsk::Endpoint<[u32; W], W>;
+        const RAW: Raw = ::rsk::Endpoint::new(ID, ROLE);
+        pub const LABEL_REQ: u32 = 0;
+        pub const LABEL_REP: u32 = 1;
+        pub const LABEL_STOP: u32 = 2;
+        const _: () = assert!(::core::mem::size_of::<u32>() <= 4 * PW, "the payload of `Req` exceeds Endpoint `pingpong`'s declared payload less its label word (R38.1)");
+        const _: () = assert!(::core::mem::size_of::<u32>() <= 4 * PW, "the payload of `Rep` exceeds Endpoint `pingpong`'s declared payload less its label word (R38.1)");
+        /// A state marker: whether dropping a role value in the state is a Protocol violation (R41.2: not at an end or a recursion state).
+        pub trait Tag { const REPORT_ON_DROP: bool; }
+        pub struct S0;
+        impl Tag for S0 { const REPORT_ON_DROP: bool = false; }
+        pub struct S1;
+        impl Tag for S1 { const REPORT_ON_DROP: bool = true; }
+        pub struct S2;
+        impl Tag for S2 { const REPORT_ON_DROP: bool = false; }
+        /// The role in state `S`: its only operations are those the projection permits there (R38.4).
+        #[repr(C)]
+        pub struct Ctl<S: Tag> { consumed: bool, _s: PhantomData<S> }
+        impl<S: Tag> Drop for Ctl<S> {
+            fn drop(&mut self) {
+                if S::REPORT_ON_DROP && !self.consumed {
+                    ::rsk::report_protocol_violation();
+                }
+            }
+        }
+        impl<S: Tag> Ctl<S> {
+            const fn fresh() -> Ctl<S> { Ctl { consumed: false, _s: PhantomData } }
+            fn advance<T: Tag>(mut self) -> Ctl<T> { self.consumed = true; Ctl::<T>::fresh() }
+        }
+        impl Ctl<S0> {
+            /// Sends `Req(u32)` to `sink` and moves to S1; `Err` gives the state back with the reason (a full channel is a reported violation of the bound, R40.5). Never waits (R40.4).
+            pub fn send_req(self, m: u32) -> Result<Ctl<S1>, (Ctl<S0>, ::rsk::SendError)> {
+                let mut w = [0u32; W];
+                w[0] = LABEL_REQ;
+                let p = ::rsk::words::message_to_words::<u32, PW>(&m);
+                let mut i = 0;
+                while i < PW { w[i + 1] = p.0[i]; i += 1; }
+                match RAW.send(&w) { Ok(()) => Ok(self.advance()), Err(e) => Err((self, e)) }
+            }
+            /// Sends `Stop()` to `sink` and moves to S2; `Err` gives the state back with the reason. Never waits (R40.4).
+            pub fn send_stop(self) -> Result<Ctl<S2>, (Ctl<S0>, ::rsk::SendError)> {
+                let mut w = [0u32; W];
+                w[0] = LABEL_STOP;
+                match RAW.send(&w) { Ok(()) => Ok(self.advance()), Err(e) => Err((self, e)) }
+            }
+        }
+        /// What S1 may receive from `sink`, each with the state after it.
+        pub enum RecvS1 {
+            Rep(u32, Ctl<S0>),
+        }
+        impl Ctl<S1> {
+            /// Receives the next message from `sink`, or `Err(self)` when none has arrived (R40.4). A label the state does not expect is a reported Protocol violation and leaves the state as it is (R41.2).
+            pub fn try_recv(self) -> Result<RecvS1, Ctl<S1>> {
+                match RAW.recv() {
+                    None => Err(self),
+                    Some(w) => {
+                        let mut p = ::rsk::words::Words::<PW>::zero();
+                        let mut i = 0;
+                        while i < PW { p.0[i] = w[i + 1]; i += 1; }
+                        match w[0] {
+                            LABEL_REP => Ok(RecvS1::Rep(::rsk::words::message_from_words::<u32, PW>(&p), self.advance::<S0>())),
+                            _ => { ::rsk::report_protocol_violation(); Err(self) }
+                        }
+                    }
+                }
+            }
+        }
+        impl Ctl<S2> {
+            /// The Protocol has ended for this role: the state goes back to the slot as `State::S2`.
+            pub fn finish(self) -> State { State::S2(self) }
+        }
+        /// The role's state between Jobs (R38.7), held in the Task's `RoleSlot`: `Empty` while a Job holds it. `#[repr(u8)]` with S0 as 0, so a Partition restart's zeroed image is the initial state.
+        #[repr(u8)]
+        pub enum State {
+            S0(Ctl<S0>) = 0,
+            S1(Ctl<S1>) = 1,
+            S2(Ctl<S2>) = 2,
+            Empty = 3,
+        }
+        impl State {
+            pub const INITIAL: State = State::S0(Ctl::<S0>::fresh());
+            pub fn is_empty(&self) -> bool { matches!(self, State::Empty) }
+        }
+        impl From<Ctl<S0>> for State { fn from(v: Ctl<S0>) -> State { State::S0(v) } }
+        impl From<Ctl<S1>> for State { fn from(v: Ctl<S1>) -> State { State::S1(v) } }
+        impl From<Ctl<S2>> for State { fn from(v: Ctl<S2>) -> State { State::S2(v) } }
+    }
 }
 /// The Target's clocks (R21.1): the time base `rsk::now()` counts, and the CPU.
 pub mod rsk_target {
@@ -60,14 +165,21 @@ pub mod rsk_ctx {
         pub tick: ::rsk::Signal,
         /// Role `ctl` of Endpoint `telemetry` (task 21.2; R38.1, R40.1): 4 messages of `u32` each way.
         pub telemetry: ::rsk::Endpoint<u32, 1>,
-        /// Role `ctl` of Endpoint `pingpong` under Protocol `PingPong` (task 21.1; R38.3): `rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}`; bound k = 1 (R41.1), capacity 1. The typestate API is task 21.3.
-        pub pingpong: ::rsk::Endpoint<[u32; 1], 1>,
+        /// Role `ctl` of Endpoint `pingpong` under Protocol `PingPong` (tasks 21.1, 21.3; R38.3, R38.7): the slot of its state between Jobs, `rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}`; bound k = 1 (R41.1), capacity 1.
+        #[cfg(not(creusot))]
+        pub pingpong: ::rsk::RoleSlot<'static, super::rsk_roles::pingpong_ctl::State>,
+        #[cfg(creusot)]
+        pub pingpong: ::rsk::RoleSlot<'static, ()>,
         /// Per-Task state `count` (PR-25).
         pub count: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `blocked` (PR-25).
         pub blocked: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `telemetry_full` (PR-25).
         pub telemetry_full: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `pingpong_reps` (PR-25).
+        pub pingpong_reps: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `pingpong_last` (PR-25).
+        pub pingpong_last: ::rsk::PerTask<'static, u32>,
     }
     /// The Context of Task `part0.echo` (Priority 6).
     pub struct Echo {
@@ -128,11 +240,17 @@ pub mod rsk_jobs {
             in_cs: ::rsk::Shared::new(&super::rsk_resources::IN_CS, 1),
             tick: ::rsk::Signal::new(0),
             telemetry: ::rsk::Endpoint::new(0, 0),
-            pingpong: ::rsk::Endpoint::new(1, 0),
+            pingpong: ::rsk::RoleSlot::new(&super::rsk_state::CONTROL_PINGPONG),
             count: ::rsk::PerTask::new(&super::rsk_state::CONTROL_COUNT),
             blocked: ::rsk::PerTask::new(&super::rsk_state::CONTROL_BLOCKED),
             telemetry_full: ::rsk::PerTask::new(&super::rsk_state::CONTROL_TELEMETRY_FULL),
+            pingpong_reps: ::rsk::PerTask::new(&super::rsk_state::CONTROL_PINGPONG_REPS),
+            pingpong_last: ::rsk::PerTask::new(&super::rsk_state::CONTROL_PINGPONG_LAST),
         });
+        if super::rsk_state::CONTROL_PINGPONG.with_unprivileged(|st| st.is_empty()) {
+            // Role `ctl` of `pingpong`: the Job returned without storing its state (R41.2).
+            ::rsk::report_protocol_violation();
+        }
     }
     /// Job wrapper of `part0.echo` (vector 37; Critical_Section sites: none).
     #[inline(never)]

@@ -337,6 +337,21 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
             let _ = writeln!(s, "    /// Per-Task state `{}.{}` (PR-25): touched by `{}`'s Jobs only.", task.id, st.name, task.name);
             let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<{}> = ::rsk::ResourceCell::new({});", task.name.to_uppercase(), st.name.to_uppercase(), st.ty, st.init);
         }
+        // Task 21.3 (R38.7): the RoleSlot of every Protocol role the Task is bound to.
+        for (e, role) in protocol_roles(g, t) {
+            let _ = writeln!(s, "    /// The RoleSlot of role `{role}` of Endpoint `{}` (task 21.3, R38.7): `{}`'s state between its Jobs.", e.name, task.name);
+            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<super::rsk_roles::{}_{role}::State> = ::rsk::ResourceCell::new(super::rsk_roles::{}_{role}::State::INITIAL);", task.name.to_uppercase(), e.name.to_uppercase(), e.name, e.name);
+        }
+    }
+    let _ = writeln!(s, "}}");
+    // Task 21.3: the typestate role APIs of this Partition's Tasks (outside
+    // the App_Prover's translation at this revision, like the cells).
+    let _ = writeln!(s, "#[cfg(not(creusot))]");
+    let _ = writeln!(s, "pub mod rsk_roles {{");
+    for &t in &part.tasks {
+        for (e, role) in protocol_roles(g, t) {
+            s.push_str(&crate::roles::module(g, e, &role));
+        }
     }
     let _ = writeln!(s, "}}");
     // The Target's clocks, so that a Task body states durations in time, not
@@ -416,12 +431,16 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
                     let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<{}, {}>,", e.name, e.ty, e.payload / 4);
                 }
                 Some(pname) => {
-                    // Task 21.1: the Protocol's projection onto the role; the
-                    // typestate API over it is task 21.3, the raw word channel
-                    // stands in for it.
+                    // Task 21.3: the RoleSlot of the Protocol's projection onto
+                    // the role (the API is `rsk_roles::<endpoint>_<role>`).
                     let proj = e.projections.iter().find(|(r, _)| r == role).map(|(_, l)| l.as_str()).unwrap_or("");
-                    let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` under Protocol `{pname}` (task 21.1; R38.3): `{proj}`; bound k = {} (R41.1), capacity {}. The typestate API is task 21.3.", e.name, e.k, e.capacity);
-                    let _ = writeln!(s, "        pub {}: ::rsk::Endpoint<[u32; {}], {}>,", e.name, e.payload / 4, e.payload / 4);
+                    let _ = writeln!(s, "        /// Role `{role}` of Endpoint `{}` under Protocol `{pname}` (tasks 21.1, 21.3; R38.3, R38.7): the slot of its state between Jobs, `{proj}`; bound k = {} (R41.1), capacity {}.", e.name, e.k, e.capacity);
+                    let _ = writeln!(s, "        #[cfg(not(creusot))]");
+                    let _ = writeln!(s, "        pub {}: ::rsk::RoleSlot<'static, super::rsk_roles::{}_{role}::State>,", e.name, e.name);
+                    // The role API is outside the App_Prover's translation at this
+                    // revision; the field keeps the Context's shape there.
+                    let _ = writeln!(s, "        #[cfg(creusot)]");
+                    let _ = writeln!(s, "        pub {}: ::rsk::RoleSlot<'static, ()>,", e.name);
                 }
             }
         }
@@ -501,16 +520,37 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         }
         for e in g.endpoints.iter().filter(|e| e.roles.iter().any(|(_, ti)| *ti == t)) {
             let role = e.roles.iter().position(|(_, ti)| *ti == t).unwrap_or(0);
-            let _ = writeln!(s, "            {}: ::rsk::Endpoint::new({}, {}),", e.name, e.index, role);
+            if e.protocol.is_some() {
+                let _ = writeln!(s, "            {}: ::rsk::RoleSlot::new(&super::rsk_state::{}_{}),", e.name, task.name.to_uppercase(), e.name.to_uppercase());
+            } else {
+                let _ = writeln!(s, "            {}: ::rsk::Endpoint::new({}, {}),", e.name, e.index, role);
+            }
         }
         for st in &task.state {
             let _ = writeln!(s, "            {}: ::rsk::PerTask::new(&super::rsk_state::{}_{}),", st.name, task.name.to_uppercase(), st.name.to_uppercase());
         }
         let _ = writeln!(s, "        }});");
+        // Task 21.3 (R41.2): a Job that returns with a RoleSlot empty failed to
+        // store its role state: reported to the Health_Monitor.
+        for (e, role) in protocol_roles(g, t) {
+            let _ = writeln!(s, "        if super::rsk_state::{}_{}.with_unprivileged(|st| st.is_empty()) {{", task.name.to_uppercase(), e.name.to_uppercase());
+            let _ = writeln!(s, "            // Role `{role}` of `{}`: the Job returned without storing its state (R41.2).", e.name);
+            let _ = writeln!(s, "            ::rsk::report_protocol_violation();");
+            let _ = writeln!(s, "        }}");
+        }
         let _ = writeln!(s, "    }}");
     }
     let _ = writeln!(s, "}}");
     s
+}
+
+/// The (Endpoint, role) pairs of Task `t` under a Protocol (task 21.3).
+fn protocol_roles(g: &Generated, t: usize) -> Vec<(&crate::derive::GenEndpoint, String)> {
+    g.endpoints
+        .iter()
+        .filter(|e| e.protocol.is_some())
+        .filter_map(|e| e.roles.iter().find(|(_, ti)| *ti == t).map(|(r, _)| (e, r.clone())))
+        .collect()
 }
 
 /// `|v: u32| v <= 1` -> ("v: u32", "v <= 1").

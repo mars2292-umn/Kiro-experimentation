@@ -306,8 +306,10 @@ fn kani_run_with_a_failed_unwinding_assertion_is_rejected() {
 /// its Critical_Section (a lifetime error), an undeclared Resource in a
 /// Task's Context (E0609), an `async` Task body (E0308 at the Job
 /// wrapper's `let () =`), and a `#[rsk::bounds]` annotation with a
-/// non-constant bound or a dangling label (PR-16, task 11.1). Each member is checked with `cargo check` from the
-/// vendored sources.
+/// non-constant bound or a dangling label (PR-16, task 11.1), and, since
+/// task 21.3 (R38.4), a Protocol role operation its state does not permit
+/// (E0599) and a role value used after its operation consumed it (E0382).
+/// Each member is checked with `cargo check` from the vendored sources.
 #[test]
 fn api_misuse_is_rejected_by_the_type_system() {
     let root = fixture_root("api-misuse");
@@ -329,6 +331,9 @@ fn api_misuse_is_rejected_by_the_type_system() {
         ("api_undeclared", &["error[E0609]", "no field `other` on type `Beta`"]),
         ("api_asyncbody", &["error[E0308]", "mismatched types"]),
         ("api_bounds", &["PR-16 (R35.5): the bound of `'scan` must be an integer constant", "PR-16: `'retry` names no labelled loop of `beta`"]),
+        // Task 21.3 (R38.4): the typestate role APIs.
+        ("api_protocol_state", &["error[E0599]", "no method named `try_recv` found"]),
+        ("api_protocol_reuse", &["error[E0382]", "use of moved value: `a`"]),
     ];
     for (member, expected) in cases {
         let (ok, text) = check(member);

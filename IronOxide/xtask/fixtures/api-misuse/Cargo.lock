@@ -42,6 +42,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_protocol_reuse"
+version = "0.1.0"
+dependencies = [
+ "api_decl",
+ "rsk",
+]
+
+[[package]]
+name = "api_protocol_state"
+version = "0.1.0"
+dependencies = [
+ "api_decl",
+ "rsk",
+]
+
+[[package]]
 name = "api_reentry"
 version = "0.1.0"
 dependencies = [
