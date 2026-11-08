@@ -555,6 +555,29 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                 if r.ops == 0 || r.ops > 255 {
                     d.push(Diagnostic::new("PR-14", eref(), format!("role `{}` of Endpoint `{}` declares ops = {}; 1 to 255 operations per Job", r.role, e.name, r.ops)));
                 }
+                // Task 21.6, assumption A-P7 of the R41.3 proof (2026-11-08):
+                // a rejected message is consumed without a Protocol step, so
+                // the Partition whose messages a validated role rejects must
+                // have a fault response that re-initializes the Endpoint.
+                if !r.validate.is_empty() {
+                    if let Some(p) = decl.partitions.iter().find(|p| p.name == other.partition) {
+                        if !matches!(p.fault, crate::decl::Response::RestartPartition | crate::decl::Response::StopPartition) {
+                            d.push(Diagnostic::new("R41.3", eref(), format!("role `{}` of Endpoint `{}` validates messages from `{}.{}`, whose Partition `{}` declares `fault = {}`; a rejected message (R42.4) is consumed without a Protocol step, so the deadlock-freedom proof (Verification_Plan 5.15, A-P7) needs `fault = RESTART_PARTITION` or `fault = STOP_PARTITION` for `{}`, which re-initializes the Endpoint", r.role, e.name, other.partition, other.task, p.name, p.fault.name(), p.name)));
+                        }
+                    }
+                }
+            }
+            // Task 21.6, assumption A-P8 of the R41.3 proof (2026-11-08): the
+            // proof is per Protocol; a Task playing roles in two Protocols
+            // could couple them in its bodies into a waiting cycle no single
+            // Protocol describes, so a Task is bound to at most one
+            // Protocol-governed role (plain Endpoints have no Protocol state).
+            if e.protocol.is_some() {
+                for r in &e.roles {
+                    if let Some(prev) = decl.endpoints.iter().take_while(|p| p.name != e.name).find(|p| p.protocol.is_some() && p.roles.iter().any(|q| q.partition == r.partition && q.task == r.task)) {
+                        d.push(Diagnostic::new("R41.3", eref(), format!("`{}.{}` plays role `{}` of Endpoint `{}` (Protocol `{}`) and a role of Endpoint `{}` (Protocol `{}`); the deadlock-freedom proof is per Protocol (Verification_Plan 5.15, A-P8), so a Task is bound to at most one Protocol-governed role", r.partition, r.task, r.role, e.name, e.protocol.as_deref().unwrap_or("?"), prev.name, prev.protocol.as_deref().unwrap_or("?"))));
+                    }
+                }
             }
         }
         storage_bytes += 2 * e.capacity as u64 * e.payload as u64;

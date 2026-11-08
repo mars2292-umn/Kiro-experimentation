@@ -508,7 +508,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R41.1 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ✓21.1 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; +16 | test-workspace-tests |
 | R41.2 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_response/partition_part0.rs; +10 | — |
-| R41.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property allocation (R43) | ✓21.6 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/emit.rs; crates/rsk-protocol/Cargo.toml; +3 | proof-kernel-verus; test-workspace-tests |
+| R41.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property allocation (R43) | ✓21.6 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/emit.rs; crates/rsk-gen/src/lib.rs; +5 | proof-kernel-verus; test-workspace-tests |
 | R41.4 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.5 | apps/p1-demo/decl/src/lib.rs; crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; +11 | test-workspace-tests |
 
 ### Requirement 42: Cross-partition messaging (Phase P4)
