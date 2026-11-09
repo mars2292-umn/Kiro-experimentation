@@ -30,7 +30,7 @@
 
 use std::fmt::Write;
 
-use rsk_protocol::{Branch, Local};
+use rsk_protocol::Local;
 
 use crate::derive::{GenEndpoint, Generated};
 
@@ -49,68 +49,6 @@ pub struct RoleState {
     pub rec_head: bool,
 }
 
-/// Numbers the states of a local type: a `rec` and its body share a state,
-/// `continue` returns to it, every `send`, `receive`, and `end` is a state.
-pub fn states(local: &Local) -> Vec<RoleState> {
-    let mut out: Vec<Option<RoleState>> = Vec::new();
-    let mut env: Vec<(String, usize)> = Vec::new();
-    number(local, &mut env, &mut out, None);
-    out.into_iter().map(|s| s.unwrap_or(RoleState { kind: Kind::End, rec_head: false })).collect()
-}
-
-fn number(l: &Local, env: &mut Vec<(String, usize)>, out: &mut Vec<Option<RoleState>>, slot: Option<usize>) -> usize {
-    let take_slot = |out: &mut Vec<Option<RoleState>>, slot: Option<usize>| -> usize {
-        match slot {
-            Some(i) => i,
-            None => {
-                out.push(None);
-                out.len() - 1
-            }
-        }
-    };
-    match l {
-        Local::Rec { name, body } => {
-            let idx = take_slot(out, slot);
-            env.push((name.clone(), idx));
-            number(body, env, out, Some(idx));
-            env.pop();
-            if let Some(s) = out[idx].as_mut() {
-                s.rec_head = true;
-            }
-            idx
-        }
-        Local::Continue(name) => env.iter().rev().find(|(n, _)| n == name).map(|(_, i)| *i).unwrap_or(0),
-        Local::End => {
-            let idx = take_slot(out, slot);
-            out[idx] = Some(RoleState { kind: Kind::End, rec_head: false });
-            idx
-        }
-        Local::Send { to, branches } => {
-            let idx = take_slot(out, slot);
-            out[idx] = Some(RoleState { kind: Kind::Send { to: to.clone(), branches: Vec::new() }, rec_head: false });
-            let bs = branch_states(branches, env, out);
-            if let Some(RoleState { kind: Kind::Send { branches: b, .. }, .. }) = out[idx].as_mut() {
-                *b = bs;
-            }
-            idx
-        }
-        Local::Recv { from, branches } => {
-            let idx = take_slot(out, slot);
-            out[idx] = Some(RoleState { kind: Kind::Recv { from: from.clone(), branches: Vec::new() }, rec_head: false });
-            let bs = branch_states(branches, env, out);
-            if let Some(RoleState { kind: Kind::Recv { branches: b, .. }, .. }) = out[idx].as_mut() {
-                *b = bs;
-            }
-            idx
-        }
-    }
-}
-
-fn branch_states(branches: &[Branch], env: &mut Vec<(String, usize)>, out: &mut Vec<Option<RoleState>>) -> Vec<(String, Option<String>, usize)> {
-    branches.iter().map(|b| (b.label.clone(), b.payload.clone(), number(&b.cont, env, out, None))).collect()
-}
-
-/// `ctl` -> `Ctl`.
 /// The states of a role from the verified flattening (task 21.7 follow-up,
 /// 2026-11-09; A-P1): `tbl` is the role's state table (`theory::flatten_two`
 /// or `multiparty::flatten_n`, whose entries are head-normal local types,
@@ -178,10 +116,10 @@ pub fn states_for(checked: &rsk_protocol::Checked, role: &str) -> Vec<RoleState>
             let g = &checked.global;
             states_from_tables(&checked.tables[ri], &checked.trans, ri, &role_names, &checked.labels, &|l| payload_of(g, l))
         }
-        _ => {
-            let local = checked.locals.iter().find(|(r, _)| r == role).map(|(_, l)| l.clone()).unwrap_or(Local::End);
-            states(&local)
-        }
+        // A role the checker produced no table for (none since 2026-11-09:
+        // every accepted Protocol has two to four roles and the verified
+        // flattening runs for each): no states, never the plain projection.
+        _ => Vec::new(),
     }
 }
 
@@ -203,7 +141,7 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     // of the projection in the documentation comment.
     let sts = match e.verified_states.iter().find(|(r, _)| r == role) {
         Some((_, sts)) => sts.clone(),
-        None => states(&local),
+        None => Vec::new(),
     };
     let ty = type_name(role);
     let ri = e.roles.iter().position(|(r, _)| r == role).unwrap_or(0);
@@ -212,6 +150,12 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     // that each is open (a receive on that Endpoint completed in this Job).
     let gates: Vec<String> = e.after.get(ri).cloned().unwrap_or_default();
     let gate_params: String = gates.iter().map(|x| format!(", gate_{x}: &::rsk::Gate")).collect();
+    // A-P2 (2026-11-09): an accepted send handed the Kernel the label's
+    // index as the message's first word (`rsk::channel::sent`, established
+    // by `send_words`' contract; proven here because `w[0]` is the label).
+    let sent_ensures = |s: &mut String, to: &str, label: &str| {
+        let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result {{ Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_{}, LABEL_{}), Err(_) => true }}))]", to.to_uppercase(), label.to_uppercase());
+    };
     let gate_requires = |s: &mut String| {
         for x in &gates {
             let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::requires((*gate_{x})@))]");
@@ -230,6 +174,7 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let _ = writeln!(s, "        pub const W: usize = {words};");
     let _ = writeln!(s, "        pub const PW: usize = {payload_words};");
     let _ = writeln!(s, "        type Raw = ::rsk::Endpoint<[u32; W], W>;");
+    let _ = writeln!(s, "        #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(result@ == (ID, ROLE)))]");
     let _ = writeln!(s, "        fn raw() -> Raw {{ ::rsk::Endpoint::new(ID, ROLE) }}");
     // Task 21.7: the index of every role of the Endpoint, the peer of each
     // operation (one channel per ordered pair of roles).
@@ -291,24 +236,27 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                         Some(p) => {
                             let _ = writeln!(s, "            /// Sends `{label}({p})` to `{to}` and moves to S{next}; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).");
                             gate_requires(&mut s);
+                            sent_ensures(&mut s, to, label);
                             let _ = writeln!(s, "            pub fn {fname}(self, m: {p}{gate_params}) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
                             let _ = writeln!(s, "                let mut w = [0u32; W];");
                             let _ = writeln!(s, "                w[0] = LABEL_{};", label.to_uppercase());
                             let _ = writeln!(s, "                let p = ::rsk::words::message_to_words::<{p}, PW>(&m);");
                             let _ = writeln!(s, "                let mut i: usize = 0;");
                             let _ = writeln!(s, "                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]");
+                            let _ = writeln!(s, "                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(w@[0] == LABEL_{}))]", label.to_uppercase());
                             let _ = writeln!(s, "                #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]");
                             let _ = writeln!(s, "                while i < PW {{ w[i + 1] = p.0[i]; i += 1; }}");
                         }
                         None => {
                             let _ = writeln!(s, "            /// Sends `{label}()` to `{to}` and moves to S{next}; `Err` gives the role back with the reason. Never waits (R40.4).");
                             gate_requires(&mut s);
+                            sent_ensures(&mut s, to, label);
                             let _ = writeln!(s, "            pub fn {fname}(self{gate_params}) -> Result<{ty}<S{next}>, NotSent<S{i}>> {{");
                             let _ = writeln!(s, "                let mut w = [0u32; W];");
                             let _ = writeln!(s, "                w[0] = LABEL_{};", label.to_uppercase());
                         }
                     }
-                    let _ = writeln!(s, "                match raw().send_to(PEER_{}, &w) {{", to.to_uppercase());
+                    let _ = writeln!(s, "                match raw().send_words(PEER_{}, &w) {{", to.to_uppercase());
                     let _ = writeln!(s, "                    Ok(()) => Ok(self.advance()),");
                     let _ = writeln!(s, "                    Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),");
                     let _ = writeln!(s, "                    Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),");
@@ -337,8 +285,12 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                 let _ = writeln!(s, "        impl {ty}<S{i}> {{");
                 let _ = writeln!(s, "            /// Receives the next message from `{from}`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).");
                 gate_requires(&mut s);
+                // A-P2 (2026-11-09): the variant returned names the label the
+                // Kernel delivered as the message's first word.
+                let arms: String = branches.iter().map(|(label, _, _)| format!("Ok(RecvS{i}::{label}(..)) => ::rsk::channel::received(ID, PEER_{}, ROLE, LABEL_{}), ", from.to_uppercase(), label.to_uppercase())).collect();
+                let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result {{ {arms}Err(_) => true }}))]");
                 let _ = writeln!(s, "            pub fn try_recv(self{gate_params}) -> Result<RecvS{i}, NotReceived<S{i}>> {{");
-                let _ = writeln!(s, "                match raw().recv_from(PEER_{}) {{", from.to_uppercase());
+                let _ = writeln!(s, "                match raw().recv_words(PEER_{}) {{", from.to_uppercase());
                 let _ = writeln!(s, "                    Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),");
                 let _ = writeln!(s, "                    Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),");
                 let _ = writeln!(s, "                    Ok(Some(w)) => {{");

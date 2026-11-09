@@ -24,9 +24,9 @@ fn tokens(text: &str) -> Result<Vec<Tok>, String> {
         let c = chars[i];
         if c.is_whitespace() {
             i += 1;
-        } else if c.is_alphabetic() || c == '_' {
+        } else if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
-            while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
                 i += 1;
             }
             out.push(Tok::Ident(chars[start..i].iter().collect()));
@@ -185,43 +185,19 @@ impl Parser {
     }
 }
 
-/// The tokens as the verified parser takes them (`parse_v::TokE`): the
-/// keywords classified, a payload `None` when the parentheses are empty.
-fn classify(toks: &[Tok]) -> Vec<crate::parse_v::TokE> {
-    use crate::parse_v::TokE;
-    toks.iter()
-        .map(|t| match t {
-            Tok::Ident(s) => match s.as_str() {
-                "end" => TokE::KwEnd,
-                "continue" => TokE::KwContinue,
-                "rec" => TokE::KwRec,
-                "choice" => TokE::KwChoice,
-                "at" => TokE::KwAt,
-                "or" => TokE::KwOr,
-                _ => TokE::Ident(s.clone()),
-            },
-            Tok::Paren(p) => TokE::Paren(if p.is_empty() { None } else { Some(p.clone()) }),
-            Tok::Colon => TokE::Colon,
-            Tok::Arrow => TokE::Arrow,
-            Tok::Semi => TokE::Semi,
-            Tok::LBrace => TokE::LBrace,
-            Tok::RBrace => TokE::RBrace,
-        })
-        .collect()
-}
-
-/// Parses a Protocol body. The AST is the verified parser's
-/// (`parse_v::parse_toks`, 2026-11-09: the grammar as a specification,
-/// the parse refining it, printing then parsing the identity); this
-/// module's own parser is run for the diagnosis when the verified one
-/// refuses, and a disagreement between the two is reported as such. The
-/// lexer (`tokens`, `classify`) is the plain-Rust step before the grammar.
+/// Parses a Protocol body. The AST is the verified lexer and parser's
+/// (`lex_v::parse_text`, 2026-11-09: the tokens a text denotes and the
+/// grammar as specifications, the lexer and the parser refining them,
+/// printing then parsing the identity); this module's own lexer and parser
+/// are run for the diagnosis when the verified ones refuse, and a
+/// disagreement between the two is reported as such. The one step outside
+/// the proof is the standard library's decoding of the `str` into its
+/// characters (`lex_v::chars_of`).
 pub fn parse(text: &str) -> Result<Global, String> {
-    let toks = tokens(text)?;
-    let classified = classify(&toks);
-    match crate::parse_v::parse_toks(&classified) {
+    match crate::lex_v::parse_text(text) {
         Some(g) => Ok(g),
         None => {
+            let toks = tokens(text)?;
             let mut p = Parser { toks, pos: 0 };
             let g = p.block()?;
             if p.pos != p.toks.len() {

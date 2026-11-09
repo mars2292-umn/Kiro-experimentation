@@ -36,6 +36,7 @@ pub mod rsk_roles {
         pub const W: usize = 2;
         pub const PW: usize = 1;
         type Raw = ::rsk::Endpoint<[u32; W], W>;
+        #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(result@ == (ID, ROLE)))]
         fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
         pub const PEER_CTL: u8 = 0;
         pub const PEER_SINK: u8 = 1;
@@ -80,8 +81,9 @@ pub mod rsk_roles {
         impl ::rsk::Received for RecvS0 {}
         impl Sink<S0> {
             /// Receives the next message from `ctl`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(RecvS0::Req(..)) => ::rsk::channel::received(ID, PEER_CTL, ROLE, LABEL_REQ), Ok(RecvS0::Stop(..)) => ::rsk::channel::received(ID, PEER_CTL, ROLE, LABEL_STOP), Err(_) => true }))]
             pub fn try_recv(self) -> Result<RecvS0, NotReceived<S0>> {
-                match raw().recv_from(PEER_CTL) {
+                match raw().recv_words(PEER_CTL) {
                     Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
                     Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
                     Ok(Some(w)) => {
@@ -104,15 +106,17 @@ pub mod rsk_roles {
         }
         impl Sink<S1> {
             /// Sends `Rep(u32)` to `ctl` and moves to S0; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_CTL, LABEL_REP), Err(_) => true }))]
             pub fn send_rep(self, m: u32) -> Result<Sink<S0>, NotSent<S1>> {
                 let mut w = [0u32; W];
                 w[0] = LABEL_REP;
                 let p = ::rsk::words::message_to_words::<u32, PW>(&m);
                 let mut i: usize = 0;
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
+                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(w@[0] == LABEL_REP))]
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
                 while i < PW { w[i + 1] = p.0[i]; i += 1; }
-                match raw().send_to(PEER_CTL, &w) {
+                match raw().send_words(PEER_CTL, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -151,6 +155,7 @@ pub mod rsk_roles {
         pub const W: usize = 2;
         pub const PW: usize = 1;
         type Raw = ::rsk::Endpoint<[u32; W], W>;
+        #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(result@ == (ID, ROLE)))]
         fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
         pub const PEER_CTL: u8 = 0;
         pub const PEER_SINK: u8 = 1;
@@ -189,15 +194,17 @@ pub mod rsk_roles {
         impl Ctl<S0> {
             /// Sends `Req(u32)` to `sink` and moves to S1; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).
             #[cfg_attr(creusot, ::rsk::creusot_std::macros::requires((*gate_pingpong)@))]
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_SINK, LABEL_REQ), Err(_) => true }))]
             pub fn send_req(self, m: u32, gate_pingpong: &::rsk::Gate) -> Result<Ctl<S1>, NotSent<S0>> {
                 let mut w = [0u32; W];
                 w[0] = LABEL_REQ;
                 let p = ::rsk::words::message_to_words::<u32, PW>(&m);
                 let mut i: usize = 0;
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
+                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(w@[0] == LABEL_REQ))]
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
                 while i < PW { w[i + 1] = p.0[i]; i += 1; }
-                match raw().send_to(PEER_SINK, &w) {
+                match raw().send_words(PEER_SINK, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -206,10 +213,11 @@ pub mod rsk_roles {
             }
             /// Sends `Stop()` to `sink` and moves to S2; `Err` gives the role back with the reason. Never waits (R40.4).
             #[cfg_attr(creusot, ::rsk::creusot_std::macros::requires((*gate_pingpong)@))]
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_SINK, LABEL_STOP), Err(_) => true }))]
             pub fn send_stop(self, gate_pingpong: &::rsk::Gate) -> Result<Ctl<S2>, NotSent<S0>> {
                 let mut w = [0u32; W];
                 w[0] = LABEL_STOP;
-                match raw().send_to(PEER_SINK, &w) {
+                match raw().send_words(PEER_SINK, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -226,8 +234,9 @@ pub mod rsk_roles {
         impl Ctl<S1> {
             /// Receives the next message from `sink`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
             #[cfg_attr(creusot, ::rsk::creusot_std::macros::requires((*gate_pingpong)@))]
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(RecvS1::Rep(..)) => ::rsk::channel::received(ID, PEER_SINK, ROLE, LABEL_REP), Err(_) => true }))]
             pub fn try_recv(self, gate_pingpong: &::rsk::Gate) -> Result<RecvS1, NotReceived<S1>> {
-                match raw().recv_from(PEER_SINK) {
+                match raw().recv_words(PEER_SINK) {
                     Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
                     Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
                     Ok(Some(w)) => {
@@ -278,6 +287,7 @@ pub mod rsk_roles {
         pub const W: usize = 2;
         pub const PW: usize = 1;
         type Raw = ::rsk::Endpoint<[u32; W], W>;
+        #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(result@ == (ID, ROLE)))]
         fn raw() -> Raw { ::rsk::Endpoint::new(ID, ROLE) }
         pub const PEER_CTL: u8 = 0;
         pub const PEER_MID: u8 = 1;
@@ -327,8 +337,9 @@ pub mod rsk_roles {
         impl ::rsk::Received for RecvS0 {}
         impl Mid<S0> {
             /// Receives the next message from `ctl`, or `Err` with the role when none is delivered (R40.4): a label the state does not expect is a reported Protocol violation that leaves the state as it is (R41.2), a payload the validation function rejects is the sender's reported fault (R42.4), a peer-state change resets the role (R42.3).
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(RecvS0::Req(..)) => ::rsk::channel::received(ID, PEER_CTL, ROLE, LABEL_REQ), Ok(RecvS0::Stop(..)) => ::rsk::channel::received(ID, PEER_CTL, ROLE, LABEL_STOP), Err(_) => true }))]
             pub fn try_recv(self) -> Result<RecvS0, NotReceived<S0>> {
-                match raw().recv_from(PEER_CTL) {
+                match raw().recv_words(PEER_CTL) {
                     Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),
                     Err(::rsk::RecvError::PeerChanged) => Err(NotReceived::PeerChanged(self.advance::<S0>())),
                     Ok(Some(w)) => {
@@ -351,15 +362,17 @@ pub mod rsk_roles {
         }
         impl Mid<S1> {
             /// Sends `Fwd(u32)` to `sink` and moves to S0; `Err` gives the role back with the reason (a full channel is a reported violation of the bound, R40.5; a peer-state change resets it, R42.3). Never waits (R40.4).
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_SINK, LABEL_FWD), Err(_) => true }))]
             pub fn send_fwd(self, m: u32) -> Result<Mid<S0>, NotSent<S1>> {
                 let mut w = [0u32; W];
                 w[0] = LABEL_FWD;
                 let p = ::rsk::words::message_to_words::<u32, PW>(&m);
                 let mut i: usize = 0;
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(i@ <= PW@))]
+                #[cfg_attr(creusot, ::rsk::creusot_std::macros::invariant(w@[0] == LABEL_FWD))]
                 #[cfg_attr(creusot, ::rsk::creusot_std::macros::variant(PW@ - i@))]
                 while i < PW { w[i + 1] = p.0[i]; i += 1; }
-                match raw().send_to(PEER_SINK, &w) {
+                match raw().send_words(PEER_SINK, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),
@@ -369,10 +382,11 @@ pub mod rsk_roles {
         }
         impl Mid<S2> {
             /// Sends `Done()` to `sink` and moves to S3; `Err` gives the role back with the reason. Never waits (R40.4).
+            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result { Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_SINK, LABEL_DONE), Err(_) => true }))]
             pub fn send_done(self) -> Result<Mid<S3>, NotSent<S2>> {
                 let mut w = [0u32; W];
                 w[0] = LABEL_DONE;
-                match raw().send_to(PEER_SINK, &w) {
+                match raw().send_words(PEER_SINK, &w) {
                     Ok(()) => Ok(self.advance()),
                     Err(::rsk::SendError::Full) => Err(NotSent::Full(self)),
                     Err(::rsk::SendError::Refused) => Err(NotSent::Refused(self)),

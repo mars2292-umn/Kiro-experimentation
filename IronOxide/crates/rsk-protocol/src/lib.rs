@@ -75,6 +75,7 @@ pub mod progress;
 pub mod theory;
 pub mod multiparty;
 pub mod parse_v;
+pub mod lex_v;
 
 pub use ast::{Branch, Global, Local, Message};
 pub use check::{project, well_formed};

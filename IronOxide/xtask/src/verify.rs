@@ -906,7 +906,7 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
 /// `cargo creusot` nothing to prove ("No files to prove", 2026-11-02, the
 /// first job run after a hand run of the prover). A fresh build and proof
 /// take about a minute.
-fn creusot_session_clear(dir: &Path) {
+pub(crate) fn creusot_session_clear(dir: &Path) {
     for name in ["verif", ".why3find", "target"] {
         let _ = std::fs::remove_dir_all(dir.join(name));
     }

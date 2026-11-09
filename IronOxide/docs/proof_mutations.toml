@@ -9,7 +9,10 @@
 # Fields: id; kills (the specification or lemma the mutation must trip);
 # file; find (exact text, once in the file); replace; expect (substrings
 # of the Verus output: take them from the failing clause's text, which
-# Verus prints with the error, or from the file name); package (optional).
+# Verus prints with the error, or from the file name); package (optional);
+# prover (optional, `verus` or `creusot`: an App_Prover mutation names a
+# proof member of proofs/creusot as its package and is killed when
+# `cargo creusot -p <member>` fails with the expected text, 2026-11-09).
 #
 # The first seven reproduce the manual vacuity checks of 2026-10-11 to
 # 2026-10-14 (verification_plan.md 9.2) or an equivalent of them; the rest
@@ -510,3 +513,22 @@ find = "            *pos = p1;\n            assert(sp_block(tv, p0 as int) == So
 replace = "            *pos = p0 + 1;\n            assert(sp_block(tv, p0 as int) == Some((GS::End, p1 as int)));\n"
 expect = ["parse_v.rs"]
 package = "rsk-protocol"
+
+[[mutation]]
+id = "lex-keyword-or-unclassified"
+kills = "classify_ident (the word `or` is the keyword that separates a choice's branches; left as an identifier the lexer no longer refines `sp_lex`, whose `kw` classifies it)"
+file = "crates/rsk-protocol/src/lex_v.rs"
+find = "    } else if n == 2 && v[0] == 'o' && v[1] == 'r' {\n        proof { assert(v@ =~= seq!['o', 'r']); }\n        TokE::KwOr\n"
+replace = "    } else if n == 2 && v[0] == 'o' && v[1] == 'r' && false {\n        proof { assert(v@ =~= seq!['o', 'r']); }\n        TokE::KwOr\n"
+expect = ["lex_v.rs"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "roles-send-label-word-dropped"
+kills = "the generated send_<label>'s contract (ensures rsk::channel::sent(ID, ROLE, PEER, LABEL), A-P2's role-API half): with the label not written into word 0 the App_Prover cannot establish it from send_words' contract (the copy loop's invariant on word 0 fails first)"
+file = "crates/rsk-gen/src/roles.rs"
+find = "                            let _ = writeln!(s, \"                w[0] = LABEL_{};\", label.to_uppercase());\n                            let _ = writeln!(s, \"                let p = ::rsk::words::message_to_words::<{p}, PW>(&m);\");\n"
+replace = "                            let _ = writeln!(s, \"                let p = ::rsk::words::message_to_words::<{p}, PW>(&m);\");\n"
+expect = ["proof failed", "vc_send_"]
+package = "p1-demo-part0-proof"
+prover = "creusot"

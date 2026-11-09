@@ -67,6 +67,17 @@ mod spec {
             dead
         }
     }
+
+    // An Endpoint's model is its (Endpoint index, role) pair, opaque (the
+    // fields are private): `new` establishes it, the word-level operations'
+    // contracts name it (A-P2, `channel`).
+    impl<T: super::Plain, const W: usize, V: super::Validate<T>> View for super::Endpoint<T, W, V> {
+        type ViewTy = (u8, u8);
+        #[logic(opaque)]
+        fn view(self) -> (u8, u8) {
+            dead
+        }
+    }
 }
 /// `#[rsk::bounds('label = N)]`: the Loop_Bound_Annotation of a function's
 /// labelled loops (R35, PR-16).
@@ -278,6 +289,7 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     /// Constructed by generated code only (PR-06): the Endpoint index of
     /// Generated_Config and the Task's role (0 or 1).
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ == (id, role)))]
     pub const fn new(id: u8, role: u8) -> Endpoint<T, W, V> {
         Endpoint { id, role, _payload: core::marker::PhantomData }
     }
@@ -350,6 +362,58 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     pub fn recv(&self) -> Result<Option<T>, RecvError> {
         self.recv_from(self.other())
+    }
+}
+
+/// The channel facts the generated role modules' contracts speak of
+/// (A-P2's message half, Verification_Plan 5.15, 2026-11-09): opaque
+/// predicates that the two word-level operations below establish under
+/// their trusted contracts and that each generated `send_<label>` and
+/// `try_recv` then proves for its own label. The Kernel's side of the link
+/// is `copy_in`'s model (the first word copied is the slot's label,
+/// `docs/proof_assumptions.toml`): together, the label sequence of a channel
+/// is the sequence of labels the role modules sent on it.
+#[cfg(feature = "creusot")]
+pub mod channel {
+    use creusot_std::prelude::*;
+
+    /// The Kernel's send on Endpoint `id`, from `role` to `peer`, accepted
+    /// a message whose first word is `w0` (`copy_in` records it as the
+    /// slot's label).
+    #[logic(opaque)]
+    pub fn sent(id: u8, role: u8, peer: u8, w0: u32) -> bool {
+        dead
+    }
+
+    /// The Kernel's receive on Endpoint `id`, from `from` to `role`,
+    /// delivered a message whose first word is `w0` (the channel's oldest
+    /// label, `recv_labels_ok`).
+    #[logic(opaque)]
+    pub fn received(id: u8, from: u8, role: u8, w0: u32) -> bool {
+        dead
+    }
+}
+
+impl<const W: usize, V: Validate<[u32; W]>> Endpoint<[u32; W], W, V> {
+    /// Sends the words `w` to role `peer`: the generated role modules' form
+    /// of `send_to` (task 21.3: word 0 the label's index, the payload's
+    /// words after it). Contract (A-P2, 2026-11-09): an accepted send
+    /// handed the Kernel a message whose first word is `w[0]`, which the
+    /// Kernel's `copy_in` records as the slot's label.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(match result { Ok(()) => channel::sent((*self)@.0, (*self)@.1, peer, (*w)@[0]), Err(_) => true }))]
+    pub fn send_words(&self, peer: u8, w: &[u32; W]) -> Result<(), SendError> {
+        self.send_to(peer, w)
+    }
+
+    /// Receives the oldest words role `peer` sent to this role: the
+    /// generated role modules' form of `recv_from`. Contract (A-P2): a
+    /// delivered message's first word is the one the Kernel's channel
+    /// held as its oldest label.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(match result { Ok(Some(w)) => channel::received((*self)@.0, peer, (*self)@.1, w@[0]), _ => true }))]
+    pub fn recv_words(&self, peer: u8) -> Result<Option<[u32; W]>, RecvError> {
+        self.recv_from(peer)
     }
 }
 

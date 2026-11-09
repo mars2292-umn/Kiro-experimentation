@@ -424,11 +424,11 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
                 let p = decl.protocols.iter().find(|p| &p.name == pname).expect("validated");
                 let role_names: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
                 let checked = rsk_protocol::check_protocol(&p.text, &role_names, e.capacity).expect("validated");
-                let verified_states: Vec<(String, Vec<crate::roles::RoleState>)> = if checked.tables.is_empty() {
-                    Vec::new()
-                } else {
-                    checked.locals.iter().map(|(r, _)| (r.clone(), crate::roles::states_for(&checked, r))).collect()
-                };
+                // The role modules' states from the verified tables (A-P1; the
+                // plain projection `checked.locals` is rendered in the
+                // documentation comments and the Task_Model only, 2026-11-09).
+                let verified_states: Vec<(String, Vec<crate::roles::RoleState>)> =
+                    checked.locals.iter().map(|(r, _)| (r.clone(), crate::roles::states_for(&checked, r))).collect();
                 (
                     checked.k,
                     checked.channels.iter().map(|c| (c.from.clone(), c.to.clone(), c.k)).collect(),

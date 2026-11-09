@@ -389,7 +389,8 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
 
 ### Phase 4 — Session-typed Endpoints
 
-- [ ] 21. Protocol_Checker and Endpoints (Component F)
+- [x] 21. Protocol_Checker and Endpoints (Component F)
+    - Closed 2026-11-09: 21.1 to 21.7 done; the verified chain from the Protocol text to the system progress and reception theorems is recorded in Verification_Plan 5.15 and section 13.
   - [x] 21.1 Implement the Protocol syntax, projection, well-formedness checks, and the k-MC buffer bound.
     - Evidence: PBT for Property 20; differential runs against Rumpsteak's k-MC checker
     - _Requirements: 22.7, 38.2, 38.3, 38.5, 38.6, 41.1_

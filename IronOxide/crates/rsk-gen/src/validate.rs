@@ -540,11 +540,10 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                         Some(checked) => e
                             .roles
                             .iter()
-                            .map(|r| {
+                            .enumerate()
+                            .map(|(ri, _)| {
                                 let mut out = Vec::new();
-                                if let Some((_, local)) = checked.locals.iter().find(|(n, _)| n == &r.role) {
-                                    received_messages(local, &mut out);
-                                }
+                                received_messages(&checked, ri, &roles, &mut out);
                                 out.sort();
                                 out.dedup();
                                 out.into_iter().map(|(l, f)| (Some(l), f)).collect()
@@ -734,23 +733,20 @@ pub fn release_endpoint_of(decl: &Declaration, partition: &str, task: &str) -> O
 
 /// The labels a role receives with a payload, each with the role it comes
 /// from (R42.4; task 21.7: a role of a multiparty Protocol may receive from
-/// several roles).
-fn received_messages(l: &rsk_protocol::Local, out: &mut Vec<(String, String)>) {
-    use rsk_protocol::Local;
-    match l {
-        Local::End | Local::Continue(_) => {}
-        Local::Rec { body, .. } => received_messages(body, out),
-        Local::Send { branches, .. } => {
-            for b in branches {
-                received_messages(&b.cont, out);
-            }
-        }
-        Local::Recv { from, branches } => {
-            for b in branches {
-                if b.payload.is_some() {
-                    out.push((b.label.clone(), from.clone()));
+/// several roles), read from the role's verified state table (A-P1,
+/// 2026-11-09: the `Recv` entries' labels, the senders by index), not from
+/// the plain projection.
+fn received_messages(checked: &rsk_protocol::Checked, ri: usize, roles: &[&str], out: &mut Vec<(String, String)>) {
+    let Some(table) = checked.tables.get(ri) else { return };
+    for e in table {
+        if let rsk_protocol::RoleEntry::Recv { from, labels } = e {
+            for l in labels {
+                let Some(name) = checked.labels.get(*l as usize) else { continue };
+                if crate::roles::payload_of(&checked.global, name).is_some() {
+                    if let Some(sender) = roles.get(*from) {
+                        out.push((name.clone(), (*sender).to_string()));
+                    }
                 }
-                received_messages(&b.cont, out);
             }
         }
     }

@@ -44,14 +44,14 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
 item = "copy_in"
 why = "The copy of a message into an Endpoint slot and the read of the word then at the slot's start (A-P2, Verification_Plan 5.15, 2026-11-09): volatile accesses (UJ-056, UJ-056a) Verus cannot model; the model records the word as the slot's label."
-evidence = "hw::copy_in_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds: total, in bounds, the destination holds the source's words) followed by one raw word read of an address the cores checked (endpoint_slot); the storage is Kernel-owned and MPU-protected (R16.1), so no other writer exists."
+evidence = "hw::copy_in_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds: total, in bounds, the destination holds the source's words) followed by one raw word read of an address the cores checked (endpoint_slot); the storage is Kernel-owned and MPU-protected (R16.1), so no other writer exists. That the first word is the label: rsk::Endpoint::send_words' Creusot contract (rsk::channel::sent(id, role, peer, w[0]) on Ok) and every generated send_<label>'s ensures(sent(ID, ROLE, PEER, LABEL)), proven by the App_Prover (Verification_Plan 5.15, the role API's half of A-P2)."
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
 item = "copy_out"
 why = "The copy of a message out of an Endpoint slot and the read of the word at the slot's start (A-P2): volatile accesses Verus cannot model; the model says the word read is the one recorded, because copy_in is the storage's only writer (R16.1)."
-evidence = "hw::copy_out_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds) followed by one raw word read of the source slot the cores checked (endpoint_slot); the HIL Protocol runs (5.14, 5.15) deliver every label the receivers expect."
+evidence = "hw::copy_out_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds) followed by one raw word read of the source slot the cores checked (endpoint_slot); the HIL Protocol runs (5.14, 5.15) deliver every label the receivers expect. The receiving side's use of the word: rsk::Endpoint::recv_words' contract (rsk::channel::received(id, from, role, w[0]) on Ok(Some(w))) and every generated try_recv's per-variant ensures, proven by the App_Prover."
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -107,3 +107,10 @@ construct = "#[verifier::external_type_specification]"
 item = ""
 why = "ExMessage: `rsk_protocol::ast::Message` (label, payload, from, to: all public Strings), the message of the parser's global type, read by `gconv` and `to_theory`. No axiom about its values."
 evidence = "As for ExGlobal."
+
+[[assumption]]
+file = "crates/rsk-protocol/src/lex_v.rs"
+construct = "#[verifier::external_body]"
+item = "chars_of"
+why = "The standard library's decoding of the Protocol text (`str::chars().collect()`) into the characters the verified lexer reads (2026-11-09): the contract is the view, `v@ == text@`, which is what vstd's `str` view means. The lexer, the grammar, and the parser from the characters on are verified (`lex_v::sp_lex`, `parse_v::sp_parse`, `lex_v::parse_chars`)."
+evidence = "vstd's specification of `str::chars` (the iterator's remaining elements are the view); the parser's unit tests and Property 20 over the whole text path; `cargo test -p rsk-protocol`."

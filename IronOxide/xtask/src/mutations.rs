@@ -10,7 +10,11 @@
 //! at a time, runs `cargo-verus verify` on the mutated package, and fails
 //! unless Verus rejects the mutant with the expected diagnostic. A mutant
 //! that Verus accepts is reported as a vacuity finding against the named
-//! specification.
+//! specification. A mutation with `prover = "creusot"` (2026-11-09) is
+//! judged by the App_Prover instead: `cargo creusot -p <package> -- --offline`
+//! in the copied tree's `proofs/creusot`, the package a proof member, and
+//! the mutant is killed when the proof fails with the expected text (the
+//! contracts the generated role modules carry, Verification_Plan 5.15).
 //!
 //! `--check` validates the register without Verus: every mutation names an
 //! existing file in which `find` occurs exactly once (so the mutation stays
@@ -47,8 +51,11 @@ pub struct Mutation {
     pub replace: String,
     /// Substrings that the Verus output must all contain.
     pub expect: Vec<String>,
-    /// The package `cargo-verus verify -p` runs on.
+    /// The package `cargo-verus verify -p` runs on (or, for the App_Prover,
+    /// the proof member `cargo creusot -p` runs on).
     pub package: String,
+    /// `verus` (the default) or `creusot`.
+    pub prover: String,
 }
 
 fn field<'a>(t: &'a Table, key: &str, id: &str) -> Result<&'a str, String> {
@@ -82,6 +89,7 @@ pub fn load(root: &Path) -> Result<Vec<Mutation>, String> {
             replace: field(m, "replace", id)?.to_string(),
             expect,
             package: m.get("package").and_then(Value::as_str).unwrap_or("rsk-kernel").to_string(),
+            prover: m.get("prover").and_then(Value::as_str).unwrap_or("verus").to_string(),
         });
     }
     Ok(out)
@@ -107,6 +115,9 @@ pub fn check(root: &Path, report: &mut Report) -> Vec<Mutation> {
         }
         if m.find == m.replace {
             report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}` changes nothing", m.id));
+        }
+        if m.prover != "verus" && m.prover != "creusot" {
+            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: `prover` must be `verus` or `creusot`, not `{}`", m.id, m.prover));
         }
         match std::fs::read_to_string(root.join(&m.file)) {
             Ok(text) => {
@@ -138,8 +149,24 @@ pub enum Verdict {
     Unexpected { first_error: String, missing: String },
 }
 
-/// Classifies one cargo-verus output against the mutation's expectations.
+/// Classifies one cargo-verus output (or, for `prover = "creusot"`, one
+/// `cargo creusot` output: proved when it succeeds and reports `Proved (`)
+/// against the mutation's expectations.
 pub fn classify(m: &Mutation, exit_ok: bool, text: &str) -> Verdict {
+    if m.prover == "creusot" {
+        if exit_ok && text.contains("Proved (") {
+            return Verdict::Survived { verified: 0 };
+        }
+        let first_error = text
+            .lines()
+            .find(|l| l.contains("proof failed") || l.starts_with("Error") || l.starts_with("error"))
+            .unwrap_or("(no error line)")
+            .to_string();
+        return match m.expect.iter().find(|e| !text.contains(e.as_str())) {
+            None => Verdict::Killed { first_error },
+            Some(missing) => Verdict::Unexpected { first_error, missing: missing.clone() },
+        };
+    }
     let lines = crate::proofs::parse_verus_result_lines(text);
     let errors: u64 = lines.iter().map(|&(_, e)| e).sum();
     let verified: u64 = lines.iter().map(|&(v, _)| v).sum();
@@ -208,10 +235,20 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
             all_ok = false;
             continue;
         }
-        let cmd = Cmd::new(verus.cargo_verus())
-            .args(["verus", "verify", "-p", &m.package, "--target-dir"])
-            .arg(&target_dir)
-            .cwd(&tree);
+        let cmd = if m.prover == "creusot" {
+            // The App_Prover over the copied proof workspace: a fresh session
+            // (the copy carries the main tree's `verif` and `.why3find`), the
+            // member built from the mutated tree's crates.
+            let proofs = tree.join("proofs").join("creusot");
+            let _ = std::process::Command::new("pkill").args(["-f", "why3find"]).status();
+            crate::verify::creusot_session_clear(&proofs);
+            Cmd::cargo().args(["creusot", "-p", &m.package, "--", "--offline"]).cwd(&proofs)
+        } else {
+            Cmd::new(verus.cargo_verus())
+                .args(["verus", "verify", "-p", &m.package, "--target-dir"])
+                .arg(&target_dir)
+                .cwd(&tree)
+        };
         println!("   mutation `{}` ({}): $ {}", m.id, m.kills, cmd.display());
         let verdict = match cmd.output(None) {
             Ok(out) => {
@@ -220,7 +257,7 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
                 classify(m, out.status.success(), &text)
             }
             Err(e) => {
-                report.error(Rule::Proof, None, format!("cannot run cargo-verus: {e}"));
+                report.error(Rule::Proof, None, format!("cannot run the prover: {e}"));
                 all_ok = false;
                 let _ = std::fs::write(&mutated, &text);
                 continue;
@@ -237,10 +274,14 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
                 report.error(
                     Rule::Proof,
                     Some(m.file.clone()),
-                    format!(
-                        "mutation `{}` survived: Verus verified {verified} items with 0 errors, so {} does not exclude it (R52.2 vacuity)",
-                        m.id, m.kills
-                    ),
+                    if m.prover == "creusot" {
+                        format!("mutation `{}` survived: the App_Prover proved the member, so {} does not exclude it (R52.2 vacuity)", m.id, m.kills)
+                    } else {
+                        format!(
+                            "mutation `{}` survived: Verus verified {verified} items with 0 errors, so {} does not exclude it (R52.2 vacuity)",
+                            m.id, m.kills
+                        )
+                    },
                 );
             }
             Verdict::Unexpected { first_error, missing } => {
@@ -249,7 +290,7 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
                     Rule::Proof,
                     Some(m.file.clone()),
                     format!(
-                        "mutation `{}` failed Verus, but the output lacks `{missing}` (first error: {first_error}); revise the mutation or its `expect` (see target/xtask-mutations/{}.log)",
+                        "mutation `{}` failed the prover, but the output lacks `{missing}` (first error: {first_error}); revise the mutation or its `expect` (see target/xtask-mutations/{}.log)",
                         m.id, m.id
                     ),
                 );
@@ -272,7 +313,17 @@ mod tests {
             replace: "b".into(),
             expect: expect.iter().map(|s| s.to_string()).collect(),
             package: "rsk-kernel".into(),
+            prover: "verus".into(),
         }
+    }
+
+    /// R52.2: an App_Prover mutant is killed by a failed proof with the expected text and survives a proved member.
+    #[test]
+    fn an_app_prover_mutant_is_judged_by_the_proof_verdict() {
+        let m = Mutation { prover: "creusot".into(), ..mutation(&["proof failed", "vc_send_"]) };
+        assert_eq!(classify(&m, true, "Proved (48 files) ✔\n"), Verdict::Survived { verified: 0 });
+        assert!(matches!(classify(&m, false, "File x: proof failed\nGoal Coma.vc_send_req: ✘ (16/17)\nError: 1 unproved files\n"), Verdict::Killed { .. }));
+        assert!(matches!(classify(&m, false, "error: expected `{`\n"), Verdict::Unexpected { .. }));
     }
 
     /// R52.2: a mutant that Verus accepts is a surviving mutant (a vacuity finding against the specification).
