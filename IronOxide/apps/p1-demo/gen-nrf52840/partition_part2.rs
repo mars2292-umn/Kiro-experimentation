@@ -26,7 +26,10 @@ pub mod rsk_target {
     pub const TICK_HZ: u64 = 16000000;
     pub const CPU_HZ: u64 = 64000000;
     /// Time-base ticks in `ms` milliseconds.
-    /// Saturating, so the App_Prover has no overflow obligation (task 17.1).
+    /// Saturating, so the App_Prover has no overflow obligation (task 17.1); its
+    /// contract states the product (2026-11-09: a body dividing by it needs the value).
+    #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(TICK_HZ@ / 1000 * ms@ <= u64::MAX@ ==> result@ == TICK_HZ@ / 1000 * ms@))]
+    #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(TICK_HZ@ / 1000 * ms@ > u64::MAX@ ==> result@ == u64::MAX@))]
     pub const fn ms(ms: u64) -> u64 { (TICK_HZ / 1000).saturating_mul(ms) }
     /// The memory map the MPU views are computed from (DD-07), for the HIL
     /// isolation suite (R16.8, task 7.4): `(base, size)` of each region.

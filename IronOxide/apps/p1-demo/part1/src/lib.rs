@@ -369,14 +369,13 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // ends never counts, so a count-based choice repeated the overrun at
     // every Job once the first was ended (seen when the Budget accounting
     // of task 19.1 charged every segment, 2026-11-02).
-    // The period is never zero on a Target (16 MHz here); the guard is the
-    // App_Prover's: `ms` is a generated `const fn` with no contract, so the
-    // division's obligation needs it, on the one value bound here (two calls
-    // are unrelated to the prover) (found by the part1-stress member, 2026-11-09).
+    // The division's obligation (the part1-stress member, 2026-11-09) is
+    // discharged from the generated `ms`'s contract: the period is the
+    // Target's ticks per 40 ms, never zero.
     #[cfg(feature = "stress")]
     {
         let period = rsk_target::ms(40);
-        if period != 0 && (rsk::now() / period) % 4 == 3 {
+        if (rsk::now() / period) % 4 == 3 {
             let n = inject::spin_ms(20);
             #[cfg(feature = "measure")]
             cx.loop_spin.with(|m| if n > *m { *m = n });

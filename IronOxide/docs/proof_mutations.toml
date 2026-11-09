@@ -534,11 +534,11 @@ package = "p1-demo-part0-proof"
 prover = "creusot"
 
 [[mutation]]
-id = "part1-stress-period-unguarded"
-kills = "the App_Prover's division obligation in `log`'s stress body (Partition 1's HIL members, 2026-11-09): the generated `rsk_target::ms` is a `const fn` with no contract, so without the guard the divisor `ms(40)` may be zero for the prover and `vc_log` fails"
-file = "apps/p1-demo/part1/src/lib.rs"
-find = "        if period != 0 && (rsk::now() / period) % 4 == 3 {\n"
-replace = "        if (rsk::now() / period) % 4 == 3 {\n"
+id = "gen-ms-contract-dropped"
+kills = "the generated `rsk_target::ms`'s Creusot contract (its saturating product; 2026-11-09): without it the value is unconstrained to the App_Prover and `log`'s stress body, which divides by `ms(40)`, fails `vc_log` in the `part1-stress` member"
+file = "crates/rsk-gen/src/emit.rs"
+find = "    let _ = writeln!(s, \"    #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(TICK_HZ@ / 1000 * ms@ <= u64::MAX@ ==> result@ == TICK_HZ@ / 1000 * ms@))]\");\n"
+replace = ""
 expect = ["proof failed", "vc_log"]
 package = "p1-demo-part1-stress-proof"
 prover = "creusot"

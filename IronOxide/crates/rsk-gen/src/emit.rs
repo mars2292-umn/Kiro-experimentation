@@ -385,7 +385,10 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     let _ = writeln!(s, "    pub const TICK_HZ: u64 = {};", g.target.tick_hz);
     let _ = writeln!(s, "    pub const CPU_HZ: u64 = {};", g.target.cpu_hz);
     let _ = writeln!(s, "    /// Time-base ticks in `ms` milliseconds.");
-    let _ = writeln!(s, "    /// Saturating, so the App_Prover has no overflow obligation (task 17.1).");
+    let _ = writeln!(s, "    /// Saturating, so the App_Prover has no overflow obligation (task 17.1); its");
+    let _ = writeln!(s, "    /// contract states the product (2026-11-09: a body dividing by it needs the value).");
+    let _ = writeln!(s, "    #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(TICK_HZ@ / 1000 * ms@ <= u64::MAX@ ==> result@ == TICK_HZ@ / 1000 * ms@))]");
+    let _ = writeln!(s, "    #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(TICK_HZ@ / 1000 * ms@ > u64::MAX@ ==> result@ == u64::MAX@))]");
     let _ = writeln!(s, "    pub const fn ms(ms: u64) -> u64 {{ (TICK_HZ / 1000).saturating_mul(ms) }}");
     // The memory map (R16.8, task 7.4): the Kernel's, the shared code's,
     // and every Partition's regions as `(base, size)` and each Partition's
