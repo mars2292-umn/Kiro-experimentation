@@ -35,14 +35,14 @@ use rsk_protocol::{Branch, Local};
 use crate::derive::{GenEndpoint, Generated};
 
 /// One state of a role's projection.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Kind {
     Send { to: String, branches: Vec<(String, Option<String>, usize)> },
     Recv { from: String, branches: Vec<(String, Option<String>, usize)> },
     End,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RoleState {
     pub kind: Kind,
     /// The target of a `rec`: dropping a role value here is no violation (R41.2).
@@ -111,6 +111,80 @@ fn branch_states(branches: &[Branch], env: &mut Vec<(String, usize)>, out: &mut 
 }
 
 /// `ctl` -> `Ctl`.
+/// The states of a role from the verified flattening (task 21.7 follow-up,
+/// 2026-11-09; A-P1): `tbl` is the role's state table (`theory::flatten_two`
+/// or `multiparty::flatten_n`, whose entries are head-normal local types,
+/// entry 0 the head of the projection) and `trans` the automaton's
+/// transitions, each a branch of its entry leading to the entry equal to
+/// the head of its continuation (`flattens`, `flattens_n`). The states,
+/// their permitted operations, and the state after each are therefore the
+/// projection's by the theorem; this function only renders them: a label
+/// index to its name and payload, a role index to its name. A state is a
+/// recursion head when a transition from a later (or the same) state
+/// returns to it.
+pub fn states_from_tables(tbl: &[rsk_protocol::RoleEntry], trans: &[rsk_protocol::progress::Trans], ri: usize, role_names: &[String], labels: &[String], payload_of: &dyn Fn(&str) -> Option<String>) -> Vec<RoleState> {
+    use rsk_protocol::RoleEntry;
+    let branches_of = |ls: &[u32], i: usize| -> Vec<(String, Option<String>, usize)> {
+        ls.iter()
+            .map(|label| {
+                let name = labels.get(*label as usize).cloned().unwrap_or_else(|| format!("L{label}"));
+                let next = trans.iter().find(|t| t.role == ri && t.from == i && t.label == *label).map(|t| t.to).unwrap_or(0);
+                (name.clone(), payload_of(&name), next)
+            })
+            .collect()
+    };
+    let role_name = |r: usize| role_names.get(r).cloned().unwrap_or_else(|| format!("r{r}"));
+    let mut out: Vec<RoleState> = tbl
+        .iter()
+        .enumerate()
+        .map(|(i, e)| match e {
+            RoleEntry::End => RoleState { kind: Kind::End, rec_head: false },
+            RoleEntry::Send { to, labels: ls } => RoleState { kind: Kind::Send { to: role_name(*to), branches: branches_of(ls, i) }, rec_head: false },
+            RoleEntry::Recv { from, labels: ls } => RoleState { kind: Kind::Recv { from: role_name(*from), branches: branches_of(ls, i) }, rec_head: false },
+        })
+        .collect();
+    for t in trans.iter().filter(|t| t.role == ri) {
+        if t.to <= t.from && t.to < out.len() {
+            out[t.to].rec_head = true;
+        }
+    }
+    out
+}
+
+/// The payload of a label, as the Protocol declares it (the first message
+/// carrying the label; the checker keeps one payload per label).
+pub fn payload_of(g: &rsk_protocol::Global, label: &str) -> Option<String> {
+    fn walk(g: &rsk_protocol::Global, label: &str) -> Option<Option<String>> {
+        match g {
+            rsk_protocol::Global::End | rsk_protocol::Global::Continue(_) => None,
+            rsk_protocol::Global::Msg(m, rest) => {
+                if m.label == label { Some(m.payload.clone()) } else { walk(rest, label) }
+            }
+            rsk_protocol::Global::Choice { branches, .. } => branches.iter().find_map(|b| walk(b, label)),
+            rsk_protocol::Global::Rec { body, .. } => walk(body, label),
+        }
+    }
+    walk(g, label).flatten()
+}
+
+/// The states of `role` in `checked`: from the verified tables when the
+/// checker produced them (every Protocol since 2026-11-09), else from the
+/// local type (the earlier numbering, kept for the comparison tests).
+pub fn states_for(checked: &rsk_protocol::Checked, role: &str) -> Vec<RoleState> {
+    let ri = checked.locals.iter().position(|(r, _)| r == role);
+    match ri {
+        Some(ri) if ri < checked.tables.len() => {
+            let role_names: Vec<String> = checked.locals.iter().map(|(r, _)| r.clone()).collect();
+            let g = &checked.global;
+            states_from_tables(&checked.tables[ri], &checked.trans, ri, &role_names, &checked.labels, &|l| payload_of(g, l))
+        }
+        _ => {
+            let local = checked.locals.iter().find(|(r, _)| r == role).map(|(_, l)| l.clone()).unwrap_or(Local::End);
+            states(&local)
+        }
+    }
+}
+
 pub fn type_name(role: &str) -> String {
     let mut c = role.chars();
     match c.next() {
@@ -124,7 +198,13 @@ pub fn type_name(role: &str) -> String {
 pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     let mut s = String::new();
     let local = e.locals.iter().find(|(r, _)| r == role).map(|(_, l)| l.clone()).unwrap_or(Local::End);
-    let sts = states(&local);
+    // A-P1 (2026-11-09): the states come from the verified flattening when
+    // the derivation carried it; the local type is kept for the rendering
+    // of the projection in the documentation comment.
+    let sts = match e.verified_states.iter().find(|(r, _)| r == role) {
+        Some((_, sts)) => sts.clone(),
+        None => states(&local),
+    };
     let ty = type_name(role);
     let ri = e.roles.iter().position(|(r, _)| r == role).unwrap_or(0);
     // Task 21.6 (R41.3, A-P8): the Endpoints gating this role (`after`):

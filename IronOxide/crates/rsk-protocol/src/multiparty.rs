@@ -51,9 +51,17 @@
 
 use vstd::prelude::*;
 
+use crate::theory::{branches_of, intern, labels_of, le_copy, le_eq, lhead_exec, lookup_exec, BE, GE, LE, LsE, MAX_STATES};
+use crate::progress::{System, Trans};
+
+#[cfg(verus_keep_ghost)]
+use crate::progress::{at, blocked, chan_of, deadlock_set, deadlocked, enabled, has_trans, initial, reachable, run, step, succ, terminal, wf_cfg, Cfg};
+#[cfg(verus_keep_ghost)]
+use crate::theory::{has_transition, has_transition_seq, lemma_has_trans_push, lemma_lse_cons_view, lemma_view_rec, tbl_view};
+
 #[cfg(verus_keep_ghost)]
 use crate::theory::{
-    acceptn, all_true, bs_distinct, bs_has_label, bs_len, bs_lookup, closed_at, closed_at_bs, lhead, lhead_n, llead_recs, ls_lookup, ls_remove, lsubst,
+    acceptn, all_true, bs_distinct, bs_has_label, bs_len, bs_lookup, close_rec, closed_at, closed_at_bs, lactionless, lfree, lfree_ls, lhead, lhead_n, llead_recs, ls_lookup, ls_remove, lshift, lshift_ls, lsubst,
     lsubst_ls, lunfold, merge, merge_ls, nblocked, ndeadlock_set, ndeadlocked, ninit, nrecv, nrecv_enabled, nreachable, nrun, nsend, nstep, nterminal, projn,
     projn_bs, projn_merge, wfn, wfn_at, wfn_bs, Bs, G, L, Ls, NC,
 };
@@ -909,7 +917,7 @@ pub open spec fn rproj(x: R, u: int) -> Option<L>
         R::End => Some(L::End),
         R::Var { n } => Some(L::Var { n }),
         R::Rec { body } => match rproj(*body, u) {
-            Some(l) => Some(L::Rec { body: Box::new(l) }),
+            Some(l) => Some(close_rec(l)),
             None => None,
         },
         R::Comm { from, to, bs } => {
@@ -1292,6 +1300,510 @@ proof fn lemma_merge_ls_subst(a: Ls, b: Ls, k: nat, by: L)
     }
 }
 
+
+// ------------------------------------ binders: closedness, shifts, the rule --
+
+/// Every variable of `l` refers to one of the `m` innermost binders.
+pub open spec fn lclosed_at(l: L, m: nat) -> bool
+    decreases l,
+{
+    match l {
+        L::End => true,
+        L::Var { n } => n < m,
+        L::Rec { body } => lclosed_at(*body, m + 1),
+        L::Send { ls, .. } => lclosed_at_ls(*ls, m),
+        L::Recv { ls, .. } => lclosed_at_ls(*ls, m),
+    }
+}
+
+pub open spec fn lclosed_at_ls(ls: Ls, m: nat) -> bool
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => true,
+        Ls::Cons { l, rest, .. } => lclosed_at(l, m) && lclosed_at_ls(*rest, m),
+    }
+}
+
+/// No recursion with a body of no action (what `close_rec` keeps).
+pub open spec fn knormal(l: L) -> bool
+    decreases l,
+{
+    match l {
+        L::Rec { body } => !lactionless(*body) && knormal(*body),
+        L::Send { ls, .. } => knormal_ls(*ls),
+        L::Recv { ls, .. } => knormal_ls(*ls),
+        _ => true,
+    }
+}
+
+pub open spec fn knormal_ls(ls: Ls) -> bool
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => true,
+        Ls::Cons { l, rest, .. } => knormal(l) && knormal_ls(*rest),
+    }
+}
+
+proof fn lemma_knormal_actionless(l: L)
+    requires knormal(l), lactionless(l),
+    ensures l is End || l is Var,
+{
+}
+
+proof fn lemma_lshift_lookup(ls: Ls, k: nat)
+    ensures forall|label: int| #[trigger] ls_lookup(lshift_ls(ls, k), label) == (match ls_lookup(ls, label) { Some(l) => Some(lshift(l, k)), None => None::<L> }),
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => {
+            assert forall|label: int| #[trigger] ls_lookup(lshift_ls(ls, k), label) == (match ls_lookup(ls, label) { Some(l) => Some(lshift(l, k)), None => None::<L> }) by {
+                assert(lshift_ls(ls, k) == Ls::Nil);
+            }
+        }
+        Ls::Cons { label: l0, l, rest } => {
+            lemma_lshift_lookup(*rest, k);
+            assert forall|label: int| #[trigger] ls_lookup(lshift_ls(ls, k), label) == (match ls_lookup(ls, label) { Some(l) => Some(lshift(l, k)), None => None::<L> }) by {
+                assert(lshift_ls(ls, k) == Ls::Cons { label: l0, l: lshift(l, k), rest: Box::new(lshift_ls(*rest, k)) });
+                if l0 != label {
+                    assert(ls_lookup(lshift_ls(ls, k), label) == ls_lookup(lshift_ls(*rest, k), label));
+                    assert(ls_lookup(ls, label) == ls_lookup(*rest, label));
+                }
+            }
+        }
+    }
+}
+
+proof fn lemma_lshift_distinct(l: L, k: nat)
+    requires ldistinct(l),
+    ensures ldistinct(lshift(l, k)), lactionless(lshift(l, k)) == lactionless(l), knormal(l) ==> knormal(lshift(l, k)),
+    decreases l,
+{
+    match l {
+        L::Rec { body } => lemma_lshift_distinct(*body, k + 1),
+        L::Send { ls, .. } => lemma_lshift_ls_distinct(*ls, k),
+        L::Recv { ls, .. } => lemma_lshift_ls_distinct(*ls, k),
+        _ => {}
+    }
+}
+
+proof fn lemma_lshift_ls_distinct(ls: Ls, k: nat)
+    requires lsdistinct(ls),
+    ensures lsdistinct(lshift_ls(ls, k)), knormal_ls(ls) ==> knormal_ls(lshift_ls(ls, k)),
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_lshift_distinct(l, k);
+        lemma_lshift_ls_distinct(*rest, k);
+        lemma_lshift_lookup(*rest, k);
+    }
+}
+
+/// `close_rec` keeps distinctness and normality.
+proof fn lemma_close_rec_shape(l: L)
+    requires ldistinct(l), knormal(l),
+    ensures ldistinct(close_rec(l)), knormal(close_rec(l)), lactionless(close_rec(l)) == lactionless(l),
+{
+    if !lactionless(l) && !lfree(l, 0) {
+        lemma_lshift_distinct(l, 0);
+    }
+}
+
+/// A closed type has no free variable and is unchanged by a shift.
+proof fn lemma_closed_shift(l: L, m: nat, k: nat)
+    requires lclosed_at(l, m), m <= k,
+    ensures !lfree(l, k), lshift(l, k) == l,
+    decreases l,
+{
+    match l {
+        L::Rec { body } => lemma_closed_shift(*body, m + 1, k + 1),
+        L::Send { ls, .. } => lemma_closed_shift_ls(*ls, m, k),
+        L::Recv { ls, .. } => lemma_closed_shift_ls(*ls, m, k),
+        _ => {}
+    }
+}
+
+proof fn lemma_closed_shift_ls(ls: Ls, m: nat, k: nat)
+    requires lclosed_at_ls(ls, m), m <= k,
+    ensures !lfree_ls(ls, k), lshift_ls(ls, k) == ls,
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_closed_shift(l, m, k);
+        lemma_closed_shift_ls(*rest, m, k);
+    }
+}
+
+/// Removing an unused binder keeps closedness one lower.
+proof fn lemma_shift_closed(l: L, d: nat, m: nat)
+    requires lclosed_at(l, m + 1), !lfree(l, d), d <= m,
+    ensures lclosed_at(lshift(l, d), m),
+    decreases l,
+{
+    match l {
+        L::Rec { body } => lemma_shift_closed(*body, d + 1, m + 1),
+        L::Send { ls, .. } => lemma_shift_closed_ls(*ls, d, m),
+        L::Recv { ls, .. } => lemma_shift_closed_ls(*ls, d, m),
+        _ => {}
+    }
+}
+
+proof fn lemma_shift_closed_ls(ls: Ls, d: nat, m: nat)
+    requires lclosed_at_ls(ls, m + 1), !lfree_ls(ls, d), d <= m,
+    ensures lclosed_at_ls(lshift_ls(ls, d), m),
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_shift_closed(l, d, m);
+        lemma_shift_closed_ls(*rest, d, m);
+    }
+}
+
+/// Substituting a closed type for an unused variable is removing its binder.
+proof fn lemma_subst_notfree(l: L, k: nat, by: L)
+    requires !lfree(l, k),
+    ensures lsubst(l, k, by) == lshift(l, k),
+    decreases l,
+{
+    match l {
+        L::Rec { body } => lemma_subst_notfree(*body, k + 1, by),
+        L::Send { ls, .. } => lemma_subst_notfree_ls(*ls, k, by),
+        L::Recv { ls, .. } => lemma_subst_notfree_ls(*ls, k, by),
+        _ => {}
+    }
+}
+
+proof fn lemma_subst_notfree_ls(ls: Ls, k: nat, by: L)
+    requires !lfree_ls(ls, k),
+    ensures lsubst_ls(ls, k, by) == lshift_ls(ls, k),
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_subst_notfree(l, k, by);
+        lemma_subst_notfree_ls(*rest, k, by);
+    }
+}
+
+/// The free variables after substituting a closed type.
+proof fn lemma_free_subst(l: L, k: nat, by: L, j: nat)
+    requires lclosed_at(by, 0),
+    ensures lfree(lsubst(l, k, by), j) == (if j < k { lfree(l, j) } else { lfree(l, j + 1) }),
+    decreases l,
+{
+    match l {
+        L::Var { n } => {
+            if n == k {
+                lemma_closed_shift(by, 0, j);
+            }
+        }
+        L::Rec { body } => lemma_free_subst(*body, k + 1, by, j + 1),
+        L::Send { ls, .. } => lemma_free_subst_ls(*ls, k, by, j),
+        L::Recv { ls, .. } => lemma_free_subst_ls(*ls, k, by, j),
+        _ => {}
+    }
+}
+
+proof fn lemma_free_subst_ls(ls: Ls, k: nat, by: L, j: nat)
+    requires lclosed_at(by, 0),
+    ensures lfree_ls(lsubst_ls(ls, k, by), j) == (if j < k { lfree_ls(ls, j) } else { lfree_ls(ls, j + 1) }),
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_free_subst(l, k, by, j);
+        lemma_free_subst_ls(*rest, k, by, j);
+    }
+}
+
+/// Removing an unused binder commutes with substitution above it.
+proof fn lemma_shift_subst(l: L, d: nat, k: nat, by: L)
+    requires d <= k, !lfree(l, d), lclosed_at(by, 0),
+    ensures lshift(lsubst(l, k + 1, by), d) == lsubst(lshift(l, d), k, by),
+    decreases l,
+{
+    match l {
+        L::Var { n } => {
+            if n == k + 1 {
+                lemma_closed_shift(by, 0, d);
+            }
+        }
+        L::Rec { body } => lemma_shift_subst(*body, d + 1, k + 1, by),
+        L::Send { ls, .. } => lemma_shift_subst_ls(*ls, d, k, by),
+        L::Recv { ls, .. } => lemma_shift_subst_ls(*ls, d, k, by),
+        _ => {}
+    }
+}
+
+proof fn lemma_shift_subst_ls(ls: Ls, d: nat, k: nat, by: L)
+    requires d <= k, !lfree_ls(ls, d), lclosed_at(by, 0),
+    ensures lshift_ls(lsubst_ls(ls, k + 1, by), d) == lsubst_ls(lshift_ls(ls, d), k, by),
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_shift_subst(l, d, k, by);
+        lemma_shift_subst_ls(*rest, d, k, by);
+    }
+}
+
+/// Substitution keeps an action.
+proof fn lemma_subst_action(l: L, k: nat, by: L)
+    requires !lactionless(l),
+    ensures !lactionless(lsubst(l, k, by)),
+    decreases l,
+{
+    if let L::Rec { body } = l {
+        lemma_subst_action(*body, k + 1, by);
+    }
+}
+
+/// The recursion rule commutes with the substitution of a closed normal
+/// type for an outer variable.
+proof fn lemma_close_rec_subst(lb: L, k: nat, lby: L)
+    requires knormal(lb), lclosed_at(lby, 0), knormal(lby),
+    ensures close_rec(lsubst(lb, k + 1, lby)) == lsubst(close_rec(lb), k, lby),
+{
+    if lactionless(lb) {
+        lemma_knormal_actionless(lb);
+        match lb {
+            L::Var { n } => {
+                if n == k + 1 {
+                    // The variable is the substituted one: the result is the closed type itself.
+                    if lactionless(lby) {
+                        lemma_knormal_actionless(lby);
+                    } else {
+                        lemma_closed_shift(lby, 0, 0);
+                    }
+                }
+            }
+            _ => {}
+        }
+    } else {
+        lemma_subst_action(lb, k + 1, lby);
+        lemma_free_subst(lb, k + 1, lby, 0);
+        if !lfree(lb, 0) {
+            lemma_shift_subst(lb, 0, k, lby);
+        }
+    }
+}
+
+// ---------------------------------------- the projection's normality --
+
+pub proof fn lemma_merge_knormal(a: L, b: L)
+    requires merge(a, b) is Some, knormal(a), knormal(b),
+    ensures knormal(merge(a, b).unwrap()),
+    decreases lsize(a) + lsize(b),
+{
+    if a == b {
+    } else if a is Rec {
+        lemma_merge_knormal(*a->Rec_body, *b->Rec_body);
+        if lactionless(merge(*a->Rec_body, *b->Rec_body).unwrap()) {
+            lemma_merge_actionless_rev(*a->Rec_body, *b->Rec_body);
+        }
+    } else {
+        lemma_merge_ls_knormal(*a->Recv_ls, *b->Recv_ls);
+    }
+}
+
+/// A merge with no action comes from arguments with none.
+proof fn lemma_merge_actionless_rev(a: L, b: L)
+    requires merge(a, b) is Some, lactionless(merge(a, b).unwrap()),
+    ensures lactionless(a), lactionless(b),
+    decreases lsize(a) + lsize(b),
+{
+    if a != b {
+        lemma_merge_actionless_rev(*a->Rec_body, *b->Rec_body);
+    }
+}
+
+proof fn lemma_merge_ls_knormal(a: Ls, b: Ls)
+    requires merge_ls(a, b) is Some, knormal_ls(a), knormal_ls(b),
+    ensures knormal_ls(merge_ls(a, b).unwrap()),
+    decreases lssize(a) + lssize(b),
+{
+    if let Ls::Cons { label, l, rest } = a {
+        let b2 = ls_remove(b, label);
+        lemma_remove_size(b, label);
+        lemma_remove_knormal(b, label);
+        lemma_merge_ls_knormal(*rest, b2);
+        if ls_lookup(b, label) is Some {
+            lemma_lookup_size(b, label);
+            lemma_lookup_knormal(b, label);
+            lemma_merge_knormal(l, ls_lookup(b, label).unwrap());
+        }
+    }
+}
+
+proof fn lemma_remove_knormal(ls: Ls, label: int)
+    requires knormal_ls(ls),
+    ensures knormal_ls(ls_remove(ls, label)),
+    decreases ls,
+{
+    if let Ls::Cons { rest, .. } = ls {
+        lemma_remove_knormal(*rest, label);
+    }
+}
+
+proof fn lemma_lookup_knormal(ls: Ls, label: int)
+    requires knormal_ls(ls), ls_lookup(ls, label) is Some,
+    ensures knormal(ls_lookup(ls, label).unwrap()),
+    decreases ls,
+{
+    if let Ls::Cons { label: l0, rest, .. } = ls {
+        if l0 != label {
+            lemma_lookup_knormal(*rest, label);
+        }
+    }
+}
+
+/// The projection of a well-formed runtime type is normal and closed
+/// under its environment.
+pub proof fn lemma_rproj_normal(x: R, n: int, env: Seq<bool>, u: int)
+    requires rwf_at(x, n, env), rproj(x, u) is Some,
+    ensures knormal(rproj(x, u).unwrap()), lclosed_at(rproj(x, u).unwrap(), env.len()),
+    decreases x,
+{
+    match x {
+        R::Rec { body } => {
+            lemma_rproj_normal(*body, n, env.push(false), u);
+            let lb = rproj(*body, u).unwrap();
+            lemma_rproj_distinct(*body, n, env.push(false), u);
+            lemma_close_rec_shape(lb);
+            assert(rproj(x, u) == Some(close_rec(lb)));
+            assert(lclosed_at(lb, env.len() + 1));
+            if lactionless(lb) {
+                lemma_knormal_actionless(lb);
+                match lb {
+                    L::Var { n: v } => {
+                        if v == 0 {
+                            assert(close_rec(lb) == L::End);
+                        } else {
+                            assert(close_rec(lb) == L::Var { n: (v - 1) as nat });
+                        }
+                    }
+                    _ => { assert(close_rec(lb) == L::End); }
+                }
+            } else if lfree(lb, 0) {
+                assert(close_rec(lb) == L::Rec { body: Box::new(lb) });
+            } else {
+                assert(close_rec(lb) == lshift(lb, 0));
+                lemma_shift_closed(lb, 0, env.len());
+            }
+            assert(knormal(close_rec(lb)));
+            assert(lclosed_at(close_rec(lb), env.len()));
+        }
+        R::Comm { from, to, bs } => {
+            if u == from || u == to {
+                lemma_rproj_bs_normal(*bs, n, all_true(env), u);
+                assert(all_true(env).len() == env.len());
+                let ls = rproj_bs(*bs, u).unwrap();
+                if u == from {
+                    assert(rproj(x, u) == Some(L::Send { to, ls: Box::new(ls) }));
+                } else {
+                    assert(rproj(x, u) == Some(L::Recv { from, ls: Box::new(ls) }));
+                }
+            } else {
+                lemma_rproj_merge_normal(*bs, n, all_true(env), u);
+                assert(all_true(env).len() == env.len());
+            }
+        }
+        R::Sent { from, to, label, cont } => {
+            lemma_rproj_normal(*cont, n, all_true(env), u);
+            let l = rproj(*cont, u).unwrap();
+            assert(all_true(env).len() == env.len());
+            if u == to {
+                assert(rproj(x, u) == Some(L::Recv { from, ls: Box::new(Ls::Cons { label, l, rest: Box::new(Ls::Nil) }) }));
+                assert(knormal_ls(Ls::Nil));
+                assert(lclosed_at_ls(Ls::Nil, env.len()));
+                assert(knormal_ls(Ls::Cons { label, l, rest: Box::new(Ls::Nil) }));
+                assert(lclosed_at_ls(Ls::Cons { label, l, rest: Box::new(Ls::Nil) }, env.len()));
+            } else {
+                assert(rproj(x, u) == Some(l));
+            }
+        }
+        R::End => { assert(rproj(x, u) == Some(L::End)); }
+        R::Var { n: v } => { assert(rproj(x, u) == Some(L::Var { n: v })); assert(v < env.len()); }
+    }
+}
+
+proof fn lemma_rproj_bs_normal(bs: RBs, n: int, env: Seq<bool>, u: int)
+    requires rwf_bs(bs, n, env), rproj_bs(bs, u) is Some,
+    ensures knormal_ls(rproj_bs(bs, u).unwrap()), lclosed_at_ls(rproj_bs(bs, u).unwrap(), env.len()),
+    decreases bs,
+{
+    if let RBs::Cons { g, rest, .. } = bs {
+        lemma_rproj_normal(g, n, env, u);
+        lemma_rproj_bs_normal(*rest, n, env, u);
+    }
+}
+
+proof fn lemma_rproj_merge_normal(bs: RBs, n: int, env: Seq<bool>, u: int)
+    requires rwf_bs(bs, n, env), rproj_merge(bs, u) is Some,
+    ensures knormal(rproj_merge(bs, u).unwrap()), lclosed_at(rproj_merge(bs, u).unwrap(), env.len()),
+    decreases bs,
+{
+    if let RBs::Cons { g, rest, .. } = bs {
+        lemma_rproj_normal(g, n, env, u);
+        if !(*rest is Nil) {
+            lemma_rproj_merge_normal(*rest, n, env, u);
+            lemma_merge_knormal(rproj(g, u).unwrap(), rproj_merge(*rest, u).unwrap());
+            lemma_merge_closed(rproj(g, u).unwrap(), rproj_merge(*rest, u).unwrap(), env.len());
+        }
+    }
+}
+
+proof fn lemma_merge_closed(a: L, b: L, m: nat)
+    requires merge(a, b) is Some, lclosed_at(a, m), lclosed_at(b, m),
+    ensures lclosed_at(merge(a, b).unwrap(), m),
+    decreases lsize(a) + lsize(b),
+{
+    if a == b {
+    } else if a is Rec {
+        lemma_merge_closed(*a->Rec_body, *b->Rec_body, m + 1);
+    } else {
+        lemma_merge_ls_closed(*a->Recv_ls, *b->Recv_ls, m);
+    }
+}
+
+proof fn lemma_merge_ls_closed(a: Ls, b: Ls, m: nat)
+    requires merge_ls(a, b) is Some, lclosed_at_ls(a, m), lclosed_at_ls(b, m),
+    ensures lclosed_at_ls(merge_ls(a, b).unwrap(), m),
+    decreases lssize(a) + lssize(b),
+{
+    if let Ls::Cons { label, l, rest } = a {
+        let b2 = ls_remove(b, label);
+        lemma_remove_size(b, label);
+        lemma_remove_closed(b, label, m);
+        lemma_merge_ls_closed(*rest, b2, m);
+        if ls_lookup(b, label) is Some {
+            lemma_lookup_size(b, label);
+            lemma_lookup_closed(b, label, m);
+            lemma_merge_closed(l, ls_lookup(b, label).unwrap(), m);
+        }
+    }
+}
+
+proof fn lemma_remove_closed(ls: Ls, label: int, m: nat)
+    requires lclosed_at_ls(ls, m),
+    ensures lclosed_at_ls(ls_remove(ls, label), m),
+    decreases ls,
+{
+    if let Ls::Cons { rest, .. } = ls {
+        lemma_remove_closed(*rest, label, m);
+    }
+}
+
+proof fn lemma_lookup_closed(ls: Ls, label: int, m: nat)
+    requires lclosed_at_ls(ls, m), ls_lookup(ls, label) is Some,
+    ensures lclosed_at(ls_lookup(ls, label).unwrap(), m),
+    decreases ls,
+{
+    if let Ls::Cons { label: l0, rest, .. } = ls {
+        if l0 != label {
+            lemma_lookup_closed(*rest, label, m);
+        }
+    }
+}
+
 // -------------------------------- the projection and the head normal form --
 
 /// The projection of a well-formed runtime type has distinct labels.
@@ -1303,7 +1815,11 @@ pub proof fn lemma_rproj_distinct(x: R, n: int, env: Seq<bool>, u: int)
     match x {
         R::Rec { body } => {
             lemma_rproj_distinct(*body, n, env.push(false), u);
-            assert(rproj(x, u) == Some(L::Rec { body: Box::new(rproj(*body, u).unwrap()) }));
+            let lb = rproj(*body, u).unwrap();
+            assert(rproj(x, u) == Some(close_rec(lb)));
+            if !lactionless(lb) && !lfree(lb, 0) {
+                lemma_lshift_distinct(lb, 0);
+            }
         }
         R::Comm { from, to, bs } => {
             if u == from || u == to {
@@ -1372,9 +1888,12 @@ pub proof fn lemma_rproj_subst(x: R, n: int, env: Seq<bool>, k: nat, by: R, u: i
         R::Rec { body } => {
             lemma_rproj_subst(*body, n, env.push(false), k + 1, by, u);
             let lb = rproj(*body, u).unwrap();
-            assert(rproj(x, u) == Some(L::Rec { body: Box::new(lb) }));
+            assert(rproj(x, u) == Some(close_rec(lb)));
             assert(rsubst(x, k, by) == R::Rec { body: Box::new(rsubst(*body, k + 1, by)) });
-            assert(rproj(rsubst(x, k, by), u) == Some(L::Rec { body: Box::new(lsubst(lb, k + 1, lby)) }));
+            assert(rproj(rsubst(x, k, by), u) == Some(close_rec(lsubst(lb, k + 1, lby))));
+            lemma_rproj_normal(*body, n, env.push(false), u);
+            lemma_rproj_normal(by, n, Seq::<bool>::empty(), u);
+            lemma_close_rec_subst(lb, k, lby);
             assert(rproj(rsubst(x, k, by), u) == Some(lsubst(rproj(x, u).unwrap(), k, lby)));
         }
         R::Comm { from, to, bs } => {
@@ -1580,10 +2099,27 @@ pub proof fn lemma_mhead_rproj(x: R, n: int, u: int)
         lemma_runfold_wf(x, n);
         let body = *x->Rec_body;
         let l = rproj(x, u).unwrap();
+        let lb = rproj(body, u).unwrap();
         assert(Seq::<bool>::empty().push(false) =~= seq![false]);
         lemma_rproj_subst(body, n, seq![false], 0, x, u);
-        assert(rproj(runfold(x), u) == Some(lunfold(l)));
-        lemma_mhead_unfold(l);
+        assert(rproj(runfold(x), u) == Some(lsubst(lb, 0, l)));
+        lemma_rproj_normal(body, n, seq![false], u);
+        lemma_rproj_normal(x, n, Seq::<bool>::empty(), u);
+        assert(l == close_rec(lb));
+        if lactionless(lb) {
+            // A vacuous recursion: the body's projection is the variable or
+            // an end, the type an end, and the unfolding an end.
+            lemma_knormal_actionless(lb);
+            assert(l == L::End);
+            assert(lsubst(lb, 0, l) == L::End);
+        } else if lfree(lb, 0) {
+            assert(l == L::Rec { body: Box::new(lb) });
+            assert(lsubst(lb, 0, l) == lunfold(l));
+            lemma_mhead_unfold(l);
+        } else {
+            lemma_subst_notfree(lb, 0, l);
+            assert(lsubst(lb, 0, l) == l);
+        }
         lemma_mhead_rproj(runfold(x), n, u);
         assert(rhead_n(x, rlead_recs(x)) == rhead_n(runfold(x), rlead_recs(runfold(x))));
     }
@@ -1617,16 +2153,8 @@ pub open spec fn reaches_bs(bs: RBs, u: int) -> bool
     }
 }
 
-/// A local type with no action.
-pub open spec fn actionless(l: L) -> bool
-    decreases l,
-{
-    match l {
-        L::End => true,
-        L::Var { .. } => true,
-        L::Rec { body } => actionless(*body),
-        _ => false,
-    }
+pub open spec fn actionless(l: L) -> bool {
+    lactionless(l)
 }
 
 proof fn lemma_merge_actionless(a: L, b: L)
@@ -1646,7 +2174,14 @@ proof fn lemma_action_reaches(x: R, u: int)
     decreases x,
 {
     match x {
-        R::Rec { body } => lemma_action_reaches(*body, u),
+        R::Rec { body } => {
+            let lb = rproj(*body, u).unwrap();
+            assert(rproj(x, u) == Some(close_rec(lb)));
+            if lactionless(lb) {
+                assert(lactionless(close_rec(lb)));
+            }
+            lemma_action_reaches(*body, u);
+        }
         R::Comm { from, to, bs } => {
             if u != from && u != to {
                 lemma_action_reaches_merge(*bs, u);
@@ -3267,6 +3802,101 @@ proof fn lemma_recv_exists_bs(rel: ISet<(L, R)>, m: L, bs: RBs, q: int, p: int, 
     }
 }
 
+/// The oldest label of a channel a role awaits on is one it accepts (the
+/// argument of `lemma_recv_exists`, with the lookup as the conclusion).
+proof fn lemma_head_accepted(rel: ISet<(L, R)>, m: L, x: R, q: int, p: int, n: int)
+    requires
+        consistent(rel, q, n), rel.contains((m, x)), rgood(x),
+        mhead(m) is Recv, mhead(m)->Recv_from == p,
+        rqueue(x, p, q).len() > 0,
+    ensures ls_lookup(*mhead(m)->Recv_ls, rqueue(x, p, q)[0]) is Some,
+    decreases sdepth(x, q),
+{
+    assert(node_ok(rel, m, x, q, n));
+    lemma_rhead_wf(x, n);
+    lemma_rhead_good(x, n);
+    lemma_rhead_reaches(x, n, q);
+    let h = rhead(x);
+    match h {
+        R::Sent { from, to, label, cont } => {
+            if to == q {
+                assert(from == p);
+                assert(rqueue(h, p, q) == seq![label].add(rqueue(*cont, p, q)));
+                assert(rqueue(x, p, q)[0] == label);
+            } else {
+                assert(rqueue(h, p, q) == Seq::<int>::empty().add(rqueue(*cont, p, q)));
+                assert(Seq::<int>::empty().add(rqueue(*cont, p, q)) =~= rqueue(*cont, p, q));
+                assert(rel.contains((m, *cont)));
+                lemma_head_accepted(rel, m, *cont, q, p, n);
+            }
+        }
+        R::Comm { from, to, bs } => {
+            if to == q {
+                assert(from == p);
+                assert(no_sent_from_bs(*bs, p));
+                lemma_no_sent_from_queue_bs(*bs, p);
+                assert(rqueue(h, p, q) == rqueue_bs(*bs, p, q));
+                assert(false);
+            } else if from == q {
+                assert(false);
+            } else {
+                assert(*bs is Cons);
+                let label0 = bs->Cons_label;
+                let b = bs->Cons_g;
+                assert(rbs_lookup(*bs, label0) == Some(b));
+                assert(rel.contains((m, b)));
+                lemma_rgood_branch(*bs, label0);
+                assert(queues_agree_bs(*bs));
+                assert(rqueue(b, p, q) == rqueue_bs(*bs, p, q));
+                assert(rqueue(h, p, q) == rqueue_bs(*bs, p, q));
+                lemma_sdepth_branch(*bs, q, label0);
+                lemma_head_accepted(rel, m, b, q, p, n);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// No unexpected reception (2026-11-09): in a configuration, a role whose
+/// head is a receive and whose awaited channel is not empty accepts the
+/// channel's oldest label.
+pub open spec fn reception_ok(c: NC, n: int) -> bool {
+    forall|r: int| 0 <= r < n && lhead(#[trigger] c.l[r]) is Recv && 0 <= lhead(c.l[r])->Recv_from < n && c.ch[lhead(c.l[r])->Recv_from * n + r].len() > 0
+        ==> ls_lookup(*lhead(c.l[r])->Recv_ls, c.ch[lhead(c.l[r])->Recv_from * n + r][0]) is Some
+}
+
+pub proof fn lemma_reception(c: NC, x: R, n: int)
+    requires minv(c, x, n),
+    ensures reception_ok(c, n),
+{
+    assert forall|r: int| 0 <= r < n && lhead(#[trigger] c.l[r]) is Recv && 0 <= lhead(c.l[r])->Recv_from < n && c.ch[lhead(c.l[r])->Recv_from * n + r].len() > 0
+        implies ls_lookup(*lhead(c.l[r])->Recv_ls, c.ch[lhead(c.l[r])->Recv_from * n + r][0]) is Some by {
+        let m = c.l[r];
+        let p = lhead(m)->Recv_from;
+        assert(fits(m, x, r, n));
+        let rel = choose|rel: ISet<(L, R)>| #[trigger] consistent(rel, r, n) && rel.contains((m, x));
+        lemma_heads(m);
+        lemma_index(p, r, p, r, n);
+        assert(c.ch[p * n + r] == rqueue(x, p, r));
+        lemma_head_accepted(rel, m, x, r, p, n);
+    }
+}
+
+/// The multiparty reception theorem: in every reachable configuration of
+/// an accepted Protocol, the oldest label of a channel a role awaits on is
+/// one it accepts.
+pub proof fn theorem_multiparty_reception(g: G, n: int)
+    requires acceptn(g, n),
+    ensures forall|c: NC| nreachable(g, n, c) ==> reception_ok(c, n),
+{
+    assert forall|c: NC| nreachable(g, n, c) implies reception_ok(c, n) by {
+        let path = choose|path: Seq<NC>| #[trigger] nrun(g, n, path) && path.last() == c;
+        lemma_run_minv(g, n, path);
+        let x = choose|x: R| minv(c, x, n);
+        lemma_reception(c, x, n);
+    }
+}
+
 // --------------------------------------- the relation across a step --
 
 /// The role's local type after the step: the actor continues with the
@@ -4125,6 +4755,1282 @@ pub proof fn theorem_multiparty_progress(g: G, n: int)
         let x = choose|x: R| minv(c, x, n);
         lemma_no_deadlock(c, x, n);
     }
+}
+
+// ------------------------------- the executable acceptance check (n roles) --
+
+/// `wfn_at` decided on the executable global type under the guard
+/// environment `env` (as `theory::wf2_exec`, with the role bound `n`).
+pub fn wfn_exec(g: &GE, n: usize, env: &mut Vec<bool>) -> (r: bool)
+    ensures r == wfn_at(g@, n as int, old(env)@), final(env)@ == old(env)@,
+    decreases g,
+{
+    match g {
+        GE::End => true,
+        GE::Var { n: v } => *v < env.len() && env[env.len() - 1 - *v],
+        GE::Rec { body } => {
+            env.push(false);
+            let r = wfn_exec(body, n, env);
+            env.pop();
+            assert(env@ =~= old(env)@);
+            r
+        }
+        GE::Comm { from, to, bs } => {
+            let ok = *from < n && *to < n && *from != *to && be_len_ge_one(bs) && be_distinct_exec(bs);
+            if !ok {
+                return false;
+            }
+            let mut guarded: Vec<bool> = Vec::new();
+            let mut i = 0;
+            while i < env.len()
+                invariant i <= env.len(), guarded@ == Seq::new(i as nat, |j: int| true),
+                decreases env.len() - i,
+            {
+                guarded.push(true);
+                i += 1;
+                assert(guarded@ =~= Seq::new(i as nat, |j: int| true));
+            }
+            assert(guarded@ =~= all_true(env@));
+            wfn_bs_exec(bs, n, &mut guarded)
+        }
+    }
+}
+
+fn wfn_bs_exec(bs: &BE, n: usize, env: &mut Vec<bool>) -> (r: bool)
+    ensures r == wfn_bs(bs@, n as int, old(env)@), final(env)@ == old(env)@,
+    decreases bs,
+{
+    match bs {
+        BE::Nil => true,
+        BE::Cons { g, rest, .. } => {
+            let a = wfn_exec(g, n, env);
+            let b = wfn_bs_exec(rest, n, env);
+            a && b
+        }
+    }
+}
+
+fn be_len_ge_one(bs: &BE) -> (r: bool)
+    ensures r == (bs_len(bs@) >= 1),
+{
+    match bs {
+        BE::Nil => false,
+        BE::Cons { .. } => true,
+    }
+}
+
+fn be_has_label_exec(bs: &BE, label: u32) -> (r: bool)
+    ensures r == bs_has_label(bs@, label as int),
+    decreases bs,
+{
+    match bs {
+        BE::Nil => false,
+        BE::Cons { label: l, rest, .. } => *l == label || be_has_label_exec(rest, label),
+    }
+}
+
+fn be_distinct_exec(bs: &BE) -> (r: bool)
+    ensures r == bs_distinct(bs@),
+    decreases bs,
+{
+    match bs {
+        BE::Nil => true,
+        BE::Cons { label, rest, .. } => !be_has_label_exec(rest, *label) && be_distinct_exec(rest),
+    }
+}
+
+/// `ls_lookup` on executable branch lists.
+fn lse_lookup<'a>(ls: &'a LsE, label: u32) -> (r: Option<&'a LE>)
+    ensures
+        r is Some ==> ls_lookup(ls@, label as int) == Some(r.unwrap()@),
+        r is None ==> ls_lookup(ls@, label as int) is None,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => None,
+        LsE::Cons { label: l, l: cont, rest } => if *l == label { Some(cont) } else { lse_lookup(rest, label) },
+    }
+}
+
+/// `ls_remove` on executable branch lists.
+fn lse_remove(ls: &LsE, label: u32) -> (r: LsE)
+    ensures r@ == ls_remove(ls@, label as int),
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => LsE::Nil,
+        LsE::Cons { label: l, l: cont, rest } => {
+            if *l == label {
+                lse_remove(rest, label)
+            } else {
+                LsE::Cons { label: *l, l: le_copy(cont), rest: Box::new(lse_remove(rest, label)) }
+            }
+        }
+    }
+}
+
+/// The full merge on executable local types: `Some` exactly when the
+/// specification's merge is, with its view.
+pub fn merge_exec(a: &LE, b: &LE) -> (r: Option<LE>)
+    ensures
+        (r is Some) == (merge(a@, b@) is Some),
+        r is Some ==> r.unwrap()@ == merge(a@, b@).unwrap(),
+    decreases a,
+{
+    if le_eq(a, b) {
+        return Some(le_copy(a));
+    }
+    match (a, b) {
+        (LE::Rec { body: ba }, LE::Rec { body: bb }) => match merge_exec(ba, bb) {
+            Some(m) => Some(LE::Rec { body: Box::new(m) }),
+            None => None,
+        },
+        (LE::Recv { from: fa, ls: la }, LE::Recv { from: fb, ls: lb }) => {
+            if *fa == *fb {
+                match merge_ls_exec(la, lb) {
+                    Some(ls) => Some(LE::Recv { from: *fa, ls: Box::new(ls) }),
+                    None => None,
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn merge_ls_exec(a: &LsE, b: &LsE) -> (r: Option<LsE>)
+    ensures
+        (r is Some) == (merge_ls(a@, b@) is Some),
+        r is Some ==> r.unwrap()@ == merge_ls(a@, b@).unwrap(),
+    decreases a,
+{
+    match a {
+        LsE::Nil => Some(lse_copy_pub(b)),
+        LsE::Cons { label, l, rest } => {
+            let merged = match lse_lookup(b, *label) {
+                Some(lb) => merge_exec(l, lb),
+                None => Some(le_copy(l)),
+            };
+            let Some(m) = merged else { return None; };
+            let b2 = lse_remove(b, *label);
+            let Some(r2) = merge_ls_exec(rest, &b2) else { return None; };
+            Some(LsE::Cons { label: *label, l: m, rest: Box::new(r2) })
+        }
+    }
+}
+
+fn lse_copy_pub(ls: &LsE) -> (r: LsE)
+    ensures r@ == ls@,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => LsE::Nil,
+        LsE::Cons { label, l, rest } => LsE::Cons { label: *label, l: le_copy(l), rest: Box::new(lse_copy_pub(rest)) },
+    }
+}
+
+/// `projn` on the executable global type: `Some` exactly when the
+/// specification's projection is, with its view.
+pub fn projn_exec(g: &GE, r: usize) -> (l: Option<LE>)
+    ensures
+        l is Some ==> projn(g@, r as int) is Some && l.unwrap()@ == projn(g@, r as int).unwrap(),
+        l is None ==> projn(g@, r as int) is None || gdeep(g@),
+    decreases g,
+{
+    match g {
+        GE::End => Some(LE::End),
+        GE::Var { n } => Some(LE::Var { n: *n }),
+        GE::Rec { body } => match projn_exec(body, r) {
+            Some(l) => {
+                let res = close_rec_exec(&l);
+                proof {
+                    if res is None {
+                        lemma_projn_depth(body@, r as int);
+                    }
+                }
+                res
+            }
+            None => None,
+        },
+        GE::Comm { from, to, bs } => {
+            if r == *from {
+                match projn_bs_exec(bs, r) {
+                    Some(ls) => Some(LE::Send { to: *to, ls: Box::new(ls) }),
+                    None => None,
+                }
+            } else if r == *to {
+                match projn_bs_exec(bs, r) {
+                    Some(ls) => Some(LE::Recv { from: *from, ls: Box::new(ls) }),
+                    None => None,
+                }
+            } else {
+                projn_merge_exec(bs, r)
+            }
+        }
+    }
+}
+
+fn projn_bs_exec(bs: &BE, r: usize) -> (ls: Option<LsE>)
+    ensures
+        ls is Some ==> projn_bs(bs@, r as int) is Some && ls.unwrap()@ == projn_bs(bs@, r as int).unwrap(),
+        ls is None ==> projn_bs(bs@, r as int) is None || gdeep_bs(bs@),
+    decreases bs,
+{
+    match bs {
+        BE::Nil => Some(LsE::Nil),
+        BE::Cons { label, g, rest } => {
+            let Some(l) = projn_exec(g, r) else { return None; };
+            let Some(ls) = projn_bs_exec(rest, r) else { return None; };
+            Some(LsE::Cons { label: *label, l, rest: Box::new(ls) })
+        }
+    }
+}
+
+fn projn_merge_exec(bs: &BE, r: usize) -> (l: Option<LE>)
+    ensures
+        l is Some ==> projn_merge(bs@, r as int) is Some && l.unwrap()@ == projn_merge(bs@, r as int).unwrap(),
+        l is None ==> projn_merge(bs@, r as int) is None || gdeep_bs(bs@),
+    decreases bs,
+{
+    match bs {
+        BE::Nil => None,
+        BE::Cons { g, rest, .. } => {
+            let Some(l) = projn_exec(g, r) else { return None; };
+            match &**rest {
+                BE::Nil => Some(l),
+                _ => {
+                    let Some(m) = projn_merge_exec(rest, r) else { return None; };
+                    merge_exec(&l, &m)
+                }
+            }
+        }
+    }
+}
+
+/// `acceptn` decided on the executable global type.
+pub fn acceptn_exec(g: &GE, n: usize) -> (r: bool)
+    ensures r ==> acceptn(g@, n as int), !r ==> !acceptn(g@, n as int) || gdeep(g@),
+{
+    if n < 2 {
+        return false;
+    }
+    let mut env: Vec<bool> = Vec::new();
+    let wf = wfn_exec(g, n, &mut env);
+    proof {
+        assert(env@ =~= Seq::<bool>::empty());
+    }
+    if !wf {
+        return false;
+    }
+    let mut i: usize = 0;
+    while i < n
+        invariant i <= n, forall|r: int| 0 <= r < i ==> (#[trigger] projn(g@, r)) is Some,
+        decreases n - i,
+    {
+        if projn_exec(g, i).is_none() {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// The nesting of recursions in a global type.
+pub open spec fn gdepth(g: G) -> nat
+    decreases g,
+{
+    match g {
+        G::Rec { body } => 1 + gdepth(*body),
+        G::Comm { bs, .. } => gdepth_bs(*bs),
+        _ => 0,
+    }
+}
+
+pub open spec fn gdepth_bs(bs: Bs) -> nat
+    decreases bs,
+{
+    match bs {
+        Bs::Nil => 0,
+        Bs::Cons { g, rest, .. } => if gdepth(g) >= gdepth_bs(*rest) { gdepth(g) } else { gdepth_bs(*rest) },
+    }
+}
+
+/// A recursion nesting the executable shift cannot count: beyond every
+/// type that fits in memory (the executable projection refuses rather than
+/// overflows).
+pub open spec fn gdeep(g: G) -> bool {
+    gdepth(g) + 2 >= usize::MAX
+}
+
+pub open spec fn gdeep_bs(bs: Bs) -> bool {
+    gdepth_bs(bs) + 2 >= usize::MAX
+}
+
+/// The nesting of recursions in a local type.
+pub open spec fn ldepth(l: L) -> nat
+    decreases l,
+{
+    match l {
+        L::Rec { body } => 1 + ldepth(*body),
+        L::Send { ls, .. } => ldepth_ls(*ls),
+        L::Recv { ls, .. } => ldepth_ls(*ls),
+        _ => 0,
+    }
+}
+
+pub open spec fn ldepth_ls(ls: Ls) -> nat
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => 0,
+        Ls::Cons { l, rest, .. } => if ldepth(l) >= ldepth_ls(*rest) { ldepth(l) } else { ldepth_ls(*rest) },
+    }
+}
+
+proof fn lemma_lshift_depth(l: L, k: nat)
+    ensures ldepth(lshift(l, k)) == ldepth(l),
+    decreases l,
+{
+    match l {
+        L::Rec { body } => lemma_lshift_depth(*body, k + 1),
+        L::Send { ls, .. } => lemma_lshift_ls_depth(*ls, k),
+        L::Recv { ls, .. } => lemma_lshift_ls_depth(*ls, k),
+        _ => {}
+    }
+}
+
+proof fn lemma_lshift_ls_depth(ls: Ls, k: nat)
+    ensures ldepth_ls(lshift_ls(ls, k)) == ldepth_ls(ls),
+    decreases ls,
+{
+    if let Ls::Cons { l, rest, .. } = ls {
+        lemma_lshift_depth(l, k);
+        lemma_lshift_ls_depth(*rest, k);
+    }
+}
+
+proof fn lemma_merge_depth(a: L, b: L)
+    requires merge(a, b) is Some,
+    ensures ldepth(merge(a, b).unwrap()) <= ldepth(a) || ldepth(merge(a, b).unwrap()) <= ldepth(b),
+    decreases lsize(a) + lsize(b),
+{
+    if a == b {
+    } else if a is Rec {
+        lemma_merge_depth(*a->Rec_body, *b->Rec_body);
+    } else {
+        lemma_merge_ls_depth(*a->Recv_ls, *b->Recv_ls);
+    }
+}
+
+proof fn lemma_merge_ls_depth(a: Ls, b: Ls)
+    requires merge_ls(a, b) is Some,
+    ensures ldepth_ls(merge_ls(a, b).unwrap()) <= ldepth_ls(a) || ldepth_ls(merge_ls(a, b).unwrap()) <= ldepth_ls(b),
+    decreases lssize(a) + lssize(b),
+{
+    if let Ls::Cons { label, l, rest } = a {
+        let b2 = ls_remove(b, label);
+        lemma_remove_size(b, label);
+        lemma_remove_depth(b, label);
+        lemma_merge_ls_depth(*rest, b2);
+        if ls_lookup(b, label) is Some {
+            lemma_lookup_size(b, label);
+            lemma_lookup_depth(b, label);
+            lemma_merge_depth(l, ls_lookup(b, label).unwrap());
+        }
+    }
+}
+
+proof fn lemma_remove_depth(ls: Ls, label: int)
+    ensures ldepth_ls(ls_remove(ls, label)) <= ldepth_ls(ls),
+    decreases ls,
+{
+    if let Ls::Cons { rest, .. } = ls {
+        lemma_remove_depth(*rest, label);
+    }
+}
+
+proof fn lemma_lookup_depth(ls: Ls, label: int)
+    requires ls_lookup(ls, label) is Some,
+    ensures ldepth(ls_lookup(ls, label).unwrap()) <= ldepth_ls(ls),
+    decreases ls,
+{
+    if let Ls::Cons { label: l0, rest, .. } = ls {
+        if l0 != label {
+            lemma_lookup_depth(*rest, label);
+        }
+    }
+}
+
+/// The projection nests no deeper than the Protocol.
+proof fn lemma_projn_depth(g: G, r: int)
+    requires projn(g, r) is Some,
+    ensures ldepth(projn(g, r).unwrap()) <= gdepth(g),
+    decreases g,
+{
+    match g {
+        G::Rec { body } => {
+            lemma_projn_depth(*body, r);
+            let lb = projn(*body, r).unwrap();
+            if !lactionless(lb) && !lfree(lb, 0) {
+                lemma_lshift_depth(lb, 0);
+            }
+        }
+        G::Comm { from, to, bs } => {
+            if r == from || r == to {
+                lemma_projn_bs_depth(*bs, r);
+            } else {
+                lemma_projn_merge_depth(*bs, r);
+            }
+        }
+        _ => {}
+    }
+}
+
+proof fn lemma_projn_bs_depth(bs: Bs, r: int)
+    requires projn_bs(bs, r) is Some,
+    ensures ldepth_ls(projn_bs(bs, r).unwrap()) <= gdepth_bs(bs),
+    decreases bs,
+{
+    if let Bs::Cons { g, rest, .. } = bs {
+        lemma_projn_depth(g, r);
+        lemma_projn_bs_depth(*rest, r);
+    }
+}
+
+proof fn lemma_projn_merge_depth(bs: Bs, r: int)
+    requires projn_merge(bs, r) is Some,
+    ensures ldepth(projn_merge(bs, r).unwrap()) <= gdepth_bs(bs),
+    decreases bs,
+{
+    if let Bs::Cons { g, rest, .. } = bs {
+        lemma_projn_depth(g, r);
+        if !(*rest is Nil) {
+            lemma_projn_merge_depth(*rest, r);
+            lemma_merge_depth(projn(g, r).unwrap(), projn_merge(*rest, r).unwrap());
+        }
+    }
+}
+
+fn lactionless_exec(l: &LE) -> (r: bool)
+    ensures r == lactionless(l@),
+    decreases l,
+{
+    match l {
+        LE::End => true,
+        LE::Var { .. } => true,
+        LE::Rec { body } => lactionless_exec(body),
+        _ => false,
+    }
+}
+
+fn lfree_exec(l: &LE, k: usize) -> (r: bool)
+    ensures r == lfree(l@, k as nat),
+    decreases l,
+{
+    match l {
+        LE::End => false,
+        LE::Var { n } => *n == k,
+        LE::Rec { body } => if k == usize::MAX { lfree_deep(body) } else { lfree_exec(body, k + 1) },
+        LE::Send { ls, .. } => lfree_ls_exec(ls, k),
+        LE::Recv { ls, .. } => lfree_ls_exec(ls, k),
+    }
+}
+
+/// No variable of an in-memory type reaches `usize::MAX + 1`.
+fn lfree_deep(l: &LE) -> (r: bool)
+    ensures r == lfree(l@, usize::MAX as nat + 1),
+    decreases l,
+{
+    match l {
+        LE::End => false,
+        LE::Var { .. } => false,
+        LE::Rec { body } => lfree_deeper(body, 2),
+        LE::Send { ls, .. } => lfree_ls_deep(ls),
+        LE::Recv { ls, .. } => lfree_ls_deep(ls),
+    }
+}
+
+fn lfree_ls_deep(ls: &LsE) -> (r: bool)
+    ensures r == lfree_ls(ls@, usize::MAX as nat + 1),
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => false,
+        LsE::Cons { l, rest, .. } => lfree_deep(l) || lfree_ls_deep(rest),
+    }
+}
+
+/// Variables beyond `usize::MAX` never occur in an executable type (its
+/// indices are `usize`). The depth is carried as a ghost excess.
+fn lfree_deeper(l: &LE, excess: u8) -> (r: bool)
+    requires excess >= 1,
+    ensures r == false, !lfree(l@, usize::MAX as nat + excess as nat),
+{
+    proof { lemma_var_bound(l, usize::MAX as nat + excess as nat); }
+    false
+}
+
+proof fn lemma_var_bound(l: &LE, k: nat)
+    requires k > usize::MAX,
+    ensures !lfree(l@, k),
+    decreases l,
+{
+    match l {
+        LE::Rec { body } => lemma_var_bound(body, k + 1),
+        LE::Send { ls, .. } => lemma_var_bound_ls(ls, k),
+        LE::Recv { ls, .. } => lemma_var_bound_ls(ls, k),
+        _ => {}
+    }
+}
+
+proof fn lemma_var_bound_ls(ls: &LsE, k: nat)
+    requires k > usize::MAX,
+    ensures !lfree_ls(ls@, k),
+    decreases ls,
+{
+    if let LsE::Cons { l, rest, .. } = ls {
+        lemma_var_bound(l, k);
+        lemma_var_bound_ls(rest, k);
+    }
+}
+
+fn lfree_ls_exec(ls: &LsE, k: usize) -> (r: bool)
+    ensures r == lfree_ls(ls@, k as nat),
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => false,
+        LsE::Cons { l, rest, .. } => lfree_exec(l, k) || lfree_ls_exec(rest, k),
+    }
+}
+
+/// `lshift` on executable types; `None` when the binder index would
+/// overflow (a nesting beyond `usize::MAX`, which no type in memory has).
+fn lshift_exec(l: &LE, k: usize) -> (r: Option<LE>)
+    ensures
+        r is Some ==> r.unwrap()@ == lshift(l@, k as nat),
+        r is None ==> k as nat + ldepth(l@) >= usize::MAX,
+    decreases l,
+{
+    match l {
+        LE::End => Some(LE::End),
+        LE::Var { n } => if *n > k { Some(LE::Var { n: *n - 1 }) } else { Some(LE::Var { n: *n }) },
+        LE::Rec { body } => {
+            if k == usize::MAX {
+                return None;
+            }
+            match lshift_exec(body, k + 1) {
+                Some(b) => Some(LE::Rec { body: Box::new(b) }),
+                None => None,
+            }
+        }
+        LE::Send { to, ls } => match lshift_ls_exec(ls, k) {
+            Some(ls2) => Some(LE::Send { to: *to, ls: Box::new(ls2) }),
+            None => None,
+        },
+        LE::Recv { from, ls } => match lshift_ls_exec(ls, k) {
+            Some(ls2) => Some(LE::Recv { from: *from, ls: Box::new(ls2) }),
+            None => None,
+        },
+    }
+}
+
+fn lshift_ls_exec(ls: &LsE, k: usize) -> (r: Option<LsE>)
+    ensures
+        r is Some ==> r.unwrap()@ == lshift_ls(ls@, k as nat),
+        r is None ==> k as nat + ldepth_ls(ls@) >= usize::MAX,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => Some(LsE::Nil),
+        LsE::Cons { label, l, rest } => {
+            let Some(l2) = lshift_exec(l, k) else { return None; };
+            let Some(r2) = lshift_ls_exec(rest, k) else { return None; };
+            Some(LsE::Cons { label: *label, l: l2, rest: Box::new(r2) })
+        }
+    }
+}
+
+/// `close_rec` on executable types.
+fn close_rec_exec(l: &LE) -> (r: Option<LE>)
+    ensures
+        r is Some ==> r.unwrap()@ == close_rec(l@),
+        r is None ==> ldepth(l@) >= usize::MAX,
+{
+    if lactionless_exec(l) {
+        match l {
+            LE::Var { n } => if *n == 0 { Some(LE::End) } else { Some(LE::Var { n: *n - 1 }) },
+            _ => Some(LE::End),
+        }
+    } else if lfree_exec(l, 0) {
+        Some(LE::Rec { body: Box::new(le_copy(l)) })
+    } else {
+        lshift_exec(l, 0)
+    }
+}
+
+/// `check_protocol`'s hook for three or more roles: accepting establishes
+/// the hypothesis of `theorem_multiparty_progress` for the Protocol's view.
+pub fn accept_multiparty(g: &GE, n: usize) -> (r: bool)
+    ensures
+        r ==> acceptn(g@, n as int),
+        r ==> forall|c: NC| nreachable(g@, n as int, c) ==> !ndeadlocked(c, n as int),
+{
+    let ok = acceptn_exec(g, n);
+    proof {
+        if ok {
+            theorem_multiparty_progress(g@, n as int);
+        }
+    }
+    ok
+}
+
+// ------------------------------ the bridge to the automaton (n roles) --
+
+/// The peer of a head-normal entry.
+pub open spec fn peer_of(l: L) -> int {
+    match l {
+        L::Send { to, .. } => to,
+        L::Recv { from, .. } => from,
+        _ => 0,
+    }
+}
+
+/// A table entry of role `r` among `n`: head normal, with a peer that is
+/// another role, and at least one branch when it communicates.
+pub open spec fn entry_ok_n(l: L, r: int, n: int) -> bool {
+    match l {
+        L::End => true,
+        L::Send { to, ls } => 0 <= to < n && to != r && *ls is Cons,
+        L::Recv { from, ls } => 0 <= from < n && from != r && *ls is Cons,
+        _ => false,
+    }
+}
+
+/// The automaton `s` is the flattening of the `n`-role Protocol `g` through
+/// the state tables `tb`: entry 0 of a role is the head of its projection,
+/// every entry is admissible, and the transitions are exactly the entries'
+/// branches, each leading to the entry equal to the head of its
+/// continuation (`theory::flattens` for `n` roles, the peer the entry's).
+pub open spec fn flattens_n(s: System, g: G, n: int, tb: Seq<Seq<L>>) -> bool {
+    &&& n >= 2
+    &&& s.roles == n
+    &&& tb.len() == n
+    &&& forall|r: int| 0 <= r < n ==> (#[trigger] tb[r]).len() >= 1 && projn(g, r) is Some && tb[r][0] == lhead(projn(g, r).unwrap())
+    &&& forall|r: int, i: int| 0 <= r < n && 0 <= i < tb[r].len() ==> entry_ok_n(#[trigger] tb[r][i], r, n)
+    &&& forall|r: int, i: int, label: int| 0 <= r < n && 0 <= i < tb[r].len() && #[trigger] ls_lookup(ls_of(tb[r][i]), label) is Some
+        ==> exists|j: int| 0 <= j < tb[r].len() && tb[r][j] == lhead(ls_lookup(ls_of(tb[r][i]), label).unwrap())
+            && has_transition(s, Trans { role: r as usize, from: i as usize, send: tb[r][i] is Send, peer: peer_of(tb[r][i]) as usize, label: label as u32, to: j as usize })
+    &&& forall|k: int| 0 <= k < s.trans@.len() ==> {
+        let t = #[trigger] s.trans@[k];
+        &&& (t.role as int) < n
+        &&& (t.from as int) < tb[t.role as int].len()
+        &&& (t.to as int) < tb[t.role as int].len()
+        &&& (t.peer as int) == peer_of(tb[t.role as int][t.from as int])
+        &&& (t.send ==> tb[t.role as int][t.from as int] is Send)
+        &&& (!t.send ==> tb[t.role as int][t.from as int] is Recv)
+        &&& ls_lookup(ls_of(tb[t.role as int][t.from as int]), t.label as int) is Some
+        &&& tb[t.role as int][t.to as int] == lhead(ls_lookup(ls_of(tb[t.role as int][t.from as int]), t.label as int).unwrap())
+    }
+}
+
+/// The `n`-role configuration an automaton configuration stands for.
+pub open spec fn corresponds_n(tb: Seq<Seq<L>>, n: int, c: Cfg, nc: NC) -> bool {
+    &&& nc.l.len() == n
+    &&& nc.ch.len() == n * n
+    &&& wf_cfg(n, c)
+    &&& forall|r: int| 0 <= r < n ==> (c.states[r] as int) < tb[r].len() && lhead(#[trigger] nc.l[r]) == tb[r][c.states[r] as int]
+    &&& forall|p: int, q: int| 0 <= p < n && 0 <= q < n ==> #[trigger] nc.ch[p * n + q] == c.chans[p * n + q].map(|i: int, x: u32| x as int)
+}
+
+/// The send step of the configuration semantics, from its conditions.
+proof fn lemma_nstep_send(nc: NC, n: int, r: int, p: int, label: int)
+    requires
+        0 <= r < n, lhead(nc.l[r]) is Send, lhead(nc.l[r])->Send_to == p, 0 <= p < n, p != r,
+        ls_lookup(*lhead(nc.l[r])->Send_ls, label) is Some,
+    ensures nstep(nc, n, nsend(nc, n, r, p, label, ls_lookup(*lhead(nc.l[r])->Send_ls, label).unwrap())),
+{
+    let nc2 = nsend(nc, n, r, p, label, ls_lookup(*lhead(nc.l[r])->Send_ls, label).unwrap());
+    assert(0 <= r < n && (
+        (lhead(nc.l[r]) is Send && 0 <= lhead(nc.l[r])->Send_to < n && lhead(nc.l[r])->Send_to != r
+            && ls_lookup(*lhead(nc.l[r])->Send_ls, label) is Some
+            && nc2 == nsend(nc, n, r, lhead(nc.l[r])->Send_to, label, ls_lookup(*lhead(nc.l[r])->Send_ls, label).unwrap()))
+        || (nrecv_enabled(nc, n, r) && label == nc.ch[lhead(nc.l[r])->Recv_from * n + r][0]
+            && nc2 == nrecv(nc, n, r, lhead(nc.l[r])->Recv_from, ls_lookup(*lhead(nc.l[r])->Recv_ls, label).unwrap()))
+    ));
+}
+
+/// The receive step of the configuration semantics, from its conditions.
+proof fn lemma_nstep_recv(nc: NC, n: int, r: int, label: int)
+    requires 0 <= r < n, nrecv_enabled(nc, n, r), label == nc.ch[lhead(nc.l[r])->Recv_from * n + r][0],
+    ensures nstep(nc, n, nrecv(nc, n, r, lhead(nc.l[r])->Recv_from, ls_lookup(*lhead(nc.l[r])->Recv_ls, label).unwrap())),
+{
+    let nc2 = nrecv(nc, n, r, lhead(nc.l[r])->Recv_from, ls_lookup(*lhead(nc.l[r])->Recv_ls, label).unwrap());
+    // The quantifier's triggers mention the send's terms: name them.
+    let t1 = ls_lookup(*lhead(nc.l[r])->Send_ls, label);
+    let t2 = nsend(nc, n, r, lhead(nc.l[r])->Send_to, label, ls_lookup(*lhead(nc.l[r])->Send_ls, label).unwrap());
+    let t3 = nrecv(nc, n, r, lhead(nc.l[r])->Recv_from, ls_lookup(*lhead(nc.l[r])->Recv_ls, label).unwrap());
+    assert(0 <= r < n && (
+        (lhead(nc.l[r]) is Send && 0 <= lhead(nc.l[r])->Send_to < n && lhead(nc.l[r])->Send_to != r
+            && ls_lookup(*lhead(nc.l[r])->Send_ls, label) is Some
+            && nc2 == nsend(nc, n, r, lhead(nc.l[r])->Send_to, label, ls_lookup(*lhead(nc.l[r])->Send_ls, label).unwrap()))
+        || (nrecv_enabled(nc, n, r) && label == nc.ch[lhead(nc.l[r])->Recv_from * n + r][0]
+            && nc2 == nrecv(nc, n, r, lhead(nc.l[r])->Recv_from, ls_lookup(*lhead(nc.l[r])->Recv_ls, label).unwrap()))
+    ));
+}
+
+/// The correspondence after a step: the states and the one channel.
+proof fn lemma_corr_after(tb: Seq<Seq<L>>, n: int, c: Cfg, nc: NC, c2: Cfg, nc2: NC, r: int, ch: int, to: usize, cont: L)
+    requires
+        corresponds_n(tb, n, c, nc), 0 <= r < n, 0 <= ch < n * n, (to as int) < tb[r].len(), lhead(cont) == tb[r][to as int],
+        c2.states == c.states.update(r, to), nc2.l == nc.l.update(r, cont),
+        c2.chans.len() == c.chans.len(), nc2.ch.len() == nc.ch.len(),
+        forall|i: int| 0 <= i < n * n && i != ch ==> #[trigger] c2.chans[i] == c.chans[i],
+        forall|i: int| 0 <= i < n * n && i != ch ==> #[trigger] nc2.ch[i] == nc.ch[i],
+        nc2.ch[ch] == c2.chans[ch].map(|i: int, x: u32| x as int),
+    ensures corresponds_n(tb, n, c2, nc2),
+{
+    assert forall|a: int, b: int| 0 <= a < n && 0 <= b < n implies #[trigger] nc2.ch[a * n + b] == c2.chans[a * n + b].map(|i: int, x: u32| x as int) by {
+        lemma_index(a, b, a, b, n);
+        if a * n + b != ch {
+            assert(nc2.ch[a * n + b] == nc.ch[a * n + b]);
+            assert(c2.chans[a * n + b] == c.chans[a * n + b]);
+        }
+    }
+    assert forall|u: int| 0 <= u < n implies (c2.states[u] as int) < tb[u].len() && lhead(#[trigger] nc2.l[u]) == tb[u][c2.states[u] as int] by {
+        if u != r {
+            assert(nc2.l[u] == nc.l[u]);
+            assert(c2.states[u] == c.states[u]);
+        }
+    }
+}
+
+proof fn lemma_nbridge_send(s: System, g: G, n: int, tb: Seq<Seq<L>>, c: Cfg, c2: Cfg, nc: NC, t: Trans)
+    requires flattens_n(s, g, n, tb), corresponds_n(tb, n, c, nc), has_transition(s, t), enabled(n, c, t), c2 == succ(n, c, t), t.send,
+    ensures exists|nc2: NC| nstep(nc, n, nc2) && corresponds_n(tb, n, c2, nc2),
+{
+    let k = choose|k: int| 0 <= k < s.trans@.len() && s.trans@[k] == t;
+    let r = t.role as int;
+    let e = tb[r][t.from as int];
+    let label = t.label as int;
+    let cont = ls_lookup(ls_of(e), label).unwrap();
+    lemma_mhead_flat(e);
+    assert(lhead(nc.l[r]) == e);
+    let p = t.peer as int;
+    let ch = chan_of(n, t);
+    assert(e is Send && e->Send_to == p);
+    assert(ch == r * n + p);
+    lemma_index(r, p, r, p, n);
+    lemma_nstep_send(nc, n, r, p, label);
+    let nc2 = nsend(nc, n, r, p, label, cont);
+    assert(nc2.ch[ch] =~= c2.chans[ch].map(|i: int, x: u32| x as int));
+    lemma_corr_after(tb, n, c, nc, c2, nc2, r, ch, t.to, cont);
+}
+
+proof fn lemma_nbridge_recv(s: System, g: G, n: int, tb: Seq<Seq<L>>, c: Cfg, c2: Cfg, nc: NC, t: Trans)
+    requires flattens_n(s, g, n, tb), corresponds_n(tb, n, c, nc), has_transition(s, t), enabled(n, c, t), c2 == succ(n, c, t), !t.send,
+    ensures exists|nc2: NC| nstep(nc, n, nc2) && corresponds_n(tb, n, c2, nc2),
+{
+    let k = choose|k: int| 0 <= k < s.trans@.len() && s.trans@[k] == t;
+    let r = t.role as int;
+    let e = tb[r][t.from as int];
+    let label = t.label as int;
+    let cont = ls_lookup(ls_of(e), label).unwrap();
+    lemma_mhead_flat(e);
+    assert(lhead(nc.l[r]) == e);
+    let p = t.peer as int;
+    let ch = chan_of(n, t);
+    assert(e is Recv && e->Recv_from == p);
+    assert(ch == p * n + r);
+    lemma_index(p, r, p, r, n);
+    assert(c.chans[ch].len() > 0 && c.chans[ch][0] == t.label);
+    assert(nc.ch[ch] == c.chans[ch].map(|i: int, x: u32| x as int));
+    assert(nc.ch[ch][0] == label);
+    assert(nrecv_enabled(nc, n, r));
+    lemma_nstep_recv(nc, n, r, label);
+    let nc2 = nrecv(nc, n, r, p, cont);
+    assert(nc2.ch[ch] =~= c2.chans[ch].map(|i: int, x: u32| x as int));
+    lemma_corr_after(tb, n, c, nc, c2, nc2, r, ch, t.to, cont);
+}
+
+proof fn lemma_nbridge_step(s: System, g: G, n: int, tb: Seq<Seq<L>>, c: Cfg, c2: Cfg, nc: NC)
+    requires flattens_n(s, g, n, tb), corresponds_n(tb, n, c, nc), step(s, c, c2),
+    ensures exists|nc2: NC| nstep(nc, n, nc2) && corresponds_n(tb, n, c2, nc2),
+{
+    let k = choose|k: int| 0 <= k < s.trans@.len() && enabled(n, c, #[trigger] s.trans@[k]) && c2 == succ(n, c, s.trans@[k]);
+    let t = s.trans@[k];
+    assert(has_transition(s, t));
+    if t.send {
+        lemma_nbridge_send(s, g, n, tb, c, c2, nc, t);
+    } else {
+        lemma_nbridge_recv(s, g, n, tb, c, c2, nc, t);
+    }
+}
+
+proof fn lemma_nbridge_init(s: System, g: G, n: int, tb: Seq<Seq<L>>)
+    requires flattens_n(s, g, n, tb),
+    ensures corresponds_n(tb, n, initial(n), ninit(g, n)),
+{
+    let c = initial(n);
+    let nc = ninit(g, n);
+    assert forall|p: int, q: int| 0 <= p < n && 0 <= q < n implies #[trigger] nc.ch[p * n + q] == c.chans[p * n + q].map(|i: int, x: u32| x as int) by {
+        lemma_index(p, q, p, q, n);
+        assert(c.chans[p * n + q] =~= Seq::<u32>::empty());
+        assert(nc.ch[p * n + q] =~= c.chans[p * n + q].map(|i: int, x: u32| x as int));
+    }
+    assert forall|r: int| 0 <= r < n implies (c.states[r] as int) < tb[r].len() && lhead(#[trigger] nc.l[r]) == tb[r][c.states[r] as int] by {
+        assert(nc.l[r] == projn(g, r).unwrap());
+        assert(c.states[r] == 0usize);
+    }
+}
+
+proof fn lemma_nbridge_run(s: System, g: G, n: int, tb: Seq<Seq<L>>, path: Seq<Cfg>)
+    requires flattens_n(s, g, n, tb), run(s, path),
+    ensures exists|nc: NC| nreachable(g, n, nc) && corresponds_n(tb, n, path.last(), nc),
+    decreases path.len(),
+{
+    if path.len() == 1 {
+        lemma_nbridge_init(s, g, n, tb);
+        assert(nrun(g, n, seq![ninit(g, n)]));
+        assert(nreachable(g, n, ninit(g, n)));
+    } else {
+        let prefix = path.drop_last();
+        assert(run(s, prefix));
+        lemma_nbridge_run(s, g, n, tb, prefix);
+        let nc = choose|nc: NC| nreachable(g, n, nc) && corresponds_n(tb, n, prefix.last(), nc);
+        let npath = choose|npath: Seq<NC>| #[trigger] nrun(g, n, npath) && npath.last() == nc;
+        assert(step(s, prefix.last(), path.last()));
+        lemma_nbridge_step(s, g, n, tb, prefix.last(), path.last(), nc);
+        let nc2 = choose|nc2: NC| nstep(nc, n, nc2) && corresponds_n(tb, n, path.last(), nc2);
+        let npath2 = npath.push(nc2);
+        assert(nrun(g, n, npath2));
+        assert(nreachable(g, n, nc2));
+    }
+}
+
+/// A role that awaits in the automaton awaits in the configuration, on
+/// the same sender; a role that has finished has finished.
+proof fn lemma_nbridge_status(s: System, g: G, n: int, tb: Seq<Seq<L>>, c: Cfg, nc: NC, r: int)
+    requires flattens_n(s, g, n, tb), corresponds_n(tb, n, c, nc), 0 <= r < n,
+    ensures
+        blocked(s, c, r) ==> nblocked(nc, n, r),
+        terminal(s, c, r) ==> nterminal(nc, r),
+{
+    let e = tb[r][c.states[r] as int];
+    lemma_mhead_flat(e);
+    assert(lhead(nc.l[r]) == e);
+    if terminal(s, c, r) {
+        if !(e is End) {
+            let ls = ls_of(e);
+            let label = ls->Cons_label;
+            assert(ls_lookup(ls, label) is Some);
+            let j = choose|j: int| 0 <= j < tb[r].len() && tb[r][j] == lhead(ls_lookup(ls_of(e), label).unwrap())
+                && has_transition(s, Trans { role: r as usize, from: c.states[r] as usize, send: e is Send, peer: peer_of(e) as usize, label: label as u32, to: j as usize });
+            let t2 = Trans { role: r as usize, from: c.states[r] as usize, send: e is Send, peer: peer_of(e) as usize, label: label as u32, to: j as usize };
+            let k2 = choose|k2: int| 0 <= k2 < s.trans@.len() && s.trans@[k2] == t2;
+            assert(at(c, t2));
+            assert(has_trans(s, c, r));
+            assert(false);
+        }
+    }
+    if blocked(s, c, r) {
+        let k = choose|k: int| 0 <= k < s.trans@.len() && (#[trigger] s.trans@[k]).role == r && at(c, s.trans@[k]);
+        let t = s.trans@[k];
+        assert(!t.send);
+        assert(e is Recv);
+        assert(t.peer as int == e->Recv_from);
+        if nrecv_enabled(nc, n, r) {
+            let p = e->Recv_from;
+            lemma_index(p, r, p, r, n);
+            let label = nc.ch[p * n + r][0];
+            let cont = ls_lookup(ls_of(e), label).unwrap();
+            let j = choose|j: int| 0 <= j < tb[r].len() && tb[r][j] == lhead(cont)
+                && has_transition(s, Trans { role: r as usize, from: c.states[r] as usize, send: false, peer: p as usize, label: label as u32, to: j as usize });
+            let t2 = Trans { role: r as usize, from: c.states[r] as usize, send: false, peer: p as usize, label: label as u32, to: j as usize };
+            let k2 = choose|k2: int| 0 <= k2 < s.trans@.len() && s.trans@[k2] == t2;
+            let ch = chan_of(n, t2);
+            assert(ch == p * n + r);
+            assert(nc.ch[ch] == c.chans[ch].map(|i: int, x: u32| x as int));
+            assert(c.chans[ch][0] as int == label);
+            assert(enabled(n, c, t2));
+            assert(false);
+        }
+        assert(nblocked(nc, n, r));
+    }
+}
+
+#[verifier::rlimit(60)]
+proof fn lemma_nbridge_deadlock(s: System, g: G, n: int, tb: Seq<Seq<L>>, c: Cfg, nc: NC)
+    requires flattens_n(s, g, n, tb), corresponds_n(tb, n, c, nc), deadlocked(s, c),
+    ensures ndeadlocked(nc, n),
+{
+    let set = choose|set: Seq<bool>| deadlock_set(s, c, set);
+    let r0 = choose|r: int| 0 <= r < set.len() && set[r] && blocked(s, c, r);
+    assert(set.len() == n);
+    assert forall|r: int| 0 <= r < n implies (blocked(s, c, r) ==> nblocked(nc, n, r)) && (terminal(s, c, r) ==> nterminal(nc, r)) by {
+        lemma_nbridge_status(s, g, n, tb, c, nc, r);
+    }
+    assert forall|r: int| 0 <= r < n && #[trigger] set[r] && nblocked(nc, n, r) implies set[lhead(nc.l[r])->Recv_from] by {
+        let e = tb[r][c.states[r] as int];
+        lemma_mhead_flat(e);
+        assert(lhead(nc.l[r]) == e);
+        assert(e is Recv);
+        let ls = ls_of(e);
+        let label = ls->Cons_label;
+        assert(ls_lookup(ls, label) is Some);
+        let j = choose|j: int| 0 <= j < tb[r].len() && tb[r][j] == lhead(ls_lookup(ls_of(e), label).unwrap())
+            && has_transition(s, Trans { role: r as usize, from: c.states[r] as usize, send: e is Send, peer: peer_of(e) as usize, label: label as u32, to: j as usize });
+        let t2 = Trans { role: r as usize, from: c.states[r] as usize, send: false, peer: peer_of(e) as usize, label: label as u32, to: j as usize };
+        let k2 = choose|k2: int| 0 <= k2 < s.trans@.len() && s.trans@[k2] == t2;
+        assert(at(c, t2));
+        assert(set[t2.peer as int]);
+    }
+    lemma_nbridge_status(s, g, n, tb, c, nc, r0);
+    assert(nblocked(nc, n, r0));
+    assert(ndeadlock_set(nc, n, set));
+}
+
+/// The multiparty automaton theorem: an automaton that flattens an
+/// accepted `n`-role Protocol has no waiting set in any reachable
+/// configuration (what `compose.rs` takes per Endpoint member).
+pub proof fn theorem_multiparty_automaton(s: System, g: G, n: int, tb: Seq<Seq<L>>)
+    requires acceptn(g, n), flattens_n(s, g, n, tb),
+    ensures forall|c: Cfg| reachable(s, c) ==> !deadlocked(s, c),
+{
+    assert forall|c: Cfg| reachable(s, c) implies !deadlocked(s, c) by {
+        let path = choose|path: Seq<Cfg>| #[trigger] run(s, path) && path.last() == c;
+        lemma_nbridge_run(s, g, n, tb, path);
+        let nc = choose|nc: NC| nreachable(g, n, nc) && corresponds_n(tb, n, c, nc);
+        theorem_multiparty_progress(g, n);
+        if deadlocked(s, c) {
+            lemma_nbridge_deadlock(s, g, n, tb, c, nc);
+        }
+    }
+}
+
+// ------------------------------------ the executable flattening (n roles) --
+
+/// The views of the roles' tables.
+pub open spec fn tables_view(v: Seq<Vec<LE>>) -> Seq<Seq<L>> {
+    v.map(|i: int, t: Vec<LE>| tbl_view(t@))
+}
+
+/// `flattens_n`'s condition on the transitions, over the tables built so far.
+pub open spec fn trans_ok_n(trans: Seq<Trans>, tb: Seq<Seq<L>>) -> bool {
+    forall|k: int| 0 <= k < trans.len() ==> {
+        let t = #[trigger] trans[k];
+        &&& (t.role as int) < tb.len()
+        &&& (t.from as int) < tb[t.role as int].len()
+        &&& (t.to as int) < tb[t.role as int].len()
+        &&& (t.peer as int) == peer_of(tb[t.role as int][t.from as int])
+        &&& (t.send ==> tb[t.role as int][t.from as int] is Send)
+        &&& (!t.send ==> tb[t.role as int][t.from as int] is Recv)
+        &&& ls_lookup(ls_of(tb[t.role as int][t.from as int]), t.label as int) is Some
+        &&& tb[t.role as int][t.to as int] == lhead(ls_lookup(ls_of(tb[t.role as int][t.from as int]), t.label as int).unwrap())
+    }
+}
+
+/// The processed entries of one role's table.
+pub open spec fn role_ok_n(trans: Seq<Trans>, tbl: Seq<L>, r: int, upto: int) -> bool {
+    forall|i: int, label: int| 0 <= i < upto && #[trigger] ls_lookup(ls_of(tbl[i]), label) is Some
+        ==> exists|j: int| 0 <= j < tbl.len() && tbl[j] == lhead(ls_lookup(ls_of(tbl[i]), label).unwrap())
+            && has_transition_seq(trans, Trans { role: r as usize, from: i as usize, send: tbl[i] is Send, peer: peer_of(tbl[i]) as usize, label: label as u32, to: j as usize })
+}
+
+fn entry_ok_n_exec(e: &LE, r: usize, n: usize) -> (ok: bool)
+    ensures ok == entry_ok_n(e@, r as int, n as int),
+{
+    match e {
+        LE::End => true,
+        LE::Send { to, ls } => {
+            proof { lemma_lse_cons_view(ls); }
+            let cons = match &**ls { LsE::Cons { .. } => true, LsE::Nil => false };
+            *to < n && *to != r && cons
+        }
+        LE::Recv { from, ls } => {
+            proof { lemma_lse_cons_view(ls); }
+            let cons = match &**ls { LsE::Cons { .. } => true, LsE::Nil => false };
+            *from < n && *from != r && cons
+        }
+        _ => false,
+    }
+}
+
+fn peer_of_exec(e: &LE) -> (p: usize)
+    requires !(e@ is Rec), !(e@ is Var),
+    ensures p as int == peer_of(e@),
+{
+    match e {
+        LE::Send { to, .. } => *to,
+        LE::Recv { from, .. } => *from,
+        _ => 0,
+    }
+}
+
+/// The tables of the roles done and the current role's.
+pub open spec fn cur_tables(done: Seq<Vec<LE>>, tbl: Seq<LE>) -> Seq<Seq<L>> {
+    tables_view(done).push(tbl_view(tbl))
+}
+
+/// Processes the branches of entry `i` of role `r` (the roles below `r`
+/// done): a state for each continuation's head, a transition for each
+/// label, addressed to the entry's peer.
+fn process_entry_n(entry: &LE, r: usize, i: usize, n: usize, tbl: &mut Vec<LE>, trans: &mut Vec<Trans>, done: &Vec<Vec<LE>>) -> (ok: bool)
+    requires
+        r == done.len(), r < n, i < old(tbl).len(), old(tbl).len() <= MAX_STATES,
+        entry@ == tbl_view(old(tbl)@)[i as int],
+        entry_ok_n(entry@, r as int, n as int),
+        trans_ok_n(old(trans)@, cur_tables(done@, old(tbl)@)),
+    ensures
+        final(tbl).len() >= old(tbl).len(), final(tbl).len() <= MAX_STATES,
+        forall|k: int| 0 <= k < old(tbl).len() ==> #[trigger] tbl_view(final(tbl)@)[k] == tbl_view(old(tbl)@)[k],
+        forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(final(trans)@, x),
+        trans_ok_n(final(trans)@, cur_tables(done@, final(tbl)@)),
+        ok ==> forall|label: int| #[trigger] ls_lookup(ls_of(entry@), label) is Some
+            ==> exists|j: int| 0 <= j < final(tbl).len() && tbl_view(final(tbl)@)[j] == lhead(ls_lookup(ls_of(entry@), label).unwrap())
+                && has_transition_seq(final(trans)@, Trans { role: r, from: i, send: entry@ is Send, peer: peer_of(entry@) as usize, label: label as u32, to: j as usize }),
+{
+    let ls = match branches_of(entry) {
+        None => {
+            assert(forall|label: int| !(ls_lookup(ls_of(entry@), label) is Some));
+            return true;
+        }
+        Some(ls) => ls,
+    };
+    let is_send = match entry { LE::Send { .. } => true, _ => false };
+    proof { lemma_view_rec(entry); }
+    assert(is_send == (entry@ is Send)) by {
+        match entry {
+            LE::End => {} LE::Var { .. } => {} LE::Rec { .. } => {} LE::Send { .. } => {} LE::Recv { .. } => {}
+        }
+    }
+    let peer = peer_of_exec(entry);
+    let labels = labels_of(ls);
+    let mut k = 0;
+    while k < labels.len()
+        invariant
+            k <= labels.len(), r == done.len(), r < n, i < tbl.len(), tbl.len() <= MAX_STATES,
+            ls@ == ls_of(entry@), entry_ok_n(entry@, r as int, n as int), is_send == (entry@ is Send), peer as int == peer_of(entry@),
+            forall|label: int| ls_lookup(ls@, label) is Some <==> exists|q: int| 0 <= q < labels@.len() && #[trigger] labels@[q] as int == label,
+            tbl.len() >= old(tbl).len(),
+            forall|q: int| 0 <= q < old(tbl).len() ==> #[trigger] tbl_view(tbl@)[q] == tbl_view(old(tbl)@)[q],
+            tbl_view(tbl@)[i as int] == entry@,
+            forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(trans@, x),
+            trans_ok_n(trans@, cur_tables(done@, tbl@)),
+            forall|q: int| 0 <= q < k ==> exists|j: int| 0 <= j < tbl.len() && tbl_view(tbl@)[j] == lhead(ls_lookup(ls@, #[trigger] labels@[q] as int).unwrap())
+                && has_transition_seq(trans@, Trans { role: r, from: i, send: is_send, peer, label: labels@[q], to: j as usize }),
+        decreases labels.len() - k,
+    {
+        let label = labels[k];
+        assert(ls_lookup(ls@, label as int) is Some);
+        let cont = match lookup_exec(ls, label) {
+            Some(c) => c,
+            None => { assert(false); return false; }
+        };
+        let h = match lhead_exec(cont) {
+            Some(h) => h,
+            None => return false,
+        };
+        let ghost tbl_before = tbl@;
+        let ghost trans_before = trans@;
+        let j = match intern(tbl, h) {
+            Some(j) => j,
+            None => return false,
+        };
+        let t = Trans { role: r, from: i, send: is_send, peer, label, to: j };
+        trans.push(t);
+        proof {
+            assert forall|x: Trans| has_transition_seq(trans_before, x) implies has_transition_seq(trans@, x) by {
+                lemma_has_trans_push(trans_before, t, x);
+            }
+            assert(trans@[trans@.len() - 1] == t);
+            assert(has_transition_seq(trans@, t));
+            assert(tbl_view(tbl@)[j as int] == lhead(ls_lookup(ls_of(entry@), label as int).unwrap()));
+            assert(tbl_view(tbl@)[i as int] == entry@);
+            // The current tables: the done ones unchanged, the current one grown.
+            let cur = cur_tables(done@, tbl@);
+            let cur_before = cur_tables(done@, tbl_before);
+            assert(cur.len() == cur_before.len());
+            assert(cur[r as int] == tbl_view(tbl@));
+            assert forall|q: int| 0 <= q < r implies #[trigger] cur[q] == cur_before[q] by {}
+            assert forall|kk: int| 0 <= kk < trans@.len() implies {
+                let tt = #[trigger] trans@[kk];
+                &&& (tt.role as int) < cur.len()
+                &&& (tt.from as int) < cur[tt.role as int].len()
+                &&& (tt.to as int) < cur[tt.role as int].len()
+                &&& (tt.peer as int) == peer_of(cur[tt.role as int][tt.from as int])
+                &&& (tt.send ==> cur[tt.role as int][tt.from as int] is Send)
+                &&& (!tt.send ==> cur[tt.role as int][tt.from as int] is Recv)
+                &&& ls_lookup(ls_of(cur[tt.role as int][tt.from as int]), tt.label as int) is Some
+                &&& cur[tt.role as int][tt.to as int] == lhead(ls_lookup(ls_of(cur[tt.role as int][tt.from as int]), tt.label as int).unwrap())
+            } by {
+                if kk < trans_before.len() {
+                    let tt = trans_before[kk];
+                    assert(trans@[kk] == tt);
+                    if tt.role as int == r as int {
+                        assert(cur[r as int][tt.from as int] == cur_before[r as int][tt.from as int]);
+                        assert(cur[r as int][tt.to as int] == cur_before[r as int][tt.to as int]);
+                    } else {
+                        assert(cur[tt.role as int] == cur_before[tt.role as int]);
+                    }
+                } else {
+                    assert(trans@[kk] == t);
+                }
+            }
+            assert(trans_ok_n(trans@, cur));
+            assert forall|q: int| 0 <= q < k implies exists|jj: int| 0 <= jj < tbl.len() && tbl_view(tbl@)[jj] == lhead(ls_lookup(ls@, #[trigger] labels@[q] as int).unwrap())
+                && has_transition_seq(trans@, Trans { role: r, from: i, send: is_send, peer, label: labels@[q], to: jj as usize }) by {
+                let jj = choose|jj: int| 0 <= jj < tbl_before.len() && tbl_view(tbl_before)[jj] == lhead(ls_lookup(ls@, labels@[q] as int).unwrap())
+                    && has_transition_seq(trans_before, Trans { role: r, from: i, send: is_send, peer, label: labels@[q], to: jj as usize });
+                assert(tbl_view(tbl@)[jj] == tbl_view(tbl_before)[jj]);
+                lemma_has_trans_push(trans_before, t, Trans { role: r, from: i, send: is_send, peer, label: labels@[q], to: jj as usize });
+            }
+        }
+        k += 1;
+    }
+    assert forall|label: int| #[trigger] ls_lookup(ls_of(entry@), label) is Some
+        implies exists|j: int| 0 <= j < tbl.len() && tbl_view(tbl@)[j] == lhead(ls_lookup(ls_of(entry@), label).unwrap())
+            && has_transition_seq(trans@, Trans { role: r, from: i, send: entry@ is Send, peer: peer_of(entry@) as usize, label: label as u32, to: j as usize }) by {
+        let q = choose|q: int| 0 <= q < labels@.len() && #[trigger] labels@[q] as int == label;
+    }
+    true
+}
+
+/// Builds role `r`'s state table and transitions (the roles below `r`
+/// done): entry 0 the head of the projection, every entry admissible and
+/// processed.
+fn flatten_role_n(g: &GE, r: usize, n: usize, tbl: &mut Vec<LE>, trans: &mut Vec<Trans>, done: &Vec<Vec<LE>>) -> (ok: bool)
+    requires
+        r == done.len(), r < n, old(tbl).len() == 0,
+        trans_ok_n(old(trans)@, cur_tables(done@, old(tbl)@)),
+    ensures
+        final(tbl).len() <= MAX_STATES,
+        forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(final(trans)@, x),
+        trans_ok_n(final(trans)@, cur_tables(done@, final(tbl)@)),
+        ok ==> final(tbl).len() >= 1 && projn(g@, r as int) is Some && tbl_view(final(tbl)@)[0] == lhead(projn(g@, r as int).unwrap()),
+        ok ==> forall|k: int| 0 <= k < final(tbl).len() ==> entry_ok_n(#[trigger] tbl_view(final(tbl)@)[k], r as int, n as int),
+        ok ==> role_ok_n(final(trans)@, tbl_view(final(tbl)@), r as int, final(tbl).len() as int),
+{
+    let p = match projn_exec(g, r) {
+        Some(p) => p,
+        None => return false,
+    };
+    let h0 = match lhead_exec(&p) {
+        Some(h) => h,
+        None => return false,
+    };
+    tbl.push(h0);
+    assert(tbl_view(tbl@)[0] == tbl@[0]@);
+    let mut i = 0;
+    while i < tbl.len()
+        invariant
+            r == done.len(), r < n, i <= tbl.len(), tbl.len() <= MAX_STATES, tbl.len() >= 1,
+            projn(g@, r as int) is Some, tbl_view(tbl@)[0] == lhead(projn(g@, r as int).unwrap()),
+            forall|k: int| 0 <= k < i ==> entry_ok_n(#[trigger] tbl_view(tbl@)[k], r as int, n as int),
+            role_ok_n(trans@, tbl_view(tbl@), r as int, i as int),
+            forall|x: Trans| has_transition_seq(old(trans)@, x) ==> has_transition_seq(trans@, x),
+            trans_ok_n(trans@, cur_tables(done@, tbl@)),
+        decreases MAX_STATES - i,
+    {
+        let entry = le_copy(&tbl[i]);
+        assert(entry@ == tbl_view(tbl@)[i as int]);
+        if !entry_ok_n_exec(&entry, r, n) {
+            return false;
+        }
+        let ghost tbl_before = tbl@;
+        let ghost trans_before = trans@;
+        if !process_entry_n(&entry, r, i, n, tbl, trans, done) {
+            return false;
+        }
+        proof {
+            assert forall|k: int| 0 <= k < i + 1 implies entry_ok_n(#[trigger] tbl_view(tbl@)[k], r as int, n as int) by {
+                assert(tbl_view(tbl@)[k] == tbl_view(tbl_before)[k]);
+            }
+            assert forall|k: int, label: int| 0 <= k < i + 1 && #[trigger] ls_lookup(ls_of(tbl_view(tbl@)[k]), label) is Some
+                implies exists|j: int| 0 <= j < tbl.len() && tbl_view(tbl@)[j] == lhead(ls_lookup(ls_of(tbl_view(tbl@)[k]), label).unwrap())
+                    && has_transition_seq(trans@, Trans { role: r, from: k as usize, send: tbl_view(tbl@)[k] is Send, peer: peer_of(tbl_view(tbl@)[k]) as usize, label: label as u32, to: j as usize }) by {
+                assert(tbl_view(tbl@)[k] == tbl_view(tbl_before)[k]);
+                if k < i {
+                    let j = choose|j: int| 0 <= j < tbl_before.len() && tbl_view(tbl_before)[j] == lhead(ls_lookup(ls_of(tbl_view(tbl_before)[k]), label).unwrap())
+                        && has_transition_seq(trans_before, Trans { role: r, from: k as usize, send: tbl_view(tbl_before)[k] is Send, peer: peer_of(tbl_view(tbl_before)[k]) as usize, label: label as u32, to: j as usize });
+                    assert(tbl_view(tbl@)[j] == tbl_view(tbl_before)[j]);
+                } else {
+                    assert(tbl_view(tbl@)[k] == entry@);
+                }
+            }
+        }
+        i += 1;
+    }
+    true
+}
+
+/// The verified flattening of an `n`-role Protocol: the automaton and the
+/// roles' state tables, related by `flattens_n`; `None` when the Protocol
+/// is refused (an unprojectable role, a state beyond `MAX_STATES`, an
+/// inadmissible entry, an index overflow), which the checker reports.
+pub fn flatten_n(g: &GE, n: usize, capacity: usize) -> (r: Option<(System, Vec<Vec<LE>>)>)
+    requires n >= 2,
+    ensures r is Some ==> flattens_n(r.unwrap().0, g@, n as int, tables_view(r.unwrap().1@)),
+{
+    let mut done: Vec<Vec<LE>> = Vec::new();
+    let mut trans: Vec<Trans> = Vec::new();
+    let mut r: usize = 0;
+    while r < n
+        invariant
+            r == done.len(), r <= n,
+            trans_ok_n(trans@, tables_view(done@)),
+            forall|u: int| 0 <= u < r ==> (#[trigger] tables_view(done@)[u]).len() >= 1 && projn(g@, u) is Some && tables_view(done@)[u][0] == lhead(projn(g@, u).unwrap()),
+            forall|u: int, k: int| 0 <= u < r && 0 <= k < tables_view(done@)[u].len() ==> entry_ok_n(#[trigger] tables_view(done@)[u][k], u, n as int),
+            forall|u: int| 0 <= u < r ==> role_ok_n(trans@, #[trigger] tables_view(done@)[u], u, tables_view(done@)[u].len() as int),
+        decreases n - r,
+    {
+        let mut tbl: Vec<LE> = Vec::new();
+        proof {
+            // The empty current table: the transitions so far point into the done ones.
+            let cur = cur_tables(done@, tbl@);
+            assert forall|k: int| 0 <= k < trans@.len() implies (#[trigger] trans@[k]).role < r by {
+                assert((trans@[k].role as int) < tables_view(done@).len());
+            }
+            assert forall|k: int| 0 <= k < trans@.len() implies cur[(#[trigger] trans@[k]).role as int] == tables_view(done@)[trans@[k].role as int] by {}
+            assert(trans_ok_n(trans@, cur));
+        }
+        let ghost trans_before = trans@;
+        let ghost done_before = done@;
+        if !flatten_role_n(g, r, n, &mut tbl, &mut trans, &done) {
+            return None;
+        }
+        done.push(tbl);
+        proof {
+            assert(tables_view(done@) =~= cur_tables(done_before, done@[r as int]@));
+            assert(tables_view(done@)[r as int] == tbl_view(done@[r as int]@));
+            assert forall|u: int| 0 <= u < r implies #[trigger] tables_view(done@)[u] == tables_view(done_before)[u] by {}
+            assert forall|u: int| 0 <= u < r + 1 implies role_ok_n(trans@, #[trigger] tables_view(done@)[u], u, tables_view(done@)[u].len() as int) by {
+                if u < r {
+                    let tb = tables_view(done@)[u];
+                    assert forall|i: int, label: int| 0 <= i < tb.len() && #[trigger] ls_lookup(ls_of(tb[i]), label) is Some
+                        implies exists|j: int| 0 <= j < tb.len() && tb[j] == lhead(ls_lookup(ls_of(tb[i]), label).unwrap())
+                            && has_transition_seq(trans@, Trans { role: u as usize, from: i as usize, send: tb[i] is Send, peer: peer_of(tb[i]) as usize, label: label as u32, to: j as usize }) by {
+                        let j = choose|j: int| 0 <= j < tb.len() && tb[j] == lhead(ls_lookup(ls_of(tb[i]), label).unwrap())
+                            && has_transition_seq(trans_before, Trans { role: u as usize, from: i as usize, send: tb[i] is Send, peer: peer_of(tb[i]) as usize, label: label as u32, to: j as usize });
+                    }
+                }
+            }
+        }
+        r += 1;
+    }
+    let s = System { roles: n, capacity, trans };
+    proof {
+        let tb = tables_view(done@);
+        assert(tb.len() == n);
+        assert forall|u: int, i: int, label: int| 0 <= u < n && 0 <= i < tb[u].len() && #[trigger] ls_lookup(ls_of(tb[u][i]), label) is Some
+            implies exists|j: int| 0 <= j < tb[u].len() && tb[u][j] == lhead(ls_lookup(ls_of(tb[u][i]), label).unwrap())
+                && has_transition(s, Trans { role: u as usize, from: i as usize, send: tb[u][i] is Send, peer: peer_of(tb[u][i]) as usize, label: label as u32, to: j as usize }) by {
+            let j = choose|j: int| 0 <= j < tb[u].len() && tb[u][j] == lhead(ls_lookup(ls_of(tb[u][i]), label).unwrap())
+                && has_transition_seq(s.trans@, Trans { role: u as usize, from: i as usize, send: tb[u][i] is Send, peer: peer_of(tb[u][i]) as usize, label: label as u32, to: j as usize });
+        }
+    }
+    Some((s, done))
 }
 
 } // verus!

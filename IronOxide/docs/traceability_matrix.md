@@ -219,7 +219,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R16.1 | P-16 | — | ✓4.9 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-logic/src/hw_model.rs; +3 | hil-mpu-matrix; proof-kernel-verus |
+| R16.1 | P-16 | — | ✓4.9 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; +4 | hil-mpu-matrix; proof-kernel-verus |
 | R16.2 | P-16 | Design decisions; Memory and MPU layout (DD-07, DD-11); Reuse and Deviation Record | ✓4.9 | apps/hil-stimulus/gen/partition_stim.rs; apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; +64 | hil-mpu-matrix; proof-kernel-verus |
 | R16.3 | P-16 | Design decisions | ✓4.9 | crates/rsk-gen/src/emit.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/dt.rs; crates/rsk-link/src/scan.rs; +4 | hil-mpu-matrix; proof-kernel-verus; test-workspace-tests |
 | R16.4 | P-16 | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; +3 | hil-mpu-matrix; hil-spike-p1-demo; hil-spike-step |

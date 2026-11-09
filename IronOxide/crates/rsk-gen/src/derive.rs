@@ -78,6 +78,9 @@ pub struct GenEndpoint {
     pub projections: Vec<(String, String)>,
     /// (role, its local type), for the role APIs of task 21.3.
     pub locals: Vec<(String, rsk_protocol::Local)>,
+    /// The roles' states from the verified flattening (A-P1, 2026-11-09):
+    /// (role, states), in the declared roles' order.
+    pub verified_states: Vec<(String, Vec<crate::roles::RoleState>)>,
     /// The Protocol's labels in order of appearance: the label word of a message.
     pub labels: Vec<String>,
     pub capacity: u32,
@@ -415,19 +418,25 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
             .collect();
         // Task 21.1: the Protocol's bound and projections (validated: the
         // checker accepted it).
-        let (k, channels, projections, locals, labels, configurations) = match &e.protocol {
-            None => (e.capacity, Vec::new(), Vec::new(), Vec::new(), Vec::new(), 0),
+        let (k, channels, projections, locals, labels, configurations, verified_states) = match &e.protocol {
+            None => (e.capacity, Vec::new(), Vec::new(), Vec::new(), Vec::new(), 0, Vec::new()),
             Some(pname) => {
                 let p = decl.protocols.iter().find(|p| &p.name == pname).expect("validated");
                 let role_names: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
                 let checked = rsk_protocol::check_protocol(&p.text, &role_names, e.capacity).expect("validated");
+                let verified_states: Vec<(String, Vec<crate::roles::RoleState>)> = if checked.tables.is_empty() {
+                    Vec::new()
+                } else {
+                    checked.locals.iter().map(|(r, _)| (r.clone(), crate::roles::states_for(&checked, r))).collect()
+                };
                 (
                     checked.k,
                     checked.channels.iter().map(|c| (c.from.clone(), c.to.clone(), c.k)).collect(),
                     checked.locals.iter().map(|(r, l)| (r.clone(), l.render())).collect(),
                     checked.locals.clone(),
-                    global_labels(&checked.global),
+                    checked.labels.clone(),
                     checked.configurations,
+                    verified_states,
                 )
             }
         };
@@ -452,7 +461,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
             })
             .collect();
         let gating_rank = gating_rank(decl, &e.name);
-        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, labels, after, gating_rank, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, verified_states, labels, after, gating_rank, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
         storage += (e.roles.len() * e.roles.len()) as u32 * e.capacity as u32 * e.payload as u32; // task 21.7: one channel per ordered pair, the diagonal unused
     }
     let endpoint_storage_bytes = storage;

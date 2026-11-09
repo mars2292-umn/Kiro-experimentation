@@ -41,6 +41,17 @@ pub fn well_formed(g: &Global, roles: &[&str]) -> Result<(), ProtocolError> {
     Ok(())
 }
 
+/// Whether `continue name` occurs in `g` outside a nested `rec name`.
+fn continues(g: &Global, name: &str) -> bool {
+    match g {
+        Global::End => false,
+        Global::Continue(n) => n == name,
+        Global::Rec { name: inner, body } => inner != name && continues(body, name),
+        Global::Msg(_, rest) => continues(rest, name),
+        Global::Choice { branches, .. } => branches.iter().any(|b| continues(b, name)),
+    }
+}
+
 /// `recs`: the enclosing `rec` names with whether a message has occurred
 /// since each was opened (guardedness).
 fn wf(g: &Global, recs: &mut Vec<(String, bool)>) -> Result<(), ProtocolError> {
@@ -54,6 +65,14 @@ fn wf(g: &Global, recs: &mut Vec<(String, bool)>) -> Result<(), ProtocolError> {
         Global::Rec { name, body } => {
             if recs.iter().any(|(n, _)| n == name) {
                 return Err(err("R38.5", format!("`rec {name}` is nested inside another `rec {name}`")));
+            }
+            // R38.5 (2026-11-09): the variable must be used. An unused
+            // `rec` is a binder with no loop; the theory's projection
+            // removes such a binder where the checker's keeps it, so the
+            // two would differ exactly on this degenerate form, which no
+            // Protocol needs.
+            if !continues(body, name) {
+                return Err(err("R38.5", format!("`rec {name}` is never continued: an unused recursion")));
             }
             recs.push((name.clone(), false));
             let r = wf(body, recs);
@@ -265,6 +284,8 @@ mod tests {
             ("choice at a { M(): b -> a; end; } or { N(): a -> b; end; }", "not from `a`"),
             ("choice at a { M(): a -> b; end; } or { M(): a -> b; end; }", "two branches of the choice at `a` start with the label"),
             ("M(u8): a -> c; end", "does not declare"),
+            ("rec X { M(u8): a -> b; end }", "never continued"),
+            ("rec X { M(u8): a -> b; rec Y { N(u8): b -> a; continue X; } }", "`rec Y` is never continued"),
         ];
         for (text, fragment) in bad {
             let g = parse(text).unwrap();

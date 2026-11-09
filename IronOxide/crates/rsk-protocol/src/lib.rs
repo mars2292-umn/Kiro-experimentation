@@ -74,14 +74,47 @@ pub mod compose;
 pub mod progress;
 pub mod theory;
 pub mod multiparty;
+pub mod parse_v;
 
 pub use ast::{Branch, Global, Local, Message};
 pub use check::{project, well_formed};
 pub use explore::{explore, Channel, Exploration};
 pub use theory::{accept_two_role, flatten_two};
+pub use multiparty::{accept_multiparty, flatten_n};
 pub use progress::explore_system;
 
 /// The result of checking a Protocol for one Endpoint.
+/// One state of a role's verified table, as the Generator renders it: the
+/// head-normal local type of the state (A-P1, 2026-11-09), the labels in
+/// the order of the projection's branches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RoleEntry {
+    End,
+    Send { to: usize, labels: Vec<u32> },
+    Recv { from: usize, labels: Vec<u32> },
+}
+
+/// The plain reading of a verified table entry (the one step of plain Rust
+/// between the flattening and the role module).
+fn entry_of(e: &theory::LE) -> RoleEntry {
+    fn labels_of(ls: &theory::LsE) -> Vec<u32> {
+        let mut out = Vec::new();
+        let mut cur = ls;
+        while let theory::LsE::Cons { label, rest, .. } = cur {
+            out.push(*label);
+            cur = rest;
+        }
+        out
+    }
+    match e {
+        theory::LE::End => RoleEntry::End,
+        theory::LE::Send { to, ls } => RoleEntry::Send { to: *to, labels: labels_of(ls) },
+        theory::LE::Recv { from, ls } => RoleEntry::Recv { from: *from, labels: labels_of(ls) },
+        // Entries are head normal (`flattens`): a recursion or a variable cannot occur.
+        theory::LE::Rec { .. } | theory::LE::Var { .. } => RoleEntry::End,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Checked {
     pub global: Global,
@@ -94,6 +127,17 @@ pub struct Checked {
     /// The configurations of the product of the projections, each certified
     /// by the verified check of `progress` (task 21.6, R41.3).
     pub configurations: usize,
+    /// The roles' state tables from the verified flattening (A-P1,
+    /// 2026-11-09): per role in the declared order, the head-normal local
+    /// types of its states, entry 0 the head of its projection
+    /// (`theory::flatten_two`, `multiparty::flatten_n`).
+    pub tables: Vec<Vec<RoleEntry>>,
+    /// The automaton's transitions over those tables (`flattens`,
+    /// `flattens_n`): the Generator's role modules are rendered from them.
+    pub trans: Vec<progress::Trans>,
+    /// The labels in the numbering of the verified conversion (`to_theory`:
+    /// by first appearance), the label word of a message.
+    pub labels: Vec<String>,
 }
 
 /// Why a Protocol is rejected (R38.5): the rule and the offending
@@ -122,6 +166,9 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
         locals.push(((*r).to_string(), project(&global, r)?));
     }
     let exploration = explore(&locals, capacity)?;
+    let mut verified_tables: Vec<Vec<RoleEntry>> = Vec::new();
+    let mut verified_trans: Vec<progress::Trans> = Vec::new();
+    let mut verified_labels: Vec<String> = Vec::new();
     if roles.len() == 2 {
         // The general theorem's hypothesis for two roles (theory.rs,
         // `theorem_two_role_progress`): the structural acceptance decided
@@ -140,9 +187,47 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
         // (`progress::explore_system`, which establishes the certificate
         // and the bound k). The untrusted explorer above remains the
         // diagnosis and the cross-check: its bound must agree.
-        let Some((sys, _t0, _t1)) = theory::flatten_two(&ge, capacity as usize) else {
+        let Some((sys, t0, t1)) = theory::flatten_two(&ge, capacity as usize) else {
             return Err(ProtocolError { rule: "R41.3", message: "the verified flattening of the projections refused the Protocol (a state table beyond its bound, an inadmissible entry, or an index overflow)".into() });
         };
+        verified_tables = vec![t0.iter().map(entry_of).collect(), t1.iter().map(entry_of).collect()];
+        verified_trans = sys.trans.iter().map(|t| progress::Trans { role: t.role, from: t.from, send: t.send, peer: t.peer, label: t.label, to: t.to }).collect();
+        verified_labels = _labels;
+        let Some((list, verified_k)) = progress::explore_system(&sys) else {
+            return Err(ProtocolError { rule: "R41.3", message: "the verified exploration of the automaton refused the Protocol (a waiting set, a channel over the capacity, or more configurations than its bound) where the explorer accepted it; the two disagree".into() });
+        };
+        if verified_k as u32 != exploration.channels.iter().map(|c| c.k).max().unwrap_or(0) {
+            return Err(ProtocolError { rule: "R41.1", message: format!("the verified exploration bounds the channels at {verified_k} message(s) in transit, the explorer at {}; the two disagree", exploration.channels.iter().map(|c| c.k).max().unwrap_or(0)) });
+        }
+        if !progress::certify(&sys, &list) {
+            return Err(ProtocolError { rule: "R41.3", message: "the certificate check refused the verified exploration's own list; the two disagree".into() });
+        }
+    }
+    if roles.len() >= 3 {
+        // The multiparty theorem's hypothesis (multiparty.rs,
+        // `theorem_multiparty_progress`, 2026-11-09): the acceptance
+        // conditions over the syntax (`acceptn`: well formed and projectable
+        // onto every role with the full merge) decided by the verified
+        // `accept_multiparty` over the verified conversion. The structural
+        // checks above accept exactly these Protocols (the one difference,
+        // a recursion a role takes no part in, is `end` for the checker and
+        // the vacuous loop for the theory, both without an action), so a
+        // refusal here is a discrepancy, reported as such.
+        let (ge, _labels) = theory::to_theory(&global, roles);
+        if !multiparty::accept_multiparty(&ge, roles.len()) {
+            return Err(ProtocolError { rule: "R41.3", message: format!("the Protocol passes the structural checks but not the verified {}-role acceptance (multiparty::acceptn_exec); the two disagree", roles.len()) });
+        }
+        // The verified chain to the automaton for `n` roles (2026-11-09):
+        // `multiparty::flatten_n` (establishing `flattens_n`, the hypothesis
+        // of `theorem_multiparty_automaton`) and `progress::explore_system`
+        // (the certificate and the bound k), the untrusted explorer above
+        // the diagnosis and the cross-check.
+        let Some((sys, tables)) = multiparty::flatten_n(&ge, roles.len(), capacity as usize) else {
+            return Err(ProtocolError { rule: "R41.3", message: "the verified flattening of the projections refused the Protocol (a state table beyond its bound, an inadmissible entry, or an index overflow)".into() });
+        };
+        verified_tables = tables.iter().map(|t| t.iter().map(entry_of).collect()).collect();
+        verified_trans = sys.trans.iter().map(|t| progress::Trans { role: t.role, from: t.from, send: t.send, peer: t.peer, label: t.label, to: t.to }).collect();
+        verified_labels = _labels;
         let Some((list, verified_k)) = progress::explore_system(&sys) else {
             return Err(ProtocolError { rule: "R41.3", message: "the verified exploration of the automaton refused the Protocol (a waiting set, a channel over the capacity, or more configurations than its bound) where the explorer accepted it; the two disagree".into() });
         };
@@ -154,6 +239,6 @@ pub fn check_protocol(text: &str, roles: &[&str], capacity: u32) -> Result<Check
         }
     }
     let k = exploration.channels.iter().map(|c| c.k).max().unwrap_or(0);
-    Ok(Checked { global, locals, channels: exploration.channels, k, configurations: exploration.configurations })
+    Ok(Checked { global, locals, channels: exploration.channels, k, configurations: exploration.configurations, tables: verified_tables, trans: verified_trans, labels: verified_labels })
 }
 

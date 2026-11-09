@@ -493,6 +493,23 @@ pub fn copy_words(dst: u32, src: u32, len: u32) {
     }
 }
 
+/// The copy into the Endpoint storage, returning the first word now at
+/// `dst` (the label the role API put first, Verification_Plan 5.15, A-P2):
+/// `copy_words`, then one `raw` read of a word the cores have checked.
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn copy_in_words(dst: u32, src: u32, len: u32) -> u32 {
+    copy_words(dst, src, len);
+    raw::read_ram_word(dst)
+}
+
+/// The copy out of the Endpoint storage, returning the first word at
+/// `src` (the stored label, A-P2).
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn copy_out_words(dst: u32, src: u32, len: u32) -> u32 {
+    copy_words(dst, src, len);
+    raw::read_ram_word(src)
+}
+
 /// The largest Endpoint payload the Generator accepts (PR-14, task 21.2).
 pub const MAX_MESSAGE_BYTES: u32 = 65_532;
 

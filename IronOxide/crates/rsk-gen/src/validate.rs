@@ -345,7 +345,7 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                                                 let roles: Vec<&str> = e.roles.iter().map(|r| r.role.as_str()).collect();
                                                 if let Some(checked) = decl.protocols.iter().find(|q| &q.name == pname).and_then(|q| rsk_protocol::check_protocol(&q.text, &roles, e.capacity).ok()) {
                                                     if let Some((_, local)) = checked.locals.iter().find(|(n, _)| n == &role.role) {
-                                                        let sts = crate::roles::states(local);
+                                                        let sts = crate::roles::states_for(&checked, &role.role);
                                                         if matches!(sts.first().map(|st| &st.kind), Some(crate::roles::Kind::Send { .. })) {
                                                             d.push(Diagnostic::new("R41.3", field("endpoint"), format!("Task `{}` is released by an arrival on Endpoint `{name}`, but its role `{}` begins with a send (`{}`): it would await its own first message and never be released (Verification_Plan 5.15)", t.name, role.role, local.render())));
                                                         }

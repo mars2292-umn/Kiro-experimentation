@@ -27,6 +27,8 @@ mod inject {
     pub fn spin_ms(ms: u64) -> u32 {
         let start = rsk::now();
         let mut i = 0u32;
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 100_000_000))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(100_000_000 - i@))]
         'spin: while rsk::now().wrapping_sub(start) < super::rsk_target::ms(ms) && i < 100_000_000 {
             i += 1;
         }
@@ -154,6 +156,10 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
 /// PR-16; within its 6 ms Budget on any Target), then counts. Its first Job
 /// starts the Release_Source of `pulse` (task 5.4).
 // The loop's label names it in the loop report (task 19.2); nothing breaks to it.
+// App_Prover (task 21.7 follow-up, 2026-11-09): the body assumes its gates
+// closed (A-P8: `rsk_spec::log_pre`) and proves panic freedom; its gated
+// `relay` operations require the gate its `pingpong` receive opens.
+#[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::log_pre(&cx)))]
 #[allow(unused_labels)]
 pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
@@ -176,6 +182,8 @@ pub fn log(mut cx: rsk_ctx::Log) {
     #[cfg(feature = "telemetry")]
     {
         let mut i = 0u32;
+        #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 4))]
+        #[cfg_attr(creusot, rsk::creusot_std::macros::variant(4 - i@))]
         'drain: while i < 4 {
             match cx.telemetry.recv() {
                 Ok(Some(v)) => {
@@ -328,8 +336,8 @@ pub fn log(mut cx: rsk_ctx::Log) {
     #[cfg(feature = "cycles")]
     {
         rsk::spin::<8_000>();
-        cx.count.with(|c| *c += 1);
-        rsk::debug(b"C");
+        cx.count.with(|c| *c = c.saturating_add(1));
+        rsk::debug(&[b'C']);
         return;
     }
     // The response configuration (task 7.5, R14.11): the Job of 400 ms
@@ -370,6 +378,8 @@ pub fn log(mut cx: rsk_ctx::Log) {
     }
     let start = rsk::now();
     let mut i = 0u32;
+    #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 10_000_000))]
+    #[cfg_attr(creusot, rsk::creusot_std::macros::variant(10_000_000 - i@))]
     'busy: while rsk::now().wrapping_sub(start) < rsk_target::ms(3) && i < 10_000_000 {
         i += 1;
     }
@@ -377,15 +387,16 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // the loop reached, for the safe state's loop report.
     #[cfg(feature = "measure")]
     cx.loop_busy.with(|m| if i > *m { *m = i });
-    cx.count.with(|c| *c += 1);
-    rsk::debug(b"C");
+    cx.count.with(|c| *c = c.saturating_add(1));
+    rsk::debug(&[b'C']);
 }
 
 /// Task `pulse` (sporadic): acknowledges the source's event, counts, and
 /// answers on the response line where the board has one.
+#[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::pulse_pre(&cx)))]
 pub fn pulse(mut cx: rsk_ctx::Pulse) {
     pulse_source::acknowledge();
-    cx.count.with(|c| *c += 1);
+    cx.count.with(|c| *c = c.saturating_add(1));
     pulse_source::respond(cx.count.get());
-    rsk::debug(b"D");
+    rsk::debug(&[b'D']);
 }

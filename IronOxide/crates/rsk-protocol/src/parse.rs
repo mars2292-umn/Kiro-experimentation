@@ -185,15 +185,52 @@ impl Parser {
     }
 }
 
-/// Parses a Protocol body.
+/// The tokens as the verified parser takes them (`parse_v::TokE`): the
+/// keywords classified, a payload `None` when the parentheses are empty.
+fn classify(toks: &[Tok]) -> Vec<crate::parse_v::TokE> {
+    use crate::parse_v::TokE;
+    toks.iter()
+        .map(|t| match t {
+            Tok::Ident(s) => match s.as_str() {
+                "end" => TokE::KwEnd,
+                "continue" => TokE::KwContinue,
+                "rec" => TokE::KwRec,
+                "choice" => TokE::KwChoice,
+                "at" => TokE::KwAt,
+                "or" => TokE::KwOr,
+                _ => TokE::Ident(s.clone()),
+            },
+            Tok::Paren(p) => TokE::Paren(if p.is_empty() { None } else { Some(p.clone()) }),
+            Tok::Colon => TokE::Colon,
+            Tok::Arrow => TokE::Arrow,
+            Tok::Semi => TokE::Semi,
+            Tok::LBrace => TokE::LBrace,
+            Tok::RBrace => TokE::RBrace,
+        })
+        .collect()
+}
+
+/// Parses a Protocol body. The AST is the verified parser's
+/// (`parse_v::parse_toks`, 2026-11-09: the grammar as a specification,
+/// the parse refining it, printing then parsing the identity); this
+/// module's own parser is run for the diagnosis when the verified one
+/// refuses, and a disagreement between the two is reported as such. The
+/// lexer (`tokens`, `classify`) is the plain-Rust step before the grammar.
 pub fn parse(text: &str) -> Result<Global, String> {
     let toks = tokens(text)?;
-    let mut p = Parser { toks, pos: 0 };
-    let g = p.block()?;
-    if p.pos != p.toks.len() {
-        return Err("tokens follow the end of the Protocol".into());
+    let classified = classify(&toks);
+    match crate::parse_v::parse_toks(&classified) {
+        Some(g) => Ok(g),
+        None => {
+            let mut p = Parser { toks, pos: 0 };
+            let g = p.block()?;
+            if p.pos != p.toks.len() {
+                return Err("tokens follow the end of the Protocol".into());
+            }
+            let _ = g;
+            Err("the verified parser refuses the Protocol the diagnostic parser accepts; the two disagree".into())
+        }
     }
-    Ok(g)
 }
 
 #[cfg(test)]

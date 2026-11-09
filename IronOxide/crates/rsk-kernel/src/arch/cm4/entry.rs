@@ -277,6 +277,10 @@ pub struct HwModel {
     pub watchdog_running: bool,
     /// Fed since this model was created (one model per entry point).
     pub watchdog_fed: bool,
+    /// The first word of every message copied into the Endpoint storage
+    /// (A-P2, Verification_Plan 5.15): word address to word. The storage is
+    /// Kernel-owned (R16.1), so `copy_in` is its only writer.
+    pub store: Map<int, int>,
 }
 
 /// The model's step for one action.
@@ -325,6 +329,19 @@ pub trait KernelArch: Sized {
     /// Performs one action; the model takes the corresponding step.
     fn apply(&mut self, a: Action)
         ensures final(self).hw() == step(old(self).hw(), a);
+    /// The copy of a message into the Endpoint storage (`len` bytes from the
+    /// Partition's `src` to the slot `dst`), returning the first word now
+    /// at `dst`: the model records it as the slot's label (A-P2).
+    fn copy_in(&mut self, dst: u32, src: u32, len: u32) -> (first: u32)
+        ensures final(self).hw() == (HwModel { store: old(self).hw().store.insert(dst as int, first as int), ..old(self).hw() });
+    /// The copy of a message out of the Endpoint storage (`len` bytes from
+    /// the slot `src` to the Partition's `dst`), returning the first word at
+    /// `src`, which is the recorded label: the storage is written by
+    /// `copy_in` alone (R16.1, Kernel-owned).
+    fn copy_out(&mut self, dst: u32, src: u32, len: u32) -> (first: u32)
+        ensures
+            final(self).hw() == old(self).hw(),
+            old(self).hw().store.contains_key(src as int) ==> first as int == old(self).hw().store[src as int];
     /// The 64-bit time base (DD-05, HW-12).
     fn now(&self) -> u64;
     /// DWT CYCCNT (HW-13).
@@ -334,6 +351,12 @@ pub trait KernelArch: Sized {
     /// Boot information for the log: `BOOT_INFO_DEBUGGER`, `BOOT_INFO_WATCHDOG_RESET`.
     fn boot_info(&self) -> u32;
 }
+
+/// The Endpoint table of a `Tables` as a specification: uninterpreted, the
+/// generated constants (A-P2, Verification_Plan 5.15).
+pub uninterp spec fn spec_endpoint_of<T: ?Sized>(t: &T, i: int) -> EndpointCfg;
+/// The Endpoint storage base of a `Tables` as a specification.
+pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
 
 /// What the generated system crate provides (the `System` trait of
 /// `arch`, adapted by `arch::cm4`).
@@ -361,8 +384,12 @@ pub trait Tables {
     fn dma(&self, i: usize) -> DmaCfg;
     /// The Endpoints (task 21.2) and their Kernel-owned storage (base, bytes).
     fn endpoint_count(&self) -> usize;
-    fn endpoint(&self, i: usize) -> EndpointCfg;
-    fn endpoint_storage(&self) -> (u32, u32);
+    /// The table as a specification (the generated crate's constants, a
+    /// pure function of the index; trusted, as every `Tables` method).
+    fn endpoint(&self, i: usize) -> (c: EndpointCfg)
+        ensures c == spec_endpoint_of(self, i as int);
+    fn endpoint_storage(&self) -> (r: (u32, u32))
+        ensures r.0 as int == spec_storage_base_of(self);
     /// The Release_Signals (R10.5).
     fn signal_count(&self) -> usize;
     fn signal(&self, i: usize) -> SignalCfg;
@@ -479,6 +506,18 @@ impl KernelArch for Cm4Hw {
                 super::trace(super::trace_tag(tag), v)
             }
         }
+    }
+
+    /// Trusted as `apply` (UJ-056): the copy and one read of the word written.
+    #[verifier::external_body]
+    fn copy_in(&mut self, dst: u32, src: u32, len: u32) -> (first: u32) {
+        super::unsafe_module::hw::copy_in_words(dst, src, len)
+    }
+
+    /// Trusted as `apply` (UJ-056): the copy and one read of the stored word.
+    #[verifier::external_body]
+    fn copy_out(&mut self, dst: u32, src: u32, len: u32) -> (first: u32) {
+        super::unsafe_module::hw::copy_out_words(dst, src, len)
     }
 
     /// Trusted: the extended TIMER counter (DD-05).
@@ -1070,8 +1109,10 @@ fn channel_push(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
     requires ch < MAX_CHANNELS, cap >= 1,
     ensures
         final(state).fifos[ch as int].wf(cap as int),
+        channel_before(old(state).fifos[ch as int], cap as int).wf(cap as int),
         slot.is_some() ==> channel_before(old(state).fifos[ch as int], cap as int).count < cap
-            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).push(slot.unwrap() as int),
+            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).push(slot.unwrap() as int)
+            && slot.unwrap() as int == (channel_before(old(state).fifos[ch as int], cap as int).head as int + channel_before(old(state).fifos[ch as int], cap as int).count as int) % (cap as int),
         slot.is_none() ==> channel_before(old(state).fifos[ch as int], cap as int).count == cap
             && final(state).fifos[ch as int] == channel_before(old(state).fifos[ch as int], cap as int),
         forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
@@ -1092,8 +1133,10 @@ fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
     requires ch < MAX_CHANNELS, cap >= 1,
     ensures
         final(state).fifos[ch as int].wf(cap as int),
+        channel_before(old(state).fifos[ch as int], cap as int).wf(cap as int),
         slot.is_some() ==> channel_before(old(state).fifos[ch as int], cap as int).count > 0
-            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).drop_first(),
+            && final(state).fifos[ch as int].view(cap as int) == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int).drop_first()
+            && slot.unwrap() as int == channel_before(old(state).fifos[ch as int], cap as int).view(cap as int)[0],
         slot.is_none() ==> channel_before(old(state).fifos[ch as int], cap as int).count == 0
             && final(state).fifos[ch as int] == channel_before(old(state).fifos[ch as int], cap as int),
         forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
@@ -1102,7 +1145,16 @@ fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
     if !state.fifos[ch].is_wf(cap) {
         state.fifos[ch].clear();
     }
-    state.fifos[ch].pop(cap)
+    let ghost before = state.fifos[ch as int];
+    let slot = state.fifos[ch].pop(cap);
+    proof {
+        if slot.is_some() {
+            assert(before.view(cap as int)[0] == (before.head as int + 0) % (cap as int));
+            assert((before.head as int) % (cap as int) == before.head as int) by (nonlinear_arith)
+                requires 0 <= before.head as int, (before.head as int) < cap as int;
+        }
+    }
+    slot
 }
 
 /// Re-initializes one Endpoint after a rejected message (task 21.6,
@@ -1225,7 +1277,9 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
     requires k.inv(),
     ensures r.is_some() ==> r.unwrap().0 < MAX_ENDPOINTS && r.unwrap().1 < MAX_ROLES && r.unwrap().2 < MAX_ROLES && r.unwrap().1 != r.unwrap().2
         && (r.unwrap().1 as int) < r.unwrap().3.roles as int && (r.unwrap().2 as int) < r.unwrap().3.roles as int && r.unwrap().3.roles as int <= MAX_ROLES as int
-        && r.unwrap().3.capacity >= 1 && r.unwrap().3.payload >= 4 && r.unwrap().3.payload % 4 == 0,
+        && r.unwrap().3.capacity >= 1 && r.unwrap().3.payload >= 4 && r.unwrap().3.payload % 4 == 0
+        && r.unwrap().0 as int == (arg & 0xFF) as int && r.unwrap().1 as int == ((arg >> 8) & 0xF) as int && r.unwrap().2 as int == ((arg >> 12) & 0xF) as int
+        && r.unwrap().3 == spec_endpoint_of(tables, (arg & 0xFF) as int),
 {
     // Task 21.7: `arg` = e | role << 8 | peer << 12 (the role performing
     // the operation, and the role it sends to or receives from).
@@ -1257,8 +1311,44 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
 /// The Kernel storage address of slot `slot` of channel `d` of `cfg`, when
 /// the slot's bytes lie inside the Endpoint storage; `None` otherwise (a
 /// Generated_Config the Generator never emits: the backstop is a refusal).
+/// The address of slot `slot` of channel `d` of an Endpoint (A-P2).
+pub open spec fn slot_addr(base: int, cfg: EndpointCfg, d: int, slot: int) -> int {
+    base + cfg.storage as int + (d * cfg.capacity as int + slot) * cfg.payload as int
+}
+
+/// The labels in transit on a channel: the stored first word of each
+/// occupied slot, oldest first (the model's channel of R41.3, A-P2).
+pub open spec fn channel_labels(h: HwModel, base: int, cfg: EndpointCfg, d: int, f: crate::logic::endpoint::Fifo) -> Seq<int> {
+    f.view(cfg.capacity as int).map(|i: int, slot: int| h.store[slot_addr(base, cfg, d, slot)])
+}
+
+/// Distinct slots of a channel have distinct addresses (the payload is at
+/// least a word).
+proof fn lemma_slot_addr_distinct(base: int, cfg: EndpointCfg, d: int, s1: int, s2: int)
+    requires cfg.payload >= 1, 0 <= s1, 0 <= s2, s1 != s2,
+    ensures slot_addr(base, cfg, d, s1) != slot_addr(base, cfg, d, s2),
+{
+    assert((d * cfg.capacity as int + s1) * cfg.payload as int != (d * cfg.capacity as int + s2) * cfg.payload as int) by (nonlinear_arith)
+        requires cfg.payload >= 1, s1 != s2;
+}
+
+/// The next free slot of a channel is none of the occupied ones.
+proof fn lemma_next_slot_fresh(f: crate::logic::endpoint::Fifo, cap: int)
+    requires f.wf(cap), (f.count as int) < cap,
+    ensures forall|i: int| 0 <= i < f.count ==> #[trigger] f.view(cap)[i] != (f.head as int + f.count as int) % cap,
+{
+    assert forall|i: int| 0 <= i < f.count implies #[trigger] f.view(cap)[i] != (f.head as int + f.count as int) % cap by {
+        let h = f.head as int;
+        let c = f.count as int;
+        assert(f.view(cap)[i] == (h + i) % cap);
+        assert((h + i) % cap != (h + c) % cap) by (nonlinear_arith)
+            requires 0 <= i < c, c < cap, 0 <= h < cap;
+    }
+}
+
 fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -> (a: Option<u32>)
     requires d < MAX_ROLES * MAX_ROLES,
+    ensures a is Some ==> a.unwrap() as int == slot_addr(spec_storage_base_of(tables), *cfg, d as int, slot as int),
 {
     let (base, total) = tables.endpoint_storage();
     let payload = cfg.payload as u64;
@@ -1276,6 +1366,9 @@ fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -
         requires d64 < 16, per_channel <= 255 * 65535;
     let channel_off: u64 = d64 * per_channel;
     let off: u64 = cfg.storage as u64 + channel_off + slot64 * payload;
+    proof {
+        assert((d64 as int) * ((capacity as int) * (payload as int)) + (slot64 as int) * (payload as int) == ((d64 as int) * (capacity as int) + slot64 as int) * (payload as int)) by (nonlinear_arith);
+    }
     if off + payload <= total as u64 && base as u64 + off + payload <= 0xFFFF_FFFF {
         Some((base as u64 + off) as u32)
     } else {
@@ -1292,11 +1385,92 @@ fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -
 /// recorded against the sender (R40.5); misuse is a fault of the Partition.
 /// The whole operation runs inside the SVC at the Kernel level with PRIMASK
 /// held, so no Job end can interrupt it (R40.6).
+/// An accepted send's effect on its channel (A-P2): the decoded Endpoint,
+/// role, and peer of `arg`; the channel's slots gain the next free slot
+/// and its label sequence gains the stored first word.
+pub open spec fn send_labels_ok<T: Tables>(tables: &T, s0: ArchState, s1: ArchState, h0: HwModel, h1: HwModel, arg: u32) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let peer = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    let base = spec_storage_base_of(tables);
+    let ch = spec_channel_index(e, role, peer);
+    let d = role * cfg.roles as int + peer;
+    let cap = cfg.capacity as int;
+    let before = channel_before(s0.fifos[ch], cap);
+    &&& (before.count as int) < cap
+    &&& exists|slot: int| #![auto] 0 <= slot < cap
+        && s1.fifos[ch].view(cap) == before.view(cap).push(slot)
+        && channel_labels(h1, base, cfg, d, s1.fifos[ch]) == channel_labels(h0, base, cfg, d, before).push(h1.store[slot_addr(base, cfg, d, slot)])
+        && h1.store == h0.store.insert(slot_addr(base, cfg, d, slot), h1.store[slot_addr(base, cfg, d, slot)])
+}
+
+/// An accepted receive's effect on its channel (A-P2): the oldest slot
+/// and the oldest label leave, and the oldest label is the first word
+/// delivered (when the slot was written by a send, which every occupied
+/// slot was).
+pub open spec fn recv_labels_ok<T: Tables>(tables: &T, s0: ArchState, s1: ArchState, h0: HwModel, h1: HwModel, arg: u32, delivered: int) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let from = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    let base = spec_storage_base_of(tables);
+    let ch = spec_channel_index(e, from, role);
+    let d = from * cfg.roles as int + role;
+    let cap = cfg.capacity as int;
+    let before = channel_before(s0.fifos[ch], cap);
+    &&& (before.count as int) > 0
+    &&& h1 == h0
+    &&& s1.fifos[ch].view(cap) == before.view(cap).drop_first()
+    &&& channel_labels(h1, base, cfg, d, s1.fifos[ch]) == channel_labels(h0, base, cfg, d, before).drop_first()
+    &&& (h0.store.contains_key(slot_addr(base, cfg, d, before.view(cap)[0])) ==> delivered == channel_labels(h0, base, cfg, d, before)[0])
+}
+
+/// The label sequence after a push: the old labels, then the stored word.
+proof fn lemma_send_labels(base: int, cfg: EndpointCfg, d: int, before: crate::logic::endpoint::Fifo, after: crate::logic::endpoint::Fifo, slot: int, h0: HwModel, h1: HwModel, first: int)
+    requires
+        cfg.payload >= 1, before.wf(cfg.capacity as int), (before.count as int) < cfg.capacity as int,
+        after.view(cfg.capacity as int) == before.view(cfg.capacity as int).push(slot),
+        slot == (before.head as int + before.count as int) % cfg.capacity as int,
+        h1 == (HwModel { store: h0.store.insert(slot_addr(base, cfg, d, slot), first), ..h0 }),
+    ensures
+        channel_labels(h1, base, cfg, d, after) == channel_labels(h0, base, cfg, d, before).push(h1.store[slot_addr(base, cfg, d, slot)]),
+        h1.store == h0.store.insert(slot_addr(base, cfg, d, slot), h1.store[slot_addr(base, cfg, d, slot)]),
+{
+    let cap = cfg.capacity as int;
+    lemma_next_slot_fresh(before, cap);
+    let la = channel_labels(h1, base, cfg, d, after);
+    let lb = channel_labels(h0, base, cfg, d, before);
+    assert forall|i: int| 0 <= i < before.count implies la[i] == lb[i] by {
+        let s = before.view(cap)[i];
+        lemma_slot_addr_distinct(base, cfg, d, s, slot);
+    }
+    assert(la =~= lb.push(h1.store[slot_addr(base, cfg, d, slot)]));
+}
+
+/// The label sequence after a pop: the old labels without the first.
+proof fn lemma_recv_labels(base: int, cfg: EndpointCfg, d: int, before: crate::logic::endpoint::Fifo, after: crate::logic::endpoint::Fifo, slot: int, h: HwModel, first: int)
+    requires
+        (before.count as int) > 0,
+        after.view(cfg.capacity as int) == before.view(cfg.capacity as int).drop_first(),
+        slot == before.view(cfg.capacity as int)[0],
+        h.store.contains_key(slot_addr(base, cfg, d, slot)) ==> first == h.store[slot_addr(base, cfg, d, slot)],
+    ensures
+        channel_labels(h, base, cfg, d, after) == channel_labels(h, base, cfg, d, before).drop_first(),
+        h.store.contains_key(slot_addr(base, cfg, d, before.view(cfg.capacity as int)[0])) ==> first == channel_labels(h, base, cfg, d, before)[0],
+{
+    let cap = cfg.capacity as int;
+    assert(channel_labels(h, base, cfg, d, after) =~= channel_labels(h, base, cfg, d, before).drop_first());
+}
+
 fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
     requires old(k).inv(),
     ensures final(k).inv(),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        // A-P2 (2026-11-09): an accepted send appends the message's first
+        // word, its label, to the channel's label sequence.
+        code == ENDPOINT_OK ==> send_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg),
 {
     let (e, role, peer, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
@@ -1321,9 +1495,31 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return ENDPOINT_FULL;
         }
     };
+    assert(role * (cfg.roles as usize) <= (MAX_ROLES - 1) * MAX_ROLES) by (nonlinear_arith)
+        requires role < MAX_ROLES, (cfg.roles as usize) <= MAX_ROLES;
     let d = role * (cfg.roles as usize) + peer;
+    let ghost fifo_after = state.fifos[ch as int];
+    let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
-        Some(dst) => hw.apply(Action::Copy(dst, ptr, len)),
+        Some(dst) => {
+            let first = hw.copy_in(dst, ptr, len);
+            proof {
+                let base = spec_storage_base_of(tables);
+                let cap = cfg.capacity as int;
+                lemma_send_labels(base, cfg, d as int, before, fifo_after, slot as int, old(hw).hw(), hw.hw(), first as int);
+                let sl0 = slot as int;
+                assert(0 <= sl0 && sl0 < cap) by (nonlinear_arith)
+                    requires sl0 == (before.head as int + before.count as int) % cap, cap >= 1;
+                assert(spec_channel_index(e as int, role as int, peer as int) == ch as int);
+                assert(send_labels_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg)) by {
+                    let sl = slot as int;
+                    assert(0 <= sl && sl < cap
+                        && state.fifos[ch as int].view(cap) == before.view(cap).push(sl)
+                        && channel_labels(hw.hw(), base, cfg, d as int, state.fifos[ch as int]) == channel_labels(old(hw).hw(), base, cfg, d as int, before).push(hw.hw().store[slot_addr(base, cfg, d as int, sl)])
+                        && hw.hw().store == old(hw).hw().store.insert(slot_addr(base, cfg, d as int, sl), hw.hw().store[slot_addr(base, cfg, d as int, sl)]));
+                }
+            }
+        }
         None => {
             k.fault(EV_API_MISUSE, false);
             return ENDPOINT_REFUSED;
@@ -1339,39 +1535,52 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 /// The receive service (task 21.2; R40.4, R42.2): takes the oldest message
 /// of the role's incoming channel, the other role's outgoing one, and
 /// copies it into the Partition; an empty channel returns `ENDPOINT_EMPTY`.
-fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
+fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (r: (u32, Ghost<int>))
     requires old(k).inv(),
     ensures final(k).inv(),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        // A-P2 (2026-11-09): an accepted receive takes the oldest label of
+        // the channel's label sequence and delivers that word first.
+        r.0 == ENDPOINT_OK ==> recv_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, r.1@),
 {
     let (e, role, from, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
         None => {
             k.fault(EV_API_MISUSE, false);
-            return ENDPOINT_REFUSED;
+            return (ENDPOINT_REFUSED, Ghost(0));
         }
     };
     let rs = role_slot(e, role);
     if state.peer_changed[rs] {
         state.peer_changed[rs] = false;
-        return ENDPOINT_PEER;
+        return (ENDPOINT_PEER, Ghost(0));
     }
     // The channel from `from` to `role` (task 21.7).
     let ch = channel_index(e, from, role);
     let slot = match channel_pop(state, ch, cfg.capacity) {
         Some(s) => s,
-        None => return ENDPOINT_EMPTY,
+        None => return (ENDPOINT_EMPTY, Ghost(0)),
     };
+    assert(from * (cfg.roles as usize) <= (MAX_ROLES - 1) * MAX_ROLES) by (nonlinear_arith)
+        requires from < MAX_ROLES, (cfg.roles as usize) <= MAX_ROLES;
     let d = from * (cfg.roles as usize) + role;
+    let ghost fifo_after = state.fifos[ch as int];
+    let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
-            hw.apply(Action::Copy(ptr, src, len));
-            ENDPOINT_OK
+            let first = hw.copy_out(ptr, src, len);
+            proof {
+                let base = spec_storage_base_of(tables);
+                lemma_recv_labels(base, cfg, d as int, before, fifo_after, slot as int, hw.hw(), first as int);
+                assert(spec_channel_index(e as int, from as int, role as int) == ch as int);
+                assert(recv_labels_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg, first as int));
+            }
+            (ENDPOINT_OK, Ghost(first as int))
         }
         None => {
             k.fault(EV_API_MISUSE, false);
-            ENDPOINT_REFUSED
+            (ENDPOINT_REFUSED, Ghost(0))
         }
     }
 }
@@ -1733,7 +1942,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         let code = if number == SVC_SEND {
             endpoint_send_core(k, hw, tables, state, frame[0], frame[1], frame[2])
         } else {
-            endpoint_recv_core(k, hw, tables, state, frame[0], frame[1], frame[2])
+            endpoint_recv_core(k, hw, tables, state, frame[0], frame[1], frame[2]).0
         };
         frame[0] = code;
         if number == SVC_RECV && code != ENDPOINT_REFUSED {
@@ -1775,6 +1984,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
 // fields (task 5.3), and over 20 since `ArchState` gained the deferred
 // vectors (5.8a, 2026-11-07); the limit is raised rather than the proof split.
 #[verifier::rlimit(40)]
+#[verifier::rlimit(80)]
 pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
 ) -> (r: ((u32, u32, u32, ReturnPlan), bool))

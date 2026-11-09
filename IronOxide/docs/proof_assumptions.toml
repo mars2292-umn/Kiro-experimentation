@@ -42,6 +42,20 @@ evidence = "Each action calls one Kernel_Unsafe_Module function with its own jus
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 construct = "#[verifier::external_body]"
+item = "copy_in"
+why = "The copy of a message into an Endpoint slot and the read of the word then at the slot's start (A-P2, Verification_Plan 5.15, 2026-11-09): volatile accesses (UJ-056, UJ-056a) Verus cannot model; the model records the word as the slot's label."
+evidence = "hw::copy_in_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds: total, in bounds, the destination holds the source's words) followed by one raw word read of an address the cores checked (endpoint_slot); the storage is Kernel-owned and MPU-protected (R16.1), so no other writer exists."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+construct = "#[verifier::external_body]"
+item = "copy_out"
+why = "The copy of a message out of an Endpoint slot and the read of the word at the slot's start (A-P2): volatile accesses Verus cannot model; the model says the word read is the one recorded, because copy_in is the storage's only writer (R16.1)."
+evidence = "hw::copy_out_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds) followed by one raw word read of the source slot the cores checked (endpoint_slot); the HIL Protocol runs (5.14, 5.15) deliver every label the receivers expect."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+construct = "#[verifier::external_body]"
 item = "now"
 why = "The extended 64-bit TIMER counter is a volatile read plus the wrap extension of DD-05."
 evidence = "hil-dt-hw-12 (pending hardware); the release-timing run hil-release-timing (task 7.3); QEMU spike timing (TBR-23)."

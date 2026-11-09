@@ -980,6 +980,47 @@ proof fn lemma_run_inv(g: G, path: Seq<LC>)
     }
 }
 
+/// No unexpected reception (2026-11-09): a role whose head is a receive
+/// and whose channel from the other role is not empty accepts the oldest
+/// label in it.
+pub open spec fn lreception_ok(c: LC) -> bool {
+    forall|r: int| (r == 0 || r == 1) && lhead(c.l[r]) is Recv && c.ch[other(r)].len() > 0
+        ==> ls_lookup(*lhead(c.l[r])->Recv_ls, c.ch[other(r)][0]) is Some
+}
+
+pub proof fn lemma_reception(c: LC)
+    requires inv(c),
+    ensures lreception_ok(c),
+{
+    let (g0, leader) = choose|g0: G, leader: int| #[trigger] inv_with(c, g0, leader);
+    let lag = other(leader);
+    let w = c.ch[leader];
+    lemma_follow_wf(g0, w, leader, lag);
+    lemma_head_wf(g0);
+    lemma_position(g0, lag);
+    assert forall|r: int| (r == 0 || r == 1) && lhead(c.l[r]) is Recv && c.ch[other(r)].len() > 0
+        implies ls_lookup(*lhead(c.l[r])->Recv_ls, c.ch[other(r)][0]) is Some by {
+        // Only the lagger's channel from the leader can be non-empty.
+        assert(r == lag);
+        let h = head(g0);
+        assert(h is Comm && h->Comm_from == leader && h->Comm_to == lag);
+        lemma_lookup_proj(*h->Comm_bs, lag, w[0]);
+    }
+}
+
+/// The two-role reception theorem: in every reachable configuration, the
+/// oldest label of a channel a role awaits on is one it accepts.
+pub proof fn theorem_two_role_reception(g: G)
+    requires wf2(g),
+    ensures forall|c: LC| lreachable(g, c) ==> lreception_ok(c),
+{
+    assert forall|c: LC| lreachable(g, c) implies lreception_ok(c) by {
+        let path = choose|path: Seq<LC>| #[trigger] lrun(g, path) && path.last() == c;
+        lemma_run_inv(g, path);
+        lemma_reception(c);
+    }
+}
+
 /// The general theorem for the two-role fragment: every Protocol the
 /// structural acceptance conditions admit has progress in every run.
 pub proof fn theorem_two_role_progress(g: G)
@@ -1986,6 +2027,84 @@ pub open spec fn ls_remove(ls: Ls, label: int) -> Ls
     }
 }
 
+/// A local type with no action (an end, a variable, or recursions of one).
+pub open spec fn lactionless(l: L) -> bool
+    decreases l,
+{
+    match l {
+        L::End => true,
+        L::Var { .. } => true,
+        L::Rec { body } => lactionless(*body),
+        _ => false,
+    }
+}
+
+/// Variable `k` occurs free in `l`.
+pub open spec fn lfree(l: L, k: nat) -> bool
+    decreases l,
+{
+    match l {
+        L::End => false,
+        L::Var { n } => n == k,
+        L::Rec { body } => lfree(*body, k + 1),
+        L::Send { ls, .. } => lfree_ls(*ls, k),
+        L::Recv { ls, .. } => lfree_ls(*ls, k),
+    }
+}
+
+pub open spec fn lfree_ls(ls: Ls, k: nat) -> bool
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => false,
+        Ls::Cons { l, rest, .. } => lfree(l, k) || lfree_ls(*rest, k),
+    }
+}
+
+/// The removal of binder `k` (which `l` does not use): every variable
+/// above `k` renumbered down.
+pub open spec fn lshift(l: L, k: nat) -> L
+    decreases l,
+{
+    match l {
+        L::End => L::End,
+        L::Var { n } => if n > k { L::Var { n: (n - 1) as nat } } else { L::Var { n } },
+        L::Rec { body } => L::Rec { body: Box::new(lshift(*body, k + 1)) },
+        L::Send { to, ls } => L::Send { to, ls: Box::new(lshift_ls(*ls, k)) },
+        L::Recv { from, ls } => L::Recv { from, ls: Box::new(lshift_ls(*ls, k)) },
+    }
+}
+
+pub open spec fn lshift_ls(ls: Ls, k: nat) -> Ls
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => Ls::Nil,
+        Ls::Cons { label, l, rest } => Ls::Cons { label, l: lshift(l, k), rest: Box::new(lshift_ls(*rest, k)) },
+    }
+}
+
+/// The projection of a recursion from the projection `l` of its body (the
+/// Protocol_Checker's rule, `check::collapse_vacuous`, 2026-11-09): a body
+/// the role takes no part in (its projection has no action) makes the
+/// recursion vacuous, `continue` of it an end and `continue` of an
+/// enclosing recursion the whole; a body whose projection uses the
+/// variable keeps the recursion; a body whose projection does not use it
+/// (an unused recursion, which R38.5 refuses since 2026-11-09, so never
+/// reached from an accepted Protocol) drops the binder.
+pub open spec fn close_rec(l: L) -> L {
+    if lactionless(l) {
+        match l {
+            L::Var { n } => if n == 0 { L::End } else { L::Var { n: (n - 1) as nat } },
+            _ => L::End,
+        }
+    } else if lfree(l, 0) {
+        L::Rec { body: Box::new(l) }
+    } else {
+        lshift(l, 0)
+    }
+}
+
 /// The projection onto role `r` with the full merge (R38.3): a role that
 /// takes no part in a communication projects every branch and merges
 /// them; `None` when the merge fails (the Protocol_Checker's rejection).
@@ -1996,7 +2115,7 @@ pub open spec fn projn(g: G, r: int) -> Option<L>
         G::End => Some(L::End),
         G::Var { n: v } => Some(L::Var { n: v }),
         G::Rec { body } => match projn(*body, r) {
-            Some(l) => Some(L::Rec { body: Box::new(l) }),
+            Some(l) => Some(close_rec(l)),
             None => None,
         },
         G::Comm { from, to, bs } => {
@@ -2205,7 +2324,7 @@ fn proj_bs_exec(bs: &BE, r: usize) -> (ls: LsE)
 }
 
 /// An executable type is a recursion exactly when its view is.
-proof fn lemma_view_rec(l: &LE)
+pub proof fn lemma_view_rec(l: &LE)
     ensures (l@ is Rec) == (l is Rec),
 {
     match l {
@@ -2376,7 +2495,7 @@ pub open spec fn tbl_view(v: Seq<LE>) -> Seq<L> {
 pub const MAX_STATES: usize = 4096;
 
 /// Finds the entry equal to `h` in `tbl`, or appends it; the index.
-fn intern(tbl: &mut Vec<LE>, h: LE) -> (j: Option<usize>)
+pub fn intern(tbl: &mut Vec<LE>, h: LE) -> (j: Option<usize>)
     requires old(tbl).len() <= MAX_STATES,
     ensures
         j is Some ==> (j.unwrap() as int) < final(tbl).len() && tbl_view(final(tbl)@)[j.unwrap() as int] == h@,
@@ -2415,7 +2534,7 @@ fn intern(tbl: &mut Vec<LE>, h: LE) -> (j: Option<usize>)
 }
 
 /// The branches of a head-normal executable entry (`ls_of` of the view).
-fn branches_of(e: &LE) -> (r: Option<&LsE>)
+pub fn branches_of(e: &LE) -> (r: Option<&LsE>)
     ensures
         r is Some ==> r.unwrap()@ == ls_of(e@),
         r is None ==> (e@ is End || e@ is Rec || e@ is Var),
@@ -2448,7 +2567,7 @@ fn entry_ok_exec(e: &LE, r: usize) -> (ok: bool)
     }
 }
 
-proof fn lemma_lse_cons_view(ls: &LsE)
+pub proof fn lemma_lse_cons_view(ls: &LsE)
     ensures (ls@ is Cons) == (ls is Cons),
 {
     match ls {
@@ -2486,7 +2605,7 @@ pub open spec fn trans_ok(trans: Seq<Trans>, tb: Seq<Seq<L>>) -> bool {
 }
 
 /// The labels of an executable branch list.
-fn labels_of(ls: &LsE) -> (r: Vec<u32>)
+pub fn labels_of(ls: &LsE) -> (r: Vec<u32>)
     ensures forall|label: int| ls_lookup(ls@, label) is Some <==> exists|i: int| 0 <= i < r@.len() && #[trigger] r@[i] as int == label,
     decreases ls,
 {
@@ -2529,7 +2648,7 @@ fn labels_of(ls: &LsE) -> (r: Vec<u32>)
 }
 
 /// The continuation of `label` in `ls` (`ls_lookup`).
-fn lookup_exec<'a>(ls: &'a LsE, label: u32) -> (r: Option<&'a LE>)
+pub fn lookup_exec<'a>(ls: &'a LsE, label: u32) -> (r: Option<&'a LE>)
     ensures
         r is Some ==> ls_lookup(ls@, label as int) == Some(r.unwrap()@),
         r is None ==> ls_lookup(ls@, label as int) is None,
@@ -2541,7 +2660,7 @@ fn lookup_exec<'a>(ls: &'a LsE, label: u32) -> (r: Option<&'a LE>)
     }
 }
 
-proof fn lemma_has_trans_push(trans: Seq<Trans>, t: Trans, x: Trans)
+pub proof fn lemma_has_trans_push(trans: Seq<Trans>, t: Trans, x: Trans)
     requires has_transition_seq(trans, x),
     ensures has_transition_seq(trans.push(t), x),
 {

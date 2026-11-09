@@ -11,7 +11,7 @@
 resolver = "2"
 members = [
     # The QEMU configuration (the Flight_Build of the conformance Application).
-    "part0", "part2",
+    "part0", "part1", "part2",
     # The HIL configurations: the same sources with their feature-gated
     # bodies, one member per (declaration variant, Partition features)
     # pair the rig builds (task 17.1; Verification_Plan section 7). Proved
@@ -25,7 +25,7 @@ members = [
 # proved by name (`cargo creusot -p p1-demo-part0-response-proof -- --offline`),
 # which resolves the declaration's variant feature for that member alone.
 [workspace.metadata.creusot]
-default-members = ["p1-demo-part0-proof", "p1-demo-part2-proof"]
+default-members = ["p1-demo-part0-proof", "p1-demo-part1-proof", "p1-demo-part2-proof"]
 
 [workspace.package]
 version = "0.0.0"
