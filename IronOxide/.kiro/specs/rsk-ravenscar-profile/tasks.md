@@ -391,6 +391,7 @@ Every leaf task names its evidence. Proofs come first wherever a tool applies; t
 
 - [x] 21. Protocol_Checker and Endpoints (Component F)
     - Closed 2026-11-09: 21.1 to 21.7 done; the verified chain from the Protocol text to the system progress and reception theorems is recorded in Verification_Plan 5.15 and section 13.
+    - The same night: Partition 1 (level C) gained its eight HIL proof members (`proofs/creusot/part1-*`), so `log`'s gated and injected bodies have the App_Prover's evidence under every rig configuration (Verification_Plan 7; two tightenings of the body, the saturating window and the guarded stress period; mutation `part1-stress-period-unguarded`).
   - [x] 21.1 Implement the Protocol syntax, projection, well-formedness checks, and the k-MC buffer bound.
     - Evidence: PBT for Property 20; differential runs against Rumpsteak's k-MC checker
     - _Requirements: 22.7, 38.2, 38.3, 38.5, 38.6, 41.1_

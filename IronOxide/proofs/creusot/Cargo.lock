@@ -209,7 +209,79 @@ dependencies = [
 ]
 
 [[package]]
+name = "p1-demo-part1-cycles-fpu-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-cycles-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-isolation-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-measure-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-nrf52840-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
 name = "p1-demo-part1-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-response-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-stress-proof"
+version = "0.0.0"
+dependencies = [
+ "creusot-std",
+ "p1-demo-decl",
+ "rsk",
+]
+
+[[package]]
+name = "p1-demo-part1-timing-proof"
 version = "0.0.0"
 dependencies = [
  "creusot-std",

@@ -18,7 +18,8 @@ mod inject {
     #[cfg(feature = "response")]
     pub fn window(from_ms: u64, len_ms: u64) -> bool {
         let now = rsk::now();
-        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms + len_ms)
+        // Saturating, as part0's: the App_Prover's overflow obligation (part1-response member, 2026-11-09).
+        now >= super::rsk_target::ms(from_ms) && now < super::rsk_target::ms(from_ms.saturating_add(len_ms))
     }
 
     /// Returns the iterations the loop ran (the loop report, task 19.2);
@@ -368,13 +369,20 @@ pub fn log(mut cx: rsk_ctx::Log) {
     // ends never counts, so a count-based choice repeated the overrun at
     // every Job once the first was ended (seen when the Budget accounting
     // of task 19.1 charged every segment, 2026-11-02).
+    // The period is never zero on a Target (16 MHz here); the guard is the
+    // App_Prover's: `ms` is a generated `const fn` with no contract, so the
+    // division's obligation needs it, on the one value bound here (two calls
+    // are unrelated to the prover) (found by the part1-stress member, 2026-11-09).
     #[cfg(feature = "stress")]
-    if (rsk::now() / rsk_target::ms(40)) % 4 == 3 {
-        let n = inject::spin_ms(20);
-        #[cfg(feature = "measure")]
-        cx.loop_spin.with(|m| if n > *m { *m = n });
-        #[cfg(not(feature = "measure"))]
-        let _ = n;
+    {
+        let period = rsk_target::ms(40);
+        if period != 0 && (rsk::now() / period) % 4 == 3 {
+            let n = inject::spin_ms(20);
+            #[cfg(feature = "measure")]
+            cx.loop_spin.with(|m| if n > *m { *m = n });
+            #[cfg(not(feature = "measure"))]
+            let _ = n;
+        }
     }
     let start = rsk::now();
     let mut i = 0u32;

@@ -1011,13 +1011,13 @@ fn creusot_hil_members(dir: &Path) -> Vec<(String, String)> {
 
 #[cfg(test)]
 mod creusot_members_tests {
-    /// R46.3: the proof workspace's HIL-configuration members are the fifteen (declaration variant, Partition features) pairs the rig builds (the measurement configurations' `measure` feature since task 19.2, the plain measurement and floating-point cycle configurations since tasks 19.4 and 19.3), each outside the default members, named by directory and package.
+    /// R46.3: the proof workspace's HIL-configuration members are the twenty-three (declaration variant, Partition features) pairs the rig builds (the measurement configurations' `measure` feature since task 19.2, the plain measurement and floating-point cycle configurations since tasks 19.4 and 19.3, Partition 1's eight since 2026-11-09), each outside the default members, named by directory and package.
     #[test]
-    fn hil_members_are_the_fifteen_configurations_outside_the_defaults() {
+    fn hil_members_are_the_twenty_three_configurations_outside_the_defaults() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let members = super::creusot_hil_members(&root.join("proofs").join("creusot"));
         let dirs: Vec<&str> = members.iter().map(|(d, _)| d.as_str()).collect();
-        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-stress", "part0-measure", "part0-response", "part0-isolation", "part0-cycles", "part0-cycles-fpu", "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-measure", "part2-isolation", "part2-cycles-fpu"]);
+        assert_eq!(dirs, ["part0-nrf52840", "part0-timing", "part0-stress", "part0-measure", "part0-response", "part0-isolation", "part0-cycles", "part0-cycles-fpu", "part1-nrf52840", "part1-timing", "part1-stress", "part1-measure", "part1-response", "part1-isolation", "part1-cycles", "part1-cycles-fpu", "part2-nrf52840", "part2-timing", "part2-response", "part2-stress", "part2-measure", "part2-isolation", "part2-cycles-fpu"]);
         assert!(members.iter().all(|(d, p)| *p == format!("p1-demo-{d}-proof")));
     }
 }
