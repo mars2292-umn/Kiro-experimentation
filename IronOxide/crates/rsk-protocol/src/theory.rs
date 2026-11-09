@@ -2606,44 +2606,103 @@ pub open spec fn trans_ok(trans: Seq<Trans>, tb: Seq<Seq<L>>) -> bool {
 
 /// The labels of an executable branch list.
 pub fn labels_of(ls: &LsE) -> (r: Vec<u32>)
-    ensures forall|label: int| ls_lookup(ls@, label) is Some <==> exists|i: int| 0 <= i < r@.len() && #[trigger] r@[i] as int == label,
+    ensures
+        forall|label: int| ls_lookup(ls@, label) is Some <==> exists|i: int| 0 <= i < r@.len() && #[trigger] r@[i] as int == label,
+        r@.len() == ls_len(ls@),
+        forall|i: int| 0 <= i < r@.len() ==> #[trigger] r@[i] as int == ls_label_at(ls@, i),
+{
+    // In the branches' order (2026-11-09: the Generator numbers a role's
+    // states by walking these labels, and the bodies name the states).
+    let mut v: Vec<u32> = Vec::new();
+    let mut cur: &LsE = ls;
+    let ghost whole = ls@;
+    while lse_is_cons(cur)
+        invariant
+            v@.len() + ls_len(cur@) == ls_len(whole),
+            forall|i: int| 0 <= i < v@.len() ==> #[trigger] v@[i] as int == ls_label_at(whole, i),
+            forall|i: int| 0 <= i < ls_len(cur@) ==> #[trigger] ls_label_at(cur@, i) == ls_label_at(whole, v@.len() as int + i),
+            forall|label: int| ls_lookup(whole, label) is Some <==> (exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == label) || ls_lookup(cur@, label) is Some,
+        decreases cur,
+    {
+        match cur {
+            LsE::Nil => { assert(false); }
+            LsE::Cons { label, rest, .. } => {
+                let ghost before = v@;
+                let ghost cur_before = cur@;
+                v.push(*label);
+                proof {
+                    assert(v@ == before.push(*label));
+                    assert(ls_label_at(cur_before, 0) == *label as int);
+                    assert forall|i: int| 0 <= i < v@.len() implies #[trigger] v@[i] as int == ls_label_at(whole, i) by {
+                        if i == before.len() {
+                            assert(ls_label_at(cur_before, 0) == ls_label_at(whole, before.len() as int));
+                        }
+                    }
+                    assert forall|i: int| 0 <= i < ls_len(rest@) implies #[trigger] ls_label_at(rest@, i) == ls_label_at(whole, v@.len() as int + i) by {
+                        assert(ls_label_at(cur_before, i + 1) == ls_label_at(rest@, i));
+                        assert(ls_label_at(cur_before, i + 1) == ls_label_at(whole, before.len() as int + (i + 1)));
+                    }
+                    assert forall|lb: int| ls_lookup(whole, lb) is Some implies (exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb) || ls_lookup(rest@, lb) is Some by {
+                        if ls_lookup(cur_before, lb) is Some && !(ls_lookup(rest@, lb) is Some) {
+                            assert(*label as int == lb);
+                            assert(v@[before.len() as int] as int == lb);
+                        } else if !(ls_lookup(cur_before, lb) is Some) {
+                            let i = choose|i: int| 0 <= i < before.len() && #[trigger] before[i] as int == lb;
+                            assert(v@[i] as int == lb);
+                        }
+                    }
+                    assert forall|lb: int| ((exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb) || ls_lookup(rest@, lb) is Some) implies ls_lookup(whole, lb) is Some by {
+                        if ls_lookup(rest@, lb) is Some {
+                            assert(ls_lookup(cur_before, lb) is Some);
+                        } else {
+                            let i = choose|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb;
+                            if i < before.len() {
+                                assert(before[i] as int == lb);
+                            } else {
+                                assert(*label as int == lb);
+                                assert(ls_lookup(cur_before, lb) is Some);
+                            }
+                        }
+                    }
+                }
+                cur = rest;
+            }
+        }
+    }
+    proof {
+        assert(cur@ is Nil);
+        assert(ls_len(cur@) == 0);
+        assert(forall|lb: int| !(ls_lookup(cur@, lb) is Some));
+    }
+    v
+}
+
+fn lse_is_cons(ls: &LsE) -> (r: bool)
+    ensures r == (ls@ is Cons),
+{
+    match ls {
+        LsE::Nil => false,
+        LsE::Cons { .. } => true,
+    }
+}
+
+/// The branch count of a local list.
+pub open spec fn ls_len(ls: Ls) -> nat
     decreases ls,
 {
     match ls {
-        LsE::Nil => Vec::new(),
-        LsE::Cons { label, rest, .. } => {
-            let mut v = labels_of(rest);
-            let ghost before = v@;
-            let lab: u32 = *label;
-            v.push(lab);
-            assert(v@ == before.push(lab));
-            assert(v@.len() == before.len() + 1);
-            assert(v@[before.len() as int] == lab);
-            assert(forall|i: int| 0 <= i < before.len() ==> v@[i] == before[i]);
-            assert forall|lb: int| ls_lookup(ls@, lb) is Some implies exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb by {
-                assert(ls_lookup(ls@, lb) is Some == (lab as int == lb || ls_lookup(rest@, lb) is Some));
-                if lab as int == lb {
-                    assert(v@[before.len() as int] as int == lb);
-                } else {
-                    assert(ls_lookup(rest@, lb) is Some);
-                    let i = choose|i: int| 0 <= i < before.len() && #[trigger] before[i] as int == lb;
-                    assert(v@[i] == before[i]);
-                    assert(v@[i] as int == lb);
-                }
-            }
-            assert forall|lb: int| (exists|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb) implies ls_lookup(ls@, lb) is Some by {
-                let i = choose|i: int| 0 <= i < v@.len() && #[trigger] v@[i] as int == lb;
-                assert(ls_lookup(ls@, lb) is Some == (lab as int == lb || ls_lookup(rest@, lb) is Some));
-                if i < before.len() {
-                    assert(v@[i] == before[i]);
-                    assert(before[i] as int == lb);
-                } else {
-                    assert(i == before.len());
-                    assert(lab as int == lb);
-                }
-            }
-            v
-        }
+        Ls::Nil => 0,
+        Ls::Cons { rest, .. } => 1 + ls_len(*rest),
+    }
+}
+
+/// The label of branch `i` of a local list.
+pub open spec fn ls_label_at(ls: Ls, i: int) -> int
+    decreases ls,
+{
+    match ls {
+        Ls::Nil => 0,
+        Ls::Cons { label, rest, .. } => if i == 0 { label } else { ls_label_at(*rest, i - 1) },
     }
 }
 
