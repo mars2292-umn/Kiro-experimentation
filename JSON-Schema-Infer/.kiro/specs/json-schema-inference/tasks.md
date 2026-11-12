@@ -2,981 +2,2883 @@
 
 ## Overview
 
-`jsinfer` is a Python 3.11+ package (`src/jsinfer/`, uv with `==` pins and `uv.lock`, pytest + Hypothesis). The plan follows the design's milestones: M1 Core, M2 Decisions, M3 Learning, M4 Harness, M5 Should, M6 Could. M1–M4 hold the Must tier and form the critical path.
+This plan builds `jsinfer` from the requirements and the design, starting from an empty repository: a Python 3.11+ package (`src/jsinfer/`, uv with `==` pins and `uv.lock`, pytest and Hypothesis) and a Kernel written in Dafny (`kernel/`), verified and compiled to Python. It does not assume any earlier code.
+
+The order puts what the guarantees rest on first. M0 settles whether the proof toolchain works and builds the Kernel core. M1 to M4 hold the Must tier: the core, the decisions and the soundness stage built on the Kernel, learning, and the Evaluation_Harness. M5 holds the Should tier, with the remaining Kernel theorems. M6 holds the Could tier and closes the plan with the performance tests, the user documentation of the guarantees, and the final traceability pass.
 
 Conventions used by every task:
 
-- Each Technique task sets its registry entry to `implemented=True`, registers its Learned_Thresholds and their validation objectives with the Trainer, and wires itself into the pipeline in the same task. Unimplemented Techniques stay registered, and enabling one is a `ConfigError`.
-- No decision cut-off is hard-coded. Cut-offs come from MDL comparisons, BIC, or Learned_Thresholds. Runtime knobs are Resource_Parameters. Tests may build stub bundles with hand-set thresholds.
-- Randomness goes through `core/determinism.rng(purpose, *keys)`. Emitted JSON goes through the canonical encoder.
-- Property tests use the Hypothesis `ci` profile (at least 100 examples) and carry the tag `# Feature: json-schema-inference, Property N: <title>`. The shared `run_configs()` strategy draws toggles only from implemented Techniques and respects prerequisites. Full-run properties therefore pick up each Technique as soon as it is implemented. Clauses about unimplemented Techniques are gated on the registry.
+- **Traceability.** A sub-task that implements an acceptance criterion adds that criterion's row to `verification/traceability.csv`: its Verification_Method (Proof, Checked, Static, Property, Example, Measured, or Inspection) and its evidence (a Kernel lemma, a run-time check, a lint rule, a test id, or a benchmark table). `scripts/verify.py trace` reports criteria without a row as pending until the final pass, where a missing row fails.
+- **The Kernel is changed only through its Dafny source.** After any change under `kernel/`, run `scripts/verify.py verify`, which proves every lemma, regenerates `src/jsinfer/kernel/_generated/`, and refreshes the verified-build stamp. The generated Python is never edited by hand. No `assume`, axiom, `{:verify false}`, or `{:extern}` enters the Kernel without an entry in `verification/trusted.toml`.
+- **Techniques.** Every Technique of Table 1 is registered from the start as unimplemented, and enabling an unimplemented one is a configuration error. Each Technique task sets its registry entry to implemented, registers its Learned_Thresholds with their validation objectives, and wires itself into the pipeline in the same task.
+- **No hard-coded cut-off.** Cut-offs come from MDL comparisons, a model-selection criterion, Decision_Model probabilities, or Learned_Thresholds. Runtime knobs are Resource_Parameters. Tests may build stub bundles with hand-set thresholds.
+- **Determinism.** Randomness goes through `core/determinism.rng(purpose, *keys)`. Emitted JSON goes through the canonical encoder. Nothing iterates a set in hash order or reads the clock to make a decision; the source lint enforces this.
+- **Property tests** use the Hypothesis `ci` profile (at least 100 examples) and carry the tag `# Feature: json-schema-inference, Property N: <title>`. Each property of the design is implemented by exactly one test in `tests/property/`; an "Extend" sub-task adds cases to that test when a later component lands. The shared `run_configs()` strategy draws toggles only from implemented Techniques and respects prerequisites, so full-run properties pick up each Technique as it is implemented.
+- **Kernel theorems** are stated in a "Prove" sub-task and live as lemmas beside the functions they are about. Once the mutation register exists, each theorem also gets one code mutation and one statement mutation that must make its proof fail.
+- **No task is optional.** Tests, proofs, and the traceability rows are part of the work they belong to.
 
 ## Tasks
 
+### M0: Feasibility and Kernel core
+
+- [ ] 1. Set up the project, the proof toolchain, and the verification registers
+  - [ ] 1.1 Create the project skeleton (`pyproject.toml`, `uv.lock`, `src/jsinfer/`, `tests/`)
+    - Create the package layout of the design: `kernel/` for Dafny source, `verification/`, `scripts/`, `src/jsinfer/` with its subpackages (`kernel/`, `config/`, `core/`, `io/`, `mdl/`, `decide/`, `structure/`, `deps/`, `values/`, `robust/`, `corpus/`, `learn/`, `pipeline/`, `bench/`), and `tests/` with `unit/`, `property/`, `integration/`, `bench_smoke/`, `fixtures/`, and `strategies.py`.
+    - Pin every dependency with `==` in `pyproject.toml` and lock it in `uv.lock`. At this milestone the runtime dependencies are `DafnyRuntimePython` (pinned to the Dafny release of 1.2), `orjson`, and `jsonschema-rs`; the dev group holds `pytest`, `hypothesis`, and `regress`. Later tasks add their own pins.
+    - Configure pytest and the two Hypothesis profiles: `ci` (`max_examples=100`, `derandomize=True`) and `nightly` (`max_examples=500`). State in `tests/README` or the conftest docstring that every property test carries the tag comment `# Feature: json-schema-inference, Property N: <title>`.
+    - Write a smoke test that the lock file resolves each package to exactly one version.
+    - _Requirements: 29.5, 36.1_
+  - [ ] 1.2 Pin Dafny and Z3 (`verification/toolchain.toml`)
+    - Write `verification/toolchain.toml` with exactly one Dafny version and one Z3 version, each with the SHA-256 of its release archive per platform, the per-proof resource limit passed to `dafny verify --resource-limit`, and the Dafny options the project always uses (`--unicode-char`, the Python target).
+    - Write `scripts/verify.py` with a `toolchain` helper that locates the installed `dafny` and `z3`, compares version and digest with the file, and returns a named mismatch. The `verify` command of 8 calls it as its first step.
+    - Document the install steps in the repository README: Dafny and Z3 are needed only to change the Kernel; installing and running jsinfer needs neither.
+    - Unit tests: a matching toolchain passes; a wrong version and a wrong digest are each reported by name.
+    - _Requirements: 39.1_
+  - [ ] 1.3 Create the traceability matrix and the Trusted_Assumption register (`verification/traceability.csv`, `verification/trusted.toml`)
+    - Create `verification/traceability.csv` with the columns `criterion, method, evidence`, plus a `primary` flag so that a criterion can list secondary evidence beside its one primary row. `method` is a Verification_Method: one of Proof, Checked, Static, Property, Example, Inspection (the glossary's order, strongest first), or Measured, which stands outside that order. `evidence` is a typed reference: `lemma:<Module>.<Name>`, `test:<pytest node id>`, `static:<test name>`, `check:<run-time check name>`, or `table:<benchmark table title>`.
+    - Create `verification/trusted.toml` with one entry per Trusted_Assumption, each with an id, what is assumed, which guarantees depend on it, and a justification. Enter at least: the Dafny verifier; the Z3 solver; the Dafny-to-Python compiler and runtime; CPython; the Ingestor's parsers; the adapter; and the Format_Oracle, assumed only to be a fixed function.
+    - Give the register a second section, `escapes`, for Dafny escapes (`assume`, `{:axiom}`, `{:verify false}`, `{:extern}`, bodyless declarations), each with file, declaration name, and justification. It starts empty: the Kernel is designed to need none, because the oracles are parameters.
+    - Write one loader for each file in `scripts/verify.py`; the `verify` and `trace` commands of 8 read the files only through these loaders. A loader rejects an unknown method, an evidence reference of no known kind, and a register entry without a justification.
+    - Unit tests: both files parse; every required Trusted_Assumption is present; each rejection above is reported with the offending row or entry.
+    - _Requirements: 39.7, 39.8_
+
+- [ ] 2. Feasibility check: a Dafny-to-Python spike and the checker's speed
+  - [ ] 2.1 Build the spike: a small Dafny `Json` and `Check` compiled to Python and called through a stub adapter (`kernel/spike/`, `scripts/kernel_spike.py`)
+    - Write about 50 lines of Dafny: a `Json` datatype (null, boolean, number as `real`, string, array, object) and a `Check` function for `type` and `properties` only, with a lemma that it equals a ghost `Valid` for those two keywords. No other Kernel code is written before this task ends.
+    - Verify it with the pinned toolchain under the resource limit, translate it with `dafny translate py`, and call the result from a stub adapter that converts Python values to the compiled types (`int` exactly, `float` through `as_integer_ratio()`, `str` as a sequence of Unicode scalar values).
+    - Confirm on the pinned version each fact the design relies on, and write down any that differs: `real` compiles to an exact rational; strings are sequences of Unicode scalar values under `--unicode-char`; `--resource-limit` bounds a proof by solver resource units; `--random-seed` (or `measure-complexity --iterations`) re-verifies under other seeds; translating the same source twice gives byte-identical Python; and the translated modules can be imported from a subpackage directory without editing them.
+    - Check that an astral character, a 100-digit integer, `1.0`, and `-0.0` pass through the stub adapter and come back as expected.
+    - _Requirements: 36.1, 39.1, 39.3_
+  - [ ] 2.2 Measure documents per second of the compiled checker (`scripts/kernel_spike.py`)
+    - Generate, from a fixed seed, a collection with the shape of criterion 29.6: 100,000 newline-delimited documents, mean serialized size at most 2 KB, at most 1,000 distinct Paths, nesting depth up to 10. Build by hand the `type` and `properties` schema that describes it.
+    - Time three parts separately on the Reference_Laptop: parsing, conversion through the stub adapter, and the compiled `Check`. Report documents per second for one process and for 8 worker processes over fixed-size chunks, as the median of 3 runs.
+    - From those numbers, estimate the time to certify one run on the 29.6 collection and the time to certify every run of the benchmarks of Requirements 31 and 33 at their proposed sizes. State the assumption that the full `Check` costs more per document than the two-keyword spike, with a measured factor from a schema using nested `properties` at depth 10.
+    - _Requirements: 36.1_
+  - [ ] 2.3 Decide the verification tool and record the decision (`design.md`, Open Decisions, "Verification tool")
+    - Choose one of three outcomes and write it, with the measured documents per second, into the Open Decisions row: (1) Dafny as designed; (2) Dafny for `Widens`, `Disjoint`, `Join`, and `Canon`, with harness certification limited to collections of at most `bench.certify_max_documents` documents (a Resource_Parameter with no limit by default) and the numbers of certified and skipped runs reported; (3) the Lean 4 fallback with a native checker, which replaces `kernel/` and the adapter and keeps the rest of the design.
+    - Present the numbers and the proposed outcome to the user and take their decision; the requirements give no numeric cut-off, so this is not decided silently.
+    - For outcome (2), record the value chosen for `bench.certify_max_documents`; 38 reads it and reports each run above it as skipped; for outcome (3), stop and return to the design before 3.
+    - Delete `kernel/spike/` once the decision is recorded; nothing from the spike is imported by later code.
+    - _Requirements: 36.1_
+
+- [ ] 3. Kernel data and specification: Json, Schema, Guard, Valid
+  - [ ] 3.1 Define JSON values in the Kernel (`kernel/Json.dfy`)
+    - Define `datatype Json = Null | Bool(b) | Num(n: real) | Str(s: string) | Arr(seq<Json>) | Obj(seq<(string, Json)>)`. Numbers are `real` (a Number_Value, exact); strings are sequences of Unicode scalar values. No floating-point type appears anywhere in the Kernel.
+    - Define the well-formedness predicate for objects: keys are distinct and in strictly increasing code-point order, at every depth. With it, Dafny equality on `Json` is JSON equality with numbers compared by Number_Value, which is the equality `enum`, `const`, and `uniqueItems` use.
+    - Define `Size(v)`, strictly larger than the size of every member or element, with the lemmas the termination measures need. Define `IsInteger(n)` as a zero fractional part, and `Pointer` as a sequence of string tokens with a function that appends an object key or an array index.
+    - The module imports nothing outside `kernel/`.
+    - _Requirements: 36.1, 36.2_
+  - [ ] 3.2 Define schemas of the Kernel_Fragment (`kernel/Schema.dfy`)
+    - Define `datatype Schema = True | False | Node(Keywords)` and `Root(schema, defs: map<string, Schema>)`. `Keywords` has one optional field per keyword of criterion 2.4: `type`, `properties`, `required`, `additionalProperties`, `patternProperties`, `propertyNames`, `items`, `prefixItems`, `contains`, `enum`, `const`, `format`, `pattern`, the four numeric bounds, `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties`, `maxProperties`, `uniqueItems`, `anyOf`, `oneOf`, `allOf`, `not`, `if`, `then`, `else`, `dependentRequired`, and `$ref` as the name of a `$defs` entry.
+    - Hold the annotation keywords of criterion 2.10, `$schema`, the root `$id`, and the `x-` keywords in one separate field of `Keywords` (a map from keyword name to a `Json` value), so they survive a round trip and `Valid` never reads them.
+    - Define `datatype Pattern` with the constructor `Opaque(source: string)`. 61 adds `Frag(Regex)` together with the reference matcher; until then every `pattern` and every `patternProperties` key is `Opaque` and is decided by the pattern oracle, as criterion 36.2 states. Every function that takes a Pattern by case names `Opaque` explicitly and has no wildcard case, so each one must be revisited when the second constructor arrives.
+    - Hold every list-valued keyword (`type`, `required`, `enum`, each `dependentRequired` list, the combinator lists, `prefixItems`) as a sequence in document order, and `properties`, `patternProperties`, and `dependentRequired` as sequences of pairs with distinct keys in code-point order, so a conversion from a schema document and back loses nothing and 51 has an order to canonicalize.
+    - Define schema well-formedness: bounds that count things are non-negative integers, combinator lists are non-empty, lists that the draft requires to hold unique members do, and `type` names come from the seven JSON type names.
+    - _Requirements: 36.2_
+  - [ ] 3.3 Define and decide Guardedness (`kernel/Schema.dfy`)
+    - Write `Guard(root)`, an executable function that returns a rank for every `$defs` entry, or `None`. A reference reached from the top of its entry (or of the root schema) through at least one of `properties`, `patternProperties`, `additionalProperties`, `items`, `prefixItems`, or `contains` is guarded and puts no condition on ranks; any other reference (directly in the entry, or under `anyOf`, `oneOf`, `allOf`, `not`, `if`, `then`, `else`, or `propertyNames` only) must name an entry of strictly lower rank than the entry it sits in (the root schema ranks above every entry).
+    - `Guard` returns `None` when a reference names a missing entry or when the unguarded references form a cycle, and a rank assignment otherwise. Prove both directions: a returned assignment satisfies the rank condition, and `None` is returned only when no assignment exists.
+    - Example lemmas (or tests after 7): a list-like recursive entry referenced through `properties` is Guarded; an entry that references itself directly, or two entries that reference each other through `anyOf`, are not.
+    - _Requirements: 36.2, 8.9_
+  - [ ] 3.4 Write the specification `Valid` (`kernel/Valid.dfy`)
+    - Write `ghost predicate Valid(root, s, v, o: Oracles)` as a direct transcription of draft 2020-12: `True` accepts, `False` rejects, and a `Node` accepts a value when every keyword present accepts it. `Oracles(format: (string, string) -> bool, pattern: (string, string) -> bool)` are parameters; no lemma assumes anything about them.
+    - Fix the points criterion 36.2 names: `integer` accepts every number with a zero fractional part; `minLength` and `maxLength` count Unicode scalar values; `enum`, `const`, and `uniqueItems` use `Json` equality; `format` asks `o.format(name, string)`; an `Opaque` Pattern asks `o.pattern(source, string)`, for `pattern` and for the keys of `patternProperties` alike; annotation and `x-` keywords are ignored; a keyword applies only to values of its own JSON type and accepts all others.
+    - Give the object and array keywords their draft meaning: `additionalProperties` governs members named by no `properties` key and matched by no `patternProperties` Pattern; `items` governs elements past `prefixItems`; `patternProperties` applies each subschema to the members whose key its Pattern matches, and `propertyNames` applies its subschema to each key as a string; `dependentRequired` requires the listed keys when its key is present; `contains` needs at least one accepted element; `if`/`then`/`else` apply `then` or `else` according to `if`, and `then`/`else` without `if` are ignored; `oneOf` needs exactly one accepted branch.
+    - Make it terminate with `decreases Size(v), rank, s`, where `rank` is the `Guard` rank of the `$defs` entry being evaluated: a guarded reference is applied to a strictly smaller value, any other reference moves to a lower rank. `Valid` requires a Guarded, well-formed root and is then total for every finite value.
+    - _Requirements: 36.2_
+
+- [ ] 4. Kernel checker (K1) and annotation neutrality (K8)
+  - [ ] 4.1 Write the checker for scalar keywords (`kernel/Check.dfy`)
+    - Define `Verdict = Accept | Reject(keyword: Pointer, instance: Pointer)` and `function Check(root, s, v, o): Verdict` with the same parameters and the same measure as `Valid`. The function carries the schema pointer and the instance pointer it has reached, and a `Reject` holds the JSON Pointer of one keyword the value fails, as that keyword's own location in the document (a keyword inside a referenced entry is reported at `/$defs/<name>/...`, not through the `$ref`), and the location of the failing value.
+    - Implement the boolean schemas and the scalar keywords: `type`, `enum`, `const`, `format`, `pattern`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `minLength`, `maxLength`.
+    - Evaluate the keywords of a `Node` in one fixed order and return the first `Reject`, so the reported keyword is a function of the inputs.
+    - _Requirements: 36.3_
+  - [ ] 4.2 Extend the checker to object and array keywords (`kernel/Check.dfy`)
+    - Implement `properties`, `patternProperties`, `additionalProperties`, `propertyNames`, `required`, `dependentRequired`, `minProperties`, `maxProperties`, `prefixItems`, `items`, `contains`, `minItems`, `maxItems`, and `uniqueItems`.
+    - A failure inside a member or an element reports the pointer of the keyword inside the subschema and the location of the member or element; a failed `required` or `dependentRequired` reports the keyword at the object's location; a failed `contains` reports the `contains` keyword and the array's location.
+    - `uniqueItems` compares elements by `Json` equality with a pairwise scan that needs no hashing.
+    - _Requirements: 36.3_
+  - [ ] 4.3 Extend the checker to combinators, conditionals, and references (`kernel/Check.dfy`)
+    - Implement `anyOf`, `oneOf`, `allOf`, `not`, `if`/`then`/`else`, and `$ref` to a `$defs` entry. A failed `anyOf`, `oneOf`, or `not` reports that keyword at the current instance; a failed `allOf` entry, `then`, `else`, or `$ref` reports the failing keyword inside it, which for a `$ref` is a keyword of the referenced `$defs` entry at its own location.
+    - Prove termination with the measure of `Valid`; `Check` requires a Guarded, well-formed root and never recurses on a missing entry.
+    - _Requirements: 36.3_
+  - [ ] 4.4 Prove checker correctness
+    - **Kernel theorem K1: `Check(r, s, v, o).Accept? <==> Valid(r, s, v, o)` for every Guarded Kernel_Fragment root, value, and oracle pair, and a `Reject` names a keyword whose assertion the value fails.**
+    - **Establishes: Requirements 37.1, 36.3, and the meaning of the Certificate claim in Requirement 38**
+    - Lemma `Check.CheckCorrect`, by induction on the measure of `Valid`; `Check` mirrors `Valid` keyword by keyword, so there is one case per keyword. State "names a failing keyword" as a ghost predicate that resolves the reported pointer to a keyword of the schema and says `Valid` restricted to that keyword is false at the reported instance.
+    - No `assume`, axiom, or bodyless declaration. Note beside the lemma the two mutations 52 enters in the mutation register: a code mutation (`Check` counting string length in UTF-16 units) and a statement mutation (dropping the Guarded precondition from `CheckCorrect`). Each must make `Check.CheckCorrect` fail.
+  - [ ] 4.5 Write `Strip` (`kernel/Canon.dfy`)
+    - Write `Strip(root)`, which empties the annotation field of every `Keywords` in the root schema and in every `$defs` entry and leaves every other keyword as it is. `Canon.dfy` holds only `Strip` at this milestone; 51 adds `Canon`.
+    - Prove that `Strip` keeps well-formedness and the `Guard` result, and that it is idempotent.
+    - _Requirements: 36.2, 3.9_
+  - [ ] 4.6 Prove annotation neutrality
+    - **Kernel theorem K8: `Valid(r, v) <==> Valid(Strip(r), v)`, so adding, changing, or removing an annotation keyword or an `x-` keyword anywhere changes the set of accepted values in no way.**
+    - **Establishes: Requirements 37.8, 26.11, and the last clause of 3.9**
+    - Lemma `Canon.AnnotationsNeutral`, by induction on the measure of `Valid`: `Valid` never reads the stripped field. Add the corollary that two roots with equal `Strip` accept the same values.
+    - Note for 52: a code mutation (`Strip` also dropping `format`) and a statement mutation (dropping the Guarded precondition from `AnnotationsNeutral`). Each must make `Canon.AnnotationsNeutral` fail.
+
+- [ ] 5. Kernel Naive_Merge join (K2)
+  - [ ] 5.1 Write `NaiveOf` and `Join` (`kernel/Naive.dfy`)
+    - Define the Naive_Merge schemas as the subset of `Schema` that uses only `type`, `properties`, `items`, and `required` (the fifth Naive_Merge keyword, `$schema`, is added at emission), with a predicate `IsNaive`.
+    - `NaiveOf(v)` maps one value to its schema: the one JSON type of `v`, with `integer` for a number with a zero fractional part and `number` otherwise; for an object, `properties` with `NaiveOf` of each member and `required` listing every key; for an array, `items` as the join of its elements' schemas, and no `items` for an empty array.
+    - `Join(a, b)` merges two such schemas: the union of the type sets, with `integer` absorbed by `number` when both appear; `properties` joined pointwise over the union of keys; `required` as the intersection, where a side with no object type leaves the other side's list unchanged; `items` joined when both sides have it and taken from the one side that has it otherwise; a key under `properties` on one side only keeps that side's subschema. `IsNaive` requires `type` and `required` to be duplicate-free and in one fixed order (the type order null, boolean, integer, number, string, array, object; code-point order for keys), and `NaiveOf` and `Join` produce that order, so schemas that are equal as sets are equal Dafny values.
+    - Prove `IsNaive` is closed under `Join`, and that both functions return Guarded, well-formed roots with empty `$defs`.
+    - _Requirements: 36.4, 34.4_
+  - [ ] 5.2 Prove that Naive_Merge is a sound semilattice
+    - **Kernel theorem K2: `Join` is associative, commutative, and idempotent; `Valid(NaiveOf(v), v)`; and a schema that absorbs a value's schema accepts the value, so the Naive_Merge of any finite collection accepts each of its documents and is the same schema for every order and every chunking.**
+    - **Establishes: Requirements 37.2, and 3.1, 27.5, 27.6, 28.5 for the Baseline_Rules**
+    - Lemmas `Naive.JoinSemilattice` and `Naive.JoinSound`, by structural induction on the two schemas: types are sets, `required` is intersection, `properties` is a pointwise join. Add the corollary over a fold: `Fold(Join, map(NaiveOf, docs))` is invariant under permutation and under any split into chunks, and accepts every element of `docs`.
+    - Prove soundness exactly as criterion 37.2 states it: `Join(a, NaiveOf(v)) == a ==> Valid(a, v)` for every `IsNaive` schema `a`. The collection claim follows from the three semilattice laws, because the fold absorbs the schema of each of its documents.
+    - Do not state or prove `Valid(a, v) ==> Valid(Join(a, b), v)`; it is false. Keep the counterexample as a negative example lemma: `NaiveOf({})` accepts `{"k": 1}`, and its join with `NaiveOf({"k": "x"})` does not.
+    - Note for 52: a code mutation (`Join` taking the union of `required`) and a statement mutation (stating `JoinSound` without the absorption hypothesis `Join(a, NaiveOf(v)) == a`). Each must make `Naive.JoinSound` fail.
+
+- [ ] 6. Kernel Widening check and removal progress (K3, K4)
+  - [ ] 6.1 Write the Widening check `Widens`: the walk and the per-keyword comparisons (`kernel/Widen.dfy`)
+    - Write `Widens(root, root'): bool`, which walks both schemas together with a flag saying whether the current position is a Monotone_Position. The flag turns off on entering `not`, `if`, or a `oneOf` branch and never turns back on. The check always terminates and answers yes when the two roots are equal.
+    - At a Monotone_Position, each keyword of S′ must be absent or no stronger than the same keyword of S, where a keyword S lacks counts as its trivial form (the subschema `True`, an empty `required`, no bound): a superset for `type` and `enum`; a subset for `required` and each `dependentRequired` list; a lower or equal `minimum`, `exclusiveMinimum`, `minLength`, `minItems`, `minProperties`; a higher or equal `maximum`, `exclusiveMaximum`, `maxLength`, `maxItems`, `maxProperties`; `Widens` again for each subschema. Any subschema may become `True`.
+    - A Removable_Keyword that S has and S′ lacks is therefore accepted at a Monotone_Position. An `if` counts with its `then` and `else` as one Removable_Keyword; its removal is accepted whether S′ keeps the `then` and `else` or not, because `Valid` ignores them without `if`.
+    - Away from a Monotone_Position the two subschemas must be identical. At this step `properties`, `patternProperties`, and `prefixItems` must hold the same keys or positions on both sides, and `$defs` must hold the same entries, each compared as its own walk; 6.2 and 6.3 relax these.
+    - The check is sound and not complete: it may answer no for a true Widening, and it never answers yes otherwise.
+    - Example lemmas: equal roots; a removed `maxLength`; a lowered `minimum`; a type added to `type`; a raised `minimum` answers no; a lowered `minimum` inside `not` answers no.
+    - _Requirements: 36.6_
+  - [ ] 6.2 Add the composed rules of criterion 36.6 to `Widens` (`kernel/Widen.dfy`)
+    - `const` replaced by an `enum` that contains the value. A `False` subschema of S replaced by any schema.
+    - `oneOf` converted to `anyOf` over the same branches, in two shapes: in place, or, when the schema object already has an `anyOf`, as a new `allOf` entry `{"anyOf": B}` holding the branches B while the existing `anyOf` stays. A branch added to `anyOf`.
+    - A property added under `properties`, or `prefixItems` extended, only when `Widens` answers yes to the added subschema from every subschema that could have governed that property or position before: the `additionalProperties` subschema and every `patternProperties` subschema of the same schema object, or its `items` subschema (an absent keyword means `True`). Every `patternProperties` subschema is included because the check does not decide which Pattern matches the name.
+    - Write the rules so they compose, because K3 requires transitivity: a `oneOf` may become an `anyOf` whose branches widen the old ones and that has further branches; a `const` may become any `enum` that contains it; several rules may apply at one schema object and at different positions.
+    - Example lemmas: one yes per rule; a `const` replaced by an `enum` without the value answers no; a property added beside `additionalProperties: false` answers no; a property added beside a `patternProperties` subschema that the added subschema does not widen answers no; a `oneOf` inside `not` converted to `anyOf` answers no.
+    - _Requirements: 36.6_
+  - [ ] 6.3 Add removed routing entries and `$defs` comparison to `Widens` (`kernel/Widen.dfy`)
+    - `properties`, `patternProperties`, and `prefixItems` are not Removable_Keywords: they route parts of a value to subschemas. A `properties` entry, a `patternProperties` entry, or a trailing `prefixItems` position that S has and S′ lacks is accepted only when `Widens` answers yes from the removed subschema to whatever newly governs that member or position in S′: the `additionalProperties` subschema of S′ for a `properties` or `patternProperties` entry, and the `items` subschema of S′ for a `prefixItems` position (absent means `True`). The `patternProperties` entries that remain applied to the same members before the change and need no further condition. A `prefixItems` position removed from the middle answers no.
+    - Compare `$defs` entries by name. An entry referenced, directly or through other entries, from a position that is not a Monotone_Position must be identical in both roots; every other entry is compared by the walk with the flag on. An entry present in one root only puts no condition by itself: a `$ref` that S′ has and S lacks is a keyword stronger than its absence and answers no at its own position. The inputs are whole roots, so a `$defs` edit and its referencing sites are judged together.
+    - Example lemmas: a removed property beside `additionalProperties: false` answers no; a removed property whose subschema is `False` answers yes; a `$defs` entry weakened while referenced only from Monotone_Positions answers yes; the same entry also referenced from inside a `not` answers no.
+    - _Requirements: 36.6_
+  - [ ] 6.4 Prove that the Widening check is sound
+    - **Kernel theorem K3: `Widens(r, r') ==> forall v :: Valid(r, v) ==> Valid(r', v)`, and `Widens` is reflexive and transitive.**
+    - **Establishes: Requirements 37.3, 3.5, 28.5**
+    - Lemma `Widen.WidensSound`, by induction on the measure of `Valid` with the monotone flag as an invariant: at a Monotone_Position the inclusion holds, elsewhere the two subschemas are equal and so accept the same values. One case per keyword and one per rule of 36.6. The oracles are universally quantified, so the result holds whatever the Format_Oracle and the pattern oracle answer.
+    - Prove one lemma per listed rule of 36.6 that `Widens` answers yes for it (single changes, and several at different positions), so the "at least" part of the criterion is a theorem and not a test. Prove reflexivity and transitivity as separate lemmas over the rules as written in 6.1, 6.2, and 6.3.
+    - Note for 52: a code mutation (`Widens` accepting a raised `minimum`) and a statement mutation (dropping the Monotone_Position flag). Each must make `Widen.WidensSound` fail.
+  - [ ] 6.5 Write `KeywordCount` and `RemoveAt` (`kernel/Widen.dfy`)
+    - `IsMonotone(root, pointer)` says whether a pointer is at a Monotone_Position: the pointer passes through no `not`, `if`, or `oneOf` branch, and, when it lies inside a `$defs` entry, every reference to that entry (followed through other entries) is itself at a Monotone_Position. The pipeline uses it to tell when a removal must take the enclosing `not` or `if`, or needs the enclosing `oneOf` converted to `anyOf` first, and in the relaxation table (24) to find that an edit inside a `$defs` entry is reached through a reference from inside a `oneOf` branch, a `not`, or an `if`.
+    - `KeywordCount(root)` is the Removable_Keyword count of the glossary. Over every schema object of the root schema and of every `$defs` entry, at every depth, it counts: one for each keyword of criterion 2.4 present other than `properties`, `patternProperties`, and `prefixItems`; in place of the keyword itself, one per entry of `required` and one per entry of each `dependentRequired` list; one for `if` together with its `then` and `else` (a `then` or `else` in a schema object without `if` counts one each); plus one for each `False` subschema. `properties`, `patternProperties`, `prefixItems`, and annotations count nothing themselves; the subschemas under them, and under every other keyword, are counted.
+    - `RemoveAt(root, pointer)` removes exactly one Removable_Keyword, or returns a declared error value when the pointer names none. It removes: a whole keyword; one entry of `required` (`…/required/<i>`); one entry of a `dependentRequired` list (`…/dependentRequired/<key>/<i>`, dropping the key when its list becomes empty); `if` together with its `then` and `else`; a `then` or `else` that has no `if` beside it; or a `False` subschema, which is replaced by `True`.
+    - The error value is returned for `properties`, `patternProperties`, and `prefixItems` (removing one can hand its members or positions to `additionalProperties` or `items` and narrow the schema; what makes a value fail under them is a keyword or a `False` subschema inside, and that is removable), for a `then` or `else` beside an `if`, for a single branch of `anyOf` or `oneOf`, and for a pointer that resolves to nothing.
+    - Unit lemmas or examples: the count of `true` and of `{}` is 0, and of `false` is 1; `required` with three entries counts 3; `if` with `then` and `else` counts one plus the counts inside the three subschemas; a removal inside a `oneOf` branch is reported as not monotone; removing `if` drops `then` and `else` and lowers the count by one plus the counts inside the three subschemas.
+    - _Requirements: 36.6, 3.7, 3.8_
+  - [ ] 6.6 Prove removal progress
+    - **Kernel theorem K4: `RemoveAt` of a Removable_Keyword at a Monotone_Position, or replacing a `False` subschema there with `True`, is accepted by `Widens` and strictly lowers `KeywordCount` (the Removable_Keyword count), and `KeywordCount(r) == 0 ==> forall v :: Valid(r, v)`.**
+    - **Establishes: Requirements 37.4, 3.7, 3.8**
+    - Lemma `Widen.RemovalProgress` by case split on the removed Removable_Keyword, with `IsMonotone` of the pointer as the hypothesis; lemma `Widen.EmptyAcceptsAll` by induction on the measure of `Valid`. The second holds because a root that counts zero holds only `properties`, `patternProperties`, and `prefixItems` over subschemas that count zero. Add the corollary the removal loop relies on: a sequence of successful removals has length at most the starting `KeywordCount`.
+    - Note for 52: a code mutation (`KeywordCount` not counting `False` subschemas), which must make `Widen.EmptyAcceptsAll` fail, and a statement mutation (dropping the Monotone_Position hypothesis from `RemovalProgress`), which must make `Widen.RemovalProgress` fail.
+
+- [ ] 7. Kernel Api, compilation to Python, and the adapter
+  - [ ] 7.1 Write the Kernel's public surface as total functions (`kernel/Api.dfy`)
+    - Export exactly the functions the adapter may call, and nothing else: `Guard`, `Check`, `NaiveOf`, `Join`, `Widens`, `KeywordCount`, `RemoveAt`, `IsMonotone`, `Strip`, the well-formedness checks, and a `Version` constant.
+    - Every exported function is total on its declared type: an entry point with no `requires` clause that first checks well-formedness and Guardedness and returns a declared error value (`NotWellFormed`, `NotGuarded`, `BadPointer`) instead of relying on a precondition. Prove each entry point equal to the inner function when the checks pass.
+    - Use no `expect`, no `method` with side effects, no `{:extern}`, and no partial operation (division, sequence indexing) without a proven guard, so compiled code raises no exception the source does not declare.
+    - _Requirements: 36.10, 36.3, 36.4, 36.6_
+  - [ ] 7.2 Compile the Kernel to Python and commit the result (`src/jsinfer/kernel/_generated/`, `src/jsinfer/kernel/__init__.py`)
+    - Translate `kernel/` with `dafny translate py` under the options in `toolchain.toml` and place the output in `src/jsinfer/kernel/_generated/`. The files are committed and never edited by hand; a header comment in the package says so.
+    - Make the generated modules importable from the installed package in the way the feasibility check settled, without changing a generated file. `DafnyRuntimePython` is the only third-party import.
+    - Write a static test over `kernel/*.dfy` and over the generated files: no import of a jsinfer module, no import of a third-party package other than the Dafny runtime, and no floating-point type or `float(` call.
+    - Unit tests on the compiled functions: `Check` accepts and rejects a hand-written example per keyword with the expected pointers; `Join` of two examples; `Widens` yes and no examples; each declared error value is returned for a malformed input and no exception escapes.
+    - _Requirements: 36.1, 36.10_
+  - [ ] 7.3 Write the adapter for JSON values (`src/jsinfer/kernel/adapter.py`)
+    - `to_json(value)` converts a parsed document: `int` exactly; `float` through `BigRational(*x.as_integer_ratio())`, so `1.0` and `1` are the same `Num` and `-0.0` is `0`; `bool` before `int`; `str` as a sequence of Unicode scalar values; object members sorted by key in code-point order. It raises `TypeError` for a value outside the JSON types, NaN, or an infinity.
+    - `from_json(value)` converts back: a `Num` with a zero fractional part becomes `int`, any other becomes the `float` with that exact value. The round trip is equality by Number_Value, so `1.0` comes back as `1` and `-0.0` as `0`; every other value comes back identical.
+    - The adapter converts and does nothing else: no defaulting, no repair, no reordering beyond the member sort. Keep the whole module under 300 lines.
+    - Conversion in both directions works at every nesting depth the Ingestor accepts (13); the property test of 7.5 generates deep nesting to check it.
+    - _Requirements: 36.5, 36.1_
+  - [ ] 7.4 Write the adapter for schemas and oracles (`src/jsinfer/kernel/adapter.py`)
+    - `to_root(schema: dict | bool)` builds a `Root`: each keyword of criterion 2.4 into its `Keywords` field, annotation, `$schema`, `$id`, and `x-` keywords into the annotation field, `$defs` into the `defs` map, every `pattern` and `patternProperties` key as `Opaque` (61 adds the conversion to `Frag`, which uses the Pattern parser of 18), and the members of every `Json` value inside `enum` and `const` sorted by key as in 7.3. It then calls the Kernel's well-formedness and `Guard` entry points.
+    - It raises `KernelUnsupported(pointer, construct)` and returns no Kernel value for: a keyword outside the Kernel_Fragment (for example `multipleOf`); a `$ref` that is not `#/$defs/<name>` or names a missing entry; `$defs`, `$schema`, or `$id` below the root; a value of the wrong shape for its keyword; and a root that is not Guarded, naming a reference on the cycle.
+    - `from_root(root)` returns the schema document; `from_root(to_root(s))` equals `s` under the equality of criterion 2.7. The Schema_Model entry of `to_root` is added by 15, which converts a model through its document layout.
+    - `oracles(source)` wraps any object with `satisfies_format(fmt, s)` and `matches_pattern(pattern, s)` as the Kernel's `Oracles`, memoized per distinct pair of arguments so each oracle is a fixed function within a run. The memo stores only returned verdicts: an exception raised by the source passes through unchanged and is not stored. 14 passes the Validator; tests here pass a stub. Also expose thin wrappers that convert verdicts and pointers to Python (`check`, `widens`, `keyword_count`, `remove_at`, `is_monotone(root, pointer)`, `strip`, `naive_of`, `join`), each a single call into `Api`. 24 calls `is_monotone` to decide whether a removal must take the enclosing `not` or `if`, or needs the enclosing `oneOf` converted to `anyOf` first.
+    - Unit tests: one `KernelUnsupported` case per cause, with the pointer and construct checked; `is_monotone` answers yes for a pointer under `properties` and no for one inside a `oneOf` branch; `strip` removes a `title` and keeps `format`; a stub oracle is called once for a repeated pair of arguments, and a stub that raises is called again on the next call with the same pair.
+    - _Requirements: 36.5, 36.3, 2.13_
+  - [ ] 7.5 Write property test for adapter and Kernel conformance
+    - Add to `tests/strategies.py` the shared strategies this test needs: JSON values (big integers, `1.0`, `1e3`, `-0.0`, Unicode and astral characters, line terminators, deep nesting) and Guarded schema documents of the Kernel_Fragment, plus schemas outside the fragment and schemas with an unguarded cycle.
+    - This task covers three clauses: the round trip of values and schema documents, the `KernelUnsupported` errors, and the Kernel side of the Naive_Merge clause (the fold of `Join` over `NaiveOf` is the same for every order and every chunking, and `Check` accepts each document against it). 16 adds the comparison with the pipeline's `naive_merge`, 15 adds the Schema_Model round trip and the Schema_Emitter's canonical-form clause, and 61 adds the Pattern clause: a Pattern printed from a safe regex AST converts to `Frag` of the same expression and prints back to the same source, and any other Pattern stays `Opaque` and round-trips unchanged.
+    - **Property 62: The adapter and the pipeline conform to the Kernel**
+    - **Validates: Requirements 36.4, 36.5, 39.6**
+
+- [ ] 8. The verify and trace commands, the Trusted_Assumption register, and the verified-build stamp
+  - [ ] 8.1 Write the `verify` command: toolchain check and proofs (`scripts/verify.py`)
+    - `scripts/verify.py verify` first checks the installed Dafny and Z3 against `toolchain.toml` (version and SHA-256) and stops with the mismatch when they differ.
+    - It then runs `dafny verify` over the whole of `kernel/` with the per-proof resource limit from `toolchain.toml` and a fixed `--random-seed`. It exits non-zero and names the lemma or function when a proof fails, times out, or exceeds the limit. 52 adds the runs under further seeds.
+    - Print one line per module with the proofs checked and the largest resource use, so a proof close to the limit is visible before it becomes unstable.
+    - Add a CI job that runs `verify` on every change under `kernel/` and nightly.
+    - Tests on a fixture Kernel directory (small `.dfy` files, skipped when Dafny is absent): a passing file exits 0; a false lemma exits non-zero and is named; a lemma that exceeds a tiny resource limit is reported as over the limit.
+    - _Requirements: 39.1_
+  - [ ] 8.2 Add the escape scan against the Trusted_Assumption register (`scripts/verify.py`, `verification/trusted.toml`)
+    - Before running any proof, scan every `kernel/*.dfy` for `assume` statements, `{:axiom}`, `{:verify false}`, `{:extern}`, and functions, predicates, or lemmas without a body. Ignore matches inside comments and string literals.
+    - Compare what is found with the `escapes` section of `trusted.toml` by file and declaration name. Fail and list each escape the register does not name, and each register entry that matches nothing in the source.
+    - Also fail when a required Trusted_Assumption entry (the list of criterion 39.8) is missing from the register.
+    - Tests on fixture files: one test per escape kind, a registered escape that passes, a stale register entry, and an `assume` inside a comment that is not reported.
+    - _Requirements: 39.2, 39.8_
+  - [ ] 8.3 Add regeneration and comparison of the compiled Python (`scripts/verify.py`)
+    - After the proofs pass, translate `kernel/` into a temporary directory with the pinned compiler and compare the result with `src/jsinfer/kernel/_generated/` byte for byte: same file set, same bytes.
+    - On any difference, fail and list the files that differ, are missing, or are extra. A `--write` flag replaces the committed directory with the fresh output; without it the command never changes the repository.
+    - Tests: an edited generated file, a deleted one, and an added one are each reported.
+    - _Requirements: 39.3_
+  - [ ] 8.4 Compute the verified-build stamp (`scripts/verify.py`, `src/jsinfer/kernel/verified.json`, `src/jsinfer/kernel/stamp.py`)
+    - Define the Kernel source digest: SHA-256 over the files under `src/jsinfer/kernel/_generated/`, taken in code-point order of their relative paths, hashing each relative path and then the file's bytes. One function in `stamp.py` computes it, and it is the only definition of the digest: `verify` imports it, and the Certificate and `certify` (28) call it too, so the values cannot drift.
+    - As its last step, and only when every earlier step passed, `verify` writes `src/jsinfer/kernel/verified.json` with the digest, the Kernel `Version`, and the Dafny and Z3 versions. The file holds no timestamp. It is committed and is package data of `jsinfer.kernel`, listed in `pyproject.toml`, so `stamp.py` reads it next to itself in the installed package.
+    - `stamp.py` exposes `kernel_stamp()`, returning the Kernel version, the digest of the installed generated files, and `verified`, which is true exactly when that digest equals the one in the shipped `verified.json`. A missing or unreadable `verified.json` gives `verified = false`. It never raises and never stops a run; 25 records the result in the Inference_Report and 28 in the Certificate.
+    - Tests: a clean tree is verified; one changed byte in a generated file gives `verified = false`; a missing `verified.json` gives `verified = false`; the digest does not depend on the order in which the file system lists the files; a built wheel contains `verified.json`.
+    - _Requirements: 39.9, 39.3_
+  - [ ] 8.5 Write the `trace` command (`scripts/verify.py`, `verification/traceability.csv`)
+    - `scripts/verify.py trace` parses every acceptance criterion of Requirements 1 to 39 out of `requirements.md` (requirement number and criterion number), notes which are phrased "FOR ALL", and parses each Table 2 row into the ordered list of methods its Method cell names, separated by `;` (for example "Checked; Proof"; the method is the first word of each part, so "Proof for the canonical form" reads as Proof), together with the Kernel theorems (K1 to K10) its Evidence cell names.
+    - It reads `traceability.csv` and resolves each evidence reference: a lemma by name in `kernel/`; a test by pytest node id; a static rule by test name; a run-time check as `module:function` naming a function under `src/jsinfer/`; a benchmark table by its title in `bench/reporting.py`.
+    - It fails when: a criterion has two primary rows; a row names a criterion that does not exist; evidence does not resolve; a "FOR ALL" criterion has the method Example or Inspection; or a Table 2 criterion has a primary method weaker than the first method of its row.
+    - "Weaker" follows the glossary's order of Verification_Methods: Proof, Checked, Static, Property, Example, Inspection, strongest first. A Table 2 criterion fails only when its primary method comes after the first method of its row in that order. Measured stands outside the order: a row whose first method is Measured needs the primary method Measured, and Measured never satisfies another row.
+    - The methods a row names after the first are secondary rows of the matrix (primary flag off), and the evidence of a secondary row must resolve like any other. A secondary Proof row becomes required once the Kernel part it refers to exists, that is, once a theorem the row's Evidence cell names has a resolving `lemma:` row for its own criterion 37.n; before that it is listed as pending and is not a failure. Any other secondary method is listed as pending until its row is present.
+    - The matrix is incomplete until the last milestone. At this stage a criterion without a row is listed as pending, with a count per requirement, and does not fail the command. A `--strict` flag makes a missing row or a pending secondary row a failure; 63 completes the matrix and makes these failures in every run.
+    - Tests on fixture requirement and matrix files: each failure cause; a row "Checked; Proof" with primary Property fails; a row "Property; Proof" with primary Checked passes; a Measured row with primary Proof fails; a secondary Proof row is pending while its theorem has no lemma row and required once it has one; a secondary Proof row naming a missing lemma fails; a pending criterion and a pending secondary row each pass without `--strict` and fail with it; the real `requirements.md` parses to the full criterion list.
+    - _Requirements: 39.7_
+
+- [ ] 9. Checkpoint (M0): the Kernel core is proven, compiled, and reachable through the adapter
+  - All unit and property tests pass, and `scripts/verify.py verify` passes from a clean checkout: toolchain check, escape scan, proofs of K1, K2, K3, K4, and K8 under the resource limit, regenerated Python identical to the committed files, and `src/jsinfer/kernel/verified.json` written.
+  - `scripts/verify.py trace` passes with every criterion of this milestone resolved and the remaining criteria listed as pending.
+  - Raise with the user: the recorded feasibility decision (2.3) and its measured documents per second; the per-proof resource limit in `toolchain.toml` and the largest resource use `verify` printed; any fact of 2.1 that differed on the pinned Dafny version.
+
 ### M1: Core
 
-- [x] 1. Set up the project and determinism utilities
-  - [x] 1.1 Create the project scaffolding
-    - `pyproject.toml`: Python ≥ 3.11; `==` pins for orjson, jsonschema-rs, joblib, numpy, scipy, scikit-learn (≥ 1.6 line), datasketch, ruptures, tomli-w, psutil, threadpoolctl; dev group with pytest, hypothesis, regress; console script `jsinfer = jsinfer.cli:main`. Generate `uv.lock`
-    - Package skeleton for every subpackage in the design layout; `tests/{unit,property,integration,bench_smoke,fixtures,perf}`
-    - `tests/conftest.py` with Hypothesis profiles `ci` (`max_examples=100`, `derandomize=True`) and `nightly` (500); empty `tests/strategies.py`
-    - _Requirements: 29.1, 29.5_
-  - [x] 1.2 Implement determinism and sampling utilities
-    - `core/determinism.py`: `rng(purpose, *keys)` from `SeedSequence` with 32-bit BLAKE2b keys and default seed 0; canonical code-point and value ordering helpers; the canonical encoder (`json.dumps(indent=2, ensure_ascii=False, allow_nan=False) + "\n"`); atomic file and directory writers (temp, then rename)
-    - `core/sampling.py`: `sample_rows(rows, k, rng)` returns sorted distinct rows when n > k and all rows otherwise
-    - _Requirements: 2.3, 27.2, 27.5, 29.8_
-  - [x] 1.3 Write smoke and lint tests
-    - Lock file pins exactly one version per package; `src/` imports no validator other than `jsonschema_rs`; no `set` iteration without `sorted`; no `hash()` on output paths
-    - _Requirements: 27.5, 29.3, 29.5_
-
-- [x] 2. Implement the core data models
-  - [x] 2.1 Implement Path and Step (`core/paths.py`)
-    - Key, Elem (`[*]`), and MapVal (`{*}`) steps ordered Key < Elem < MapVal; rendering (`$`, `.name`, `["name"]`); parsing of configured Path strings; step-tuple sorting
-    - _Requirements: 4.3, 7.2, 18.3_
-  - [x] 2.2 Implement the JSON value model and interning (`core/jsonvalue.py`)
-    - `JType`, with INTEGER covering every zero-fraction number (`1.0`, `1e3`); canonical key `(type_rank, value)` with booleans kept apart from numbers; canonical value order (containers by canonical bytes); JSON Schema instance and `enum` equality
-    - _Requirements: 12.1, 13.2, 15.1_
-  - [x] 2.3 Implement the ObservationStore, views, and stats (`core/observations.py`, `core/views.py`, `core/stats.py`)
-    - `flatten_chunk` and `merge_partials` over shape-path columns, with keys and values re-interned in canonical order so ids do not depend on chunking or document order
-    - `View` with `child_key`, `child_map`, `elements(pos)`, `subset`, and multi-part union views; child views via `np.searchsorted`
-    - `FlagSet` excludes flagged documents, flagged items, and their descendants. `ViewStats` holds type counts, value-id counts, length histograms, and presence bitsets, cached by (view digest, flag epoch)
-    - _Requirements: 17.4, 19.6, 27.6_
-  - [x] 2.4 Implement the Schema_Model (`core/schema_model.py`)
-    - `SchemaNode` (boolean or keyword dict, stable `nid`); `SchemaModel` with `ignored`, `unsupported`, and `dialect_assumed`; `ConstraintId`
-    - Equality per 2.7: `required`, `enum`, `type`, and `dependentRequired` compared as sets; `$schema`, provenance, `x-provenance`, and loader records excluded
-    - _Requirements: 2.7_
-  - [x] 2.5 Implement the provenance data model (`core/provenance.py`)
-    - `Support`, `CandidateScore`, `ProvenanceRecord`, `FallbackInfo` (disabled, missing-threshold, missing-model), `Cutoff`, `SampleInfo`, `RelaxationRecord`; Laplace default Confidence; fallback and Baseline_Rule markers (`baseline:type`, `baseline:required`); JSON serialization and deserialization
-    - _Requirements: 26.2, 26.3, 26.4, 26.10, 26.13_
-  - [x] 2.6 Implement the Inference_Report builder (`core/report.py`)
-    - Sections from the design's report table; per-stage timer keyed by component name; `status` of ok, or failed with the stage and error; canonical serialization
-    - _Requirements: 20.5, 27.8, 27.10_
-  - [x] 2.7 Write property test for seeded sampling
+- [ ] 10. Determinism and sampling utilities and the static source rules
+  - [ ] 10.1 Implement seeded random streams, canonical ordering, and the canonical JSON encoder (`src/jsinfer/core/determinism.py`)
+    - `rng(seed, purpose, *keys)` returns `np.random.default_rng(SeedSequence(seed, spawn_key=(h(purpose), *map(h, keys))))`, where `h` is a 32-bit BLAKE2b digest of the key's canonical bytes (UTF-8 for a string, decimal text for an integer, the rendered string for a Path). A stream is named by its use (Technique and Path), never by execution order.
+    - `DEFAULT_SEED = 0`, a constant that is not derived from the clock or from system entropy.
+    - Ordering helpers that sort strings by Unicode code point and return the members of a set or the items of a dict in that order, so callers never iterate a hashed collection directly. Python's `hash()` is not used anywhere.
+    - `canonical_dumps(value) -> bytes`: the one encoder for every JSON file the tool writes, `json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n"` in UTF-8 with the stdlib encoder (which writes integers of any size exactly). `canonical_bytes(value)` is the compact single-line form used for digests and stored documents, and `digest(value)` is its SHA-256.
+    - Unit tests: the same seed, purpose, and keys give the same stream in two processes with different `PYTHONHASHSEED` values; different purposes or keys give different streams; `canonical_dumps` rejects NaN and infinities and writes a 100-digit integer exactly.
+    - _Requirements: 27.2, 27.14_
+  - [ ] 10.2 Implement the worker pool helpers (`src/jsinfer/core/workers.py`)
+    - `chunks(n_items, chunk_size)` splits work into fixed-size units that depend only on the data and the chunk-size Resource_Parameter, never on the worker count.
+    - `run_chunks(fn, units, workers, stage)` runs the units with joblib (loky) in at most `workers` processes and returns the results in submission order; with one worker the units run in the calling process. Callers reduce the results only with exact operations (integer counts, or `math.fsum` for floats), so a reduction does not depend on how the units were grouped.
+    - `single_threaded()` limits the OpenMP and BLAS pools that threadpoolctl controls to one thread inside every unit, with one worker too, so a unit sees one thread whatever the worker count.
+    - An error raised inside a worker is re-raised in the parent with the stage name attached.
+    - Unit tests: results are identical for worker counts 1, 2, and 4; a failing unit surfaces with its stage name.
+    - _Requirements: 27.5, 29.4_
+  - [ ] 10.3 Implement seeded uniform sampling (`src/jsinfer/core/sampling.py`)
+    - `sample_indices(n, k, rng)` returns `sorted(rng.choice(n, size=k, replace=False))` when `n > k`, and all `n` indices with no draw when `n <= k`.
+    - It also returns a `SampleInfo(sampled, total)` when a sample was drawn and `None` otherwise; this is the value a Technique puts in the `sample` field of a Provenance_Record.
+    - `sample_size(technique_id, resources)` reads the sample-size Resource_Parameter the Technique registry names for a Technique declared super-linear, so a Technique never chooses its own sample size.
+    - Constraints derived from a sample are still checked against every non-flagged Observation by their Technique, and Support always counts every Observation; state both rules in the module's docstring, since every super-linear Technique relies on them.
+    - _Requirements: 29.8, 26.4_
+  - [ ] 10.4 Write property test for seeded sampling
+    - Inputs: row counts from 0 to a few thousand, sample sizes of at least 1, seeds, and purpose keys. The clause on Provenance_Records is tested on the `SampleInfo` the sampler returns; each super-linear Technique's task checks that its records carry it.
     - **Property 50: Seeded uniform sampling**
     - **Validates: Requirements 26.4, 29.8**
+  - [ ] 10.5 Write the static source rules (`tests/unit/test_source_lint.py`)
+    - Walk the AST of every module under `src/jsinfer/` except `src/jsinfer/kernel/_generated/`, which is compiler output and is not scanned: its determinism follows from the Dafny functions being pure, and 7 has its own static test of that directory.
+    - Fail on iteration over a `set` or `frozenset` expression (a `for` loop, a comprehension, `list()`, `tuple()`, `enumerate()`, `join`) that is not wrapped in `sorted`.
+    - Fail on any call of the builtin `hash()`.
+    - Fail on any use of `time`, `datetime.now`, `datetime.utcnow`, `os.urandom`, `secrets`, `uuid.uuid1`, `uuid.uuid4`, or the module-level functions of `random` and `numpy.random`, outside an allow-list of four modules: `core/workers.py` and `pipeline/infer.py` (stage timings and the two run timestamps, which 27.12 exempts), `bench/measure.py`, and `learn/bundle.py` (the unique Model_Bundle identifier and its creation timestamp only, which 21.7 exempts and which 33 uses). A module on the list that does not exist yet is not an error. A module outside the list that needs an elapsed time gets it from `core.workers.stopwatch()`, the one clock read open to such modules; 25 adds that helper to the allow-listed `core/workers.py`, and the rule needs no change for it. Random numbers come only from `core.determinism.rng`.
+    - Each failure message names the file, the line, and the rule, and the test fails the build.
+    - Unit tests of the lint itself: one small source fixture per rule that must be reported, and one compliant fixture per rule that must pass; a file under a `kernel/_generated/` directory that iterates a `set` is not reported; a clock call in an allow-listed module is not reported and the same call in any other module is.
+    - _Requirements: 27.14_
+  - [ ] 10.6 Add the lock-file and supported-interpreter checks (`tests/unit/test_lockfile.py`, CI configuration)
+    - A test parses `uv.lock` and `pyproject.toml` and fails when any package resolves to more than one version, or when a direct dependency is not pinned with `==`. The lock covers the dependencies used only by the Trainer and the Evaluation_Harness too.
+    - A test checks that the supported CPython minor versions declared in the project metadata start at 3.11.
+    - The CI matrix installs from the lock file and runs the test suite on every declared CPython minor version, on macOS and on Linux. The integration tests of 27, which run the tool end to end through the API and the command line, run on every cell of this matrix.
+    - _Requirements: 29.1, 29.5_
 
-- [x] 3. Implement configuration, the Technique registry, and the bundle reader
-  - [x] 3.1 Implement the Technique registry (`config/registry.py`)
-    - All 35 `TechniqueSpec` entries from the design table: id, area, tier, default state, `implemented=False`, served kinds, priority per kind, prerequisites (only `structure.hybrid_record_map` → `decide.mdl`), superlinear flag, sample parameter, thresholds read
-    - Every `DecisionPointSpec` with its constant Fallback_Behavior (no Technique invoked) and any mandated tie rule
-    - _Requirements: 28.1, 28.3, 29.8_
-  - [x] 3.2 Implement Learned_Threshold and Resource_Parameter specs (`config/thresholds.py`, `config/resources.py`)
-    - `ThresholdSpec` (technique, Decision_Point, objective name, admissible range, integer flag, grid) and `ThresholdRecord`; validation that flags missing, non-finite, and out-of-range values
-    - `SettingSpec` tables with types, ranges, and the design's proposed Resource_Parameter defaults (`workers` defaults to `os.cpu_count()`)
-    - _Requirements: 20.1, 20.2, 20.4, 20.6, 29.4, 29.11_
-  - [x] 3.3 Implement the Run_Configuration (`config/run_config.py`)
-    - `resolve(flags, file)` with flag > file > default and an origin per setting
-    - One `ConfigError` lists every unknown setting, wrong type, out-of-range value (including sizes < 1), unregistered Technique id (with the registered list), enabled Technique with a disabled prerequisite, and enabled unimplemented Technique
-    - `to_toml` with tomli-w and `from_toml` with tomllib
-    - _Requirements: 27.2, 27.3, 27.4, 27.11, 28.2, 28.8, 28.9, 29.11_
-  - [x] 3.4 Implement the Model_Bundle reader (`learn/bundle.py`)
-    - Load the manifest, `thresholds.json`, and model files by identifier or path. Validate thresholds against their specs and return substitutions for the report. An unloadable bundle raises `ConfigError`
-    - Ship an empty default bundle at the default identifier, so a default run completes with every fallback recorded
-    - _Requirements: 20.6, 21.10, 27.2, 27.11_
-  - [x] 3.5 Write property test for configuration round trip and precedence
+- [ ] 11. Core data models (Path, JSON value model, ObservationStore and views, Schema_Model, Provenance_Record, Inference_Report)
+  - [ ] 11.1 Implement Paths (`src/jsinfer/core/paths.py`)
+    - `Step(kind, key)` is a frozen, ordered dataclass with kind 0 = Key (carries the key), 1 = Elem (`[*]`), 2 = MapVal (`{*}`), so steps order Key < Elem < MapVal and keys order by code point. `Path = tuple[Step, ...]`, and `()` is the root.
+    - `render(path)` writes `$`, `.name` (or `["name"]` when the name is not an identifier), `[*]`, and `{*}`, for example `$.users[*].tags{*}`; `parse(text)` is its inverse and raises `ValueError` on malformed text.
+    - `ShapePath` is the column key of the ObservationStore: a tuple of `{*}` and `[*]` steps only, since every object step is a wildcard there.
+    - Tuple positions are not Path steps: all elements of an array share the one `[*]` step.
+    - Unit tests: render and parse round trip, including keys with dots, quotes, and non-ASCII characters; sort order.
+    - _Requirements: 27.6_
+  - [ ] 11.2 Implement the JSON value model (`src/jsinfer/core/jsonvalue.py`)
+    - `JType` is an `IntEnum`: NULL 0, BOOLEAN 1, INTEGER 2, NUMBER 3, STRING 4, ARRAY 5, OBJECT 6. `jtype(value)` returns INTEGER for every number with a zero fractional part (`1`, `1.0`, `1e3`, `-0.0`) and NUMBER for every other number; booleans are never numbers.
+    - `canonical_key(scalar)` is `(type_rank, value)` with an integral number turned into `int(x)`, so `1` and `1.0` share a key and `true` and `1` do not. This is JSON Schema instance equality and `enum` equality, and numbers compare by Number_Value (an integer of any size exactly; a non-integral literal by its binary64 value).
+    - `canonical_value(value)` gives the representative that is written out: an integral float becomes an `int`, recursively through arrays and objects. `value_order(value)` orders any two JSON values by type rank, then value, with arrays and objects ordered by their canonical bytes.
+    - `type_names(jtypes)` returns the `type` list for a set of observed JTypes in the order null, boolean, integer, number, string, array, object, listing `integer` when every observed number is INTEGER and `number` otherwise, never both.
+    - `code_points(s)` counts string length in Unicode code points.
+    - Unit tests: `1.0`, `1e3`, `-0.0`, 2^70, and `0.1` classify and compare as stated; `type_names` over mixed integers and non-integral numbers lists `number` only.
+    - _Requirements: 13.2, 2.7_
+  - [ ] 11.3 Implement flattening and the ObservationStore (`src/jsinfer/core/observations.py`)
+    - A `Column` per shape path holds numpy arrays: `parent` (int64 row in the parent column, -1 at the root), `doc` (int32 document index), `jtype` (uint8), `key` (int32 interned key id, or -1), `pos` (int32 array position, or -1), `value` (int32 interned scalar id, or -1), and `size` (int32: code points of a string, elements of an array, keys of an object), plus `by_key`, the sorted rows per key id, built on first use.
+    - `flatten_chunk(docs, first_index) -> PartialStore` walks each document once and appends one row per value to the column of its shape path.
+    - `merge_partials(parts) -> ObservationStore` merges the partial stores in chunk order and re-interns keys and scalar values with ids assigned in canonical sort order (code point for keys, `value_order` for scalars), so ids do not depend on chunking or on document order. Each scalar id maps to one canonical representative.
+    - `build_store(documents, chunk_size, workers)` flattens fixed-size chunks through `run_chunks`; the chunk size is the Resource_Parameter `ingest.chunk_size`.
+    - Unit tests: a store built with chunk sizes 1, 3, and 1,000 and with 1 and 2 workers has identical columns; permuting the documents permutes the `doc` field and changes no key id or value id; a Map-like object with thousands of distinct keys creates one column, not one per key.
+    - _Requirements: 27.5, 27.6, 29.4_
+  - [ ] 11.4 Implement views and the FlagSet (`src/jsinfer/core/views.py`)
+    - `ViewPart(column, rows)` holds sorted int64 rows of one column; `View(path, parts)` is a logical Path with one part, or several parts for a union of Paths.
+    - `child_key(k)` returns the rows with key `k` whose parent is in the view; `child_map()` returns all object children (the Map wildcard step); `elements(pos=None)` returns the array children, filtered to one position when `pos` is given; `subset(mask)` returns a filtered view. Children are found with `np.searchsorted` membership of `parent` in the parent rows.
+    - `FlagSet` holds flagged documents and flagged `(column, row)` items and carries an epoch that increases with every change. A row is left out of every view when it is flagged, belongs to a flagged document, or has a flagged ancestor.
+    - `root_view(store, flags)` returns the view of the root Path, and `view.digest()` identifies a view by its parts for caching.
+    - `sample_rows(view, k, rng)` applies `sample_indices` to the view's rows and returns the subset with its `SampleInfo`.
+    - Unit tests: child views of nested Records, Maps, and arrays hold exactly the expected rows; flagging a document, a row, or an ancestor removes the right rows.
+    - _Requirements: 17.4, 29.8_
+  - [ ] 11.5 Implement view statistics (`src/jsinfer/core/stats.py`)
+    - `ViewStats` is computed with vectorized numpy from a view: counts per JType, counts per scalar value id, histograms of string lengths and of array and object sizes, the number of documents the rows come from, and, for object rows, one packed presence bitset per key over the objects.
+    - Results are cached by `(view digest, flag epoch)`.
+    - Every statistic is a count or a multiset, so it is the same for every order of the rows.
+    - Unit tests: statistics of small hand-built views; equal statistics after permuting documents; the cache returns a new result after a flag is added.
+    - _Requirements: 27.5, 27.6_
+  - [ ] 11.6 Implement the Schema_Model (`src/jsinfer/core/schema_model.py`)
+    - `SchemaNode(boolean, kw, nid)`: `boolean` is set for the boolean schemas `true` and `false`; `kw` maps a keyword to its value, where a subschema-valued keyword holds a `SchemaNode`, a list of nodes, or a dict of nodes; `nid` is an id assigned at creation and never reused.
+    - `SchemaModel(root, dialect_assumed, ignored, unsupported, provenance)`: `ignored` and `unsupported` are lists of `(pointer, keyword)`; a model with an empty `unsupported` list is fully supported, any other is partially supported.
+    - `ConstraintId(nid, keyword, item)` is frozen and ordered, for example `(17, "required", "email")`. `constraints_of(node)` lists a node's Constraints with this granularity: `type`; each `required` entry; `properties`, `patternProperties`, and `additionalProperties`; `propertyNames`; `items` and `prefixItems`; `contains`; `enum`, `const`, `format`, `pattern`; each of the 12 bound keywords; `uniqueItems`; each `anyOf` or `oneOf` element; `allOf`; each `dependentRequired` entry; `not`; `$ref`; and the annotations `x-array-pattern`, `x-latent-type`, `x-key`, `x-references`, and `x-functional-dependency`. `$defs`, `$schema`, the annotation keywords of the draft, and container entries such as `properties/<name>` are not Constraints. A `format` or `pattern` inside a `propertyNames` subschema has its own pointer and shares the one record of the `propertyNames` Constraint.
+    - `SchemaModel.__eq__` compares keywords with equal values at equal JSON Pointer locations, reads `required`, `enum`, `type`, and each `dependentRequired` list as sets (members compared by `canonical_key`), compares numbers by Number_Value, and ignores `$schema`, Provenance_Records, `x-provenance`, `ignored`, and `dialect_assumed`.
+    - JSON Pointer helpers: escape and unescape tokens (`~0`, `~1`), join, and resolve a pointer in a model.
+    - Unit tests: equality under reordered and duplicated set-like lists, `1` versus `1.0` in `enum`, a differing keyword at one pointer, and a differing `x-provenance` only.
+    - _Requirements: 2.7_
+  - [ ] 11.7 Implement the Provenance_Record (`src/jsinfer/core/provenance.py`)
+    - Frozen dataclasses: `Support(consistent, total, ratio)` with `ratio = consistent / total` and 1.0 when `total` is 0, rejecting `consistent > total`; `CandidateScore(technique, outcome, score, model_bits, data_bits, exception_bits, n_rejected, n_scored)`; `FallbackInfo(technique, reason)` with the reasons `disabled`, `missing-threshold`, `missing-model`, and `withheld`; `Resolution(method, selected, candidates)`; `Cutoff(source, value or scores)`; `RelaxationRecord`; and `ProvenanceRecord(technique, support, confidence, fallback, resolution, cutoff, sample, changes, details)`.
+    - `Cutoff.source` is one of "MDL comparison", "Decision_Model comparison", the name of a model-selection criterion, or the name of a registered Learned_Threshold. Here the class stores the source as given, because the Learned_Threshold registry does not exist yet; 20 adds the check of the four sources to this class, so construct every `Cutoff` in this task's tests with one of the two fixed strings. `Resolution(method, selected, candidates)` stays as defined here; the `Decision` the DecisionEngine returns (20) wraps it.
+    - `technique` is a registered Technique id, `fallback:<decision point>`, or `baseline:<rule>`. `BASELINE_RULES` holds `type` and `required`, and `ProvenanceRecord.baseline(rule, support)` builds a record with no `fallback` and no `resolution`. A baseline or fallback marker is not a Technique id, so it never appears in a `FallbackInfo`, a `CandidateScore`, the Techniques of a Learned_Threshold, or an Inference_Report entry that names a Technique.
+    - `laplace(consistent, total) = (consistent + 1) / (total + 2)` is the default Confidence of a Constraint with no alternative. Confidence outside [0, 1] is rejected when a record is built.
+    - `to_json(record)` and `from_json(obj)` are inverse and write fields in one fixed order, leaving out the fields a record does not hold, so that writing a loaded record gives the same bytes.
+    - Unit tests: JSON round trip of records with every optional field present and absent; rejected invalid Support and Confidence.
+    - _Requirements: 26.2, 26.4, 26.13_
+  - [ ] 11.8 Implement the Inference_Report and the run errors (`src/jsinfer/core/report.py`)
+    - `InferenceReport` has the top-level sections `run`, `ingestion`, `thresholds`, `resources`, `substitutions`, `outliers`, `versions`, `decisions`, `rejected`, `soundness`, `kernel`, `nearest`, `timings`, and `status`, and a `ReportBuilder` with one typed method per kind of entry (a parse error, a Learned_Threshold read, a Resource_Parameter read, a `Substitution`, a decision, a rejected candidate, a stage timing, the final status).
+    - The `substitutions` section keeps one entry per (artifact or Learned_Threshold name, Technique, Decision_Point kind); recording the same triple again is a no-op, so a missing artifact or threshold yields one entry however often and from wherever it is asked for.
+    - Entries that are collected from parallel or per-Path work are sorted into a canonical order (Path, then kind, then a per-kind key) when the report is written, so the report does not depend on execution order. `to_bytes()` writes it with `canonical_dumps`.
+    - `comparable_json(report)` removes exactly the `timings` section, the two run timestamps, and the worker count, which are the only contents exempt from reproducibility comparison.
+    - `InferenceError(stage, partial_report)` and its subclass `NoDocumentsError` are defined here; both carry the partial Inference_Report.
+    - Unit tests: two builders fed the same entries in different orders write identical bytes; a `Substitution` recorded twice for one triple is listed once, and the same artifact recorded for a second Technique or kind is a second entry; `comparable_json` removes the three exempt items and nothing else.
+    - _Requirements: 1.7, 20.5, 27.12_
+  - [ ] 11.9 Extend the shared Hypothesis strategies with Schema_Models (`tests/strategies.py`)
+    - `tests/strategies.py` is started by the adapter property test of 7 with the strategies for JSON values (big integers, `1.0`, `1e3`, `-0.0`, Unicode and astral characters, line terminators, deep nesting) and for Guarded schema documents of the Kernel_Fragment. Reuse both and define neither again. Add to the JSON value strategy only what it lacks: objects always have distinct keys, and a size parameter lets a test ask for small collections of documents.
+    - Schema_Models in the supported keyword grammar (every keyword the Schema_Loader parses, boolean schemas at every subschema position, annotations, `x-` keywords, local `$ref` including recursive ones).
+    - A wrapper that yields the Guarded Kernel_Fragment schema documents of 7 as Schema_Models (every `$ref` targets `#/$defs/<name>`, and no schema is `{"$ref": "#"}`), paired with a strategy for values that are likely to be accepted, likely to be rejected, or a one-step mutation of an accepted value.
+    - The Hypothesis profiles (`ci` with 100 examples and derandomized, `nightly` with 500) come from the project setup of 1; every property test in this section runs under them and carries the tag comment `# Feature: json-schema-inference, Property N: <title>`.
+    - _Requirements: 2.4, 2.7_
+
+- [ ] 12. Configuration, the Technique registry, the threshold and resource registries, and the Model_Bundle reader
+  - [ ] 12.1 Implement the Technique registry (`src/jsinfer/config/registry.py`)
+    - `TechniqueSpec(id, area, tier, default_enabled, implemented, prerequisites, superlinear, sample_param, thresholds)`. A duplicate id fails at import.
+    - Register the 35 Techniques of Table 1 under unique ids: `variants.minhash_lsh`, `variants.dbscan`, `variants.hdbscan`, `variants.bernoulli_mixture`; `groups.fpgrowth_slim`, `groups.bmf`; `structure.hybrid_record_map`, `structure.shared_defs`, `structure.recursion`, `structure.array_grammar`; `rules.cooccurrence`, `rules.decision_trees`, `rules.exclusion`, `rules.keys`, `rules.fd_ind`; `values.latent_type`, `values.format`, `values.semantic_type`, `values.pattern`, `values.enum_estimation`, `values.bounds`; `robust.isolation_forest`, `robust.lof`, `robust.mdl_exceptions`, `robust.change_point`; `decide.mdl`, `decide.dm_record_map`, `decide.dm_closed_record`, `decide.dm_tuple_list`, `decide.dm_closed_enum`, `decide.dm_merge_split`, `decide.weak_supervision`; `corpus.name_suggest`, `corpus.cf_suggest`, `corpus.nearest_schema`.
+    - Tiers: Must for the four `variants.*`, `rules.cooccurrence`, `values.latent_type`, `values.format`, `values.enum_estimation`, `values.bounds`, `decide.mdl`, and the five `decide.dm_*`; Could for `groups.bmf`, `structure.array_grammar`, `rules.keys`, `rules.fd_ind`, `values.semantic_type`, `robust.change_point`, and `corpus.cf_suggest`; Should for the rest.
+    - Every entry starts with `implemented = False`. The default state of a Technique is enabled exactly when it is implemented, so every Technique starts disabled; the task that builds a Technique sets its entry to implemented. The only prerequisite is `structure.hybrid_record_map` → `decide.mdl`.
+    - DBSCAN, HDBSCAN, LOF, FP-growth, BMF, decision trees, FD/IND discovery, pattern induction, and change points are declared super-linear, each with the name of its `sample.*` Resource_Parameter.
+    - Smoke test (`tests/unit/test_registry.py`): every semicolon-separated entry of Table 1 maps to exactly one registered id; registering an id twice fails; every super-linear entry names a sample parameter and no other entry does.
+    - _Requirements: 28.1, 29.8_
+  - [ ] 12.2 Implement the Decision_Point table (`src/jsinfer/config/registry.py`)
+    - `DecisionPointSpec(kind, serving, fallback_doc, fallback, tie_rule)`: `serving` lists the Technique ids that serve the kind in priority order, `fallback` is a function that returns a constant outcome and invokes no Technique, and `tie_rule` is the name (a string, or none) of the description-length tie rule a requirement mandates for that kind; this table holds only the names, and 20 implements the function behind each name and applies it in the DecisionEngine: `record_or_map` → Record, `tuple_or_list` → List, `array_pattern` → the plain List or Tuple schema, `string_constraint` → no Pattern, then fewer sub-patterns, `closed_or_open_enum` → open, `bound` → the candidate nearest the observed extreme, `value_exception` → widening. `serves(technique_id)` and `rank(technique_id, kind)` are derived from this one table. 20 adds one more field to the spec, the boolean `always_mdl` (default false), for a kind whose requirement selects by description length whatever the state of `decide.mdl`; build every entry here with keyword arguments, so that the added field changes no entry.
+    - Register every Decision_Point kind with exactly one Fallback_Behavior: `record_or_map` → Record; `record_map_partition` → no partition; `closed_or_open_record` → open; `variant_grouping` → one Variant; `merge_or_split` → split; `field_groups` → none; `tuple_or_list` → List; `array_pattern` → the plain List or Tuple schema; `shared_definition` → inline; `cooccurrence_rule`, `discriminator`, `exclusion_rule`, `key`, `reference`, `fd`, `string_constraint`, `suggestion` → none; `closed_or_open_enum` → open; `bound` → omit; `document_outlier` → not flagged; `value_exception` → widen; `version_split` → single schema; `relaxation` → the documented candidate order, least widening first; `judgment_model` → the Decision_Model trained on synthetic examples only.
+    - Serving Techniques per kind, in priority order: `record_or_map`: `decide.dm_record_map`, `decide.mdl`; `record_map_partition`: `structure.hybrid_record_map`; `closed_or_open_record`: `decide.dm_closed_record`, `decide.mdl`; `variant_grouping`: `variants.minhash_lsh`, `variants.dbscan`, `variants.hdbscan`, `variants.bernoulli_mixture`; `merge_or_split`: `decide.dm_merge_split`, `decide.mdl`; `field_groups`: `groups.fpgrowth_slim`, `groups.bmf`; `tuple_or_list`: `decide.dm_tuple_list`, `decide.mdl`; `array_pattern`: `structure.array_grammar`; `shared_definition`: `structure.shared_defs`, `structure.recursion`; `cooccurrence_rule`: `rules.cooccurrence`; `discriminator`: `rules.decision_trees`; `exclusion_rule`: `rules.exclusion`; `key`: `rules.keys`; `reference` and `fd`: `rules.fd_ind`; `string_constraint`: `values.latent_type`, `values.format`, `values.semantic_type`, `corpus.name_suggest`, `corpus.cf_suggest`, `values.pattern`; `closed_or_open_enum`: `decide.dm_closed_enum` (it serves only while `values.enum_estimation` is enabled; record this serving gate in the entry), `values.enum_estimation`; `bound`: `values.bounds`; `document_outlier`: `robust.isolation_forest`, `robust.lof`; `value_exception`: `robust.mdl_exceptions`; `version_split`: `robust.change_point`; `suggestion`: `corpus.name_suggest`, `corpus.cf_suggest`; `relaxation`: `decide.mdl`; `judgment_model`: `decide.weak_supervision`. The design's table gives `corpus.nearest_schema` no Decision_Point kind, so it serves none.
+    - A serving id that 12.1 did not register fails at import.
+    - `describe()` returns, for every Technique, its id, default state, served Decision_Points, rank in each one's priority order, prerequisites, and the Fallback_Behavior of each served Decision_Point.
+    - Smoke test (`tests/unit/test_registry.py`): every kind has exactly one Fallback_Behavior; every Technique other than `corpus.nearest_schema` serves at least one kind; priority ranks within a kind are distinct; each fallback runs without importing a Technique module; `describe()` has one entry per registered Technique.
+    - _Requirements: 28.1, 28.3_
+  - [ ] 12.3 Implement the Resource_Parameter registry and reader (`src/jsinfer/config/resources.py`)
+    - `SettingSpec(name, type, range, default)` and a single table of Resource_Parameters. Register `workers` (integer ≥ 1, default `os.cpu_count()`), `ingest.chunk_size` (default 2,000), and every `sample.*` parameter the Technique registry names (`sample.dbscan` 5,000, `sample.hdbscan` 5,000, `sample.lof` 20,000, `sample.fpgrowth` 50,000, `sample.bmf` 20,000, `sample.trees` 50,000, `sample.fd` 100,000, `sample.patterns` 20,000, `sample.changepoint` 20,000), each an integer ≥ 1 (the unit is the Technique's own: signatures for DBSCAN and HDBSCAN, documents for LOF, objects for FP-growth, distinct values for pattern induction). Later tasks add the parameters of their components to this table (for example 22 adds `minhash.perm` and `lsh.bands`). A `SettingSpec` describes one parameter on its own; a rule that relates two parameters is a cross-setting check of the Run_Configuration validation (12.5).
+    - `ResourceReader(config, report)`: `read(name)` returns the value and lists the read in the Inference_Report with the name, the value, and whether it is the default or was supplied by the user (origin `default`, `file`, or `flag`); `value(name)` returns the value without listing it. A parameter is listed once per run however often it is read, and a component calls `read` only when the Technique or stage that needs the parameter runs.
+    - Reading a name that is not registered raises `KeyError`, so no component can use an unregistered numeric setting.
+    - Unit tests: defaults; the listing with each origin; one listing for repeated reads.
+    - _Requirements: 20.5, 29.11_
+  - [ ] 12.4 Implement the Run_Configuration model and its TOML form (`src/jsinfer/config/run_config.py`)
+    - Frozen dataclass `RunConfiguration(seed, model_bundle, workers, input, output, corpus, techniques, resources, provenance_of)` with `InputOptions(unwrap_arrays, ordering_key)`, `OutputOptions(inline_provenance, certify)`, and `CorpusOptions(exclude_ids)`. `techniques` has one entry per registered id and `resources` one entry per registered Resource_Parameter, both fully resolved.
+    - Every setting has a default: seed 0, `model_bundle = "bundles/default"`, `workers = os.cpu_count()`, `unwrap_arrays = false`, `ordering_key = ""`, `inline_provenance = false`, `certify = false`, `exclude_ids = []`, each Technique at its registered default state, each Resource_Parameter at its registered default.
+    - `to_toml()` writes the sections `[run]`, `[input]`, `[output]`, `[corpus]`, `[techniques]`, and `[resources]` with every setting, keys in code-point order, using tomli-w; `from_toml(text)` reads it with stdlib `tomllib`. This is the form of `effective-config.toml`.
+    - Equality compares every Technique toggle, Resource_Parameter, the seed, the input and output options, the corpus options, and the Model_Bundle identifier. `provenance_of` (where each value came from) is not part of equality, because a configuration read back from a file has every origin `file`.
+    - _Requirements: 27.2, 27.4_
+  - [ ] 12.5 Implement setting resolution and validation (`src/jsinfer/config/run_config.py`)
+    - `RunConfiguration.resolve(flags, file)` resolves each setting to the flag value if one is given, otherwise the configuration-file value if one is given, otherwise the default, and records the origin in `provenance_of`. Setting one Technique changes the effective state of no other Technique. A `RunConfiguration` validates itself whenever it is built, so the library API cannot receive an invalid one.
+    - Validation collects every problem and raises one `ConfigError` (defined here) before anything is read. Each problem names the setting and its source (flag or configuration file): an unknown setting; a value of the wrong type or outside the allowed range, with the accepted type or range; `workers` or any `sample.*` value that is not an integer ≥ 1, with the accepted range.
+    - After the per-setting checks, validation runs the functions of one list, `CROSS_CHECKS` in `config/run_config.py`, each taking the resolved settings and returning problems that name the settings involved and their sources. The prerequisite check below is the first entry; a later task whose parameters constrain each other appends its check here (22 adds the one for `lsh.bands` and `minhash.perm`), so such a pair is refused with the other problems, before anything is read.
+    - All Technique ids that are not registered are reported in one problem that names each of them and lists every registered id.
+    - Every pair of an enabled Technique and its disabled prerequisite is reported, default states included. Enabling a Technique whose registry entry is not implemented is a problem that names the Technique.
+    - Until 52 implements certification inside a run, `output.certify = true` is a problem that names the setting and says it is not implemented, like an unimplemented Technique, so the setting is never accepted and then ignored; 52 removes this rule. The setting itself stays in the model and in `effective-config.toml` with the value `false`.
+    - `load_config_file(path)` raises `ConfigError` naming the file when it cannot be read or is not valid TOML.
+    - Unit tests: an unparseable file; a prerequisite pair; an unimplemented Technique enabled; `output.certify = true`; several problems reported in one error; `workers = 0` and `sample.dbscan = 1.5` rejected with their ranges; a test-only cross-setting check appended to `CROSS_CHECKS` whose problem is reported together with a per-setting problem.
+    - _Requirements: 27.3, 27.11, 28.2, 28.8, 28.9, 29.11_
+  - [ ] 12.6 Write property test for configuration round trip and precedence
+    - Add a `run_configs()` strategy to `tests/strategies.py`: random Technique toggles that respect prerequisites and the implemented flags, random in-range Resource_Parameters, seeds, input and output options (`output.certify` stays `false` while 12.5 rejects `true`), and bundle identifiers. For the precedence half, assign each setting independently to a flag, the file, both, or neither.
     - **Property 44: Configuration round trip and precedence**
     - **Validates: Requirements 27.3, 27.4**
-  - [x] 3.6 Write unit tests for registry completeness
-    - 35 unique ids covering Table 1; one Fallback_Behavior per served Decision_Point; prerequisite and unimplemented-Technique errors
-    - _Requirements: 28.1, 28.3, 28.8_
+  - [ ] 12.7 Write property test for invalid configurations
+    - Inputs: a valid configuration with one or more injected faults: unknown settings, wrongly typed values, out-of-range values (worker and sample sizes below 1 included), and unregistered Technique ids. `RunConfiguration.resolve` raising `ConfigError` is the "exits non-zero" of the property for the library; a spy on file opening shows no document was read. Unparseable configuration files, unloadable Model_Bundles, prerequisite problems, and unimplemented Techniques are covered by the unit tests of 12.5 and 12.8, and the exit status of the command line by 27.
+    - **Property 45: Invalid configurations stop before ingestion**
+    - **Validates: Requirements 27.11, 28.9, 29.11**
+  - [ ] 12.8 Implement the Model_Bundle reader (`src/jsinfer/learn/bundle.py`)
+    - `ModelBundle.open(identifier_or_path)` finds the bundle directory and reads `manifest.json`, `thresholds.json`, and `feature_spec.json`, validating each as plain JSON of the expected shape. A bundle that cannot be found, or whose manifest cannot be parsed, raises `ConfigError` naming the Model_Bundle identifier; this happens before any document is ingested.
+    - Accessors `decision_model(kind, trained_with)`, `semantic_classifier()`, `corpus_index()`, and `threshold(name)` return the artifact or a `Missing(cause)` value, never an exception. Artifacts load on first use.
+    - Before a file under `models/` or `corpus/` is unpickled or read, its SHA-256 is compared with the manifest's `artifacts` entry. A missing file or a digest mismatch is a missing artifact with cause `checksum`. `feature_spec.json` is a mapping of named entries and is compared entry by entry with the featurizer specification the caller passes in: a difference in the featurizer version or in the entry of a Judgment_Call kind makes every Decision_Model a missing artifact with cause `feature-spec`, and an entry that belongs to another artifact is compared only by that artifact's accessor and affects nothing else. The Decision_Model entries are the only ones at this point; 57 adds a `semantic` entry, whose absence or mismatch makes only `semantic_classifier()` return `Missing("feature-spec")`.
+    - A bundle with a valid manifest, no artifacts, and no Learned_Thresholds is valid: every accessor returns `Missing`. Ship such a bundle at the default `model_bundle` location, so a run that supplies only a Document_Collection completes on the Fallback_Behaviors. It is the default only until a trained bundle takes its place: the Trainer of 33 produces trained bundles, and 62 installs one at the default location.
+    - `record_substitution(report, artifact, technique, cause, fallback)` writes one `substitutions` entry per missing artifact a Technique asked for. Its caller is the `in_effect` callable that `build_in_effect` of 20 returns, when a Technique asks for an artifact the bundle cannot supply; the DecisionEngine writes no substitution itself.
+    - Add the test fixture `empty_bundle` (a valid manifest, no artifacts, and no Learned_Thresholds), which later tasks use under this name to exercise the fallback paths. Unit tests with hand-built bundle directories: an empty bundle; a corrupted artifact; a deleted artifact; a feature-spec mismatch in a Decision_Model entry; an entry of an unknown name, which leaves the Decision_Models loadable; a missing bundle directory.
+    - _Requirements: 21.10, 27.11_
+  - [ ] 12.9 Implement the Learned_Threshold registry and reader (`src/jsinfer/config/thresholds.py`)
+    - `ThresholdSpec(name, technique, decision_point, objective, admissible, integer, grid)` and one registry that is the only place a Learned_Threshold is read from. The registry starts empty: each Technique task registers the Learned_Thresholds its Technique reads, with their validation objectives, and names them in its `TechniqueSpec.thresholds`.
+    - `ThresholdReader(bundle, report)`: `read(name)` returns the value from the Model_Bundle and lists the read in the Inference_Report with the name, the value, and the identifier of the Model_Bundle that supplied it, once per run.
+    - `check(name)` reports whether the bundle holds a valid value without listing a read. A value is invalid when it is absent, not a finite number, outside the admissible range of its spec, or non-integral for an integer threshold.
+    - `in_effect(technique_id, kind)` is true when the Technique is enabled and every Learned_Threshold it reads at that kind is valid. For a Technique that is not in effect because of a threshold, the reader records one `Substitution` with the threshold name, the Technique, the reason (missing value or invalid value), and the Fallback_Behavior applied; the run completes.
+    - `list_thresholds(bundle)` returns, for every registered Learned_Threshold, its name, the Technique and Decision_Point kind that use it, and its value in the loaded Model_Bundle (or that the bundle holds none). It is the library enumeration.
+    - Unit tests with a test-only registered threshold: a valid value, a missing value, NaN, an out-of-range value, and a non-integral value for an integer threshold.
+    - _Requirements: 20.2, 20.5, 20.6_
+  - [ ] 12.10 Add the `list-techniques` and `list-thresholds` commands (`src/jsinfer/cli.py`)
+    - Start the `argparse` command dispatcher with these two subcommands and `python -m jsinfer` (`src/jsinfer/__main__.py`); 27 adds the remaining commands to the same dispatcher.
+    - `jsinfer list-techniques` prints every registered Technique with its identifier, default state, served Decision_Points, rank in the priority order of each, prerequisite Techniques, and the Fallback_Behavior of each served Decision_Point, in id order, and exits 0. It reads no Document_Collection and no Model_Bundle.
+    - `jsinfer list-thresholds [--bundle ID]` prints the result of `list_thresholds` for the named bundle, or the default one, and exits 0; a bundle that cannot be loaded exits 2 with a message naming it.
+    - Integration tests run both commands in a subprocess and check the exit status, one line per registered Technique, and that no input file is opened.
+    - _Requirements: 20.2, 28.10_
 
-- [x] 4. Implement the Ingestor
-  - [x] 4.1 Implement `parse_document` (`io/ingest.py`)
-    - Strip one UTF-8 BOM, then try orjson. Fall back to stdlib `json` when orjson raises or returns an integral float with |x| ≥ 2^63
-    - The stdlib path decodes strict UTF-8 and uses `parse_constant` to reject NaN and ±Infinity. Overflowing doubles and unpaired surrogates fail with explicit reasons
+- [ ] 13. Ingestor
+  - [ ] 13.1 Implement document parsing (`src/jsinfer/io/ingest.py`)
+    - `parse_document(data: bytes) -> (value, parser)` strips one leading UTF-8 byte order mark, then tries orjson first. The stdlib `json` parser runs only when orjson raises, or when orjson's result contains an integral float with magnitude ≥ 2^63, which marks an integer orjson could not hold exactly; the stdlib result preserves every integer exactly.
+    - The stdlib path decodes strict UTF-8 and uses `parse_constant` to reject `NaN`, `Infinity`, and `-Infinity`. Comments, trailing commas, single-quoted strings, more than one top-level value, a second byte order mark, and invalid UTF-8 fail with both parsers.
+    - These are parse failures with an explicit reason, although the literal is well-formed: a number that overflows an IEEE double, a string with an unpaired surrogate escape, an integer longer than the interpreter's integer conversion limit, and nesting deeper than `MAX_NESTING_DEPTH`, a module constant set to a depth both parsers and the recursive stages handle (the design names the constant without a value; propose one at 17).
+    - Any top-level JSON type is a document: object, array, string, number, boolean, or null. The requirements do not say what a repeated key in one object means; take the last value, which is what both parsers return, and raise the choice at 17.
+    - A failure raises `ParseFailure(reason, line, column)`: the line and column come from the stdlib parser's `JSONDecodeError` (`lineno`, `colno`), or the line from the count of newlines before the offending byte for invalid UTF-8. The Ingestor adds the record's starting line, so a reported line is a line of the file.
+    - Unit tests: each forbidden construct; 2^64, 2^200, and `-2^63 - 1` preserved exactly; `1e30` (a legitimate large float) parses to the same float; a document with a byte order mark.
     - _Requirements: 1.4, 1.6, 1.11, 29.2_
-  - [x] 4.2 Implement enumeration, line splitting, and the DocumentStore (`io/ingest.py`)
-    - Inputs in argument order; `os.walk(followlinks=False)`, skipping symlinked files and keeping dotfiles; relative paths sorted by code point; extensions compared after `casefold()`
-    - `.jsonl`/`.ndjson` split on LF with a trailing CR stripped and blank lines skipped; array unwrapping; `DocOrigin`
-    - Record parse errors (path, line, reason), unreadable files, and the skipped count. Rejected supplied paths raise `ConfigError` before ingestion. Zero documents raise `NoDocumentsError`
-    - `DocumentStore` of canonical bytes plus offsets; fixed-size chunks parsed with joblib, collected in submission order
-    - _Requirements: 1.1, 1.2, 1.3, 1.5, 1.7, 1.8, 1.9, 1.10, 29.4_
-  - [x] 4.3 Write property test for ingestion
+  - [ ] 13.2 Implement input enumeration and path rejection (`src/jsinfer/io/ingest.py`)
+    - Supplied inputs are processed in argument order. A supplied path that does not exist, cannot be read, or is a file whose extension is not `.json`, `.jsonl`, or `.ndjson` raises `ConfigError` naming the path and the reason, for every rejected path at once, before any document is ingested.
+    - A directory is walked with `os.walk(followlinks=False)` to any depth. Every regular file with a supported extension is taken, dotfiles included; symbolic links to files are skipped; files with any other extension are ignored. Extensions are compared after `casefold()`.
+    - The files of a directory are ordered by their path relative to the supplied directory, compared by Unicode code point. `DocOrigin.source` is that relative path, or the supplied file path for a supplied file.
+    - A file or subdirectory under a supplied directory that cannot be read is skipped and recorded with its path and a description of the error, with no line number.
+    - Unit tests: a tree with mixed-case extensions, dotfiles, a symlinked file and a symlinked directory, an unreadable file, and files of other types; three kinds of rejected supplied path reported in one error.
+    - _Requirements: 1.2, 1.5, 1.10_
+  - [ ] 13.3 Implement the DocumentStore (`src/jsinfer/io/ingest.py`)
+    - `DocumentStore` is one `bytes` buffer holding the `canonical_bytes` of every parsed document, plus a numpy array of offsets. `store[i]` re-parses document `i` with `parse_document` and returns a value equal to the one that was stored, big integers and floats included.
+    - The buffer and the offsets can be written to a file and memory-mapped by worker processes, so flattening and validation read documents without copying them per worker.
+    - `iter_chunks(chunk_size)` yields index ranges of fixed size for `run_chunks`.
+    - Unit tests: the round trip of values with big integers, non-ASCII strings, and deep nesting; reading from a memory-mapped store in a worker.
+    - _Requirements: 1.6, 27.5_
+  - [ ] 13.4 Implement ingestion (`src/jsinfer/io/ingest.py`)
+    - `Ingestor(opts, workers, chunk_size).ingest(inputs) -> IngestResult(store, origins, errors, skipped, files)`, where `files` lists the files read in ingestion order, each by its source form (the path relative to a supplied directory, or the supplied file path as given). This is the form the Certificate's `inputs` use, so `certify`, given the same input arguments, enumerates the same names.
+    - A `.jsonl` or `.ndjson` file is split on `\n` with a trailing `\r` removed from each line. Lines are numbered from 1. A line that is empty or holds only spaces and tabs is blank and is skipped without consuming an index. Each other line is one document.
+    - A `.json` file is one document parsed from its entire content. With `input.unwrap_arrays` on, a top-level array contributes one document per element in element order (`DocOrigin.element` holds the position), a top-level empty array contributes none, and any other top-level value is one document. Unwrapping never applies to nested arrays or to lines of `.jsonl` and `.ndjson` files.
+    - Parsing runs in fixed-size chunks through `run_chunks`; results are merged in input order, and successfully parsed documents get consecutive indices from 0: files in enumeration order, lines by line number, unwrapped elements by position. Identical inputs and an identical Run_Configuration give identical indices for every worker count.
+    - A document that fails to parse is skipped and recorded as `ParseError(path, line, description)` with the 1-based line at which the error was detected; ingestion continues with the next document or file. `skipped` counts skipped documents and files together, and both go to the `ingestion` section of the Inference_Report.
+    - When no document was parsed (no file with a supported extension, every line blank, or every document invalid), `ingest` raises `NoDocumentsError` stating that no valid documents were found, carrying the recorded errors.
+    - Unit tests: CRLF and LF files, a last line without a terminator, whitespace-only lines, an invalid line between valid ones, unwrapping on and off, and each empty-input case.
+    - _Requirements: 1.1, 1.3, 1.5, 1.7, 1.8, 1.9_
+  - [ ] 13.5 Implement in-memory document ingestion (`src/jsinfer/io/ingest.py`)
+    - `documents_to_jsonl(documents) -> bytes` writes value `k` as line `k + 1` of a virtual `.jsonl` file named `<documents>`, exactly as `json.dumps(value, ensure_ascii=True, separators=(",", ":"))` writes it; `Ingestor.ingest_bytes` then ingests that file like any other, so a run on Python values equals a run on a file holding the same documents. The source form of this one virtual input is `<documents>`, and the JSONL bytes stay available on the `IngestResult`, because the Certificate lists the input by the SHA-256 of exactly these bytes.
+    - Before anything is written, every value at any depth must be a `dict` with `str` keys, a `list`, `str`, `int`, `float`, `bool`, or `None` (subclasses are written as their base type). Anything else (a tuple, a set, bytes, `Decimal`, a non-`str` key) raises `TypeError`, and a container that contains itself raises `ValueError`, each naming the document's position and the JSON Pointer. No conversion is applied.
+    - Values inside that domain which a file could not carry as accepted JSON (NaN and infinities, unpaired surrogates, integers past the conversion limit, nesting past `MAX_NESTING_DEPTH`) are written as they are and then fail at parsing like such a line in a file: skipped and recorded at their line.
+    - An iterable that yields no documents raises `NoDocumentsError`.
+    - Unit tests: each rejected type with its pointer; a NaN document skipped at its line; equality of the store with the one built from the same documents written to a `.jsonl` file.
+    - _Requirements: 1.7, 1.8, 1.11, 27.9_
+  - [ ] 13.6 Write property test for ingestion against a reference enumerator
+    - Add a file-tree strategy to `tests/strategies.py`: nested directories; `.json`, `.jsonl`, `.ndjson`, and other files; mixed-case extensions; dotfiles; symlinks; LF and CRLF; blank and whitespace-only lines; invalid documents and each construct RFC 8259 forbids; top-level arrays, empty ones included. The reference enumerator is a short, single-process implementation written in the test from the requirement text, using only stdlib `json`.
     - **Property 1: Ingestion matches the reference model**
     - **Validates: Requirements 1.1, 1.2, 1.3, 1.5, 1.7, 1.9, 1.11**
-  - [x] 4.4 Write property test for parsing fidelity
+  - [ ] 13.7 Write property test for parsing fidelity
+    - Inputs: the JSON value strategy of 11.9, serialized as UTF-8 with and without one leading byte order mark, as a `.json` file and as a `.jsonl` line. Values the Ingestor declares parse failures (doubles that overflow, unpaired surrogates) are outside the strategy.
     - **Property 2: Parsing fidelity**
     - **Validates: Requirements 1.4, 1.6**
 
-- [x] 5. Implement the Validator wrapper
-  - [x] 5.1 Implement `Validator` (`io/validator.py`)
-    - Draft class from the declared or assumed dialect; `validate_formats=True`; default regex engine; compiled validators cached by canonical-bytes digest; `CompileError` names the schema and the cause
-    - `errors()` converts evaluation paths to absolute keyword locations by following `$ref` hops. Also `meta_errors`, plus `satisfies_format` and `matches_pattern` cached per distinct value
-    - _Requirements: 3.2, 13.4, 29.3, 29.10_
-  - [x] 5.2 Verify jsonschema-rs edge cases (open decision, M1)
-    - Smoke tests (`tests/unit/test_validator_edge_cases.py`) cover integers beyond 64 bits as instances and in `enum`/`const`, overflowing doubles, and unpaired surrogates
-    - Keep or revise the `parse_document` failure policy based on the results, and record the outcome in the test module docstring
-    - _Requirements: 1.6, 1.11, 29.3_
+- [ ] 14. Validator wrapper, the Kernel's oracles, and Validator/Kernel conformance
+  - [ ] 14.1 Implement the Validator (`src/jsinfer/io/validator.py`)
+    - `Validator.compile(schema, draft=None) -> Compiled` builds a jsonschema-rs validator with `validate_formats=True` and the default regex engine, choosing the draft class from the declared dialect or the one passed in. Compiled validators are cached by the digest of the schema's canonical bytes and rebuilt in each worker process.
+    - When jsonschema-rs cannot compile a schema (for example an unsupported `pattern`), `compile` raises `CompileError` identifying the schema and the compilation failure; no accept or reject result is returned for any document.
+    - `is_valid(compiled, instance) -> bool` is the only source of accept and reject results in the package, for the pipeline, the Synthetic_Generator, and the Evaluation_Harness alike.
+    - `meta_errors(schema, draft) -> list[str]` validates a schema against the meta-schema of a draft (draft-04, draft-06, draft-07, 2019-09, 2020-12) with `jsonschema_rs.meta`.
+    - `satisfies_format(fmt, s)` and `matches_pattern(pattern, s)` answer through cached validators for `{"format": fmt}` and `{"pattern": pattern}`, memoized per distinct string.
+    - Unit tests: `format` is asserted under every draft; a schema with an uncompilable `pattern` raises `CompileError`; meta-validation of a valid and an invalid schema per draft.
+    - _Requirements: 29.3, 29.10_
+  - [ ] 14.2 Implement error reporting with absolute keyword locations (`src/jsinfer/io/validator.py`)
+    - `errors(compiled, instance) -> list[ErrorInfo]`, each with the JSON Pointer of the failing keyword in the schema document and the JSON Pointer of the failing value in the instance.
+    - jsonschema-rs reports `schema_path` as an evaluation path; convert it to an absolute keyword location by following each `$ref` hop to the `$defs` entry it names.
+    - Errors are returned in a canonical order (keyword location, then instance location, by code point), so callers do not depend on the library's order.
+    - Unit tests: a failure under `properties`, under `items`, inside an `anyOf` branch, and behind one and two `$ref` hops, each checked against the expected pointers.
+    - _Requirements: 29.3, 3.3_
+  - [ ] 14.3 Add the validator import lint and the number and string smoke tests (`tests/unit/test_validator_lint.py`, `tests/unit/test_validator_smoke.py`)
+    - A lint walks the imports of every module under `src/jsinfer/` and fails when any validator library other than jsonschema-rs is imported (`jsonschema`, `fastjsonschema`, `jsonsubschema`, and similar), so the Validator stays the only producer of verdicts.
+    - Smoke tests confirm that jsonschema-rs accepts Python integers beyond 64 bits as instances and compares them exactly against `minimum`, `maximum`, `enum`, and `const`.
+    - Smoke tests record how jsonschema-rs treats a float that came from an overflowing literal and a string with an unpaired surrogate; the Ingestor treats both as parse failures, and the outcome of these tests is reported at 17.
+    - _Requirements: 29.3, 1.6_
+  - [ ] 14.4 Wire the Kernel's oracles to the Validator (`src/jsinfer/kernel/adapter.py`)
+    - The adapter's `oracles(source)` of 7 already wraps any object with `satisfies_format` and `matches_pattern` and memoizes per distinct pair of arguments. Pass it the `Validator`; write no second implementation and no second cache. The Format_Oracle is then `Validator.satisfies_format`, and the pattern oracle is `Validator.matches_pattern`.
+    - The pattern oracle decides every `pattern` until the Kernel contains the reference matcher of the Pattern_Fragment (61); from then on it decides only the Patterns outside the fragment.
+    - The oracle answers exactly what the Validator answers and decides nothing itself: for a Format jsonschema-rs does not know, the answer is the one `Validator.satisfies_format` gives. A `pattern` jsonschema-rs cannot compile has no verdict (29.10), so add the one rule that is new here: a `CompileError` from `matches_pattern` passes through `oracles` unchanged and is never stored in the memo as an accept or a reject.
+    - Unit tests: the oracle's answers equal the Validator's on a table of Format and string pairs and of Pattern and string pairs; an uncompilable `pattern` raises `CompileError` on the first call and on a repeated call.
+    - _Requirements: 36.2, 36.5, 29.10_
+  - [ ] 14.5 Build the Validator/Kernel conformance check (`tests/conformance.py`)
+    - `assert_verdicts_agree(schema, values, validator)` converts the schema with the adapter's `to_root` and each value with `to_json`, runs the Kernel's `Check` with `oracles(validator)`, runs the Validator with `format` asserted, and fails when the two verdicts differ for any value, printing the schema, the value, and both verdicts. A difference is a defect in the Kernel, the Validator, or the adapter and is never resolved in favor of either.
+    - On a `Reject`, it also checks that the keyword location the Kernel names is among the locations `Validator.errors` returns.
+    - A schema the adapter refuses (outside the Kernel_Fragment, not Guarded, or with a `$ref` that is not `#/$defs/<name>`) is counted and skipped, and the count is reported, when the schema is generated or comes from a corpus. A schema the Inferrer emitted is never skipped: the pipeline treats a refusal of a covering schema as an internal error, so the helper takes a flag `emitted=True` under which a refusal fails the test.
+    - The helper is importable by every property test, so each later test that makes the Inferrer emit a schema calls it on that schema and the documents it was inferred from, until 52 makes the call automatic for every pipeline run inside a property test. The leg over fully supported SchemaStore schemas with their test files needs the corpus loader of 35 and is completed in 52.
+    - _Requirements: 39.6 (a), 29.3_
+  - [ ] 14.6 Write property test for Validator and Kernel agreement
+    - Inputs: the Guarded Kernel_Fragment schema strategy of 11.9 with generated values, likely-accepted values, and one-step mutations of accepted values. Every generated `pattern` is decided by the pattern oracle until the Kernel contains the reference matcher (18 writes the safe regex parser; 61 adds the matcher to the Kernel and the adapter's conversion of Pattern_Fragment patterns, which uses that parser). The legs over schemas the Inferrer emits and over corpus schemas are the ones 14.5 describes.
+    - **Property 61: The Validator and the Kernel's checker agree**
+    - **Validates: Requirements 29.3, 36.3, 38.4, 39.6**
 
-- [x] 6. Implement the Schema_Emitter and Schema_Loader
-  - [x] 6.1 Implement the Schema_Emitter (`io/emit.py`)
-    - Fixed keyword rank order. `properties`, `patternProperties`, `$defs`, and `dependentRequired` keys, and `required`/`dependentRequired` values, in code-point order. Fixed `type` order and canonical `enum` order
-    - Integral floats become `int`; `$schema` at the root only; check that every non-vocabulary keyword has the `x-` prefix
-    - `layout()` returns the document plus the ConstraintId → JSON Pointer map, following the design's granularity table. `dumps()` uses the canonical encoder
-    - _Requirements: 2.1, 2.2, 2.3, 26.5_
-  - [x] 6.2 Implement the Schema_Loader (`io/load.py`)
-    - Parse with `parse_document` and check the root kind. Detect the dialect, normalizing http/https and a trailing `#`, and record 2020-12 as assumed when needed. Meta-validate and raise `SchemaLoadError(check, line, col)` on failure
-    - Load supported keywords, boolean schemas, and local `$ref`, including recursive refs. Keep annotations, the root `$id`, and `x-` keywords
-    - Record ignored unknown keywords and unsupported constructs with their pointers, and mark the model partially supported when needed
-    - _Requirements: 2.4, 2.6, 2.10, 2.11, 2.12_
-  - [x] 6.3 Implement draft translation (`io/load.py`)
-    - Rewrite pass with a pointer-rewrite map: `definitions`→`$defs`, array-form `items`→`prefixItems`, `additionalItems`→`items`, array `dependencies`→`dependentRequired`, draft-04 `id`→`$id`, and draft-04 boolean exclusive bounds
-    - Rewrite local `$ref` through the map. Record as ignored the `$ref` siblings in drafts 04–07 and any `additionalItems` without array-form `items`
-    - _Requirements: 2.5_
-  - [x] 6.4 Write property test for schema emit/load round trip
-    - **Property 3: Schema emit/load round trip** (generated Schema_Models now; Inferrer outputs added in 16.10, corpus schemas in 25.7)
-    - **Validates: Requirements 2.4, 2.7, 2.8**
-  - [x] 6.5 Write property test for emitted schema well-formedness
+- [ ] 15. Schema_Emitter and Schema_Loader
+  - [ ] 15.1 Implement the Schema_Emitter layout and pointer map (`src/jsinfer/io/emit.py`)
+    - `SchemaEmitter.layout(model) -> (document, pointers)` turns a Schema_Model into a JSON document and maps every `ConstraintId` to the JSON Pointer of the keyword, or of the array element within a keyword, that expresses it (`…/type`, `…/required/<i>` with the index after canonical sorting, `…/anyOf/<i>`, `…/dependentRequired/<k>`, and so on).
+    - Keywords are written in one fixed rank order: `$schema`, `$id`, `$ref`, annotations, `type`, `enum`, `const`, `format`, `pattern`, numeric bounds, `properties`, `patternProperties`, `additionalProperties`, `propertyNames`, `required`, `dependentRequired`, object bounds, `prefixItems`, `items`, `contains`, array bounds, `uniqueItems`, `anyOf`, `oneOf`, `allOf`, `not`, `if`/`then`/`else`, `$defs`, `x-*` keywords in code-point order, and `x-provenance` last.
+    - The keys of `properties`, `patternProperties`, `$defs`, and `dependentRequired` are in code-point order, and so are the members of `required` and of each `dependentRequired` list. `type` follows the order null, boolean, integer, number, string, array, object (a single type is written as a string). `enum` follows `value_order`. Members of these four lists that are equal are written once.
+    - `$schema` is set to `https://json-schema.org/draft/2020-12/schema` in the root schema object and in no subschema. A boolean schema is written as `true` or `false`.
+    - Every keyword that the draft 2020-12 vocabularies do not define must start with `x-`; a model holding any other such keyword is refused with an internal error naming the keyword and its pointer. Property names and `$defs` names are not keywords and are written as they are.
+    - Integral floats are turned into integers before layout.
+    - The order of the output depends only on the model's content, never on the order in which Constraints were added to it.
+    - _Requirements: 2.1, 2.2, 2.3_
+  - [ ] 15.2 Implement canonical schema bytes (`src/jsinfer/io/emit.py`)
+    - `SchemaEmitter.dumps(document) -> bytes` writes the document with `canonical_dumps`: UTF-8, two-space indentation, one trailing newline, non-ASCII characters written raw, and no NaN or infinity.
+    - `emit(model) -> bytes` is `dumps(layout(model)[0])`. Two Schema_Models that are equal and have equal Provenance_Records give identical bytes.
+    - The explanation file and inline `x-provenance` are written by 26 on top of `layout`; the pointer map is the interface they use.
+    - Conformance check (c): the emitted bytes, loaded back, must have the canonical form the Kernel computes for the model. `Canon` arrives in 51; until then the extension of Property 62 in 15.12 checks the leg against a stand-in, and 52 switches it to `Canon`.
+    - Unit tests: a model built twice with its Constraints added in different orders gives the same bytes; a 30-digit integer bound and a non-ASCII property name are written exactly.
+    - _Requirements: 2.3, 39.6 (c)_
+  - [ ] 15.3 Write property test for well-formed and canonical emission
+    - Inputs: the Schema_Model strategy of 11.9, with each model built in several random orders of adding its keywords and list members, and with `x-` annotations. The meta-schema check uses `Validator.meta_errors` for draft 2020-12.
     - **Property 4: Emitted schemas are well-formed and canonical**
     - **Validates: Requirements 2.1, 2.2, 2.3**
-  - [x] 6.6 Write property test for draft translation
-    - **Property 5: Draft translation preserves verdicts** (generated older-draft schemas now; SchemaStore test documents added in 25.7)
+  - [ ] 15.4 Implement the Schema_Loader entry checks and dialect detection (`src/jsinfer/io/load.py`)
+    - `SchemaLoader.load(source)` accepts bytes, a string, a parsed dict, or a boolean. Bytes and strings are parsed with `parse_document`.
+    - Three checks run in order, and a failure raises `SchemaLoadError(check, line, col)` and returns no Schema_Model: `json` (the input is not valid JSON; the error carries the line and column of the `ParseFailure`), `root` (the root is neither an object nor a boolean), and `meta` (the document fails the meta-schema of its declared or assumed draft under the Validator).
+    - The dialect comes from the root `$schema`, after normalizing `http`/`https` and a trailing `#`, and is one of draft-04, draft-06, draft-07, draft 2019-09, or draft 2020-12.
+    - When the root has no `$schema`, or declares any other URI, the schema is read as draft 2020-12 and the model records `dialect_assumed = True`. An unrecognized `$schema` URI is also recorded as an unsupported construct.
+    - Unit tests: each of the three failures, with line and column for a syntax error; `http` and `https` forms of every draft URI; an absent and an unknown `$schema`.
+    - _Requirements: 2.6, 2.11, 2.12_
+  - [ ] 15.5 Implement keyword parsing and loader accounting (`src/jsinfer/io/load.py`)
+    - Parse into `SchemaNode`s the keywords `type`, `properties`, `required`, `additionalProperties`, `patternProperties`, `propertyNames`, `items`, `prefixItems`, `contains`, `enum`, `const`, `format`, `pattern`, the 12 bound keywords, `uniqueItems`, `anyOf`, `oneOf`, `allOf`, `not`, `if`, `then`, `else`, `dependentRequired`, `$defs`, and local `$ref`, with the boolean schemas `true` and `false` at every subschema position.
+    - A local `$ref` is `#` or `#` followed by a JSON Pointer that resolves within the same document, recursive references included.
+    - Retain the annotation keywords `title`, `description`, `default`, `examples`, `deprecated`, `readOnly`, `writeOnly`, and `$comment`, the root `$id`, and every `x-` keyword.
+    - Omit, record as ignored with keyword and JSON Pointer, and do not mark the model partially supported: every keyword that neither draft 2020-12 nor the declared draft defines (for example `markdownDescription`).
+    - Omit, record as unsupported with keyword and JSON Pointer, mark the model partially supported, and load the remainder: every other keyword defined by draft 2020-12 or the declared draft (such as `multipleOf`, `dependentSchemas`, `unevaluatedProperties`, `minContains`, `contentEncoding`, `$dynamicRef`, `$dynamicAnchor`, `$recursiveRef`), a remote `$ref`, a local `$ref` that does not resolve, `$id` or `$anchor` below the root, and schema-valued `dependencies` entries.
+    - The walk distinguishes keyword positions from name positions, so a property called `multipleOf` under `properties` is a name, not a keyword.
+    - Unit tests: one schema per unsupported construct, one with an unknown keyword, and one with every annotation; a recursive `$ref` to `#`.
+    - _Requirements: 2.4, 2.6, 2.10_
+  - [ ] 15.6 Implement draft translation (`src/jsinfer/io/load.py`)
+    - For a schema that declares draft-04, draft-06, draft-07, or draft 2019-09, a rewrite pass runs after meta-validation and before keyword parsing and records a pointer-rewrite map from old locations to new ones.
+    - Rewrites: `definitions` → `$defs`; array-form `items` → `prefixItems`; `additionalItems` beside array-form `items` → `items`; array-valued `dependencies` entries → `dependentRequired`; draft-04 `id` → `$id`; draft-04 boolean `exclusiveMinimum` or `exclusiveMaximum` together with `minimum` or `maximum` → numeric `exclusiveMinimum` or `exclusiveMaximum` (a `false` flag leaves the plain bound).
+    - Every local `$ref` is rewritten through the map, so `#/definitions/x` targets `#/$defs/x` and a reference into any other renamed location still resolves.
+    - Discard, and record as ignored with keyword and JSON Pointer, what the declared draft ignores: `additionalItems` without array-form `items`, and, for draft-04 through draft-07, every keyword adjacent to `$ref`.
+    - The loaded model is a draft 2020-12 model: emitting it writes the 2020-12 `$schema`, and the Validator gives the emitted form the same verdict on every document as it gives the original under its declared draft, with `format` asserted for both.
+    - `translation_log(model)` lists each translated keyword with its old and new pointer, for the Evaluation_Harness to record with Baseline results.
+    - Unit tests: one schema per rewrite; a `$ref` into `#/definitions/a/items/0`; draft-07 siblings of `$ref`; draft-04 `exclusiveMinimum: true` and `false`.
+    - _Requirements: 2.5, 2.9, 34.5_
+  - [ ] 15.7 Add hand-written schema fixtures with test documents and the corpus hook (`tests/fixtures/schemas/`, `tests/conftest.py`)
+    - Write about a dozen small schemas, at least two per draft (draft-04, draft-06, draft-07, 2019-09, 2020-12), that together use every supported keyword and every translated construct, each with a few positive and negative test documents. They are written for this project and copy nothing from SchemaStore or JSONSchemaBench.
+    - A pytest fixture `corpus_schemas` yields `(schema, positives, negatives)` triples from this directory, and at this point nothing else. The corpus loader of 35 extends this fixture to yield each fully supported pinned-corpus schema with its SchemaStore positive and negative test files (a seeded subset under `ci`, all under `nightly`). Every test that uses the fixture is parametrized over what it yields and names no schema and no count, so it needs no change when the fixture is extended.
+    - A data-driven test, parametrized over the fixture, loads each fully supported schema, emits it, loads the emitted document again, and checks that the two loaded models are equal; and checks, for each test document, that the Validator's verdict against the original schema under its declared draft equals its verdict against the emitted form.
+    - _Requirements: 2.8, 2.9_
+  - [ ] 15.8 Write property test for the schema emit/load round trip
+    - Inputs at this point: the Schema_Model strategy of 11.9, and every schema the `corpus_schemas` fixture of 15.7 yields (the corpus schemas join through the fixture once 35 extends it, with no change here). The leg over Schema_Models the Inferrer produces is added when the pipeline exists (25), and the leg over each Schema_Version in 60; both reuse this test's check.
+    - **Property 3: Schema emit/load round trip**
+    - **Validates: Requirements 2.4, 2.7, 2.8**
+  - [ ] 15.9 Write property test for draft translation
+    - Add a strategy for older-draft schemas in the translatable grammar (every construct 15.6 rewrites or discards, under each of the four older drafts) with generated instances. The test is also parametrized over the `corpus_schemas` fixture and runs over every test document it yields; the SchemaStore test files join through that fixture once the corpus loader of 35 extends it, with no change here.
+    - **Property 5: Draft translation preserves verdicts**
     - **Validates: Requirements 2.5, 2.9, 34.5**
-  - [x] 6.7 Write property test for loader accounting
+  - [ ] 15.10 Write property test for loader accounting
+    - Inputs: a supported schema from the strategy of 11.9, into which unsupported constructs, unknown non-vocabulary keywords, annotations, and `x-` keywords are injected at random keyword positions, and whose `$schema` is a recognized URI, an unrecognized URI, or absent.
     - **Property 6: Loader accounting**
     - **Validates: Requirements 2.6, 2.10, 2.11**
-  - [x] 6.8 Write unit tests for loader errors
-    - Non-JSON input with line and column, bad root kind, meta-schema failure
-    - _Requirements: 2.12_
+  - [ ] 15.11 Add the Schema_Model entry of the adapter (`src/jsinfer/kernel/adapter.py`)
+    - `to_root` of 7 accepts a schema document. Extend it to accept a `SchemaModel` as well, by converting `SchemaEmitter.layout(model)[0]`; nothing else is added to the conversion, so a model and its emitted document always give the same `Root`.
+    - A model outside the Kernel_Fragment, with a `$ref` that is not `#/$defs/<name>`, or not Guarded raises the same `KernelUnsupported(pointer, construct)` as its document, and no Kernel value is returned. The pointer is a pointer into the emitted document, so it also locates the keyword in `schema.json`.
+    - `model_from_root(root) -> SchemaModel` is `SchemaLoader.load(from_root(root))`, the way back that the round trip of criterion 36.5 uses.
+    - Unit tests: a model and its emitted document convert to equal `Root` values; a model holding an `x-` annotation keeps it through the round trip; a model with an unguarded reference cycle is refused with the pointer of a reference on the cycle.
+    - _Requirements: 36.5, 2.13_
+  - [ ] 15.12 Extend the property test for adapter and Kernel conformance
+    - Add the Schema_Model clauses, with the Guarded Kernel_Fragment model strategy of 11.9: `model_from_root(to_root(model))` equals the model under the equality of criterion 2.7; and a model from the full-grammar strategy that is outside the fragment or not Guarded raises `KernelUnsupported` naming the construct and its pointer.
+    - Add the Schema_Emitter leg: for any Schema_Model of the Kernel_Fragment, emit it, load the bytes back, convert the result through the adapter's `to_root`, and compare it with the canonical form of the model. The comparison target sits behind one test helper `canonical_root(model)`, which here sorts and deduplicates the four set-like lists (`required`, `enum`, `type`, each `dependentRequired` list) and changes nothing else. The Kernel's `Canon` function arrives in 51; 52 replaces the body of `canonical_root(model)` with a call to it, and from then on the leg is conformance check (c).
+    - **Property 62: The adapter and the pipeline conform to the Kernel**
+    - **Validates: Requirements 36.4, 36.5, 39.6**
 
-- [x] 7. Implement Naive_Merge
-  - [x] 7.1 Implement `pipeline/naive_merge.py`
-    - Union of types per view with the integer rule, union of keys under `properties`, one merged `items`, and `required` = keys present in every object; only `$schema`, `type`, `properties`, `items`, and `required`
-    - Expose per-view Naive_Merge subschemas, which MDL local scoring and relaxation reuse
-    - _Requirements: 28.5, 34.4_
-  - [x] 7.2 Write unit tests for Naive_Merge
-    - Keyword whitelist, the integer rule, and acceptance of every input document
-    - _Requirements: 34.4_
+- [ ] 16. Naive_Merge, conforming to the Kernel's join
+  - [ ] 16.1 Implement Naive_Merge as a join over documents (`src/jsinfer/pipeline/naive_merge.py`)
+    - `naive_of(value) -> SchemaNode` gives the Naive_Merge schema of one JSON value, and `join(a, b) -> SchemaNode` merges two Naive_Merge schemas; `naive_merge(documents) -> SchemaModel` is the fold of `join` over `naive_of`, and `naive_merge_bytes(documents)` emits it with the Schema_Emitter.
+    - The output uses no keywords other than `$schema`, `type`, `properties`, `items`, and `required`. `type` lists the union of the JSON types observed at each Path, with `integer` in place of `number` when every observed number at the Path has a zero fractional part, never both. `properties` lists the union of the keys observed at an object Path. `items` merges every element observed at an array Path into one subschema. `required` lists the keys present in every object observed at the Path, a key with value `null` counting as present.
+    - When several types occur at one Path, the type-specific keywords stand side by side in one schema object.
+    - `join` is associative, commutative, and idempotent (the Kernel proves these laws of its own `Join`, and that a schema which absorbs the schema of a value accepts the value), so the result is the same for every order of the documents and every split into chunks; `naive_merge` folds fixed-size chunks through `run_chunks` and joins the chunk results.
+    - The layout of the edge cases (an object with no keys, an array with no elements, a Path seen only as `null`) follows the Kernel's `NaiveOf` and `Join` exactly. Conformance check (b), the extension of Property 62 in 16.3, compares the two on every generated collection.
+    - Unit tests: integers with `1.0` and `1e3`; a field absent from one object; a field present with `null`; mixed scalar, array, and object values at one Path; only empty arrays; a single document.
+    - _Requirements: 34.4, 39.6 (b)_
+  - [ ] 16.2 Implement Naive_Merge over a view (`src/jsinfer/pipeline/naive_merge.py`)
+    - `naive_node(view) -> SchemaNode` computes the same schema from an ObservationStore view, recursively through `child_key` and `elements`, using `ViewStats` (type counts and key presence bitsets) instead of walking documents. Later components use it for the subschemas of descendants and for subschemas built from failing values.
+    - It reads `type` through `type_names` and marks a key required when its presence count equals the number of objects in the view. Flagged rows are not in a view, so they do not count, and an empty view gives the schema `{}`.
+    - A differential unit test checks that `naive_node(root_view(store))` equals `naive_merge(documents)` for hand-built collections, for a store built with different chunk sizes, and with a flagged document left out of both sides.
+    - _Requirements: 34.4, 13.2_
+  - [ ] 16.3 Extend the property test for adapter and Kernel conformance
+    - Add the Naive_Merge leg: for any generated collection of JSON values (the strategy of 11.9), `naive_merge` of the collection, converted with the adapter's `to_root`, equals the Kernel's fold of `Join` over `NaiveOf` of the same values converted with `to_json`. The comparison is repeated for a random permutation of the documents and for random splits into chunks, and `naive_node` over the collection's root view must give the same schema.
+    - **Property 62: The adapter and the pipeline conform to the Kernel**
+    - **Validates: Requirements 36.4, 36.5, 39.6**
 
-- [x] 8. Checkpoint (M1): ensure all tests pass, ask the user if questions arise.
+- [ ] 17. Checkpoint (M1): the core reads documents, writes and loads schemas, and agrees with the Kernel
+  - All unit, property, and integration tests of 10 to 16 pass under the `ci` profile on every cell of the interpreter matrix, and the static source rules and the validator import lint pass.
+  - `scripts/verify.py verify` passes, and `scripts/verify.py trace` reports a row with resolving evidence for every criterion this milestone implements.
+  - `jsinfer list-techniques` shows 35 Techniques, all registered as unimplemented and disabled; `naive_merge` on a sample collection emits a schema that the Validator accepts every document against and that equals the Kernel's fold of `Join` over `NaiveOf`.
+  - Raise with the user: the smoke-test results for integers beyond 64 bits, overflowing doubles, and unpaired surrogates in jsonschema-rs, and whether the last two stay parse failures; the value of `MAX_NESTING_DEPTH` and the last-value rule for a repeated object key; the default values of `ingest.chunk_size` and the `sample.*` Resource_Parameters; shipping a Model_Bundle with no artifacts as the default until one is trained; and the number of schemas the conformance check skips because the adapter refuses them.
 
 ### M2: Decisions
 
-- [x] 9. Implement the safe regex AST
-  - [x] 9.1 Implement the AST, printer, and matcher (`values/patterns.py`)
-    - Nodes for the five ASCII classes, literals, and quantifiers that apply only to classes or `(?:…)` groups; adjacent overlapping classes merged
-    - Printer: escape only ECMA syntax characters, emit non-ASCII raw, write astral repeats as `(?:c){n}`, and anchor as `^(?:alt1|…|altk)$(?!\n)`
-    - In-house matcher that returns the unique decomposition the MDL data bits need
+- [ ] 18. Safe regex AST (the Pattern_Fragment): printer and parser
+  - [ ] 18.1 Define the safe regex AST and its printer (`src/jsinfer/values/patterns.py`)
+    - Define immutable AST node types for the Pattern_Fragment: literal character, character class (a set of explicit ASCII characters and ASCII ranges), concatenation, alternation, and repetition (`?`, `*`, `+`, `{m}`, `{m,n}`). The constructors refuse a repetition applied to anything but a character class or a group, a non-ASCII class member, and `m > n`.
+    - Provide the five named classes that producers of Patterns use: `[0-9]`, `[a-z]`, `[A-Z]`, `[A-Za-z]`, `[0-9A-Za-z]`.
+    - `print_pattern(ast) -> str` writes every Pattern as `^(?:alt1|…|altk)$(?!\n)`: the body sits in one non-capturing group, and the closing `(?!\n)` is the only lookaround. Under ECMA-262 and Python `re` search semantics the printed Pattern then matches only when the body matches the whole string, including any trailing line terminator.
+    - Escape a literal only when it is an ECMA syntax character (`^$\.*+?()[]{}|/`); write every other character raw, non-ASCII ones included. Inside a class, escape `]`, `\`, `^`, and `-`. Never print a backreference, a flag, `.`, a shorthand class, or a Unicode property class.
+    - A repeated literal is always wrapped in a group, so a repeated astral character prints as `(?:😀){2}` and means the same in UTF-16 and code-point engines.
+    - `normalize(ast)` merges adjacent atoms whose classes overlap and flattens nested concatenations and alternations, so that a string has at most one decomposition under a normalized Pattern.
+    - Unit tests: escaping of each syntax character, class printing, astral repetition, anchoring of one and of several alternatives, constructor refusals.
     - _Requirements: 14.4, 14.5_
-  - [x] 9.2 Write property test for pattern anchoring and dialect agreement
-    - **Property 24: Pattern anchoring and dialect agreement** (Python `re`, `regress`, Validator)
-    - **Validates: Requirements 14.4, 14.5**
+  - [ ] 18.2 Parse printed Patterns back into the AST (`src/jsinfer/values/patterns.py`)
+    - `parse_pattern(source: str) -> Ast | None` accepts exactly the strings of the form `^(?:…)$(?!\n)` whose body lies in the Pattern_Fragment and returns `None` for everything else (another anchoring, a capturing group, `.`, `\d`, a flag, a lookaround in the body, a non-ASCII class member, a repetition on a bare literal).
+    - `in_fragment(source: str) -> bool` is `parse_pattern(source) is not None`. Value sources that take a Pattern from outside the printer use it to set `details.pattern_fragment = false` in the Provenance_Record of a Pattern that does not parse, so that dialect agreement is claimed only for the Pattern_Fragment.
+    - The parser is a pure function with no dependency on the rest of `values/`. The Kernel adapter calls it in 61 to tell a fragment Pattern (converted to the Kernel's `Regex` and decided by the Kernel's reference matcher) from an opaque one; until the Kernel contains the reference matcher, every Pattern is decided by the oracle and listed as oracle-decided in the Certificate. The printer and this parser must therefore be inverse on the fragment.
+    - Unit tests: `parse_pattern(print_pattern(a)) == a` on hand-written normalized ASTs, and one rejected example for each construct outside the fragment.
+    - _Requirements: 14.5_
+  - [ ] 18.3 Match a string against an AST and return its decomposition (`src/jsinfer/values/patterns.py`)
+    - `match(ast, s) -> Decomposition | None` decides whether the whole string `s` (a sequence of Unicode code points) belongs to the language of the AST. On a match it returns the alternative index and, per token, the matched run length.
+    - The matcher works on the AST directly, uses no regex engine, and terminates on every input, including nested repetitions with a zero lower bound.
+    - The MDL_Scorer uses the decomposition to code a string under a Pattern, and the property test of this task uses the verdict as the meaning of "the unanchored body matches the entire string".
+    - Unit tests: strings with a trailing `\n`, empty strings, astral characters, and a Pattern whose alternatives overlap (the first matching alternative in printed order is reported).
+    - _Requirements: 14.4, 19.1_
+  - [ ] 18.4 Write property test for pattern anchoring and dialect agreement
+    - Inputs: safe regex ASTs paired with adversarial strings (non-ASCII, astral, `\n`, `\r`, U+2028, trailing line terminators) from `tests/strategies.py`. In this task the three engines (Python `re.search`, the ECMA-262 engine `regress`, and the Validator's `matches_pattern`) are compared with each other and with `match` of 18.3; the comparison with the Kernel's reference matcher is added in 61.
+    - **Property 24: Pattern anchoring and dialect agreement**
+    - **Validates: Requirements 14.4, 14.5, 39.6**
 
-- [x] 10. Implement the MDL_Scorer
-  - [x] 10.1 Implement the primitive codes (`mdl/codes.py`)
-    - `LN`, `LN0`, `LZ`, `UNI`, `SUB`, `CAT` (KT via `math.lgamma`), `STR`, `NUM`, `BOUND`, and the universal value code `U`
+- [ ] 19. MDL_Scorer
+  - [ ] 19.1 Implement the primitive codes (`src/jsinfer/mdl/codes.py`)
+    - Implement, in bits: `LN(n)` (Rissanen's universal integer code, positive terms only), `LN0(n) = LN(n + 1)`, `LZ(z) = 1 + LN0(|z|)`, `UNI(k) = log2 k` (0 when k ≤ 1), `SUB(r, p) = LN0(r) + log2 C(p, r)`, and `CAT(c₁…c_k)`, the Krichevsky–Trofimov sequence code computed with `math.lgamma` from the counts alone.
+    - Implement the value codes: `STR(s) = LN0(b) + 8b` for b UTF-8 bytes; `NUM(x)` (`LZ(x)` for an integer, otherwise the shortest decimal `m·10^e` coded as `LZ(m) + LZ(e)`); `BOUND(v)` (a `UNI(3)` family flag plus the family part: `LZ(m) + LZ(e)` for the minimal decimal `m·10^e`, 0 bits for zero, or `UNI(16)` for an integer limit, so that round numbers and 0 are cheap); and the universal value code `U(v)`, a `UNI(7)` type tag plus: null 0; boolean 1; number `NUM`; string `STR`; array `LN0(len) + Σ U(e)`; object `LN0(#k) + Σ (STR(k) + U(val))`.
+    - Every code takes Number_Values as exact integers or `Fraction`s where it reads a number, and returns a finite, non-negative float. Sums of several terms use `math.fsum`.
+    - Unit tests: each code against hand-computed values, `CAT` invariance under permutation of its counts, and `U` on nested arrays and objects.
     - _Requirements: 19.1_
-  - [x] 10.2 Implement model bits (`mdl/scorer.py`)
-    - `M(node)` from the per-keyword table, plus `M_re` for safe-regex ASTs
+  - [ ] 19.2 Compute model bits for a schema node (`src/jsinfer/mdl/scorer.py`)
+    - `MDLScorer.model_bits(node)` returns `LN0(#kw) + Σ_kw [UNI(|KW|) + M_kw]`, with |KW| the size of the supported keyword vocabulary and `M_kw` taken from the design's model-bits table for every keyword of that table (`type`, `properties`, `required`, `additionalProperties`, `patternProperties`, `propertyNames`, `contains`, `not`, `items`, `prefixItems`, `enum`, `const`, `format`, `pattern`, the bounds, `uniqueItems`, `anyOf`/`oneOf`, `dependentRequired`, `$ref`, `$defs`, `x-latent-type`, `x-array-pattern`, other `x-` annotations).
+    - `M_re` for a safe regex AST is `LN0(#alternatives)` plus, per alternative, `LN0(#tokens)` and per token `UNI(#token kinds)`, `8·bytes` for a literal or `UNI(5)` for a class, and the quantifier `LN0(min) + LN0(max − min)` or a 1-bit unbounded flag. A `pattern` that does not parse in the AST costs `STR(source)`.
+    - `additionalProperties` and `items` cost `1 + [M(sub) if schema]`, which covers their boolean forms; a boolean schema in any other subschema position costs 1 bit (which of `true` and `false`). The design gives no value for this case, so record the 1 bit in the scorer's encoding-constants table, marked there as a value this plan chose where the design is silent, to be confirmed with the user at the milestone checkpoint. Provenance_Records never enter the cost.
+    - Unit tests: one node per keyword, a nested Record, and equality of model bits for two nodes that differ only in the order their keywords were added.
     - _Requirements: 19.1_
-  - [x] 10.3 Implement data bits and local scoring (`mdl/scorer.py`)
-    - Exception cost `EXC`, type choice, `enum`/`const`, bounded integers and decimals, strings (length, Pattern tokens, per-Format alphabet constants, raw), booleans, Lists and Tuples, and `anyOf`/`oneOf` branch counts
-    - Records: optional presence, `dependentRequired` conditioning, Field_Group presence, and closed or open extras. Maps: key count, keys, and values
-    - Sums use `math.fsum` over per-distinct-value costs. Descendants are represented by their Naive_Merge subschemas. Returns `Score` with model, data, and exception bits, `n_rejected`, and `n_scored`
+  - [ ] 19.3 Compute data bits for scalar rows (`src/jsinfer/mdl/scorer.py`)
+    - Work from per-view statistics only (type counts, value-id counts, length histograms): compute each cost once per distinct value, multiply by its count, and add the terms with `math.fsum`.
+    - Split the rows into accepted and rejected under the node. A rejected Observation is one the node's `type`, `enum`/`const`, `format`, `pattern`, or bounds exclude; Format verdicts come from the Validator and Pattern verdicts from `match` (the Validator for a Pattern outside the fragment), once per distinct value.
+    - Charge exceptions as `EXC = 1 + [CAT(|A|, |R|) + Σ_{r∈R} U(v_r) if R ≠ ∅]`, so every rejected Observation pays a positive, finite cost; report the total as `exception_bits` and the count as `n_rejected`.
+    - Code accepted rows: type choice by `CAT` over the listed types (all seven when `type` is absent); `enum` by `CAT(member counts)` and `const` at 0 bits in place of the value code; integers by `UNI(max − min + 1)` with both bounds, `LN0(v − min)` or `LN0(max − v)` with one, or `LZ(v)` with none (an exclusive bound shifts the range by 1); non-integral numbers by `LN0(d)` for d decimal places plus `UNI((max − min)·10^d + 1)` with both bounds or `LZ(m)` otherwise; booleans by `CAT(true, false)`; null at 0.
+    - Code strings as length plus characters: length by the bounded uniform, one-sided `LN0`, or `LN0(len)`; characters by the Pattern decomposition (alternative index, `log2|class|` per class character, 0 for literals, repetition counts), by `len · log2|Σ_f|` with the documented alphabet size of the Format, or by `8 · utf8len`. The alphabet sizes are encoding constants kept in one table.
+    - Unit tests: each scalar family with and without bounds, a candidate that rejects two values, and a `const` node.
     - _Requirements: 19.1, 19.2, 19.6_
-  - [x] 10.4 Write property test for the MDL_Scorer
+  - [ ] 19.4 Compute data bits for arrays, Records, Maps, and branches (`src/jsinfer/mdl/scorer.py`)
+    - Arrays: code the length like an integer under `minItems`/`maxItems`; code a List's elements under `items`; code a Tuple's position i under `prefixItems[i]`, and positions past the prefix under `items` or as exceptions under `items: false`. `contains` and `uniqueItems` act only as rejection checks.
+    - Records: each optional property costs `CAT(present, absent)` over the objects and a required property 0. For a `dependentRequired` antecedent → consequent, code the consequent's presence only on objects without the antecedent; code the presence of a Field_Group (a complete `dependentRequired` clique) once per object, not once per member. Unknown keys are exceptions when the Record is closed; when it is open, charge `CAT(no extras, extras)` over the objects plus `LN0(#extra) + Σ (STR(k) + U(v))` for each object with extras. Child values are coded under their subschemas.
+    - Maps: per object, the key count (bounded uniform or `LN0`), each key under `propertyNames` as a string or by `STR`, and each value under the value schema.
+    - `anyOf`/`oneOf`: `CAT(branch counts)` over the row-to-branch assignment the caller passes, or over the cheapest accepting branch per row when none is passed, plus each branch's data bits.
+    - `MDLScorer.presence_bits(view, required, rules)` returns the Record presence terms alone, so that a caller can exchange them when only `required` or `dependentRequired` changes.
+    - Unit tests: a closed Record with one unknown key, an open Record with extras, a Map with and without `maxProperties`, a Tuple with a longer array, and `presence_bits` against full scoring.
+    - _Requirements: 19.1, 19.2, 19.6_
+  - [ ] 19.5 Assemble `MDLScorer.score` with local scoring and the expected-exception charge (`src/jsinfer/mdl/scorer.py`)
+    - `score(node, view) -> Score(model_bits, data_bits, exception_bits, n_rejected, n_scored)` with `total = fsum((model_bits, data_bits))`; `data_bits` includes the exception bits. Every field is finite and non-negative.
+    - Score only non-flagged rows: the view passed in never contains a row of a Flagged_Item, and `n_scored` is the view's row count.
+    - Local scoring: descendants that a candidate implies but does not spell out are represented by their Naive_Merge subschemas (types and keys, recursively) built from the candidate's child views, so scoring stays linear in the rows and still rewards homogeneous children.
+    - `expected_exception_bits(f1, singleton_rows)` returns `f1 × mean EXC` over the singleton values or singleton-key objects; closed candidates (Closed_Enum, closed Record) add it to their data bits to charge for unseen values at the Good–Turing rate.
+    - Results are bit-identical for the same node and the same multiset of rows, whatever the row order, the chunking of the store, or the worker count, because every term is a function of counts and multisets and every sum is an `fsum`.
+    - Unit tests: the five Judgment_Call comparisons of the design (Record against Map, closed against open Record, Tuple against List, closed against open enum, merged against split) on small hand-built views, each with the expected winner.
+    - _Requirements: 19.1, 19.2, 19.6_
+  - [ ] 19.6 Write property test for the MDL_Scorer
+    - Inputs: generated schema nodes paired with views from `tests/strategies.py`; the view is rebuilt from every permutation of its documents and from stores flattened with different chunk sizes.
     - **Property 29: MDL_Scorer is well-formed and invariant**
     - **Validates: Requirements 19.1, 19.2, 19.6**
 
-- [x] 11. Implement the DecisionEngine
-  - [x] 11.1 Implement `DecisionEngine.resolve` (`decide/engine.py`)
-    - Resolution order: an enabled Decision_Model (the WS model when `decide.weak_supervision` is on and one exists, otherwise the synthetic model; equal probabilities go to MDL), then MDL argmin, then registry priority, then the Fallback_Behavior. Record a substitution when a model is missing
-    - Tie chain: mandated tie rule, then fewer model bits, then priority, then `order_key`. Offer exception-bearing candidates only when `robust.mdl_exceptions` is on, with ties going to widening
-    - Confidence is the MDL posterior or the calibrated probability. Record the method, every candidate with its score, the cut-off source and value, and any fallback indicator and reason in provenance and the report. Disabled Techniques produce no candidates
-    - _Requirements: 19.3, 19.4, 19.5, 19.7, 20.7, 22.12, 22.13, 22.14, 23.8, 23.9, 26.3, 26.10, 28.4, 28.6, 28.7, 28.11, 28.12_
-  - [x] 11.2 Write property test for the DecisionEngine
-    - **Property 30: DecisionEngine resolution order** (stub Decision_Models, forced ties)
+- [ ] 20. DecisionEngine, including withheld candidates (Document_Support)
+  - [ ] 20.1 Define the decision data types, the inference context, and the mandated tie rules (`src/jsinfer/decide/engine.py`, `src/jsinfer/decide/context.py`, `src/jsinfer/core/provenance.py`, `src/jsinfer/config/registry.py`)
+    - Define `Candidate(technique, order_key, node, outcome, rejects, withheld)` and `DecisionPoint(kind, path, details)`. `order_key` is the documented candidate order: a tuple built from the outcome's canonical value, never from document order or worker count.
+    - Define `Decision`, the value `DecisionEngine.resolve` returns (the design's signature calls it the resolution): it holds the `core.provenance.Resolution(method, selected, candidates)` of 11 unchanged, plus the Confidence, the `Cutoff` or none, the `FallbackInfo` or none, the rows a winning exception-bearing candidate rejects, and the Provenance_Record template for the caller. No second type named `Resolution` or `Cutoff` is defined.
+    - Use `core.provenance.Cutoff` of 11 and add the source validation to that class: the source can only be "MDL comparison", "Decision_Model comparison", the name of a model-selection criterion, or the name of a registered Learned_Threshold; an absent `Cutoff` means no cut-off was applied. Constructing a `Cutoff` with any other source raises, which makes the four-source rule hold for every decision the engine records.
+    - Define `InferenceContext` (`Ctx`) in `decide/context.py`, the `ctx` argument of every component function from here on. Fields: the effective Run_Configuration, the Technique registry, the Model_Bundle, the `ResourceReader` and `ThresholdReader` of 12, the `ReportBuilder` of 11, the `rng` factory of 10, the Validator of 14, the `in_effect` callable of 20.2, the MDL_Scorer, and the DecisionEngine. Add the test fixture `make_ctx(config=None, bundle=None)`, which builds a context from a Run_Configuration (the defaults when none is given) and a Model_Bundle (the `empty_bundle` fixture when none is given); the callable, scorer, and engine fields stay unset until 20.2 and 20.3 make the fixture fill them. 25 extends this type for the pipeline and does not define another.
+    - Implement the tie-rule functions that `DecisionPointSpec.tie_rule` of 12 names, one per mandated value, each choosing between candidates of equal description length before the generic tie chain: Record-or-Map → Record; Tuple-or-List → List; array pattern → the plain List or Tuple schema; Pattern selection → no Pattern, then fewer sub-patterns; Closed-or-Open-Enum → open; bounds → the candidate nearest the observed extreme; MDL exceptions → widening. The registry already holds the names; this task registers nothing a second time.
+    - Add the boolean field `always_mdl` (default false) to `DecisionPointSpec` in `config/registry.py`. It marks a kind whose requirement selects by description length whatever the state of `decide.mdl`; for such a kind the MDL step always runs. Set it here for the three kinds this milestone resolves: `string_constraint`, `closed_or_open_enum`, and `bound`. The tasks that build the other such kinds set it for theirs: `discriminator` in 44, `exclusion_rule` in 45, and `array_pattern` in 55.
+    - Unit tests: `Cutoff` refusals (the records of 11 still round-trip), the tie rule of each kind on two candidates with equal scores, and `make_ctx` with and without arguments.
+    - _Requirements: 4.10, 7.10, 15.6, 16.7, 19.4, 20.1_
+  - [ ] 20.2 Decide which Techniques are in effect at a Decision_Point (`src/jsinfer/decide/context.py`, `src/jsinfer/decide/engine.py`)
+    - `build_in_effect(config, registry, thresholds, bundle, report)` in `decide/context.py` returns the callable `in_effect(technique, kind) -> (bool, reason)` that the context carries; it is the only implementation of "in effect". A Technique is in effect at a kind when it is enabled in the Run_Configuration, its serving gate is enabled (the Closed-or-Open-Enum Decision_Model serves only while `values.enum_estimation` is on), `ThresholdReader.in_effect(technique, kind)` of 12 is true (the Model_Bundle holds a valid value of every Learned_Threshold the Technique reads at that kind), and the Model_Bundle accessor of 12 supplies the artifact the Technique needs. The reason is `disabled` (also for a closed serving gate), `missing-threshold`, or `missing-model`.
+    - The artifact check is one table from Technique id to a Model_Bundle accessor. This task fills in the rows of the five `decide.dm_*` Techniques, which need `decision_model` for their kind (synthetic-only or weakly supervised), from the accessors the Model_Bundle reader of 12 has. A Technique with no row needs no artifact. Each later Technique that needs one adds its own row when it is built: `corpus.name_suggest` and `corpus.nearest_schema` in 50 and `corpus.cf_suggest` in 58 (`corpus_index()`), and `values.semantic_type` in 57 (`semantic_classifier()`).
+    - The engine is a consumer: it treats an enabled Technique that is not in effect like a disabled one, with the callable's reason in place of `disabled`, and writes no substitution itself. The substitution (the threshold or model, the Technique, the cause, and what resolves the Decision_Point instead: the Techniques still in effect, or the Fallback_Behavior when none is) is written once by the source the callable asks: `ThresholdReader.in_effect` for a Learned_Threshold, `record_substitution` of the Model_Bundle reader for an artifact. The callable caches its answer per (Technique, kind) and asks each source at most once per pair, so a missing threshold or model yields exactly one entry per (artifact or threshold, Technique, kind) however often and from wherever the callable is asked. 25 evaluates this check once for every enabled Technique and each kind it serves at the `Model_Bundle` stage and keeps the answers in the context, so every substitution is written at that stage and the engine only reads cached answers.
+    - Checking whether the Model_Bundle holds a Learned_Threshold is not a read and is not listed among the thresholds read by the run.
+    - Drop every candidate whose Technique is not in effect before any step runs, so a disabled Technique takes part in neither candidate generation nor selection.
+    - Make `make_ctx` build the callable. Unit tests: each of the four conditions switched off in turn, a kind whose only server lacks its threshold, one substitution entry after the same Technique is asked about twice, and a `missing-model` answer for each of the three accessors with the `empty_bundle` fixture.
+    - _Requirements: 28.4, 28.11, 22.14, 20.6_
+  - [ ] 20.3 Implement the MDL, priority, and Fallback_Behavior steps of `DecisionEngine.resolve` (`src/jsinfer/decide/engine.py`)
+    - `resolve(dp, candidates, view, features=None) -> Decision` applies, in order: the Decision_Model step (20.4); the MDL step; the priority step; the Fallback_Behavior.
+    - MDL step (when `decide.mdl` is in effect, or the kind's `always_mdl` is set): score every candidate with the MDL_Scorer on the same view, which excludes Flagged_Items, and select the lowest description length. Break ties by the kind's mandated tie rule, then fewer model bits, then the registry priority order of the kind, then `order_key`. A candidate may carry a precomputed `Score`.
+    - Priority step (when `decide.mdl` is not in effect and enabled Techniques produced candidates): select the candidate of the Technique first in the registry priority order of the kind, with candidates of one Technique ordered by `order_key`, and mark the resolution as the Fallback_Behavior of `decide.mdl` when two or more candidates were offered.
+    - Fallback step (no serving Technique in effect, or no candidate): apply the Decision_Point's single Fallback_Behavior from the registry, which invokes no Technique.
+    - Set the `decide.mdl` registry entry to implemented in this sub-task, and make `make_ctx` fill the context's scorer and engine fields.
+    - Unit tests: a forced tie at each level of the tie chain, `decide.mdl` off with two Techniques, and every serving Technique off.
+    - _Requirements: 19.3, 19.4, 19.7, 28.4, 28.6, 28.7_
+  - [ ] 20.4 Implement the Decision_Model step (`src/jsinfer/decide/engine.py`)
+    - When the `decide.dm_<kind>` Technique of a Judgment_Call kind is in effect, call `features()` once, ask the Decision_Model for the calibrated probabilities of the two classes, and select the class with the higher probability. The Confidence is that probability, and the rejected class with its probability is the alternative considered.
+    - Choose the model from the Model_Bundle: the Decision_Model trained with weakly labeled examples (`dm.<kind>.weak`) when `decide.weak_supervision` is enabled and the bundle holds one; otherwise the synthetic-only model (`dm.<kind>.synthetic`), recorded as the Fallback_Behavior of the `judgment_model` Decision_Point. Record in the Inference_Report which Decision_Model resolved each Judgment_Call kind.
+    - When the two probabilities are equal, select between the two classes with the MDL_Scorer, whatever the state of `decide.mdl`, and record the resolution as an MDL comparison.
+    - When the Technique is enabled and the bundle holds no Decision_Model for the kind, the `in_effect` callable of 20.2 reports `missing-model` (the substitution is recorded there, once) and the step falls through to the MDL step; when the Technique is disabled, it falls through without a substitution. In both cases the MDL step selects the lowest description length when `decide.mdl` is in effect, and the kind's Fallback_Behavior applies when it is not.
+    - The step requires exactly one candidate per class and raises an internal error otherwise. It is written against the `DecisionModel` interface and the Model_Bundle reader, and tested with stub models that return fixed probabilities; the `decide.dm_*` registry entries are set to implemented in 32, which supplies the featurizers and the trained models, and `decide.weak_supervision` in 49.
+    - _Requirements: 22.12, 22.13, 22.14, 23.8, 23.9_
+  - [ ] 20.5 Record every resolution in the Provenance_Record and the Inference_Report (`src/jsinfer/decide/engine.py`)
+    - For each candidate, selected or rejected, record the producing Technique, the model bits, the data bits, the total exception cost, the number of Observations it rejects, the description length, and the number of Observations scored. Write the list to the report's `decisions` entry (kind, Path, method, candidates, cut-off, caller-supplied `details`) and return, in the `Decision`, a Provenance_Record template that the caller attaches to every Constraint the selected candidate produces.
+    - Record the method (`mdl`, `decision_model`, `priority`, `fallback`) and each candidate's score: its description length for `mdl`, its calibrated probability for `decision_model`, and none for `priority` and `fallback`.
+    - Confidence: the normalized code-length posterior `2^−DL(c) / Σ 2^−DL(c')` for `mdl` (computed relative to the minimum so it cannot underflow); the calibrated probability for `decision_model`; the Laplace default of the record's Support otherwise.
+    - Cut-off: "MDL comparison" with the compared description lengths; "Decision_Model comparison" with both calibrated probabilities and the artifact identifier `dm.<kind>.synthetic` or `dm.<kind>.weak`; "MDL comparison" with the tied outcomes' scores when equal probabilities were broken by the MDL_Scorer; the selected Technique's own cut-off for a priority selection whose candidate carries one (a Learned_Threshold name with its value, or the model-selection criterion's name, "BIC", with its scores); and no cut-off for a constant Fallback_Behavior or a priority selection that applies none.
+    - Fallback: when a Fallback_Behavior resolves the point, set the record's producer to `fallback:<decision point>` and attach a fallback indicator naming the kind's first serving Technique in registry priority order and the reason (`disabled`, `missing-threshold`, `missing-model`, or `withheld`). A fallback indicator is the only place a record may name a Technique that is not in effect. A Fallback_Behavior that produces no Constraint is recorded in the report's decision entry only.
+    - Unit tests: one resolution per method, checking the report entry and the record template field by field.
+    - _Requirements: 19.5, 19.7, 20.1, 20.7, 22.12, 23.9, 28.11, 28.12_
+  - [ ] 20.6 Implement Document_Support and the handling of withheld candidates (`src/jsinfer/decide/support.py`, `src/jsinfer/decide/engine.py`)
+    - Implement the closed-form checks over the `doc` field of the Observations, each returning either "supported" or the facts to record. A Closed_Enum survives iff every distinct value occurs in at least two documents (`documents`, `single_document_values`). A closed Record survives iff every key under `properties` is held by objects of at least two documents (`documents`, `single_document_keys`). A Tuple survives iff the arrays of at least two documents reach the last position (`documents`, `single_document_positions`).
+    - A bound candidate survives iff at least two documents attain the observed extreme, or its value recomputed from the extreme over the other documents still covers the observed extreme (`documents`, `leave_one_out_value`); the check takes the candidate's recomputation as a function of the extreme, which 21.9 supplies from the candidate ladder. With a single document every closing candidate is withheld; for bounds, every candidate other than omission.
+    - In `resolve`, a candidate with `withheld` set takes part in no step, as if its Technique had not produced it. At a point with a withheld Judgment_Call candidate the Decision_Model step is skipped and the remaining steps resolve the point among the other candidates.
+    - List every withheld candidate with its label and facts, in canonical order, under `details["withheld"]` of the decision's report entry. When the remaining candidate is selected by the Fallback_Behavior because no MDL step runs, record the fallback reason `withheld`.
+    - Document_Support is a validation, not a Technique: it has no registry entry and no toggle, and it is never applied to the `type` and `required` Baseline_Rules. The fold check for induced Patterns (14.9, 14.10) is added to this module in 42.
+    - Unit tests: each family with one document, with a value, key, position, or extreme held by one document only, and with full support.
+    - _Requirements: 4.12, 7.11, 15.9, 16.9_
+  - [ ] 20.7 Handle exception-bearing candidates (`src/jsinfer/decide/engine.py`)
+    - Offer a candidate with a non-empty `rejects` row set only when `robust.mdl_exceptions` is in effect; otherwise drop it before any step.
+    - In the MDL step such candidates compete with the widening candidates on description length, and a tie goes to the widening candidate.
+    - When the Decision_Model step or the priority step selects a widening winner W and exception-bearing candidates are offered, compare W in bits with the best exception-bearing candidate E (lowest description length; ties by the mandated tie rule, fewer model bits, then canonical order). E replaces W only when `DL(E) < DL(W)`. W and each exception-bearing candidate are scored by a precomputed `Score` or by `MDLScorer.score(node, view)`. If E wins, the method is `mdl`, the Confidence is the MDL posterior over W and the exception-bearing candidates, the cut-off is "MDL comparison" with their scores, and the earlier step's fallback indicator stays on the record. If W survives, the earlier method, Confidence, and cut-off stand and the compared description lengths go into the decision's details.
+    - The fallback step runs no exception check.
+    - Return the rejected rows of a winning exception-bearing candidate in the `Decision`, so that the caller can turn them into Flagged_Items; producing such candidates and flagging the rows belong to 48.
+    - Unit tests, with stub exception-bearing candidates: `robust.mdl_exceptions` off (dropped), a tie in the MDL step (widening wins), E replacing a Decision_Model winner and a priority winner, W surviving with the compared description lengths in the details, and the fallback step.
+    - _Requirements: 17.2, 17.3, 19.3_
+  - [ ] 20.8 Write property test for the DecisionEngine
+    - Inputs: generated Decision_Points and candidate lists with forced ties, stub Decision_Models with fixed probabilities (synthetic-only and weakly supervised), stub scores, random toggle states, and stub exception-bearing candidates. The test drives the engine directly; no Technique needs to be implemented for it.
+    - **Property 30: DecisionEngine resolution order**
     - **Validates: Requirements 5.3, 6.2, 7.8, 9.4, 10.3, 13.8, 14.2, 17.2, 17.3, 19.3, 19.4, 19.5, 19.7, 22.12, 22.13, 23.8, 23.9, 24.7, 26.3, 28.6, 28.7**
-  - [x] 11.3 Add the exception check and the Decision_Model comparison cut-off (`decide/engine.py`)
-    - After a Decision_Model or priority step picks the widening winner, compare it in bits against eligible exception-bearing candidates while `robust.mdl_exceptions` is on; the best one replaces it only on a strictly smaller DL. Record per the design (method `mdl`, MDL posterior, "MDL comparison" cut-off, Flagged_Items, kept fallback indicator if it wins; compared DLs in details if not). No check at the constant Fallback_Behavior step
-    - A Decision_Model argmax records a "Decision_Model comparison" cut-off with the calibrated probabilities and the Decision_Model artifact; equal probabilities keep the "MDL comparison" cut-off; no-cut-off resolutions keep `cutoff=None`
-    - Update the engine docstring, the unit tests, and the Property 30 reference model. `decide.mdl` stays `implemented=False` here; task 13.1, whose Judgment_Calls are the first Decision_Points it serves, sets it to `implemented=True`
-    - _Requirements: 17.2, 17.3, 20.1, 20.7, 22.12_
 
-- [x] 12. Implement the core of the Value_Inferrer
-  - [x] 12.1 Implement types and latent types (`values/types.py`, `values/latent.py`)
-    - `type` lists exactly the observed types, with `integer` replacing `number` when every number has zero fraction
-    - Latent_Type classifier (mixed integer and decimal strings count as decimal); `x-latent-type`; a `date`/`date-time`/`time` Format candidate when satisfied, otherwise a safe-AST Pattern candidate
-    - _Requirements: 13.1, 13.2, 13.3, 13.9_
-  - [x] 12.2 Implement Format detection (`values/formats.py`)
-    - One Validator check per distinct value for each of the ten Formats; candidates for Formats that at least one string satisfies
-    - _Requirements: 13.4, 13.9_
-  - [x] 12.3 Implement enum estimation (`values/enums.py`)
-    - n, S_obs, f1, f2, Good–Turing, and Chao1 under `enum` equality
-    - Closed-or-Open-Enum through the DecisionEngine: the Decision_Model only while `values.enum_estimation` is on; MDL with the Good–Turing exception charge and ties to open; f1 = S_obs forces open; fallback open
-    - Emit `const` or `enum`. Record the statistics in provenance (closed) or the report (open)
-    - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8_
-  - [x] 12.4 Implement bound selection (`values/bounds.py`)
-    - Candidate ladder: omit, observed extreme, 0, 1- and 2-significant-digit outward roundings, and integer type limits. Drop violated candidates, and negative candidates for lengths and counts
-    - Decide the minimum first, then the maximum given the minimum; ties go to the candidate nearest the extreme; fallback omit
-    - `decide_bound` serves numbers, code-point string lengths (skipped with a selected Format or a Closed_Enum), item counts, and key counts
-    - _Requirements: 16.1, 16.2, 16.3, 16.6, 16.7, 16.8_
-  - [x] 12.5 Implement `ValueInferrer` orchestration (`values/inferrer.py`)
-    - `infer_scalar` in design order: type, enum, string candidates, withholding of rejecting candidates (reported with counts), MDL selection with alternatives in provenance, then bounds. Steps for unimplemented Techniques are skipped by registry state
-    - `key_constraint` emits a Map-key Format under `propertyNames`
-    - `type` records name the Baseline_Rule marker `baseline:type`, with the Laplace Confidence and no resolution
-    - _Requirements: 4.4, 13.6, 13.8, 13.9, 26.13_
-  - [x] 12.6 Write property test for scalar typing
-    - **Property 22: Scalar typing**
-    - **Validates: Requirements 13.1, 13.2, 13.3, 13.4**
-  - [x] 12.7 Write property test for enum statistics
+- [ ] 21. Value_Inferrer core: types, latent types, Formats, Closed_Enums, bounds
+  - [ ] 21.1 Apply the `type` Baseline_Rule to scalar views (`src/jsinfer/values/types.py`)
+    - Emit a `type` Constraint listing exactly the JSON types of the non-flagged values in the view, drawn from `string`, `number`, `integer`, `boolean`, and `null`.
+    - List `integer` when every non-flagged number has a zero fractional part by Number_Value (`1.0` and `1e3` included) and `number` otherwise, never both.
+    - Attach a Provenance_Record whose producer is `baseline:type`, with the Laplace Confidence, no fallback indicator, and no resolution. The rule runs in every run and has no registry entry.
+    - Unit tests: integers written as `1.0`, a mix of integral and non-integral numbers, `null` with strings, and a view of one value.
+    - _Requirements: 13.1, 13.2_
+  - [ ] 21.2 Compute the enum statistics (`src/jsinfer/values/enums.py`)
+    - `enum_statistics(view)` returns, over the non-flagged scalar Observations: n, S_obs, f1 (values observed exactly once), f2 (values observed exactly twice), the Good–Turing unseen mass `f1/n`, and Chao1 as `S_obs + f1²/(2·f2)`, or `S_obs + f1·(f1 − 1)/2` when f2 is 0.
+    - Count distinct values by `enum` equality: use the interned value ids of the ObservationStore, under which `1` and `1.0` are one value and booleans stay apart from numbers.
+    - Return no statistics for a view with no non-flagged scalar Observation.
+    - Unit tests: the two Chao1 branches, all-singleton input, and numeric values that differ only in spelling.
+    - _Requirements: 15.1_
+  - [ ] 21.3 Resolve the Closed-or-Open-Enum Judgment_Call (`src/jsinfer/values/enums.py`)
+    - Build two candidates at the `closed_or_open_enum` Decision_Point: closed (`const` when S_obs is 1, otherwise `enum` of the distinct values, in canonical value order with no value listed twice) and open (type-only coding). The closed candidate's description length is its `enum` literals plus `CAT(value counts)` plus `expected_exception_bits` for f1, so unseen values are charged at the Good–Turing rate.
+    - Judge the Path open without a resolution among candidates when f1 equals S_obs or the Path has no non-flagged scalar Observation; this overrides the Decision_Model and the MDL outcome.
+    - Mark the closed candidate withheld when Document_Support fails (the Observations come from a single document, or a distinct value occurs in exactly one document); the Path is then judged open without consulting the Decision_Model, and the decision entry records the withheld candidate, the document count, and the number of single-document values.
+    - Otherwise resolve through `DecisionEngine.resolve`: the Closed-or-Open-Enum Decision_Model when it and `values.enum_estimation` are both in effect (pass a `features` callable that includes the six statistics); otherwise the lower description length, open on a tie.
+    - When `values.enum_estimation` is disabled, judge every scalar Path open as the Fallback_Behavior, whether or not the Decision_Model is enabled.
+    - Record the six statistics, the outcome, and the resolving Technique: in the Provenance_Record of the emitted `enum` or `const` for a Closed_Enum, and as a rejected enum candidate in the Inference_Report for a Path judged open.
+    - Set the `values.enum_estimation` registry entry to implemented. Unit tests: each override, the tie, the fallback, and both record destinations.
+    - _Requirements: 15.2, 15.3, 15.5, 15.6, 15.7, 15.8, 15.9_
+  - [ ] 21.4 Write property test for enum statistics and closure rules
+    - Inputs: generated multisets of scalar values that include `1`/`1.0` pairs and all-singleton multisets; the statistics are compared with reference formulas written independently in the test.
     - **Property 25: Enum statistics and closure rules**
     - **Validates: Requirements 15.1, 15.3, 15.5**
-  - [x] 12.8 Write property test for bounds
+  - [ ] 21.5 Detect Latent_Types (`src/jsinfer/values/latent.py`)
+    - Classify each distinct non-flagged string as encoding integer, decimal number, boolean, date, date-time, time, or none, from one documented recognizer table: fixed grammars for integer, decimal number, and boolean, and the Validator's `date`, `date-time`, and `time` Formats for the other three.
+    - When the view has at least one non-flagged string and every one encodes the same Latent_Type, record it in an `x-latent-type` annotation and leave `string` as the JSON type. A mix of integer and decimal-number strings is the Latent_Type decimal number.
+    - Produce one `string_constraint` candidate for the Latent_Type: the `date`, `date-time`, or `time` Format when every string satisfies it, otherwise a Pattern that matches every such string, built as a safe regex AST and printed with `print_pattern`.
+    - When `values.latent_type` is disabled, produce no annotation and no candidate.
+    - Set the `values.latent_type` registry entry to implemented. Unit tests: each Latent_Type, the integer and decimal mix, one stray string, and the disabled state.
+    - _Requirements: 13.3, 13.9, 14.5_
+  - [ ] 21.6 Detect Formats (`src/jsinfer/values/formats.py`)
+    - For each of `date-time`, `date`, `time`, `duration`, `email`, `hostname`, `ipv4`, `ipv6`, `uri`, and `uuid`, produce a `string_constraint` candidate when at least one non-flagged string satisfies the Format. A string satisfies a Format iff the Validator accepts it with format assertion enabled.
+    - Check each distinct string once, through cached `{"format": f}` validators, and store the verdicts as one bit mask per distinct string.
+    - Produce no `hostname` candidate unless at least one satisfying string contains a `.`; a spare bit of the verdict mask carries this fact. The rule does not change which strings satisfy the Format.
+    - The function takes any multiset of strings, so the same code serves the keys of a Map Path.
+    - When `values.format` is disabled, produce no candidate. Set the `values.format` registry entry to implemented.
+    - Unit tests: a Path of single-label words (no `hostname` candidate), one dotted hostname among them (candidate produced), and each Format with one satisfying string.
+    - _Requirements: 13.4, 13.9, 13.10_
+  - [ ] 21.7 Withhold and select string Constraint candidates (`src/jsinfer/values/inferrer.py`)
+    - Collect the `string_constraint` candidates of the enabled Techniques through one candidate-source interface (latent type and Format detection in this task; the Semantic_Type_Classifier, corpus suggestions, and pattern induction register as further sources in their own tasks).
+    - Withhold every candidate Format or Pattern that rejects one or more non-flagged strings under the Validator with format assertion enabled; leave the Path's other Constraints untouched and record in the Inference_Report the Path, the candidate, the producing Technique, and the count of rejected strings.
+    - When one or more candidates satisfy every non-flagged string, resolve the `string_constraint` Decision_Point through the engine: emit the candidate with the lowest description length as the only Format or Pattern at the Path and list each other satisfying candidate as an alternative in its Provenance_Record.
+    - When no candidate survives, emit no Format and no Pattern; the Fallback_Behavior of the Decision_Point is "none".
+    - Mark a Pattern that does not parse in the safe regex AST with `details.pattern_fragment = false` in its Provenance_Record.
+    - Unit tests: a Path where a latent-type candidate and a Format candidate both satisfy every string (one emitted, the other listed as an alternative), one rejected candidate with its report record, and no survivor.
+    - _Requirements: 13.6, 13.8, 13.9, 14.5_
+  - [ ] 21.8 Build the bound candidate ladder with exact arithmetic (`src/jsinfer/values/bounds.py`)
+    - For one side (minimum or maximum) of a set of observed quantities, build exactly these candidates: omit; the observed extreme; zero; the extreme rounded outward to one and to two significant digits (a minimum toward negative infinity, a maximum toward positive infinity, so a maximum of 137 gives 200 and 140); and, when every quantity is an integer, each lower limit (for a minimum) or upper limit (for a maximum) of the signed and unsigned 8-, 16-, 32-, and 64-bit ranges.
+    - Remove every candidate that an observed quantity violates and, for string lengths, array lengths, and Map key counts, every negative candidate.
+    - Compute every candidate, the outward rounding, and every comparison with an observed quantity on Number_Values as `int` or `Fraction`; no binary floating-point operation appears in this module. Return an integral candidate as an `int`, so the emitted literal denotes exactly the selected candidate.
+    - Unit tests: 137, −137, 0.1 + 0.2 as parsed, 2^63, a quantity exactly at an integer limit, and lengths (no negative candidate).
+    - _Requirements: 16.2, 16.10_
+  - [ ] 21.9 Decide a bound with the MDL_Scorer and Document_Support (`src/jsinfer/values/bounds.py`)
+    - `decide_bound(quantities, docs, keyword, ctx) -> BoundDecision` resolves the `bound` Decision_Point for one keyword through the engine: the candidate with the lowest description length wins, and a tie goes to the candidate nearest the observed extreme, with omission treated as the farthest.
+    - Decide the minimum first with the maximum omitted, then the maximum given the chosen minimum, because the uniform value code couples the two sides.
+    - Apply Document_Support when the documents of the quantities are known: with a single document, withhold every candidate other than omission; otherwise, when exactly one document attains the observed extreme, withhold each candidate whose value, recomputed from the extreme over the other documents, does not cover the observed extreme. Record the withheld candidates, the document count, and the recomputed value in the decision's report entry.
+    - Every emitted bound is satisfied by every non-flagged quantity it was decided over.
+    - When `values.bounds` is disabled, emit none of `minimum`, `maximum`, `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties`, or `maxProperties`; the Fallback_Behavior of the Decision_Point is omission.
+    - Set the `values.bounds` registry entry to implemented. Unit tests: the tie rule with a stub scorer, the single-document case, a lone extreme document, and the disabled state.
+    - _Requirements: 16.2, 16.6, 16.7, 16.8, 16.9_
+  - [ ] 21.10 Assemble `ValueInferrer.infer_scalar` and the bound entry points (`src/jsinfer/values/inferrer.py`)
+    - `infer_scalar(view, ctx) -> ScalarNode` runs, in this order: the `type` Baseline_Rule; Closed-or-Open-Enum; the string candidate sources; withholding; selection of the string Constraint; pattern induction when the Path has no selected Format and is not a Closed_Enum (an empty source in this task); bounds.
+    - For a Path judged open, emit no `enum` or `const` and still emit the type, Format, Pattern, and bound Constraints. For a Closed_Enum, emit `const` or `enum` and decide no numeric or length bound.
+    - Decide `minimum` and `maximum` separately over the non-flagged JSON numbers of a Path that is not a Closed_Enum; decide `minLength` and `maxLength` separately over the lengths, in Unicode code points, of the non-flagged strings of a Path that has no selected Format and is not a Closed_Enum.
+    - Expose `decide_array_bounds(view, ctx)` (`minItems`/`maxItems` over the element counts of the non-flagged arrays) and `decide_map_bounds(view, ctx)` (`minProperties`/`maxProperties` over the key counts of the non-flagged objects of a Map Path) for the Structure_Analyzer.
+    - `ScalarNode` states whether the Path is a Closed_Enum, so that the walk can place the scalar part in an `anyOf` branch of its own when arrays or objects share the Path.
+    - Unit tests: a Closed_Enum Path (no bounds), a Path with a selected Format (no length bounds), and a mixed string-and-number Path with both bound families.
+    - _Requirements: 15.4, 16.1, 16.3, 16.4, 16.5_
+  - [ ] 21.11 Write property test for scalar typing
+    - Inputs: generated scalar views; the Latent_Type is compared with a reference classifier written in the test, and the Format candidate set with direct calls to the Validator.
+    - **Property 22: Scalar typing**
+    - **Validates: Requirements 13.1, 13.2, 13.3, 13.4**
+  - [ ] 21.12 Write property test for the soundness of value Constraints
+    - Inputs: generated scalar views with random states of the value Techniques; `infer_scalar` is called on the view and every emitted `format`, `pattern`, `enum`/`const`, and bound is checked against every non-flagged value with the Validator. The clauses on induced Patterns, on `propertyNames` and `patternProperties` keys, and on accepted corpus suggestions have no producer in this task and are exercised when 42 (induced Patterns, and `ValueInferrer.key_constraint` for `propertyNames`), 47 (`patternProperties`), and 50 (corpus suggestions) add theirs.
+    - **Property 23: Value Constraints are sound**
+    - **Validates: Requirements 13.6, 13.8, 14.1, 14.3, 14.7, 15.3, 16.6, 24.5**
+  - [ ] 21.13 Write property test for bounds
+    - Inputs: generated sets of numbers, string lengths, item counts, and key counts, each with its document indices; one leg replaces the scorer with a stub that returns equal scores to exercise the tie rule.
     - **Property 26: Bounds come from the candidate ladder**
     - **Validates: Requirements 16.2, 16.3, 16.4, 16.5, 16.7**
-  - [x] 12.9 Write property test for value Constraint soundness
-    - **Property 23: Value Constraints are sound** (scalar and key views under random `run_configs()`)
-    - **Validates: Requirements 13.6, 13.8, 14.1, 14.3, 14.7, 15.3, 16.6, 24.5**
 
-- [x] 13. Implement the Structure_Analyzer components
-  - [x] 13.1 Implement Record-or-Map and Closed-or-Open-Record (`structure/record_map.py`)
-    - MDL Record and Map candidates with ties to Record; fallback Record. A view with no keys becomes a Record with no `properties`, and provenance records that no keys were available
-    - A Map emits one `additionalProperties` value schema, `propertyNames` from `key_constraint`, and `minProperties`/`maxProperties` from `decide_bound`
-    - Closed-or-Open: MDL with the Good–Turing unseen-key charge; fallback open; closed emits `additionalProperties: false`
-    - Set `decide.mdl` to `implemented=True` (enabled by default), so validated runs resolve Judgment_Calls by MDL instead of only by their Fallback_Behaviors
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.7, 4.8, 4.9, 4.10, 4.11, 16.5_
-  - [x] 13.2 Implement Variant grouping (`structure/variants.py`)
-    - Weighted, canonically sorted Object_Signatures
-    - `minhash_lsh`: datasketch seeded from the rng, edges at τ = `lsh.keyset_jaccard`, connected components, then greedy merging while DL decreases along the links of the maximum spanning forest of the LSH-retrieved pairs, strongest first, in passes until one merges nothing. With `lsh.bands` = 1, pairs with equal sketches are the candidates
-    - `dbscan` on the precomputed Jaccard matrix with `sample_weight` = signature counts, so `dbscan.min_samples` counts objects; `dbscan.eps` is the recorded cut-off and `min_samples` goes in the grouping details
-    - `hdbscan` on the same matrix without weights (scikit-learn's `HDBSCAN.fit` takes no `sample_weight`), so `hdbscan.min_cluster_size` counts signatures
-    - Both sample distinct signatures when superlinear (`sample.dbscan`, `sample.hdbscan`); each unsampled signature takes the label of its nearest sampled signature. Noise is grouped by signature into the lowest-DL group
-    - `bernoulli_mixture`: weighted EM with BIC over k = 1…min(#signatures, `variants.max_components`)
-    - Select by MDL or by priority; fallback one Variant
-    - _Requirements: 5.1, 5.2, 5.7, 5.8, 5.9, 5.10, 29.8_
-  - [x] 13.3 Implement Merge-or-Split and branch emission (`structure/variants.py`)
-    - Merge-or-Split through the DecisionEngine. With both the Decision_Model and MDL disabled, keep the priority-selected grouping split
-    - Merge-or-Split is binary: all candidate Variants merge into one, or all stay split. Partial merges are left to the grouping step
-    - One `anyOf` branch per Variant listing only observed fields; `oneOf` when every pair of branches is disjoint per 5.5. A merged Variant gets the union of fields, the intersection as `required`, and the union of types
-    - Disjointness reads only the branches' own keywords (design, Open Decisions); anything it cannot read counts as overlapping, so the branches stay under `anyOf`
-    - _Requirements: 5.3, 5.4, 5.5, 5.6, 5.11_
-  - [x] 13.4 Implement Tuple-or-List and array nodes (`structure/arrays.py`)
-    - MDL Tuple vs List with ties to List (mandated tie rule, 7.10); fallback List. A List emits `items` over all elements. A Tuple emits `prefixItems` from position-filtered views, plus `items: false` when no array is longer
-    - Empty-only Paths emit neither keyword and say so in provenance; `minItems`/`maxItems` come from `decide_bound`; the outcome and its Confidence go in provenance
-    - Array lengths count flagged elements, so the prefix spans the longest array; a position whose elements are all flagged gets the subschema of an empty view. Arrays holding only flagged elements count as empty-only
-    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.9, 7.10, 16.4_
-  - [x] 13.5 Write property test for Variant partitions
+- [ ] 22. Structure_Analyzer components: Record or Map, closed or open Record, Variants and Merge-or-Split, Lists and Tuples
+  - [ ] 22.1 Resolve the Record-or-Map Judgment_Call and build the node (`src/jsinfer/structure/record_map.py`)
+    - `record_or_map(view, ctx) -> RecordMapOutcome`: when no non-flagged object in the view holds a key, classify the Path as Record with no `properties` entries without resolving the Judgment_Call, and record on the `type` Constraint's Provenance_Record that no keys were available.
+    - Otherwise build two candidates at `record_or_map` and resolve them through the engine. Record: key literals in the model bits and presence bits per optional key. Map: one value schema, with key literals in the data bits. Children are represented by their Naive_Merge subschemas. The order is: the Record-or-Map Decision_Model; the lower description length, Record on a tie; Record when the MDL selection Technique is also disabled.
+    - Record node: `properties` lists exactly the keys that occur in at least one non-flagged object, each with a child view (`child_key`) from that key's non-flagged values.
+    - Map node: exactly one value schema under `additionalProperties`, from the wildcard child view (`child_map`) over the non-flagged values of all keys, and no `properties` or `required`; call `decide_map_bounds` for `minProperties` and `maxProperties`. The Map node emits no `propertyNames` until 42 adds `ValueInferrer.key_constraint`.
+    - Attach to the resulting `properties` or `additionalProperties` Constraint a Provenance_Record naming the producing Technique, the Confidence, and the rejected alternative with its score.
+    - Unit tests: identifier-keyed objects, a fixed-field Record, the tie, both toggles off, and the no-keys case.
+    - _Requirements: 4.1, 4.2, 4.3, 4.10, 4.11, 16.5_
+  - [ ] 22.2 Resolve the Closed-or-Open-Record Judgment_Call (`src/jsinfer/structure/record_map.py`)
+    - `closed_or_open(view, outcome, ctx) -> bool` runs for every Path classified as Record.
+    - Build two candidates at `closed_or_open_record`. Closed: one extra model bit plus `expected_exception_bits` over the singleton keys (the Good–Turing charge for unseen keys). Open: the `CAT(n, 0)` extras flag. The order is: the Closed-or-Open-Record Decision_Model; the lower description length; and open as the Fallback_Behavior, which matches Naive_Merge.
+    - Mark the closed candidate withheld when Document_Support fails (the objects come from a single document, or a key under `properties` is held by the objects of exactly one document). The Judgment_Call is then resolved among the remaining candidates without consulting the Decision_Model, and the decision entry records the withheld candidate, the document count, and the number of single-document keys.
+    - Closed: emit `additionalProperties: false`, so the schema rejects any key not listed under `properties`. Open: omit `additionalProperties`.
+    - Unit tests: a withheld closed candidate with `decide.mdl` on and off (fallback reason `withheld`), a stub Decision_Model that closes, and the all-off fallback.
+    - _Requirements: 4.7, 4.8, 4.9, 4.12_
+  - [ ] 22.3 Write property test for object node classification
+    - Inputs: generated collections with planted Records and Maps; the component is called directly on the object view, with a stub Decision_Model that sometimes closes a Record. The hybrid clause and the `propertyNames` clause have no producer in this task and are exercised when 47 and 42 (`ValueInferrer.key_constraint`, `propertyNames`) add theirs. The same test is pointed at whole runs once 25 provides the walk.
+    - **Property 10: Object nodes match their classification**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 4.9**
+  - [ ] 22.4 Compute Object_Signatures and define the grouping interface (`src/jsinfer/structure/variants.py`)
+    - Compute, for an object view, its distinct Object_Signatures (the key set with the JSON type under each key, one of object, array, string, number, boolean, or null, so integers count as number) with their object counts, sorted canonically so that no later step depends on document order.
+    - Define `Grouping`: an assignment of every distinct signature to exactly one candidate Variant, with the producing Technique, the cut-off it applied, and details. By construction every non-flagged object belongs to exactly one candidate Variant and objects with identical signatures share one.
+    - `variant_groupings(view, ctx) -> list[Grouping]` runs only when the view has two or more distinct signatures and returns one grouping per grouping Technique in effect, in registry priority order (`variants.minhash_lsh`, `variants.dbscan`, `variants.hdbscan`, `variants.bernoulli_mixture`).
+    - While all four grouping Techniques are disabled, place all non-flagged objects of the Path in one Variant (the Fallback_Behavior of `variant_grouping`).
+    - Unit tests: signatures that differ only in a value's type, the single-signature case, and the all-off fallback.
+    - _Requirements: 5.1, 5.10_
+  - [ ] 22.5 Implement MinHash/LSH candidate grouping (`src/jsinfer/structure/variants.py`, `src/jsinfer/config/resources.py`, `src/jsinfer/config/run_config.py`)
+    - Register the Resource_Parameters `minhash.perm` (integer ≥ 1, default 128) and `lsh.bands` (integer ≥ 1 that divides `minhash.perm`, default 32) in the table of `config/resources.py`; add to the Run_Configuration validation of 12 (`config/run_config.py`) the check that rejects, as a configuration error before any document is ingested, a pair in which the bands do not divide the permutations.
+    - Compute a seeded MinHash of each signature's key set and retrieve candidate pairs with LSH, with `minhash.perm` permutations and `lsh.bands` bands read as Resource_Parameters (`params=(bands, perm // bands)`; with one band, the candidate pairs are those with equal sketches).
+    - Link the retrieved pairs whose estimated Jaccard similarity is at or above the Learned_Threshold `lsh.keyset_jaccard`; the connected components are the initial groups.
+    - Merge groups greedily while the total description length decreases: take the links of the maximum spanning forest of the retrieved pairs, weighted by estimated Jaccard (ties by signature pair), walk them strongest first, merge the two groups a link joins when that lowers the exact description length of the grouping, and repeat passes until one merges nothing. Groups that LSH never links stay separate.
+    - Record `lsh.keyset_jaccard` as the grouping's cut-off. When the Model_Bundle holds no valid value, the Technique is not in effect and offers no grouping.
+    - Register `lsh.keyset_jaccard` with the objective "adjusted Rand index of the grouping against the ground-truth branches" and set the `variants.minhash_lsh` registry entry to implemented.
+    - Unit tests: two key-set families under a strict and a loose threshold, a greedy merge that lowers the description length and one that does not, one band, a Model_Bundle without the threshold, and a rejected `lsh.bands` that does not divide `minhash.perm`.
+    - _Requirements: 5.2, 5.7, 29.11_
+  - [ ] 22.6 Write property test for mining primitives
+    - Inputs: small generated object sets, with the permutation count at its maximum so that exact Jaccard stands in for MinHash. This task writes the test with the LSH candidate-group leg, compared against an exhaustive reference; the legs for Co_Occurrence_Rule candidates (23), FP-growth itemsets (43), Exclusion_Rule candidates (45), and Key_Constraint, Reference_Constraint, and Functional_Dependency candidates (56) are added by those tasks.
+    - **Property 17: Mining primitives equal brute-force references**
+    - **Validates: Requirements 5.7, 6.3, 9.3, 11.1, 12.1, 12.2, 12.3, 12.4**
+  - [ ] 22.7 Implement DBSCAN and HDBSCAN groupings with noise assignment (`src/jsinfer/structure/variants.py`)
+    - Build the Jaccard distance matrix over the distinct signatures, each read as a set of `(key, type)` entries.
+    - DBSCAN: `DBSCAN(metric="precomputed")` with `sample_weight` set to the signature counts, the radius from `dbscan.eps` and the neighbor count from `dbscan.min_samples` (which therefore counts objects). Record `dbscan.eps` as the cut-off and `dbscan.min_samples` in the grouping's details.
+    - HDBSCAN: `HDBSCAN(metric="precomputed")` on the same matrix, unweighted, with `hdbscan.min_cluster_size` counted in signatures.
+    - Noise: group the noise objects by signature and assign each signature group to the one candidate Variant, among those the clustering formed and a new one of its own, that gives the lowest description length. Noise objects never become Flagged_Items.
+    - Sampling: both Techniques are declared super-linear. When a Path has more signatures than `sample.dbscan` or `sample.hdbscan`, cluster a uniform sample of exactly that many signatures drawn with `rng(technique, path)`, give every unsampled signature the label of its nearest sampled signature (smallest Jaccard distance, ties to the first), and record the sampled and total signature counts for the Provenance_Record.
+    - Register `dbscan.eps`, `dbscan.min_samples`, and `hdbscan.min_cluster_size` with the adjusted-Rand-index objective and set the `variants.dbscan` and `variants.hdbscan` registry entries to implemented. A Technique whose Learned_Threshold is missing from the Model_Bundle offers no grouping.
+    - Unit tests: a noise signature joining a clustered group, a noise signature forming a new group, and the sampled path with a small `sample.dbscan`.
+    - _Requirements: 5.8, 5.9, 26.4, 29.8_
+  - [ ] 22.8 Implement the Bernoulli-mixture grouping with BIC (`src/jsinfer/structure/variants.py`, `src/jsinfer/config/resources.py`)
+    - Register the Resource_Parameters `variants.max_components` (integer ≥ 1, default 10), `variants.em_max_iter` (integer ≥ 1, default 100), and `variants.em_tol` (number > 0, default 1e-6) in the table of `config/resources.py`.
+    - Fit a weighted EM for a Bernoulli mixture over the key-presence bits of the distinct signatures, with counts as weights, for each component count k from 1 up to the smaller of the number of distinct signatures and `variants.max_components`; the iteration cap and tolerance are the Resource_Parameters `variants.em_max_iter` and `variants.em_tol`.
+    - Select k by minimum BIC and assign each signature to its most probable component; initialization uses the seeded stream `rng(technique, path)`, so the result does not depend on document order.
+    - Record "BIC" as the cut-off source with the BIC value of each k. No Variant count is read from the Run_Configuration.
+    - Set the `variants.bernoulli_mixture` registry entry to implemented. Unit tests: two well-separated signature families give k = 2, one family gives k = 1, and the cap at `variants.max_components`.
+    - _Requirements: 5.2, 5.8, 29.11_
+  - [ ] 22.9 Select a grouping and resolve Merge-or-Split (`src/jsinfer/structure/variants.py`)
+    - Resolve `variant_grouping` through the engine over the groupings offered: the lowest description length when `decide.mdl` is in effect, otherwise the grouping of the Technique first in the registry priority order. The number of Variants therefore lies between 1 and the number of distinct signatures and is never read from the Run_Configuration.
+    - Every grouping offered is passed to the MDL_Scorer and listed among the decision's candidates. A priority selection carries the selected grouping's own cut-off (its Technique's Learned_Threshold, or "BIC" for the Bernoulli mixture); a selection by description length records "MDL comparison".
+    - `merge_or_split(view, grouping, ctx) -> list[View]`: when the selected grouping has two or more candidate Variants, resolve the binary Merge-or-Split Judgment_Call. Either every candidate Variant merges into one Variant, or all stay separate; partial merges are left to the grouping step.
+    - The two candidates are: merged (one object schema with the union of properties and the intersection as `required`) and split (`anyOf` of the groups plus `CAT(group sizes)`). The order is: the predicted class of the Merge-or-Split Decision_Model when it is in effect; otherwise the lower description length; and, while that Decision_Model and the MDL selection Technique are both disabled, keep the candidate Variants of the priority-selected grouping separate.
+    - Return one sub-view per final Variant (`view.subset`), in canonical order of their smallest signature.
+    - Unit tests: two disjoint key families (split), near-identical signatures (merge), `decide.mdl` off with two groupings, and all decision Techniques off.
+    - _Requirements: 5.2, 5.3, 5.8, 5.11_
+  - [ ] 22.10 Write property test for the Variant partition invariant
+    - Inputs: generated object sets with two or more Object_Signatures; each grouping Technique is run on its own and all together, with hand-set Learned_Thresholds from a fixture Model_Bundle and small sample sizes so that the sampled paths run too.
     - **Property 11: Variant partition invariant**
     - **Validates: Requirements 5.1, 5.2, 5.9**
-
-- [x] 14. Implement the Dependency_Miner core
-  - [x] 14.1 Implement presence and required fields (`deps/presence.py`)
-    - Packed presence bitsets per field. Base_Fields per Variant and per family. `required` = fields present in every non-flagged object (including `null` values). Each `required` entry records the Baseline_Rule marker `baseline:required` with the Laplace Confidence, with Support counted over the Variant's own non-flagged objects
-    - _Requirements: 6.1, 6.5, 9.1, 9.2, 9.7, 26.13_
-  - [x] 14.2 Implement co-occurrence mining (`deps/cooccurrence.py`)
-    - Candidates from antecedent ⊆ consequent bitset tests. Discard and report candidates whose support is below `cooccur.min_support`
-    - Select by MDL, or by `cooccur.min_confidence` when MDL is off. Canonical transitive reduction with SCCs collapsed to code-point cycles
-    - Emit `dependentRequired`; fallback no rules
-    - Each candidate is its own `cooccurrence_rule` Decision_Point, compared against the Variant subschema without it. Score candidates by exchanging the Record's presence terms (`MDLScorer.presence_bits`) instead of rescoring the subschema
-    - A candidate's Confidence is `(count(a) + 1) / (count(a) + 2)`. Both `cooccur.min_support` and `cooccur.min_confidence` must be in the Model_Bundle for the Technique to be in effect, even under MDL. Set `rules.cooccurrence` to `implemented=True`
-    - _Requirements: 9.3, 9.4, 9.5, 9.6, 9.8, 9.9_
-  - [x] 14.3 Write property test for mining primitives
-    - **Property 17: Mining primitives equal brute-force references** (LSH groups and Co_Occurrence_Rule candidates now; extended in 33.3, 35.3, 44.2)
-    - **Validates: Requirements 5.7, 9.3**
-
-- [x] 15. Implement the soundness check and relaxation
-  - [x] 15.1 Implement the relaxation table (`decide/relax.py`)
-    - Widening candidates per failing keyword, following the design table; Naive_Merge subschemas for new properties and extra elements
-    - `not` contents are never edited (only the whole `not` can be removed). Any edit inside a `oneOf` branch converts that `oneOf` to `anyOf`. `$defs` edits apply at every referencing site
-    - `if` contents are treated like `not` contents (the `if` is removed with its `then` and `else`). An edit that would reach inside a `not` or an `if` removes that keyword as part of the candidate. Removal is offered last for every failing keyword, whole `anyOf`/`oneOf` included; `properties`, `patternProperties`, and `prefixItems` are never removed
-    - A `oneOf` converted beside an existing `anyOf` goes into a new `allOf` entry, and its Change lists the owner's `allOf` Constraint in `after_ids` (and in `before_ids` when the `allOf` already existed)
-    - _Requirements: 3.3, 3.5_
-  - [x] 15.2 Write property test for relaxation monotonicity
-    - **Property 8: Relaxation monotonicity**
-    - **Validates: Requirements 3.5**
-  - [x] 15.3 Implement the soundness loop (`pipeline/soundness.py`)
-    - Compile the covering schema; validate every non-flagged document in parallel chunks, including documents left out of samples; map errors to ConstraintIds
-    - Process failures in document-index and ConstraintId order. Resolve through the `relaxation` Decision_Point (MDL over the Path's Observations plus the failing values, otherwise candidate order). Record RelaxationRecords and recompute Support
-    - Stop at `soundness.max_passes`, then run the removal loop. Write the report counts
-    - Passes 1 to `max_passes − 1` are followed by relaxation; if pass `max_passes` still fails, run the removal loop, so `max_passes = 1` only removes. `passes` counts every validation, the removal loop's included
-    - Count per change record: `relaxations` includes the removal loop's `oneOf`-conversion guard records, so change records number `relaxations + removals`. Removing a whole `anyOf`/`oneOf` is one removal, and replacing a `false` subschema with `true` is a removal
-    - Score candidates on the instances the failing node is evaluated on (a walk of the validated documents along the schema, plus the failing values). Recompute the Support of changed Constraints once, at the end of the stage, and leave Confidence to 17.1
-    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.6, 3.7_
-
-- [x] 16. Wire the Structure_Analyzer walk and the inference pipeline
-  - [x] 16.1 Implement the analyzer walk (`structure/analyzer.py`)
-    - `StructureAnalyzer.analyze(view)` dispatches scalars, objects (record_map → closed/open → variants → merge/split → per-branch recursion → presence and co-occurrence), and arrays
-    - Mixed types: one object branch coexists in a single schema object; two or more object branches become an `anyOf` plus a branch for the remaining types
-    - `type` on object, array, and mixed nodes records the Baseline_Rule marker `baseline:type`
-    - A closed Record with two or more Variant branches puts `additionalProperties: false` inside each branch, never beside the `anyOf`/`oneOf`
-    - A Closed_Enum beside arrays or objects is its own `anyOf` branch; mixed nodes are always `anyOf`. Added branches take the Merge-or-Split or Closed-or-Open-Enum decision's record (design, Open Decisions). The key Format inside `propertyNames` shares the `propertyNames` record
-    - _Requirements: 4.2, 4.3, 5.4, 7.2, 7.3, 9.7, 26.13_
-  - [x] 16.2 Implement pipeline orchestration (`pipeline/infer.py`)
-    - `InferenceContext`; stages config → bundle → ingest → flatten → analyze → soundness → emit layout, each timed under its component name
-    - With the outlier and change-point Techniques unimplemented or disabled, record zero Flagged_Items and "change-point detection not applied"
-    - Errors become `InferenceError(stage, partial_report)`. `NoDocumentsError` for empty input
-    - In-memory documents are ingested as the lines of a virtual `.jsonl` file (design, Open Decisions); `infer_documents(documents, config)` returns a `PipelineResult` for full-run tests
-    - _Requirements: 1.8, 3.2, 17.6, 18.10, 27.7, 27.8, 27.10, 27.13_
-  - [x] 16.3 Write property test for object nodes
-    - **Property 10: Object nodes match their classification** (hybrid clause gated on `structure.hybrid_record_map`, active after 37.1)
-    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 4.9**
-  - [x] 16.4 Write property test for Variant branches
+  - [ ] 22.11 Build the schema nodes for split and merged Variants (`src/jsinfer/structure/variants.py`)
+    - Split: emit exactly one object-schema branch per Variant under `anyOf`, each branch declaring under `properties` only the fields observed in the non-flagged objects of that Variant. Each branch is one Constraint (`…/anyOf/<i>`) carrying the Merge-or-Split record with `details.variant`.
+    - Until the Kernel's disjointness check exists, Variant branches are always emitted under `anyOf`, which is always sound; no code in this task emits `oneOf`. 51 adds the check and switches a Path to `oneOf` when the check accepts every pair of its branches.
+    - Merged: emit one object schema whose `properties` hold the union of the fields of the merged candidate Variants, whose `required` list omits every field absent from at least one of them, and in which each field's child view is the union of that field's values, so each field accepts every JSON type observed for it.
+    - When the Record is closed and the Path is split, put `additionalProperties: false` inside each branch, never beside the `anyOf`.
+    - Record `Support(n_variant, n_variant)` on Constraints inside a Variant branch, counted over the Variant's own non-flagged objects.
+    - Unit tests: three Variants (three branches, each with its own fields), a merge of two candidate Variants with a field of two types, and a closed split Record.
+    - _Requirements: 5.4, 5.5, 5.6_
+  - [ ] 22.12 Write property test for Variant branch emission
+    - Inputs: generated object sets with planted Variants, run through grouping, Merge-or-Split, and node construction. In this task the `oneOf` clause is checked in the form "no `oneOf` is emitted and every branch set is under `anyOf`"; 51 replaces that with the if-and-only-if clause once the Kernel's disjointness check decides it.
     - **Property 12: Variant branch emission**
-    - Judge disjointness by the 5.5 reading in the design's Open Decisions (`pairwise_disjoint`), so the `oneOf` "iff" matches the emitter
     - **Validates: Requirements 5.4, 5.5, 5.6**
-  - [x] 16.5 Write property test for array nodes
+  - [ ] 22.13 Resolve the Tuple-or-List Judgment_Call (`src/jsinfer/structure/arrays.py`)
+    - `tuple_or_list(view, ctx) -> ArrayOutcome` runs when at least one non-flagged array at the Path has a non-flagged element, and uses only the non-flagged arrays. A Path whose arrays are all empty, or hold only flagged elements, resolves no Judgment_Call.
+    - Build two candidates at `tuple_or_list`. Tuple: `prefixItems` up to the maximum array length plus `items: false`. List: a single `items`. Children are represented by their Naive_Merge subschemas, per position for the Tuple.
+    - The order is: the Tuple-or-List Decision_Model; Tuple if the MDL selection Technique is enabled and the Tuple schema has the strictly lower description length; List otherwise (List on a tie, and List as the Fallback_Behavior).
+    - Mark the Tuple candidate withheld when Document_Support fails (the arrays come from a single document, or the arrays of only one document reach the last position). The Judgment_Call is then resolved among the remaining candidates without consulting the Decision_Model, and the decision entry records the withheld candidate, the document count, and the number of positions only one document reaches.
+    - Record the outcome and its Confidence for the Provenance_Record of the `items` or `prefixItems` Constraint.
+    - Unit tests: fixed-length heterogeneous arrays from several documents (Tuple), the same arrays from one document (withheld, List), variable-length homogeneous arrays (List), and the tie.
+    - _Requirements: 7.1, 7.10, 7.11_
+  - [ ] 22.14 Build List, Tuple, and empty-array nodes (`src/jsinfer/structure/arrays.py`)
+    - List: one element schema under `items`, from the element view over every non-flagged element of every non-flagged array, and no `prefixItems`.
+    - Tuple: under `prefixItems`, one schema for each position from 0 to one less than the maximum array length, each from the element view filtered to that position (`view.elements(pos)`); emit `items: false` when no non-flagged array is longer than the `prefixItems` list. `prefixItems` and `items: false` are separate Constraints, and both carry the Tuple-or-List record.
+    - Array lengths count every element, flagged ones included, so the prefix spans the longest array and `items: false` never rejects a non-flagged array; a position whose elements are all flagged gets the subschema of an empty view.
+    - Only empty arrays: emit the array schema without `items` and without `prefixItems`, and record on the `type` Constraint's Provenance_Record that no element was observed.
+    - Call `decide_array_bounds` for `minItems` and `maxItems`.
+    - Unit tests: a Tuple with one shorter array, a List, an empty-only Path, and a Tuple position with only flagged elements.
+    - _Requirements: 7.2, 7.3, 7.4, 7.9, 16.4_
+  - [ ] 22.15 Write property test for array node classification
+    - Inputs: generated array collections with planted Tuples, Lists, and empty-only Paths, spread over several documents so that Document_Support does not withhold every Tuple; a stub Decision_Model forces each outcome in turn.
     - **Property 14: Array nodes match their classification**
     - **Validates: Requirements 7.2, 7.3, 7.4, 7.9**
-  - [x] 16.6 Write property test for required fields
+
+- [ ] 23. Dependency_Miner core: required and optional fields, co-occurrence
+  - [ ] 23.1 Compute field presence and apply the `required` Baseline_Rule (`src/jsinfer/deps/presence.py`)
+    - `presence(variant) -> Presence` builds one packed bitset per field over the non-flagged objects of the Variant. A field is present in an object when the object holds the field's key with any value, `null` included.
+    - Classify each field present in at least one non-flagged object as exactly one of required (present in every non-flagged object of the Variant) or optional (present in at least one but not every one), using only the objects of that Variant.
+    - Emit in the Variant's subschema a `required` list holding every required field and no optional field, in code-point order; each entry is one Constraint (`…/required/<i>`).
+    - Attach to each entry a Provenance_Record whose producer is `baseline:required`, with the Laplace Confidence, no fallback indicator, and no resolution. The rule runs in every run, has no registry entry, and is never subject to Document_Support.
+    - Unit tests: a field holding `null` in every object (required), a field missing once (optional), and two Variants with different `required` lists.
+    - _Requirements: 9.1, 9.2, 9.7_
+  - [ ] 23.2 Write property test for required fields
+    - Inputs: generated Variants (object views) with `null`-valued fields. The clause "this set equals the Variant's Base_Fields" is checked against the set of always-present fields computed in the test; 43 points it at the Base_Fields it identifies.
     - **Property 18: Required means always present**
     - **Validates: Requirements 6.1, 9.1, 9.2, 9.7**
-  - [x] 16.7 Write property test for emitted rules
-    - **Property 19: Emitted rules hold and are irredundant** (checks are generic over emitted rule keywords and annotations, so later Techniques are covered automatically)
+  - [ ] 23.3 Mine Co_Occurrence_Rule candidates and apply the Support filter (`src/jsinfer/deps/cooccurrence.py`)
+    - Report a candidate "antecedent implies consequent" when, among the non-flagged objects of the Variant, the antecedent field is present in at least one object, the consequent is a different field that is optional for the Variant, and every object that holds the antecedent also holds the consequent. Test "antecedent rows ⊆ consequent rows" on the packed bitsets.
+    - The Support count of a candidate is the number of non-flagged objects of the Variant that hold the antecedent. Discard a candidate whose Support count is below the Learned_Threshold `cooccur.min_support` before any selection, and record in the Inference_Report the Path, the Variant, the antecedent, the consequent, the Support count, and the threshold value.
+    - Produce candidates in code-point order of antecedent, then consequent.
+    - Register `cooccur.min_support` and `cooccur.min_confidence` at `cooccurrence_rule`, both with the objective "F1 of emitted `dependentRequired` against the source schema". The Technique is in effect only when the Model_Bundle holds valid values of both, also while MDL selects; otherwise no candidate is reported, no Co_Occurrence_Rule is emitted, and the substitution is recorded.
+    - When `rules.cooccurrence` is disabled, report no candidates (the Fallback_Behavior "no rules"); the schema then holds no `dependentRequired` entry from this miner and still holds the `required` lists.
+    - Unit tests: a chain a → b → c, a symmetric pair, a consequent that is required (no candidate), a candidate below the threshold, and a Model_Bundle lacking one of the two thresholds.
+    - _Requirements: 9.3, 9.6, 9.9, 20.6_
+  - [ ] 23.4 Extend the property test for mining primitives
+    - Add the Co_Occurrence_Rule leg: on small generated object sets, the candidates of 23.3 before the Support filter equal those of an exhaustive reference that checks every ordered pair of fields.
+    - **Property 17: Mining primitives equal brute-force references**
+    - **Validates: Requirements 5.7, 6.3, 9.3, 11.1, 12.1, 12.2, 12.3, 12.4**
+  - [ ] 23.5 Select Co_Occurrence_Rules (`src/jsinfer/deps/cooccurrence.py`)
+    - Each candidate that passes the Support filter is its own `cooccurrence_rule` Decision_Point with two candidates: the Variant subschema with the rule and the same subschema without it. Candidates are judged independently, never added one at a time.
+    - While the MDL selection Technique is enabled, select the rule when adding it lowers the total description length. Score by exchanging the model bits of the entry and the Record's presence terms (`MDLScorer.presence_bits`), which equals full scoring because a rule that every object satisfies changes nothing else. The Confidence is the MDL posterior of the two candidates.
+    - While the MDL selection Technique is disabled, select the rule when its Confidence is at or above the Learned_Threshold `cooccur.min_confidence`, with the Confidence given by the Laplace rule over the antecedent's objects, `(count(a) + 1) / (count(a) + 2)`, and the threshold recorded as the cut-off.
+    - Put the Support count of a selected rule in the details of its Provenance_Record.
+    - Unit tests: a rule that pays for itself and one that does not, and the threshold path with `decide.mdl` off, with `cooccur.min_confidence` as the recorded cut-off.
+    - _Requirements: 9.4, 9.8, 20.1_
+  - [ ] 23.6 Reduce the selected rules and emit `dependentRequired` (`src/jsinfer/deps/cooccurrence.py`)
+    - `cooccurrence(variant, presence, groups, ctx) -> list[Rule]` takes the Variant's `required` list and the Field_Group cliques in `groups` as given rules (the list of groups is empty until Field_Groups exist) and returns the subset of the selected rules to emit.
+    - Compute the subset on the implication graph over the Variant's fields: one edge per selected rule, with the `required` list and the Field_Group `dependentRequired` entries taken as given. (1) Find the strongly connected components, the maximal sets of fields that all imply one another. A component of two or more fields contributes exactly the rules of one cycle through its fields in Unicode code-point order (each field implies the next, and the last implies the first), leaving out a rule already derivable from the given entries. (2) Between components, take the transitive reduction of the condensed graph and emit one rule per remaining edge, from the code-point-smallest field of the source component to the code-point-smallest field of the target component, only when it is not derivable from the other emitted rules, `required`, and the given Field_Group entries. The result derives every selected rule, holds no rule derivable from the rest, and does not depend on mining order.
+    - Emit each remaining rule in the Variant's subschema as a `dependentRequired` entry that requires the consequent whenever the antecedent is present. Rules with one antecedent share one entry `dependentRequired[antecedent]`, with consequents in code-point order; an antecedent that also has a given Field_Group entry merges into that entry and is not emitted twice.
+    - Attach the selection decision's Provenance_Record to each emitted entry, with `Support(n_variant, n_variant)`.
+    - Set the `rules.cooccurrence` registry entry to implemented.
+    - Unit tests: a chain a → b → c with a → c selected drops a → c; a three-field cycle a, b, c, selected in any form, emits exactly a → b, b → c, c → a; two cycles joined by a rule emit one rule between their code-point-smallest fields; a rule made redundant by `required` or by a given Field_Group entry is not emitted; two input orders give the same output.
+    - _Requirements: 9.4, 9.5_
+  - [ ] 23.7 Write property test for emitted rules
+    - Inputs: generated Variants with planted implications, cycles, and required fields, run with the MDL selection Technique on and off and with hand-set thresholds from a fixture Model_Bundle. This task writes the test with the Co_Occurrence_Rule clauses: every emitted `dependentRequired` entry holds on all non-flagged objects; no emitted rule has a Support count below `cooccur.min_support`, nor, while MDL selection is disabled, a Confidence below `cooccur.min_confidence`; the emitted rules derive every selected rule and none is derivable from the others plus `required`; the emitted subset equals the one a reference implementation of the canonical-cycle rule, written independently in the test, computes, whatever the order the rules were mined in. The Exclusion_Rule clauses are added in 45 and the `x-key`, `x-references`, `x-functional-dependency`, and `uniqueItems` clauses in 56.
+    - **Property 19: Emitted rules hold and are irredundant**
     - **Validates: Requirements 9.5, 9.6, 11.5, 11.6, 12.6, 12.7, 12.8**
-  - [x] 16.8 Write property test for soundness
-    - **Property 7: Soundness on non-flagged documents**
-    - **Validates: Requirements 3.1, 3.2, 3.3, 3.7, 8.3**
-  - [x] 16.9 Write property test for soundness bookkeeping
-    - **Property 9: Soundness bookkeeping** (with injected over-tight Constraints)
-    - **Validates: Requirements 3.4, 3.6**
-  - [x] 16.10 Extend the round-trip property test to Inferrer outputs
-    - **Property 3: Schema emit/load round trip** (Schema_Models produced by `pipeline.infer`)
-    - **Validates: Requirements 2.7**
 
-- [x] 17. Implement provenance finalization and the explanation file
-  - [x] 17.1 Implement provenance finalization (`core/provenance.py`, `pipeline/infer.py`)
-    - After soundness, compute Support for every Constraint over non-flagged Observations. Totals for Constraints inside `$defs` cover every referencing Path
-    - Apply the default Confidence where no alternative exists. Ensure exactly one record per Constraint, including fallback- and Baseline_Rule-produced ones
-    - Refresh Laplace default Confidences from the recomputed Support, since the soundness loop (15.3) updates Support but not Confidence
-    - Reuse the soundness check's walk (`pipeline.soundness.count_instances`) for Support, run finalization inside the `Soundness` stage, and treat a missing or orphaned record as an internal error (`ProvenanceError`). Give Constraints inside subschemas a 3.3 relaxation creates the relaxation decision's record. Default and kept Confidences per the design's Open Decisions (`KIND_SPECIFIC_CONFIDENCE`)
-    - _Requirements: 26.1, 26.2, 26.4, 26.10, 26.13_
-  - [x] 17.2 Implement the explanation file and inline provenance (`io/emit.py`, `io/load.py`)
-    - `explanation.json` = `{"format": 1, "records": {pointer: record}}`, sorted and written with the canonical encoder; `load_explanation` reads it back
-    - Optional `x-provenance` per schema object, matching the explanation entries
-    - `x-provenance` maps pointers relative to its schema object to records; the setting is `output.inline_provenance`. Records and emitted Constraints must correspond one to one, or `EmitError`
-    - _Requirements: 26.5, 26.6, 26.7, 26.8_
-  - [x] 17.3 Implement explain rendering (`core/provenance.py`)
-    - `explain(schema, explanation, pointer)` resolves the pointer and prints every record field as plain text. Typed errors cover unreadable or unparseable inputs, invalid pointers, unresolved pointers, and missing entries
-    - `explain` lives in `io/explain.py` and is re-exported from `core.provenance`; it returns the text. Paths are files, `bytes`/`str` are content. A pointer to a schema object is an error that lists its Constraints
+- [ ] 24. Soundness check and relaxation, with the Kernel's Widening check
+  - [ ] 24.1 Validate every document that is not a Flagged_Document and group the failures by Constraint (`src/jsinfer/pipeline/soundness.py`)
+    - Write `validate_pass(model, covered_docs, flags, ctx)`. It lays out the covering schema with the Schema_Emitter, compiles it once per worker with the Validator (`format` asserted), and validates every covered document that is not a Flagged_Document, including documents left out of any sample a Technique drew. Flagged_Documents are never validated.
+    - Read documents from the `DocumentStore` in chunks of `ingest.chunk_size` and run the chunks through the worker-pool helpers of 10 (joblib, at most `workers` processes, each task limited to one thread). Chunk boundaries depend only on the data, and results are merged in chunk order, so the outcome is the same for every worker count.
+    - Convert each Validator error (keyword location, instance location) to a `ConstraintId` through the pointer map of the layout taken at the start of the pass. For a failing `anyOf` or `oneOf`, validate the instance against each branch separately to get branch-local errors.
+    - Return failure groups keyed by target (node pointer, keyword, item), each with its failing values and the indices of the documents that triggered it. Order the groups by the JSON Pointer of the target's node compared token by token, then keyword, then item, all in code-point order, never by document order.
+    - The function takes a list of (schema, covered document indices) pairs so that one call per Schema_Version works when 60 adds segments; with no change point there is one pair.
+    - Unit tests: a document excluded from a sample is still validated; a Flagged_Document is skipped; the group order is the same for two permutations of the documents and for 1 and 4 workers.
+    - _Requirements: 3.2, 27.5, 27.6, 29.4_
+  - [ ] 24.2 Build the instance walk that finds the values a schema node is evaluated on (`src/jsinfer/pipeline/soundness.py`)
+    - Write `count_instances(model, docs, flags)`. It walks each document along the schema and yields, for every schema node, the instances the node is evaluated on and whether each is accepted. `anyOf` and `oneOf` branches, `contains`, `then`, and `else` see only the instances they apply to. The contents of `not` are not walked. A `$ref` continues the walk in the `$defs` entry it names, so an entry collects the instances of every referencing site.
+    - The walk covers the non-flagged Observations: it skips a document that is itself a Flagged_Item, never enters a Flagged_Item inside a document, and never counts the key of a flagged member.
+    - Write `instances_of(node)`, which flattens the instances of one node into a small `ObservationStore` and returns its root view, adding the failing values when the walk missed them. The view's logical Path is the node's Path with the fewest steps, ties broken by Path order.
+    - Unit tests: a branch of an `anyOf` sees only the instances it accepts; a `$defs` entry referenced from two sites sees both sites' instances; a node under `not` sees none.
+    - _Requirements: 3.3, 3.6, 26.2_
+  - [ ] 24.3 Implement the relaxation table (`src/jsinfer/decide/relax.py`)
+    - Write `candidates(failure_group, model, ctx) -> list[Candidate]`, one row per failing keyword, each candidate a relaxed copy of the covering schema: `type` adds the missing types (`integer` becomes `number` for a non-integral value) or is removed; `enum` and `const` add the values (`const` becomes `enum`) or are removed; `format` is removed; a bound moves to the next looser candidate of the bound ladder that accepts the failing values, or is removed; `required[i]`, `dependentRequired[k]`, `uniqueItems`, `contains`, `propertyNames`, and `not` are removed.
+    - `additionalProperties: false` adds the new properties with their Naive_Merge subschemas, or is removed. `items: false` is replaced by the Naive_Merge `items` of the extra elements, or removed. A `false` subschema elsewhere is replaced by the Naive_Merge of the failing values, or by `true`, which is its removal. `Widens` accepts a `false` subschema becoming any schema, and accepts an added property only when its subschema widens every subschema that could have governed that property before (`additionalProperties` and every `patternProperties` subschema); an added property that a `patternProperties` subschema keeps out is therefore refused in 24.4, and the next candidate is taken.
+    - `anyOf` with no matching branch: relax one branch using its branch-local failures, add a branch that is the Naive_Merge of the failing values, or remove the `anyOf`. `oneOf` with zero or several matches: convert to `anyOf` (not offered alone when no branch matches), convert together with each `anyOf` candidate, or remove. Beside an existing `anyOf`, the converted branches become a new `allOf` entry `{"anyOf": [...]}`.
+    - `pattern`: re-induce a Pattern on the union of the strings it accepted and the failing strings, checked against all of them with the Validator, or remove. The inducer is passed in as a function. The candidate is offered only when the `values.pattern` Technique is in effect, so the stage is built and tested with a stub inducer until 42 supplies pattern induction.
+    - Keep every candidate a Widening: never edit a Constraint inside a `not` or an `if`, only remove the whole `not`, or the `if` together with its `then` and `else`. Any edit inside a `oneOf` branch also converts that `oneOf` to `anyOf`. An edit inside a `$defs` entry applies to every referencing site, so it is at a Monotone_Position only when every reference to the entry is, followed through other entries. Decide this with the adapter's `is_monotone(root, pointer)` of 7, the wrapper of the Kernel's `IsMonotone`; the table does not reimplement the rule. When the entry is reached from inside a `oneOf` branch, the candidate also converts each such `oneOf` to `anyOf`; when it is reached from inside a `not` or an `if`, the candidate removes that `not`, or that `if` with its `then` and `else`. No candidate is withheld, so removal stays available. Never remove `properties`, `patternProperties`, or `prefixItems`, which are not Removable_Keywords. A removal names its target in the pointer forms of the Kernel's `RemoveAt` (6): a whole keyword by its own pointer, one `required` entry as `…/required/<i>`, one entry of a `dependentRequired` list as `…/dependentRequired/<key>/<i>` (removing the Constraint `dependentRequired[k]` removes every entry of that key's list, and the key with the last one), `if` together with its `then` and `else`, and never a `then` or `else` alone while an `if` stands beside it. When a removed subschema is still the target of a `$ref`, move it to the root `$defs` under the name `relaxed`, `relaxed-2`, and so on, and rewrite the references.
+    - Give each candidate an `order_key` for the documented order, least widening first: add a value or type, loosen to the next bound candidate, re-induce, then remove. Removal is always the last candidate of every row, including `anyOf` and `oneOf` as a whole.
+    - Unit tests: one example per table row; one each for an edit inside a `oneOf` branch, inside a `$defs` entry, and for a `$ref` target moved to `$defs`; and an over-tight keyword in a `$defs` entry referenced from a property inside a `oneOf` branch, which is relaxed together with the conversion and accepted by `Widens`.
+    - _Requirements: 3.3, 3.5, 3.7_
+  - [ ] 24.4 Select each relaxation with the DecisionEngine and pass it through the Kernel's Widening check (`src/jsinfer/pipeline/soundness.py`)
+    - For each failure group, in target order, resolve a `relaxation` Decision_Point over the candidates of 24.3. With `decide.mdl` enabled, score every candidate on the view from `instances_of` plus the failing values, with an MDL_Scorer rooted at the candidate's relaxed copy so that `$ref` hops see edited `$defs` entries. With `decide.mdl` disabled, the Fallback_Behavior takes the first candidate in the documented order. Score each group against the model as relaxed so far in the pass.
+    - Convert the whole covering schema before and after the selected change through the adapter and call the Kernel's `Widens`. A yes applies the change and records it as kind a. A no on a re-induced Pattern (alone, or as the edit inside a relaxed or added branch) applies the change and records it as kind b; the next validation pass over every document that is not a Flagged_Document then establishes monotonicity for it.
+    - A no on any other candidate drops the candidate, lists it under `soundness.rejected_edits` in the Inference_Report, and selects again among the rest. Removal is always available as the last candidate.
+    - The conversion of the schema before the change cannot fail here, because `run_soundness` converts every covering schema before the first pass of every run (24.5). A relaxed copy the adapter refuses (`KernelUnsupported`) is an internal error that fails the run as an `InferenceError` at stage `Soundness`, like any other schema outside the Kernel_Fragment.
+    - Append a `RelaxationRecord` to the `changes` of the relaxed Constraint's Provenance_Record: the Constraint before and after, the triggering document indices, the candidates considered with their scores, and the kind. Write the decision's cut-off in the report's `relaxation` entry. Constraints inside a subschema the relaxation creates (Naive_Merge properties, elements, or branches, a replaced `false` subschema, a new `allOf`) take the relaxation decision's Provenance_Record.
+    - Unit tests: a stub Kernel that answers no drops the candidate and reports it; a re-induced Pattern is recorded as kind b; the selected relaxation is the same for two permutations of the documents.
+    - _Requirements: 3.3, 3.5, 3.6, 27.6_
+  - [ ] 24.5 Run the pass loop and the removal loop, bounded by the Kernel's keyword count (`src/jsinfer/pipeline/soundness.py`, `src/jsinfer/config/resources.py`)
+    - Write `run_soundness(model, covered_docs, flags, ctx)`. Before the first validation pass, convert every covering schema (the single schema, or each Schema_Version's once 60 adds segments) through the adapter's `to_root`, which also runs `Guard`. A `KernelUnsupported` (a construct outside the Kernel_Fragment, a `$ref` that is not to the document's own `$defs`, or a schema that is not Guarded) is an internal error that fails the run as an `InferenceError` at stage `Soundness` (exit 1) with the construct and its JSON Pointer; no output is written. This happens in every run, whether or not a relaxation follows, so every run that produces outputs also produces a Certificate (28.1), and it is the per-run check behind criteria 2.13 and 8.9.
+    - One pass is one validation of every document that is not a Flagged_Document. Passes 1 to `soundness.max_passes − 1` are each followed by relaxation. When pass `soundness.max_passes` still finds a failure, the removal loop runs instead, so a value of 1 removes without relaxing. Register the Resource_Parameter `soundness.max_passes` (an integer of at least 1, default 5) in the registry of 12, and read it through the `ResourceReader` so the read is listed in the report.
+    - The removal loop removes, in target order, each Constraint the Validator reports as failing, then validates again, and repeats until no document fails. Every removal is the removal of a Removable_Keyword (or the replacement of a `false` subschema with `true`), goes through `Widens`, and must be kind a. Each removal is made with the adapter's `remove_at` of 7 in the pointer forms of `RemoveAt` listed in 24.3, one Removable_Keyword per call, so a `dependentRequired[k]` Constraint with several dependents takes one call per entry and is still one removal record. A Constraint that is not at a Monotone_Position (ask the adapter's `is_monotone(root, pointer)` of 7, which also follows the references to a `$defs` entry) is removed only together with its enclosing `not` or `if`, or after each enclosing `oneOf` is converted to `anyOf` (a guard change, recorded as a relaxation).
+    - In the removal loop a guard change must not raise `KeywordCount`. A `oneOf` in a schema object without an `anyOf` is converted in place: the count is unchanged, and the removal that follows lowers it. A `oneOf` beside an existing `anyOf` is removed whole instead of being moved into a new `allOf` entry, which would add a keyword; that is one Removable_Keyword removal at a Monotone_Position.
+    - Before the first round, read `KeywordCount` of the covering schema from the Kernel; it is the schema's Removable_Keyword count. Read it again after each round. If a round did not lower the count, the loop would start a round beyond the count it started with, or `Widens` refuses a removal, raise an internal error that fails the run as an `InferenceError` at stage `Soundness`. K4 says none of these can happen.
+    - The stage ends only after a pass with no failure. Count every validation, including those of the removal loop, as a pass.
+    - Unit tests: `soundness.max_passes = 1` goes straight to removal; an injected over-tight Constraint inside a `oneOf` branch is removed after the in-place conversion; the same inside a `oneOf` beside an `anyOf` removes the `oneOf` whole and lowers `KeywordCount`; a stub `KeywordCount` of 0 with a failing schema raises the internal error; an injected construct outside the Kernel_Fragment (a `multipleOf`), and an unguarded `$ref` cycle, each fail the run at stage `Soundness` although no document fails validation.
+    - _Requirements: 2.13, 3.3, 3.5, 3.7, 3.8, 8.9, 36.5_
+  - [ ] 24.6 Record the soundness counts and change records (`src/jsinfer/pipeline/soundness.py`, `src/jsinfer/core/report.py`)
+    - Write the `soundness` section of the Inference_Report, once per Schema_Version or once for the single schema: the number of Flagged_Documents, documents validated, documents that failed the first pass, relaxations applied, Constraints removed, passes performed, and whether the pass limit was reached. Report zero for every count with no occurrence.
+    - Count per change record: `relaxations` is the records written by 24.4 plus the removal loop's guard records; `removals` is the removal loop's removal records. The number of change records therefore equals `relaxations + removals`.
+    - Write one `RemovedConstraint` entry per removal in the report: the JSON Pointer of the Constraint in the layout just before the change (so `…/required/<i>` uses the emitted index), the Constraint before the change, the triggering document indices, and the kind. Removing a whole `anyOf` or `oneOf` is one entry, and replacing a `false` subschema with `true` is a removal.
+    - Record per change, in the same section, whether the Widening check accepted it (kind a) or the next validation pass covered it (kind b), beside the `rejected_edits` list of 24.4.
+    - At the end of the stage, recompute once the Support of every Constraint whose record received a change, over the final model and the validated documents, with `count_instances`. `consistent` equals `total` except for `anyOf` and `oneOf` branch Constraints, whose consistent count is the instances the branch accepts. The loop does not change Confidences.
+    - _Requirements: 3.4, 3.5, 3.6_
+  - [ ] 24.7 Return a digest token from the last clean pass and make the Schema_Emitter check it (`src/jsinfer/pipeline/soundness.py`, `src/jsinfer/io/emit.py`)
+    - Define `model_digest(model)`: the SHA-256 of the canonical bytes of the model's layout with Provenance_Records and every `x-` keyword left out.
+    - `run_soundness` returns the model together with a token holding this digest, taken right after the last pass that found no failure.
+    - The Schema_Emitter's entry point for a run's outputs takes the token, recomputes the digest, and refuses to write when the two differ or when no token is given. The refusal is an internal error reported at stage `Schema_Emitter` and handled as an unrecoverable error, so the run writes no schema.
+    - The token and the entry point work per emitted schema: `run_soundness` returns one token for each covering schema it was given, and the entry point is called once per emitted schema with that schema's token. With a single schema that is one call; 60 calls it once for each Schema_Version and once for the combined schema, each with its own token.
+    - After the token is taken, the pipeline may change the model only by attaching Provenance_Records and `x-` annotations; the Kernel's annotation neutrality (K8) covers those additions.
+    - Unit tests: attaching a Provenance_Record or an `x-` annotation after the pass leaves the digest unchanged; tightening a bound after the pass makes the Schema_Emitter refuse.
+    - _Requirements: 3.1, 3.9_
+  - [ ] 24.8 Write property test for relaxation monotonicity
+    - Inputs are generated Schema_Models, document sets, and sequences of table operations, including edits inside `oneOf` branches and removals of `not`. Pattern re-induction uses a stub inducer. The test also injects narrowing edits (a change inside a `not`, a removal inside a `oneOf` branch without the conversion) and expects the Widening check to refuse them.
+    - **Property 8: Relaxation monotonicity**
+    - **Validates: Requirements 3.5**
+  - [ ] 24.9 Write property test for soundness bookkeeping
+    - The test injects over-tight Constraints into a Naive_Merge model before the soundness stage and runs the stage with small values of `soundness.max_passes`. The count of Flagged_Documents is exercised with a hand-built flag set until 48 adds outlier detection.
+    - **Property 9: Soundness bookkeeping**
+    - **Validates: Requirements 3.4, 3.6, 3.8**
+
+- [ ] 25. The Structure_Analyzer walk and the inference pipeline
+  - [ ] 25.1 Build the InferenceContext and the stage runner (`src/jsinfer/pipeline/infer.py`, `src/jsinfer/core/workers.py`)
+    - The `InferenceContext` (`Ctx`) that the decision, value, and structure components take as `ctx` is defined by 20 in `src/jsinfer/decide/context.py` and holds the effective Run_Configuration, the Technique registry, the Model_Bundle, the DecisionEngine, the MDL_Scorer, the `in_effect` callable, the RNG factory, the report builder, the Resource_Parameter and Learned_Threshold readers of 12, and the Validator. Do not define a second context type: extend that one with the fields the pipeline needs (the stage runner, the flag set, the `DocumentStore` handle), re-export it from `pipeline/infer.py`, and build it in `run_pipeline` from the effective Run_Configuration as the test fixture `make_ctx` of 20 does.
+    - Add `core.workers.stopwatch()`, a context manager that yields the elapsed wall-clock seconds. It is the one clock read open to modules outside the allow-list of the static source rules; the stage runner uses it, and so does `certify` (28.3).
+    - Write a stage runner that runs each stage under the name of the component that executes it (`Run_Configuration`, `Model_Bundle`, `Ingestor`, `ObservationStore`, `Outlier_Detector`, `Version_Detector`, `Structure_Analyzer`, `Soundness`, `Schema_Emitter`) and records its wall-clock runtime in seconds in the report's `timings` section.
+    - An error that no skip, fallback, or record-and-continue rule covers becomes an `InferenceError` carrying the stage name and a partial Inference_Report that names the failed stage, describes the error, and lists each completed stage with its runtime. A `ConfigError` passes through unchanged.
+    - Every stage that runs parallel work does so through the worker-pool helpers of 10, passing its stage name: at most `workers` processes, results in submission order, one thread per task. An error raised inside a worker reaches the stage runner with the stage name attached and is handled like any other stage error.
+    - Unit tests: a stage that raises yields a partial report with the completed stages and their runtimes; an error raised inside a worker process yields the same partial report, naming the stage; a `ConfigError` is not wrapped.
+    - _Requirements: 27.8, 27.10, 27.13, 29.4_
+  - [ ] 25.2 Implement the Structure_Analyzer dispatch and the object step (`src/jsinfer/structure/analyzer.py`)
+    - Write `StructureAnalyzer.analyze(view, ctx) -> SchemaNode`, which dispatches on the JSON types present in the view. Scalar rows go to `Value_Inferrer.infer_scalar`. Array rows and mixed-type nodes are added in 25.3 and 25.4; until then the dispatch raises `NotImplementedError` for them.
+    - Objects: resolve Record-or-Map; for a Record resolve Closed-or-Open-Record; generate the candidate Variant groupings, select one, and resolve Merge-or-Split (all candidate Variants merge, or all stay separate). For each final branch, recurse into the child views, then mine required and optional fields and Co_Occurrence_Rules. A Record lists under `properties` exactly the observed keys; a Map has one `additionalProperties` value schema inferred at the wildcard step and no `properties` or `required`; a view whose objects hold no key is a Record with no `properties`, with that fact in the record on `type`.
+    - Two or more Variants become one branch each under `anyOf`, each declaring only its own fields; a closed Record puts `additionalProperties: false` inside each branch. A merged Variant has the union of the fields, `required` only for fields present in every merged candidate, and the union of the observed types per field. `oneOf` is not emitted here; 51 adds it with the Kernel's disjointness check.
+    - Leave named call points, each used only when its Technique is in effect, for the hybrid partition (47), the Discriminator (44), Field_Groups (43), and Exclusion_Rules (45).
+    - Unit tests: a Record, a Map, a view whose objects hold no key, two Variants kept separate, and two candidate Variants merged.
+    - _Requirements: 4.2, 4.3, 4.11, 5.4, 5.6, 9.7_
+  - [ ] 25.3 Implement the array step of the Structure_Analyzer walk (`src/jsinfer/structure/analyzer.py`)
+    - Arrays: resolve Tuple-or-List, recurse into the element views (filtered by position for a Tuple), and decide the item-count bounds. A Tuple's prefix spans the longest array, counting flagged elements, and a position with no non-flagged element gets the subschema of an empty view. `prefixItems` and `items: false` both carry the Tuple-or-List record. A Path whose arrays are all empty, or hold only flagged elements, gets neither `items` nor `prefixItems`, with that fact in the record on `type`.
+    - Leave a named call point, used only when its Technique is in effect, for the array grammar (55).
+    - Unit tests: a List, a Tuple with a position that holds only flagged elements, and an empty-array Path.
+    - _Requirements: 7.2, 7.3, 7.4, 7.9_
+  - [ ] 25.4 Lay out mixed-type nodes and analyze top-level Paths in parallel (`src/jsinfer/structure/analyzer.py`)
+    - Mixed types: with a single object branch, all type-specific keywords share one schema object. With two or more object branches, the node is an `anyOf` with one branch per object branch plus one branch for the remaining types. A Closed_Enum beside arrays or objects is its own `anyOf` branch, after the object branches and before the remaining types. A mixed node is always `anyOf`. Variant branches carry `details.variant`; the added branches carry `details.branch` (`remaining_types` or `closed_enum`) and `details.types`. The remaining-types branch of a split Path takes the Merge-or-Split decision's Provenance_Record, and a Closed_Enum branch takes the Closed-or-Open-Enum decision's.
+    - Analyze the top-level Paths as parallel work units through the worker-pool helpers of 10 and merge the nodes and report entries in Path order, so the result does not depend on the worker count.
+    - Unit tests: a mixed node with one object branch, one with two object branches, and one with a Closed_Enum branch; the same node and report entries with 1 and 4 workers.
+    - _Requirements: 15.3, 15.4, 27.5, 29.4_
+  - [ ] 25.5 Decide which Techniques are in effect and record substitutions (`src/jsinfer/pipeline/infer.py`)
+    - At the `Model_Bundle` stage, call `build_in_effect(config, registry, thresholds, bundle, report)` of 20 once and put the returned callable in the context. Ask it for every enabled Technique and each Decision_Point kind the Technique serves; the callable caches each answer. It is the only implementation of "in effect" (it uses `ThresholdReader.in_effect` of 12 and asks the Model_Bundle reader of 12 whether it can supply the Decision_Model, Semantic_Type_Classifier, or Corpus_Index the Technique needs), and this sub-task computes nothing a second time. As 20 defines it, a Technique is in effect when it is enabled, its serving gate is enabled (the Closed-or-Open-Enum Decision_Model serves only while `values.enum_estimation` is on), the Model_Bundle holds a valid value of every Learned_Threshold it reads at that kind (present, finite, inside the admissible range), and the artifact it needs can be supplied. Checking for a value is not a read and is not listed under `thresholds`.
+    - Write no `substitutions` entry here, and the DecisionEngine writes none either. The source the callable asks records each substitution once (`ThresholdReader.in_effect` of 12 for a Learned_Threshold, `record_substitution` of the Model_Bundle reader of 12 for an artifact), with the Learned_Threshold or artifact name, the Technique, the reason (missing value, invalid value, missing model, or `checksum`), and what resolves the Decision_Point instead (the other Techniques in effect at that kind, or the kind's Fallback_Behavior). Asking for every pair at this stage makes those entries appear even where no Decision_Point of the kind arises in the run, and the report keeps exactly one entry per (artifact or threshold, Technique, kind) however often the callable is asked later. The run continues.
+    - The DecisionEngine reads the cached answers and treats such a Technique like a disabled one with the fallback reason `missing-threshold` or `missing-model`. When no Technique serving a kind is in effect, the fallback indicator names the kind's first serving Technique in priority order.
+    - Unit tests: a Model_Bundle without `cooccur.min_support` yields no Co_Occurrence_Rules and exactly one substitution entry; an out-of-range value is reported as invalid, once; a Technique that serves two kinds and lacks its artifact yields exactly one entry per (artifact, Technique, kind), also after the engine has asked again during the walk.
+    - _Requirements: 20.6, 21.10, 22.14, 24.9_
+  - [ ] 25.6 Orchestrate the inference pipeline (`src/jsinfer/pipeline/infer.py`)
+    - Write `run_pipeline(source, config) -> InferenceResult`, where `source` is a list of input paths or a value source. Stages run in this order: resolve and validate the Run_Configuration; load the Model_Bundle; ingest; flatten into the `ObservationStore` in fixed-size chunks through the worker-pool helpers of 10; Outlier_Detector; Version_Detector; Structure_Analyzer over the root view of each segment; Soundness; Schema_Emitter.
+    - While their Techniques are disabled, the `Outlier_Detector` and `Version_Detector` stages record the Fallback_Behaviors of `document_outlier` and `version_split` at `$`: no document is flagged and the report lists zero Flagged_Items; one segment covers every document, a single schema is inferred from all of them, and the report states that change-point detection was not applied.
+    - A Technique registered as implemented whose pipeline step is missing raises `NotImplementedError`. Leave call points after the Structure_Analyzer for the Shared_Definition pass (46) and the keys, references, and Functional_Dependency pass (56), and after emission for the nearest-known-schema lookup (50).
+    - The `Soundness` stage calls `run_soundness` and hands its token to the `Schema_Emitter` stage, which produces the schema document and its canonical bytes. No stage prompts for or waits on user input.
+    - Give `run_pipeline` two internal, keyword-only parameters: `engine_factory` (default: the `DecisionEngine` of 20), which builds the engine the context holds, and `observers`, a tuple of callables that defaults to empty. Each observer is called once per emitted schema document, after the `Schema_Emitter` stage when the outputs are final, with the schema document, the documents it covers (their indices, readable from the `DocumentStore`), and the flagged indices; it cannot change the result. Neither parameter is part of the public API or of the Run_Configuration, and neither changes an output of a run that does not pass them. They are what the Trainer's recording engine and oracle resolver (32, 49) and the conformance observer of the property tests (52) use.
+    - Zero parsed documents raise `NoDocumentsError`. A `ConfigError` (invalid setting, unmet prerequisite, unloadable Model_Bundle, rejected input path) is raised before any document is read; the `Model_Bundle` and `Ingestor` stages raise the last two. A value source that yields a non-JSON value fails the run as an `InferenceError` with the `TypeError` as its cause.
+    - Integration test: a run on a small `.jsonl` file under the default Run_Configuration with the `empty_bundle` fixture returns a schema that every document validates against; an observer passed to the run is called once and receives that schema document, every document index, and an empty flagged set.
+    - _Requirements: 3.1, 3.2, 17.6, 18.10, 27.1, 27.7, 27.8, 28.4, 29.4_
+  - [ ] 25.7 Assemble the Inference_Report, its run metadata, and the verified-build stamp (`src/jsinfer/pipeline/infer.py`, `src/jsinfer/core/report.py`)
+    - Fill every section of the Inference_Report of 11 from the run and write `report.json` as canonical JSON with the sections `run`, `ingestion`, `thresholds`, `resources`, `substitutions`, `outliers`, `versions`, `decisions`, `rejected`, `soundness`, `kernel`, `nearest`, `timings`, and `status` (`ok`, or `failed` with the stage and error).
+    - The `run` section holds the effective Run_Configuration, the seed, the Model_Bundle identifier, the jsinfer version, the CPython version, the installed version of every package in `LOCKED_PACKAGES`, and UTC `started` and `finished` timestamps (`YYYY-MM-DDTHH:MM:SS.ffffffZ`). `started` is taken before the `Run_Configuration` stage and `finished` when the run completes or fails, so a partial report carries both. `pipeline/infer.py` is one of the modules the static source rules allow to read the clock.
+    - `LOCKED_PACKAGES` is a static tuple naming the runtime dependency closure of `uv.lock` (jsinfer itself and the dev group left out). A package not installed on the running interpreter is left out of the report.
+    - The `thresholds` section lists every Learned_Threshold read during the run with its value and the Model_Bundle identifier; the `resources` section lists every Resource_Parameter read with its value and origin (`default`, `file`, or `flag`). Both come from the readers, which list a value only when the Technique that needs it runs.
+    - At the start of a run, call `kernel_stamp()` of `kernel/stamp.py` (8) and write its three values to the `kernel` section as `version`, `source_sha256`, and `verified`: the Kernel version, the Kernel source digest of the installed files under `src/jsinfer/kernel/_generated/`, and whether that digest equals the one in the shipped `src/jsinfer/kernel/verified.json` (package data). This task computes no digest and reads no stamp file of its own. A digest that differs does not stop the run: the run completes and the report states that the Kernel in use is unverified.
+    - Reports are compared with `comparable_json` of 11, which removes exactly the `timings` section, the two timestamps, and the worker count. Nothing else in the report may differ between two runs that differ only in worker count, hash seed, and output location: the report holds no output path, and entries collected from parallel work are written in canonical order.
+    - Unit tests: `LOCKED_PACKAGES` against `uv.lock`; a failed run's partial report carries both timestamps; with one byte of a generated Kernel file changed in a copied package, a run completes and reports `kernel.verified = false`.
+    - _Requirements: 20.5, 27.8, 27.12, 39.9_
+  - [ ] 25.8 Write property test for soundness on non-flagged documents
+    - Collections are small (at most 50 documents, depth at most 4) with random Technique toggles that respect prerequisites, small `soundness.max_passes`, and sampling enabled. The test also changes a model after the last clean pass and expects the Schema_Emitter to refuse it. The clauses on Schema_Versions and the combined schema wait for 60; the cross-Path merge of 8.3 waits for 46.
+    - **Property 7: Soundness on non-flagged documents**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.7, 3.9, 8.3**
+  - [ ] 25.9 Write property test for cut-off provenance
+    - The test reads every decision entry and Provenance_Record of a run, including `relaxation` entries. The "Decision_Model comparison" source is exercised with stub Decision_Models until 32 trains real ones.
+    - **Property 31: Cut-off provenance**
+    - **Validates: Requirements 20.1, 20.5, 20.7**
+  - [ ] 25.10 Write property test for missing artifacts degrading to fallbacks
+    - Model_Bundles are built in the test by removing Learned_Thresholds or setting them out of range, and by removing stub Decision_Models. The Semantic_Type_Classifier case waits for 57 and the Corpus_Index case for 50.
+    - **Property 32: Missing artifacts degrade to fallbacks**
+    - **Validates: Requirements 20.6, 21.10, 22.14, 24.9**
+  - [ ] 25.11 Extend the property test for the schema emit/load round trip
+    - Add the leg over Schema_Models the Inferrer produces: for any generated collection and Run_Configuration, the schema `run_pipeline` emits loads to a fully supported Schema_Model equal to the run's model. The leg over Schema_Versions waits for 60.
+    - **Property 3: Schema emit/load round trip**
+    - **Validates: Requirements 2.4, 2.7, 2.8**
+  - [ ] 25.12 Extend the property test for object node classification
+    - Point the test at whole runs: call `StructureAnalyzer.analyze` and the whole pipeline on the planted Record and Map collections, and check the Record, Map, and closed-Record clauses on the emitted schema. The closed-Record clause runs with a stub Decision_Model that closes a Record; the hybrid and `propertyNames` clauses still wait for their producers.
+    - **Property 10: Object nodes match their classification**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 4.9**
+
+- [ ] 26. Provenance finalization and the explanation file
+  - [ ] 26.1 Recompute Support and default Confidences in provenance finalization (`src/jsinfer/pipeline/soundness.py`, `src/jsinfer/core/provenance.py`)
+    - Add `finalize_provenance(model, docs, flags)` as the last step of the `Soundness` stage, after the digest token is taken. It changes only Provenance_Records.
+    - Recompute the Support of every Constraint with `count_instances`, over the non-flagged Observations in the documents the Constraint's schema covers: `total` is the instances evaluated at the Constraint's node and `consistent` the instances that satisfy it. `consistent` never exceeds `total`, and `ratio` is `consistent / total` (1.0 when `total` is 0). A Constraint inside an `anyOf` or `oneOf` branch counts every instance the branch accepts.
+    - A Constraint inside a `$defs` entry counts the instances of every referencing site; an unreferenced entry gets Support (0, 0). Constraints inside `not` get Support (0, 0), and Constraints inside `if` count every instance they see as consistent. The `format` or `pattern` inside `propertyNames` shares the record of the `propertyNames` Constraint, with one Support over the keys of the non-flagged objects.
+    - Leave `sample` as recorded: when a Technique derived a Constraint from a seeded sample, the record holds the number of sampled Observations and the total, and Support still counts every Observation.
+    - Refresh Confidence to the Laplace value `(consistent + 1) / (total + 2)` when the record resolves no Decision_Point (Baseline_Rule records, annotations such as `x-latent-type`) or was resolved by priority or by a Fallback_Behavior, unless its Technique is in `KIND_SPECIFIC_CONFIDENCE`. MDL posteriors, Decision_Model probabilities, and kind-specific Confidences are left as the decision wrote them, relaxed records included. After the refresh, every record of the refreshed kinds must hold exactly the Laplace value of its Support. `KIND_SPECIFIC_CONFIDENCE` starts with `rules.cooccurrence`; a Technique that defines its own Confidence adds itself.
+    - Unit tests: Support of a `required` entry, of a branch Constraint under overlapping `anyOf` branches, and of a Constraint under `not`.
+    - _Requirements: 3.6, 26.2, 26.4_
+  - [ ] 26.2 Enforce exactly one Provenance_Record per Constraint (`src/jsinfer/core/provenance.py`, `src/jsinfer/pipeline/soundness.py`)
+    - Enumerate the Constraints of a model by the Constraint table of the design (for example each `required` entry, each `anyOf` or `oneOf` element, each `dependentRequired` entry, each bound keyword, `$ref`, and the `x-` annotations that are Constraints). `$defs`, `$schema`, annotation keywords, and container keywords are not Constraints.
+    - At the end of finalization, raise `ProvenanceError` when an emitted Constraint has no record or a record belongs to no emitted Constraint. The error fails the run as an `InferenceError` at stage `Soundness`.
+    - Check the producer of each record: a registered Technique identifier, a fallback marker `fallback:<decision point>` with the Technique whose Fallback_Behavior applied, the fallback indicator, and the reason, or a Baseline_Rule marker (`baseline:type` on `type`, `baseline:required` on a `required` entry) with the Laplace Confidence, no fallback indicator, and no resolution. A marker never appears where a Technique identifier is expected, and a disabled Technique is named only inside a fallback indicator.
+    - A record of a Decision_Point with two or more candidates holds the resolution method, the selected candidate, and every rejected candidate, with a score in bits for MDL, a calibrated probability for a Decision_Model, and no score for priority or a Fallback_Behavior.
+    - No Constraint is created without a decision behind it. A guard change of the removal loop converts a `oneOf` to `anyOf` in place, so each branch keeps its Provenance_Record, with the guard change appended to `changes`; the loop creates no `allOf` (24.5). The `allOf` entry that holds converted branches beside an existing `anyOf` arises only from a selected relaxation and takes that relaxation decision's record (24.4). No fallback indicator is invented for either, since no Technique was disabled or missing.
+    - Unit tests: a model with a missing record and a model with an orphan record both raise `ProvenanceError`.
+    - _Requirements: 26.1, 26.3, 26.10, 26.13, 28.11, 28.12_
+  - [ ] 26.3 Write and load the explanation file (`src/jsinfer/io/emit.py`, `src/jsinfer/io/explain.py`)
+    - Implement `SchemaEmitter.explanation(model, pointers) -> bytes`: the document `{"format": 1, "records": {<JSON Pointer>: <Provenance_Record>}}`, with one entry per Constraint keyed by the JSON Pointer of the keyword, or of the array element within a keyword, that expresses the Constraint in the run's top-level emitted schema (the single schema, or the combined schema once 60 emits one).
+    - Sort the pointers in code-point order and write with the same canonical encoder as schemas. No key points at an `x-provenance` keyword.
+    - Refuse to write the explanation of a model in which a Constraint has no record or a record has no Constraint.
+    - Implement `load_explanation(source) -> ExplanationFile`, which parses the file back into Provenance_Records so that writing the loaded records again gives identical bytes. Numbers are written exactly as loaded.
+    - Add the explanation bytes to the output of the `Schema_Emitter` stage.
+    - _Requirements: 26.5, 26.7, 26.8_
+  - [ ] 26.4 Embed inline provenance (`src/jsinfer/io/emit.py`)
+    - When `output.inline_provenance` is on (default off), add one `x-provenance` keyword, last, to each schema object that holds at least one Constraint. Its value maps each Constraint's JSON Pointer relative to the schema object, with a leading `/` (`/type`, `/required/0`, `/anyOf/1`, `/dependentRequired/a~1b`), to the record, in code-point order. The object's pointer plus the key equals the explanation-file key, and each record equals its explanation-file entry.
+    - Schema objects without Constraints and boolean schemas get no `x-provenance`. Refuse to write inline provenance for a model in which a Constraint has no record or a record has no Constraint, as for the explanation file.
+    - The pointer map and the Validator's verdicts are the same with the setting on or off, and the Schema_Loader reads `x-provenance` as an `x-` annotation that Schema_Model equality ignores. With the setting off, the bytes are those of a layout without provenance.
+    - `emit_schema(model, inline_provenance=...)` exposes the same switch to library callers.
+    - _Requirements: 26.6, 26.11_
+  - [ ] 26.5 Implement `explain` (`src/jsinfer/io/explain.py`)
+    - Write `explain(schema, explanation, pointer) -> str`. An `os.PathLike` argument is read as a file and messages name its path; `bytes` and `str` are the document's content; parsed values and an `ExplanationFile` are accepted too. A `bytes` or `str` argument is never read as a path. The function returns the text and leaves the output streams to the caller. Re-export it from `core.provenance`.
+    - Print every field the record holds as `name: value` in a fixed order, numbers exactly as the explanation file writes them: the producer (Technique identifier, fallback marker, or Baseline_Rule marker), the three Support values, the Confidence, and, when present, the fallback indicator, the resolution method, the candidates with their scores, and the sample counts.
+    - Run the checks in the order `read`, `parse`, `syntax`, `resolve`, `entry`. Each failure raises an `ExplainError` naming the failed input and the cause, and nothing is returned.
+    - A pointer that does not resolve to a Constraint is an error: a schema object (the root, `properties/<name>`, `$defs/<name>`, `prefixItems/<i>`), whose message lists that object's Constraint pointers; `x-provenance` or a location inside it; a keyword that is not a Constraint; a whole `required`, `dependentRequired`, `anyOf`, or `oneOf`; and a location inside a keyword's value.
+    - Unit tests: one per check, and one per kind of non-Constraint pointer.
     - _Requirements: 26.9, 26.12_
-  - [x] 17.4 Write property test for provenance completeness
+  - [ ] 26.6 Write property test for provenance completeness
+    - The clause on Constraints inside `$defs` waits for 46. The clause on closed Records runs with a stub Closed-or-Open-Record Decision_Model that closes a Record.
     - **Property 41: Provenance completeness**
     - **Validates: Requirements 4.1, 4.7, 7.1, 15.8, 26.1, 26.2, 26.13**
-  - [x] 17.5 Write property test for explanation file integrity
+  - [ ] 26.7 Write property test for explanation file integrity
     - **Property 42: Explanation file integrity**
     - **Validates: Requirements 26.5, 26.7, 26.8**
-  - [x] 17.6 Write property test for annotation and report neutrality
-    - **Property 43: Annotation and report neutrality** (nearest-schema clause gated on `corpus.nearest_schema`, active after 40.4)
+  - [ ] 26.8 Write property test for annotation and report neutrality
+    - The clause on disabling the nearest-schema lookup waits for 50.
+    - **Property 43: Annotation and report neutrality**
     - **Validates: Requirements 25.5, 26.6, 26.11**
 
-- [x] 18. Implement the public API and the CLI
-  - [x] 18.1 Implement the public API (`src/jsinfer/__init__.py`)
-    - `infer`, `infer_files`, `load_schema`, `emit_schema`, `InferenceResult`, and the exception types. `infer()` canonically serializes documents into the DocumentStore, so later stages are shared with the CLI
-    - `InferenceResult` carries the explanation file (`SchemaEmitter().explanation(model, pointers)`) and the schema bytes honoring `output.inline_provenance`
-    - Decided: non-JSON Python values raise `TypeError` (`ValueError` for a container that contains itself) and are never converted; NaN, infinities, and unpaired surrogates are skipped and recorded as in a `.jsonl` file (design Open Decisions, In-memory documents)
-    - Also exports `explain`, `load_explanation`, and `RunConfiguration`, lazily (PEP 562). The schema file is `schema.json`; `versions`, `combined`, and `diffs` stay empty until 48.2 (design Open Decisions, Public API surface)
-    - _Requirements: 27.9, 27.13_
-  - [x] 18.2 Implement the CLI (`cli.py`)
-    - `infer INPUT... [-c] [--set] [--technique] [--out]`: writes the schema, `explanation.json`, `report.json`, and `effective-config.toml` atomically to a temp directory under `--out`, overwriting without prompts and deleting the temp directory on failure. Exit codes 0, 1, 2, and 3
-    - `explain`, `list-techniques` (reads no data), and `list-thresholds [--bundle]`
-    - `infer` runs `jsinfer.infer_files` and writes `InferenceResult.files()` (`schema.json` with `x-provenance` when `output.inline_provenance` is on, `explanation.json`, `report.json`, `effective-config.toml`; the pipeline's `Schema_Emitter` stage produces them since 18.1) inside `core.determinism.atomic_outputs`
-    - `explain` wraps its file arguments in `pathlib.Path` (a `str` is content to `io.explain.explain`), prints the returned text to stdout, and on `ExplainError` prints its message to stderr and exits 2
-    - Exits 1 and 3 replace only `report.json` (the partial report) and keep an earlier run's other files; exit 2 writes nothing. `--set` values are TOML except the string settings, `--technique` is its shorthand, and the last value wins (design Open Decisions, CLI failed runs and CLI settings flags)
-    - _Requirements: 1.8, 1.10, 20.2, 26.9, 26.12, 27.1, 27.3, 27.7, 27.10, 27.11, 28.10_
-  - [x] 18.3 Write property test for invalid configurations
-    - **Property 45: Invalid configurations stop before ingestion**
-    - For the API, "exits non-zero" is `RunConfiguration.resolve` raising `ConfigError` before `infer`/`infer_files` reads a document. Found and fixed: `--technique` with an unregistered id and a switch other than on/off reported only the switch (design Open Decisions, Invalid configurations)
-    - **Validates: Requirements 27.11, 28.9, 29.11**
-  - [x] 18.4 Write CLI integration tests
-    - End-to-end run, API/CLI equality, closed stdin, explain error paths, `list-techniques` and `list-thresholds` output
-    - Closed stdin means no descriptor 0 at all, besides a terminal, `/dev/null`, and an open pipe. Found and fixed: loky workers died with descriptor 0 closed, so `cli.main` now reserves it (design Open Decisions, Standard input)
-    - _Requirements: 26.9, 26.12, 27.1, 27.9, 28.10_
+- [ ] 27. Public API and CLI
+  - [ ] 27.1 Define `InferenceResult` and `infer_files` (`src/jsinfer/__init__.py`, `src/jsinfer/pipeline/infer.py`)
+    - Define the frozen `InferenceResult` with `schema`, `provenance`, `report`, `config` (effective), `document`, `pointers`, `schema_bytes`, `versions`, `combined`, `diffs`, and `certificate`. `versions`, `combined`, and `diffs` are empty until 60. `certificate` is `bytes`, the canonical `certificate.json`; every run that returns an `InferenceResult` has one, and there is no `None` case. 28.1 writes the Certificate and adds the field and its `files()` entry.
+    - `InferenceResult.files()` returns each output file's bytes by name: `schema.json`, `explanation.json`, `report.json`, `effective-config.toml`, and `certificate.json` (28.1). The schema file of a run with one schema is always named `schema.json`; 60 makes `files()` also return the Schema_Version files, the combined schema, and the diff files. The bytes come from the `Schema_Emitter` stage, so no caller computes them again.
+    - `infer_files(paths, config=None)` runs `run_pipeline` on input paths and writes no file. With `config` omitted, every setting takes its default.
+    - Export `infer`, `infer_files`, `load_schema`, `emit_schema`, `explain`, `load_explanation`, `RunConfiguration`, `InferenceResult`, and the exception types `InferenceError`, `NoDocumentsError`, and `ConfigError` from `jsinfer`, loaded lazily (PEP 562) so that `import jsinfer` stays light.
+    - _Requirements: 27.7, 27.9_
+  - [ ] 27.2 Implement `infer` for in-memory documents (`src/jsinfer/__init__.py`, `src/jsinfer/pipeline/infer.py`)
+    - `infer(documents, config=None)` passes the documents through the in-memory ingestion of 13 (`io.ingest.documents_to_jsonl`: value k is line k + 1 of a virtual `.jsonl` file named `<documents>`, written as `json.dumps(value, ensure_ascii=True, separators=(",", ":"))`) and runs `run_pipeline` on the result, so an in-memory run shares every later stage with a run on a file holding the same documents in the same order and returns an equal Schema_Model.
+    - The type check of 13 runs before any stage: a value at any depth that is not a `dict` with `str` keys, a `list`, `str`, `int`, `float`, `bool`, or `None` raises `TypeError`, and a container that contains itself raises `ValueError`, each naming the document's position and the JSON Pointer. `infer` lets both propagate unchanged, converts no value, and starts no stage.
+    - Values of the allowed types that a `.jsonl` file cannot carry (NaN and infinities, unpaired surrogates, integers past the parser's conversion limit, nesting beyond the parser's limit) are not rejected by `infer`: they fail at parsing like the same line in a file, and are skipped and recorded at their line.
+    - `infer` returns the Schema_Model, the Provenance_Records, and the Inference_Report in an `InferenceResult` and writes no file. An iterable that yields no document raises `NoDocumentsError` stating that no documents were supplied. An unrecoverable stage error raises `InferenceError` naming the stage. Both carry the partial Inference_Report and leave the calling process running.
+    - Unit tests through `infer`: a rejected type and a self-containing list raise before the `Run_Configuration` stage; a NaN document is recorded as skipped at its line; an empty iterable raises `NoDocumentsError` with a partial report; a stage made to fail raises `InferenceError` naming it.
+    - _Requirements: 1.8, 27.9, 27.13_
+  - [ ] 27.3 Implement the `infer` command (`src/jsinfer/cli.py`, `src/jsinfer/__main__.py`)
+    - `jsinfer infer INPUT... [-c FILE] [--set KEY=VALUE]... [--technique ID=on|off]... [--out DIR]`, added to the stdlib `argparse` dispatcher that 12 starts, with input paths before the options. `python -m jsinfer` runs the same CLI. The default of `--out` is the current directory; the design does not name a default, so the task settles this.
+    - `--set KEY=VALUE` reads VALUE as one TOML value and leaves it a string when it is not one, so a type error names it; the string settings `model_bundle` and `input.ordering_key` take VALUE verbatim. `--technique ID=on|off` is `--set techniques.ID=true|false`. A setting given more than once takes its last value across both options. A switch other than `on` or `off` is rejected only for a registered identifier; an unregistered identifier is reported as unregistered with every registered identifier.
+    - On success, write every file of `InferenceResult.files()` (`schema.json`, `explanation.json`, `report.json`, `effective-config.toml`, and `certificate.json` (28.1)) into a temp directory under `DIR`, then rename each file into place, replacing files of the same names without asking. Exit with status 0. `--out` is not a Run_Configuration setting, and no output file contains the output location, so runs into different directories write the same bytes.
+    - A command-line invocation that supplies only input paths completes a run with defaults.
+    - _Requirements: 27.1, 27.2, 27.3, 27.5, 27.7_
+  - [ ] 27.4 Implement exit codes and the behavior of failed runs (`src/jsinfer/cli.py`)
+    - Exit codes: 0 success; 1 an unrecoverable stage error or outputs that cannot be written; 2 a configuration or usage error (malformed flags, an unreadable configuration file, the problems `RunConfiguration.resolve` finds, a rejected input path, an unloadable Model_Bundle, an unusable `--out`, every `explain` failure); 3 no valid documents; 4 a Certificate that does not check.
+    - Exit 2 writes nothing and creates no directory. Report all configuration problems in one message before anything is read: malformed flags, then an unreadable configuration file, then the problems of `resolve`, then an unusable `--out`. When the file cannot be read, check the flags on their own and leave out prerequisite problems.
+    - Exit 1 and exit 3 replace only `DIR/report.json`, atomically, with the partial Inference_Report, and print the error to standard error. The temp directory is deleted, so no schema file or explanation file from the failed run reaches `DIR`; files an earlier run left in `DIR` are not touched.
+    - Unit tests: one per exit code, and one that checks `DIR` after a stage error holds only the partial report from the failed run.
+    - _Requirements: 1.8, 1.10, 27.10, 27.11_
+  - [ ] 27.5 Make runs independent of standard input (`src/jsinfer/cli.py`, `src/jsinfer/core/workers.py`)
+    - No command reads standard input or prompts.
+    - When descriptor 0 is closed at start-up, `cli.main` opens `os.devnull` on it, inheritable, before anything else. Without this, the next pipe the process opens takes descriptor 0, and worker processes that inherit it fail at interpreter start-up.
+    - For library callers, write `core.workers.reserved_stdin()`: a context manager that holds `os.devnull` on a closed descriptor 0 only while a run with `workers > 1` is in progress and closes it when the run ends. It is shared by concurrent runs, never takes over a descriptor 0 the program opened, and does nothing outside POSIX. `run_pipeline` uses it.
+    - _Requirements: 27.1_
+  - [ ] 27.6 Implement the `explain` command (`src/jsinfer/cli.py`)
+    - `jsinfer explain SCHEMA EXPLANATION POINTER` reads the two files by path, prints the text `explain` of 26.5 returns to standard output as plain text, and exits 0.
+    - An `ExplainError` prints no Provenance_Record, writes the message naming the failed input and the cause to standard error, and exits 2. This covers a schema or explanation file that cannot be read or parsed, a syntactically invalid JSON Pointer, a pointer that does not resolve to a Constraint, and a pointer with no entry in the explanation file.
+    - The `list-techniques` and `list-thresholds` commands come from 12; this sub-task only checks that all commands share one dispatcher and one exit-code table.
+    - Tests in a subprocess: a successful call prints every field of the record; one call per failure cause exits 2 with an empty standard output.
+    - _Requirements: 26.9, 26.12_
+  - [ ] 27.7 Write integration tests for the API, the CLI, and failed runs (`tests/integration/`)
+    - API and CLI equality: for the same files, `infer_files` and `jsinfer infer` give byte-identical `schema.json`, `explanation.json`, and `effective-config.toml`, and equal `report.json` after `comparable_json`. `infer` on parsed documents returns a Schema_Model equal to the CLI's for a `.jsonl` file holding the same documents in the same order.
+    - Standard input: runs started from a terminal, with no descriptor 0, with `/dev/null`, and with an open pipe that is never written produce the same schema and explanation bytes, with 1 and with 2 workers.
+    - Worker count: a run with `workers = N` never has more than N live worker processes, and the default equals the number of logical CPU cores.
+    - Failed runs: a stage made to fail leaves a partial report naming the stage and the completed stages, no schema or explanation file from that run, and exit status 1; the same failure through `infer` raises `InferenceError` with the partial report. A second successful run into a directory that holds outputs replaces them without a prompt.
+    - _Requirements: 27.1, 27.7, 27.9, 27.10, 27.13, 29.4_
 
-- [x] 19. Implement reproducibility plumbing and the Subschema_Checker
-  - [x] 19.1 Implement run metadata and worker determinism (`core/report.py`, `pipeline/infer.py`)
-    - Report `run` section: effective config, seed, bundle id, jsinfer and CPython versions, and locked package versions via `importlib.metadata`
-    - Fill what 16.2 left out: `RunInfo.packages` (empty now) and the run timestamps. Record in the report every Resource_Parameter the components read, with its origin (20.5): `minhash.perm`, `lsh.bands`, `sample.*`, and `variants.*` in the VariantAnalyzer, among others; 16.2 records only the pipeline's own reads (`workers`, `ingest.chunk_size`, `soundness.max_passes`)
-    - Work units defined by data, not worker count; `threadpoolctl` limits workers to one OpenMP thread; timings and timestamps only in exempt sections
-    - Decided: the API copes with descriptor 0 closed too, through a reservation scoped to multi-worker runs (`core.workers.reserved_stdin`; design Open Decisions, Standard input)
-    - Packages are the runtime closure of `uv.lock`, a static tuple checked against the lock file by a test; tasks run with OpenMP and BLAS limited to one thread; a component lists a Resource_Parameter only when its Technique runs (design Open Decisions, Run metadata and Resource_Parameter and Learned_Threshold reads; Determinism and reproducibility)
-    - _Requirements: 27.5, 27.8, 27.12, 29.4_
-  - [x] 19.2 Implement the Subschema_Checker (`io/subschema.py`)
-    - Strip annotations and `x-` keywords; 2020-12→draft-04 shim; initial unsupported list from Open Decisions (`format`, `contains`, `propertyNames`, `if`/`then`/`else`, non-scalar `uniqueItems`, recursive `$ref`)
-    - Run `isSubschema` in a child process with `subschema.timeout_s`, inside an isolated uv tool environment if pins conflict. Map outcomes to equivalent, subset, superset, incomparable, or `Unsupported` with its cause
-    - Decided: jsonsubschema 0.0.8 is pinned in the project environment (no isolated environment). `dependentRequired`/`dependentSchemas` are unsupported rather than shimmed to `dependencies`, which jsonsubschema ignores; unknown and earlier-draft keywords are unsupported; `unavailable` is a fourth cause (design Open Decisions, jsonsubschema keyword coverage)
-    - _Requirements: 28.5, 31.7, 31.8_
-  - [x] 19.3 Write property test for inclusion relation mapping
-    - **Property 54: Inclusion relation mapping** (stubbed checker)
+- [ ] 28. Certificate and the certify command
+  - [ ] 28.1 Write the Certificate (`src/jsinfer/kernel/certify.py`, `src/jsinfer/pipeline/infer.py`)
+    - Every run that produces outputs writes a Certificate. Each covering schema was converted through the adapter and found Guarded at stage `Soundness` (24.5), so there is no run with outputs and no Certificate. The `Schema_Emitter` stage converts each emitted document once more (`to_root`) to list the Patterns the oracle decides, and treats a `KernelUnsupported` there as an internal error that fails the run. Add `certificate: bytes` to `InferenceResult` and `certificate.json` to `files()`.
+    - Write `certificate.json` as canonical JSON with: `format` 1; the `claim` text (every covered document that is not a Flagged_Document is accepted in the sense of the Kernel's `Valid`, and by the combined schema when one is emitted); `inputs`, the path and SHA-256 digest of every input file in ingestion order; `options` (`unwrap_arrays`); `documents`, the number of parsed documents; `flagged`, the indices of the Flagged_Documents; `schemas`, for each emitted schema file its name (`file`), SHA-256 digest, and `covers`, the index ranges it covers; `combined` (`null` until 60); `kernel` (`version`, `source_sha256`, `verified`, the three values of `kernel_stamp()` that 25.7 writes to the report, so the Kernel source digest comes from the one function of `kernel/stamp.py`); `format_oracle` (the Validator's name and version); and `opaque_patterns`.
+    - `covers` is a list of inclusive `[first, last]` index ranges in ascending order, several when a segment is not contiguous by index. The ranges of the listed schemas are written so that they do not overlap and together cover every document index from 0 to `documents − 1`; with a single schema that is the one range `[0, documents − 1]`.
+    - `opaque_patterns` holds the JSON Pointers of every Pattern the oracle decides and the Kernel's own matcher does not: each `pattern` keyword and each `patternProperties` key the adapter converts as `Opaque`, in code-point order. Until the Kernel contains the reference matcher (61) that is every Pattern in the schema. With one schema file it is a list of pointers; once there are several schema files it is a map from schema file name to that list (60).
+    - `inputs` uses the Ingestor's source form of each file (`DocOrigin.source`: the path relative to a supplied directory, or the supplied file path as given), and `certify` must be given the same input arguments.
+    - A run on in-memory documents lists one virtual input, `{"path": "<documents>", "sha256": ...}`, with the SHA-256 of the JSONL bytes `documents_to_jsonl` produced. To re-check such a run, the caller writes those bytes to a `.jsonl` file and passes it; `certify` matches the `<documents>` entry by digest and not by name.
+    - The Certificate holds no timestamp, runtime, or worker count, so two runs that differ only in worker count, hash seed, and output location write identical bytes.
+    - Unit tests: the fields of a Certificate for a file run and for an in-memory run; a schema with a `pattern` and a `patternProperties` key lists both pointers under `opaque_patterns`; a model with an injected construct outside the Kernel_Fragment fails the run at stage `Soundness` and writes no output.
+    - _Requirements: 2.13, 8.9, 38.1, 38.6, 39.9_
+  - [ ] 28.2 Implement the digest and schema checks of `certify` (`src/jsinfer/kernel/certify.py`)
+    - Write `certify(certificate, inputs, out_dir, cross_check=False, workers=None) -> CertifyResult` (the last two keyword-only), raising `CertifyError` on a failed check. `CertifyError.cause` is exactly one of eight names, and `CertifyError.result` is the `CertifyResult` as far as the check got, so a caller that stores the outcome of a failed check (the harness of 38) reads the cause, the counts, and the runtime from the exception. When several checks fail, `cause` is the first in the order listed here and the message names them all. The causes are `input-digest`, `schema-digest`, `kernel-digest`, `document-count`, `covers`, `unsupported-schema`, `rejected-document` (28.3), and, with `--cross-check`, `verdict-difference` (52).
+    - `cross_check` is accepted here and implemented in 52. Until then `cross_check=True` raises `NotImplementedError` before anything is read, and `CertifyResult.verdict_differences` is `None`, meaning "not checked", never 0. A caller that wants the comparison therefore cannot take a skipped comparison for a clean one.
+    - Recompute the SHA-256 of every input file and compare path list and digests with the Certificate (a `<documents>` entry is matched by digest alone); recompute the digest of each schema file under `out_dir`; recompute the Kernel source digest of the installed compiled source with the one function of `kernel/stamp.py` (8). Report every mismatch with its cause (`input-digest`, `schema-digest`, `kernel-digest`) before any document is checked.
+    - Ingest the inputs with the Ingestor under the Certificate's `options` and compare the number of parsed documents with `documents` (cause `document-count`).
+    - Check the `covers` lists before any document is checked: the ranges of the listed schemas must be well-formed, must not overlap, and must together cover every document index from 0 to `documents − 1`; a `combined` entry covers all of them. Otherwise fail with cause `covers`, naming the missing or doubly covered indices. Without this check a Certificate whose ranges skip a document would pass with that document never checked.
+    - Load each schema file through the adapter. A schema outside the Kernel_Fragment or not Guarded is cause `unsupported-schema`, with the construct and its JSON Pointer.
+    - Report, from `kernel_stamp()`, when the installed Kernel's digest differs from the last verified build (`src/jsinfer/kernel/verified.json`); this alone is not a failure.
+    - Unit tests: one per cause of this sub-task, including a Certificate with one index removed from `covers` and one with overlapping ranges (each fails with cause `covers`); `cross_check=True` raises `NotImplementedError`; and a changed generated Kernel file reported as unverified without failing the check on its own.
+    - _Requirements: 38.2, 38.3, 39.9_
+  - [ ] 28.3 Check the Certificate's claim with the Kernel's checker in parallel (`src/jsinfer/kernel/certify.py`)
+    - For each schema, run the Kernel's `Check` on every covered document that is not a Flagged_Document, with the adapter's oracles (`satisfies_format` as the Format_Oracle, `matches_pattern` for an `Opaque` Pattern, memoized per distinct string). When a combined schema is listed, check every such document against it too.
+    - Distribute the per-document checks over worker processes in fixed-size chunks through the worker-pool helpers of 10, with `workers` defaulting to the number of logical CPU cores.
+    - A rejected document is cause `rejected-document`: report its index, the JSON Pointer of the failing keyword, and the location of the failing value, for at most `certify.max_rejections` rejections (register this Resource_Parameter in the registry of 12, an integer of at least 1, default 20).
+    - `CertifyResult` holds the number of documents and schemas checked, the wall-clock runtime in seconds, the documents checked per second, the Kernel's verified flag, and `verdict_differences` (`None` until 52). Measure the runtime with `core.workers.stopwatch()` of 25.1: `kernel/certify.py` is not on the clock allow-list of the static source rules and may not import `pipeline`. The runtime goes to the command's own output and never into the Certificate. The command has no time limit.
+    - Unit tests: a schema with one tightened bound rejects the right document with the right pointer; the rejection list stops at `certify.max_rejections`; the `CertifyError` of a rejected document has the cause `rejected-document` and a `result` with the counts and the runtime; 1 and 4 workers give the same result.
+    - _Requirements: 29.4, 38.2, 38.3, 38.8_
+  - [ ] 28.4 Add the `certify` command and its import rule (`src/jsinfer/cli.py`, `src/jsinfer/__init__.py`, `tests/unit/test_source_lint.py`)
+    - `jsinfer certify CERTIFICATE --input PATH... --out DIR [--cross-check] [--set workers=N]`. On success, print the number of documents and schemas checked, the runtime, and the documents per second, and exit 0. On a `CertifyError`, print the cause (and each reported rejection) and exit 4. When the Kernel in use is unverified, say so in either case. Until 52 implements the comparison, `--cross-check` exits 2 with the message of the `NotImplementedError`.
+    - Export `certify` from `jsinfer`.
+    - Add a static rule to the source lint: `kernel/certify.py` and the modules it imports use only the Ingestor, the adapter, the Kernel, the Validator (as Format_Oracle and, inside the cross-check that 52 adds, as the second verdict), the Resource_Parameter registry, and the worker-pool and `stopwatch` helpers of `core/workers.py`; an import from `structure`, `values`, `deps`, `decide`, `mdl`, `learn`, or `pipeline` fails the build.
+    - _Requirements: 38.2, 38.3, 38.8_
+  - [ ] 28.5 Write property test for emitted schemas being in the Kernel_Fragment and Guarded
+    - Every emitted schema is checked with and without inline provenance. The test also injects a construct outside the Kernel_Fragment into a model before the soundness stage and expects the run to fail at stage `Soundness` with no output. The clauses on Schema_Versions and the combined schema wait for 60, and schemas with `$defs` appear once 46 lands.
+    - **Property 60: Emitted schemas are in the Kernel_Fragment and Guarded**
+    - **Validates: Requirements 2.13, 8.9**
+  - [ ] 28.6 Write property test for Certificates
+    - The test runs each example twice (1 and 2 workers, different `PYTHONHASHSEED`, different output directories) to compare Certificate bytes. For a tampering meant to reach the checker (a document replaced, a Constraint tightened, a flagged index removed), the test recomputes the affected digest in the Certificate so that the named cause is the rejection and not the digest. The flagged index it removes belongs to a Flagged_Document the schema rejects (planted by the test with a hand-built flag set until 48 adds outlier detection), because removing the index of a document the schema accepts leaves the claim true. The clause on certification inside a run (38.5) is added in 52.
+    - **Property 63: Certificates check, and only when true**
+    - **Validates: Requirements 38.1, 38.2, 38.3, 38.5, 38.6**
+
+- [ ] 29. Reproducibility, Technique isolation, all-off equals Naive_Merge, and the Subschema_Checker
+  - [ ] 29.1 Implement the Subschema_Checker's keyword scan and draft-04 shim (`src/jsinfer/io/subschema.py`)
+    - Scan both schema documents for anything outside the supported list before any check runs. Supported: `type`, `enum`, `const`, `allOf`, `anyOf`, `oneOf`, `not`, the numeric, string, array, and object bounds, `multipleOf`, `pattern`, `items`, `prefixItems`, `properties`, `patternProperties`, `additionalProperties`, `required`, `$defs`, a local non-recursive `$ref`, and `uniqueItems` over items known to be scalars.
+    - Everything else is unsupported: `format`, `contains`, `propertyNames`, `if`/`then`/`else`, `dependentRequired`, `dependentSchemas`, keywords without a draft-04 counterpart, unknown keywords, earlier-draft keywords (`definitions`, `dependencies`, `additionalItems`), `$schema` or `$id` below the root, a recursive `$ref`, an `enum` or `const` holding an object or array, a `not` over a schema with object or array keywords, and a `not` over a numeric type.
+    - A finding gives the result `Unsupported` with cause `keywords`: the keyword list, and each use with its schema object's pointer and a reason. No check runs.
+    - Both documents must then pass the draft 2020-12 meta-schema check with the Validator.
+    - Write the shim to the draft-04 shape: strip annotations and `x-` keywords; `const` becomes a single-value `enum`; `prefixItems` becomes array-form `items` plus `additionalItems`; `$defs` becomes `definitions`; numeric exclusive bounds become the draft-04 boolean flags; boolean subschemas become `{}` or `{"not": {}}`; a `$ref` with siblings becomes an `allOf` entry; every `$ref` is rewritten to the new positions.
+    - Unit tests: each unsupported case is reported with its pointer; each shim rewrite on a small example.
+    - _Requirements: 31.8_
+  - [ ] 29.2 Run the inclusion checks in child processes and map the relation (`src/jsinfer/io/subschema.py`, `src/jsinfer/config/resources.py`)
+    - Write `SubschemaChecker.relation(inferred, truth, timeout_s=None) -> Relation | Unsupported`. It runs two checks, inferred ⊆ truth and then truth ⊆ inferred, through an injectable `runner(lhs, rhs, timeout_s) -> bool | CheckFailure`.
+    - The default runner starts a fresh child of the project interpreter for each check, calls jsonsubschema's `isSubschema` there, and applies the `subschema.timeout_s` Resource_Parameter; past the limit it kills the child's process group. Register `subschema.timeout_s` (a number greater than 0, default 30) in the registry of 12. jsinfer itself never imports jsonsubschema. A `None` answer counts as "does not hold".
+    - Map the two answers to `equivalent` (both hold), `subset` (only inferred ⊆ truth), `superset` (only truth ⊆ inferred), or `incomparable` (neither).
+    - A check that errors, times out, or cannot start gives `Unsupported` with cause `error`, `timeout`, or `unavailable`, and the other check is skipped.
+    - Unit tests with the real runner: two equal Naive_Merge schemas are `equivalent`; a schema with one more `required` entry is a `subset`; a stubbed slow check is reported as `timeout`.
+    - _Requirements: 31.7, 31.8_
+  - [ ] 29.3 Write property test for the inclusion relation mapping
+    - The test uses a stub runner that returns generated pairs of outcomes, and generated schemas with keywords from outside the supported list injected at random pointers.
+    - **Property 54: Inclusion relation mapping**
     - **Validates: Requirements 31.7, 31.8**
-  - [x] 19.4 Write property test for byte-identical reproducibility
-    - **Property 46: Byte-identical reproducibility** (subprocesses with workers ∈ {1, 2, 4} and varied `PYTHONHASHSEED`)
-    - Each example runs in three long-lived driver subprocesses (hash seed 0, 1, and `random` with 1, 2, and 4 workers and different output directories), not a 3×3 grid (design, Determinism and reproducibility). Added `src/jsinfer/__main__.py`, so `python -m jsinfer` runs the CLI
-    - **Validates: Requirements 27.5, 27.12**
-  - [x] 19.5 Write property test for order-insensitivity
-    - **Property 47: Order-insensitivity**
-    - The explanation files and reports are compared after mapping the document indices of relaxation and removal records (3.6), which name documents by position, to one order; everything else must be equal as it is
-    - **Validates: Requirements 27.6**
-  - [x] 19.6 Write property test for Technique isolation
-    - **Property 48: Technique isolation**
-    - Enabled Techniques that are not in effect get the same checks, with reason `missing-threshold` or `missing-model`; fallback indicators may name disabled Techniques; Decision_Points are observed through the report's decision entries (design Open Decisions, Techniques not in effect and fallback indicators)
-    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
-  - [x] 19.7 Write property test for all-off equals Naive_Merge
+  - [ ] 29.4 Make the all-off run equal Naive_Merge and add the cross-check (`src/jsinfer/config/run_config.py`, `src/jsinfer/pipeline/infer.py`, `tests/strategies.py`)
+    - Add `RunConfiguration.all_off()`, which disables every registered Technique.
+    - Under it, every Decision_Point takes its Fallback_Behavior: Record, open, one Variant, List, no enum, no bound, no Format or Pattern, no rule, no Flagged_Item, a single schema. With the two Baseline_Rules (`type` with the integer rule, `required` for keys present in every object), the emitted Schema_Model must equal the output of `pipeline/naive_merge.py` over the same parsed documents, and the soundness stage must apply no relaxation and no removal. The Fallback_Behaviors of 12 and the walk of 25.2 to 25.4 are specified to give this result; where the fixture below shows a difference, correct the Fallback_Behavior or the walk step, never Naive_Merge.
+    - Write a test helper `cross_check_equal(a, b)`: it converts both schemas through the adapter and requires the Kernel's `Widens` to answer yes in both directions, and requires the Subschema_Checker to report `equivalent`.
+    - Unit test: the all-off run on a fixture collection with nested objects, mixed types, empty arrays, and `1.0` beside `1` equals Naive_Merge and passes the cross-check.
+    - _Requirements: 28.4, 28.5_
+  - [ ] 29.5 Write property test for all Techniques off equals Naive_Merge
+    - The Subschema_Checker cross-check uses the real runner on a subset of the examples to bound the run time; the Kernel's `Widens` cross-check runs on every example.
     - **Property 49: All Techniques off equals Naive_Merge**
-    - Uses the real jsonsubschema; an `Unsupported` result fails the example whatever its cause
     - **Validates: Requirements 28.5, 34.4**
-  - [x] 19.8 Write property test for cut-off provenance
-    - **Property 31: Cut-off provenance**
-    - Check that the report lists every Resource_Parameter a run read, components' reads included (20.5)
-    - Reads are observed independently of the report, through tagged values from every value source. Checking that a Learned_Threshold is present is not a read; BIC is the only model-selection criterion; the Decision_Model cut-off checks apply once 22.4 makes them reachable (design Open Decisions, Resource_Parameter and Learned_Threshold reads)
-    - **Validates: Requirements 20.1, 20.5, 20.7**
-  - [x] 19.9 Write unit tests for configuration-specific fallbacks
-    - 4.10, 5.10, 5.11, 7.10, 9.9, 15.7, 16.8, plus missing-threshold substitution (20.6)
-    - The Decision_Model branches of 4.10, 5.11, 7.10, and 15.7 are covered at the engine and component level only, until 22.4; the 9.9 test asserts no `dependentRequired` at all, until 33.1
-    - _Requirements: 4.10, 5.10, 5.11, 7.10, 9.9, 15.7, 16.8, 20.6_
-  - [x] 19.10 Make the soundness processing order independent of document order (`pipeline/soundness.py`, `decide/relax.py`)
-    - Order each pass's failure groups, and the removal loop's, by target only (node id, keyword, item in code-point order) instead of first document index then target. Keep scoring each relaxation against the model as relaxed so far (design Open Decisions, Soundness processing order)
-    - Confirm that node ids depend only on the model, not on document order; otherwise order by the target's emitted JSON Pointer, then keyword and item
-    - Update the `pipeline/soundness.py` and `decide/relax.py` docstrings and the order assertion in `tests/unit/test_soundness.py`. Add a regression test with the 19.5 counterexample (23 lists, `maxItems: 0` and `minItems: 2` injected at the root) that gives the same model in both document orders
-    - Lift Property 47's one-Constraint limit: inject several over-tight Constraints, and update its docstring
-    - _Requirements: 3.3, 3.7, 27.6_
+  - [ ] 29.6 Write property test for byte-identical reproducibility
+    - Each example runs in three subprocesses: `PYTHONHASHSEED` 0 with 1 worker, 1 with 2 workers, and `random` with 4 workers, each writing to a different output directory, so every pair of runs differs in all three respects. The subprocesses are long-lived drivers that call `cli.main` once per run and restart after staggered run counts, so cold and warm runs are compared. Collections stay small (at most 50 documents, depth at most 4). Reports are compared after `comparable_json`. The clause on Schema_Versions, diffs, and the combined schema waits for 60.
+    - **Property 46: Byte-identical reproducibility**
+    - **Validates: Requirements 27.5, 27.12**
+  - [ ] 29.7 Write property test for order-insensitivity
+    - Sample-size Resource_Parameters are set above the collection size so that no Technique samples, and change-point detection is off. The test compares Schema_Models, not Provenance_Records, since relaxation records list document indices.
+    - **Property 47: Order-insensitivity**
+    - **Validates: Requirements 27.6**
+  - [ ] 29.8 Write property test for Technique isolation
+    - Toggle subsets are drawn over the Techniques registered as implemented and respect prerequisites, so the test covers more Techniques as later tasks implement them.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
 
-- [x] 20. Checkpoint (M2): ensure all tests pass, ask the user if questions arise.
+- [ ] 30. Checkpoint (M2): the pipeline runs end to end with soundness, provenance, the API and CLI, and Certificates
+  - All unit, property, and integration tests pass, including Properties 7, 8, 9, 31, 32, 41, 42, 43, 46, 47, 48, 49, 54, 60, and 63 with the clauses that do not wait for a later task.
+  - `scripts/verify.py verify` passes, and `scripts/verify.py trace` finds a row whose evidence resolves for every criterion implemented so far.
+  - A run under the default Run_Configuration and a run with every Technique off both complete on a fixture collection, each run wrote a Certificate, and `jsinfer certify` accepts the Certificate of each.
+  - Raise with the user the points these tasks settled where the design is silent: the default of `--out` (the current directory); in the removal loop, removing a `oneOf` whole when it sits beside an `anyOf`, so that a guard change never raises the Removable_Keyword count (24.5); offering Pattern re-induction in relaxation only while `values.pattern` is in effect; and the 1-bit model cost of a boolean subschema in a position other than `additionalProperties` and `items` (the design gives no value; set in 19).
 
 ### M3: Learning
 
-- [x] 21. Implement normalization, the Synthetic_Generator, and labels
-  - [x] 21.1 Implement field-name normalization and Path sets (`corpus/normalize.py`)
-    - `normalize_name` splits on `_`, `-`, and lower/digit→upper transitions, then casefolds
-    - Normalized Path sets across branches, with `$ref` expanded to depth `nearest.ref_depth`
-    - _Requirements: 24.2, 25.1_
-  - [x] 21.2 Write property test for field-name normalization
+- [ ] 31. Field-name normalization, the Synthetic_Generator, and labels
+  - [ ] 31.1 Implement field-name normalization (`src/jsinfer/corpus/normalize.py`)
+    - `normalize_name(name: str) -> tuple[str, ...]`: split the name into tokens at every underscore, at every hyphen, and at each transition from a lowercase letter or a digit to an uppercase letter; drop empty tokens; apply `casefold()` to every token.
+    - `emailAddress`, `email_address`, `email-address`, and `EMAIL_ADDRESS` must all give `("email", "address")`. Characters other than underscores and hyphens never split and are never removed (`$schema` gives `("$schema",)`); a name made only of underscores and hyphens, and the empty string, give the empty tuple. A run of uppercase letters is one token (`HTTPServer` gives `("httpserver",)`), because the rule splits only after a lowercase letter or a digit.
+    - Provide `render_normalized(tokens) -> str` (tokens joined by `_`) for places that need a string key, such that `normalize_name(render_normalized(t)) == t` for every tuple `t` that `normalize_name` returns. This is what "idempotent" means for the function.
+    - This is the single normalization used by the Synthetic_Generator's value index, the featurizers' name tokens, the semantic-type name mapping, the Trainer's Corpus_Index stage, and the Corpus_Advisor; no other module splits field names itself.
+    - Unit tests: the four spellings above, a name with consecutive separators, a name with digits (`address2Line` gives `("address2", "line")`), an all-uppercase name, a name with other punctuation, and the empty string.
+    - _Requirements: 24.2_
+  - [ ] 31.2 Write property test for field-name normalization
+    - Generate token sequences in which each token is one or more lowercase ASCII letters followed by zero or more digits. A digit inside a token followed by a letter must not be generated: SCREAMING_SNAKE_CASE would turn it into a digit-to-uppercase transition and split the token. Render each sequence in the five styles and compare the results; check idempotence through `render_normalized`.
     - **Property 38: Field-name normalization**
     - **Validates: Requirements 24.2**
-  - [x] 21.3 Implement the Synthetic_Generator (`learn/synth.py`)
-    - Per-document streams from `SeedSequence([seed, blake2b(schema_id), k, doc_index])`; sampled collection parameters recorded per collection
-    - Value sources in 22.3 order: generators for the ten Formats; `examples`/`default`/`enum` from the field or from same-name corpus fields; then type-based values. Pattern sampler over `re._parser` after ECMA translation, with rejection fallback
-    - `$ref` depth cap `synth.max_depth`; rejection sampling for `allOf`, `oneOf`, `not`, and `if`; every document validated; attempt budget `synth.doc_attempts`; uncompilable schemas excluded with a reason
-    - For source (b) of 22.3, index `examples`, `default`, and `enum` values by normalized field name across the training-split and validation-split schemas the generator is given, never held-out ones; the train-only Corpus_Index cannot serve this (design, Generator)
-    - _Requirements: 22.1, 22.2, 22.3, 22.7, 22.8, 22.9_
-  - [x] 21.4 Write property test for the generator
-    - **Property 33: Generator correctness and determinism**
-    - Also add the planted-structure `collections()` strategy (Maps, Variants, Tagged_Unions, Field_Groups, Tuples, recursion, rare outliers) to `tests/strategies.py`
-    - **Validates: Requirements 22.7, 22.9**
-  - [x] 21.5 Implement label derivation and Path alignment (`learn/labels.py`)
-    - `derive_labels` on the `$ref`-expanded model with Key, MapVal, and Elem stepping per 22.4. Missing labels and conflicting labels across branches become unknown
-    - `align(schema, path)` maps inferred Paths to schema Paths
-    - _Requirements: 22.4, 22.5, 31.9, 31.10_
-  - [x] 21.6 Write property test for label derivation
+  - [ ] 31.3 Define the corpus manifest and Schema_Split file models (`src/jsinfer/bench/splits.py`)
+    - `CorpusManifest`: one entry per schema with its unique source identifier, its source (`schemastore`, `jsonschemabench`, or `fixture`), and the path of its schema file relative to the manifest file. Provide `CorpusManifest.load(path)`, `ids()` in sorted order, and `schema_bytes(id)`.
+    - `SchemaSplit`: the split identifier, the seed, and for each schema identifier its near-duplicate group and its split (`train`, `val`, or `heldout`). Provide `SchemaSplit.load(path)`, `write(path)` (canonical JSON, temp file then rename), `split_of(id)` returning `None` for a schema absent from the split, and `ids(split)` in sorted order.
+    - Define here only the fields the Trainer reads. 35 adds the remaining fields (test-file paths, catalog versions, snapshot versions, the cut-off, the proportions, the exclusions) and builds a split from the corpus; write both models so that those fields can be added as optional ones without changing the fields above. A field that neither model declares is an error.
+    - A file that is not valid JSON, lacks a required field, lists an identifier twice, or names a split other than the three raises an error naming the file and the problem.
+    - Unit tests: round trip of both files, the duplicate-identifier error, an unknown split name, and `split_of` on an absent identifier.
+    - _Requirements: 21.2, 21.8, 22.1_
+  - [ ] 31.4 Implement ground-truth label derivation (`src/jsinfer/learn/labels.py`)
+    - `derive_labels(schema: SchemaModel, max_depth: int) -> dict[tuple[Path, JudgmentKind], Label]`, computed on the `$ref`-expanded model with the Path stepping the Inferrer uses: `properties` adds a Key step, `patternProperties` and schema-valued `additionalProperties` add a MapVal step, `items` and `prefixItems` add an Elem step. Stop expanding a recursive `$ref` at `max_depth` (callers pass the Resource_Parameter `synth.max_depth`).
+    - Apply the rules of 22.4 exactly. Record when an object subschema declares `properties`; Map when it declares `patternProperties` or a schema-valued `additionalProperties` without `properties`. Closed Record when a Record subschema declares `additionalProperties: false`; open Record when it declares `additionalProperties` as `true` or as a schema. Tuple when an array subschema declares `prefixItems`; List when it declares `items` without `prefixItems`. Closed_Enum when a scalar subschema declares `enum` or `const`; open enum when a string, integer, or number subschema declares neither. Split when a subschema declares `anyOf` or `oneOf` with two or more object branches; Merge when the Path has exactly one object subschema.
+    - Record `unknown` for a kind at a Path when the schema meets none of that kind's conditions there (for example a Record with no `additionalProperties` keyword, for Closed-or-Open-Record), and when branches that reach the same Path give conflicting labels.
+    - `Label` values use the fixed class order of each kind, with class 0 the first outcome: Record, closed, Tuple, closed, Merge. Export the class orders; the featurizers, the Decision_Models, and `feature_spec.json` read them from here.
+    - Unit tests: one schema per rule, a Record with no `additionalProperties` keyword, a conflict across `anyOf` branches, a label reached through a `$ref`, and a recursive schema that stops at the depth cap.
+    - _Requirements: 22.4, 22.5_
+  - [ ] 31.5 Write property test for label derivation
+    - Draw schemas from the supported-grammar strategy in `tests/strategies.py` and check the first clause against an independent, direct reading of the keywords at each Path. The second clause (Judgment_Call accuracy of a schema against itself is 1 for every kind with a known label) needs the accuracy metric and is added in 37.
     - **Property 34: Label derivation is consistent**
     - **Validates: Requirements 22.4, 22.5, 31.9**
+  - [ ] 31.6 Write the fixture corpus (`tests/fixtures/corpus/`)
+    - Hand-write 30 small draft 2020-12 schemas, with no content taken from SchemaStore or JSONSchemaBench, plus a corpus manifest (source `fixture`) and a fixture Schema_Split that assigns schemas to all three splits.
+    - Together the schemas must contain, in both the training split and the validation split, at least one example of each class of each Judgment_Call kind under the label rules of 22.4: Record and Map, closed and open Record, Tuple and List, Closed_Enum and open enum, Split and Merge. They must also contain declared Formats, `examples`, `default`, and `enum` values, two fields in different schemas that share a normalized name where only one declares `examples`, a `pattern`, a recursive `$ref`, an `anyOf` of object branches, and a `dependentRequired` entry.
+    - Include one schema the Validator cannot compile and one whose constraints no document can satisfy, so that both exclusion paths of 22.8 are exercised, and at least one held-out schema, so that the 21.8 check has something to reject.
+    - Add a test that loads every fixture schema with the Schema_Loader, checks that the manifest and the split list the same identifiers, and checks the per-split class coverage stated above with `derive_labels`.
+    - _Requirements: 22.1, 22.4_
+  - [ ] 31.7 Implement the generator configuration and per-collection parameter sampling (`src/jsinfer/learn/synth.py`)
+    - `GeneratorConfig`: the distributions for the collection size (at least 1 document), the presence rate of each optional field (in [0, 1]), the array lengths, and the enum value frequency skew, each given as a named distribution with parameters. Validate the ranges when the configuration is built and report every offending field in one error.
+    - `sample_collection_params(schema, schema_id, k, cfg, seed) -> SampledParams`: draw, for one Document_Collection, the collection size, one presence rate per optional field of the schema, the array-length parameters, and the enum skew, each independently, from a stream derived with `core.determinism.rng` from the seed, the schema identifier, and the collection number `k`. One collection's parameters therefore depend on no other collection and not on the worker count.
+    - `SampledParams` serializes to canonical JSON, because the training manifest records it for every Document_Collection.
+    - Register the Resource_Parameters `synth.collections_per_schema` (default 3), `synth.doc_attempts` (50), `synth.max_depth` (6), `synth.max_nodes` (2,000), and `synth.max_schema_nodes` (200,000) in the resource registry.
+    - Unit tests: sampled values lie in their ranges (size at least 1, rates in [0, 1]); the same key gives the same parameters; two different `k` give different streams; an invalid configuration names every offending field.
+    - _Requirements: 22.1, 22.2_
+  - [ ] 31.8 Implement scalar value generation (`src/jsinfer/learn/synth.py`)
+    - Choose each scalar value from the first applicable source, in this order: (a) a Format-conformant generator when the field's subschema declares one of the ten supported Formats; (b) an `examples`, `default`, or `enum` value that satisfies the field's subschema, taken first from the field's own declarations in the source schema and otherwise from fields with the same normalized field name in the value index; (c) a value generated from the subschema's type and constraints (`enum`, `const`, numeric and length bounds, `multipleOf`, `pattern`).
+    - `build_value_index(schemas)` builds the index for source (b) inside the generator: the `examples`, `default`, and `enum` values of every field, keyed by `normalize_name`, across the training-split and validation-split schemas it is given, with values in canonical order. It refuses a Held_Out_Schema with an error, and it does not use the Corpus_Index, which holds training-split schemas only.
+    - Every Format generator must produce values the Validator accepts with `format` treated as an assertion; test each of the ten on a few hundred seeded draws.
+    - Sample `pattern` values with an in-house sampler over the `re._parser` output of the pattern, after translating the ECMA shorthands `\d`, `\w`, and `\s` to their Python equivalents. For a pattern the sampler cannot handle, fall back to rejection sampling against the Validator.
+    - Draw enum values with the collection's sampled frequency skew. A candidate from source (b) that the field's subschema rejects (checked with the Validator) is skipped, not emitted; when no candidate of source (b) is left, source (c) applies.
+    - Unit tests: the source order on a field that has all three sources, a same-named field's `examples` reused through the index, a rejected index value skipped, and a held-out schema refused by `build_value_index`.
+    - _Requirements: 22.3_
+  - [ ] 31.9 Implement document generation with validation, caps, and exclusions (`src/jsinfer/learn/synth.py`)
+    - Generate a document by walking the `$ref`-resolved Schema_Model: objects with required properties always present and each optional one present at its sampled rate, Maps from `patternProperties` and schema-valued `additionalProperties`, Tuples from `prefixItems`, Lists from `items` with the sampled lengths, and one branch chosen for `anyOf` and `oneOf`.
+    - Cap `$ref` recursion at `synth.max_depth`: beyond that depth, pick only branches and optional absences that terminate. Cap breadth at `synth.max_nodes`: once a document holds that many values, leave out optional properties, extra members, and array elements beyond the minimum.
+    - Handle `allOf`, `oneOf`, `not`, and `if` by rejection: generate a candidate and keep it only if the Validator accepts it.
+    - Validate every candidate against the source schema with the Validator and emit only accepted documents. Retry a rejected candidate up to `synth.doc_attempts` times, each attempt from a deterministic sub-stream of the document's stream.
+    - This check is the primary evidence of 22.7, whose Verification_Method Table 2 fixes as Checked: give 22.7 a primary row in the traceability matrix with method Checked and this check as its evidence. A property test may be added to the matrix only as a secondary row.
+    - Exclude a schema, discarding every Document_Collection generated from it, and return the schema identifier with the reason, in three cases: the Validator cannot compile it; a document gets no accepted candidate within the attempt budget; its collections, rejected attempts included, generate more than `synth.max_schema_nodes` values. The value count is deterministic, so the exclusion is too. Generation continues with the remaining schemas.
+    - Unit tests: a recursive schema terminates within the depth cap; a very wide schema respects the node cap; an uncompilable schema, an unsatisfiable schema, and a schema over the value total are each excluded with the right reason and leave no collection behind.
+    - _Requirements: 22.7, 22.8, 29.9_
+  - [ ] 31.10 Implement the collection API and seeded, worker-independent generation (`src/jsinfer/learn/synth.py`)
+    - `SyntheticGenerator.collection(schema, schema_id, k, cfg, seed) -> GeneratedCollection` returns the documents, the `SampledParams`, and the labels from `derive_labels(schema, synth.max_depth)`. `SyntheticGenerator.documents(schema, n, seed_key) -> Iterator[JSON]` serves callers that only need documents (the test strategies and the Evaluation_Harness).
+    - Seed each document's stream from `SeedSequence([seed, blake2b(schema_id), k, doc_index])`, never from execution order, so the output does not depend on the number of worker processes.
+    - `generate_training_data(split, manifest, schema_ids, cfg, seed, workers)`: for every given training-split and validation-split schema, generate `synth.collections_per_schema` Document_Collections, each tagged with the split of its source schema. Refuse a Held_Out_Schema, and a schema absent from the Schema_Split, with an error. Run schemas in joblib workers and collect the results in sorted schema-identifier order.
+    - Serialize documents with the canonical encoder, so that "byte-identical" is well defined. Return the excluded schemas with their reasons beside the collections.
+    - Record, for each generated object at a Path where the source schema declares `anyOf` or `oneOf` object branches, the index of the branch the generator chose. This is the ground truth of the grouping objectives in 32.8.
+    - Integration test on the fixture corpus: runs with 1 and 4 workers give byte-identical collections, parameters, labels, and exclusions; no collection comes from a held-out schema; every collection carries its source schema's split.
+    - _Requirements: 22.1, 22.2, 22.9_
+  - [ ] 31.11 Write property test for generator correctness and determinism
+    - Draw schemas from the supported-grammar strategy in `tests/strategies.py`, skip those the Validator cannot compile, and compare two runs with the same seed and different worker counts: documents and labels byte-identical and in the same order. In the traceability matrix this test is the primary evidence of 22.9 and a secondary row of 22.7 (primary: the Checked row of 31.9).
+    - **Property 33: Generator correctness and determinism**
+    - **Validates: Requirements 22.7, 22.9**
+  - [ ] 31.12 Implement semantic-type labels for scalar fields (`src/jsinfer/learn/labels.py`)
+    - `semantic_label(field_subschema, name) -> str`: the declared Format when the field declares one; otherwise the semantic type that the documented mapping assigns to the field's normalized name; otherwise `none` (no semantic type).
+    - Write the mapping as a data table in the module, from normalized name tuple to semantic type. The semantic types are the ten Formats and the Pattern-mapped types (country code, currency, E.164 phone, language tag, hex color, semver). Document the table in the module docstring.
+    - `semantic_examples(collections) -> Iterator[(values, name, parent, label, split)]`: for each scalar field of each generated collection, the values the Synthetic_Generator produced, the field's name and parent name, the field's label, and the split of the source schema. Only the training-split rows may be used to fit the Semantic_Type_Classifier; the classifier itself is built in 57, and nothing is fitted here.
+    - Unit tests: a field with a declared Format, a field named `countryCode` without one, a field with neither, and a declared Format that wins over a name the mapping also knows.
+    - _Requirements: 21.6_
 
-- [x] 22. Implement featurization, Decision_Models, and threshold fitting
-  - [x] 22.1 Implement the featurizers and wire them in (`learn/features.py`, `structure/record_map.py`, `structure/arrays.py`, `structure/variants.py`, `values/enums.py`)
-    - Per-kind feature tables from the design, the normalized MDL difference, hashed name and parent tokens, and a versioned feature spec
-    - Pass a `features` callable to the DecisionEngine at every Judgment_Call site
-    - Make the Substitution for a missing grouping threshold name what actually resolves `variant_grouping`: the grouping Techniques still in effect, or the one-Variant Fallback_Behavior when none is (design Open Decisions, Techniques not in effect and fallback indicators)
-    - _Requirements: 15.2, 22.10_
-  - [x] 22.2 Implement oracle-resolver featurization (`learn/trainer.py`)
-    - Run the real pipeline with an oracle resolver: upstream Judgment_Calls take the ground-truth label when known and MDL otherwise. Record features and labels per Judgment_Call, aligned with `align()`
-    - Exclude unknown-label and no-Observation examples and count them per kind and per cause
-    - _Requirements: 22.6, 22.10_
-  - [x] 22.3 Write property test for feature parity
+- [ ] 32. Featurization, Decision_Models, calibration, and Learned_Threshold fitting
+  - [ ] 32.1 Implement the Judgment_Call featurizers (`src/jsinfer/learn/features.py`)
+    - `featurize(kind, view, candidates, ctx) -> np.ndarray`, one fixed-length float vector per Judgment_Call kind, plus `FEATURE_VERSION` and `feature_spec()`. `candidates` holds one candidate per class of the kind.
+    - `feature_spec()` returns a mapping of named entries, one per featurizer, collected from a registry in this module. Here it holds one entry per Judgment_Call kind, named by the kind, with the featurizer version, the dimension, the feature names, and the class order. A later featurizer registers its own entry under its own name and with its own version (57 does so for the Semantic_Type_Classifier), and nothing else in this module or in the bundle writer changes. Entry names are unique, and the mapping serializes with the canonical JSON encoder.
+    - Record-or-Map: number of objects; distinct keys; keys per object mean and standard deviation; key-frequency entropy; singleton-key fraction (f1/#keys); Chao1(keys)/#keys; fraction of keys matching integer, UUID, date, or hex patterns; key length mean and standard deviation; value-type entropy across keys; mean pairwise key-set Jaccard over a seeded sample of pairs drawn with `rng("features.jaccard", path)`.
+    - Closed-or-Open-Record: number of objects; #keys; f1 and f2 of key occurrences; Good–Turing unseen-key mass; mean optional-key presence; depth; key-set stability between the first and second halves in canonical order. Tuple-or-List: length mean, standard deviation, and distinct-length ratio; modal-length share; per-position type entropy minus pooled type entropy; distinct element kinds; maximum length.
+    - Closed-or-Open-Enum: the six statistics of 15.1; S_obs/n; Chao1/S_obs; value JSON type; mean string length; fraction of values that look like identifiers. Merge-or-Split: number of candidate groups; minimum, mean, and maximum pairwise key-set Jaccard; type agreement on shared keys; group-size entropy; the maximum mutual information between a scalar field's value and the group.
+    - Every kind also gets the MDL difference between its two outcomes divided by `n_scored`, and hashed name tokens for the field and its parent: tokens from `normalize_name`, hashed with BLAKE2b into a fixed number of buckets (never the builtin `hash()`).
+    - Features depend only on the view's multisets and on canonical orders, so they are identical for any document order and any number of worker processes. Empty and single-row views give finite values: define each ratio's value for a zero denominator.
+    - Unit tests: hand-computed vectors for one small view per kind; finiteness on empty views; equality under row permutation.
+    - _Requirements: 22.10_
+  - [ ] 32.2 Implement the featurization pass with the oracle resolver (`src/jsinfer/learn/trainer.py`)
+    - `featurize_collection(collection, labels, ctx) -> list[Example]`: run the real inference pipeline on a generated collection with a recording DecisionEngine, handed to `run_pipeline` through its internal keyword-only parameter `engine_factory` (25); the pass changes nothing else in the pipeline and uses no other hook. At every Judgment_Call that has a candidate for each of the kind's two classes, the engine calls the same `featurize` the Inferrer calls and stores the vector with the kind and the inferred Path. A Judgment_Call with a withheld candidate (Document_Support) is recorded as no example, because the Inferrer does not consult a Decision_Model there.
+    - Oracle resolver, part of the engine that `engine_factory` builds: each upstream Judgment_Call takes its ground-truth label when one is known and a candidate for that class is offered, and the MDL outcome otherwise, so that training contexts stay close to the true structure.
+    - `align(schema, path)`: map an inferred Path to the schema Path whose label applies, using the same stepping as `derive_labels`; a Path with no counterpart gets the label `unknown`.
+    - Each pass is a complete in-memory inference run, the Soundness stage included, so it also produces a schema, an Inference_Report, and a Certificate; the pass keeps only the recorded examples and writes none of these outputs. A run that ends in an internal error (for example a covering schema the Soundness stage cannot convert through the adapter) is not skipped: the error propagates with the schema identifier and the collection number, and the Trainer reports it as a failure of the featurize stage.
+    - The pass uses one fixed Run_Configuration, the oracle configuration: no Model_Bundle, the Decision_Model Techniques off, every other implemented Technique at its default, and the training seed. Expose it as a function of the training configuration, so that later passes over unlabeled collections (49) run under the same configuration.
+    - Unit tests: on a fixture schema with a Map inside a Record, the pass records one example per Judgment_Call with the expected Path and label; forcing the oracle label changes the downstream Paths accordingly; a Path the schema does not have gets `unknown`; an internal error injected into one run is raised with the schema identifier and the collection number.
+    - _Requirements: 21.8, 22.10_
+  - [ ] 32.3 Write property test for feature parity
+    - For a generated collection, compare each vector the featurization pass records with the vector a plain inference run computes at the same view and kind, with the upstream decisions forced to the same outcomes. Keep collections small (at most 50 documents, depth at most 4).
     - **Property 35: Feature parity**
     - **Validates: Requirements 22.10**
-  - [x] 22.4 Implement Decision_Models (`learn/decision_models.py`)
-    - `HistGradientBoostingClassifier(random_state=…, early_stopping=False)`, calibrated with `CalibratedClassifierCV(FrozenEstimator(m), method="sigmoid")` on validation examples
-    - Confirm the closed Closed-or-Open-Record clauses of Properties 10 and 41 run once a Decision_Model can select a closed Record; MDL does not close Records on their inputs (even at 1,000 documents)
-    - Report whether the normalized MDL-difference feature carries signal for Closed-or-Open-Record (its spread and importance on validation examples). Revisit the Good–Turing unseen-key charge only if it does not and the Decision_Model cannot close Records either (design Open Decisions, Closed-or-Open-Record Judgment_Call)
-    - Omit a kind with only one class and record the per-class counts. Validation metrics: n, accuracy, macro-F1, and ECE before and after calibration with `ece.bins`
-    - When the `decide.dm_*` Techniques become `implemented=True`, add pipeline-level tests of the Decision_Model branches of 4.10, 5.11, 7.10, and 15.7 (an enabled model, a missing model, `decide.dm_closed_enum` on with `values.enum_estimation` off) to `tests/unit/test_config_fallbacks.py`, and check that Properties 31 and 48 reach Decision_Model cut-offs and fallbacks
-    - _Requirements: 21.3, 21.4, 21.5, 22.11_
-  - [x] 22.5 Implement Learned_Threshold fitting (`learn/trainer.py`, `config/thresholds.py`)
-    - Deterministic grid search on validation examples, ties to the smallest value. Store the fitted value, objective value, example count, and Training_Data id. Omit thresholds with no validation examples and record why
-    - Objectives for the M2 thresholds: ARI for `lsh.keyset_jaccard`, `dbscan.eps`, `dbscan.min_samples`, and `hdbscan.min_cluster_size`; `dependentRequired` F1 for `cooccur.min_support` and `cooccur.min_confidence`. Fit `dbscan.min_samples` in objects and `hdbscan.min_cluster_size` in distinct signatures, the units task 13.2 uses. Fit `cooccur.min_confidence` on the Confidence `(count(a) + 1) / (count(a) + 2)` of task 14.2, which makes it a minimum Support count
+  - [ ] 32.4 Assemble labeled examples and apply the exclusion rules (`src/jsinfer/learn/trainer.py`)
+    - `build_examples(collections, workers) -> ExampleSet`: featurize every collection (joblib, results in collection order) and hold, per Judgment_Call kind, the feature matrix, the labels, the split tag of the source schema, the schema identifier, and the collection number.
+    - Exclude from supervised training every example whose label is `unknown`, and every labeled (Path, kind) of the source schema that has no Observation in the generated Document_Collection. Count the excluded examples per Judgment_Call kind and per cause (`unknown-label`, `no-observation`) for the training manifest.
+    - Split tags come only from the source schema's split: an example from a validation-split schema never enters the training matrices, and an example from a training-split schema never enters the validation matrices.
+    - Compute the Training_Data identifier as a digest of the Schema_Split identifier, the schema identifiers used per split, the generator configuration, the featurizer version, and the seed. It contains no timestamp, so equal inputs give an equal identifier.
+    - Unit tests: counts per cause on a small hand-made case; no validation-split example in the training matrices; the identifier is equal for equal inputs and differs when the seed differs.
+    - _Requirements: 21.3, 22.6_
+  - [ ] 32.5 Train one Decision_Model per Judgment_Call kind (`src/jsinfer/learn/decision_models.py`)
+    - `DecisionModel` wraps a classifier with `kind`, `trained_with` (`"synthetic"` here; `"synthetic+weak"` is added in 49), `feature_version`, and `predict_proba(x)` whose columns follow the kind's class order.
+    - `train_decision_model(kind, examples, seed)`: fit `HistGradientBoostingClassifier(random_state=..., early_stopping=False)` on the training-split examples of that kind only, using the feature vectors of 32.1 unchanged. Derive `random_state` from `core.determinism.rng`, and limit OpenMP to one thread with `threadpoolctl` during fit and predict.
+    - Omit the model and return an omission record with the per-class example counts when the training-split examples of the kind contain no example of one of its two classes.
+    - Omit the model and return an omission record with the reason when the training split or the validation split yields no labeled example of the kind.
+    - Unit tests: a separable toy set is learned; a single-class training set gives the omission record with counts; an empty validation split gives the omission record; two fits with the same seed give identical probabilities.
+    - _Requirements: 21.3, 21.9, 22.10, 22.11_
+  - [ ] 32.6 Calibrate the Decision_Models and compute validation metrics (`src/jsinfer/learn/decision_models.py`)
+    - `calibrate(model, val_examples)`: wrap the fitted model in `CalibratedClassifierCV(FrozenEstimator(model), method="sigmoid")` and fit it on validation-split examples only. The `DecisionModel` stored in the Model_Bundle is the calibrated one.
+    - When the validation-split examples of a kind hold only one class, sigmoid calibration cannot be fitted: omit the model with that reason and the per-class counts.
+    - `expected_calibration_error(probabilities, labels, bins)`: the count-weighted mean absolute gap between confidence and accuracy over the non-empty equal-width confidence bins. Register the Resource_Parameter `ece.bins` (default 15) and read the bin count from it.
+    - `validation_metrics(model_before, model_after, val_examples)`: the number of validation-split examples, the accuracy, the macro-F1, and the expected calibration error before and after calibration, all computed on the validation split.
+    - Unit tests: the expected calibration error on a hand-computed case with an empty bin; calibrated probabilities lie in [0, 1] and sum to 1; a single-class validation set gives the omission record; no training-split example reaches the calibration fit or the metrics.
+    - _Requirements: 21.3, 21.4, 21.5, 21.9_
+  - [ ] 32.7 Implement Learned_Threshold fitting (`src/jsinfer/learn/trainer.py`)
+    - `fit_threshold(spec: ThresholdSpec, val: ValidationExamples, companions=None) -> ThresholdRecord | Omission`, with `ThresholdSpec` the registered specification of 12: evaluate the objective registered under `spec.objective` at every value of `spec.grid(val)` (quantiles of the statistic plus the two ends of the admissible range, rounded to integers when `spec.integer`, values outside the admissible range dropped), and take the value with the highest objective. Ties go to the smallest value.
+    - The search is deterministic: the grid is sorted, the objective is a pure function of the validation examples and the candidate value, and nothing is sampled without a `core.determinism.rng` stream.
+    - Use only validation-split examples: the function raises an error for an example set that holds an example from a training-split schema or from a Held_Out_Schema.
+    - `ThresholdRecord` holds the name, the Technique and the Decision_Point kind that use the Learned_Threshold, the objective, the admissible value range, the fitted value, the objective value achieved at the fitted value, the number of validation-split examples used, and the Training_Data identifier.
+    - When the validation split contains no example for the Decision_Point kind the Learned_Threshold serves, return an omission with the name and the reason instead of a record; the caller leaves the Learned_Threshold out of the Model_Bundle and continues with the remaining ones. A Learned_Threshold whose Technique is disabled in the training configuration (an unimplemented Technique cannot be enabled) is omitted with that reason.
+    - `ValidationExamples` is a sequence of (collection, Path, truth) triples, each carrying the split of the collection's source schema. The truth is whatever the objective compares against; an objective that judges whole documents uses the root Path.
+    - `OBJECTIVES`: an open registry from objective name to a function `objective(val, spec, value, companions) -> float`, together with the builder that makes the objective's `ValidationExamples` from the validation-split collections. A Technique task registers its `ThresholdSpec` with an objective name and adds the function and the builder here under that name, without changing the fitting code. A second registration of a name, and a `ThresholdSpec` whose objective name is not registered when fitting starts, are errors.
+    - `companions` maps the other Learned_Thresholds of the same Technique to the values the objective should assume for them. The caller fits the Learned_Thresholds of one Technique in ascending name order and passes, for each other one, its fitted value, or the lower end of its admissible range when it is not fitted yet. An objective may instead search a companion's grid itself and score the candidate at the companion's best value; the objective is then still a pure function of its arguments. When a Learned_Threshold is omitted, those of the same Technique fitted after it are omitted with that reason.
+    - Unit tests: a toy objective with a known maximum, a tie resolved to the smallest value, an integer grid, an example set with a training-split example rejected, the no-examples omission, a toy two-threshold Technique fitted in name order with the companion values passed as stated, and an unregistered objective name.
     - _Requirements: 20.3, 20.4, 20.8_
+  - [ ] 32.8 Implement the validation objectives for the Variant-grouping and co-occurrence thresholds (`src/jsinfer/learn/trainer.py`)
+    - Grouping objective for `lsh.keyset_jaccard`, `dbscan.eps`, `dbscan.min_samples`, and `hdbscan.min_cluster_size`: run the grouping Technique with the candidate value on each validation-split collection at each Path whose source schema declares `anyOf` or `oneOf` object branches, and compute the adjusted Rand index of the grouping against the ground-truth branch of each object (the branch index recorded in 31.10). The objective is the mean over those Paths.
+    - Co-occurrence objective for `cooccur.min_support` and `cooccur.min_confidence`: run co-occurrence mining with the candidate value on each validation-split collection and compute the F1 of the emitted `dependentRequired` entries against those the source schema declares at the aligned Path. The emitted entries are the canonical subset of 9.5 that 23 produces (one cycle in code-point order through each maximal set of mutually implying fields, and between sets only rules that are not derivable), so the two sides are not compared entry by entry: a declared entry counts as found when it can be derived by transitive chaining from the emitted entries and the emitted `required` list, and an emitted entry counts as correct when it can be derived from the declared entries and the declared `required` list. A source schema that states the same implications in another, or a redundant, form then scores 1. The objective calls the mining, selection, and reduction of 23 and contains no reduction of its own; the derivability test is a plain reachability check in the objective. Fit `cooccur.min_support` under the default selection. Fit `cooccur.min_confidence` with the MDL selection Technique off, because the Confidence cut-off selects rules only then.
+    - These objectives take the companion values as 32.7 passes them: while one Learned_Threshold of a Technique is fitted, the Technique's other one has its fitted value, or the lower end of its admissible range when it is not fitted yet. None of them searches a companion's grid.
+    - The `ValidationExamples` builders of these objectives make the (collection, Path, truth) triples of 32.7 from validation-split collections only. A Learned_Threshold with no such triple is omitted under the rule of 32.7.
+    - Each objective caches the per-collection statistics that do not depend on the candidate value, so a grid of a few dozen values does not repeat the flattening.
+    - Unit tests: on a planted two-Variant collection the fitted `lsh.keyset_jaccard` separates the Variants; on a collection with a planted co-occurrence the fitted `cooccur.min_support` admits the rule; a source schema that declares all six rules among three mutually implying fields scores 1 against the three emitted rules of the canonical cycle; a validation split without `anyOf` or `oneOf` Paths gives omissions for the four grouping thresholds.
+    - _Requirements: 20.3, 20.8_
+  - [ ] 32.9 Serve Decision_Models at inference and switch the Decision_Model Techniques on (`src/jsinfer/learn/decision_models.py`, `src/jsinfer/config/registry.py`)
+    - Load `dm.<kind>.synthetic` from the Model_Bundle through the bundle reader of 12, which verifies the artifact's SHA-256 before unpickling and compares `feature_spec.json` with `feature_spec()` of the running featurizer. A missing file, a digest mismatch (substitution cause `checksum`), or a featurizer mismatch (cause `feature-spec`) counts as a missing model.
+    - Pass `features=lambda: featurize(kind, view, candidates, ctx)` to `DecisionEngine.resolve` at the five Judgment_Call sites (Record-or-Map, Closed-or-Open-Record, Tuple-or-List, Closed-or-Open-Enum, Merge-or-Split), so the Inferrer and the Trainer share one feature computation. `decide.dm_closed_enum` serves Closed-or-Open-Enum only while `values.enum_estimation` is enabled.
+    - The engine selects the class with the higher calibrated probability, records that probability as the Confidence and the rejected class with its probability as the alternative considered, and records the cut-off source "Decision_Model comparison" with both probabilities and the artifact `dm.<kind>.synthetic`. Equal probabilities are resolved by the MDL_Scorer, with cut-off source "MDL comparison" and the scores of the tied outcomes.
+    - With the Technique disabled, the MDL comparison resolves the Judgment_Call. With the Technique enabled and no model for the kind in the Model_Bundle, the same Fallback_Behavior applies and the substitution is recorded in the Inference_Report, once per kind, through the `in_effect` callable of 20; this task writes no substitution of its own. A Judgment_Call with a withheld candidate skips the Decision_Model step.
+    - Set the registry entries `decide.dm_record_map`, `decide.dm_closed_record`, `decide.dm_tuple_list`, `decide.dm_closed_enum`, and `decide.dm_merge_split` to implemented. They read no Learned_Threshold.
+    - Integration tests with a hand-built bundle holding one stub-trained model: the model's class is selected and recorded; equal probabilities fall to MDL; a corrupted artifact and a wrong `feature_version` both fall back to MDL with a recorded substitution.
+    - _Requirements: 20.7, 21.10, 22.10, 22.12, 22.13, 22.14_
 
-- [x] 23. Implement the Model_Bundle writer and the Trainer
-  - [x] 23.1 Implement the bundle writer (`learn/bundle.py`)
-    - Bundle layout, manifest fields, `thresholds.json`, `feature_spec.json`, and models, written atomically (temp directory, then rename)
-    - The reader treats a feature-spec mismatch as a missing model
-    - Record `artifacts {name: {path, sha256}}` in the manifest. The reader verifies the digest before unpickling or reading an artifact and treats a missing file or a mismatch as a missing artifact (substitution cause `checksum`). Document that only trusted bundles should be loaded, since the digest does not make an untrusted pickle safe
-    - _Requirements: 21.1, 21.2, 21.10, 22.10_
-  - [x] 23.2 Implement `Trainer.run` and `jsinfer train` (`learn/trainer.py`, `cli.py`, `bench/splits.py`)
-    - Define the `SchemaSplit` file model (load and save) and a minimal corpus manifest file model (schema id, source, schema file path relative to the manifest) in `bench/splits.py`; 25.1 later writes the same model. Read train and validation schemas by id from the corpus manifest named in the training config (design Open Decisions, Corpus manifest and training fixtures)
-    - Register the Resource_Parameter `train.max_schemas` (default 2,000, provisional until 29.9): above it, sample each split's sorted schema ids in proportion to its size with `rng("train.subset", split)`, and list the schemas used per split in the manifest
-    - Run the design's training order. Reject held-out or unknown schemas with a non-zero exit and no bundle
-    - Omit artifacts of disabled or unimplemented Techniques (label model, Semantic_Type_Classifier, Corpus_Index) and record the reasons. Stage errors remove the temp directory
-    - _Requirements: 21.1, 21.2, 21.3, 21.7, 21.8, 21.9, 22.1, 22.6_
-  - [x] 23.3 Write property test for missing artifacts
-    - **Property 32: Missing artifacts degrade to fallbacks**
-    - Include artifacts whose SHA-256 does not match the manifest
-    - **Validates: Requirements 20.6, 21.10, 22.14, 24.9**
-  - [x] 23.4 Hand-write the fixture schema corpus (`tests/fixtures/corpus/`)
-    - 30 draft 2020-12 schemas written for the tests, with no SchemaStore or JSONSchemaBench content (design Open Decisions, Corpus manifest and training fixtures)
-    - Cover every Judgment_Call label of 22.4 in both classes (Record and Map, closed and open Record, Tuple and List, Closed_Enum and open enum, Split and Merge) in both the training and the validation split, so `tiny_bundle` trains a Decision_Model per kind. Also cover the ten Formats, `examples`/`default`/`enum` values, normalized field names shared across schemas (22.3(b)), `$ref` with recursion, `allOf`/`oneOf`/`not`/`if`, and Patterns
-    - Add a corpus manifest in the 23.2 file model and a fixture Schema_Split with training, validation, and held-out schemas, so 23.5 can test held-out rejection (21.8)
-    - A unit test checks that every schema passes the meta-schema check and compiles with the Validator, that the manifest and split agree, and that `derive_labels` (21.5) finds both classes of every kind in the training and validation splits
-    - _Requirements: 21.8, 21.9, 22.3, 22.4_
-  - [x] 23.5 Write Trainer integration tests and fixtures
-    - The fixture corpus and split of 23.4; session-scoped `tiny_bundle` cached by content hash; `empty_bundle`; two-run reproducibility; held-out schema rejection
-    - _Requirements: 21.7, 21.8, 21.9_
+- [ ] 33. Model_Bundle writer and the Trainer
+  - [ ] 33.1 Define the training manifest model (`src/jsinfer/learn/bundle.py`)
+    - `TrainingManifest` with these groups of fields. Identity: `bundle_id`, `created`, `trainer_version`, `training_config` (complete), `seed`. Inputs: `schema_split {id, seed}`, `schemas {train: [...], val: [...]}` (the source identifiers of the schemas used), `excluded_schemas [{id, reason}]`, `unlabeled_collections [...]`, `ws_excluded [...]`, `ws_removed_docs`.
+    - Generation: `collections [{schema_id, k, split, sampled_params}]` and `example_exclusions {kind: {cause: count}}`.
+    - Artifacts: `omitted_artifacts [{artifact, reason, class_counts}]`, `metrics {model: {n_val, acc, macro_f1, ece_before, ece_after}}`, `labeling_functions [...]`, and `ws_examples {kind: n}`. An omitted Learned_Threshold is an `omitted_artifacts` entry whose `artifact` is the Learned_Threshold's name; `class_counts` is null where it does not apply. The weak-supervision fields (`unlabeled_collections`, `ws_excluded`, `ws_removed_docs`, `labeling_functions`, `ws_examples`) are written empty here and filled in 49.
+    - Integrity: `artifacts {name: {path, sha256}}`, with paths relative to the bundle directory.
+    - Serialize with the canonical JSON encoder, with every list in a fixed order (schema identifiers sorted, collections by schema identifier and `k`, omissions by artifact name), so that two manifests from equal runs differ only in `bundle_id` and `created`. Provide `comparable(manifest)`, which removes exactly those two fields.
+    - Unit tests: round trip; `comparable` equality of two manifests that differ only in identifier and timestamp; inequality when any other field differs.
+    - _Requirements: 20.4, 20.8, 21.2, 21.5, 21.9, 22.2, 22.6, 22.8, 22.11_
+  - [ ] 33.2 Implement the Model_Bundle writer (`src/jsinfer/learn/bundle.py`)
+    - `write_bundle(out_dir, artifacts, thresholds, manifest) -> BundleId`: write `manifest.json`, `thresholds.json` (one `ThresholdRecord` per Learned_Threshold), `feature_spec.json` (the whole mapping that `feature_spec()` of 32.1 returns, written entry by entry without naming any entry, so an entry a later task registers is written with no change here), `models/dm.<kind>.synthetic.joblib`, and, when the caller supplies them, `models/dm.<kind>.weak.joblib`, `models/semantic_type.joblib`, `models/semantic_mapping.json`, `models/label_model.<kind>.json`, and the files under `corpus/`. The result is a directory `bundle-<uuid>/` that the bundle reader of 12 loads.
+    - Assign the unique identifier `bundle-<uuid>` and record it in the manifest. The identifier and the `created` timestamp are the only values of a training run that are not reproducible; `learn/bundle.py` is one of the four modules on the allow-list of the static source rules of 10, for exactly these two uses. No other module under `learn/` reads the clock or draws a UUID; check that the source lint passes with both uses in this module and fails when either is moved to `trainer.py`.
+    - Record the SHA-256 of the bytes of every file under `models/` and `corpus/` in the manifest's `artifacts` section. Write every artifact so that its bytes are a function of its content alone (fixed pickle protocol, no compression, no embedded timestamp or path), because these digests are part of the 21.7 manifest comparison.
+    - Write atomically: build everything in a temp directory under the output location and rename it into place as the last step. On any error remove the temp directory, so that no Model_Bundle is left at the output location.
+    - Unit tests: the bundle reader loads what the writer wrote and returns equal Learned_Threshold records and equal model predictions; a failure injected before the rename leaves the output location without a bundle or temp directory; the digests match the files; writing the same artifacts twice gives equal digests; the source lint outcome stated above.
+    - _Requirements: 20.4, 21.1, 21.7, 21.8, 27.14_
+  - [ ] 33.3 Implement the training configuration, input verification, and the schema cap (`src/jsinfer/learn/trainer.py`)
+    - `TrainingConfig` read from `train.toml`: the seed, the corpus manifest and Schema_Split paths, an optional list of schema identifiers to train on (default: every training-split and validation-split schema of the Schema_Split), the `GeneratorConfig`, the Technique toggles for the artifact-producing stages, the Resource_Parameters, and the worker count. Validate it when it is built and report every offending setting in one error. The file is a set of TOML tables, and an unknown table or setting is an offending setting; build the validation from a table of setting specifications, so that a later task adds a table by adding its specifications (49 adds `[weak_supervision]`). The Resource_Parameters table accepts every registered name, so one registered later needs no change here.
+    - `verify_inputs(cfg, manifest, split)`: the schemas supplied to the Trainer are the listed identifiers, or the default set. Fail with one error listing every offending schema identifier when a supplied schema is assigned to the held-out split or is absent from the Schema_Split. A supplied schema that the corpus manifest does not list, or whose file cannot be read, fails the same way.
+    - The Trainer reads schemas by identifier from the corpus manifest and passes only training-split and validation-split schemas to the Synthetic_Generator.
+    - Register the Resource_Parameter `train.max_schemas` (default 2,000), the cap on the training-split and validation-split schemas one run uses, together. When the supplied schemas exceed it, sample each split's sorted schema identifiers in proportion to the split's size with `rng("train.subset", split)`. The manifest's `schemas` lists the schemas used per split; schemas left out by the cap are not excluded schemas.
+    - Unit tests: a held-out identifier and an unknown identifier are both reported in one error; the cap preserves the split proportions and selects the same schemas for the same seed; a configuration with two invalid settings names both.
+    - _Requirements: 21.2, 21.8, 22.1, 29.9_
+  - [ ] 33.4 Implement `Trainer.run` and the training order (`src/jsinfer/learn/trainer.py`)
+    - `Trainer.run(cfg, out_dir) -> BundleId` runs named stages in this order: (1) verify the Schema_Split and the inputs; (2) build the Corpus_Index from the training split; (3) generate collections; (4) featurize; (5) fit Labeling_Function thresholds on validation data; (6) run weak supervision; (7) train the Decision_Models on the training split; (8) train the Semantic_Type_Classifier; (9) calibrate on the validation split; (10) fit the remaining Learned_Thresholds on the validation split; (11) write the metrics and the manifest; (12) write the bundle atomically.
+    - Each stage is a function registered under its name. Stages 2, 5, 6, and 8 belong to Techniques built in 50, 49, and 57. In this task each of them is a stage that produces nothing and records its artifacts (the Corpus_Index, the label model and the weakly supervised Decision_Models, the Semantic_Type_Classifier) in `omitted_artifacts` with the reason that the producing Technique is disabled in the training configuration. The same record is written whenever a training configuration disables an artifact's Technique. The remaining artifacts are written.
+    - Stage 10 fits every registered Learned_Threshold whose Technique is enabled in the training configuration, except the `lf.<id>.*` ones of stage 5, with `fit_threshold` and its registered objective.
+    - Collect every omission and exclusion into the manifest: Decision_Models with no labeled example in the training or the validation split, or with a missing class (with the per-class counts); Learned_Thresholds without validation-split examples; excluded schemas with their reasons; example exclusions per kind and cause; the sampled parameters of every collection; and the validation metrics of every Decision_Model.
+    - Fit Decision_Model parameters on training-split examples only. Use validation-split examples only for calibration, Learned_Threshold fitting, and the metrics. Assert this at the stage boundaries by checking the split tags of every matrix handed to a fit.
+    - An unrecoverable error in any stage removes the temp directory, leaves no Model_Bundle at the output location, and raises a `TrainingError` naming the failed stage; an internal error of an inference run inside the featurize stage (32.2) is such an error. A failed input verification raises a `TrainingError` listing the offending schema identifiers before any other stage runs.
+    - Unit tests with stubbed stages: the order is as listed; a stage that raises leaves no bundle and names the stage; an omitted artifact does not stop the run; a training-split matrix handed to the calibration stage trips the assertion.
+    - _Requirements: 20.3, 20.8, 21.1, 21.2, 21.3, 21.5, 21.8, 21.9, 22.2, 22.6, 22.8, 22.11_
+  - [ ] 33.5 Add the `jsinfer train` command (`src/jsinfer/cli.py`)
+    - `jsinfer train -c train.toml --out DIR` builds the `TrainingConfig`, calls `Trainer.run`, and prints the Model_Bundle identifier and the omitted artifacts and Learned_Thresholds with their reasons.
+    - Exit 0 on success. Exit 2 for an unreadable or invalid training configuration or an unusable `--out`. Exit 1 for a supplied schema that is held-out or absent from the Schema_Split, with every offending schema identifier on standard error, and for a stage error, with the name of the failed stage on standard error. In every non-zero case no Model_Bundle exists at `DIR`.
+    - The command reads no standard input and never prompts.
+    - Integration tests through a subprocess: a successful run on three fixture schemas, a configuration that lists a held-out schema, a configuration that lists an identifier absent from the Schema_Split, and an injected stage failure; each failure case checks the exit status, the message, and that `DIR` holds no Model_Bundle.
+    - _Requirements: 21.1, 21.8_
+  - [ ] 33.6 Add the `tiny_bundle` fixture, re-point the `empty_bundle` fixture at the bundle writer, and test the tiny training run (`tests/fixtures/`, `tests/integration/test_train_tiny.py`)
+    - `tiny_bundle`: a session-scoped fixture that trains a Model_Bundle from the 30 fixture schemas with a small generator configuration, once per test session, and caches it under a content hash of the fixture corpus, the training configuration, and the `src/jsinfer` sources.
+    - `empty_bundle`: re-point the `empty_bundle` fixture of 12 at `write_bundle`. The fixture keeps its name and its content (a valid manifest, no artifacts, no Learned_Thresholds), so the tests that already use it are unchanged. Assert that the hand-built form and the written form load equally through the bundle reader: the same empty artifact and Learned_Threshold sets, and the same substitutions in an inference run.
+    - Integration test of the tiny run, part 1 (bundle contents): the bundle holds, for each Judgment_Call kind, a calibrated Decision_Model or an omission record with a reason; every `ThresholdRecord` has all the fields of 20.4; each of the Corpus_Index, the label model, and the Semantic_Type_Classifier is either listed in the manifest's `artifacts` with a digest that the bundle reader verifies, or listed in `omitted_artifacts` with a reason, and never both. Write the assertion in this two-state form so that it keeps holding when 49, 50, and 57 make the same run produce these artifacts; note in a code comment, not in an assertion, that at this milestone all three are omitted because their stages are placeholders.
+    - Part 2 (manifest): the manifest lists the schemas used per split, the Schema_Split identifier and seed, the Trainer version, the complete training configuration and seed, every collection with its split and sampled parameters, the two unusable fixture schemas with their exclusion reasons, the example exclusions per kind and cause, and the validation metrics with the expected calibration error before and after calibration. No schema identifier in the manifest belongs to the held-out split, and each schema has `synth.collections_per_schema` collections.
+    - Part 3 (use): an inference run with `tiny_bundle` resolves at least one Judgment_Call with cut-off source "Decision_Model comparison", and the same run with `empty_bundle` completes with recorded substitutions. Both runs produce a Certificate, and `certify` (28) accepts each.
+    - _Requirements: 20.3, 20.4, 21.1, 21.2, 21.3, 21.4, 21.5, 21.9, 21.10, 22.1, 22.2, 22.6, 22.8_
+  - [ ] 33.7 Test Trainer reproducibility (`tests/integration/test_train_repro.py`)
+    - Run the Trainer twice on the fixture corpus with the same schemas, training configuration, and seed. Draw a probe set with a fixed seed from the validation-split examples and assert that both bundles give identical predicted classes and identical calibrated probabilities on it, contain identical Learned_Threshold values, and have manifests equal under `comparable` (everything except the Model_Bundle identifier and the timestamp).
+    - Run a third time with a different worker count and assert the same three equalities, with the worker-count setting also removed from the two manifests' `training_config` before they are compared.
+    - When the test fails, remove the source of the difference at its origin (unseeded estimator state, thread-count dependence, unordered iteration, artifact bytes that depend on more than content); do not loosen the comparison.
+    - _Requirements: 21.7, 22.9_
+  - [ ] 33.8 Keep training inside its time budget (`src/jsinfer/learn/trainer.py`)
+    - Make sure every cost driver of a training run has a cap that is a Resource_Parameter or a training-configuration setting: `train.max_schemas`, `synth.collections_per_schema`, `synth.max_nodes`, `synth.max_schema_nodes`, `synth.doc_attempts`, the upper end of the collection-size distribution, and the grid size of each Learned_Threshold.
+    - Report the wall-clock seconds of each training stage and the counts that drive cost (schemas used, collections, documents, values generated, examples per kind) in the console summary of `jsinfer train`. Leave them out of the manifest, so that the 21.7 comparison is unaffected, and take the times with `core.workers.stopwatch()` (25), the one clock read open to modules outside the allow-list of the static source rules, so that `trainer.py` does not read the clock itself.
+    - Add a test that a training run with small caps on the fixture corpus uses no more schemas, collections, and generated values than the caps allow.
+    - The 6-hour measurement on the Reference_Laptop with the default training configuration is made in 62; the default of `train.max_schemas` is provisional until that measurement.
+    - _Requirements: 29.9_
 
-- [x] 24. Checkpoint (M3): ensure all tests pass, ask the user if questions arise.
+- [ ] 34. Checkpoint (M3): the learning loop trains and serves Decision_Models
+  - All unit, property, and integration tests pass, including Properties 33, 34, 35, and 38, the tiny training run, and the Trainer reproducibility test; `scripts/verify.py verify` passes; `scripts/verify.py trace` resolves the evidence of every criterion added in this milestone, with 22.7 carried by a primary row of method Checked.
+  - An inference run with `tiny_bundle` uses the Decision_Models and still satisfies the soundness and reproducibility properties of the earlier milestones; a run with `empty_bundle` completes on the Fallback_Behaviors; each of the two runs produces a Certificate that `jsinfer certify` accepts.
+  - Raise with the user: the provisional default of `train.max_schemas` and the other training caps; the content of the name-to-semantic-type mapping; the rule for fitting two Learned_Thresholds of one Technique (32.8); scoring the co-occurrence objective by derivability, so that a source schema's rules and the canonical subset of 9.5 are compared by what they imply (32.8); that featurization runs without a Model_Bundle, so the grouping Techniques that need Learned_Thresholds are not in effect while training examples are recorded; that an internal error of an inference run inside featurization fails the training run (32.2); and the validation metrics (accuracy, macro-F1, expected calibration error) of each Decision_Model per Judgment_Call kind, and any kind whose model was omitted, with the reason.
 
-### M4: Evaluation Harness
+### M4: Harness
 
-- [x] 25. Implement corpus loading, splits, and leakage checks
-  - [x] 25.1 Implement the corpus loader (`bench/corpus_loader.py`)
-    - Read a SchemaStore checkout at a pinned commit (schemas, positive and negative tests, catalog versions) and a JSONSchemaBench checkout at a pinned revision from configured local paths
-    - Assign unique ids with source and snapshot, and link test files. Omit unreadable or invalid files with reasons. Write the corpus manifest the Trainer reads, in the file model of 23.2, extended with test-file paths and catalog versions
-    - _Requirements: 30.1, 30.9_
-  - [x] 25.2 Implement the split builder and `jsinfer split` (`bench/splits.py`, `cli.py`)
-    - MinHash/LSH over normalized Path sets with exact Jaccard on candidate pairs; cut-off from a 1–3 component GMM on logit similarities selected by BIC; union-find over catalog versions and pairs above the cut-off
-    - Assign forced held-out groups first, then the seeded deficit assignment. Persist everything 30.4 lists, including deviation flags
-    - Exclude schemas from synthetic generation per 30.5. Reject invalid proportions without writing a split
+- [ ] 35. Corpus loading, Schema_Split, and leakage checks
+  - [ ] 35.1 Define the benchmark configuration and its Resource_Parameters (`src/jsinfer/bench/runner.py`, `src/jsinfer/config/resources.py`)
+    - Add `BenchConfig`, read from `bench.toml` with stdlib `tomllib`: the seed, the Model_Bundle, the output directory, the locations and pinned revisions of the SchemaStore checkout and the JSONSchemaBench export, the Real_Dataset manifest path, the list of systems to run, the training collection sizes (default 10, 100, 1,000), the held-out Positive_Document count (default 1,000), the cross-validation fold count k (default 5), the setting `certify.cross_check` (default on, used by 38.5), and one table per Baseline (executable or jar, SHA-256, output draft, extra arguments).
+    - Register the harness Resource_Parameters with their defaults and ranges: `split.train` 0.70, `split.val` 0.10, `split.heldout` 0.20, `split.max_cutoff` 0.9, `nearest.max_paths` 20,000, `nearest.ref_depth` 8 (an integer of at least 0; the Corpus_Advisor of 50 reads the same parameter), `bench.run_timeout_s` 1,800, `bootstrap.resamples` 2,000, `bench.synth_attempts` (documents generated per Held_Out_Schema before it is excluded; proposed default 20,000), `mutation.target` (retained Negative_Documents per mutated schema; proposed default 5), `mutation.attempts` (candidate documents per mutated schema; proposed default 50), `mutation.site_limit` (sites per operator and schema; proposed default 20), and `bench.certify_max_documents` (the largest collection the harness certifies; no limit by default, set only when the feasibility check of 2 chooses to limit harness certification). The proposed defaults are listed for confirmation at 41.
+    - The harness also reads from the same registry `minhash.perm` and `lsh.bands`, which 22 registers, and `subschema.timeout_s`, which 29 registers; it registers none of them a second time.
+    - Validate when the configuration is built and report every problem in one error: a training size that is not a positive integer, an empty size series, k below 2, a held-out count below 1, an unknown system name, or a Resource_Parameter outside its range. The split proportions are checked by the split step (35.4), which owns their error.
+    - Unit tests: defaults, each validation error, and a round trip of a full `bench.toml`.
+    - _Requirements: 30.2, 31.1, 31.11, 31.12, 32.3, 32.9, 33.3, 34.7, 35.1_
+  - [ ] 35.2 Load the Schema_Corpus from the pinned checkouts (`src/jsinfer/bench/corpus_loader.py`, `tests/conftest.py`)
+    - Read SchemaStore from a local checkout at the pinned commit: schemas under `src/schemas/json`, positive test files under `src/test/<name>`, negative test files under `src/negative_test/<name>`, and the catalog's version lists. Read JSONSchemaBench from a local export at the pinned dataset revision. The loader never downloads.
+    - Give every schema an identifier unique across the corpus (`schemastore:<name>`, `jsonschemabench:<subset>/<name>`), a source identifier, and the snapshot version of its source. Link each test file to the schema it tests, and record which schemas are versions of one catalog entry.
+    - A schema file or test file that cannot be read or is not valid JSON is omitted, with its identifier and the reason recorded; omitting a schema also omits its test files. Loading continues with the remaining files.
+    - Write the corpus manifest in the `CorpusManifest` file model of 31 (`bench/splits.py`), which the Trainer reads: per schema the identifier, the source, and the schema file path, extended with the snapshot version of the source, the test-file paths, and the catalog version groups.
+    - Enumerate files in code-point order of their relative paths so the loaded corpus does not depend on directory order.
+    - Connect the loader to the `corpus_schemas` fixture of 15 (`tests/conftest.py`): when the pinned checkouts are configured, the fixture also yields, for every corpus schema the Schema_Loader fully supports, the schema with its SchemaStore positive and negative test files (none for a schema without test files). It yields a fixed seeded subset under the Hypothesis profile `ci` and every such schema under `nightly`, and only the fixture schemas of 15 when no checkout is configured. The corpus-driven tests of Properties 3 and 5 in 15 then run over these schemas without change.
+    - Unit tests on a small fixture tree: unique ids, test-file links, catalog version groups, an unreadable schema, an invalid test file, the cascade from an omitted schema to its test files, and the `corpus_schemas` fixture yielding the fixture tree's fully supported schemas with their test files.
+    - _Requirements: 2.8, 2.9, 30.1, 30.9_
+  - [ ] 35.3 Load Real_Dataset definitions (`src/jsinfer/bench/real.py`)
+    - Parse the Real_Dataset manifest file: each definition has an identifier unique within the manifest, a Document_Collection location, a known schema location, optional Negative_Documents, and an optional Ordering_Key.
+    - Add one Real_Dataset for each SchemaStore schema with at least one positive test file: each positive test file is one document of the Document_Collection and each negative test file is one Negative_Document. Its identifier is derived from the schema identifier.
+    - Give the Document_Collection of every Real_Dataset an identifier (the Real_Dataset identifier); the leakage check of 35.7 compares these identifiers with the training manifest.
+    - Exclude, with the identifier and the reason recorded, a definition that lacks a Document_Collection or a known schema, repeats an identifier of an earlier definition, or references a file that cannot be read. Continue with the remaining definitions.
+    - Return the definitions together with each known schema's corpus identifier when the known schema is a corpus schema; the split step needs this list.
+    - Unit tests: a valid manifest, each exclusion reason, and the SchemaStore-derived datasets of a fixture corpus.
+    - _Requirements: 33.1, 33.2, 33.8_
+  - [ ] 35.4 Compute normalized Path sets and near-duplicate groups (`src/jsinfer/corpus/normalize.py`, `src/jsinfer/bench/splits.py`)
+    - Add `normalized_path_set(model, ref_depth, max_paths)`: the Paths of a Schema_Model across all branches, each object-key step normalized with `normalize_name` (31), each `$ref` expanded up to `nearest.ref_depth`. The walk visits each (subschema, Path) pair once and stops opening new Paths when the set reaches `nearest.max_paths`. This is the one Path-set function for grouping and for the Corpus_Index.
+    - MinHash every Path set (datasketch, `minhash.perm` permutations, hash seed from the benchmark seed), retrieve candidate pairs with LSH (`lsh.bands`), and compute exact Jaccard similarity on the candidate pairs.
+    - Select the cut-off with a model-selection criterion: fit Gaussian mixtures with 1, 2, and 3 components to the logit of the candidate-pair similarities (similarities clipped away from 0 and 1 by a documented epsilon), choose the component count by BIC, and take the similarity at which the highest-mean component's posterior reaches 0.5, or 1.0 when BIC chooses one component. The effective cut-off is that value capped at `split.max_cutoff`, so every pair at or above the cap is grouped.
+    - Form groups by union-find over (a) schemas listed as versions of one SchemaStore catalog entry and (b) candidate pairs whose exact similarity is at or above the effective cut-off. Grouping is transitive. Group ids are derived from the smallest member identifier.
+    - A schema the Schema_Loader cannot load at all has an empty Path set and forms a group of its own unless a catalog entry groups it.
+    - Unit tests: Path sets of schemas with branches and recursive `$ref`, the `nearest.max_paths` stop, transitivity through a chain of pairs, catalog-version grouping of dissimilar schemas, the cap forcing a group when BIC selects a higher value, and the one-component case.
+    - _Requirements: 30.2_
+  - [ ] 35.5 Assign splits and persist the Schema_Split (`src/jsinfer/bench/splits.py`)
+    - Check the proportions first: each of `split.train`, `split.val`, and `split.heldout` strictly between 0 and 1, and their sum within 0.001 of 1. On a violation stop with an error naming the offending values and write nothing.
+    - Force to the held-out split the group of every schema that is the known schema of a Real_Dataset. For a known schema that is not a corpus schema, compute its Path set and force the group of every corpus schema whose exact similarity to it reaches the effective cut-off.
+    - Assign the remaining groups: shuffle them with `rng("split.assign")`, sort stably by descending size, and give each to the split with the largest deficit relative to its target proportion, counted in schemas. All members of a group go to one split. If any split would end with no schema, stop with an error and write nothing.
+    - Mark as excluded from synthetic generation, staying in its group and split, every schema that the Validator reports invalid against the meta-schema its `$schema` names (draft 2020-12 when absent), that declares a dialect outside draft-04, draft-06, draft-07, draft 2019-09, and draft 2020-12, or that the Schema_Loader marks partially supported. Record the identifier and the reason.
+    - Write the split file atomically as canonical JSON through the `SchemaSplit` file model of 31, adding the fields it lacks: the split identifier (a digest of the assignments, which the training manifest cites); per schema its identifier, group, and split; the seed; the source snapshot versions; the selected cut-off, the effective cut-off, and the criterion that selected it; the configured and realized proportions with a deviation flag on each split whose realized share differs from its configured proportion by more than 0.05; the exclusions from synthetic generation; and the files the loader omitted.
+    - Derive every assignment only from the seed, the loaded corpus, the Real_Dataset known schemas, and the proportions, so two runs with equal inputs write byte-identical files. The Trainer and the harness read the file back with the loader of 31.
+    - Unit tests: each invalid-proportion case, an empty split, forced held-out groups for corpus and non-corpus known schemas, each exclusion reason, the deviation flag at the 0.05 boundary, and byte-identical reruns.
     - _Requirements: 30.2, 30.3, 30.4, 30.5, 30.10_
-  - [x] 25.3 Write property test for split integrity
+  - [ ] 35.6 Write property test for split integrity
+    - Generate small corpora of schemas with planted near-duplicates and catalog version lists, Real_Dataset known schemas inside and outside the corpus, seeds, and valid and invalid proportions.
     - **Property 51: Split integrity**
     - **Validates: Requirements 30.2, 30.3, 30.4, 30.10**
-  - [x] 25.4 Implement leakage checks (`bench/leakage.py`)
-    - Before any run, compare the training manifest with held-out groups, Real_Dataset collections, and loaded ids. Abort on overlap, a missing manifest, or unknown ids, listing every offender
+  - [ ] 35.7 Check the training manifest for leakage before any run (`src/jsinfer/bench/leakage.py`)
+    - `check_leakage(split, bundle, real_datasets)` reads the training manifest of the Model_Bundle and compares every schema identifier and every Document_Collection identifier in it with the schemas of the held-out split, their near-duplicate groups, and the Document_Collections of the Real_Datasets.
+    - Raise `LeakageError` listing every overlapping schema identifier with its near-duplicate group and every overlapping Document_Collection identifier when the manifest lists a member of a held-out group or the Document_Collection of a Real_Dataset.
+    - Raise the same error when the Model_Bundle has no training manifest, or when the manifest lists a schema identifier that is absent from the loaded corpus; the message names the missing manifest or every unresolved identifier.
+    - Every benchmark entry point calls the check before it runs any inference or Baseline. On an error the benchmark writes no metrics and the CLI exits non-zero.
+    - Unit tests: a clean manifest, each overlap kind, a missing manifest, and an unresolved identifier, each asserting that no system ran and no results file was written.
     - _Requirements: 30.7, 30.8, 30.11_
-  - [x] 25.5 Write unit tests for leakage aborts
-    - _Requirements: 30.7, 30.8, 30.11_
-  - [x] 25.6 Probe jsonsubschema keyword coverage (open decision, M4)
-    - Integration test (`tests/integration/test_subschema_probe.py`) with known inclusion pairs per keyword
-    - Update the supported-keyword list in `io/subschema.py` from the results, and record them in the test module docstring
-    - Map jsonsubschema's own unsupported cases (an `enum` of objects, a negated object or array schema), which now surface as `error`, to `keywords` where the probe identifies them. Recheck `dependencies` (ignored by 0.0.8, so `dependentRequired` is unsupported), `multipleOf`, number negation, and integer/number `enum` handling
-    - _Requirements: 31.7, 31.8_
-  - [x] 25.7 Add corpus-parametrized cases to the round-trip and translation tests
-    - **Property 3: Schema emit/load round trip** and **Property 5: Draft translation preserves verdicts** over fully supported corpus schemas and SchemaStore tests (fixed subset in CI, full corpus nightly)
-    - **Validates: Requirements 2.8, 2.9, 34.5**
+  - [ ] 35.8 Write property test for leakage guards
+    - Generate Schema_Splits and training manifests with and without planted overlaps and unknown ids, and assert abort or proceed with a stub runner that counts calls. The clause on weak supervision (Real_Dataset collections and documents never reach it) is added to this test in 49.
+    - **Property 37: Leakage guards**
+    - **Validates: Requirements 23.6, 30.7, 30.8, 30.11**
 
-- [x] 26. Implement Mutation_Operators
-  - [x] 26.1 Implement mutations and negatives (`learn/mutations.py`)
-    - All 14 operators with site enumeration and the design's violation forms; one mutated schema per site, or a seeded subset at the per-operator limit
-    - Generate candidates from the mutated schema and keep distinct ones the ground truth rejects (with `format` asserted), up to the target or the attempt budget
-    - Label each negative with operator, schema id, and site pointer. Record skips and unproductive operators
-    - _Requirements: 32.1, 32.2, 32.3, 32.4, 32.5, 32.6, 32.7, 32.9, 32.10_
-  - [x] 26.2 Write property test for mutations
+- [ ] 36. Mutation_Operators
+  - [ ] 36.1 Build the operator registry and site discovery (`src/jsinfer/learn/mutations.py`)
+    - Define `MutationOperator` with a distinct name, a `sites(schema)` function returning the JSON Pointers of its applicable sites in a schema document, and an `apply(schema, site)` function returning a mutated copy. Operators work on the schema document, so sites are found in any schema the Validator can use.
+    - Register the fourteen operators with these sites: (a) a `required` entry; (b) an object schema with `additionalProperties: false`; (c) a `type` keyword; (d) an `enum` or `const` keyword; (e) a `pattern` keyword; (f) a `format` keyword; (g) a `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, or `multipleOf` keyword; (h) a `minLength` or `maxLength` keyword; (i) a `minItems`, `maxItems`, `minProperties`, or `maxProperties` keyword; (j) a `prefixItems` keyword with at least two positions whose subschemas differ; (k) a Tagged_Union in which each branch fixes the Discriminator to a distinct `const` or single-value `enum`; (l) a `dependentRequired` entry; (m) an Exclusion_Rule written as a `not` over a `required` set or as a `oneOf` across field groups (each branch requiring the fields of one member, with or without the other members' fields declared `false` under `properties`); (n) a `uniqueItems: true` keyword.
+    - Return sites in code-point order of their pointers. When an operator has more sites than `mutation.site_limit`, select a subset of exactly that many with `rng("mutation.sites", schema_id, operator)`; otherwise use every site.
+    - A `minLength`, `minItems`, or `minProperties` keyword whose value is 0 is not a site, because no value violates it; `sites` leaves it out.
+    - When an operator has no applicable site in a schema, skip it and record the skip with the schema identifier and the operator name.
+    - Unit tests: one schema per operator with a known site list, a schema with no site for an operator, a lower bound of 0, and the seeded subset at the limit.
+    - _Requirements: 32.1, 32.6, 32.9_
+  - [ ] 36.2 Implement the violation forms of the value and bound operators (`src/jsinfer/learn/mutations.py`)
+    - Remove a required field: set the field's property subschema to `false` and remove the field from `required`. Add an undeclared property: add a property name that the object schema does not declare, with the subschema `true`, to `properties` and to `required`. Change type: replace `type` with a type set disjoint from the original.
+    - Enum non-member: replace `enum` or `const` with a `const` of a fresh value of the same JSON type that is not a member. Violate Pattern: replace `pattern: p` with `not: {pattern: p}`. Violate Format: replace `format: f` with `type: string` and `not: {format: f}`.
+    - Violate a numeric bound: `maximum: m` becomes `exclusiveMinimum: m`, `minimum: m` becomes `exclusiveMaximum: m`, an exclusive bound becomes the opposite inclusive bound at the same value, and `multipleOf: k` becomes `not: {multipleOf: k}`. Violate a length or count bound: `maxLength: L` becomes `minLength: L+1`, `minLength: L` becomes `maxLength: L-1`, with the same forms for items and properties.
+    - Duplicate an element: replace `uniqueItems: true` with `not: {uniqueItems: true}`.
+    - Each `apply` changes exactly one site and leaves every other part of the schema equal to the original, including sibling keywords the violation form does not replace.
+    - Unit tests: for each form, the mutated document equals the expected document, and the diff against the original is confined to the site's schema object.
+    - _Requirements: 32.1, 32.2_
+  - [ ] 36.3 Implement the violation forms of the structural operators (`src/jsinfer/learn/mutations.py`)
+    - Reorder Tuple positions: swap two `prefixItems` entries whose subschemas differ, chosen by the seeded stream of the site.
+    - Pair a Discriminator value with another branch's fields: in one branch, replace the Discriminator's `const` (or single-value `enum`) with the value another branch fixes.
+    - Break a Co_Occurrence_Rule: replace the `dependentRequired` entry `a → [b, …]` with `required: [a]` and `not: {required: [b]}` for one implied field.
+    - Combine mutually exclusive fields: replace `not: {required: [a, b]}` with `required: [a, b]`; for the `oneOf` form, replace the `oneOf` with one branch that requires the fields of two groups and declares none of their fields `false`.
+    - Unit tests: expected mutated documents for each form, a Tuple whose positions are all equal (not a site), and a union whose branches share a Discriminator value (not a site).
+    - _Requirements: 32.1, 32.2_
+  - [ ] 36.4 Generate, check, and label Negative_Documents (`src/jsinfer/learn/mutations.py`)
+    - `negatives(truth, schema_id, seed)` creates one mutated schema per selected site of each operator (36.1), loads it with the Schema_Loader, and generates candidate documents with the Synthetic_Generator from a stream keyed by the seed, the schema identifier, the operator, and the site.
+    - A mutated schema the Schema_Loader marks partially supported is generated from its loaded part (so a violation form built on a keyword outside the supported set, such as `not: {multipleOf: k}`, may yield no candidate and end in the unproductive record); the check against the ground-truth schema document below keeps every retained Negative_Document correct either way.
+    - Validate each candidate against the ground-truth schema document with the Validator, `format` asserted, and retain each distinct candidate (by JSON value equality) that the ground truth rejects. Stop for a mutated schema when the retained count reaches `mutation.target` or the generated candidate count reaches `mutation.attempts`.
+    - Label every retained Negative_Document with the operator name, the ground-truth schema identifier, and the JSON Pointer of the mutated site in the ground-truth schema.
+    - When none of an operator's mutated schemas for a ground-truth schema yields a retained Negative_Document within the budget, including when the Synthetic_Generator excludes the mutated schema, record the operator as unproductive for that schema with the number of candidates attempted and continue.
+    - Return the negatives in a fixed order (operator registry order, site pointer order, generation order) so identical inputs, configuration, and seed give identical mutated schemas and identical Negative_Documents.
+    - Unit tests: retention only of rejected candidates, de-duplication by value (`1` equals `1.0`), both stop conditions, the unproductive record, and two identical reruns.
+    - _Requirements: 32.2, 32.3, 32.4, 32.5, 32.7, 32.9, 32.10_
+  - [ ] 36.5 Write property test for negative correctness and mutation discipline
+    - Generate ground-truth schemas in the supported grammar with at least one site for a random subset of operators, plus seeds and site limits.
     - **Property 55: Negative correctness and mutation discipline**
     - **Validates: Requirements 32.2, 32.3, 32.4, 32.5, 32.9, 32.10**
 
-- [x] 27. Implement metrics and bootstrap statistics
-  - [x] 27.1 Implement metrics (`bench/metrics.py`)
-    - Recall, negative rejection rate, and harmonic mean (0 when both are 0); undefined propagation; aggregates that skip undefined values and report their count; per-operator rejection rates (not applicable at zero)
-    - Judgment accuracy via `derive_labels`; Constraint precision and recall via `align()` and the 31.10 matching rules; reliability bins reusing the ECE function
-    - _Requirements: 31.3, 31.4, 31.5, 31.9, 31.10, 31.14, 32.8, 33.7, 33.9, 35.6_
-  - [x] 27.2 Write property test for metric definitions
+- [ ] 37. Metrics and bootstrap statistics
+  - [ ] 37.1 Implement the verdict metrics (`src/jsinfer/bench/metrics.py`)
+    - `recall(verdicts)`: accepted Positive_Documents divided by all Positive_Documents. `negative_rejection(verdicts)`: rejected Negative_Documents divided by all retained Negative_Documents. `harmonic(r, n)`: `2·r·n / (r + n)`, and 0 when both are 0.
+    - Every verdict comes from the Validator with `format` asserted, whatever draft the evaluated schema declares, so a value that violates a declared Format counts as a rejection.
+    - A zero denominator gives undefined (`None`), never 0 or 1. The harmonic mean is undefined when either input is undefined.
+    - `per_operator(negatives, verdicts)`: for each Mutation_Operator, the number of Negative_Documents it produced and the fraction the schema rejects; "not applicable" when the operator produced none.
+    - Real_Dataset forms: recall as the fraction of the n positive documents accepted by the schema of the fold that holds the document out; negative rejection rate as the mean over folds of the fraction of the dataset's Negative_Documents each fold's schema rejects; their harmonic mean. With no Negative_Documents, the negative rejection rate and the harmonic mean are "not available" with the reason, and recall is still reported.
+    - `mean_defined(values)`: the mean over the values that are numbers, the count that contributed, and the count of undefined values; undefined when no value contributes. Every aggregate of 40.1 uses it.
+    - Unit tests: the formulas on hand-computed vectors, R = N = 0, each zero-denominator case, the fold forms, and `mean_defined` on a list with undefined entries.
+    - _Requirements: 31.3, 31.4, 31.5, 31.6, 31.14, 32.8, 33.7, 33.9_
+  - [ ] 37.2 Implement Judgment_Call accuracy (`src/jsinfer/bench/metrics.py`)
+    - For an inferred schema and a ground-truth schema, call `derive_labels` (31) on both, so the inferred outcome uses the same schema-keyword rules as the ground-truth labels.
+    - For each Judgment_Call kind, accuracy is the fraction of ground-truth Paths with a known label of that kind at which the inferred schema has the same Path and the same outcome. A labeled Path absent from the inferred schema counts as incorrect, and so does an inferred label of unknown.
+    - A kind with no known ground-truth label gives undefined.
+    - Unit tests: a schema against itself (1 for every kind with a known label), a missing Path, a flipped outcome per kind, and a kind with no label.
+    - _Requirements: 31.9, 31.14_
+  - [ ] 37.3 Implement Constraint precision and recall (`src/jsinfer/bench/metrics.py`)
+    - Extract from a Schema_Model, with `$ref` expanded and Paths stepped as in label derivation, the Constraints of each kind: required fields, Formats, Closed_Enums, Tagged_Unions, Co_Occurrence_Rules, Exclusion_Rules, and bounds. Align inferred Paths to ground-truth Paths with `align()` (32).
+    - Two Constraints match when they are at the same Path and agree on: the field name (required fields); the Format value (Formats); the value set under `enum` equality (Closed_Enums, with `const` as a one-value set); the Discriminator and its value set (Tagged_Unions); the antecedent and the implied fields (Co_Occurrence_Rules); the set of mutually exclusive fields or Field_Groups (Exclusion_Rules); the bound keyword, whatever its value (bounds).
+    - A Tagged_Union is read from an `anyOf` or `oneOf` whose object branches all require one common property and constrain it with `const` or `enum` to pairwise disjoint value sets. An Exclusion_Rule is read from a `not` over a `required` set and from a `oneOf` whose branches each require the fields of a different member (a branch may also declare the fields of the other members `false` under `properties`, the form the Schema_Emitter writes); both forms give the same set of members.
+    - Precision per kind is matched inferred Constraints over inferred Constraints; recall is matched ground-truth Constraints over ground-truth Constraints. Either is undefined when its denominator is zero.
+    - Unit tests: one matching and one non-matching pair per kind, bounds matching across different values, a schema against itself (precision and recall 1), and both zero-denominator cases.
+    - _Requirements: 31.10, 31.14_
+  - [ ] 37.4 Implement schema size and description length (`src/jsinfer/bench/metrics.py`)
+    - `schema_size(document)`: the number of JSON Schema keyword occurrences in the emitted schema, including those under `$defs`; property names and definition names are not keywords.
+    - `description_length(document, docs_jsonl)`: load the schema with the Schema_Loader, ingest and flatten the system's training Document_Collection, and return the bits the MDL_Scorer computes for the schema with that collection. A schema the loader marks partially supported is scored on its loaded part, and the result records that.
+    - A schema that cannot be scored gives a missing value with the reason, not an error.
+    - Unit tests: sizes of small schemas with and without `$defs`, and equal description lengths for a schema emitted by the Inferrer and the same schema read back from disk.
+    - _Requirements: 35.7, 35.12_
+  - [ ] 37.5 Write property test for metric definitions
+    - Generate verdict vectors (empty ones included), labeled negatives per operator, fold layouts, and Constraint sets; aggregate with `mean_defined` of 37.1.
     - **Property 53: Metric definitions**
     - **Validates: Requirements 31.3, 31.4, 31.5, 31.10, 31.14, 32.8, 33.7, 33.9**
-  - [x] 27.3 Implement the bootstrap (`bench/bootstrap.py`)
-    - 95% percentile CI with `bootstrap.resamples` seeded resamples; paired test with p = min(1, 2·min(P*(Δ ≤ 0), P*(Δ ≥ 0))); not computable below two values or pairs
+  - [ ] 37.6 Implement bootstrap intervals and the paired test (`src/jsinfer/bench/bootstrap.py`)
+    - `mean_ci(values, resamples, rng)`: the mean of the values that are defined, the count of contributing values, and the 95% percentile bootstrap confidence interval over `bootstrap.resamples` seeded resamples. With fewer than two values the interval is marked not computable.
+    - `paired_test(a, b, resamples, rng)`: over the pairs where both values are defined, the mean difference (first minus second), the 95% percentile bootstrap interval of the difference from resampling pairs, the two-sided p-value `min(1, 2·min(P*(Δ ≤ 0), P*(Δ ≥ 0)))`, and the number of pairs. With fewer than two pairs the test is marked not computable.
+    - Draw resamples from `rng("bootstrap", metric, group, system)` so each reported interval is reproducible and independent of the order in which statistics are computed.
+    - Unit tests: a constant sample (zero-width interval), one value, one pair, a hand-checked small sample under a fixed seed, and identical results on a rerun.
     - _Requirements: 35.1, 35.2_
-  - [x] 27.4 Write property test for statistical summaries
+  - [ ] 37.7 Write property test for statistical summaries
+    - Generate samples and paired samples with missing entries and seeds. The expected-calibration-error clause exercises the ECE function of 32, which the calibration study of 53 reuses.
     - **Property 56: Statistical summaries**
     - **Validates: Requirements 21.5, 35.1, 35.2, 35.6**
+  - [ ] 37.8 Extend the property test for label derivation
+    - Add the second clause to the test written in 31: for any supported schema, the Judgment_Call accuracy of 37.2 of the schema against itself is 1 for every kind with at least one known label.
+    - **Property 34: Label derivation is consistent**
+    - **Validates: Requirements 22.4, 22.5, 31.9**
 
-- [x] 28. Implement the run isolation and Baseline_Adapters
-  - [x] 28.1 Implement the adapter protocol and runner (`bench/baselines/base.py`, `bench/runner.py`)
-    - Child processes with `start_new_session=True`, `os.killpg` on timeout (`bench.run_timeout_s`), a psutil process-tree RSS sampler, wall-clock timing, sequential runs, and the same JSONL input for every system. The Inferrer runs as `jsinfer infer`
-    - Availability checks; failures recorded with exit status and stderr; outputs meta-validated; older-draft outputs translated with the Schema_Loader, recording translations and unsupported constructs; `BaselineInfo` recorded
-    - _Requirements: 34.1, 34.2, 34.3, 34.5, 34.6, 34.7, 34.8, 34.11, 35.7_
-  - [x] 28.2 Implement the Naive_Merge and JSONoid adapters (`bench/baselines/naive.py`, `bench/baselines/jsonoid.py`)
-    - Naive adapter calls `pipeline/naive_merge.py`. JSONoid runs `java -jar` on a jar pinned by release and SHA-256, with `--random-seed`, and records options, version, and Java version
-    - _Requirements: 34.1, 34.4, 34.11_
-  - [x] 28.3 Write adapter tests
-    - Stub baselines for the failure, timeout, unavailable, and invalid-output paths; JSONoid test skipped when Java is absent
-    - _Requirements: 34.6, 34.7, 34.8_
+- [ ] 38. Run isolation, Baseline_Adapters (Naive_Merge, JSONoid and its variants), and certification of benchmark runs
+  - [ ] 38.1 Build the measured child-process runner (`src/jsinfer/bench/measure.py`)
+    - `run_measured(argv, timeout_s, cwd, env)` starts one child process in its own session (`start_new_session=True`), waits for it, and returns the exit status, captured standard output and error, the wall-clock seconds from start until the process returns, and the peak resident memory in megabytes.
+    - A psutil sampler thread sums the resident set size of the process and all its descendants at a fixed interval and keeps the maximum.
+    - When the run exceeds `timeout_s`, kill the whole process group (`os.killpg`), confirm no process of the group remains, and return a timeout outcome.
+    - Hold a module-level lock so that runs execute one at a time on the machine, and refuse a nested call.
+    - This module is the only one under `bench/` that reads the clock; it is on the allow-list of the static source rules (10).
+    - Unit tests with small Python child scripts: a normal exit, a non-zero exit with stderr, a child that spawns a grandchild and sleeps past the limit (both gone afterwards), and a child that allocates memory (peak above a floor).
+    - _Requirements: 34.3, 34.7, 35.7_
+  - [ ] 38.2 Define the Baseline_Adapter protocol and the acceptance of returned schemas (`src/jsinfer/bench/baselines/base.py`)
+    - Define `BaselineAdapter` (`name`, `label`, `available()`, `run(docs_jsonl, out, timeout_s)`, `describe()`), `Availability` (available, or unavailable with the reason), `RunOutcome` (schema, timeout, or failure), and `BaselineInfo` (version or commit identifier, every configuration option and command-line argument passed, and the version of the language runtime).
+    - `accept_output(raw, declared_or_configured_draft)` turns a run's output into an evaluated schema or a failure: the output must parse as one JSON document and be valid against the meta-schema of the draft its `$schema` declares, or of the output draft in the Baseline's configuration when `$schema` is absent. Otherwise the outcome is a failure carrying the exit status and the captured error output.
+    - A schema in draft-04, draft-06, draft-07, or draft 2019-09 is translated to draft 2020-12 with the Schema_Loader and re-emitted; all metrics use the translated schema. Record with the result the source draft, each translated keyword, and each construct the Schema_Loader reports as unsupported.
+    - A translated or native schema the Validator cannot compile is a failure of kind "unloadable schema". The failure kinds are: error exit, timeout, no schema, invalid output, unloadable schema, and certification failed.
+    - `probe(adapters)` calls `available()` once when the benchmark begins and returns the unavailable systems with reasons; the harness runs none of them and carries them into every results file and summary table.
+    - Unit tests with stub adapters: each failure kind, a draft-07 schema translated with its record, a schema with no `$schema` and a configured draft, and an unavailable adapter.
+    - _Requirements: 34.1, 34.5, 34.6, 34.8, 34.11, 31.13_
+  - [ ] 38.3 Implement the Naive_Merge Baseline_Adapter (`src/jsinfer/bench/baselines/naive.py`)
+    - Run Naive_Merge (16) in a child process through `run_measured`: a module entry point reads the JSONL file with the Ingestor, calls `naive_merge`, and writes exactly one draft 2020-12 schema document.
+    - `describe()` reports the jsinfer version, the arguments, and the CPython version. `available()` is always available.
+    - Integration test: the adapter's schema equals `naive_merge` called in process on the same documents.
+    - _Requirements: 34.1, 34.2, 34.11_
+  - [ ] 38.4 Implement the Inferrer adapter (`src/jsinfer/bench/baselines/inferrer.py`)
+    - Run `python -m jsinfer infer docs.jsonl -c CONFIG --out DIR` in a child process through `run_measured`. The configuration file is the default Run_Configuration with the benchmark's seed and Model_Bundle, or an explicit Run_Configuration when a study supplies one.
+    - Accept `exclude_ids` and write them to `corpus.exclude_ids`, so that the Corpus_Advisor uses no schema of the evaluated schema's near-duplicate group for suggestions or for the Nearest_Known_Schema.
+    - Read the schema from `DIR/schema.json` and return it as the run's one schema. A non-zero exit, a missing schema file, or a schema the Validator cannot load is a failure with its kind, the exit status, and the captured error output.
+    - `describe()` reports the jsinfer version, the effective Run_Configuration, the Model_Bundle identifier, and the CPython version.
+    - Integration tests: a run on a small collection returns the schema the CLI writes; `exclude_ids` reaches the effective configuration; a forced stage error is recorded as a failure.
+    - _Requirements: 30.6, 31.2, 31.13, 34.2, 34.11_
+  - [ ] 38.5 Certify each Inferrer benchmark run (`src/jsinfer/bench/baselines/inferrer.py`)
+    - After the timed section ends, call `certify(certificate, inputs, out_dir, cross_check=...)` (28), with cross-checking taken from the bench setting `certify.cross_check` of 35.1, on the run's Certificate, input file, and output directory, for every Inferrer run of the synthetic and real-data benchmarks (each training size and each fold). The certification time is not part of the run's measured runtime.
+    - Store the outcome with the run's stored result, which is its resume record: certified, with the documents and schemas checked; failed, with the cause `certify` reports (input-digest, schema-digest, kernel-digest, document-count, covers, unsupported-schema, rejected-document, or verdict-difference); or skipped, because the training collection holds more documents than `bench.certify_max_documents` (no limit by default). For a certified run also store `CertifyResult.verdict_differences` (the number of verdict differences between the Validator and the Kernel when the cross-check ran; `None` is stored as "not checked", never as 0) and the wall-clock seconds the `CertifyResult` reports. For a failed run store what the `CertifyError` carries: the cause and, for `verdict-difference`, the number of differences.
+    - Every run that returns a schema has a Certificate. A run whose covering schema is outside the Kernel_Fragment or not Guarded has already stopped with an internal error at stage `Soundness` (exit 1); 38.4 records it as an error-exit failure and it is not passed to `certify`.
+    - A run that fails certification, or that has a verdict difference, becomes a failure of kind "certification failed": its metrics are reported as missing and it is counted with the system's failures.
+    - The setting `certify.cross_check` is on by default. The cross-check inside `certify` is implemented in 52; until then `certify(..., cross_check=True)` raises `NotImplementedError` (28), which the harness does not catch or record as a certification failure, so the `bench.toml` of the smoke tests (40.8) and of the checkpoint 41 sets `certify.cross_check` off and every harness call passes `cross_check=False`. With it off, the run is certified without the Validator comparison and its verdict differences are reported as not checked, never as zero.
+    - Skip certification of a run whose training collection holds more documents than `bench.certify_max_documents` when that Resource_Parameter is set, and count the skipped runs separately from certified and failed runs.
+    - Unit tests with an injected `certify` function: certified, failed (the run becomes a failure), a verdict difference, a run that exits 1 because its schema is outside the Kernel_Fragment (recorded as an error-exit failure and not passed to `certify`), cross-checking off, and a run above the document-count limit. Integration test: one real run on a small collection is certified.
+    - _Requirements: 38.7, 31.13_
+  - [ ] 38.6 Implement the JSONoid Baseline_Adapter (`src/jsinfer/bench/baselines/jsonoid.py`)
+    - Run `java -jar jsonoid.jar --random-seed S docs.jsonl -w out.json` through `run_measured`, with JSONoid's default property set and equivalence relation. The jar is pinned by release and SHA-256 in the benchmark configuration and lives outside the Python lock file.
+    - `available()` reports unavailable, with the reason, when no Java runtime starts, the jar is missing, or the jar's SHA-256 differs from the pin. The harness then marks JSONoid unavailable in every results file and summary table and continues.
+    - Support configured variants of JSONoid (other property sets or equivalence relations) as separate systems, each with its own name and label and its arguments recorded.
+    - Before the meta-schema check, remove every `items` keyword whose value is an empty array and record the JSON Pointer of each removal with the run. No other repair is applied, and the output of no other system is repaired.
+    - `describe()` reports the jar release and digest, every argument passed, and the Java runtime version. The output draft comes from the schema's `$schema`, or from the adapter's configuration when it is absent, and the schema goes through `accept_output`.
+    - Unit tests on hand-written sample outputs: the `items: []` repair with its pointers, a draft translation, and each unavailable reason. Integration test: a real JSONoid run on a small collection, skipped when Java or the jar is absent.
+    - _Requirements: 34.1, 34.5, 34.6, 34.8, 34.11, 34.12_
 
-- [x] 29. Implement the synthetic and real-data benchmarks
-  - [x] 29.1 Implement the synthetic benchmark (`bench/synthetic.py`)
-    - For each eligible Held_Out_Schema: training collections at each configured size; held-out positives distinct from training documents; mutation negatives; `corpus.exclude_ids` set to the held-out group
-    - Run every available system, then compute recall, negative rejection, harmonic mean, inclusion relation, judgment accuracy, and Constraint precision and recall with `format` asserted. Record exclusions, failures, and timeouts as missing
-    - Load and re-emit each truth schema as draft 2020-12 before the Subschema_Checker, which rejects earlier-draft and unknown keywords. Inferred schemas with `dependentRequired` get `Unsupported` until 25.6 (design Open Decisions, jsonsubschema keyword coverage)
-    - _Requirements: 30.6, 31.1, 31.2, 31.6, 31.7, 31.8, 31.11, 31.12, 31.13_
-  - [x] 29.2 Implement the real-data benchmark (`bench/real.py`)
-    - Manifest parsing with exclusions; SchemaStore schemas with positive tests as Real_Datasets; cleaning per 33.5
-    - Seeded min(k, n) folds shared by all systems; generated negatives when none remain; per-fold metrics; not-available handling
-    - _Requirements: 33.1, 33.2, 33.3, 33.4, 33.5, 33.7, 33.8, 33.9_
-  - [x] 29.3 Write property test for evaluation data preparation
+- [ ] 39. Synthetic and real-data benchmarks
+  - [ ] 39.1 Define result records and the shared run step (`src/jsinfer/bench/runner.py`)
+    - Define the result record of one (system, dataset, configuration) combination: the system name and label, the dataset identifier and Dataset_Group, the Run_Configuration identifier, the seed, the training size or fold, the outcome (schema, failure kind, timeout, or unavailable), the `BaselineInfo`, the draft-translation and repair records, the certification outcome, the runtime in seconds, the peak resident memory in megabytes, and every metric value.
+    - Every metric value is a number, undefined (zero denominator), or missing with a reason (unavailable, timeout, error, or metric not computable). When a system returns no schema, every metric of the combination is missing with that reason.
+    - `run_combination(adapter, docs_jsonl, …)` writes the training documents once to a JSONL file, so every system reads the same documents in the same order; runs the adapter with `bench.run_timeout_s`; and on a schema computes the metrics with the same Positive_Documents, Negative_Documents, and Validator settings for every system.
+    - After any failure or timeout, record it for the system, dataset, and configuration and continue with the remaining combinations.
+    - Write each result to `results/<hash>.json` through a temp file and an atomic rename, with a completion marker, where the hash covers the system, the dataset, the configuration, and the seed. A system the probe reported unavailable gets no stored file, since nothing ran; its unavailable records are created in memory for every combination and reach every results file and table. Reuse of stored results on restart is added in 53.
+    - Unit tests with stub adapters: a schema, a failure, a timeout, and an unavailable system each produce the expected record, and the run continues past each.
+    - _Requirements: 31.13, 34.2, 34.3, 34.7, 34.8, 35.7, 35.12_
+  - [ ] 39.2 Prepare the synthetic evaluation data (`src/jsinfer/bench/synthetic.py`)
+    - For each Held_Out_Schema not excluded from synthetic generation, generate with the Synthetic_Generator from the configured seed one training Document_Collection per configured training size, with the collection size fixed to that size.
+    - Generate the configured count of held-out Positive_Documents from a separate stream, discarding any document equal as a parsed JSON value (numbers by Number_Value) to a document of any training collection of the same schema, and generating again within `bench.synth_attempts`.
+    - Generate the Negative_Documents of the schema once with the Mutation_Operators (36). Use the same held-out Positive_Documents and the same retained Negative_Documents at every training size.
+    - When the generator cannot produce every training collection and the full count of distinct held-out Positive_Documents within the attempt budget, exclude the Held_Out_Schema from the synthetic benchmark at every training size and record the exclusion with the reason.
+    - Unit tests: disjointness on a schema with a tiny value space (forcing regeneration), the exclusion when the value space is too small, and identical data on a rerun.
+    - _Requirements: 31.1, 31.11, 31.12_
+  - [ ] 39.3 Run and evaluate the synthetic benchmark (`src/jsinfer/bench/synthetic.py`)
+    - `Harness.synthetic(cfg)` loads the Schema_Split, runs the leakage check, probes the systems, and for each Held_Out_Schema and each training size runs the Inferrer under the default Run_Configuration and each Baseline not recorded as unavailable, one inferred schema per system, through `run_combination`.
+    - Pass the identifiers of the Held_Out_Schema's near-duplicate group to the Inferrer adapter as `exclude_ids`.
+    - For each inferred schema compute recall, the negative rejection rate, their harmonic mean, the per-operator rejection rates, Judgment_Call accuracy per kind, Constraint precision and recall per kind, the schema size, and the description length. Report every metric per training size.
+    - Compute the inclusion relation with the Subschema_Checker (29) after loading and re-emitting the ground-truth schema as draft 2020-12: equivalent, subset, superset, or incomparable when both inclusion tests complete; unsupported with the cause (the unsupported keywords, the error, or the timeout under `subschema.timeout_s`) otherwise.
+    - A run that fails, times out, or fails certification leaves every metric of that system, schema, and size missing; the remaining combinations still run.
+    - Integration test on a three-schema fixture corpus with the Inferrer, Naive_Merge, and one stub Baseline that fails: every metric is present for the systems that returned a schema, and missing with the failure kind for the stub.
+    - _Requirements: 30.6, 30.7, 31.2, 31.3, 31.4, 31.6, 31.7, 31.8, 31.9, 31.10, 31.11, 31.13, 34.2_
+  - [ ] 39.4 Clean Real_Datasets and assign folds (`src/jsinfer/bench/real.py`)
+    - For each Real_Dataset, exclude and record (dataset identifier, document identifier, reason) every document or Negative_Document that cannot be parsed as JSON, every positive document the known schema rejects, and every Negative_Document the known schema accepts, with the Validator asserting `format`.
+    - Exclude the Real_Dataset from all metrics, with its identifier and the reason, when the Validator cannot use its known schema, or when fewer than 2 positive documents remain (recording the remaining count). Continue with the remaining datasets.
+    - Assign the n remaining positive documents to min(k, n) folds from a seeded permutation (`rng("real.folds", dataset_id)`) cut into parts whose sizes differ by at most one, so leave-one-out applies when n is less than k. The assignment is computed once per dataset and shared by the Inferrer and every Baseline.
+    - When no Negative_Document remains after cleaning, generate Negative_Documents by applying the Mutation_Operators to the known schema, and record that the negatives were generated. When generation also yields none, mark the dataset's negative rejection rate and harmonic mean not available with the reason.
+    - Unit tests: each exclusion reason, a dataset reduced to one document, n below k, n equal to k, a dataset with supplied negatives, one with generated negatives, and one with none.
+    - _Requirements: 33.3, 33.4, 33.5, 33.8, 33.9_
+  - [ ] 39.5 Write property test for evaluation data preparation
+    - Generate Held_Out_Schemas with small and large value spaces, and Real_Datasets with planted unparseable documents, rejected positives, and accepted negatives, for several k and seeds.
     - **Property 52: Evaluation data preparation**
     - **Validates: Requirements 31.1, 33.3, 33.5**
+  - [ ] 39.6 Run and evaluate the real-data benchmark (`src/jsinfer/bench/real.py`)
+    - `Harness.real(cfg)` loads the Schema_Split and the Real_Datasets, runs the leakage check, probes the systems, and for each dataset and fold runs the Inferrer and each available Baseline on the documents outside the fold, in the same order for every system, through `run_combination`.
+    - Pass to the Inferrer adapter as `exclude_ids` the near-duplicate group of the known schema, or the corpus schemas that were forced to the held-out split for it.
+    - Compute per system and dataset the recall over the n positive documents, the negative rejection rate as the mean over folds, and their harmonic mean, plus the mean over folds of runtime, peak memory, schema size, and description length. Each Real_Dataset contributes exactly one result per system.
+    - When any fold of a system on a dataset returns no schema, record the dataset's metrics for that system as missing with the fold's failure kind.
+    - Record per dataset n, the number of folds, the number of documents excluded in cleaning, whether the Negative_Documents were supplied or generated, and the dataset's size group: 2, 3 to 5, 6 to 10, 11 to 30, or more than 30 positive documents.
+    - Integration test on fixture datasets of 2, 4, and 12 documents with the Inferrer, Naive_Merge, and a stub Baseline that times out on one fold.
+    - _Requirements: 30.6, 30.7, 33.3, 33.6, 33.7, 33.9, 33.10, 34.2, 35.12_
 
-- [x] 30. Implement ablation, reporting, and the bench CLI
-  - [x] 30.1 Implement the ablation study (`bench/studies.py`)
-    - One configuration per default-enabled Technique, disabling dependents transitively and recording the disabled set. Same collections and seed. Differences with paired CIs and p-values
+- [ ] 40. Ablation, reporting, and the bench CLI
+  - [ ] 40.1 Aggregate results per system and Dataset_Group (`src/jsinfer/bench/reporting.py`)
+    - Group results into Dataset_Groups: the synthetic results at one training size, the Real_Dataset results, and each non-empty Real_Dataset size group.
+    - For each metric, system, and Dataset_Group report the mean over the schemas or datasets that have a value, the count that contributed, and the bootstrap interval of 37.6. Exclude undefined and missing values from the mean and report next to it the count of undefined values and the count of missing values.
+    - For each metric, Dataset_Group, and Baseline report the paired test of the Inferrer against the Baseline over the schemas or datasets for which both returned a schema and both have a value.
+    - Report per system and Dataset_Group the number of timeouts and the number of failures, per system the count of missing combinations, and per system and Mutation_Operator the number of Negative_Documents produced and the rejection rate, "not applicable" when the operator produced none.
+    - Report per Dataset_Group the number of Inferrer runs certified, the number that failed certification, and the number of verdict differences between the Validator and the Kernel ("not checked" when cross-checking was off), the number skipped by `bench.certify_max_documents`, and the summed certification time in seconds.
+    - A Real_Dataset whose negative rejection rate and harmonic mean are not available is left out of those two aggregates and of their paired tests, and still contributes its recall.
+    - Unit tests on hand-built result sets: skipped undefined and missing values with their counts, a pair dropped when one side timed out, a group with one contributing dataset (interval not computable), a dataset with no Negative_Documents, and the certification counts.
+    - _Requirements: 31.11, 31.13, 31.14, 32.8, 33.9, 33.10, 34.9, 35.1, 35.2, 35.12, 38.7_
+  - [ ] 40.2 Write the CSV and JSON results files (`src/jsinfer/bench/reporting.py`)
+    - Write per-schema, per-dataset, and aggregated results as CSV and as JSON from the same in-memory rows, so both formats hold identical values. Numbers use one canonical text form in both; undefined, missing (with its reason), not applicable, and not available are distinct literal values.
+    - Every result row identifies the system, the dataset, the Run_Configuration, and the seed, and carries the Baseline's version or commit, its options and arguments, its runtime version, the source draft with translated keywords and unsupported constructs, and any repair pointers.
+    - A system that was unavailable appears in every results file with the status unavailable and the reason; it is never omitted.
+    - The per-dataset files hold exactly one result per system and Real_Dataset.
+    - Write every file through a temp file and an atomic rename.
+    - Unit tests: CSV and JSON parsed back to equal row sets, each special value round-tripped, and an unavailable system present in every file.
+    - _Requirements: 33.10, 34.5, 34.6, 34.11, 35.7, 35.8_
+  - [ ] 40.3 Write the Markdown and LaTeX summary tables (`src/jsinfer/bench/reporting.py`)
+    - Render every summary table in Markdown and in LaTeX from one table model. Each table has a title constant in `reporting.py`, which the traceability check resolves as evidence for Measured criteria.
+    - Order every summary output as follows: the Real_Dataset table, labeled the primary comparison; one table per non-empty Real_Dataset size group; then the synthetic tables, one per training size.
+    - Add a Real_Dataset detail table: per dataset n, the number of folds, the documents excluded in cleaning, and whether the negatives were supplied or generated; and the number of Real_Datasets excluded for each reason.
+    - Add the secondary tables: per-operator rejection rates; the inclusion relation with its coverage (the share of pairs reported unsupported, by cause); runtime, peak memory, schema size, and description length per system; the paired comparisons; and one certification table per Dataset_Group (runs certified, runs failed, runs skipped, verdict differences, and the summed certification time), printed with exact counts so that a non-zero count is visible.
+    - Show next to every aggregate its contributing count and its undefined, missing, timeout, and failure counts. Show an unavailable system as a row marked unavailable in every table.
+    - Unit tests: table order in both formats, the primary-comparison label, an unavailable row, and LaTeX escaping of system labels and dataset identifiers.
+    - _Requirements: 31.7, 31.8, 32.8, 33.6, 33.10, 34.6, 35.7, 35.8, 38.7_
+  - [ ] 40.4 Implement the ablation study (`src/jsinfer/bench/studies.py`)
+    - `ablation_configs(default, registry)` creates one ablated Run_Configuration for each Technique enabled in the default Run_Configuration, with that Technique disabled.
+    - When disabling a Technique leaves an enabled Technique without a prerequisite, also disable that Technique, and repeat to a fixed point. Record the complete set of disabled Techniques with each ablated configuration.
+    - `Harness.ablation(cfg)` runs the Inferrer under the default and every ablated Run_Configuration on the same Document_Collections of the synthetic and real benchmarks with the same seed, through the Inferrer adapter with an explicit Run_Configuration.
+    - Report, for each metric and Dataset_Group, the difference (ablated minus default) with the confidence interval and p-value of the paired test, and write the results with the CSV, JSON, Markdown, and LaTeX writers, each row naming the ablated Technique and the full disabled set. Ablation runs are not certified; 38.5 applies to the synthetic and real-data benchmarks only.
+    - Unit tests: one configuration per enabled Technique, the transitive closure on a registry with a prerequisite chain, and every ablated configuration accepted by `RunConfiguration.resolve`.
     - _Requirements: 35.3, 35.10_
-  - [x] 30.2 Write property test for study construction
-    - **Property 57: Study construction** (ablation clause now; contamination clause added in 41.3)
-    - **Validates: Requirements 35.3, 35.10**
-  - [x] 30.3 Implement reporting (`bench/reporting.py`)
-    - CSV and JSON written from the same rows; Markdown and LaTeX summary tables; Real_Dataset tables first and labeled primary, with per-dataset n, folds, exclusions, negative source, and exclusion counts
-    - Unavailable systems marked; ReCG reimplementation label; timeout, failure, and missing counts; runtime, RSS, schema size, and DL columns
-    - _Requirements: 33.6, 34.6, 34.9, 34.10, 35.7, 35.8, 35.12_
-  - [x] 30.4 Write property test for results serialization
+  - [ ] 40.5 Write property test for study construction
+    - Generate registries with random prerequisite graphs and default states. The contamination clause (corrupted documents at a configured rate, disjoint from the measurement negatives) is added to this test in 53 with the robustness study.
+    - **Property 57: Study construction**
+    - **Validates: Requirements 35.3, 35.4, 35.10**
+  - [ ] 40.6 Write property test for results serialization and aggregation
+    - Generate result sets with numbers, undefined values, missing values with each reason, timeouts, failures, and unavailable systems across several Dataset_Groups.
     - **Property 58: Results serialization and aggregation**
     - **Validates: Requirements 34.9, 35.8, 35.12**
-  - [x] 30.5 Implement the Harness facade and `jsinfer bench` (`bench/runner.py`, `cli.py`)
-    - `Harness` with `build_split`, `check_leakage`, `synthetic`, `real`, and `ablation`. `jsinfer bench {synthetic,real,ablation} -c bench.toml` runs the leakage check before any run
-    - _Requirements: 30.7, 30.8, 30.11, 34.3_
-  - [x] 30.6 Write benchmark smoke tests (`tests/bench_smoke/`)
-    - The fixture corpus (two held-out schemas, small collections) with the real Inferrer, Naive_Merge, and stub baselines: wiring, failure, timeout, unavailable, and leakage-abort paths, plus every output format. The corpus is the fixture corpus rather than a five-schema one because the leakage check needs the tiny bundle's training schemas present
-    - _Requirements: 34.6, 34.7, 34.8, 35.8_
+  - [ ] 40.7 Add the `split` and `bench` commands to the CLI (`src/jsinfer/cli.py`)
+    - `jsinfer split -c bench.toml` loads the corpus and the Real_Dataset definitions, builds the Schema_Split, and writes the split file. It exits non-zero without writing a split on invalid proportions or an empty split, with the offending values in the message.
+    - `jsinfer bench {synthetic,real,ablation} -c bench.toml` runs the matching `Harness` method and writes the results files and summary tables to the configured output directory. The subcommands `robustness`, `calibration`, and `versioning` are added with their studies in 53 and 60.
+    - A `LeakageError` exits non-zero before any system runs, prints every overlapping or unresolved identifier, and writes no metrics. A configuration error exits 2 with every problem listed.
+    - No command prompts or reads standard input; a results file of the same name at the output location is replaced without confirmation.
+    - Unit tests for argument parsing and each exit path, with the `Harness` methods stubbed.
+    - _Requirements: 30.8, 30.10, 30.11, 35.8_
+  - [ ] 40.8 Add the benchmark smoke tests (`tests/bench_smoke/`)
+    - Build a five-schema fixture corpus with hand-written schemas, test files, a catalog with one versioned entry, and a Real_Dataset manifest; no SchemaStore or JSONSchemaBench content.
+    - Run `jsinfer split`, then `jsinfer bench synthetic`, `real`, and `ablation` end to end with the Inferrer, Naive_Merge, and stub Baselines that succeed, fail with a non-zero exit, return invalid output, time out, and report unavailable.
+    - Assert the wiring: every system reads the same training file; runs execute one at a time; the stub failures appear with their kinds; the unavailable system is marked in every results file and table; the CSV and JSON files agree; the Markdown and LaTeX summaries exist with the Real_Dataset tables first.
+    - Assert that a Model_Bundle whose training manifest lists a held-out schema makes each `bench` command abort before any run.
+    - The fixture `bench.toml` sets `certify.cross_check` off, because `certify` raises `NotImplementedError` for the cross-check until 52. Assert that every Inferrer run of the synthetic and real-data benchmarks is certified and that the certification tables report the verdict differences as not checked, not as 0.
+    - _Requirements: 34.1, 34.2, 34.3, 34.6, 34.7, 34.8, 35.8, 38.7_
 
-- [x] 31. Checkpoint (M4): ensure all tests pass, ask the user if questions arise.
+- [ ] 41. Checkpoint (M4): the harness builds its split, checks leakage, runs the Inferrer, Naive_Merge, and JSONoid under identical conditions, and reports synthetic and real-data results
+  - All unit, property, integration, and benchmark smoke tests pass; `scripts/verify.py verify` passes; `scripts/verify.py trace` passes with a row for every criterion of Requirements 30 to 33 and the criteria of Requirements 34, 35, and 38 this milestone implements.
+  - `jsinfer split` followed by `jsinfer bench synthetic`, `real`, and `ablation` completes on the pinned corpus with a trained Model_Bundle, and the certification tables show every Inferrer run certified, none failed, and none skipped (verdict differences are reported as not checked until 52 delivers cross-checking).
+  - Raise with the user: the proposed defaults of the harness Resource_Parameters (split proportions, `split.max_cutoff`, `nearest.max_paths`, training sizes, held-out count, `bench.synth_attempts`, the mutation budgets, the per-run time limit); the measured certification time per Dataset_Group; the share of schema pairs whose inclusion relation is unsupported, by cause; and how the benchmarks should treat a `minLength`, `minItems`, or `minProperties` of 0 and a `multipleOf` site, which the Mutation_Operators cannot turn into Negative_Documents.
 
-### M5: Should tier
+### M5: Should
 
-- [x] 32. Implement FlashProfile-style pattern induction
-  - [x] 32.1 Implement induction (`values/patterns.py`, `values/inferrer.py`, `config/registry.py`)
-    - Atom tokenization; profiles by atom-class sequence; generality ladder (exact lengths, ranges, class widening, `+`); greedy merging down to `patterns.max_alternatives`
-    - Validator check of every candidate against all distinct values (induction may use a sample); `patterns.attempt_budget`; MDL selection with ties to no Pattern, then fewer sub-patterns; discarded candidates and budget exhaustion reported
-    - Applies to Paths with no selected Format that are not Closed_Enums, and to Map keys through `key_constraint` → `propertyNames`
-    - _Requirements: 4.4, 14.1, 14.2, 14.3, 14.6, 14.7, 14.8_
-  - [x] 32.2 Write unit tests for induction limits
-    - Attempt budget, the alternatives cap, and reporting
-    - _Requirements: 14.7, 14.8_
+- [ ] 42. FlashProfile-style pattern induction
+  - [ ] 42.1 Tokenize strings into atoms and group them into profiles (`src/jsinfer/values/patterns.py`)
+    - `tokenize(s)` splits a string into atoms: maximal runs of `[0-9]`, of `[a-z]`, and of `[A-Z]`, and every other character (non-ASCII and astral characters included) as a single literal atom.
+    - `profiles(values)` groups the distinct strings of a view by their atom-class sequence and holds, per profile, the multiset of run lengths at each position and the count of strings, in canonical (code-point) order so the result does not depend on document order.
+    - Build each profile's sub-pattern as a safe regex AST from 18, so every induced Pattern lies in the Pattern_Fragment: only the classes `[0-9]`, `[a-z]`, `[A-Z]`, `[A-Za-z]`, `[0-9A-Za-z]`; literals escaped by the printer; quantifiers only on a class or a `(?:…)` group; adjacent atoms with overlapping classes merged, so a string's decomposition under a sub-pattern is unique.
+    - Unit tests: empty string, a string of literals only, astral characters, line terminators, mixed-case runs, and two strings with equal class sequences landing in one profile.
+    - _Requirements: 14.1, 14.5_
+  - [ ] 42.2 Generate candidate Patterns by specificity rung, check them, and enforce the attempt budget (`src/jsinfer/values/patterns.py`)
+    - `induce(values, ctx)` yields candidates at increasing generality, each rung applied to every profile: exact run lengths; `{min,max}` length ranges; class widening (`[0-9]` or `[a-z]` to `[A-Za-z]` to `[0-9A-Za-z]`); then `+`. Each candidate is a disjunction of sub-patterns printed by the safe regex printer as `^(?:alt1|…|altk)$(?!\n)`.
+    - When a rung has more profiles than `patterns.max_alternatives` (register this Resource_Parameter, default 4), merge profiles greedily by the smallest increase in description length (the MDL_Scorer's `M_re` and pattern character code from 19) until at most that many sub-patterns remain; a candidate never has more.
+    - Check every candidate against all distinct non-flagged strings at the Path with `Validator.matches_pattern`; discard a candidate that fails any string and record the Path, the candidate, and the number of non-matching strings in the Inference_Report.
+    - Count evaluated candidates; on reaching `patterns.attempt_budget` (register this Resource_Parameter, default 200) stop induction at the Path, pass the candidates evaluated so far to selection, and record the exhausted budget for the Path in the Inference_Report.
+    - When the Path has more distinct strings than `sample.patterns`, induce from a seeded uniform sample of exactly that many, drawn with `rng("values.pattern", path)` through the sampling utility of 10; candidates induced from the sample are still checked against every distinct non-flagged string, and the sampled and total counts go into the Provenance_Record.
+    - Unit tests: one profile, several profiles merged down to the maximum, a candidate discarded by the Validator, the budget reached after N candidates, and a sampled Path whose candidate fails an unsampled string.
+    - _Requirements: 14.1, 14.4, 14.7, 14.8, 26.4, 29.8_
+  - [ ] 42.3 Add the induced-Pattern family to Document_Support (`src/jsinfer/decide/support.py`)
+    - `pattern_support(view_or_keys, candidates, ctx)` orders the non-flagged documents that hold induction strings at the Path by the sorted tuple of the strings each holds (never by document index) and deals them round-robin into `min(3, documents)` folds.
+    - For each fold and each candidate's rung, induce the Pattern at that rung from the strings held by the other folds. Withhold the candidate when the strings come from a single document, when the fold's induction yields no Pattern, or when the induced Pattern fails a string held only by that fold; record the Path, the candidate, and the facts `documents`, `fold`, `held_out`, and `unmatched`.
+    - When no fold holds a string that no other fold holds, withhold every induced candidate at the Path and record each with `documents`, `held_out: 0`, and `untested: true`.
+    - Return the facts as the `withheld` mapping of each `Candidate`, so the DecisionEngine of 20 leaves withheld candidates out of every resolution step and lists them in the decision's `details["withheld"]` in the Inference_Report.
+    - Unit tests: one document, two documents with identical strings, a fold whose held-out string breaks the exact-length rung but not the range rung, and equal results for a permuted document order.
+    - _Requirements: 14.9, 14.10, 27.6_
+  - [ ] 42.4 Select the Pattern at scalar Paths and wire induction into the Value_Inferrer (`src/jsinfer/values/inferrer.py`, `src/jsinfer/values/patterns.py`, `src/jsinfer/decide/relax.py`)
+    - Run induction at the pattern-induction step of `infer_scalar` (21), after the string Constraint (Format or Closed_Enum) is selected and before bounds: only where the Path has at least one non-flagged string, no selected Format, and is not a Closed_Enum.
+    - Resolve pattern selection (kind `string_constraint`) through the DecisionEngine over the retained, non-withheld candidates plus the "no Pattern" candidate, by minimum description length from the MDL_Scorer whatever the state of `decide.mdl` (the kind's `always_mdl` flag, set in 20); ties follow the kind's registered tie rule, "no Pattern, then fewer sub-patterns", which 20 implements.
+    - The emitted `pattern` Constraint carries a Provenance_Record with the producing Technique `values.pattern`, the rejected candidates with their scores, and `details.pattern_fragment = true`. Only Validator-checked candidates reach selection, so every emitted Pattern matches every non-flagged string at its Path.
+    - Provide `reinduce(strings, ctx)` and connect it to the `pattern` row of the relaxation table of 24: induce on the union of the old strings and the failing ones and check the result with the Validator. The soundness loop passes the change to the Kernel's Widening check like any other; when the check does not accept it, the change is recorded as kind (b) and the next validation pass over every non-flagged document establishes monotonicity. Removal of the `pattern` stays the last candidate and is kind (a).
+    - Set the `values.pattern` registry entry to implemented (superlinear, sample parameter `sample.patterns`, no Learned_Threshold). With the Technique disabled, emit no induced Pattern at any Path and leave the Patterns from latent-type detection and the Semantic_Type_Classifier unchanged; record the Fallback_Behavior in the decision entry.
+    - Unit tests: tie between a candidate and no Pattern, tie between candidates with different sub-pattern counts, a Path with a selected Format, a Closed_Enum Path, the disabled Technique, all candidates withheld, and a re-induced Pattern recorded as kind (b).
+    - _Requirements: 14.1, 14.2, 14.3, 14.6, 3.3, 3.5_
+  - [ ] 42.5 Infer key Constraints for Map Paths and emit them under `propertyNames` (`src/jsinfer/values/inferrer.py`, `src/jsinfer/structure/record_map.py`)
+    - `ValueInferrer.key_constraint(keys, ctx)` treats the keys of the non-flagged objects at a Map Path as strings. While `values.format` is enabled, produce Format candidates as for values (a `hostname` candidate needs one satisfying key with a `.`), withhold any that rejects a key, and select by description length. When no key Format is selected and `values.pattern` is enabled, run pattern induction, the Validator check, Document_Support, and pattern selection over the keys.
+    - When a Format or Pattern is selected, the Map node gets `propertyNames: {"format": …}` or `{"pattern": …}`, and every key of every non-flagged object at the Path satisfies it under the Validator. With both Techniques disabled, or nothing selected, the Map node has no `propertyNames`.
+    - The `propertyNames` keyword and the keyword inside it have separate pointers and share one Provenance_Record, whose Support counts the keys of the non-flagged objects (total) and the keys the subschema accepts (consistent); the key of a flagged member is part of its Flagged_Item and is not counted.
+    - The MDL_Scorer codes each Map key under the `propertyNames` subschema as a string when one is present.
+    - Unit tests: UUID keys, date keys, keys with no common shape (no `propertyNames`), single-label keys (no `hostname`), one flagged object whose keys do not count, and each Technique disabled.
+    - _Requirements: 4.4, 14.1, 14.3, 14.7, 13.10_
+  - [ ] 42.6 Extend the property test for value Constraint soundness
+    - Add collections with planted string shapes (codes, identifiers, mixed profiles, non-ASCII literals) and Maps with patterned keys; assert every emitted induced `pattern`, including one under `propertyNames`, accepts every non-flagged string or key at its Path under the Validator, and that no induced Pattern appears on a Path with a selected Format or a Closed_Enum.
+    - **Property 23: Value Constraints are sound**
+    - **Validates: Requirements 13.6, 13.8, 14.1, 14.3, 14.7, 15.3, 16.6, 24.5**
+  - [ ] 42.7 Extend the property test for object node classification
+    - Add the Map clause for key Constraints: any `propertyNames` Constraint on a Map node accepts every key of every non-flagged object at the Path.
+    - **Property 10: Object nodes match their classification**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 4.9**
+  - [ ] 42.8 Extend the property test for Technique isolation
+    - Add `values.pattern` to the toggled set: with it off, no Provenance_Record names it, no induced Pattern is emitted, and the pattern-selection decision records its Fallback_Behavior.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
 
-- [x] 33. Implement Field_Groups with FP-growth and Krimp-style selection
-  - [x] 33.1 Implement field groups (`structure/field_groups.py`, `structure/analyzer.py`, `config/registry.py`)
-    - In-house FP-growth over distinct non-base key sets with counts at `fpgrowth.min_support`, sampled at `sample.fpgrowth`; Krimp-style code-table acceptance when total DL drops
-    - All-or-none filter (violations reported) and greedy disjointness filter by DL gain; MDL selection among ∅ and the FP set
-    - Loosen `test_disabled_cooccurrence_mining_emits_no_rules_and_keeps_required` in `tests/unit/test_config_fallbacks.py`, which asserts no `dependentRequired` at all: with co-occurrence mining off, Field_Groups may still emit it (9.9)
-    - Emit `dependentRequired` cliques, with presence coded once in the MDL_Scorer; fallback none
-    - Pass the selected groups to `CooccurrenceMiner.rules(groups=...)` so their cliques are given rules. When an antecedent has both a clique entry and a Co_Occurrence_Rule entry, merge them into one `dependentRequired` entry (one Constraint) and combine the two Provenance_Records
-    - Property 19 then treats Field_Group pairs as given rules, and its check that a rule decision without a record is derivable in some Variant at its Path becomes live; confirm it passes
-    - _Requirements: 6.2, 6.3, 6.6, 6.7, 6.8, 6.9_
-  - [x] 33.2 Write property test for Field_Groups
+- [ ] 43. Field_Groups with FP-growth and Krimp-style selection
+  - [ ] 43.1 Compute Base_Fields per Variant and per family of Variants (`src/jsinfer/structure/field_groups.py`)
+    - `base_fields(variant)` returns the fields present in every non-flagged object of the Variant, from the presence bitsets of 23; `family_base_fields(branches)` returns the intersection over the Variants emitted as branches of one `anyOf` or `oneOf` at the Path.
+    - Assert that every Base_Field of a Variant is in that Variant's `required` list, so every Base_Field of a family is under `required` in every branch of the family.
+    - Unit tests: one Variant, two Variants with a shared base, a Variant with no base, and a field present with value `null` counting as present.
+    - _Requirements: 6.1, 6.5_
+  - [ ] 43.2 Implement FP-growth over the non-base key sets (`src/jsinfer/structure/field_groups.py`)
+    - `fpgrowth(transactions, min_support, max_itemsets, max_size)` mines frequent key sets from the distinct non-base key sets of a Variant with their object counts; a key set is frequent when at least `fpgrowth.min_support` (register this Resource_Parameter, default 2) non-flagged objects of the Variant contain it. No mined key set contains a Base_Field.
+    - Limit the result to `fpgrowth.max_itemsets` (register this Resource_Parameter, default 2,000) itemsets of at most 8 fields, enumerated in a canonical order (descending support, descending size, code-point order of the sorted fields), so truncation does not depend on document order.
+    - When the Variant has more objects than `sample.fpgrowth`, mine a seeded uniform sample of exactly that many objects drawn with `rng("groups.fpgrowth_slim", path)`; record sampled and total counts for the Provenance_Record.
+    - Unit tests: hand-computed itemsets on a small table, the support boundary, the size limit, and the truncation order.
+    - _Requirements: 6.3, 26.4, 29.8_
+  - [ ] 43.3 Select candidate Field_Groups with a Krimp-style code table and apply the exclusion filters (`src/jsinfer/structure/field_groups.py`)
+    - Start from the code table of single fields; consider frequent itemsets in the canonical order and accept one into the code table when the total description length of the Variant's key sets (code table plus cover) drops; the accepted itemsets of two or more fields are the Technique's candidate Field_Groups.
+    - All-or-none filter: exclude a candidate when any non-flagged object of the Variant (all objects, not only the sample) contains at least one but not all of its members; record in the Inference_Report the candidate's fields, the Path, the producing Technique, and the number of violating objects.
+    - Well-formedness filter, applied greedily by description-length gain: retain only groups with at least two fields, no Base_Field of the Variant, and no field shared with a group retained before it.
+    - Unit tests: two planted groups recovered, a candidate broken by one object and reported, overlapping candidates resolved by gain, and a candidate containing a Base_Field dropped.
+    - _Requirements: 6.3, 6.7, 6.8_
+  - [ ] 43.4 Resolve the `field_groups` Decision_Point, emit the groups, and wire the Technique into the walk (`src/jsinfer/structure/field_groups.py`, `src/jsinfer/structure/analyzer.py`, `src/jsinfer/deps/cooccurrence.py`, `src/jsinfer/mdl/scorer.py`)
+    - `StructureAnalyzer.field_groups(variant, base, ctx)` resolves `field_groups` through the DecisionEngine among the empty set and the retained set of each enabled Field_Group Technique, selecting the alternative with the lowest total description length; the MDL_Scorer codes a Field_Group's presence once per object.
+    - Emit each selected group as a complete clique: one `dependentRequired` entry per member, keyed by the member and listing every other member in code-point order, with a Provenance_Record naming `groups.fpgrowth_slim`.
+    - Pass the selected cliques to co-occurrence mining as given rules that are not emitted again; when one antecedent has both a Field_Group entry and a Co_Occurrence_Rule entry, merge them into one `dependentRequired[k]` Constraint whose Provenance_Record combines both records.
+    - Run Field_Group selection for each final branch of an object Path after required and optional fields and before co-occurrence mining.
+    - Set `groups.fpgrowth_slim` to implemented (superlinear, sample parameter `sample.fpgrowth`). With no Field_Group Technique enabled, the Fallback_Behavior selects no Field_Groups at every Path: every non-base field is optional and no `dependentRequired` entry comes from a Field_Group; the decision entry records the Fallback_Behavior.
+    - Unit tests: the empty set winning, a group winning, the merged entry with co-occurrence, and the Fallback_Behavior with its record.
+    - _Requirements: 6.2, 6.6, 6.9, 9.5_
+  - [ ] 43.5 Write property test for Field_Group well-formedness
+    - Generate collections with planted add-on groups, partial groups, and overlapping groups; read the selected groups from the decision entries and the emitted `dependentRequired` cliques.
     - **Property 13: Field_Groups are well-formed and hold**
     - **Validates: Requirements 6.5, 6.6, 6.7, 6.8**
-  - [x] 33.3 Extend the mining-primitives test with FP-growth
-    - **Property 17: Mining primitives equal brute-force references** (FP-growth frequent itemsets)
-    - **Validates: Requirements 6.3**
+  - [ ] 43.6 Extend the property test for mining primitives
+    - Add the FP-growth leg: for any small generated object set and minimum support, the frequent itemsets equal those of an exhaustive subset enumeration.
+    - **Property 17: Mining primitives equal brute-force references**
+    - **Validates: Requirements 5.7, 6.3, 9.3, 11.1, 12.1, 12.2, 12.3, 12.4**
+  - [ ] 43.7 Extend the property test for emitted rules
+    - Add collections where Field_Groups and Co_Occurrence_Rules meet: every `dependentRequired` entry holds on all non-flagged objects, the emitted Co_Occurrence_Rules together with `required` and the Field_Group cliques derive every selected rule, and none is derivable from the rest. Plant sets of mutually implying fields, some of them overlapping a Field_Group: the cliques count as given, and each remaining maximal set of mutually implying fields contributes exactly one cycle through its fields in code-point order (9.5), whatever the document order.
+    - **Property 19: Emitted rules hold and are irredundant**
+    - **Validates: Requirements 9.5, 9.6, 11.5, 11.6, 12.6, 12.7, 12.8**
+  - [ ] 43.8 Extend the property test for Technique isolation
+    - Add `groups.fpgrowth_slim` to the toggled set: with it off, no Field_Group entry is emitted, no record names it, and `field_groups` records its Fallback_Behavior.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
+  - [ ] 43.9 Extend the property test for required fields
+    - Add the Base_Field clause: the fields under `required` in each Variant's subschema equal `base_fields(variant)` of 43.1, and every field of `family_base_fields` is under `required` in every branch of the family.
+    - **Property 18: Required means always present**
+    - **Validates: Requirements 6.1, 9.1, 9.2, 9.7**
 
-- [x] 34. Implement Tagged_Unions with per-field decision trees
-  - [x] 34.1 Implement trees and Discriminators (`deps/tagged_unions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)
-    - In-house categorical tree with splits `P == v`: grown while DL decreases, post-pruned, limited by `trees.max_depth` and `trees.max_values`, sampled at `sample.trees`. Trees per field-presence target and per Variant target
-    - Discriminator candidates are present everywhere and are strings, integers, or booleans. Select by DL with `tagged.branch_support` eligibility and ties by name; report non-selected candidates
-    - Branches: dedicated `const`/`enum` branches with `required`, and a fallback branch per 10.5 and 10.8; exactly-one validation; value groups replace Variant branches
-    - Extend the branch routing of Properties 12, 18, and 19 (which follow the Variant branches) to Discriminator value groups
-    - Register the `tagged.branch_support` objective (branch F1)
-    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
-  - [x] 34.2 Write property test for Tagged_Unions
+- [ ] 44. Tagged_Unions with per-field decision trees
+  - [ ] 44.1 Implement the categorical decision tree with MDL growth and pruning (`src/jsinfer/deps/tagged_unions.py`, `src/jsinfer/mdl/scorer.py`)
+    - `fit_tree(features, target, ctx)` builds a tree of binary splits `P == v` over categorical features, where each feature is one scalar sibling property and an absent property is its own category; only the `trees.max_values` most frequent values of a feature may be tested, and depth is limited by `trees.max_depth` (register both Resource_Parameters, defaults 32 and 4).
+    - Add the tree's description length to the MDL_Scorer, built from the primitive codes of 19: per internal node one kind bit plus `UNI(#features) + UNI(#testable values)`, per leaf one kind bit plus `CAT(target class counts)` over its objects, added with the scorer's order-independent summation.
+    - Grow greedily, taking at each leaf the split with the largest decrease and stopping when no split lowers the description length; then post-prune bottom-up, collapsing a split whenever collapsing lowers it. The retained splits are those left after pruning, so each one lowers the total compared with the same tree without it.
+    - Scan candidate splits in canonical order (property name, then canonical value order), so ties and results do not depend on document order.
+    - Unit tests: a perfectly predictive property, a noisy property whose split is pruned, the depth limit, the value limit, and a constant target (no split).
+    - _Requirements: 10.2_
+  - [ ] 44.2 Train the trees at each object Path and report Discriminator candidates (`src/jsinfer/deps/tagged_unions.py`)
+    - At each object Path, train on the non-flagged objects one tree per field-presence target (a field present in at least one but not every non-flagged object at the Path) and, where the Structure_Analyzer split the objects into two or more Variants, one tree with Variant membership as the target.
+    - When the Path has more objects than `sample.trees`, train on a seeded uniform sample of exactly that many drawn with `rng("rules.decision_trees", path)` and record sampled and total counts.
+    - Derive the value groups of each tested property over all trees at the Path: a maximal set of its observed values that no retained split separates (each tested value alone, all untested values together).
+    - Report a property as a Discriminator candidate when a retained split tests it, it is present in every non-flagged object at the Path (all objects, not only the sample), and all its values there are JSON strings, integers, or booleans; record each candidate in the Inference_Report with the description length the MDL_Scorer assigns to the Path's non-flagged objects partitioned by the candidate's value groups.
+    - Unit tests: a `type` property that predicts three optional fields, a predictive property missing from one object (not a candidate), a property with a non-integral number value (not a candidate), and value groups from two retained splits.
+    - _Requirements: 10.1, 10.2, 26.4, 29.8_
+  - [ ] 44.3 Select the Discriminator and register the branch-support threshold (`src/jsinfer/deps/tagged_unions.py`, `src/jsinfer/config/thresholds.py`, `src/jsinfer/learn/trainer.py`)
+    - Register the Learned_Threshold `tagged.branch_support` with its `ThresholdSpec`: Technique `rules.decision_trees`, Decision_Point `discriminator`, admissible range (0, 1], candidate grid (quantiles of the observed value-group Support ratios plus the range ends), and the objective name `tagged_union_f1`.
+    - Add the objective function `tagged_union_f1` to the `OBJECTIVES` registry of the Trainer (32): F1 of the Tagged_Union branches against the source schema. Build its `ValidationExamples` from validation-split collections only, one (collection, Path, truth) triple per object Path whose source schema has Discriminator branches, with the source branches' Discriminator values as truth; for a threshold value the function takes the dedicated value groups that the candidates of 44.2 yield at the Path and compares them with the truth, so it needs no emitted schema.
+    - A candidate is eligible when at least one of its value groups has a Support ratio (non-flagged objects at the Path carrying a value of the group, divided by the non-flagged objects at the Path) at or above the threshold.
+    - `DependencyMiner.discriminator(view, variants, ctx)` resolves the `discriminator` Decision_Point: the eligible candidate with the lowest description length, ties to the smallest property name in Unicode code-point order. The comparison does not depend on `decide.mdl`: set `always_mdl = True` on the `DecisionPointSpec` of `discriminator` (the field of 20), so the MDL step runs whatever the state of that Technique. Record every non-selected candidate with its description length in the Inference_Report and in the Provenance_Record of the selected Discriminator; the cut-off records name the threshold with its value and the MDL comparison with its scores.
+    - With `rules.decision_trees` disabled, or the threshold missing or invalid in the Model_Bundle, report no candidates and select no Discriminator at any Path, so no Discriminator-constrained branch is emitted and the Path is emitted as the Variants of Requirement 5; record the Fallback_Behavior and, for a missing or invalid threshold, the substitution with its reason.
+    - Unit tests: two candidates with different description lengths, a tie broken by name, no eligible candidate, and the disabled and missing-threshold cases, and `fit_threshold` returning a record for `tagged.branch_support` on the fixture corpus.
+    - _Requirements: 10.3, 10.6, 20.6, 20.7_
+  - [ ] 44.4 Emit the Tagged_Union branches and wire Discriminator detection into the walk (`src/jsinfer/deps/tagged_unions.py`, `src/jsinfer/structure/analyzer.py`)
+    - Run detection at the Discriminator call point of the walk (25), after Merge-or-Split and before the branches' children are inferred; when a Discriminator is selected its value groups replace the Variant branches, and each branch's children are inferred from the view of the objects carrying the group's values. The search reads sibling values before the children's value-level flags are known; document this approximation in the module.
+    - Emit one dedicated branch per value group whose Support ratio meets `tagged.branch_support`: the Discriminator constrained with `const` (single value) or `enum` (several), and `required` listing the Base_Fields plus every field present in all non-flagged objects carrying a value of the group.
+    - Emit one fallback branch that requires only the Base_Fields for all below-threshold groups, with the Discriminator constrained by `enum` to their values. When the Value_Inferrer does not judge the Discriminator's Path a Closed_Enum, emit the fallback branch even with no below-threshold group and constrain its Discriminator to every value not assigned to a dedicated branch, as `not: {"enum": [dedicated values]}` in place of the `enum`; that inner `enum` shares the Discriminator's Provenance_Record. An empty fallback branch still records its `properties` and `required` entries.
+    - Emit the branches under `anyOf`. The Discriminator is required in every branch and the branches' value sets do not overlap, so every non-flagged object validates against exactly one branch without relying on `oneOf`; confirm this with the Validator in the tests. `oneOf` is not emitted by this task: 51 switches it on, and only where the Kernel's disjointness check accepts every pair of branches (a union with the `not` fallback stays `anyOf`, because the check reads only `const` and `enum`, and so does a union one of whose branches becomes a `$ref`).
+    - Each branch Constraint carries the Discriminator's Provenance_Record with `details.branch` naming its value group; at a mixed-type node the remaining-types branch takes the Discriminator decision's record. Set `rules.decision_trees` to implemented (superlinear, sample parameter `sample.trees`, threshold `tagged.branch_support`).
+    - Unit tests: three dedicated branches, a below-threshold group folded into the fallback, the open-enum fallback with `not`, a multi-value group emitted with `enum`, and each object matching exactly one branch under the Validator.
+    - _Requirements: 10.4, 10.5, 10.7, 10.8, 5.5_
+  - [ ] 44.5 Write property test for Tagged_Union exactness
+    - Generate collections with a planted Discriminator, rare Discriminator values, an open Discriminator value set, and decoy properties; run with `structure.shared_defs` and `structure.recursion` off so branches are read at their own Path.
     - **Property 20: Tagged unions are exact**
     - **Validates: Requirements 10.1, 10.2, 10.4, 10.5, 10.7, 10.8**
+  - [ ] 44.6 Extend the property test for Technique isolation
+    - Add `rules.decision_trees` to the toggled set: with it off, no Discriminator-constrained branch is emitted, no record names it, and `discriminator` records its Fallback_Behavior.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
 
-- [x] 35. Implement exclusion mining
-  - [x] 35.1 Implement exclusions (`deps/exclusions.py`, `structure/analyzer.py`, `config/registry.py`, `learn/trainer.py`)
-    - Members are fields or Field_Groups. Maximal cliques of the never-co-occur graph via Bron–Kerbosch with pivoting in canonical order; Confidence `1 − exp(−E)` with E reported
-    - "Already enforced" check with Validator witnesses (kept when no witness exists); MDL or `exclusion.min_confidence`; `oneOf` vs `not` emission; rejections reported; fallback none
-    - Register the `exclusion.min_confidence` objective
-    - Settle the Support of Constraints inside `not` (now (0, 0), as `not` contents are not walked) and inside `if` (now always consistent); keep `rules.exclusion` in `KIND_SPECIFIC_CONFIDENCE` so its `1 − exp(−E)` Confidence survives finalization
-    - Property 19's Exclusion clauses activate automatically. If an Exclusion `oneOf` sits on a node without `type` (beside Variant branches), extend that test's routing walk
-    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
-  - [x] 35.2 Write property test for Confidence monotonicity
-    - **Property 21: Confidence functions are monotone** (exclusion clause now; key, reference, and FD clause added in 44.3)
-    - **Validates: Requirements 11.2**
-  - [x] 35.3 Extend the mining-primitives test with exclusions
-    - **Property 17: Mining primitives equal brute-force references** (maximal Exclusion_Rule candidates)
-    - **Validates: Requirements 11.1**
+- [ ] 45. Exclusion mining
+  - [ ] 45.1 Mine maximal Exclusion_Rule candidates (`src/jsinfer/deps/exclusions.py`)
+    - Members at a Path are the Field_Groups selected in the Path's branches and every field that belongs to no Field_Group there; a field in a Field_Group is represented only through its group. Each member must appear in at least one non-flagged object at the Path.
+    - Build the never-co-occur graph over members from the presence bitsets (an edge when no non-flagged object at the Path contains fields from both) and report each maximal clique of two or more members as one candidate, using Bron–Kerbosch with pivoting over members in canonical order.
+    - Bound the search with `exclusion.max_members` (default 64; the most frequent members take part, ties by name) and `exclusion.max_cliques` (default 2,000), both Resource_Parameters registered here, and record in the decision entry when a bound was reached.
+    - Unit tests: two exclusive fields, three pairwise-exclusive fields reported as one candidate, a Field_Group as a member, a member that co-occurs once (no candidate), and each bound.
+    - _Requirements: 11.1_
+  - [ ] 45.2 Compute the Exclusion_Rule Confidence (`src/jsinfer/deps/exclusions.py`, `src/jsinfer/core/provenance.py`)
+    - `expected_copresence(n, rates)` returns E, the number of non-flagged objects at the Path expected to contain two or more members if member presences were independent: `n · (1 − Π(1 − pᵢ) − Σᵢ pᵢ Π_{j≠i}(1 − pⱼ))`, with n the non-flagged objects at the Path and pᵢ the member's presence rate.
+    - Confidence is `1 − exp(−E)`, a value in [0, 1] that strictly increases with E. Report E beside the Confidence in the Provenance_Record of an emitted rule or in the Inference_Report entry of a discarded candidate.
+    - Add `rules.exclusion` to `KIND_SPECIFIC_CONFIDENCE`, the set of Techniques whose Confidence provenance finalization (26) leaves unchanged.
+    - Unit tests: E computed by hand for two and for three members, E = 0 giving Confidence 0, and a larger E giving a larger Confidence.
+    - _Requirements: 11.2_
+  - [ ] 45.3 Write property test for Confidence monotonicity
+    - Write the test for the Exclusion_Rule Confidence: for expected co-presence counts E₁ < E₂ at one Path, c(E₁) < c(E₂) and both lie in [0, 1]. The clause on Key, Reference, and Functional_Dependency candidates waits for 56.
+    - **Property 21: Confidence functions are monotone**
+    - **Validates: Requirements 11.2, 12.5**
+  - [ ] 45.4 Discard enforced and unsupported candidates (`src/jsinfer/deps/exclusions.py`, `src/jsinfer/mdl/scorer.py`, `src/jsinfer/config/thresholds.py`, `src/jsinfer/learn/trainer.py`)
+    - Enforcement test: for each pair of members build witness objects from observed values (an observed object of one member with the other member's fields added) and validate them with the Validator against every emitted Variant or Tagged_Union branch at the Path (a Path with one object schema has that schema as its only branch). Discard the candidate as already enforced when no branch accepts any witness of any pair, and record the candidate and the enforcing branches in the Inference_Report. When no witness can be built, retain the candidate.
+    - Scoring: the MDL_Scorer codes the presence of an Exclusion_Rule's members jointly, one `CAT` over (no member, member 1, …, member k) per object in place of independent presence codes, and charges the model bits of the form the rule is emitted in; the candidate is compared with the same object schema without it.
+    - Register the Learned_Threshold `exclusion.min_confidence` with its `ThresholdSpec`: Technique `rules.exclusion`, Decision_Point `exclusion_rule`, admissible range [0, 1], candidate grid (quantiles of the candidates' Confidences plus the range ends), and the objective name `exclusion_rule_f1`.
+    - Add the objective function `exclusion_rule_f1` to the `OBJECTIVES` registry of the Trainer (32): F1 of the Exclusion_Rules selected by Confidence against the source schema. Build its `ValidationExamples` from validation-split collections only, one (collection, Path, truth) triple per object Path, with the member sets of the source schema's mutually exclusive alternatives at the Path as truth (empty when it has none).
+    - Resolve the `exclusion_rule` Decision_Point per remaining candidate: select it when it lowers the total description length or its Confidence is at or above the threshold; otherwise discard it and record the rejection with its members and Confidence in the Inference_Report. The description-length comparison does not depend on `decide.mdl`: set `always_mdl = True` on the `DecisionPointSpec` of `exclusion_rule` (the field of 20), so the MDL step runs whatever the state of that Technique; the Confidence test is applied to a candidate the MDL step does not select. The record's cut-off names "MDL comparison" with the two scores, or the threshold with its value, whichever selected the rule.
+    - Unit tests: a rule enforced by closed Variant branches, a rule selected by description length alone, a rule selected by Confidence alone, and a rule discarded by both; and `fit_threshold` returning a record for `exclusion.min_confidence` on the fixture corpus.
+    - _Requirements: 11.3, 11.4, 20.7_
+  - [ ] 45.5 Emit Exclusion_Rules and wire the Technique into the walk (`src/jsinfer/deps/exclusions.py`, `src/jsinfer/structure/analyzer.py`)
+    - `DependencyMiner.exclusions(view, groups, branches, ctx)` runs last among the rule miners of an object Path, over all non-flagged objects at the Path.
+    - When at least one non-flagged object contains fields from no member, express the rule on the Path's object schema as one `not` over the combined `required` set of each pair of members: `not: {"required": […]}` for two members, `not: {"anyOf": [{"required": …}, …]}` for more. The `not` keyword is the rule's Constraint, with the Path's non-flagged objects as its Support; the entries inside it share its Provenance_Record and its Confidence. Several rules on one schema object share one `not` with one `anyOf` entry per pair, each entry carrying its own rule's record. Build this form in one public function, `not_form(rules)`, which returns the `not` Constraint for the rules of one schema object with their Provenance_Records; it is the only builder of the form, and 51 calls it when a rule emitted under `oneOf` has to be rewritten.
+    - When every non-flagged object contains fields from exactly one member, the rule's target form is a `oneOf` with one branch per member, each branch requiring that member's fields and declaring every field of every other member `false` under `properties` (11.5). `exclusion_branches(rule)` builds that branch list; each branch and the keywords inside it carry the rule's Provenance_Record.
+    - Decide the form through one function, `branch_form_allowed(branches, node) -> bool`: `oneOf` may be emitted only when the Kernel's disjointness check accepts every pair of branches (5.5), and that check arrives with 51, so in this task the function returns False and every rule is expressed in the `not` form of 11.6 above, which is sound but does not require that a member be present; record the reason in the rule's details. The emission of the built branches under `oneOf` when the function returns True is written here, so 51 only has to supply the Kernel check behind the function. No `anyOf` form of an Exclusion_Rule exists, at this task or later.
+    - A schema object holds one branch list: when the Path's schema object already holds Variant branches, Tagged_Union branches, or the branches of another Exclusion_Rule, `branch_form_allowed` answers False whatever the check says, the rule is expressed in the `not` form, and the reason is recorded in the rule's details.
+    - Set `rules.exclusion` to implemented (threshold `exclusion.min_confidence`). With the Technique disabled, or `exclusion.min_confidence` missing or invalid in the Model_Bundle, report no candidates and emit no Constraint from an Exclusion_Rule; record the Fallback_Behavior and, for the threshold, the substitution with its reason.
+    - Unit tests: the `not` form for two and for three members, the exactly-one case emitted in the `not` form with its recorded reason, the output of `exclusion_branches` (each branch requires its member and declares the other members' fields `false`) and the `oneOf` layout with `branch_form_allowed` stubbed to True, two rules on one object, a rule beside Variant branches, the disabled Technique, and the missing threshold.
+    - _Requirements: 11.5, 11.6, 11.7, 5.5, 20.6_
+  - [ ] 45.6 Extend the property test for mining primitives
+    - Add the exclusion leg: for any small generated object set, the maximal Exclusion_Rule candidates equal the maximal never-co-occurring member sets found by exhaustive enumeration.
+    - **Property 17: Mining primitives equal brute-force references**
+    - **Validates: Requirements 5.7, 6.3, 9.3, 11.1, 12.1, 12.2, 12.3, 12.4**
+  - [ ] 45.7 Extend the property test for emitted rules
+    - Add the Exclusion_Rule clauses: every emitted rule holds on all non-flagged objects; its schema rejects a generated object that combines two members; and each emitted rule either lowered the description length or has Confidence at or above `exclusion.min_confidence`. The rule is read from the `not` form, and from the `oneOf` form once 51 emits it.
+    - **Property 19: Emitted rules hold and are irredundant**
+    - **Validates: Requirements 9.5, 9.6, 11.5, 11.6, 12.6, 12.7, 12.8**
+  - [ ] 45.8 Extend the property test for Technique isolation
+    - Add `rules.exclusion` to the toggled set: with it off, no `not` and no `oneOf` branch from an Exclusion_Rule is emitted, no record names it, and `exclusion_rule` records its Fallback_Behavior.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
 
-- [x] 36. Implement Shared_Definitions and recursion
-  - [x] 36.1 Implement the shared-definition pass (`structure/shared_defs.py`, `structure/analyzer.py`, `pipeline/infer.py`, `config/registry.py`)
-    - Canonical subschema hash that ignores provenance; inline vs extracted model-bit comparison with rejections reported
-    - Cross-Path Merge-or-Split over union views for object subschemas sharing a property, using the same Decision_Model kind
-    - Recursion: prefix-related pairs become a self-referencing definition inferred from the union of levels, and the analyzer emits `$ref` at the recursive step
-    - Naming per 8.5 with collision suffixes and default name `def`; Support across referencing Paths; `structure.shared_defs` and `structure.recursion` toggles per 8.7 and 8.8
-    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 26.2_
-  - [x] 36.2 Write property test for Shared_Definitions
+- [ ] 46. Shared_Definitions and recursion
+  - [ ] 46.1 Hash subschemas canonically and index their sites (`src/jsinfer/structure/shared_defs.py`)
+    - `canonical_hash(node)` digests a subschema's canonical bytes with Provenance_Records and `x-provenance` disregarded, so two subschemas have equal hashes exactly when their Constraints are identical (structurally equivalent).
+    - `site_index(model, views)` maps each hash to the distinct Paths where the subschema occurs, with each site's node, view, and non-flagged Observation count; every analyzed node holds its view and the range of report entries its analysis produced.
+    - Consider subschemas of two or more keywords and at most `shared_defs.max_sites` sites per candidate (register this Resource_Parameter, default 64), in canonical order (descending site count, then hash).
+    - Unit tests: equal subschemas with different Provenance_Records hashing equal, subschemas differing in one `required` entry hashing apart, and an index that does not depend on document order.
+    - _Requirements: 8.1_
+  - [ ] 46.2 Name Shared_Definitions (`src/jsinfer/structure/shared_defs.py`)
+    - `definition_names(defs)` names each definition after the object key with the most non-flagged Observations of the subschema, where an Observation's key is the last object-key step of its Path; ties go to the lexicographically smallest key; the documented default name is `def` when no Path of the subschema has an object-key step.
+    - Resolve collisions: the colliding definition with the most non-flagged Observations takes the unsuffixed name, the others get the suffixes 2, 3, … in descending Observation count, ties by the lexicographic order of their serialized subschemas.
+    - Unit tests: majority key, tie on count, array-only Paths, a three-way collision, and a key containing `/` and `~`.
+    - _Requirements: 8.5_
+  - [ ] 46.3 Extract equivalent subschemas by description length (`src/jsinfer/structure/shared_defs.py`, `src/jsinfer/io/emit.py`)
+    - For each candidate of 46.1 at two or more distinct Paths, resolve the `shared_definition` Decision_Point: the MDL_Scorer's total description length in bits of the Schema_Model with the subschemas inlined against the model with one Shared_Definition extracted (the data bits are equal; `$ref` costs `UNI(D)` and `$defs` costs `LN0(D) + Σ M(def)`), compared on copies of the root that carry the definitions extracted so far, for at most `shared_defs.max_rounds` rounds (register this Resource_Parameter, default 32).
+    - When the extracted form is strictly lower, emit the subschema once under the root `$defs`, named by 46.2, and replace it at every Path where it occurs with `{"$ref": "#/$defs/<name>"}`; the name is a JSON-Pointer token (`~0`, `~1` escapes) percent-encoded in the `$ref` fragment, and an empty property name is a trailing empty token.
+    - When the extracted form is equal or greater, emit the subschema inline at every Path where it occurs and record the rejected candidate, its Paths, and both description lengths in the Inference_Report.
+    - Every `$ref` this pass writes targets an entry under `$defs` of the same document, and an extracted non-recursive definition contains no reference to itself, so the schema stays Guarded.
+    - Unit tests: an address object at two Paths extracted, a small subschema left inline with its report entry, three sites, and a definition nested inside another definition.
+    - _Requirements: 8.1, 8.2, 8.6, 8.9_
+  - [ ] 46.4 Merge non-equivalent object subschemas across Paths (`src/jsinfer/structure/shared_defs.py`)
+    - Candidate sets are object subschemas, individual Variant branches included, at two or more distinct Paths that share at least one property name and are not structurally equivalent; take them in descending order of property-name overlap (Jaccard of the name sets, ties by Path order), with no overlap cut-off, and stop after `shared_defs.max_merges` merges per model (register this Resource_Parameter, default 16).
+    - For each candidate set build the cross-Path grouping decision directly (a priority decision with the one grouping, `technique` naming `structure.shared_defs`), then resolve the Merge-or-Split Judgment_Call through the DecisionEngine with features computed from the union view; the decision entry carries `origin` and the `sites`. When neither the Merge-or-Split Decision_Model nor `decide.mdl` is in effect, the Fallback_Behavior is split.
+    - A merge outcome yields one Shared_Definition inferred by the walk from the union of the merged sites' views, so each field absent from any merged subschema is optional, referenced with `$ref` to its `$defs` entry from every merged Path; a split outcome leaves the sites inline.
+    - Run this merge before equivalence extraction, then prune definitions whose every `$ref` was replaced by a later merge.
+    - While `structure.shared_defs` is disabled, skip equivalence extraction and skip this merge for every pair of Paths of which neither is a prefix of the other, so the emitted schema has no `$defs` entry other than self-referencing definitions.
+    - Unit tests: `billing` and `shipping` objects with one differing optional field merged, a split outcome, the merge limit, and the disabled Technique.
+    - _Requirements: 8.3, 8.7_
+  - [ ] 46.5 Detect recursion during the walk (`src/jsinfer/structure/shared_defs.py`, `src/jsinfer/structure/analyzer.py`)
+    - A recursion candidate at an object Path is a relative step S (one property, or one property's array elements) whose objects share a property name with the Path's objects. Group the union of the levels by level (each Object_Signature goes to the level holding most of its objects) as the only candidate of a `variant_grouping` decision with `technique` naming `structure.recursion`, and let the Merge-or-Split Judgment_Call judge it; a split outcome, or the Fallback_Behavior, leaves every level inline.
+    - On a merge, infer the definition body once from the union view of every recursion level. While the body is inferred, the recursive step and the Path itself are `{}` placeholders, so scoring and validation during the walk see an accept-all subschema; when the walk ends they become `$ref` nodes to the definition.
+    - Emit one Shared_Definition that refers to itself with a `$ref` at the shallowest merged descendant Path, so the schema holds exactly one copy of the subschema whatever the observed nesting depth and accepts objects nested deeper than that depth. The self-reference sits under `properties` or `items`, so the cycle is Guarded.
+    - When the definition's top level is the schema root, place the body under `$defs` like any other definition and emit the root as a `$ref` to it. Never emit `{"$ref": "#"}`: every `$ref` targets a `$defs` entry of the same document, which is the only reference form the Kernel resolves.
+    - While `structure.recursion` is disabled, exclude every pair of Paths in which one is a prefix of the other, so no definition refers to itself and the subschema at each observed nesting level is emitted inline.
+    - Unit tests: a comment tree nested through `replies[*]`, a linked list through `next`, recursion at the root (the root is a `$ref` to a `$defs` entry and no `{"$ref": "#"}` appears), deeper generated trees validating, and the disabled Technique emitting each level inline.
+    - _Requirements: 8.3, 8.4, 8.8, 8.9_
+  - [ ] 46.6 Run the Shared_Definition pass in the pipeline with definition provenance (`src/jsinfer/structure/shared_defs.py`, `src/jsinfer/pipeline/infer.py`, `src/jsinfer/pipeline/soundness.py`, `src/jsinfer/learn/trainer.py`)
+    - `SharedDefinitionPass.run(model, views, ctx)` runs after the per-segment walk and before the soundness check: cross-Path merges, then equivalence extraction, then naming.
+    - Infer each extracted definition once more from the union of its sites' views, so its Provenance_Records and their totals count the Observations of every referencing Path; each `$ref` Constraint carries the extraction or merge decision with its own site's instances as Support.
+    - When a site's subschema is replaced, remove exactly the report entries its analysis recorded (by recorded range, never by Path), so the Inference_Report describes the schema as emitted; the `shared_definition` entry lists its sites as pointers and as rendered Paths.
+    - Provenance finalization (26) counts, for a Constraint inside `$defs`, the instances of every referencing site, and gives an unreferenced entry Support (0, 0).
+    - Set `structure.shared_defs` and `structure.recursion` to implemented. Switch both off in the oracle configuration of the Trainer (32) (their Judgment_Calls cross Paths and carry no planted label) and in the property tests that read the emitted structure Path by Path (Properties 10, 12, 14, 18, 19, 20).
+    - Integration test: a collection with a repeated address and a comment tree produces `$defs` with two entries, every document validates, every `$ref` names an entry of the document's own `$defs`, and the soundness stage's conversion of each covering schema through the Kernel adapter accepts the emitted schema with the adapter's `Guard` returning a rank (a schema outside the Kernel_Fragment or not Guarded would be an internal error at stage Soundness), so the run produces its Certificate.
+    - _Requirements: 8.2, 8.3, 8.4, 8.9, 26.2_
+  - [ ] 46.7 Write property test for Shared_Definition faithfulness
+    - Generate collections with repeated substructures at several Paths and recursive trees of depth at most d; compare definition names against a reference implementation of the naming rule, and validate generated trees of depth d + k with the same node shape.
     - **Property 16: Shared definitions are faithful**
     - **Validates: Requirements 8.2, 8.4, 8.5**
+  - [ ] 46.8 Extend the property test for soundness on non-flagged documents
+    - Add collections with planted cross-Path near-duplicates and recursion, with `structure.shared_defs` and `structure.recursion` toggled at random: every non-flagged document validates against a schema whose merged definitions replaced its sites.
+    - **Property 7: Soundness on non-flagged documents**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.7, 3.9, 8.3**
+  - [ ] 46.9 Extend the property test for Technique isolation
+    - Add `structure.shared_defs` and `structure.recursion` to the toggled set: with the first off there is no `$defs` entry other than self-referencing ones, with the second off no definition refers to itself, and no record names a disabled Technique.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
+  - [ ] 46.10 Extend the property test for provenance completeness
+    - Add the `$defs` clause over collections with repeated substructures and recursion: every Constraint inside a `$defs` entry and every `$ref` Constraint has exactly one Provenance_Record; a definition's Support totals count the instances of every referencing site, and each `$ref` has its own site's instances as Support; an unreferenced entry has Support (0, 0). A `$defs` body is read at the logical Path of the first site referring to it.
+    - **Property 41: Provenance completeness**
+    - **Validates: Requirements 4.1, 4.7, 7.1, 15.8, 26.1, 26.2, 26.13**
 
-- [x] 37. Implement hybrid Record/Map partitioning
-  - [x] 37.1 Implement the hybrid partition (`structure/record_map.py`, `config/registry.py`)
-    - Top-j partitions by key frequency, plus the induced-Pattern partition; replaces the outcome only if strictly below both pure encodings
-    - `patternProperties` when the Pattern matches every Map key and no Record field, otherwise `additionalProperties`; Closed-or-Open applies to the partitioned Record
-    - Property 10's hybrid clause reads the partition DL from the report's `record_map_partition` entry at the Path; adjust that lookup if the entry differs
-    - _Requirements: 4.5, 4.6, 4.7_
+- [ ] 47. Hybrid Record/Map partitioning
+  - [ ] 47.1 Score partitioned objects and build the top-j partitions (`src/jsinfer/structure/record_map.py`, `src/jsinfer/mdl/scorer.py`)
+    - Sort the keys at the Path by descending object frequency, ties by name, and build the partitions in which the top j keys are Record fields and the rest are Map entries, for j = 1 … min(K − 1, `hybrid.max_fields`) (register this Resource_Parameter, default 64); record `cap_reached` in the decision details when the limit cuts the series.
+    - Score each partition as its Naive_Merge encoding: the fields under `properties` with `required`, the entries' values under `additionalProperties`. Every observed key is in exactly one of the two sets.
+    - Add to the MDL_Scorer the coding of an extra key matched by a `patternProperties` Pattern: the key under that Pattern's string code (as under `propertyNames`) and its value under the Pattern's value schema.
+    - Unit tests: three fixed fields beside hundreds of id keys, a pure Record, a pure Map, and the limit.
+    - _Requirements: 4.5_
+  - [ ] 47.2 Add the Pattern partition and resolve the partition decision (`src/jsinfer/structure/record_map.py`)
+    - Take the Pattern the Value_Inferrer induces over the Map entry keys of the best top-j partition (through a side engine that writes no report entries), partition every key by whether it matches, and score that partition encoded under `patternProperties`, with and without the Pattern. While `values.pattern` is disabled there is no Pattern partition.
+    - Resolve `record_map_partition` through the DecisionEngine: the Technique's "no partition" candidate is scored as the better of the all-Record and all-Map encodings, and a partition is offered only when its description length is strictly below it, so a partition is selected if and only if its description length is below both pure encodings. A selected partition replaces the Record-or-Map outcome, which stays in the report as the replaced judgment.
+    - Choose the emitted form: `patternProperties` keyed by the Pattern when the Value_Inferrer infers a Pattern that matches every Map entry key and no Record field name; `additionalProperties` otherwise.
+    - With `structure.hybrid_record_map` disabled, the Fallback_Behavior is no partition and the Record-or-Map outcome stands.
+    - Unit tests: a Pattern partition winning, a top-j partition winning, a tie with a pure encoding (no partition), and a Pattern that also matches a field name (the `additionalProperties` form).
+    - _Requirements: 4.5, 4.6_
+  - [ ] 47.3 Build the partitioned node and wire it into the walk (`src/jsinfer/structure/record_map.py`, `src/jsinfer/structure/analyzer.py`, `src/jsinfer/config/registry.py`)
+    - The partitioned node lists the Record fields under `properties` (children inferred by the walk), `required` over the fields present in every non-flagged object, and one value schema for the Map entries, inferred from the union of the entries' views at the Map wildcard step. In the `patternProperties` form the Value_Inferrer repeats the key induction in the run's engine and records it; every emitted `patternProperties` Pattern is Validator-checked against every Map entry key.
+    - Resolve Closed-or-Open-Record on the partitioned Record in the `patternProperties` form only; a closed outcome emits `additionalProperties: false`, which rejects any key neither listed under `properties` nor matched by the Pattern. The closed candidate's Document_Support counts the keys under `properties`.
+    - A partitioned Path has one object schema: Variants, Discriminators, Field_Groups, Co_Occurrence_Rules, and Exclusion_Rules do not run on it. Its `properties` and Map-part Constraints carry the partition decision's Provenance_Record with `details.judgment = "hybrid"`, the partition label, the fields, and the Pattern.
+    - Set `structure.hybrid_record_map` to implemented. Its prerequisite `decide.mdl` is already in the registry of 12, whose Run_Configuration validation reports every enabled Technique with a disabled prerequisite; confirm that, now the Technique is enabled by default, a Run_Configuration that disables `decide.mdl` and leaves it enabled is a `ConfigError` naming both, raised before any document is read.
+    - Unit tests: the emitted node in each form, a closed partitioned Record rejecting an unmatched key, the prerequisite error, and the Technique disabled.
+    - _Requirements: 4.5, 4.6, 4.7, 4.8, 28.8_
+  - [ ] 47.4 Extend the property test for object node classification
+    - Add the hybrid clause over collections with fixed fields beside data-valued keys: the Record fields and Map entries partition the observed keys, the recorded partition description length is strictly below both pure encodings, and any `patternProperties` Pattern matches every Map key and no Record field.
+    - **Property 10: Object nodes match their classification**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 4.9**
+  - [ ] 47.5 Extend the property test for value Constraint soundness
+    - Add the `patternProperties` clause: every Pattern keying a `patternProperties` entry matches every non-flagged Map entry key at its Path under the Validator, and every Map entry value validates against the entry's value schema.
+    - **Property 23: Value Constraints are sound**
+    - **Validates: Requirements 13.6, 13.8, 14.1, 14.3, 14.7, 15.3, 16.6, 24.5**
+  - [ ] 47.6 Extend the property test for Technique isolation
+    - Add `structure.hybrid_record_map` to the toggled set (always together with its prerequisite): with it off, no node has both `properties` and a Map part from a partition, no record names it, and `record_map_partition` records its Fallback_Behavior.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
 
-- [ ] 38. Implement outlier detection and MDL exception encoding
-  - [ ] 38.1 Implement IF and LOF document flagging (`robust/outliers.py`, `pipeline/infer.py`, `config/registry.py`, `learn/trainer.py`)
-    - Document features: BLAKE2b-hashed presence and type bits, size, depth, key and array counts, type rarity, and robust z-scores; rows sorted canonically before fitting
-    - `IsolationForest` with a seeded `random_state`; LOF with `novelty=True`, sampled at `sample.lof`. Flag on strict threshold exceedance; abandon flags when every document would be flagged
-    - Report entries per Flagged_Item; stage wired before analysis. Register the `iforest.score`, `lof.score`, and `lof.n_neighbors` objectives (F1 on mutation-corrupted validation documents)
-    - _Requirements: 17.1, 17.4, 17.5, 17.6, 17.7, 17.9_
-  - [ ] 38.2 Implement MDL exception encoding (`robust/outliers.py`, `structure/analyzer.py`, `values/inferrer.py`, `config/registry.py`)
-    - Exception-bearing candidates at value and structural-form Decision_Points, with ties to widening. Winning rejections become Flagged_Items that affect only their subtree
-    - Report the Constraints or Variant each flag would have added; fallback widen
-    - _Requirements: 17.2, 17.3, 17.4, 17.5, 17.8_
-  - [ ] 38.3 Write property test for outlier bookkeeping
+- [ ] 48. Outlier detection and MDL exception encoding
+  - [ ] 48.1 Compute document features for outlier scoring (`src/jsinfer/robust/outliers.py`, `src/jsinfer/config/resources.py`)
+    - `document_features(store, ctx)` returns one row per parsed document: raw key-path presence and type bits hashed into `outliers.hash_dims` buckets with BLAKE2b; size, depth, key count, and array count; mean and maximum type rarity `−log2 P(type | path)`; and the maximum robust z-score (median and MAD) of numbers and of string lengths.
+    - Register the Resource_Parameter `outliers.hash_dims` (integer ≥ 1, default 256).
+    - Sort the rows canonically before any fit and map scores back to document indices afterwards, so a fit does not depend on document order.
+    - Unit tests: a document with a unique key, a document with a rare type at a common Path, an extreme number, and equal features for a permuted collection.
+    - _Requirements: 17.1_
+  - [ ] 48.2 Score documents with Isolation Forest and Local Outlier Factor and flag them (`src/jsinfer/robust/outliers.py`, `src/jsinfer/config/thresholds.py`, `src/jsinfer/config/resources.py`, `src/jsinfer/learn/trainer.py`)
+    - `OutlierDetector.document_scores(store, ctx)` computes, for each enabled Technique, an anomaly score `−score_samples(X)` for every parsed document (larger is more anomalous): `IsolationForest` with `iforest.n_estimators` trees and `random_state` from `rng("robust.isolation_forest")`; `LocalOutlierFactor(novelty=True)` with `lof.n_neighbors`, fitted on a seeded uniform sample of exactly `sample.lof` documents drawn with `rng("robust.lof")` when the document count exceeds it, and scored on every document; record the sampled and total counts.
+    - Register the Resource_Parameter `iforest.n_estimators` (integer ≥ 1, default 200).
+    - Register the Learned_Thresholds `iforest.score`, `lof.score`, and `lof.n_neighbors` (integer) with their `ThresholdSpec`s: Techniques `robust.isolation_forest` and `robust.lof`, Decision_Point `document_outlier`, admissible ranges, candidate grids, and the objective name `outlier_flag_f1`.
+    - Add the objective function `outlier_flag_f1` to the `OBJECTIVES` registry of the Trainer (32): F1 of flagging the corrupt documents. Build its `ValidationExamples` from validation-split collections only, each with corrupted documents injected from the Mutation_Operators of `learn/mutations.py` (36) and the injected document indices as truth; `lof.n_neighbors` is fitted first over its integer grid, each value judged at its best `lof.score`.
+    - `flags_from_scores(scores, ctx)` resolves `document_outlier`: a document is a Flagged_Item exactly when its score from at least one enabled Technique strictly exceeds that Technique's Learned_Threshold. A Technique whose threshold is missing or invalid in the Model_Bundle is not in effect, and the substitution is recorded with its reason.
+    - Set `robust.isolation_forest` and `robust.lof` to implemented (`robust.lof` superlinear with sample parameter `sample.lof`).
+    - Unit tests with stub scores: the strict inequality at the threshold, one Technique enabled, both enabled with one firing, and a missing threshold; and `fit_threshold` returning a record for each of the three thresholds on the fixture corpus.
+    - _Requirements: 17.1, 20.6, 26.4, 29.8_
+  - [ ] 48.3 Apply document flags in the pipeline and record Flagged_Items (`src/jsinfer/pipeline/infer.py`, `src/jsinfer/robust/outliers.py`, `src/jsinfer/core/report.py`)
+    - Run the Outlier_Detector as its own timed stage after flattening and before the Version_Detector; put the flagged documents into the run's `FlagSet`, so every view, every statistic, and every Support count excludes the Observations of a Flagged_Item, of a flagged document, and of any row with a flagged ancestor, while the other values of a document with a flagged value stay in Constraint inference.
+    - Write one Inference_Report entry per Flagged_Item: the document index; the Path (the root Path for a whole document); each flagging Technique with its score and the value it was compared against (anomaly score and Learned_Threshold); and the list of Constraints it would have loosened or the Variant it would have added, empty when neither (48.6 fills the list for flagged documents).
+    - Abandonment: when at least one document is parsed and the Flagged_Items would make every parsed document a Flagged_Document, discard every Flagged_Item, include every Observation of every parsed document in Constraint inference, and record in the Inference_Report that outlier exclusion was abandoned and how many Flagged_Items were discarded.
+    - Fallback_Behaviors: with Isolation Forest and Local Outlier Factor both disabled, every parsed document takes part in Constraint inference and only values flagged by MDL exception encoding are excluded; with all three robustness Techniques disabled, every Observation takes part and the report lists zero Flagged_Items. The `document_outlier` decision is recorded at `$` either way.
+    - Integration tests: a collection with two planted corrupt documents that are flagged and excluded from Support; all documents flagged and the abandonment record; all three Techniques off.
+    - _Requirements: 17.4, 17.5, 17.6, 17.7, 17.9, 27.8_
+  - [ ] 48.4 Offer value-level exception candidates (`src/jsinfer/values/inferrer.py`, `src/jsinfer/values/formats.py`, `src/jsinfer/values/bounds.py`)
+    - When `robust.mdl_exceptions` is in effect, the Value_Inferrer builds candidates with a non-empty `rejects` row set at each Path: for the type set, one `value_exception` decision whose exception candidates each omit one observed JSON type and reject its rows; at `string_constraint`, a Format or induced Pattern candidate that fails some strings is offered with those rows as `rejects` in place of being withheld or discarded; at `bound`, the ladder candidate computed without the single most extreme distinct value, rejecting the rows that hold it.
+    - The DecisionEngine's handling of candidates with `rejects` (dropping them while the Technique is not in effect, the MDL-step tie to widening, the exception check after a Decision_Model or priority step, the recorded method, Confidence, and cut-off) is the one built in 20; this task produces the candidates and consumes the rejected rows the engine's `Decision` returns.
+    - When the `Decision` returns rejected rows, they become Flagged_Items in the `FlagSet` before the Path's remaining decisions run, so later decisions, child views, and Support counts exclude them; the Flagged_Item's report entry records `robust.mdl_exceptions`, the two description lengths in bits, and the Constraints of the widening candidate that the item would have loosened.
+    - Set `robust.mdl_exceptions` to implemented. With it disabled no candidate carries `rejects`, and every value of every document not flagged by Isolation Forest or Local Outlier Factor takes part in Constraint inference (the Fallback_Behavior "widen" of `value_exception`).
+    - Integration tests of the Value_Inferrer and the DecisionEngine together: one string among ten thousand integers flagged, two of five values being strings widened, a Format failing one string in a large view, a tie resolved to widening, the check after a stub Decision_Model step, and the disabled Technique.
+    - _Requirements: 17.2, 17.4, 17.5, 17.8_
+  - [ ] 48.5 Offer structural-form exception candidates (`src/jsinfer/structure/variants.py`, `src/jsinfer/structure/analyzer.py`)
+    - When `robust.mdl_exceptions` is in effect, for each structural form (Object_Signature) among the non-flagged objects at a Record Path, in canonical order, resolve one `value_exception` decision between the widening candidate (the Path's object schema with a Variant for the form) and the exception candidate (the schema without the form, rejecting every object of that form), scored locally from per-signature counts so the cost is linear in the distinct signatures.
+    - When the exception candidate has the strictly smaller description length, every object of the form becomes a Flagged_Item before Variant grouping runs; ties add the Variant. The report entry records the two description lengths in bits and the Variant the form would have added.
+    - Flags raised here affect only the subtree of the flagged objects, so the single top-down pass stays consistent.
+    - Unit tests: one malformed object among thousands flagged, a form held by a tenth of the objects given its Variant, and a tie.
+    - _Requirements: 17.3, 17.4, 17.5_
+  - [ ] 48.6 Complete the Flagged_Item records after inference and re-check abandonment (`src/jsinfer/pipeline/infer.py`, `src/jsinfer/pipeline/soundness.py`)
+    - After the walk, repeat the abandonment test with the value-level flags included: when every parsed document is a Flagged_Document, discard every Flagged_Item, infer the segment again with an empty `FlagSet` and no exception candidates offered, and record the abandonment and the discarded count.
+    - Flagged_Documents stay out of the soundness validation of 24, and their indices reach the Certificate of 28 through the run's `FlagSet`.
+    - After the last clean validation pass, validate each flagged document against its covering schema with the Validator and list the pointers of the failing Constraints as the Constraints it would have loosened; a flagged document that validates gets an empty list. This step writes only to the Inference_Report and changes no Constraint, so the clean-pass digest the Schema_Emitter compares stays valid.
+    - Unit tests: the loosened-Constraint list of a flagged document with an out-of-range value, and value-level flags that cover every document.
+    - _Requirements: 17.5, 17.9, 3.2, 3.9_
+  - [ ] 48.7 Write property test for outlier bookkeeping
+    - Drive the detector with generated anomaly scores and thresholds through a stub scorer, and run full inference on collections with planted corrupt documents and values.
     - **Property 27: Outlier bookkeeping**
     - **Validates: Requirements 17.1, 17.4, 17.5, 17.9**
+  - [ ] 48.8 Extend the property test for soundness on non-flagged documents
+    - Add collections with rare outlier documents and values and Run_Configurations that toggle the three robustness Techniques: every document that is not a Flagged_Document validates, Flagged_Documents are left out of the validation, and the validated count equals parsed documents minus Flagged_Documents.
+    - **Property 7: Soundness on non-flagged documents**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.7, 3.9, 8.3**
+  - [ ] 48.9 Extend the property test for Technique isolation
+    - Add `robust.isolation_forest`, `robust.lof`, and `robust.mdl_exceptions` to the toggled set: with all three off the report lists zero Flagged_Items; with a subset off no Flagged_Item entry and no record names a disabled Technique, and `document_outlier` and `value_exception` record their Fallback_Behaviors.
+    - **Property 48: Technique isolation**
+    - **Validates: Requirements 26.10, 28.2, 28.4, 28.11, 28.12**
 
-- [x] 39. Implement weak supervision
-  - [x] 39.1 Implement the Labeling_Functions (`learn/labeling_functions.py`)
-    - At least three LFs per Judgment_Call kind, from the design table. Every cut-off is an `lf.<id>.*` Learned_Threshold or an MDL comparison
-    - _Requirements: 23.1_
-  - [x] 39.2 Implement Dawid–Skene (`learn/label_model.py`)
-    - EM over confusion matrices on non-abstain votes, Laplace smoothing, majority-vote initialization, `ds.max_iter` and `ds.tol`; NaN rows when every LF abstains
+- [ ] 49. Weak supervision
+  - [ ] 49.1 Implement the Labeling_Functions (`src/jsinfer/learn/labeling_functions.py`)
+    - Define `LabelingFunction` with `id` (unique), `kind` (the Judgment_Call kind), `source` (the named heuristic), `thresholds` (the names of the Learned_Thresholds it reads), and `vote(features, thresholds) -> int`, which returns a class index of its kind or `ABSTAIN` (-1). Class 0 is the first outcome of the kind: Record, Closed (Record), Tuple, Closed (Enum), Merge.
+    - A Labeling_Function votes from the Decision_Model feature vector of its Judgment_Call, produced by the `learn/features.py` featurizers, and reads nothing else, so its statistics are computed exactly as for the synthetic examples.
+    - Provide at least three per kind. Record-or-Map: JXPlain key-entropy rule, key-pattern regularity, JSONoid dynamic-object rule, MDL Record versus Map. Closed-or-Open-Record: key-set stability, Good–Turing unseen-key mass, MDL. Tuple-or-List: JXPlain fixed-length heterogeneity rule, positional type entropy, MDL. Closed-or-Open-Enum: distinct ratio, Chao1/S_obs, JSONoid enum rule, MDL. Merge-or-Split: key-set Jaccard, discriminator presence, MDL.
+    - An MDL function reads the normalized MDL-difference feature, votes the outcome with the shorter description length, and abstains on a tie. Every other numeric cut-off is a Learned_Threshold named `lf.<id>.<name>`; no function holds a numeric literal as a cut-off. A function whose Learned_Threshold is missing abstains at every Path.
+    - Register each `lf.<id>.<name>` in the threshold registry with its admissible range, its quantile grid, and the validation objective "correct minus wrong votes of the Labeling_Function on the validation-split synthetic examples". Mark them as read only by the Trainer, so a Model_Bundle without them is complete at inference.
+    - Unit tests: unique ids; three or more functions per kind; each function returns only a class index of its kind or `ABSTAIN`; a source lint over the module finds no numeric comparison constant outside the registered thresholds.
+    - _Requirements: 23.1, 20.1_
+  - [ ] 49.2 Fit the Labeling_Function thresholds in the Trainer (`src/jsinfer/learn/trainer.py`)
+    - Fill the Trainer stage "fit Labeling_Function thresholds" (stage 5 of the training order of 33, after featurization and before weak supervision). For each `lf.<id>.<name>`, run the deterministic grid search of the threshold registry over quantiles of the feature the function reads, on validation-split synthetic examples only, maximizing correct minus wrong votes; ties go to the smallest value.
+    - Store the fitted value, the objective value, the number of validation examples, and the Training_Data identifier in `thresholds.json` like any other Learned_Threshold.
+    - When the validation split holds no example of one of the kind's two classes for that function, leave the threshold out of the Model_Bundle and record its name and the reason in the training manifest; the function then abstains.
+    - Unit tests: a planted separable feature gives the expected cut-off; the single-class case omits the threshold with its reason; two fits with the same inputs give the same values.
+    - _Requirements: 23.1, 20.3, 20.4, 20.8_
+  - [ ] 49.3 Implement the Dawid–Skene label model (`src/jsinfer/learn/label_model.py`, `src/jsinfer/config/resources.py`)
+    - `DawidSkene.fit(L, n_classes)` takes a vote matrix (examples × Labeling_Functions, -1 for abstain) and runs EM with one confusion matrix per function over its non-abstain votes, Laplace smoothing, and initialization from the majority vote. It stops at the tolerance `ds.tol` or after `ds.max_iter` iterations. It takes no ground-truth label as input.
+    - Register the two Resource_Parameters in the resource registry of 12: `ds.max_iter` (integer ≥ 1, default 100) and `ds.tol` (number > 0, default 1e-6). The Trainer reads both through the resource reader, so each is listed with its value and origin.
+    - `predict_proba(L)` returns one row per example with every probability in [0, 1] and each row summing to 1; a row in which every function abstains is all NaN, which callers read as "no probabilistic label".
+    - Expose each function's estimated accuracy (the class-prior-weighted diagonal of its confusion matrix) for the statistics of 49.7.
+    - Make the fit deterministic: fixed iteration order over functions and classes, `math.fsum` for the log-likelihood, no random initialization. Serialize the fitted model to `models/label_model.<kind>.json` as plain JSON and load it back to an equal model.
+    - Unit tests: on votes drawn from planted confusion matrices the posteriors recover the planted classes; a single-function matrix and an all-abstain matrix do not raise; save then load gives identical `predict_proba` output.
     - _Requirements: 23.3_
-  - [x] 39.3 Write property test for the label model and LF statistics
+  - [ ] 49.4 Read the unlabeled-collection manifest and filter leakage (`src/jsinfer/learn/trainer.py`)
+    - Extend `TrainingConfig` (33) with a `[weak_supervision]` table: `enabled` (boolean, default `false`), `unlabeled_manifest` (path), `real_datasets_manifest` (path), `slice_sizes` (list of positive integers), and `slices_per_size` (non-negative integer). Validate it with the other settings, so that every offending setting is reported in one error. When `enabled` is true and `unlabeled_manifest` or `real_datasets_manifest` is missing or unreadable, fail with a `TrainingError` before any stage runs: without the Real_Dataset definitions the filter below cannot be applied.
+    - Fill the first half of the Trainer stage "run weak supervision" (stage 6 of the training order of 33). When weak supervision is enabled, read the unlabeled-collection manifest. Each entry gives a unique collection identifier and the location of the collection's documents. Read every listed Document_Collection with the Ingestor, with the same input options an inference run uses.
+    - Load the Real_Dataset definitions with the loader of 35 (`bench/real.py`) from `real_datasets_manifest` and the corpus manifest, so that the SchemaStore-derived Real_Datasets are included with the manifest-defined ones. The Trainer only reads `bench/real.py`; it changes nothing there.
+    - Exclude an entry, record its identifier and reason in the training manifest (`ws_excluded`), and continue with the rest, when: its identifier repeats that of an earlier entry (the later entry is excluded and the first is used, as for Real_Dataset definitions); its documents cannot be read; or its Document_Collection holds no parseable document.
+    - Exclude every listed collection whose identifier matches a Real_Dataset defined for the Evaluation_Harness (manifest definitions and the SchemaStore test-file datasets alike). From the remaining collections remove every document equal, as a parsed JSON value, to a document of any Real_Dataset; compare by the digest of the canonical serialization, so `1` and `1.0` and key order do not hide a match. A collection left with no document is excluded with that reason.
+    - Record in the training manifest the identifiers of the collections given to the Weak_Supervision_Module (`unlabeled_collections`), the excluded identifiers with reasons, and the number of removed documents (`ws_removed_docs`).
+    - Unit tests: one fixture manifest holding a duplicate identifier, an unreadable location, an all-invalid collection, a Real_Dataset identifier, and a collection sharing two documents with a Real_Dataset; check the kept collections and every manifest record.
+    - _Requirements: 23.2, 23.6, 23.7, 21.2_
+  - [ ] 49.5 Produce weakly labeled examples (`src/jsinfer/learn/trainer.py`)
+    - Run each collection that passed the filters of 49.4 through the inference pipeline with the oracle configuration of the Trainer (32) and a recording DecisionEngine that stores the feature vector of every two-candidate Judgment_Call without forcing a label. Inject the recording engine and the oracle resolver through the internal keyword-only parameter `engine_factory` of `run_pipeline` (25), as the featurization pass of 32 does; nothing else in the pipeline is changed for this pass. These are the Paths where the Inferrer evaluates a Judgment_Call of the kind.
+    - Besides the whole collection, draw seeded random slices of it: the training configuration's `[weak_supervision] slice_sizes` × `slices_per_size`, each drawn with `rng("ws.slice", id, size, i)`, and record each slice separately.
+    - For each kind, apply every Labeling_Function of the kind to every recorded feature vector to build the vote matrix, fit one `DawidSkene` model on all of its rows, and compute the posteriors.
+    - Drop a row whose posterior is NaN (every function abstained, so no probabilistic label is produced) or whose highest probability is shared by two or more outcomes. Every other row becomes a weak example labeled with its most probable outcome and weighted by that probability.
+    - Unit tests with stub Labeling_Functions: all-abstain rows give no example; tied rows give no example; weights equal the top posterior; the slice draws are identical across two runs and across worker counts.
+    - _Requirements: 23.3, 23.4_
+  - [ ] 49.6 Train and store the weakly supervised Decision_Models (`src/jsinfer/learn/trainer.py`, `src/jsinfer/learn/decision_models.py`, `src/jsinfer/learn/bundle.py`)
+    - For each Judgment_Call kind with at least one weak example, train a second Decision_Model beside the synthetic-only one, with the same featurizer and estimator settings, on the training-split synthetic examples (weight 1 each) plus the weak examples (weight = their probability), passed as `sample_weight`.
+    - Weak examples join the training split only. Calibration, Learned_Threshold fitting, and the reported validation metrics use the validation-split synthetic examples alone, so the two models of a kind are measured on the same data.
+    - Store the model as `models/dm.<kind>.weak.joblib` with `trained_with = "synthetic+weak"`, beside `dm.<kind>.synthetic.joblib`, and the label model as `models/label_model.<kind>.json`; list each file with its SHA-256 in the manifest. The Model_Bundle reader's `decision_model(kind, trained_with)` accessor (12) returns the weak model for `"synthetic+weak"` and reports a missing or digest-mismatched file as a missing artifact.
+    - When weak supervision is disabled in the training configuration, or a kind has no weak example, omit the weak model and the label model for that kind and record each omission with its reason in the manifest.
+    - Integration test: a tiny training run over the fixture corpus with two fixture unlabeled collections writes both models for at least one kind; a second run with the same inputs and seed gives identical predicted classes and calibrated probabilities on the probe set. The tiny-run test of 33 keeps passing unchanged, because it accepts each artifact either under `artifacts` or under `omitted_artifacts`; update its code comment that says the label model and the weakly supervised Decision_Models are omitted.
+    - _Requirements: 23.4, 21.1, 21.3, 21.7, 21.9_
+  - [ ] 49.7 Report Labeling_Function statistics (`src/jsinfer/learn/trainer.py`)
+    - For each Labeling_Function compute: coverage, the fraction of the recorded Paths of its kind at which it votes; conflict rate, the fraction of its voted Paths at which another function of the same kind votes a different outcome; estimated accuracy, from the fitted label model; measured accuracy, the fraction of its votes that match the ground-truth label on validation-split synthetic collections with unknown labels excluded.
+    - Write measured accuracy as `null` (undefined) when the function casts no vote on a labeled validation Path, conflict rate as `null` when it votes at no recorded Path, coverage as `null` when no Path of its kind was recorded, and estimated accuracy as `null` when no label model was fitted for its kind.
+    - Write the manifest entries `labeling_functions [{id, kind, source, coverage, conflict, est_acc, measured_acc}]` and `ws_examples {kind: n}`, the number of weak examples used per kind.
+    - Unit tests against small hand-built vote matrices with known answers, including a function that never votes.
+    - _Requirements: 23.5_
+  - [ ] 49.8 Enable `decide.weak_supervision` at inference (`src/jsinfer/config/registry.py`)
+    - Set the registry entry `decide.weak_supervision` to implemented; it serves the `judgment_model` Decision_Point, whose Fallback_Behavior is the synthetic-only Decision_Model.
+    - The Decision_Model step of 20 already chooses between `dm.<kind>.weak` and `dm.<kind>.synthetic` and records the Fallback_Behavior of `judgment_model`; this task changes nothing in `decide/engine.py` unless one of the tests below shows a defect. Confirm that the Model_Bundle reader returns the weak model written by 49.6 for `"synthetic+weak"` and reports a missing or digest-mismatched file as a missing artifact.
+    - Check that each "Decision_Model comparison" cut-off names the artifact that produced the probabilities (`dm.<kind>.weak` or `dm.<kind>.synthetic`), and that the Inference_Report names the Decision_Model that resolved each Judgment_Call kind, with the reason `disabled` or `missing-model` when the synthetic-only model was used.
+    - Integration tests on one collection, with a Model_Bundle trained by 49.6, under three settings: Technique on with a weak model; Technique off; Technique on with a Model_Bundle that lacks the weak model. Check the artifact named in the provenance and the report entry in each.
+    - _Requirements: 23.8, 23.9, 20.7_
+  - [ ] 49.9 Write property test for the label model and Labeling_Function statistics
+    - Inputs come from the vote-matrix strategy in `tests/strategies.py`: random shapes, class counts of 2, abstentions, and rows where every function abstains.
     - **Property 36: Label model and LF statistics are well-formed**
     - **Validates: Requirements 23.3, 23.5**
-  - [x] 39.4 Integrate weak supervision into the Trainer (`learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)
-    - Read manifest collections with the Ingestor; exclude bad entries with reasons; filter Real_Dataset ids and equal documents; fit LF thresholds on validation data
-    - Label model per kind; second Decision_Model per kind using weighted weak examples, excluding tied labels and never adding them to validation; LF statistics and weak example counts in the manifest
-    - _Requirements: 21.3, 23.2, 23.4, 23.5, 23.6, 23.7_
-  - [x] 39.5 Write property test for leakage guards
-    - **Property 37: Leakage guards** (weak-supervision filtering and the harness abort guards of 25.4)
+  - [ ] 49.10 Extend the property test for leakage guards
+    - Add the weak-supervision clause: for any generated manifest of unlabeled collections and any set of Real_Datasets, no collection with a Real_Dataset identifier and no document equal as a JSON value to a Real_Dataset document reaches the vote matrix, and the manifest's excluded identifiers and removed-document count equal a reference computation.
+    - **Property 37: Leakage guards**
     - **Validates: Requirements 23.6, 30.7, 30.8, 30.11**
 
-- [ ] 40. Implement corpus suggestions and the nearest known schema
-  - [ ] 40.1 Build the Corpus_Index in the Trainer (`corpus/index.py`, `learn/trainer.py`, `learn/bundle.py`)
-    - SQLite counts per name, (parent, name), and (name, constraint) from training-split schemas only, plus a table of normalized Path sets
-    - MinHash signatures computed at load time and seeded from the run seed, with an optional seed-0 cache; `exclude_ids` filtering
-    - _Requirements: 24.1, 25.1, 30.6_
-  - [ ] 40.2 Implement name-based suggestions (`corpus/advisor.py`, `values/inferrer.py`, `config/registry.py`, `learn/trainer.py`)
-    - Conditional frequencies, using the parent context when it matches, ranked deterministically
-    - Acceptance checks: `corpus.suggest_min_confidence`, non-flagged values present, keyword applicability, and Validator acceptance. Failures are reported with counts. A shared keyword becomes one Decision_Point
-    - Fallback and missing-index substitution; register the suggestion-acceptance objective
-    - Keep `corpus.name_suggest` in `KIND_SPECIFIC_CONFIDENCE` so suggestion scores survive finalization
-    - _Requirements: 24.3, 24.5, 24.6, 24.7, 24.8, 24.9_
-  - [ ] 40.3 Write property test for suggestions
-    - **Property 39: Suggestions are ranked and accounted for** (name-based clauses now; CF clauses added in 46.2)
-    - **Validates: Requirements 24.3, 24.6, 30.6**
-  - [ ] 40.4 Implement nearest-known-schema lookup (`corpus/advisor.py`, `pipeline/infer.py`, `config/registry.py`)
-    - LSH candidates ranked by exact Jaccard with ties by source id; up to `nearest.next` follow the top one; shared and only-in lists; per Schema_Version
-    - Report statuses for not found, disabled, and empty index. Schema and explanation bytes do not change
-    - _Requirements: 25.1, 25.2, 25.3, 25.4, 25.5, 25.6, 25.7_
-  - [ ] 40.5 Write property test for the nearest known schema
+- [ ] 50. Corpus suggestions and the nearest known schema
+  - [ ] 50.1 Build the Corpus_Index in the Trainer (`src/jsinfer/corpus/index.py`, `src/jsinfer/learn/trainer.py`, `src/jsinfer/learn/bundle.py`, `tests/integration/test_train_repro.py`)
+    - Fill the Trainer stage "build the Corpus_Index" (stage 2 of the training order of 33). It reads training-split Schema_Corpus schemas only, loaded with the Schema_Loader. A field definition is one entry under `properties` at any depth; its name is normalized with `normalize_name`; its parent-key context is the normalized name of the nearest enclosing property, or none at the top level.
+    - For each field definition record, per schema identifier, the normalized name alone and the (parent, name) pair, the number of definitions, and how many of them declare each Constraint. A Constraint is a suggestible keyword with its canonical value; the suggestible keywords are `format`, `pattern`, `enum`, `minimum`, `maximum`, `minLength`, and `maxLength`. Read the keywords from the property's own schema object.
+    - Store the counts in `corpus/index.sqlite` with rows keyed by schema identifier, so a reader can leave out excluded schemas, and write `corpus/paths.jsonl` with each schema's identifier, source, and normalized Path set, computed with `normalized_path_set` of 35 under the Resource_Parameters `nearest.ref_depth` and `nearest.max_paths`. Both are registered by 35; this task reads them through the resource reader and registers neither.
+    - Write every file under `corpus/` so that its bytes are a function of its content alone, because the manifest's `artifacts` digests are part of the manifest comparison of 21.7 (33). For `index.sqlite`: a fixed `page_size`, `auto_vacuum = NONE`, `journal_mode = OFF`, a fixed `user_version`, no timestamp column, every row inserted in sorted order inside one transaction, and `VACUUM` before the file is closed. For `paths.jsonl`: canonical JSON, one schema per line in ascending identifier order, each Path set sorted. For the optional signature cache `minhash.seed-0.npz` of 50.8: an uncompressed archive with a fixed member order and fixed member timestamps.
+    - List both files with their SHA-256 in the manifest, and have the Model_Bundle reader's `corpus_index()` accessor (12) open the index read-only after checking the digest. When every Corpus_Advisor Technique is disabled in the training configuration, omit the index and record the omission with that reason in `omitted_artifacts`.
+    - Integration test: the fixture corpus produces counts that match a hand count for two field names, with and without the parent context; a schema outside the training split contributes no row. Extend the reproducibility test of 33 to assert that two training runs with the same inputs and seed, and a third with another worker count, record equal `artifacts` digests for every file under `corpus/`. The tiny-run test of 33 keeps passing unchanged; update its code comment that says the Corpus_Index is omitted.
+    - _Requirements: 24.1, 21.1, 21.9_
+  - [ ] 50.2 Implement index lookup and name-based suggestions (`src/jsinfer/corpus/index.py`, `src/jsinfer/corpus/advisor.py`)
+    - `CorpusIndex.lookup(name, parent)` sums the per-schema rows, leaving out every schema identifier in `corpus.exclude_ids`. It uses the entries whose parent-key context equals `parent` when at least one such entry exists, and all entries matching the name otherwise.
+    - For each Constraint of the matching entries, the conditional frequency is the number of matching field definitions that declare it divided by the number of matching field definitions. Return one `Suggestion` per Constraint with that frequency as its Confidence.
+    - `CorpusAdvisor.suggest(view, ctx)` runs only where the Path ends in an object-key step. It normalizes that key with the same `normalize_name` the Trainer used, takes the nearest preceding object-key step of the Path as the parent, and returns the suggestions ranked by descending Confidence, with ties broken by keyword rank in the canonical keyword order and then by the canonical bytes of the value.
+    - Unit tests: a name with and without a matching parent context; a tie in frequency; a Path ending in an element step or a Map wildcard step gets no suggestion; an excluded schema identifier changes the counts.
+    - _Requirements: 24.3, 30.6_
+  - [ ] 50.3 Accept, reject, and resolve suggestions (`src/jsinfer/corpus/advisor.py`, `src/jsinfer/values/inferrer.py`)
+    - Accept a suggestion only when all five conditions hold, checked in this order, and record the first that fails: (1) Confidence ≥ the Learned_Threshold `corpus.suggest_min_confidence`; (2) at least one non-flagged value exists at the Path; (3) every non-flagged value has a JSON type the keyword applies to (`format`, `pattern`, `minLength`, `maxLength`: string; `minimum`, `maximum`: number or integer; `enum`: any); (4) the Validator, with `format` asserted, accepts every non-flagged value against the Constraint; (5) the keyword belongs to the Kernel_Fragment (failed-condition label `keyword`).
+    - List each rejected suggestion in the Inference_Report with the Path, the Constraint, the suggesting Technique, the Confidence, the failed condition, and, when condition 4 failed, the number of rejected non-flagged values.
+    - Turn each accepted suggestion into a `Candidate` of the suggesting Technique. `format` and `pattern` suggestions join the `string_constraint` candidates of the Value_Inferrer, registered as a further source through the candidate-source interface of 21 (after latent-type, Format, and Semantic_Type_Classifier candidates are produced). A suggestion that assigns a keyword another candidate at the Path also assigns is an alternative at that one Decision_Point, resolved by `DecisionEngine.resolve` (lowest description length when `decide.mdl` is enabled, registry priority otherwise); list each unselected candidate as rejected in the report. A suggestion with no competitor is resolved at the `suggestion` Decision_Point.
+    - Give the emitted Constraint a Provenance_Record with the suggesting Technique's identifier, the Support over non-flagged values, and the suggestion's Confidence; add the Technique to `KIND_SPECIFIC_CONFIDENCE` (26) so provenance finalization does not replace the Confidence. Mark a suggested Pattern that does not parse in the safe regex AST with `details.pattern_fragment = false`.
+    - Unit tests: one case per failed condition; a suggested `format` competing with a detected Format under MDL and under priority; an accepted `maxLength` beside a bound candidate.
+    - _Requirements: 24.5, 24.6, 24.7, 14.5, 26.1_
+  - [ ] 50.4 Fit the acceptance threshold, set the fallbacks, and enable `corpus.name_suggest` (`src/jsinfer/learn/trainer.py`, `src/jsinfer/config/registry.py`, `src/jsinfer/decide/context.py`, `src/jsinfer/pipeline/infer.py`)
+    - Register the Learned_Threshold `corpus.suggest_min_confidence` (admissible range [0, 1]) with the objective "F1 of accepted suggestions versus the source schema's Constraints", and fit it in the Trainer's threshold step on validation-split collections, using the training-split index.
+    - Set the registry entry `corpus.name_suggest` to implemented, serving `suggestion` and `string_constraint`, and construct the Corpus_Advisor in the run context from the Model_Bundle's Corpus_Index and `corpus.exclude_ids`. Add the Technique's row (accessor `corpus_index()`) to the artifact-check table of `build_in_effect` in `src/jsinfer/decide/context.py` (20), so that a missing Corpus_Index makes the Technique not in effect with reason `missing-model` and yields its one `substitutions` entry.
+    - While the Technique is disabled, the Corpus_Advisor produces no suggestion from it, so none appears in the emitted schema or anywhere in the Inference_Report. The Constraints at the affected Paths come from the remaining enabled Techniques.
+    - When the Technique is enabled and the Model_Bundle lacks a Corpus_Index (absent, or failing its digest check), apply the same Fallback_Behavior, continue the run, and record the substitution in the report. A missing or out-of-range `corpus.suggest_min_confidence` is handled the same way with reason `missing-threshold`.
+    - Integration tests: a collection with a field named `email` gets `format: email` from the fixture index with the Technique on and not with it off; the empty Model_Bundle run completes and records the substitution.
+    - _Requirements: 24.8, 24.9, 20.3, 20.6, 21.10_
+  - [ ] 50.5 Write property test for suggestion ranking and accounting
+    - Inputs come from the corpus-index-contents strategy: random names, parent contexts, Constraints, per-schema counts, and excluded identifiers. The clauses on collaborative-filtering scores and on duplicate suggestions keeping the higher Confidence wait for 58.
+    - **Property 39: Suggestions are ranked and accounted for**
+    - **Validates: Requirements 24.3, 24.4, 24.6, 30.6**
+  - [ ] 50.6 Extend the property test for value Constraint soundness
+    - Add the corpus-suggestion clause: run with `corpus.name_suggest` enabled and a generated Corpus_Index whose suggestions include ones the data violates; every accepted suggestion accepts every non-flagged value at its Path under the Validator with `format` asserted.
+    - **Property 23: Value Constraints are sound**
+    - **Validates: Requirements 13.6, 13.8, 14.1, 14.3, 14.7, 15.3, 16.6, 24.5**
+  - [ ] 50.7 Extend the property test for missing artifacts
+    - Add the Corpus_Index and `corpus.suggest_min_confidence` to the artifacts the test removes or corrupts; the run completes, no suggestion is emitted, and each substitution is recorded with its reason.
+    - **Property 32: Missing artifacts degrade to fallbacks**
+    - **Validates: Requirements 20.6, 21.10, 22.14, 24.9**
+  - [ ] 50.8 Index normalized Path sets with MinHash and LSH (`src/jsinfer/corpus/index.py`)
+    - A schema's normalized Path set is the one `normalized_path_set` of 35 computes from its Schema_Model, for indexed schemas (read from `corpus/paths.jsonl`) and for the inferred schema alike: the Paths taken across all branches, each `$ref` expanded up to the Path depth `nearest.ref_depth`, each (subschema, Path) pair visited once, no new Path opened once the set reaches `nearest.max_paths`, and every object-key step normalized with `normalize_name`. `nearest.ref_depth` and `nearest.max_paths` are registered by 35; the Corpus_Advisor only reads them.
+    - At load time build one MinHash signature per indexed schema with `minhash.perm` permutations and hash functions seeded from the Run_Configuration seed, and insert the signatures into an LSH index with `lsh.bands` bands. Both Resource_Parameters are registered by 22 in `config/resources.py`, with the check that the bands divide the permutations; read them here and register neither again. Leave out every identifier in `corpus.exclude_ids` before indexing. The Trainer may write the signatures for the default seed to the optional cache `corpus/minhash.seed-0.npz` (listed in the manifest with its SHA-256); the reader uses the cache only when the run seed equals the cache's seed and the permutation count matches, and computes the signatures otherwise.
+    - `CorpusIndex.nearest(paths, k_next, exclude)` retrieves the LSH candidates of the query set, computes the exact Jaccard similarity of each (shared normalized Paths divided by the Paths in the union), drops candidates with similarity 0, and returns them ranked by descending similarity with ties broken by ascending source identifier: the first is the Nearest_Known_Schema and at most `k_next` follow.
+    - Self-retrieval holds by construction: a query set equal to an indexed set has an identical signature, falls in the same bucket in every band, and has exact Jaccard 1.0. Do not add a similarity filter that could drop such a candidate.
+    - Unit tests: a recursive schema's Path set is finite and stable; a query equal to an indexed set returns it with 1.0; ties rank by source identifier; `k_next = 0` returns only the nearest.
+    - _Requirements: 25.1, 25.7, 30.6_
+  - [ ] 50.9 Report the nearest known schema and enable `corpus.nearest_schema` (`src/jsinfer/corpus/advisor.py`, `src/jsinfer/pipeline/infer.py`, `src/jsinfer/config/registry.py`, `src/jsinfer/config/resources.py`, `src/jsinfer/decide/context.py`)
+    - `CorpusAdvisor.nearest_known(model, ctx)` runs when inference completes, once for the emitted schema, or once per Schema_Version when Schema_Versions are produced. It writes to the report's `nearest` section the ranked candidates, each with its source identifier and exact Jaccard similarity: the Nearest_Known_Schema and at most `nearest.next` after it. Register the Resource_Parameter `nearest.next` (integer ≥ 0, default 5) in the resource registry of 12.
+    - For the Nearest_Known_Schema also list the shared normalized Paths, the Paths only in the inferred schema, and the Paths only in the Nearest_Known_Schema, each in lexicographic order.
+    - Record one of four statuses per schema, each distinct in the report: `found`; `not_found`, when the inferred schema's normalized Path set is empty or no LSH candidate has similarity above 0 (no next-nearest schemas are listed); `disabled`, when the Technique is off (indexing and lookup are skipped); `empty_index`, when the Corpus_Index holds no schema after exclusions (the lookup is skipped, and the emitted schema and the exit status are unaffected). A Model_Bundle with no Corpus_Index is handled as a missing artifact, with the substitution recorded: add the row of `corpus.nearest_schema` (accessor `corpus_index()`) to the artifact-check table of `build_in_effect` (20).
+    - The lookup reads the finished model and writes only to the Inference_Report: it adds no Constraint, no Provenance_Record, and no annotation, so the schema and explanation file are byte-identical with the Technique on or off.
+    - Set the registry entry `corpus.nearest_schema` to implemented and call the lookup from the call point the pipeline leaves after emission (25). Integration tests: each of the four statuses; byte comparison of schema and explanation with the Technique on and off.
+    - _Requirements: 25.2, 25.3, 25.4, 25.5, 25.6, 21.10_
+  - [ ] 50.10 Write property test for the nearest known schema
+    - Inputs: generated corpora of Path sets with planted overlaps, exclusion lists, and query sets that include each indexed set. Run with the maximal permutation count where the test compares against exact Jaccard over all indexed sets.
     - **Property 40: Nearest known schema**
     - **Validates: Requirements 25.1, 25.2, 25.3, 25.7, 30.6**
+  - [ ] 50.11 Extend the property test for annotation and report neutrality
+    - Add the nearest-schema clause: for any collection, the schema and explanation bytes of a run with `corpus.nearest_schema` disabled equal those of the same run with it enabled, and the report status is `disabled` in the first.
+    - **Property 43: Annotation and report neutrality**
+    - **Validates: Requirements 25.5, 26.6, 26.11**
 
-- [ ] 41. Implement the Should-tier harness extensions
-  - [ ] 41.1 Implement the ReCG adapter (`bench/baselines/recg.py`, open decision)
-    - Run the official command when one is configured. Otherwise run the in-house cluster-and-generalize reimplementation, labeled "ReCG (reimplementation)" in every output
-    - _Requirements: 34.1, 34.10, 34.11_
-  - [ ] 41.2 Implement the robustness study (`bench/studies.py`)
-    - Seeded contamination at each configured rate, using mutation negatives disjoint from measurement negatives (documented rounding); changes in recall and rejection; loosened-Constraint counts per 35.4
+- [ ] 51. Kernel extensions: closing constructors (K5), disjointness (K6) and oneOf emission, canonical form (K7), references and combination (K9)
+  - [ ] 51.1 Write the reference constructors for closing Constraints (`kernel/Build.dfy`)
+    - Write one total function per closing Constraint, each taking a finite collection of observed `Json` values and returning Kernel keywords: `EnumOf` (`const` for one distinct value, otherwise `enum` of the distinct values, compared by Number_Value); `BoundOk` (a given candidate for one of the bound keywords of Requirement 16 criterion 2, returned only when no observed quantity violates it, and a declared error value otherwise); `RequiredOf` (the keys present in every observed object); `ClosedOver` (`additionalProperties: false` beside `properties` listing every observed key); `TupleOver` (`prefixItems` with `items: false`, with one position per index up to the longest observed array); `UniqueOk` (`uniqueItems`, returned only when no observed array holds two equal elements); `NamesOver` (`propertyNames`, `minProperties`, and `maxProperties` from the observed key sets).
+    - Where a constructor needs subschemas (the `properties` of `ClosedOver`, the positions of `TupleOver`, the `propertyNames` schema of `NamesOver`), take them as parameters with the precondition that each accepts the values observed under it. Use no floating point and import nothing outside the Kernel.
+    - Expose the constructors through `kernel/Api.dfy` for tests. Production code does not call them: `values/` and `structure/` build the same Constraints on numpy columns, and Property 23 and the final soundness pass connect the two.
+    - Add a differential unit test through the adapter: for small generated value sets, the `enum`, `required`, and bound keywords the Value_Inferrer and Dependency_Miner produce are ones the matching constructor returns for the same values.
+    - _Requirements: 37.5, 36.10_
+  - [ ] 51.2 Prove the closing constructors sound
+    - **Kernel theorem K5: Each `Build` constructor, given a finite set of values, yields a Constraint that every value in the set satisfies.**
+    - **Establishes: Requirements 37.5, 4.8, 7.3, 7.4, 9.7, 12.7, 15.3, 16.6**
+    - Write one short lemma per constructor (`Build.EnumOfSound`, `Build.BoundOkSound`, and so on), each direct from the definition of `Valid` for the keywords the constructor returns, with the oracles left arbitrary. Use no `assume` and no axiom.
+    - Name beside the lemmas the two mutations 52.5 enters in the mutation register: a code mutation (for example `RequiredOf` taking the union of the keys instead of the intersection) and a statement mutation (for example dropping from `BoundOkSound` the hypothesis that no observed quantity violates the candidate), each with the lemma that must fail.
+    - Traceability: the primary rows of 4.8, 7.3, 7.4, 9.7, 15.3, and 16.6 stay at Checked, with the final pass of 3.9 as evidence, because the theorem is about the construction rules and not about the code in `values/`, `structure/`, and `deps/`. Add one secondary Proof row for each of them, and for 12.7, naming its `Build.*Sound` lemma.
+  - [ ] 51.3 Write the disjointness check (`kernel/Disjoint.dfy`, `kernel/Api.dfy`, `src/jsinfer/kernel/adapter.py`)
+    - Write the total function `Disjoint(root, b1, b2): bool` over two object schemas. It reads only the branches' own keywords and answers yes in two cases. Case 1: both branches list a common property under `required` and constrain it to value sets that share no value, where a property's value set is its `const` and `enum` (intersected when both appear), compared by Kernel equality, and a property with neither is unconstrained. Case 2: one branch requires a property the other cannot hold, because the other's `properties` entry for it is `false`, or the name is unlisted under `properties`, matched by no `patternProperties` Pattern, and the branch declares `additionalProperties: false`. Both branches must be `Node` schemas under one Guarded root; the function terminates on every input and returns a boolean.
+    - Answer no for anything the check cannot decide: a branch that is a `$ref` or a boolean schema, and a branch in which a `patternProperties` or `propertyNames` Pattern the Kernel cannot decide could govern the property concerned. Every Pattern is `Opaque` at this milestone (3), and an `Opaque` Pattern could match any name, so a branch that holds any `patternProperties` entry or a `pattern` under `propertyNames` is disjoint from nothing; this is the answer 36.7 asks for. Write the test for "matched by no `patternProperties` Pattern" as one function by explicit case on the Pattern constructor, with a case for `Opaque` and no wildcard case, and let no caller assume that every Pattern is `Opaque`, so that the `Frag` case (decided by the reference matcher, and with it the two further ways a branch can forbid a field: a matching `patternProperties` entry that is `false`, and a `propertyNames` schema that rejects the name) is added in one place when 61 adds `Frag` (first as a case that answers as for `Opaque`, then as the real one). Answering no is always safe: the caller then emits `anyOf`, or the `not` form for an Exclusion_Rule.
+    - Add `Disjoint` to `kernel/Api.dfy` and a thin adapter entry that converts the root and two branch pointers and returns the boolean; the adapter adds no logic of its own.
+    - Unit tests through the adapter: both yes cases; overlapping `enum` sets; one open branch; a `$ref` branch; a branch with an `Opaque` `patternProperties` Pattern; `1` and `1.0` counted as the same value.
+    - _Requirements: 36.7, 37.6, 36.10_
+  - [ ] 51.4 Prove that disjoint branches match at most once
+    - **Kernel theorem K6: If `Disjoint` answers yes for every pair of a list of branches, then at most one branch accepts any value, so `oneOf` and `anyOf` over those branches accept the same values and each accepted value is accepted by exactly one branch.**
+    - **Establishes: Requirements 37.6, 5.5, 10.7**
+    - Prove `Disjoint.DisjointSound` by the two syntactic cases: each gives a property on which the two branches contradict each other for any value both would accept. Prove `Disjoint.OneOfIsAnyOf` from it by unfolding `Valid` for `oneOf` and `anyOf` over a pairwise-disjoint list.
+    - Name beside the lemmas the two mutations 52.5 enters in the mutation register: a code mutation (`Disjoint` ignoring `patternProperties` in case 2) and a statement mutation (dropping the pairwise condition from `OneOfIsAnyOf`), each with the lemma that must fail.
+    - Traceability: set the primary row of 5.5 to Proof (`Disjoint.DisjointSound`, `Disjoint.OneOfIsAnyOf`), and add Property 64 as a secondary row once 51.8 exists, since the theorem does not show that the emitter asks. Keep the primary row of 10.7 at Property (Property 20) and add a secondary Proof row naming `Disjoint.OneOfIsAnyOf`, which covers a Tagged_Union emitted as a `oneOf`. Run the verify command so the compiled Python is regenerated and the verified-build stamp is rewritten.
+  - [ ] 51.5 Ask the Kernel before a `oneOf` over Variants (`src/jsinfer/io/emit.py`, `src/jsinfer/structure/analyzer.py`)
+    - Add `branch_keyword(branches, defs) -> "oneOf" | "anyOf"` in `io/emit.py`: it asks the Kernel's `Disjoint`, through the adapter, for every pair of branches in canonical order, and returns `oneOf` only when every pair is accepted. A `KernelUnsupported` error from the adapter counts as not disjoint. No other code decides between the two keywords.
+    - Variants: when Merge-or-Split leaves two or more Variants, the analyzer calls `branch_keyword` when it builds the node and uses its answer. A closed Record places `additionalProperties: false` inside each branch, so that case 2 of the check can apply. A mixed-type node (object branches beside a remaining-types or Closed_Enum branch) is always `anyOf`.
+    - Unit tests: two closed Variants with distinct required fields give `oneOf`; two Variants that require a common field with non-overlapping `const` values give `oneOf`; two open Variants give `anyOf`; a mixed-type node gives `anyOf`; an adapter refusal gives `anyOf`.
+    - _Requirements: 5.5, 36.7_
+  - [ ] 51.6 Choose the branch form of Tagged_Unions and Exclusion_Rules with the Kernel (`src/jsinfer/deps/tagged_unions.py`, `src/jsinfer/deps/exclusions.py`)
+    - Tagged_Unions (44): pass the branch list to `branch_keyword` and use its answer. The dedicated branches require the Discriminator and fix it with `const` or `enum`, so the check accepts each pair of them by case 1, and likewise a fallback branch that requires the Discriminator and constrains it with `enum`. The open fallback branch of 10.8, which covers every value not assigned to a dedicated branch, carries no `const` or `enum` the check can read, so its pairs are not accepted and the list stays `anyOf`; that every non-flagged object matches exactly one branch is then shown by the Validator (10.7, Property 20).
+    - Exclusion_Rules where every non-flagged object holds fields from exactly one member (45): the branches list one member's fields under `required` and give each field of every other member a `false` entry under `properties`, so the check accepts each pair by case 2. Until this task 45 expresses every such rule in the `not` form of 11.6, because its `branch_form_allowed(branches, node)` in `deps/exclusions.py` returns False; the branch list (`exclusion_branches`) and its emission under `oneOf` when the function returns True are already written there. Implement the body of `branch_form_allowed`: it returns True when `branch_keyword` answers `oneOf` for the branches built by `exclusion_branches`, that is, when the Kernel's `Disjoint` accepts every pair of them, and the rule is then emitted under `oneOf` (11.5). This task adds no emission path and switches no keyword for Exclusion_Rules.
+    - `branch_form_allowed` keeps answering False, whatever the check says, when the schema object already holds Variant branches, Tagged_Union branches, or the branches of another Exclusion_Rule. When it answers False for either reason, the rule stays in the `not` form of 11.6 as 45 emits it, with the reason recorded in the rule's Provenance_Record. An Exclusion_Rule is never emitted as an `anyOf` branch list.
+    - Unit tests: a Tagged_Union with dedicated branches only (`oneOf`), with an `enum` fallback branch (`oneOf`), and with the open fallback branch (`anyOf`); an Exclusion_Rule over two Field_Groups emitted under `oneOf`; the same rule with a check stubbed to refuse one pair emitted in the `not` form with its reason; a rule on a schema object that holds Variant branches, and one beside Tagged_Union branches, emitted in the `not` form although the check accepts every pair.
+    - _Requirements: 10.7, 11.5, 11.6_
+  - [ ] 51.7 Ask again after later passes and guard the run's emission (`src/jsinfer/io/emit.py`, `src/jsinfer/structure/shared_defs.py`, `src/jsinfer/pipeline/soundness.py`, `src/jsinfer/pipeline/infer.py`)
+    - Add `recheck_one_of(model)` in `io/emit.py`: for every `oneOf` of the model, `$defs` entries included, call `branch_keyword` on its current branch list. When it no longer answers `oneOf`, convert a Variant or Tagged_Union list to `anyOf`, and rewrite an Exclusion_Rule to the `not` form of 11.6 that 45 emits (never to `anyOf`), recording the change and its reason in the Provenance_Records concerned.
+    - Call it after every later pass that can change anything inside a branch: the Shared_Definition pass (46), which may replace a branch, or a subschema within a branch such as the Discriminator's `properties` entry, by a `$ref` (a `$ref` branch is never disjoint from anything); the pass at the call point the pipeline leaves for keys and references; and each relaxation or removal of the soundness stage that touches a `oneOf` branch.
+    - Inside the soundness stage the conversion is a change like any other: `oneOf` to `anyOf` goes through the Kernel's Widening check, which accepts it at a Monotone_Position (36.6), and elsewhere the next validation pass establishes it; the rewrite of an Exclusion_Rule to the `not` form is a replacement the Widening check does not accept, so the next validation pass establishes it (kind (b) of 3.5).
+    - As a last guard, the Schema_Emitter's entry point for a run's outputs (the one that takes the clean-pass token of 24) checks every `oneOf` of the covering schema, `$defs` entries included, and raises an internal error for one whose pairs the check does not accept, so no code path of a run can emit a `oneOf` unchecked. `layout` and the emission of loaded schemas (the corpus round trip, the harness's truth schemas, a Baseline's schema) do not apply the check: a loaded `oneOf` need not be one the check accepts.
+    - Unit tests: a `oneOf` whose branch becomes a `$ref` falls back to `anyOf`; a `oneOf` in which a property inside a branch is replaced by a `$ref` falls back to `anyOf`; an Exclusion_Rule `oneOf` changed the same way is rewritten to the `not` form; a model given to the run's entry point with an unchecked `oneOf` raises the internal error; a loaded schema with an overlapping `oneOf` still re-emits byte for byte.
+    - _Requirements: 5.5, 11.5, 36.7_
+  - [ ] 51.8 Write property test for disjointness before `oneOf`
+    - Inputs: collections with planted Variants, Tagged_Unions, and Exclusion_Rules, under random Run_Configurations. The test walks every emitted schema, including each `$defs` entry, finds every `oneOf`, and asks the Kernel through the adapter.
+    - **Property 64: Disjointness is consulted before `oneOf`**
+    - **Validates: Requirements 5.5, 10.7, 36.7**
+  - [ ] 51.9 Extend the property test for Variant branch emission
+    - Replace the placeholder clause of 22 ("no `oneOf` is emitted") with the `oneOf` clause: at every Path emitted with two or more Variants, the branches are under `oneOf` if and only if the Kernel's `Disjoint` accepts every pair of them, and under `anyOf` otherwise; include generated cases with closed Records whose Variants require distinct fields, so the `oneOf` side is exercised.
+    - **Property 12: Variant branch emission**
+    - **Validates: Requirements 5.4, 5.5, 5.6**
+  - [ ] 51.10 Extend the property test for Tagged_Unions
+    - Add the `oneOf` clause: the branches of a selected Discriminator are under `oneOf` exactly when the Kernel's `Disjoint` accepts every pair (dedicated branches alone, or with an `enum` fallback branch), and under `anyOf` with the open fallback branch; in both layouts every non-flagged object validates against exactly one branch.
+    - **Property 20: Tagged unions are exact**
+    - **Validates: Requirements 10.1, 10.2, 10.4, 10.5, 10.7, 10.8**
+  - [ ] 51.11 Extend the property test for emitted rules
+    - Add the `oneOf` clause for Exclusion_Rules: a rule whose every non-flagged object holds fields from exactly one member is emitted as a `oneOf` whose branches the Kernel's `Disjoint` accepts pairwise, each branch requiring its member's fields and declaring every field of every other member `false`; it is emitted in the `not` form when the check refuses a pair or the schema object holds other branches; no rule is emitted as an `anyOf` branch list; and in the `oneOf` form every non-flagged object validates against exactly one branch.
+    - **Property 19: Emitted rules hold and are irredundant**
+    - **Validates: Requirements 9.5, 9.6, 11.5, 11.6, 12.6, 12.7, 12.8**
+  - [ ] 51.12 Write the canonical form (`kernel/Canon.dfy`, `kernel/Api.dfy`, `src/jsinfer/kernel/adapter.py`)
+    - Add the total function `Canon(root): Root` to `kernel/Canon.dfy`, beside `Strip`. At every subschema position, including every `$defs` entry, it sorts `required`, `enum`, `type`, and each `dependentRequired` list by one fixed total order on Kernel values and removes duplicate members (numbers equal by Number_Value are duplicates). It also removes `$schema` and `x-provenance` from the annotation field of every schema object, the two entries the equality of Requirement 2 criterion 7 leaves out; every other annotation and `x-` keyword is kept. It changes nothing else. K8 shows that removing the two entries does not change `Valid`.
+    - Define the total order used for sorting inside the Kernel (type rank, then value, with strings by scalar value and containers lexicographically), so the result does not depend on any Python ordering.
+    - Add `Canon` to `kernel/Api.dfy` and an adapter entry `canon(model) -> dict | bool` that converts, calls it, and converts back.
+    - Unit tests through the adapter: lists in two orders give identical canonical forms; a duplicated `required` entry and the pair `1`, `1.0` in an `enum` are each reduced to one member; two schemas that differ only in `x-provenance`, or only in `$schema`, have identical canonical forms; schemas that differ in a `properties` key, a bound, or a `description` have different canonical forms.
+    - _Requirements: 36.8, 37.7, 36.10_
+  - [ ] 51.13 Prove the canonical form faithful
+    - **Kernel theorem K7: `Canon` is idempotent, accepts exactly the values the original schema accepts, and gives two schemas identical canonical forms if and only if they are equal under Requirement 2 criterion 7 (the same keywords with equal values at the same locations, the four lists read as sets, `$schema` and `x-provenance` ignored).**
+    - **Establishes: Requirements 37.7, 2.3, 2.7**
+    - State the equality of Requirement 2 criterion 7 as a ghost predicate in `kernel/Canon.dfy`, over two roots: the same keywords with equal values at every location, `required`, `enum`, `type`, and each `dependentRequired` list compared as sets, and the annotation-field entries `$schema` and `x-provenance` left out. Prove `Canon.CanonFaithful` from one helper lemma: sorting and deduplicating a list does not change the set of its members, and two lists with equal member sets sort to the same list. `Valid` reads each of the four lists only through membership and never reads the annotation field (K8), which gives preservation; idempotence follows from a sorted duplicate-free list being a fixed point.
+    - Name beside the lemma the two mutations 52.5 enters in the mutation register: a code mutation (`Canon` leaving `type` unsorted) and a statement mutation (stating the equivalence with plain schema equality in place of the ghost predicate), each with the lemma that must fail.
+    - Traceability: the primary rows of 2.3, 2.7, and 2.8 stay at Property, with the round-trip property tests as evidence, because the theorem is about the canonical form and not about the emitted bytes. Add secondary Proof rows naming `Canon.CanonFaithful` for 2.3 and 2.7.
+  - [ ] 51.14 Write reference folding and unfolding (`kernel/Canon.dfy`, `kernel/Api.dfy`)
+    - Add the total functions `Fold(root, pointer, name)` and `Unfold(root, pointer)` to `kernel/Canon.dfy`; they are the operations K9 speaks about, and they give the mutation register an executable function to change for K9. `Fold` replaces the subschema at `pointer` with a `$ref` to the `$defs` entry `name`, adding the entry when the name is fresh and requiring the entry to be identical to the subschema when the name is taken. `Unfold` replaces a `$ref` at `pointer` with the entry it names. Each returns a declared error value for a pointer that does not resolve or a name that holds a different entry.
+    - `Fold` must give a Guarded root from a Guarded root: a fresh entry gets a `Guard` rank above the rank of every entry it refers to.
+    - The combination rule needs no new executable code: its lemma is about `anyOf` over a list of schemas under one root.
+    - Expose `Fold` and `Unfold` through `kernel/Api.dfy` for tests. Unit tests through the adapter: fold then unfold returns the original root; folding two identical subschemas into one entry; a self-referencing entry unfolded one level still passes `Guard`.
+    - _Requirements: 37.9, 36.10_
+  - [ ] 51.15 Prove that combination and references preserve acceptance
+    - **Kernel theorem K9: A value accepted by one of a list of schemas is accepted by `anyOf` over the list, and replacing a subschema with a `$ref` to a `$defs` entry identical to it, or a `$ref` with the entry it names, changes the set of accepted values in no way.**
+    - **Establishes: Requirements 37.9, 8.2, 8.4, 18.8**
+    - Prove `Canon.AnyOfIntro` by unfolding `Valid` for `anyOf` once. Prove `Canon.RefFold` by unfolding `Valid` once at the `$ref`: the reference evaluates to the entry, which is identical to the replaced subschema, and the fresh entry's rank keeps the termination measure of `Valid` decreasing.
+    - Name beside the lemmas the two mutations 52.5 enters in the mutation register: a code mutation (`Fold` accepting a taken name whose entry differs from the subschema) and a statement mutation (dropping from `RefFold` the hypothesis that the entry is identical to the subschema), each with the lemma that must fail.
+    - Traceability: the primary rows of 8.2, 8.4, and 18.8 stay at Checked, with the final pass of 3.9 as evidence. Add secondary Proof rows naming `Canon.RefFold` for 8.2 and 8.4 and `Canon.AnyOfIntro` for 18.8. Run the verify command so the compiled Python is regenerated and the verified-build stamp is rewritten.
+
+- [ ] 52. Certification and proof-process extensions: cross-checking, certification inside a run, solver-seed stability, the mutation register, the conformance checks
+  - [ ] 52.1 Add cross-checking to the certify command (`src/jsinfer/kernel/certify.py`, `src/jsinfer/cli.py`)
+    - Implement the `cross_check` parameter that `certify` accepts and the `--cross-check` flag that `jsinfer certify` parses (both declared in 28). Remove the `NotImplementedError` that `certify` raises for `cross_check=True` and the command's exit-status-2 path for `--cross-check`, and add `verdict-difference` to the causes of `CertifyError`. When on, after the Kernel's `Check` gives its verdict for a document, also validate that document with the Validator, `format` asserted, against the same schema.
+    - Report each document on which the two verdicts differ, with the schema file, the document index, and both verdicts. If any verdict differs, fail with cause `verdict-difference`, the eighth failure cause of the Certificate check (`CertifyError` with that cause from the API, exit status 4 from the command), even when every Kernel verdict is accept, because a difference is a defect in the Kernel, the Validator, or the adapter. Never resolve a difference in favor of either.
+    - The Validator is used only inside the cross-check. Without the flag, `certify` uses the Ingestor, the adapter, the Kernel, and the Format_Oracle alone, and the import lint over `kernel/certify.py` passes with the flag's code present.
+    - Run the cross-check inside the same joblib chunks as the Kernel's check. Set `CertifyResult.verdict_differences` to the number of differences (an integer, zero included) when the cross-check ran, and leave it `None` when it did not, so that "not checked" is never read as zero; print the count in the command's output.
+    - Turn the bench setting `certify.cross_check` (defined in 35, passed to `certify` by 38) on in the benchmark smoke tests, which ran with it off until now, so the per-Dataset_Group certification table reports the number of verdict differences (38.7).
+    - Unit tests with a stub Validator that disagrees on one document (in each direction): exit 4 with cause `verdict-difference`, the difference listed with both verdicts; with an agreeing Validator: exit 0 and a difference count of zero; without the flag: a count of `None`.
+    - _Requirements: 38.4, 29.3_
+  - [ ] 52.2 Certify inside a run when `output.certify` is on (`src/jsinfer/pipeline/infer.py`)
+    - Implement the behavior of the setting `output.certify` (defined in 12, default `false`) and remove the validation rule of 12 that rejects `true` as not implemented; let the `run_configs()` strategy of 12 generate both values from here on. With the default, the run ends with the Validator's final pass and writes its Certificate; certification adds the Kernel's slower pass only on request.
+    - When it is on, run the Certificate check after the outputs are written to the temporary output directory and before they are renamed into place: recompute the digests, load each schema through the adapter, and run the Kernel's `Check` on every covered document that is not a Flagged_Document, exactly as the certify command does. A run on in-memory documents is checked against its virtual input `<documents>`: the JSONL bytes the documents were ingested as.
+    - A failed check (a digest that does not match, or a non-flagged document the Kernel rejects) is an unrecoverable error: raise `InferenceError` naming the certification step and the failure cause, delete the temporary directory so no schema or explanation file from the run remains at the output location, write the partial Inference_Report, and exit with status 1. A covering schema outside the Kernel_Fragment or not Guarded cannot reach this step: the soundness stage has already stopped such a run.
+    - On success, record in the report's `kernel` section the number of documents and schemas checked. The Certificate bytes are the same whether the setting is on or off.
+    - Integration tests: a run with the setting on completes and reports the counts; with a fault injected between the final soundness pass and the check (a stub adapter that tightens one Constraint), the run exits 1 and leaves no schema file.
+    - _Requirements: 38.5, 27.10_
+  - [ ] 52.3 Extend the property test for Certificates
+    - Add the in-run clause: for any collection, a run with `output.certify` on completes and its report lists the documents and schemas checked; with a tampering injected before the in-run check, the run fails as an unrecoverable error and no schema or explanation file remains at the output location.
+    - **Property 63: Certificates check, and only when true**
+    - **Validates: Requirements 38.1, 38.2, 38.3, 38.5, 38.6**
+  - [ ] 52.4 Verify every proof under three solver seeds (`scripts/verify.py`, `verification/toolchain.toml`)
+    - Add the seed count (3) to the project configuration beside the per-proof resource limit. Make the verification step of `verify` (8) run the Dafny verifier once per seed, each with a different `--random-seed` taken from a fixed list in the configuration, all within the resource limit.
+    - Collect the outcome of every proof under every seed. A proof that verifies under every seed passes. A proof that fails or exceeds the limit under every seed is reported as failed. A proof that verifies under some seeds and not others is reported as unstable, with the seeds on each side, and `verify` exits non-zero.
+    - Write the verified-build stamp only when every proof passes under every seed.
+    - Unit tests over canned verifier outputs (no Dafny needed): all pass; one proof fails under one seed of three, reported as unstable; one proof times out under all seeds, reported as failed.
+    - _Requirements: 39.4, 39.1_
+  - [ ] 52.5 Fill the mutation register and write the audit command (`verification/mutations.toml`, `scripts/verify.py`)
+    - Create `verification/mutations.toml` and define the entry format: the theorem (K1 to K10), the kind (`code` or `statement`), the file under `kernel/`, a search string, its replacement, and the lemma expected to fail. A code mutation changes an executable function; a statement mutation weakens a hypothesis of the theorem; each must make the theorem false.
+    - Fill the register with one code entry and one statement entry for every theorem the Kernel contains (K1 to K9 here; 61 adds K10), taking the mutations named beside the lemmas of 4, 5, 6, 51.2, 51.4, 51.13, and 51.15: K1, `Check` comparing string length in UTF-16 units, and the Guarded precondition dropped from `CheckCorrect` (both `Check.CheckCorrect`); K2, `Join` taking the union of `required`, and `JoinSound` stated without the absorption hypothesis `Join(a, NaiveOf(v)) == a` (both `Naive.JoinSound`); K3, `Widens` accepting a raised `minimum`, and the Monotone_Position flag dropped from `WidensSound` (both `Widen.WidensSound`); K4, `KeywordCount` not counting `False` subschemas (`Widen.EmptyAcceptsAll`), and the Monotone_Position hypothesis dropped from `RemovalProgress` (`Widen.RemovalProgress`); K5 to K7 and K9, the mutations of the four sub-tasks named; K8, `Strip` also dropping `format`, and the Guarded precondition dropped from `AnnotationsNeutral` (both `Canon.AnnotationsNeutral`).
+    - Every entry is the mutation the note beside its lemma names. Where an entry differs from the note (a noted mutation that weakens the conclusion instead of a hypothesis, or one under which the theorem stays true), change the note beside the lemma in the same change, so the Dafny source and the register never disagree.
+    - Add the subcommand `audit`. For each entry in turn: copy `kernel/` to a temporary directory, apply the search-and-replace (the search string must occur exactly once, otherwise the entry is stale and the audit fails), run the verification step on the affected module and the modules that import it, and confirm that verification fails and that the failing proof is the lemma the entry names.
+    - The audit fails when a mutation leaves every proof passing, when the proof that fails is not the named one, or when a theorem whose lemma is present in `kernel/` lacks an entry of either kind (39.5 asks for both kinds for each of K1 to K10 that the Kernel contains). It never changes `kernel/` or the compiled Python in the repository.
+    - Print one line per entry (theorem, kind, expected lemma, outcome) and a summary. Unit tests with a stub verifier: a mutation that is caught; one that is not caught; one caught by the wrong lemma; a stale search string; a theorem with a missing kind.
+    - _Requirements: 39.5_
+  - [ ] 52.6 Build the conformance checks over the corpus and over emitted schemas (`tests/property/conftest.py`, `tests/property/test_conformance.py`)
+    - Make "every schema the Inferrer emits in any property test" hold by construction, so that no property test has to hand anything over itself. An autouse fixture in `tests/property/conftest.py` wraps the pipeline entry point for the duration of each property test, so that every call of `run_pipeline` gets one more observer through its `observers` parameter. The observer records each emitted schema document (the single schema, each Schema_Version, the combined schema) with the indices of the documents it covers. When the wrapped call returns, the wrapper takes the documents from the call's input and the flagged indices from the run's result, and calls the verdict-agreement helper of 14 on each recorded schema with the non-flagged documents it covers and one-step mutations of them.
+    - `observers` is the internal keyword-only parameter of `run_pipeline` that 25 defines: callables invoked after the `Schema_Emitter` stage, once per emitted schema document, with the schema document and the indices of the documents it covers; an observer changes no output of the run. This task changes nothing in `pipeline/infer.py`, and no production code passes an observer.
+    - A session-scoped fixture counts, per property test, the schema documents its runs emitted and the observer calls made, and a final test fails naming every property test in which the two counts differ. Schemas the adapter refuses cannot occur here, since the soundness stage stops such a run.
+    - Add corpus parametrization for the conformance tests: every fully supported SchemaStore schema that is Guarded and whose references are all to its own `$defs`, with its positive and negative test files; a fixed seeded subset in the CI profile and the full corpus in the nightly profile. Report the number of corpus schemas skipped because the adapter does not convert them.
+    - Keep the three checks as shared helpers the property tests call (the helper of 14 for (a), new ones for (b) and (c)): (a) verdict agreement, the Validator with `format` asserted against the Kernel's `Check` with the adapter's oracles; (b) Naive_Merge agreement, the pipeline's Naive_Merge of a collection against the Kernel's fold of `Join` over `NaiveOf`, through the adapter; (c) canonical-form agreement, `Canon` of the Schema_Emitter's output loaded back against `Canon` of the Schema_Model.
+    - A difference in any check fails the test with the schema, the document or collection, and both results; it is reported as a defect and never resolved in favor of either side. Check (d), agreement of the regular-expression engines with the Kernel's reference matcher, is added by 61.
+    - _Requirements: 39.6, 29.3_
+  - [ ] 52.7 Extend the property test for Validator and Kernel agreement
+    - Add the corpus leg through the parametrization of 52.6: every fully supported SchemaStore schema the adapter converts, against its positive and negative test files, with the number of skipped schemas reported. The leg over schemas the Inferrer emits is run by the observer of 52.6 in every property test; assert here that its final count check passes and that the values tried include mutations of the run's accepted documents. Also assert that `certify` with cross-checking on reports zero verdict differences on these runs.
+    - **Property 61: The Validator and the Kernel's checker agree**
+    - **Validates: Requirements 29.3, 36.3, 38.4, 39.6**
+  - [ ] 52.8 Extend the property test for adapter and Kernel conformance
+    - Tie the Schema_Emitter leg to the Kernel: replace the body of the test's `canonical_root(model)` reference (15) with a call to `Canon` through the adapter, so that for any Schema_Model of the Kernel_Fragment and every fully supported corpus schema the adapter converts, the Schema_Emitter's output, loaded back, has the canonical form `Canon` computes for the model, and two generated models are equal under the equality of Requirement 2 criterion 7 exactly when their canonical forms are identical; generate pairs that differ only in list order, only in `$schema`, and only in `x-provenance` (equal), and pairs that differ in one other keyword (not equal). Add the corpus leg of the Naive_Merge check: the documents of each SchemaStore test set, taken as a collection in every order and chunking tried.
+    - **Property 62: The adapter and the pipeline conform to the Kernel**
+    - **Validates: Requirements 36.4, 36.5, 39.6**
+
+- [ ] 53. Should-tier harness extensions: ReCG, robustness study, calibration study, benchmark resume
+  - [ ] 53.1 Write the ReCG reimplementation (`src/jsinfer/bench/baselines/recg.py`)
+    - Write `recg_infer(docs, seed) -> dict`, a bottom-up cluster-and-generalize discovery after the published ReCG algorithm: process the document tree from the deepest level upward; at each level cluster the instances at a Path by their structure (key sets and child types); for each cluster generate candidate generalizations (a Record with optional fields, a Map with one value schema, a List with one element schema, a union of the clusters); and select among the candidates the one with the lowest description length under a two-part MDL cost.
+    - Keep it self-contained: its own cost function and its own data structures, with no use of the Inferrer's MDL_Scorer, DecisionEngine, or Techniques, so the comparison is against an independent system. It may use the Ingestor's parser to read the input file.
+    - Emit a draft 2020-12 schema using `type`, `properties`, `required`, `additionalProperties`, `items`, and `anyOf`. Make the run deterministic for a given input and seed: canonical iteration orders and seeded tie-breaks.
+    - Unit tests: a collection of uniform Records; a Map-like collection with many distinct keys; a collection with two object kinds at one Path; in each, every input document validates against the returned schema, and two runs return identical bytes.
+    - _Requirements: 34.1, 34.10_
+  - [ ] 53.2 Write the ReCG Baseline_Adapter (`src/jsinfer/bench/baselines/recg.py`)
+    - Implement the `BaselineAdapter` protocol for ReCG: `run(docs_jsonl, out, timeout_s)` takes one Document_Collection and returns exactly one JSON Schema document, a timeout, or a failure.
+    - When the bench configuration gives an official ReCG command (a command template with input and output placeholders, the output draft, and a version or commit identifier), run it in its own process group under the per-run time limit, with `name = "recg"` and `label = "ReCG"`. `available()` reports the Baseline as unavailable when that command's executable or runtime cannot be started.
+    - When no official command is configured, run the reimplementation of 53.1 with `label = "ReCG (reimplementation)"`. Carry the label into every CSV and JSON results file and every Markdown and LaTeX summary table that reports the system's results, so a reader of any output can tell which implementation produced the numbers.
+    - `describe()` returns the version or commit identifier, every option and argument passed, and the version of the runtime that executed the Baseline (the Python version for the reimplementation). A schema returned in an earlier draft is translated by the harness with the Schema_Loader like any other Baseline's.
+    - Unit tests with a stub command: success, non-zero exit, invalid output, timeout, missing executable. A reporting test checks that the reimplementation label appears in all four output formats.
+    - Register the adapter with the bench runner and the reporting module (38, 40), so ReCG appears as a system in every benchmark and study.
+    - _Requirements: 34.1, 34.6, 34.10, 34.11_
+  - [ ] 53.3 Write the robustness study (`src/jsinfer/bench/studies.py`, `src/jsinfer/cli.py`)
+    - Add the Resource_Parameter `robustness.rates`, a series of contamination rates, each strictly between 0 and 1; reject a series with a value outside that range before any run starts.
+    - For each rate r and each training Document_Collection of n documents, add c corrupted documents so they form the fraction r of the result: c is r·n/(1 − r) rounded to the nearest integer and at least 1. Record the realized fraction with each result.
+    - Corrupted documents are Negative_Documents produced by the Mutation_Operators for the collection's ground-truth schema. Draw them with `rng("robustness", dataset, rate)` from the negatives that remain after removing every document equal, as a JSON value, to a measurement Negative_Document, and insert them at seeded positions. Skip a combination, with the reason recorded, when fewer than c such documents exist.
+    - Run the Inferrer and every available Baseline on the contaminated collection, each on the same file, and evaluate on the same Positive_Documents and Negative_Documents as the uncontaminated run. Report per system, dataset, and rate: the change in recall, the change in negative rejection rate, and the number of loosened Constraints.
+    - Count a loosened Constraint by loading both schemas with the Schema_Loader and comparing (logical Path, keyword) entries: a Constraint of the uncontaminated schema is loosened when it is absent at the same Path in the contaminated schema, or present there with a widened bound, an added JSON type, or an added `enum` member.
+    - Add `jsinfer bench robustness -c bench.toml`, writing the per-run rows and the aggregate table through the reporting module. Benchmark smoke test on the fixture corpus with stub baselines.
     - _Requirements: 35.4_
-  - [ ] 41.3 Extend the study-construction test with contamination
-    - **Property 57: Study construction** (contamination clause)
-    - **Validates: Requirements 35.4**
-  - [ ] 41.4 Implement the calibration study (`bench/studies.py`)
-    - Reliability-curve data and ECE over the Inferrer's Constraints on Held_Out_Schemas, using `ece.bins`
+  - [ ] 53.4 Extend the property test for study construction
+    - Add the contamination clause: for any rate in (0, 1), collection, and pool of negatives, the corrupted documents make up the configured fraction of the contaminated collection under the rounding rule of 53.3, are disjoint as JSON values from the measurement negatives, and are the same for the same seed.
+    - **Property 57: Study construction**
+    - **Validates: Requirements 35.3, 35.4, 35.10**
+  - [ ] 53.5 Write the calibration study (`src/jsinfer/bench/studies.py`, `src/jsinfer/cli.py`)
+    - For the Inferrer's runs of the synthetic benchmark over Held_Out_Schemas, collect every emitted Constraint of the kinds required fields, Formats, Closed_Enums, Tagged_Unions, Co_Occurrence_Rules, Exclusion_Rules, and bounds, with its Confidence read from the run's explanation file.
+    - A Constraint is correct when the ground-truth schema contains the same Constraint at the aligned Path, using the Path alignment and the per-kind matching rules of the Constraint precision and recall metrics.
+    - Compute reliability-curve data over equal-width Confidence bins on [0, 1], with the bin count taken from `ece.bins`: for each bin the Constraint count, the mean Confidence, and the fraction correct. Report empty bins with a count of zero. A Confidence of exactly 1 falls in the last bin.
+    - Compute the expected calibration error as the count-weighted mean absolute difference between mean Confidence and fraction correct over the non-empty bins, with the same function the Trainer's metrics use.
+    - Add `jsinfer bench calibration -c bench.toml`, writing the bin rows and the expected calibration error as CSV and JSON with identical values. Unit test on a hand-built set of Constraints with known bins; benchmark smoke test on the fixture corpus.
     - _Requirements: 35.6_
-  - [x] 41.5 Implement benchmark resume (`bench/resume.py`, `bench/runner.py`)
-    - `results/<hash>.json` written by temp file and rename, with completion markers; restarts skip complete combinations and recompute absent or partial ones
-    - Done as `<out>/resume/<sha256>.json` per (system, dataset) or (system, schema, size) combination, wired into the real and synthetic benchmarks and through the latter the ablation study. Keys include a fingerprint of the `jsinfer` sources and the Model_Bundle manifest, so code or bundle changes never reuse stale results; `unavailable` results are not stored; `jsinfer bench … --fresh` clears the store
+  - [ ] 53.6 Make benchmarks resumable (`src/jsinfer/bench/resume.py`, `src/jsinfer/bench/runner.py`)
+    - Give every (system, dataset, configuration) combination a resume key, which is the `<hash>` of the result files of 39 extended with two digests: it covers the system name and label, the dataset identifier, the Run_Configuration or Baseline configuration, the seed, a digest of the `jsinfer` sources, and a digest of the Model_Bundle manifest. A code change or a retrained Model_Bundle therefore reuses no stored result.
+    - Write each combination's result to `results/<key>.json` through a temporary file and an atomic rename, and write the completion marker only after the rename. Store the certification outcome of the run (certified, failed with its cause, or skipped because the collection exceeds `bench.certify_max_documents`) and its count of verdict differences with the result.
+    - Before running a combination, `run_combination` in `bench/runner.py` asks the store: when the marker and a result that parses are both present, reuse the stored result without running any system; otherwise discard whatever is there (a result without a marker, a marker without a result, a temporary file) and recompute.
+    - Do not store results for systems marked unavailable, since no system ran; their availability is determined again on each start.
+    - Aggregation reads the same rows whether they were computed in this process or reused, so the final results of a resumed run equal those of an uninterrupted run apart from the measured seconds and peak memory of recomputed combinations.
+    - Benchmark smoke test: interrupt a fixture benchmark after its second combination, restart it, and check which combinations ran.
     - _Requirements: 35.9_
-  - [x] 41.6 Write property test for benchmark resume
+  - [ ] 53.7 Write property test for benchmark resume
+    - Use stub systems that count their invocations, and generate the interruption point, including a point between a result file and its marker and a point in the middle of a write.
     - **Property 59: Benchmark resume**
     - **Validates: Requirements 35.9**
-  - [ ] 41.7 Add the `robustness` and `calibration` bench subcommands (`cli.py`)
-    - _Requirements: 35.4, 35.6_
 
-- [ ] 42. Checkpoint (M5): ensure all tests pass, ask the user if questions arise.
+- [ ] 54. Checkpoint (M5): all Should-tier work passes its tests and proofs
+  - Every unit, property, integration, and benchmark smoke test passes, with every Should-tier Technique enabled by default and each one's registry entry set to implemented.
+  - The verify command passes under three solver seeds, and the audit command confirms one code mutation and one statement mutation for each theorem the Kernel contains (K1 to K9 at this milestone). The trace command finds, for every criterion implemented so far, a row whose evidence resolves, with 5.5 at primary method Proof and the secondary Proof rows of K5, K6, K7, and K9 present and resolving beside primary rows no weaker than the first method Table 2 names.
+  - A Should-tier benchmark run completes on the fixture corpus: ReCG reported under its label, the robustness and calibration studies written, every Inferrer run certified with cross-checking and zero verdict differences, and an interrupted run resumed correctly.
+  - Questions to raise with the user: whether three solver seeds fit the verification time budget (39.4 marks the count as proposed); whether an official ReCG implementation is available or the labeled reimplementation stands; whether certification should stay off by default (38.5); and the default series for `robustness.rates`.
 
-### M6: Could tier
+### M6: Could and closing
 
-- [ ] 43. Implement array grammar inference
-  - [ ] 43.1 Implement the array grammar (`structure/arrays.py`, `config/registry.py`)
-    - Element kinds are JSON types, with objects split by Variant. Candidate grammars: `K*`, a prefix plus `K*`, `(K1|K2)*`, repeated groups found by a period check, and the exact tuple. Pick the lowest DL that matches every array
-    - Expressible patterns produce a `prefixItems`/`items`/`contains` candidate compared with the 7.2–7.4 schema (ties keep the latter, rejected candidate recorded). Others go in `x-array-pattern`
-    - _Requirements: 7.5, 7.6, 7.7, 7.8_
-  - [ ] 43.2 Write property test for Array_Patterns
+- [ ] 55. Array grammar inference
+  - [ ] 55.1 Build element-kind sequences and candidate Array_Patterns (`src/jsinfer/structure/arrays.py`)
+    - Compute, for each non-flagged array at a Path with at least one non-flagged element, its sequence of element kinds. An element kind is the JSON type of the element; object elements are further distinguished by the Variant the Structure_Analyzer assigned them at the element Path.
+    - Define an `ArrayPattern` type that can express: one repeated kind (`K*`, and `K+` when every array holds the kind at least once), a fixed prefix followed by one repeated kind, a repeated choice `(K1|K2)*`, a repeated group `(K1 K2 …)*`, and the exact tuple of kinds. Give it a canonical text form and a canonical order so that candidates sort the same way in every run.
+    - Generate the candidates for a Path: the longest common prefix of kinds plus the repeated kind of the remainder, the choice over the kinds seen, a repeated group detected by a period check on the sequences, and the exact tuple. Drop every candidate that does not match every non-flagged array at the Path.
+    - Implement `matches(pattern, kinds) -> bool` for kind sequences, total on every pattern form, and the model-bit cost of a pattern as its grammar size (the `x-array-pattern` row of the MDL model-bit table).
+    - Unit tests: one example per pattern form, empty arrays, arrays whose elements are all flagged, and a Path where object elements fall into two Variants.
+    - _Requirements: 7.5_
+  - [ ] 55.2 Select the Array_Pattern by description length (`src/jsinfer/structure/arrays.py`)
+    - Implement `StructureAnalyzer.array_pattern(view, ctx)`: score every matching candidate with the MDL_Scorer on the same view (model bits from the grammar size, data bits from coding each array's kinds and length under the pattern) and return the one with the lowest description length, ties broken by the canonical pattern order.
+    - Return `None` when the Path has no non-flagged element, so the Path resolves no `array_pattern` Decision_Point.
+    - Record every candidate with its description length in the Inference_Report entry of the decision.
+    - Unit tests: a prefix-plus-repeat collection where the prefix pattern wins, and a homogeneous List where `K*` wins.
+    - _Requirements: 7.5_
+  - [ ] 55.3 Construct the candidate array schema for an expressible Array_Pattern (`src/jsinfer/structure/arrays.py`)
+    - Decide expressibility: a pattern is expressible when it is a fixed prefix (possibly empty) followed by one repeated element kind, the subschemas of the kinds involved are pairwise distinguishable (different JSON types, or object kinds whose branches the Kernel's disjointness check accepts), and, when `contains` is needed, no prefix position holds the kind that `contains` names. Every other pattern is not expressible.
+    - For an expressible pattern, build the candidate: `prefixItems` with one subschema per prefix position (inferred from the non-flagged elements at that position), `items` with the subschema of the repeated kind (inferred from the non-flagged elements past the prefix), and `contains` with that kind's subschema when the pattern requires the kind at least once.
+    - Check the candidate with the Validator against every non-flagged array at the Path and discard it, recording the rejection, when any array fails.
+    - Resolve the `array_pattern` Decision_Point between the candidate and the schema of 7.2 to 7.4: score both on the same view with the MDL_Scorer, whatever the state of `decide.mdl` (7.8 names no toggle), and record the comparison through `DecisionEngine.resolve` with the mandated tie rule (a tie selects the schema of 7.2 to 7.4), so only the selected schema is emitted at the Path. Set `always_mdl = True` on the `DecisionPointSpec` of `array_pattern` (the field 20 adds), which is what makes the engine's MDL step run for this kind with `decide.mdl` off. Record the rejected schema and its description length in the Provenance_Record of the selected schema, under `prefixItems`, `items`, and `contains` as separate Constraints sharing the decision.
+    - Unit tests: prefix plus repeat with and without `contains`, a tie stubbed in the scorer, and a candidate refuted by one array.
+    - _Requirements: 7.6, 7.8_
+  - [ ] 55.4 Emit `x-array-pattern` and wire the Technique into the walk (`src/jsinfer/structure/analyzer.py`, `src/jsinfer/io/emit.py`)
+    - When the selected pattern is not expressible (for example a repeated group of two or more kinds), emit the schema of 7.2 to 7.4 at the Path and add an `x-array-pattern` annotation holding the complete pattern: every element kind, every repetition, and the canonical text form. Give the annotation its own Provenance_Record (pointer `…/x-array-pattern`).
+    - Lay out `x-array-pattern` and `contains` in the canonical keyword order of the Schema_Emitter, and confirm the Schema_Loader returns the annotation unchanged, so the emit/load round trip holds for these nodes.
+    - Call `array_pattern` from the array step of the walk after Tuple-or-List is resolved and the element views are analyzed, only while `structure.array_grammar` is enabled. With the Technique disabled, the Fallback_Behavior of `array_pattern` leaves the schema of 7.2 to 7.4 and records itself in the report.
+    - Set the registry entry of `structure.array_grammar` to implemented and enabled by default. It reads no Learned_Threshold.
+    - Integration test: a collection of arrays `[string, integer, integer, …]` yields `prefixItems` plus `items`; a collection of alternating pairs yields the List schema plus `x-array-pattern`; both pass the soundness check, and the `contains` Constraint is removable by the relaxation table.
+    - _Requirements: 7.7, 7.8_
+  - [ ] 55.5 Write property test for Array_Pattern soundness and precision
+    - Generate collections of arrays from planted patterns (prefix plus repeat, choices, repeated groups) and, for the rejection clause, arrays whose kind sequence breaks the selected pattern while each element still has one of the pattern's kinds. Generate rejection cases at least as long as the fixed prefix: `prefixItems` does not require its positions to be present, so the three keywords of 7.6 cannot reject an array that stops inside the prefix (raised at 64).
     - **Property 15: Array_Pattern soundness and precision**
     - **Validates: Requirements 7.5, 7.6**
 
-- [ ] 44. Implement keys, references, and functional dependencies
-  - [ ] 44.1 Implement the global pass (`deps/keys.py`, `pipeline/infer.py`, `config/registry.py`, `learn/trainer.py`)
-    - Keys with collection and array scope, inclusion into selected keys, and FDs within one object scope (sampled at `sample.fd`). Confidences `n!/nⁿ`, `2^−(n−d)`, and `2^−d_A`
-    - Discard and report below-threshold candidates. `uniqueItems` for scalar Lists; `x-key`, `x-references`, and `x-functional-dependency`; fallbacks per 12.9 and 12.10
-    - Keep `rules.keys` and `rules.fd_ind` in `KIND_SPECIFIC_CONFIDENCE` so their Confidences survive finalization
-    - Emit `x-key`, `x-references`, and `x-functional-dependency` in the payload shapes Property 19 reads (design, Open Decisions), or update its readers (`key_scope`, `referenced_path`, `dependency_paths`)
-    - Register the half-split objectives for `keys.min_confidence`, `ind.min_confidence`, and `fd.min_confidence`
-    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 12.10_
-  - [ ] 44.2 Extend the mining-primitives test with keys, references, and FDs
-    - **Property 17: Mining primitives equal brute-force references** (Key_Constraint, Reference_Constraint, and Functional_Dependency candidates)
-    - **Validates: Requirements 12.1, 12.2, 12.3, 12.4**
-  - [ ] 44.3 Extend the Confidence monotonicity test with keys, references, and FDs
+- [ ] 56. Keys, references, and functional dependencies
+  - [ ] 56.1 Discover Key_Constraint candidates (`src/jsinfer/deps/keys.py`)
+    - Run after structure inference and the Shared_Definition pass, over the final logical scalar Paths of the Schema_Model, using the interned value ids of the ObservationStore. Those ids implement JSON Schema instance equality: `1` equals `1.0`, values of different JSON types are distinct, `null` counts as a value, and an absent field contributes no value.
+    - Collection scope: report a candidate when the Path holds at least two non-flagged values and all of them are distinct across the documents the schema covers.
+    - Array scope: for a scalar Path inside array elements, group the non-flagged values by their nearest enclosing array (through the `parent` columns). Report a candidate when at least one array holds two or more values, the values are distinct within every array, and they are not distinct across the collection.
+    - Return candidates in Path order with their Observation count n and distinct count d.
+    - Unit tests: `1` versus `1.0`, `null` values, absent fields, a single-value Path (no candidate), and a Path that is unique per array but repeats across documents.
+    - _Requirements: 12.1, 12.2_
+  - [ ] 56.2 Discover Reference_Constraint and Functional_Dependency candidates (`src/jsinfer/deps/keys.py`)
+    - Reference candidates: the function takes the selected Key_Constraints as an argument (56.3 decides keys before it calls this). For each scalar Path A and each different Path K that holds a selected Key_Constraint, report A → K when the set of non-flagged values at A is non-empty and contained in the set at K, compared by value id.
+    - Functional_Dependency candidates: for each pair of distinct scalar Paths A and B reached from the same object through object-key steps only (no array-element or Map wildcard step between the object and either Path), take the non-flagged objects that contain both. Report A → B when every value at A co-occurs with exactly one value at B and at least one value at A occurs in two or more of those objects.
+    - Declare the Technique super-linear in the registry. When the objects at a Path exceed `sample.fd`, search on a seeded sample drawn with `rng("rules.fd_ind", path)`, then verify each surviving candidate on all non-flagged Observations and drop the ones that fail. Record the sampled and total counts for the Provenance_Record.
+    - Unit tests: an inclusion that holds, one broken by a single value, an FD with a repeated determinant, a determinant with no repeat (no candidate), and a pair separated by an array step (no candidate).
+    - _Requirements: 12.3, 12.4, 29.8, 26.4_
+  - [ ] 56.3 Compute Confidence and select candidates by Learned_Threshold (`src/jsinfer/deps/keys.py`, `src/jsinfer/config/thresholds.py`, `src/jsinfer/learn/trainer.py`)
+    - Compute Confidence as `1 − p_chance`, where p depends only on the Observation count n and the distinct count d: for a key `p = n!/nⁿ`, computed in log space with `math.lgamma`; for a Functional_Dependency `p = 2^−(n−d)`; for a reference `p = 2^−d_A`, with d_A the distinct values at the referencing Path.
+    - Register the Learned_Thresholds `keys.min_confidence`, `ind.min_confidence`, and `fd.min_confidence`, each with the validation objective "F1 where a true candidate is one found on one half of a validation collection that still holds on the other half". Add that split-half objective function and its `ValidationExamples` builder to the `OBJECTIVES` registry of the Trainer (32) under the name the three `ThresholdSpec`s give, so the fitting code is unchanged. The builder uses validation-split collections only, each split into two halves by a seeded permutation from `core.determinism.rng`, and yields one (collection, Path, truth) triple per candidate found on the first half; the truth is whether the candidate still holds on the second.
+    - Resolve the `key`, `reference`, and `fd` Decision_Points through the DecisionEngine. Discard a candidate whose Confidence is below the Learned_Threshold of its kind and record in the Inference_Report its kind, its Paths, its scope where it has one, its Confidence, and the threshold value. The cut-off record of each decision names the Learned_Threshold and its value. Decide keys first, because references need the selected keys.
+    - When the Model_Bundle lacks one of the thresholds or holds an invalid value, apply the Fallback_Behavior of the affected kind (no candidates) and record the substitution.
+    - Add `rules.keys` and `rules.fd_ind` to `KIND_SPECIFIC_CONFIDENCE`, the list of Techniques whose kind-specific Confidence provenance finalization (26) leaves unchanged.
+    - _Requirements: 12.5, 12.6, 20.1, 20.6_
+  - [ ] 56.4 Emit `uniqueItems` and the key, reference, and dependency annotations, and wire the pass into the pipeline (`src/jsinfer/deps/keys.py`, `src/jsinfer/pipeline/infer.py`)
+    - Implement `DependencyMiner.keys_refs_fds(model, views, ctx)` as the pipeline stage that runs after the Shared_Definition pass and before the soundness check, once per covering schema.
+    - Emit `uniqueItems: true` on a List whose non-flagged elements are all scalars when a selected Key_Constraint of either scope sits at its element Path. Never emit `uniqueItems` for a key at a field of object elements.
+    - Emit each selected Key_Constraint as `x-key` on the subschema of the key Path with the value `"collection"` or `"array"`; each selected Reference_Constraint as `x-references` on the subschema of the referencing Path with the rendered referenced Path; and each selected Functional_Dependency as an entry `{"determinant": P, "dependent": Q}` of an `x-functional-dependency` list on the subschema of the enclosing object, with rendered absolute Paths, entries in Path order.
+    - Give every emitted `uniqueItems` and annotation one Provenance_Record with the producing Technique, the Support, the kind-specific Confidence, the threshold cut-off, and the sample counts when a sample was used.
+    - Fallback_Behaviors: with `rules.keys` disabled, report no Key_Constraint candidates, so the schema has no `x-key`, no `uniqueItems` derived from a key, and no `x-references`. With `rules.fd_ind` disabled, report no Reference_Constraint or Functional_Dependency candidates, so the schema has no `x-references` and no `x-functional-dependency`.
+    - Set the registry entries of `rules.keys` and `rules.fd_ind` to implemented and enabled by default.
+    - Unit and integration tests: both fallbacks, a List of unique scalars, a key on a field of object elements (annotation only), a Functional_Dependency found on a sample and refuted on the full data (dropped, with the counts recorded), and a run whose emitted `uniqueItems` passes the soundness check with no relaxation.
+    - _Requirements: 12.7, 12.8, 12.9, 12.10_
+  - [ ] 56.5 Extend the property test for mining primitives
+    - Add the Key_Constraint (collection and array scope), Reference_Constraint, and Functional_Dependency candidate sets, each compared with an exhaustive reference over small generated object sets, with sampling off.
+    - **Property 17: Mining primitives equal brute-force references**
+    - **Validates: Requirements 5.7, 6.3, 9.3, 11.1, 12.1, 12.2, 12.3, 12.4**
+  - [ ] 56.6 Extend the property test for emitted rules
+    - Add the clauses for `x-key`, `x-references`, and `x-functional-dependency` (each holds on all non-flagged Observations and has Confidence at or above its Learned_Threshold) and for `uniqueItems` (only on Lists of scalars that carry a selected Key_Constraint), reading the annotation payloads of 56.4.
+    - **Property 19: Emitted rules hold and are irredundant**
+    - **Validates: Requirements 9.5, 9.6, 11.5, 11.6, 12.6, 12.7, 12.8**
+  - [ ] 56.7 Extend the property test for Confidence monotonicity
+    - Add the second clause: for two Key, Reference, or Functional_Dependency candidates of one kind with equal ratios of distinct values to Observations, the one with more Observations has Confidence greater than or equal to the other's, and every Confidence lies in [0, 1].
     - **Property 21: Confidence functions are monotone**
-    - **Validates: Requirements 12.5**
+    - **Validates: Requirements 11.2, 12.5**
 
-- [ ] 45. Implement the Semantic_Type_Classifier
-  - [ ] 45.1 Implement the classifier (`values/semantic.py`, `values/inferrer.py`, `learn/trainer.py`, `learn/bundle.py`, `config/registry.py`)
-    - Sherlock-style aggregate features of a seeded value sample, plus hashed name and parent tokens; multiclass HGB with the documented classes and semantic-type → Format or Pattern mapping
-    - Trained per 21.6 and calibrated on validation data, with manifest metrics. Inference candidate gated by `semantic.min_probability`; predictions with no mapping are reported. Register the objective
-    - Keep `values.semantic_type` in `KIND_SPECIFIC_CONFIDENCE` so the calibrated probability survives finalization
-    - _Requirements: 13.5, 13.7, 21.4, 21.5, 21.6_
-  - [ ] 45.2 Write unit tests for the classifier
-    - Threshold gating, unmapped types, and missing-model fallback
-    - _Requirements: 13.7, 21.10_
+- [ ] 57. Semantic_Type_Classifier
+  - [ ] 57.1 Implement the semantic-type featurizer (`src/jsinfer/learn/features.py`, `src/jsinfer/learn/bundle.py`)
+    - Compute, from a seeded sample of the non-flagged strings at a scalar Path, the aggregate value features: character-class fractions, length statistics, distinct ratio, parse rates for integer, decimal, and date strings, the satisfaction rate of each of the ten Formats under the Validator, and character entropy.
+    - Append hashed tokens of the normalized field name and of the normalized name of the nearest enclosing property, using `normalize_name` of 31.
+    - Keep one implementation for the Trainer and the Inferrer, with its own featurizer version. Register a `semantic` entry (version, dimension, class list) in the `feature_spec()` registry of 32; the bundle writer of 33 writes the whole mapping, so the written `feature_spec.json` holds the entry with no change to the writer. Make `ModelBundle.semantic_classifier()` of the reader (12) compare that entry and return `Missing("feature-spec")` when it is absent or differs from the running featurizer; the reader compares `feature_spec.json` entry by entry, so a difference in this entry alone leaves the Decision_Models loadable.
+    - Unit tests: the vector is identical for any order of the same strings and for any worker count; a hand-built Model_Bundle whose `semantic` entry has another version gives `Missing("feature-spec")` for the classifier while its Decision_Models still load.
+    - _Requirements: 13.5, 22.10_
+  - [ ] 57.2 Train, calibrate, and store the Semantic_Type_Classifier (`src/jsinfer/learn/trainer.py`, `src/jsinfer/values/semantic.py`)
+    - Define the classes: the ten Formats, the Pattern-mapped types (country code, currency, E.164 phone, language tag, hex color, semver), and `none`. Define the class-to-Constraint mapping (each class to a Format, a Pattern, or nothing) and write it to `models/semantic_mapping.json`.
+    - Take the labels and the rows from `semantic_label` and `semantic_examples` of 31; this task defines no labeling of its own. Fit a multiclass `HistGradientBoostingClassifier` with a seeded `random_state` on the training-split rows only. Fill Trainer stage 8 of 33 with this fit, in place of the stage that records the classifier as omitted.
+    - Calibrate with sigmoid scaling on validation-split examples and record in the training manifest the number of validation examples, accuracy, macro-F1, and expected calibration error before and after calibration.
+    - Hand `models/semantic_type.joblib` and `models/semantic_mapping.json` to the bundle writer of 33, which stores them in the Model_Bundle with their digests, beside a `feature_spec.json` that holds the `semantic` entry of 57.1. Omit both, with the reason in the manifest, when either split yields no labeled example or the Technique is disabled in the training configuration.
+    - Register the Learned_Threshold `semantic.min_probability` with the objective "F1 of the emitted Format or Pattern versus the declared Format", and add that objective function and its `ValidationExamples` builder (validation-split collections only) to the `OBJECTIVES` registry of the Trainer (32), so the Trainer's threshold stage fits it with the fitting code unchanged.
+    - Integration test: a tiny training run produces the classifier, and two runs with the same seed give identical classes and probabilities on a probe set. The tiny-run test of 33 accepts the classifier either as an artifact with a verified digest or as an omission, so it needs no new assertion; update its code comment that says the classifier is omitted.
+    - _Requirements: 13.5, 21.4, 21.5, 21.6, 21.9_
+  - [ ] 57.3 Produce semantic-type candidates in the Value_Inferrer (`src/jsinfer/values/semantic.py`, `src/jsinfer/values/inferrer.py`)
+    - Implement `SemanticTypeClassifier.predict(view, name, parent) -> (semantic type, calibrated probability)` and call it for each scalar Path with at least one non-flagged string while `values.semantic_type` is enabled.
+    - When the probability is at or above `semantic.min_probability` and the mapping gives the predicted type a Format or Pattern, add that Format or Pattern to the `string_constraint` candidates of the Path with the probability as its Confidence. A mapped Pattern that does not parse in the safe regex AST carries `details.pattern_fragment = false`.
+    - When the probability is below the threshold, or the type maps to nothing, produce no candidate and record the predicted type and its probability in the Inference_Report.
+    - The candidate then goes through the shared steps: it is withheld and reported when it rejects a non-flagged string, and MDL selection picks among the surviving candidates.
+    - Add the row for `values.semantic_type` (accessor `semantic_classifier()`) to the artifact-check table of `build_in_effect` (20), so that a missing classifier, a missing mapping, or a feature-spec mismatch puts the Technique out of effect and its one substitution entry is written there. With the Technique disabled, or with the classifier or the threshold missing from the Model_Bundle, produce no candidate from it; the fallback or substitution is then on record. Set the registry entry of `values.semantic_type` to implemented and add it to `KIND_SPECIFIC_CONFIDENCE` (26).
+    - Unit tests with a stub classifier: accepted, below threshold, mapped to nothing, withheld by a rejecting string, disabled, and classifier missing.
+    - _Requirements: 13.5, 13.7, 13.9, 21.10_
+  - [ ] 57.4 Extend the property test for missing artifacts
+    - Add the Semantic_Type_Classifier case: from a fixture Model_Bundle that holds a stub classifier, remove or corrupt `models/semantic_type.joblib`, remove `models/semantic_mapping.json`, and remove `semantic.min_probability` or set it out of range, each alone and together with the other removals of the property. The run completes, no candidate comes from `values.semantic_type`, and each substitution is recorded with its reason.
+    - **Property 32: Missing artifacts degrade to fallbacks**
+    - **Validates: Requirements 20.6, 21.10, 22.14, 24.9**
 
-- [ ] 46. Implement collaborative-filtering suggestions
-  - [ ] 46.1 Implement CF suggestions (`corpus/advisor.py`, `corpus/index.py`, `config/registry.py`)
-    - Noisy-OR over `P(constraint | sibling name)` from training-split counts, giving scores in [0, 1]; a duplicate of a name-based suggestion keeps the higher Confidence
-    - Keep `corpus.cf_suggest` in `KIND_SPECIFIC_CONFIDENCE` so CF scores survive finalization
-    - _Requirements: 24.4, 24.8_
-  - [ ] 46.2 Extend the suggestions test with CF clauses
-    - **Property 39: Suggestions are ranked and accounted for** (CF scores and duplicate handling)
-    - **Validates: Requirements 24.4**
+- [ ] 58. Collaborative-filtering suggestions
+  - [ ] 58.1 Add sibling co-occurrence counts to the Corpus_Index (`src/jsinfer/corpus/index.py`, `src/jsinfer/learn/trainer.py`)
+    - While the Trainer builds the Corpus_Index from training-split schemas, count for every object subschema and every pair (field, sibling field): how many field definitions have a sibling with that normalized name, and how many of those definitions declare each suggestible Constraint (`format`, `pattern`, `enum`, `minimum`, `maximum`, `minLength`, `maxLength`). Store the counts in the index file `corpus/index.sqlite` of 50, per contributing schema id, so that an exclusion can leave a schema's counts out, and write the new rows under the same content-only byte rules (sorted inserts in the one transaction, no timestamp), so the file's digest stays equal across training runs.
+    - Implement `CorpusIndex.cf_scores(siblings)`: estimate `P(constraint | sibling name)` from the counts and combine the siblings with a noisy-OR, `1 − Π(1 − P(constraint | sᵢ))`, which lies in [0, 1]. Return suggestions sorted by descending score, ties in a fixed order by keyword and canonical value.
+    - Honor `corpus.exclude_ids`: counts contributed by an excluded schema are left out of the scores.
+    - Unit tests: a hand-built index with known counts, one sibling, several siblings, and no matching sibling (no suggestion).
+    - _Requirements: 24.1, 24.4, 30.6_
+  - [ ] 58.2 Offer collaborative-filtering suggestions through the Corpus_Advisor (`src/jsinfer/corpus/advisor.py`)
+    - While `corpus.cf_suggest` is enabled, for each Path that ends in an object-key step, score suggestions from the normalized names of the sibling fields observed at the Path's parent object Path, with the score as the suggestion's Confidence. A field with no name match can therefore receive suggestions.
+    - When the name-based Technique and this Technique suggest the same Constraint at the same Path, keep only the suggestion with the higher Confidence; on equal Confidence keep the one whose Technique comes first in the registry priority order.
+    - Pass the suggestions through the shared acceptance conditions (the suggestion-acceptance Learned_Threshold, a non-flagged value exists, the keyword applies to every value's type, the Validator accepts every value, the keyword is in the Kernel_Fragment), the rejection report, and the same-keyword Decision_Point.
+    - With the Technique disabled, or with no Corpus_Index in the Model_Bundle, produce no suggestion from it, so none appears in the schema or the report; the substitution is recorded in the second case. Add the row for `corpus.cf_suggest` (accessor `corpus_index()`) to the artifact-check table of `build_in_effect` (20), which is where that substitution entry is written. Set the registry entry of `corpus.cf_suggest` to implemented and add it to `KIND_SPECIFIC_CONFIDENCE` (26).
+    - Unit tests: a field with no name match that receives a suggestion, a duplicate resolved to the higher Confidence, the Technique disabled, and the index missing.
+    - _Requirements: 24.4, 24.5, 24.6, 24.8, 24.9_
+  - [ ] 58.3 Extend the property test for suggestions
+    - Add generated co-occurrence counts and sibling sets: every collaborative-filtering score lies in [0, 1], a Constraint suggested by both Techniques appears once with the higher Confidence, and no score uses counts from an excluded schema id.
+    - **Property 39: Suggestions are ranked and accounted for**
+    - **Validates: Requirements 24.3, 24.4, 24.6, 30.6**
 
-- [ ] 47. Implement Boolean matrix factorization field groups
-  - [ ] 47.1 Implement BMF (`structure/field_groups.py`, `config/registry.py`)
-    - Greedy MDL tiling from distinct transactions with k chosen by DL, sampled at `sample.bmf`. Output goes through the same filters, and selection compares ∅, FP, and BMF
-    - _Requirements: 6.2, 6.4_
-  - [ ] 47.2 Write unit tests for BMF
-    - Factor selection and filter interaction
-    - _Requirements: 6.4_
+- [ ] 59. Boolean matrix factorization Field_Groups
+  - [ ] 59.1 Implement greedy MDL Boolean matrix factorization (`src/jsinfer/structure/field_groups.py`)
+    - Build the object-by-key presence matrix of the non-flagged objects of a Variant, restricted to keys that are not Base_Fields, from the distinct key sets and their counts.
+    - Factor it greedily by tiling: candidate tiles come from the distinct transactions and their intersections; at each step add the tile (a key set and the objects that hold all of its keys) that lowers the description length the most, as computed by the MDL_Scorer for the factors plus the residual. Stop when no tile lowers it, so the number of factors is selected by description length.
+    - Report the key set of each factor with at least two keys as a candidate Field_Group, in canonical order.
+    - Declare the Technique super-linear. When the objects exceed `sample.bmf`, factor a seeded sample drawn with `rng("groups.bmf", path)` and record the sampled and total counts.
+    - Unit tests: a matrix with two planted groups, a matrix with noise where no factor lowers the description length (no candidate), and the same result for any row order.
+    - _Requirements: 6.4, 29.8, 26.4_
+  - [ ] 59.2 Add the factorization's candidates to Field_Group selection (`src/jsinfer/structure/field_groups.py`)
+    - Pass the candidates through the all-or-none exclusion (a candidate that some non-flagged object holds partly is excluded and reported with its fields, Path, producing Technique, and number of violating objects) and through the size, Base_Field, and disjointness rules, applied greedily by description-length gain.
+    - Resolve the `field_groups` Decision_Point among the empty set, the set retained by FP-growth selection when that Technique is enabled, and the set retained by this Technique, by lowest total description length.
+    - With both Field_Group Techniques disabled, the Fallback_Behavior selects no Field_Groups at every Path. Set the registry entry of `groups.bmf` to implemented and enabled by default; it reads no Learned_Threshold.
+    - Unit tests: only this Technique enabled, both enabled with different candidate sets, and both disabled.
+    - _Requirements: 6.2, 6.4, 6.7, 6.8, 6.9_
+  - [ ] 59.3 Extend the property test for Field_Groups
+    - Run the property with `groups.bmf` enabled, alone and together with `groups.fpgrowth_slim`: every selected group from either Technique is well-formed, holds all-or-none, and is emitted as a complete `dependentRequired` clique.
+    - **Property 13: Field_Groups are well-formed and hold**
+    - **Validates: Requirements 6.5, 6.6, 6.7, 6.8**
 
-- [ ] 48. Implement change points and Schema_Versions
-  - [ ] 48.1 Implement the Version_Detector (`robust/versions.py`, `config/registry.py`, `learn/trainer.py`)
-    - Ordering per 18.2–18.4 with UTC normalization and the 18.11 fallback
-    - PELT with a custom KT Bernoulli `BaseCost`, `changepoint.penalty`, and `changepoint.min_segment`; seeded sampling at `sample.changepoint` with boundary refinement; criterion values reported
-    - Register the boundary-F1 objectives
-    - _Requirements: 18.1, 18.2, 18.3, 18.4, 18.5, 18.11_
-  - [ ] 48.2 Implement version outputs and wiring (`pipeline/versions_out.py`, `pipeline/infer.py`, `pipeline/soundness.py`)
-    - Per-segment inference and soundness; segment labels; combined `anyOf` with hoisted `v<i>-` `$defs` and rewritten refs; diffs over (Path, keyword) → value maps
-    - Explanation keys follow the combined schema. With no change point, emit a single schema
-    - Keep `PipelineResult.schema` the combined schema and expose the per-Version Schema_Models on the result, so the gated per-Version checks of Properties 3 and 7 run
-    - Fill `InferenceResult.versions`, `combined`, and `diffs`, which 18.1 leaves empty
-    - _Requirements: 3.1, 18.6, 18.7, 18.8, 18.9, 18.10, 26.5_
-  - [ ] 48.3 Write property test for ordering and segmentation
+- [ ] 60. Change points and Schema_Versions
+  - [ ] 60.1 Choose the Ordering_Key and order the documents (`src/jsinfer/robust/versions.py`)
+    - Implement `VersionDetector.ordering(store, opts, ctx) -> Ordering`. Parse date and date-time values, normalize them to UTC, and read a `date` as midnight UTC.
+    - With `input.ordering_key` set to a Path: order documents by ascending value at that Path, equal values by ascending document index. If the Path has no Observation, more than one Observation, or a value that does not parse as a date or date-time in one or more documents, use the document index instead and record the configured Path, the fallback, and the number of documents that caused it.
+    - With no configured key: collect the Paths at which every document has exactly one Observation and every value is a string that satisfies the `date-time` or the `date` Format under the Validator. If any exist, select the one with the fewest steps, ties by the order of the Path's steps, and record it. Otherwise use the document index and record that choice.
+    - Every parsed document gets a position in the order, flagged ones included, so the segments built later contain every document.
+    - Unit tests: a configured key with ties, each of the three fallback causes, automatic selection between two candidate Paths, and no candidate.
+    - _Requirements: 18.2, 18.3, 18.4, 18.11_
+  - [ ] 60.2 Compute structural features and segment with a penalized MDL criterion (`src/jsinfer/robust/versions.py`)
+    - Compute for each non-flagged document its structural feature bits: one bit per (Path, JSON type) pair that occurs in the collection, set when the document has that Path with that type.
+    - Implement a `ruptures` custom cost in which a segment costs the Krichevsky–Trofimov code length of its feature bits, and run PELT over the non-flagged documents in Ordering_Key order with the per-change penalty and the minimum segment length, both taken as arguments (60.3 supplies `changepoint.penalty` and `changepoint.min_segment` from the Model_Bundle). A change point is a boundary between two consecutive documents in that order. A Flagged_Document has no features: place it in the segment of the nearest non-flagged document before it in the order, or in the first segment when none comes before it (the requirements leave this open; raised at 64).
+    - Implement `VersionDetector.segment(store, order, ctx) -> Segmentation`. The number of change points, zero included, comes from the criterion alone; no count is read from the Run_Configuration.
+    - Record in the Inference_Report the selected number of change points, the criterion value of the selected segmentation, and the criterion value of the segmentation with no change point.
+    - Unit tests: a collection with one planted structural change, a homogeneous collection (zero change points), and a change closer to the end than the minimum segment length.
+    - _Requirements: 18.1, 18.5_
+  - [ ] 60.3 Register the change-point thresholds, their objective, and sampling (`src/jsinfer/robust/versions.py`, `src/jsinfer/config/thresholds.py`, `src/jsinfer/learn/trainer.py`)
+    - Register the Learned_Thresholds `changepoint.penalty` and `changepoint.min_segment` (an integer) with the objective "boundary F1, within `train.cp_tolerance` documents, on concatenations of validation-split collections and collections of their mutated successors". Add that objective function and its `ValidationExamples` builder to the `OBJECTIVES` registry of the Trainer (32); the builder makes its examples with the Mutation_Operators of `learn/mutations.py` (36), one per concatenation, at the root Path, with the true boundary as truth. Register `train.cp_tolerance` as a Resource_Parameter of the training configuration (an integer of at least 0, proposed default 5 documents, to be confirmed at 64), read through the Resource_Parameter reader so the training manifest lists its value.
+    - Declare the Technique super-linear. When the documents exceed `sample.changepoint`, run PELT on a seeded sample, taken in Ordering_Key order, then refine each boundary by a linear scan between the two neighboring sampled documents.
+    - Resolve the `version_split` Decision_Point through the DecisionEngine. A cut-off record holds one Learned_Threshold: record `changepoint.penalty` with its value as the cut-off and `changepoint.min_segment` with its value in the decision's details. When either threshold is missing or invalid in the Model_Bundle, apply the Fallback_Behavior (a single schema) and record the substitution.
+    - Unit tests: sampled and unsampled runs find the same boundary on a planted change; a missing threshold gives one schema and a substitution entry.
+    - _Requirements: 18.5, 20.1, 20.3, 20.6, 29.8_
+  - [ ] 60.4 Infer one Schema_Version per segment in the pipeline (`src/jsinfer/pipeline/infer.py`)
+    - Run the Version_Detector as its own timed stage after document-level outlier flagging. With no accepted change point, infer a single schema from all non-flagged documents and emit no Schema_Versions, diffs, or combined schema. With `robust.change_point` disabled, do the same and record in the Inference_Report that change-point detection was not applied.
+    - With one or more accepted change points, build one segment per contiguous range in Ordering_Key order (one more than the change points, together containing every document) and run structure inference, the Shared_Definition pass, the key and dependency pass, the soundness check, and provenance finalization once per segment, each on the non-flagged documents of that segment only.
+    - The soundness check of a segment first converts that segment's schema through the adapter, as it does for every covering schema in every run: a schema outside the Kernel_Fragment or not Guarded is an internal error at stage `Soundness`, and the run writes no outputs. It then validates the non-flagged documents of that segment against that segment's schema only, relaxes and removes Constraints only within it, takes its removal bound from the Kernel's `KeywordCount` of that schema (its Removable_Keyword count), and passes each change to the Kernel's Widening check as that schema before and after. Support in every Provenance_Record of a Schema_Version counts only the non-flagged Observations of the documents the version covers.
+    - Record for each Schema_Version: its soundness counts (3.4); its own clean-pass digest, taken after the last validation pass of its segment that found no failure (the Schema_Emitter recomputes the digest of each version and refuses a version whose model changed after that pass); and its label, the document index and Ordering_Key value of the first and last document of the segment in Ordering_Key order. Write the labels and the segments to the `versions` section of the report.
+    - Report the Nearest_Known_Schema for each Schema_Version when that lookup is enabled.
+    - Set the registry entry of `robust.change_point` to implemented and enabled by default.
+    - Integration tests: no change point, one change point, the Technique disabled, and a timestamp Ordering_Key under which a segment's documents are not contiguous by index.
+    - _Requirements: 18.6, 18.9, 18.10, 2.13, 3.2, 3.3, 3.4, 3.8, 3.9, 8.9, 25.2, 26.2_
+  - [ ] 60.5 Write the Schema_Version files (`src/jsinfer/pipeline/versions_out.py`)
+    - Emit each Schema_Version as its own file (`schema.v<i>.json`, numbered from 1 in Ordering_Key order) with `$schema` at its root and in no subschema. Each file goes through the Schema_Emitter's run-output entry point with the version's own clean-pass digest token (60.4), so a version whose model changed after its pass is refused.
+    - Fill `InferenceResult.versions` and return every version file from `InferenceResult.files()`, so the CLI writes them atomically with the other outputs.
+    - Unit tests: two versions give two files in segment order; a version with `$defs`; a version whose root is a `$ref` to a recursive definition (the form the Shared_Definition pass gives a recursive root); a version altered after its pass is refused.
+    - _Requirements: 18.8, 2.1, 3.9, 27.7_
+  - [ ] 60.6 Build, check, and write the combined schema (`src/jsinfer/pipeline/versions_out.py`, `src/jsinfer/pipeline/infer.py`)
+    - Build the combined schema: a root with `$schema` and a top-level `anyOf` holding exactly one branch per Schema_Version in segment order. Place each version's root under the `anyOf` without `$schema`, hoist its `$defs` entries to the combined root under the name prefix `v<i>-`, and rewrite its `$ref`s to the hoisted names.
+    - A recursive version needs no case of its own. The Shared_Definition pass (46) has already moved a recursive root under `$defs` and made the root a `$ref` to that entry, so the version's branch is that `$ref`, rewritten. Every reference in the combined schema therefore has the form `#/$defs/<name>` and names an entry of the combined `$defs`, the combined schema is Guarded, and `{"$ref": "#"}` is never written.
+    - Before writing, convert the combined schema through the adapter's `to_root`: a `KernelUnsupported` is an internal error at stage `Soundness`, and the run writes no outputs. Then validate every non-flagged document against it with the Validator, `format` asserted, and treat a failure as an unrecoverable error. The combined schema is built after the per-version passes, so 3.1 and 3.9 require a clean pass over it too.
+    - Take the combined schema's clean-pass digest right after that pass and hand it to the Schema_Emitter's run-output entry point, which refuses a combined schema that changed afterwards (the token rule of 24).
+    - Write the combined schema as `schema.json`; it is the run's top-level emitted schema. Fill `InferenceResult.combined` and return the file from `InferenceResult.files()`.
+    - The primary traceability row of 18.8 stays Checked; add this pass to its evidence. The secondary Proof row naming `Canon.AnyOfIntro` (K9) is the one 51 wrote; add no second one.
+    - Unit tests: versions with and without `$defs`; two versions that both hold a definition of the same name; a version whose root is a `$ref` to a recursive definition; a combined schema altered after its pass is refused; an injected construct outside the Kernel_Fragment stops the run at stage `Soundness` with no outputs.
+    - _Requirements: 18.8, 2.1, 2.13, 3.1, 3.9, 8.9_
+  - [ ] 60.7 Key the explanation file and inline provenance by the combined schema (`src/jsinfer/pipeline/versions_out.py`)
+    - Key the explanation file by the JSON Pointers of the combined schema, and place each version's Provenance_Records at their pointers in the combined schema, the hoisted `$defs` entries included.
+    - Give each top-level `anyOf` branch one record from the `version_split` decision, with Support counting the non-flagged documents the branch accepts among all non-flagged documents.
+    - Inline provenance, when enabled, follows the same pointers. It is attached after the combined schema's clean pass and leaves the clean-pass digest unchanged, since the digest leaves out Provenance_Records and `x-` keywords.
+    - Unit tests: every record of a version is found at its pointer in the combined schema; each branch has exactly one `version_split` record; a run with inline provenance still passes the Schema_Emitter's digest check.
+    - _Requirements: 26.5, 26.2_
+  - [ ] 60.8 Emit the diffs between consecutive Schema_Versions (`src/jsinfer/pipeline/versions_out.py`)
+    - For each Schema_Version build the map from (logical Path, branch position where the Path has branches, keyword) to the keyword's value, leaving out `$schema`, `$defs` names, and `x-provenance`.
+    - For each pair of consecutive versions list the added Constraints (the keyword appears at the Path in the later version only), the removed ones (the reverse), and the changed ones (the same keyword at the same Path with a different value, with `required`, `enum`, `type`, and `dependentRequired` lists compared as sets), each list in canonical order.
+    - Write one diff file per pair (`diff.v<i>-v<i+1>.json`) with the canonical encoder. Fill `InferenceResult.diffs` and return the diff files from `InferenceResult.files()`, so the CLI writes them atomically with the other outputs.
+    - Unit tests: an added field, a removed `required` entry, a widened `type`, a reordered `enum` (no change), and identical versions (three empty lists).
+    - _Requirements: 18.7_
+  - [ ] 60.9 Certify runs that emit Schema_Versions (`src/jsinfer/kernel/certify.py`, `src/jsinfer/pipeline/infer.py`)
+    - Write the Certificate with one `schemas` entry per Schema_Version file, each with its SHA-256 digest and its `covers` list of document index ranges (several ranges when a segment is not contiguous by index), and a `combined` entry with the combined schema's file, digest, and a `covers` list naming all documents. The versions' ranges do not overlap and together cover every document. The claim states that each version accepts, in the sense of `Valid`, every covered document that is not a Flagged_Document and that the combined schema accepts all of them.
+    - In such a Certificate `opaque_patterns` is an object keyed by schema file name (each version file and the combined schema), each value the pointers of the Patterns the oracle decides in that file. A run with one schema file keeps the plain list.
+    - Every run that writes outputs writes this Certificate, so `InferenceResult.certificate` is bytes for a run with versions as for any other.
+    - In `certify`, recompute every digest and load each version and the combined schema through the adapter. Before checking documents, apply the `covers` check (28) across the versions: their ranges must not overlap and must together cover every document, and the combined entry must cover all of them; otherwise exit 4 with cause `covers`. Then check each version against its covered non-flagged documents and the combined schema against every non-flagged document with the Kernel's checker, and report the number of documents and schemas checked. A document its covering version rejects fails the check even when the combined schema accepts it.
+    - With `output.certify` on, run the same check before the outputs are renamed into place.
+    - Unit tests: a two-version run certifies and reports three schemas checked, and its `opaque_patterns` has one key per schema file; changing one byte of a version file makes `certify` exit 4 naming the digest; a Certificate edited so that one index is moved out of a version's `covers`, and one edited so that two versions list the same index, each make `certify` exit 4 naming `covers`; replacing a document of the first segment with a value only the second version accepts makes `certify` exit 4 naming the document index, the failing keyword's JSON Pointer, and the location of the failing value.
+    - _Requirements: 38.1, 38.2, 38.3, 38.5_
+  - [ ] 60.10 Write property test for ordering and segmentation
+    - Generate collections by concatenating documents of a schema and of a mutated successor, with and without timestamp Paths (some broken in one document), and use a fixture Model_Bundle that holds both change-point thresholds. The diff clause compares with a reference set difference of (Path, keyword) → value maps.
     - **Property 28: Ordering and segmentation**
     - **Validates: Requirements 18.2, 18.3, 18.4, 18.5, 18.6, 18.7, 18.8, 18.11**
-  - [ ] 48.4 Implement the versioning study and `bench versioning` (`bench/studies.py`, `cli.py`)
-    - Concatenate a Held_Out_Schema collection with a mutated successor; report change-point count, location error, per-segment harmonic means, and the missed-run fraction
-    - _Requirements: 35.5, 35.11_
+  - [ ] 60.11 Extend the property test for soundness on non-flagged documents
+    - Add collections with planted change points to the shared strategies in `tests/strategies.py`, and add the clauses that every non-flagged document validates against the Schema_Version that covers it and against the combined schema, and that each version's emitted digest equals its own clean-pass digest.
+    - **Property 7: Soundness on non-flagged documents**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.7, 3.9, 8.3**
+  - [ ] 60.12 Extend the property test for the schema emit/load round trip
+    - Add each emitted Schema_Version and the combined schema: emitting and loading yields a fully supported Schema_Model equal to the original.
+    - **Property 3: Schema emit/load round trip**
+    - **Validates: Requirements 2.4, 2.7, 2.8**
+  - [ ] 60.13 Extend the property test for byte-identical reproducibility
+    - Add runs that accept change points: the version files, the diffs, the combined schema, and the explanation file are byte-identical across worker counts, hash seeds, and output directories.
+    - **Property 46: Byte-identical reproducibility**
+    - **Validates: Requirements 27.5, 27.12**
+  - [ ] 60.14 Extend the property test for explanation file integrity
+    - Add runs that emit Schema_Versions: every key of the explanation file resolves to exactly one Constraint of the combined schema, and every Constraint of the combined schema, the top-level `anyOf` branches included, is the target of exactly one key.
+    - **Property 42: Explanation file integrity**
+    - **Validates: Requirements 26.5, 26.7, 26.8**
+  - [ ] 60.15 Extend the property test for Kernel_Fragment closure
+    - Add each Schema_Version and the combined schema, with and without inline provenance: each converts through the adapter, `Guard` returns a rank for it, and every `$ref`, the rewritten ones in the combined schema included, names an entry of its own `$defs`.
+    - **Property 60: Emitted schemas are in the Kernel_Fragment and Guarded**
+    - **Validates: Requirements 2.13, 8.9**
+  - [ ] 60.16 Extend the property test for Certificates
+    - Add runs that emit Schema_Versions: `certify` exits 0 and reports the version and combined schema counts, the Certificate's `opaque_patterns` has exactly one key per schema file, two runs write byte-identical Certificates, and each tampering makes `certify` exit 4 naming the cause: one byte of a version file or of the combined schema file changed (`schema-digest`); one index moved out of a version's `covers`, or listed under two versions (`covers`); a non-flagged document of one segment replaced by a value its version rejects, including one another version accepts, with the input digest recomputed (`rejected-document`).
+    - **Property 63: Certificates check, and only when true**
+    - **Validates: Requirements 38.1, 38.2, 38.3, 38.5, 38.6**
+  - [ ] 60.17 Implement the versioning study (`src/jsinfer/bench/studies.py`, `src/jsinfer/bench/reporting.py`)
+    - Implement `Harness.versioning(cfg)` and `jsinfer bench versioning`: for each Held_Out_Schema, produce a successor schema with the Mutation_Operators of `learn/mutations.py` (one seeded operator at one applicable site per successor, as in 32.2), generate a Document_Collection from each with the Synthetic_Generator, and concatenate them, so the true boundary is the size of the first collection.
+    - Run the Inferrer on the concatenation with `robust.change_point` enabled and the document index as the Ordering_Key, in an isolated, timed run like every other harness run.
+    - Report the number of accepted change points; the change-point location error, the absolute difference in document index between the true boundary and the nearest accepted change point; and, for each true segment, the harmonic mean of recall and negative rejection rate of the Schema_Version whose segment shares the most documents with it, computed on held-out Positive_Documents and Negative_Documents of that segment's source schema.
+    - When no change point is accepted, record the run as a missed change point, exclude it from the location error, compute the per-segment harmonic means against the single emitted schema, and report the fraction of missed runs.
+    - Write the results as CSV and JSON with identical values and add the study's summary table, with bootstrap intervals, to the Markdown and LaTeX reports.
+    - Benchmark smoke test: the fixture corpus yields one run with a detected change and one missed run.
+    - _Requirements: 35.5, 35.11, 35.1, 35.8_
+  - [ ] 60.18 Extend the property test for study construction
+    - Add the versioning study's construction: the concatenation holds the first schema's documents and then the successor's, with the true boundary at the first collection's size; the location error is the distance to the nearest accepted change point; a run with no accepted change point is counted as missed and left out of the error; and each true segment is paired with the Schema_Version that shares the most documents with it.
+    - **Property 57: Study construction**
+    - **Validates: Requirements 35.3, 35.4, 35.10**
 
-- [ ] 49. Add the nightly performance test
-  - [ ] 49.1 Write the performance test (`tests/perf/`)
-    - Generate the 100k-document reference collection; check the median of 3 runs against the time target and the summed peak RSS from psutil
-    - Include a Variant-heavy case. Noise assignment (5.9) costs one MDL scoring per noise signature and existing group: with thresholds that label nearly every signature as noise, 20k documents with 960 signatures took about 50 s in task 13.2, mostly in the MDL_Scorer's per-distinct-value loop. Profile it if the time target is at risk
-    - Include a deeply nested case. `View.digest` (through `core.canonical_bytes`) does work proportional to the Path length for every view, so the walk is roughly cubic in depth: about 4.4 s at depth 100 and 13.5 s at depth 150 with every Technique off (task 16.1). Cache digests if the time target is at risk
+- [ ] 61. Kernel regular expressions (K10) and the reference leg of the pattern property
+  - [ ] 61.1 Define the Pattern_Fragment language and the reference matcher (`kernel/Regex.dfy`)
+    - Define `datatype Regex = Empty | Eps | Class(set<char>) | Cat | Alt | Star | Repeat(min, max)` over strings as sequences of Unicode scalar values, with `max` optional for an unbounded repetition; `?`, `+`, `{m}`, and `{m,n}` are `Repeat`, and a literal character is a one-member `Class`. This is the type the `Frag` constructor carries, which 61.3 adds to the `Pattern` datatype of 3.
+    - Define the specification `InLang(e, s)` by structural recursion on the expression over the whole string: `Cat` splits s into two parts that together are all of s, `Star` and `Repeat` into consecutive parts.
+    - Define `Nullable(e)`, `Deriv(e, c)`, and the executable `Matches(e, s)`, which folds `Deriv` over the characters of s and returns `Nullable` of the result.
+    - Make every function total with an explicit `decreases` clause and no floating point, and expose `Matches` through `Api`.
+    - _Requirements: 36.9, 36.10_
+  - [ ] 61.2 Prove the reference matcher correct
+    - **Kernel theorem K10: For every Pattern_Fragment expression e and string s, `Matches(e, s)` answers yes if and only if s is in the language `InLang` of e, and that language contains only whole strings, so no match is a match of a proper substring.**
+    - **Establishes: Requirements 14.3, 14.4, 14.5, 37.10**
+    - Prove `Regex.MatchesCorrect` by Brzozowski's two facts, each by induction on the expression: `Nullable(e) <==> InLang(e, [])` and `InLang(e, [c] + s) <==> InLang(Deriv(e, c), s)`; then induct on the length of s.
+    - Add to `verification/mutations.toml` for K10 at least one code mutation (for example `Nullable` of `Cat` taking the disjunction, or `Deriv` of `Repeat` not lowering the minimum) and at least one statement mutation that weakens a hypothesis (for example dropping the precondition that a `Repeat` has `min <= max`), in the entry format of the register (52), and confirm with the audit command that each one fails `Regex.MatchesCorrect`.
+    - Traceability: add the primary Proof row of 37.10 with the evidence `lemma:Regex.MatchesCorrect`. Once that row resolves, the `trace` command of 8 requires the secondary Proof rows of 14.3, 14.4, and 14.5, which 61.3 adds.
+  - [ ] 61.3 Decide Pattern_Fragment patterns inside the Kernel (`kernel/Schema.dfy`, `kernel/Valid.dfy`, `kernel/Check.dfy`, `src/jsinfer/kernel/adapter.py`)
+    - Add the constructor `Frag(Regex)` to `datatype Pattern` beside `Opaque`, as 3 left room for. Every function that takes a Pattern by case gets an explicit `Frag` case in this task. In `Disjoint`'s "matched by no Pattern" function (51) the case answers as for `Opaque` for now, which is safe because the check then answers no; 61.5 replaces it.
+    - In `Valid`, a `Frag` pattern accepts a string when `InLang` holds; in `Check`, decide it with `Matches`. This holds for the `pattern` keyword and for `patternProperties` keys alike. Discharge the pattern case of K1 with K10. An `Opaque` pattern goes to the pattern oracle.
+    - The adapter (7, with the parser of 18) converts a pattern of the printed form `^(?:…)$(?!\n)` whose body parses in the safe regex AST to `Frag`, and every other pattern to `Opaque`; `from_root` prints a `Frag` back in the same form. Add adapter tests for both cases.
+    - From this task on, list in the Certificate's `opaque_patterns` only the `pattern` keywords and `patternProperties` keys the adapter converts as `Opaque`; a `Frag` Pattern is decided by the Kernel and is not listed (36.2). Update the Certificate unit test of 28 that expects every `pattern` and `patternProperties` key under `opaque_patterns`: give it Patterns outside the Pattern_Fragment where it means the oracle-decided ones, and expect a Pattern of the fragment to be absent.
+    - Run the verify command to verify the whole Kernel (K1's `Check.CheckCorrect` and K3's `Widen.WidensSound` included, under the three solver seeds), regenerate the compiled Python under `src/jsinfer/kernel/_generated/`, and write the verified-build stamp `src/jsinfer/kernel/verified.json`; run the audit command and confirm every K1, K3, and K10 mutation still fails the proof its entry names.
+    - Keep the primary traceability rows of 14.3, 14.4, and 14.5 at Property (Property 24, conformance (d)) and add a secondary Proof row for each naming `Regex.MatchesCorrect`. K10 is a statement about the reference matcher only; the engines are tied to it by the property.
+    - Unit tests: a `Frag` pattern, an `Opaque` pattern, a `Frag` `patternProperties` key, and a string with a trailing line terminator each get the Validator's verdict from `Check`; a Certificate of a schema with one `Frag` and one `Opaque` pattern lists only the second.
+    - _Requirements: 36.2, 36.5, 36.9, 37.1, 38.1, 39.7_
+  - [ ] 61.4 Extend the property test for pattern anchoring and dialect agreement
+    - Add the reference leg: for every generated safe regex AST and string, Python `re.search`, the ECMA-262 engine (`regress`), and the Validator each return the same result as the Kernel's `Matches` on the AST, reached through the adapter. This is conformance check (d).
+    - **Property 24: Pattern anchoring and dialect agreement**
+    - **Validates: Requirements 14.4, 14.5, 39.6**
+  - [ ] 61.5 Extend the disjointness check to Pattern_Fragment patterns (`kernel/Disjoint.dfy`, `kernel/Widen.dfy`, `verification/mutations.toml`)
+    - In the one function of `Disjoint` that answers "matched by no `patternProperties` Pattern" (51), add the `Frag` case: the name is tested with `Matches`. A branch whose `patternProperties` keys are all `Frag` can now be read; a branch with an `Opaque` key that could govern the property still gets the answer no.
+    - Add the two further ways a branch can forbid a field, each a sub-case of the second case of 5.5: a `patternProperties` entry whose `Frag` Pattern matches the name and whose subschema is `false`; and a `propertyNames` schema that rejects the name, decided by the Kernel on the name as a string when that schema holds no `Opaque` Pattern. Keep the answer no when either branch is a `$ref` or a Pattern the Kernel cannot decide governs the property (36.7).
+    - `Widens` does not read a Pattern's constructor: an added property is still compared with every `patternProperties` subschema of the schema object and with `additionalProperties` (36.6). Confirm this in `kernel/Widen.dfy` and change nothing there beyond what the new constructor forces.
+    - Re-prove `Disjoint.DisjointSound` and `Disjoint.OneOfIsAnyOf` (K6) with the new cases, using K10 for the `Frag` case, and re-verify the whole Kernel under the three solver seeds. Regenerate the compiled Python and rewrite the verified-build stamp.
+    - Add to the mutation register one code mutation for the new case (for example a `Frag` Pattern treated as matching no name), naming `Disjoint.DisjointSound`, and confirm with the audit command that it and every earlier K6 and K3 mutation fail the proof their entries name.
+    - Unit tests through the adapter: a required name matched by no `Frag` key under `additionalProperties: false` (yes); a name matching a `Frag` key whose subschema is `false` (yes); a name a `propertyNames` `Frag` Pattern rejects (yes); a name matching a `Frag` key with an accepting subschema (no); the same branches with one `Opaque` key (no); a `$ref` branch (no).
+    - _Requirements: 36.7, 36.2, 37.6, 39.5, 36.10_
+  - [ ] 61.6 Extend the property test for adapter and Kernel conformance
+    - Add the Pattern clause: for any normalized safe regex AST, `to_root` of a schema holding the printed pattern, under `pattern` and as a `patternProperties` key, yields `Frag` of the same expression, and `from_root` prints the same source. Any source the Pattern parser of 18 rejects converts to `Opaque` and round-trips unchanged.
+    - **Property 62: The adapter and the pipeline conform to the Kernel**
+    - **Validates: Requirements 36.4, 36.5, 39.6**
+  - [ ] 61.7 Extend the property test for disjointness before `oneOf`
+    - Add a `Frag` leg: generated branch lists and collections whose branches hold `patternProperties` keys and `propertyNames` Patterns of the Pattern_Fragment. Every `oneOf` in an emitted schema still has branches `Disjoint` accepts pairwise, every non-flagged instance at its Path is accepted by exactly one branch, and a pair `Disjoint` does not accept is emitted under `anyOf`.
+    - **Property 64: Disjointness is consulted before `oneOf`**
+    - **Validates: Requirements 5.5, 10.7, 36.7**
+
+- [ ] 62. Performance tests
+  - [ ] 62.1 Generate the reference Document_Collection (`tests/perf/make_reference.py`)
+    - Generate, from a fixed seed, 100,000 documents as newline-delimited JSON with a mean serialized size of at most 2 KB, at most 1,000 distinct Paths, and a maximum nesting depth of 10, mixing Records, Maps, Lists, Tuples, Variants, and scalar fields with Formats and enums so that the default Techniques all have work to do.
+    - Compute the collection's statistics (document count, mean size, distinct Paths, depth), write them beside it, and fail when any is outside the stated conditions.
+    - _Requirements: 29.6_
+  - [ ] 62.2 Measure the training budget (`tests/perf/test_training_budget.py`)
+    - Build a full Model_Bundle (all Decision_Models, the label model, the Semantic_Type_Classifier, the Learned_Thresholds, and the Corpus_Index) with the default training configuration, weak supervision included, and measure wall-clock time from start until the bundle is written. The measurement passes at 6 hours or less; it is started by hand on the Reference_Laptop.
+    - Record the time of each training stage. Add the summary table "Reference_Laptop performance" to `bench/reporting.py`, with a title constant like every table of 40 so the traceability check resolves it, and put the total training time in it as the evidence of 29.9. 62.4 and 62.5 add their rows to the same table.
+    - If the budget is exceeded, report which stage dominates and propose new defaults for `train.max_schemas` and `synth.collections_per_schema` to the user; do not change them silently.
+    - _Requirements: 29.9_
+  - [ ] 62.3 Install the trained Model_Bundle as the default (`bundles/default`, `tests/unit/test_default_bundle.py`)
+    - Replace the artifact-free bundle at the default `model_bundle` location (12) with the bundle 62.2 wrote under the default training configuration (the confirmed one, if 62.2 led to new defaults), and record its identifier and the SHA-256 of its manifest beside it. From here on a run that supplies only a Document_Collection uses trained Decision_Models and Learned_Thresholds, not the Fallback_Behaviors.
+    - Run the leakage check of 35 on the installed bundle's training manifest: no schema of the held-out split or of its near-duplicate groups, and no Document_Collection of a Real_Dataset, appears in it.
+    - Tests that exercise the fallback paths keep naming the `empty_bundle` fixture explicitly, since the default location no longer provides one.
+    - Unit test: the default bundle opens, its artifacts match the manifest digests, its `feature_spec.json` matches the running featurizers (the `semantic` entry included), and a default run on a small collection records no substitution for a missing artifact.
+    - Whether the trained bundle ships inside the package or is fetched by identifier is raised at 64; until that is settled it lives in the repository at the default location.
+    - _Requirements: 21.1, 21.10, 30.7_
+  - [ ] 62.4 Measure inference runtime and memory (`tests/perf/test_inference_budget.py`)
+    - Run the CLI on the reference collection under the default Run_Configuration, with the default Model_Bundle of 62.3, three times in a row, each in a fresh process, and measure wall-clock time from process start until the schema, the explanation file, and the Inference_Report are written. The test passes when the median is at most 10 minutes.
+    - Sample with psutil the resident set sizes of the main process and all worker processes during each run; the test passes when the sum of their peaks is at most 8 GB.
+    - Record the machine (cores, RAM, storage, operating system) with the result and mark the result as not a Reference_Laptop measurement when the machine does not match. Keep the tests out of the default test run behind a `perf` marker for the nightly job.
+    - Write the result to the benchmark table "Reference_Laptop performance", which the traceability rows of 29.6 and 29.7 name as evidence, with the per-stage timings from the Inference_Report and the number of substitutions the run recorded (zero with the default bundle).
     - _Requirements: 29.6, 29.7_
+  - [ ] 62.5 Measure certify throughput (`tests/perf/test_certify_throughput.py`)
+    - Run `jsinfer certify` on the outputs of a reference-collection run and read from its output the wall-clock runtime and the number of documents checked per second, with the per-document checks distributed over the configured worker processes.
+    - Assert that both numbers are reported and that the document count equals the collection's; set no time limit, since the command is exempt from the inference limit.
+    - Add documents per second, for 1 worker and for the default worker count, to the "Reference_Laptop performance" table.
+    - _Requirements: 38.8_
 
-- [ ] 50. Final checkpoint: ensure all tests pass, ask the user if questions arise.
-  - Raise property coverage that the event statistics show is thin: the removal loop in Property 7 (about 2% of `ci` examples, 7% under `nightly`) and a soundness removal of a `dependentRequired` entry in Property 19 (never observed), for example by weighting `soundness.max_passes = 1` and injecting rule-breaking values
-  - Investigate why whether tagged Variants split depends on field names (in Property 42, a tag named `type` beside fields `~` and `/` stayed merged, while `kind`, `$ref`, or `""` tags split), likely in the MinHash/LSH grouping's DL merge
-  - Watch Property 42 under `nightly`: one early randomized probe timed out at 300 s and could not be reproduced
-  - Hypothesis favors the first `sampled_from` choice and small integers; Property 42 offsets its draws by the documents' size, while Property 3's sum-of-two-draws spread still leans toward index 0. Apply the same correction where coverage events show the skew
+- [ ] 63. User documentation of the guarantees and the final traceability pass
+  - [ ] 63.1 Write the user documentation of the guarantees (`docs/guarantees.md`, `tests/unit/test_guarantee_docs.py`)
+    - State each guarantee with its Verification_Method and the assumptions it depends on, in the words of the design's assurance-levels table: a certified schema accepts every non-flagged input document (Proof, K1, per run); an uncertified run's schema accepts them (Checked); relaxation never rejects a previously accepted value (Proof, K3; Checked for re-induced Patterns); `oneOf` branches match at most once (Proof, K6); same inputs give the same bytes (Static and Property; Proof, K2, for the Naive_Merge part); and the quality of the schema (Measured).
+    - List every entry of the Trusted_Assumption register: the Dafny verifier and Z3, the Dafny-to-Python compiler and runtime, CPython, the Ingestor's parsers, the adapter, and the Format_Oracle as a fixed function.
+    - Explain that every run that writes outputs writes a Certificate and that a run is certified once `certify` has checked it; what the Certificate claims, how to re-check one, and that its `opaque_patterns` names the Patterns the oracle decides and not the Kernel's matcher; what the verified-build stamp means and what an "unverified" Kernel report means; and that a Model_Bundle holds pickled models and must come from a trusted source.
+    - Describe nothing as proven or verified unless its method is Proof, and state for K2 the absorption form it proves, not that a join accepts whatever either schema accepts. Add a test that reads the guarantee table from the document and fails when a method a row names has no row, primary or secondary, in the traceability matrix for the criteria behind the guarantee, when a row labeled Proof names no Kernel lemma that exists, or when an entry of `verification/trusted.toml` is missing from the document.
+    - _Requirements: 39.8_
+  - [ ] 63.2 Make the traceability check final (`scripts/verify.py`, `verification/traceability.csv`, `tests/unit/test_traceability.py`)
+    - Complete the matrix: exactly one primary row for every acceptance criterion of Requirements 1 to 39, including the Measured rows (29.6, 29.7, and 29.9 naming the "Reference_Laptop performance" table) and the Inspection rows (for example 39.8 naming `docs/guarantees.md`).
+    - Make the `--strict` behavior of the `trace` command (8) the behavior of every run: it fails on a criterion with no row, on a row marked pending, on a pending secondary row, and on a criterion with two primary rows. From this task on no allowance for unfinished work remains.
+    - Confirm the other failures hold on the complete matrix: evidence that does not resolve, in a primary or a secondary row (a lemma by name in `kernel/`, a test by node id, a static rule by test name, a run-time check by its `module:function`, a benchmark table by its title in `reporting.py`); a "FOR ALL" criterion with the method Example or Inspection; and a Table 2 criterion whose primary method is weaker, in the glossary's order (Proof, Checked, Static, Property, Example, Inspection; Measured stands apart), than the first method its row names.
+    - Confirm that every method a Table 2 row names after the first has a secondary row with resolving evidence, now that the whole Kernel exists: K3 for 3.5; K7 for the canonical form of 2.3 and 2.7; K5 for the closing Constraints 4.8, 7.3, 7.4, 9.7, 15.3, and 16.6; K6 for 10.7; K9 for 8.2, 8.4, and 18.8; K10 for 14.3, 14.4, and 14.5; the static rule of 27.14 and K2 for 27.5 and 27.6. Correct any primary row an earlier task set above or below the table's first method: the first method is the primary one (for example Checked for 18.8 and for the closing Constraints, Property for 14.3 to 14.5 and 10.7), and the Proof goes in the secondary row. Add a test over the real matrix that fails when one of these secondary rows is missing.
+    - Unit tests on copies of the matrix: deleting a row, marking a row pending, adding a second primary row, renaming a piece of evidence, and lowering a Table 2 criterion's primary method below the row's first method each make `trace` exit non-zero and name the criterion; deleting a secondary Proof row fails the test over the matrix.
+    - _Requirements: 39.7_
 
-- [x] 51. Document_Support: leave-one-document-out withholding of closing Constraints
-  - [x] 51.1 Implement the rule and wire it into the four families (`decide/support.py`, `decide/engine.py`, `values/enums.py`, `structure/record_map.py`, `values/bounds.py`, `values/inferrer.py`, `structure/arrays.py`)
-    - `Candidate.withheld`: the engine drops withheld candidates from every step, skips the Decision_Model when one is withheld, and records them in `details["withheld"]`
-    - Closed_Enum withheld when a value occurs in one document; closed Record when a listed key is held in one document; bound rungs when the leave-one-document-out value no longer covers the extreme; induced Pattern rungs when they fail the document folds. `required` and `type` stay Baseline_Rules (28.5)
-    - Motivated by the real-data benchmark on `bundles/real-2000-t37` (2026-10-21): recall 0.212 against Naive_Merge 0.439, 66.6% of held-out documents rejected; see the design's "Document_Support"
-    - Unit tests in `tests/unit/test_document_support.py`; the fixtures of `test_enums`, `test_record_map`, and `test_arrays` that hit the rule updated
-    - _Requirements: 4.12, 14.9, 15.9, 16.9_
-
-- [x] 52. Format evidence: `hostname` needs a dotted string
-  - [x] 52.1 Implement the rule (`values/formats.py`)
-    - `FormatCheck.distinctive` counts the satisfying strings that show a Format's distinctive structure (`DISTINCTIVE`: a `.` for `hostname`); a Format with such a rule is a candidate only when the count is positive. Verdicts and withholding (13.6) are unchanged
-    - Motivated by the Task 51 subset benchmark (2026-10-21): `hostname` was emitted 4,747 times across the fold schemas, mostly on single words, and removing every `format` raised mean recall from 0.368 to 0.389
-    - Unit tests in `tests/unit/test_formats.py`
-    - _Requirements: 13.4, 13.10_
-
-- [x] 53. Untested Patterns: a fold check needs a string to hold out
-  - [x] 53.1 Implement the rule (`values/inferrer.py`)
-    - When no fold holds a string of its own, the fold check of 14.9 had nothing to test and passed every rung; now every induced candidate at the Path is withheld with `held_out: 0, untested: true`
-    - Motivated by the Task 52 subset benchmark (2026-10-21): 88 held-out pattern rejections used only characters the training strings had; e.g. github-webhooks-check_run's URL Patterns were induced from 1–4 distinct URLs each held by 2–5 documents, so no fold held a string of its own
-    - Unit tests in `tests/unit/test_document_support.py`
-    - _Requirements: 14.10_
-
-- [x] 54. Real-data results per dataset size
-  - [x] 54.1 Report the real-data metrics per size group (`bench/reporting.py`)
-    - `real_size_rows` copies each real row into `real:2`, `real:3-5`, `real:6-10`, `real:11-30`, or `real:>30` by its `n` for aggregation only; the summary gets one table per non-empty group after the primary comparison, and the paired comparisons cover each group
-    - Motivated by the Task 52 subset benchmark: 80 of 182 Real_Datasets have two documents (one per training fold), so the primary mean is dominated by learning from one document
-    - Unit test in `tests/unit/test_reporting.py`
-    - _Requirements: 33.10_
-
-- [x] 55. JSONoid output repair: `items: []`
-  - [x] 55.1 Repair JSONoid's empty `items` arrays (`bench/baselines/jsonoid.py`, `bench/runner.py`)
-    - `JsonoidAdapter.repair_output` removes every `"items": []` (written beside `"maxItems": 0`); the runner applies an adapter's `repair_output` before the meta-schema check and records the removals in `SystemRun.repairs` and `repairs.json`
-    - Motivated by the first JSONoid run (2026-10-21): 41 of 187 Real_Datasets, every GitHub webhook dataset among them, failed the draft 2020-12 meta-schema for this reason alone; all 41 outputs are valid after the repair
-    - Unit tests in `tests/unit/test_runner.py`
-    - _Requirements: 34.8, 34.12_
-
-- [x] 56. JSONoid variants: a validating configuration next to the default
-  - [x] 56.1 Configure more JSONoid systems from one jar (`bench/baselines/jsonoid.py`, `bench/runner.py`)
-    - `[baselines.jsonoid.variants.<name>]` with `label` and `extra_args` adds the system `jsonoid-<name>`; `describe()` records the property set, equivalence relation, and object closing each run used
-    - The benchmark runs the default (property set All, every object closed; its output says it is not for validation) and `simple-open` (`--prop Simple --additional-properties`): JSONoid's set without statistical sketches that keeps types, required, enums, and bounds, with objects left open. Chosen by what each set emits, not by benchmark scores
-    - Unit test in `tests/unit/test_runner.py`
-    - _Requirements: 34.1, 34.11_
-
-- [x] 57. Document_Support for Tuples
-  - [x] 57.1 Withhold a Tuple whose last position one document reaches (`structure/arrays.py`)
-    - A Tuple spans the maximum array length and closes it with `items: false`, so the Tuple inferred without the one document that reaches the last position is shorter and rejects it; checked in closed form from each document's longest array
-    - Motivated by the Task 56 benchmark (2026-10-22): geojson-countries' MultiPolygon coordinate lists became one Tuple position per polygon (3,896 keywords against Naive_Merge's 24, recall 0.83 against 1.00), chosen by MDL with no Tuple-or-List Decision_Model in the bundle
-    - Unit test in `tests/unit/test_document_support.py`
-    - _Requirements: 7.11_
+- [ ] 64. Final checkpoint: every guarantee has its evidence and every Technique is implemented
+  - All unit, property, integration, and benchmark smoke tests pass, with every Technique of the registry implemented and enabled by default, and the default `model_bundle` location holds the trained bundle of 62.
+  - `scripts/verify.py verify` and `scripts/verify.py audit` pass on the whole Kernel, K10 included, with a mutation of each kind registered for each of K1 to K10, and the verified-build stamp `src/jsinfer/kernel/verified.json` matches the compiled Kernel in the repository.
+  - `scripts/verify.py trace` passes with no pending row, and every method Table 2 names after the first has its secondary row.
+  - Raise with the user: the Reference_Laptop measurements against the limits of 29.6, 29.7, and 29.9; the certify throughput and whether `bench.certify_max_documents` should get a limit (it has none by default); whether the trained default Model_Bundle ships inside the package, given its size and that it holds pickled models; the proposed default of `train.cp_tolerance`; the choices this milestone made where the requirements leave room (annotation payloads, version and diff file names, the segment of a Flagged_Document, one mutation per successor schema in the versioning study); and one gap in the requirements: 7.6 asks the `prefixItems`/`items`/`contains` candidate to reject every array that does not match the Array_Pattern, which those keywords cannot do for an array shorter than the fixed prefix.
 
 ## Notes
 
-- Tasks marked `*` are optional test tasks and can be skipped for a faster MVP. Tasks 5.2 and 25.6 resolve open decisions from the design, so they are not optional.
-- Each property test lives in `tests/property/` and implements exactly one design property. "Extend" sub-tasks add cases to the existing test for that property when a new component lands.
-- 29.9 (training within 6 hours) is checked manually on the Reference_Laptop, per the design's Testing Strategy.
-- ReCG and benchmark resume sit in M5 and ablation sits in M4, following the design's milestone table and the delivery tiers.
+- Requirements are cited as requirement.criterion (3.5 is Requirement 3, criterion 5). Properties and Kernel theorems are the ones in the design's Correctness Properties.
+- A "Write property test" sub-task implements exactly one design property; a "Prove" sub-task proves exactly one Kernel theorem.
+- Until the Kernel's disjointness check is built, Variant and Tagged_Union branches are emitted under `anyOf` and Exclusion_Rules in their `not` form, both of which are always sound; the task that adds the check switches `oneOf` on where every pair of branches is disjoint.
+- Training within its time budget (29.9) and the runtime and memory limits (29.6, 29.7) are measured on the Reference_Laptop by the performance tasks, not by the regular test run.
+- Checkpoints are the points to stop, run everything, and raise open questions before going on.
 
 ## Task Dependency Graph
+
+Sub-tasks in one wave can be done in any order or in parallel once every earlier wave is finished.
 
 ```json
 {
   "waves": [
-    { "id": 0, "tasks": ["1.1"] },
-    { "id": 1, "tasks": ["1.2", "1.3", "2.1"] },
-    { "id": 2, "tasks": ["2.2", "2.4", "2.6", "3.1", "3.2"] },
-    { "id": 3, "tasks": ["2.3", "2.5", "3.3", "3.4", "4.1", "5.1"] },
-    { "id": 4, "tasks": ["2.7", "3.5", "3.6", "4.2", "6.1", "6.2", "7.1"] },
-    { "id": 5, "tasks": ["5.2", "6.3", "7.2"] },
-    { "id": 6, "tasks": ["4.3", "4.4", "6.4", "6.5", "6.6", "6.7", "6.8"] },
-    { "id": 7, "tasks": ["9.1", "10.1"] },
-    { "id": 8, "tasks": ["9.2", "10.2"] },
-    { "id": 9, "tasks": ["10.3"] },
-    { "id": 10, "tasks": ["10.4", "11.1"] },
-    { "id": 11, "tasks": ["11.2", "12.1", "12.2", "12.3", "12.4", "13.2", "14.1", "15.1"] },
-    { "id": 12, "tasks": ["11.3", "12.5", "12.6", "12.7", "12.8", "13.3", "13.4", "14.2", "15.2"] },
-    { "id": 13, "tasks": ["12.9", "13.1", "13.5", "14.3", "15.3"] },
-    { "id": 14, "tasks": ["16.1"] },
-    { "id": 15, "tasks": ["16.2", "17.2", "19.2"] },
-    { "id": 16, "tasks": ["16.3", "16.4", "16.5", "16.6", "16.7", "16.8", "16.9", "16.10", "17.1", "19.3"] },
-    { "id": 17, "tasks": ["17.3", "18.1"] },
-    { "id": 18, "tasks": ["17.4", "17.5", "17.6", "18.2"] },
-    { "id": 19, "tasks": ["18.3", "18.4", "19.1"] },
-    { "id": 20, "tasks": ["19.4", "19.5", "19.6", "19.7", "19.8", "19.9"] },
-    { "id": 21, "tasks": ["19.10", "21.1", "21.5", "22.4"] },
-    { "id": 22, "tasks": ["21.2", "21.3", "21.6", "22.1"] },
-    { "id": 23, "tasks": ["21.4", "22.2"] },
-    { "id": 24, "tasks": ["22.3", "22.5", "23.1"] },
-    { "id": 25, "tasks": ["23.2"] },
-    { "id": 26, "tasks": ["23.3", "23.4"] },
-    { "id": 27, "tasks": ["23.5"] },
-    { "id": 28, "tasks": ["25.1", "25.4", "25.6", "26.1", "27.1", "27.3", "28.1"] },
-    { "id": 29, "tasks": ["25.2", "25.5", "26.2", "27.2", "27.4", "28.2"] },
-    { "id": 30, "tasks": ["25.3", "25.7", "28.3", "29.1", "29.2"] },
-    { "id": 31, "tasks": ["29.3", "30.1", "30.3"] },
-    { "id": 32, "tasks": ["30.2", "30.4", "30.5"] },
-    { "id": 33, "tasks": ["30.6"] },
-    { "id": 34, "tasks": ["32.1", "39.1", "39.2", "40.1", "41.1", "41.2", "41.5"] },
-    { "id": 35, "tasks": ["32.2", "33.1", "39.3", "41.3", "41.4", "41.6"] },
-    { "id": 36, "tasks": ["33.2", "33.3", "34.1", "41.7"] },
-    { "id": 37, "tasks": ["34.2", "35.1"] },
-    { "id": 38, "tasks": ["35.2", "35.3", "36.1"] },
-    { "id": 39, "tasks": ["36.2", "37.1"] },
-    { "id": 40, "tasks": ["38.1"] },
-    { "id": 41, "tasks": ["38.2"] },
-    { "id": 42, "tasks": ["38.3", "39.4"] },
-    { "id": 43, "tasks": ["39.5", "40.2"] },
-    { "id": 44, "tasks": ["40.3", "40.4"] },
-    { "id": 45, "tasks": ["40.5"] },
-    { "id": 46, "tasks": ["43.1"] },
-    { "id": 47, "tasks": ["43.2", "44.1"] },
-    { "id": 48, "tasks": ["44.2", "44.3", "45.1"] },
-    { "id": 49, "tasks": ["45.2", "46.1"] },
-    { "id": 50, "tasks": ["46.2", "47.1"] },
-    { "id": 51, "tasks": ["47.2", "48.1"] },
-    { "id": 52, "tasks": ["48.2"] },
-    { "id": 53, "tasks": ["48.3", "48.4", "49.1"] },
-    { "id": 54, "tasks": ["51.1"] },
-    { "id": 55, "tasks": ["52.1"] },
-    { "id": 56, "tasks": ["53.1"] },
-    { "id": 57, "tasks": ["54.1"] },
-    { "id": 58, "tasks": ["55.1"] },
-    { "id": 59, "tasks": ["56.1"] },
-    { "id": 60, "tasks": ["57.1"] }
+    { "id": 0, "tasks": ["1.1", "31.1"] },
+    { "id": 1, "tasks": ["1.2", "1.3", "31.2"] },
+    { "id": 2, "tasks": ["2.1", "8.5", "10.1", "10.6", "11.1", "12.1", "18.1"] },
+    { "id": 3, "tasks": ["2.2", "10.2", "10.3", "11.2", "12.2", "18.2", "18.3"] },
+    { "id": 4, "tasks": ["2.3", "10.4", "10.5", "11.3", "11.6", "11.7", "13.1", "14.1"] },
+    { "id": 5, "tasks": ["3.1", "8.1", "11.4", "11.8", "13.3", "14.2", "14.3", "15.1", "15.4", "31.3", "37.6", "38.1"] },
+    { "id": 6, "tasks": ["3.2", "8.2", "11.5", "12.3", "15.2", "15.5"] },
+    { "id": 7, "tasks": ["3.3", "12.4", "15.6", "16.1"] },
+    { "id": 8, "tasks": ["3.4", "4.5", "5.1", "6.1", "12.5", "15.7", "16.2"] },
+    { "id": 9, "tasks": ["4.1", "4.6", "5.2", "6.2", "12.8", "13.2"] },
+    { "id": 10, "tasks": ["4.2", "6.3", "12.9", "13.4"] },
+    { "id": 11, "tasks": ["4.3", "6.4", "6.5", "12.10", "13.5"] },
+    { "id": 12, "tasks": ["4.4", "6.6", "7.1"] },
+    { "id": 13, "tasks": ["7.2"] },
+    { "id": 14, "tasks": ["7.3", "8.3"] },
+    { "id": 15, "tasks": ["7.4", "8.4"] },
+    { "id": 16, "tasks": ["7.5", "52.4"] },
+    { "id": 17, "tasks": ["11.9", "14.4", "15.11", "51.3", "51.12", "61.1"] },
+    { "id": 18, "tasks": ["12.6", "12.7", "13.6", "13.7", "14.5", "15.3", "15.8", "15.9", "15.10", "15.12", "16.3", "19.1", "21.1", "21.2", "21.8", "23.1", "51.4", "51.13", "51.14"] },
+    { "id": 19, "tasks": ["14.6", "19.2", "23.2", "23.3", "31.4", "31.7", "35.1", "48.1", "49.3", "51.15", "53.1"] },
+    { "id": 20, "tasks": ["18.4", "19.3", "20.1", "21.5", "21.6", "24.1", "24.2", "29.1", "31.5", "31.6", "31.8", "33.3", "36.1", "38.2", "60.1"] },
+    { "id": 21, "tasks": ["19.4", "20.2", "29.2", "31.9", "36.2", "36.3", "38.3", "38.6", "42.1"] },
+    { "id": 22, "tasks": ["19.5", "29.3", "31.10"] },
+    { "id": 23, "tasks": ["19.6", "20.3", "31.11", "31.12"] },
+    { "id": 24, "tasks": ["20.4", "35.2", "36.4", "37.2", "37.4", "42.2", "44.1", "60.2"] },
+    { "id": 25, "tasks": ["20.5", "35.3", "36.5", "37.1", "37.8"] },
+    { "id": 26, "tasks": ["20.6", "20.7", "39.1", "39.4"] },
+    { "id": 27, "tasks": ["20.8", "40.1"] },
+    { "id": 28, "tasks": ["21.3", "21.7", "21.9", "22.4", "22.13", "23.5", "25.1", "40.2", "40.3", "42.3"] },
+    { "id": 29, "tasks": ["21.4", "21.10", "21.13", "22.5", "22.7", "22.8", "23.6", "25.5", "40.6"] },
+    { "id": 30, "tasks": ["21.11", "21.12", "22.1", "22.6", "22.9", "22.14", "23.7"] },
+    { "id": 31, "tasks": ["22.2", "22.10", "22.15", "23.4", "24.3"] },
+    { "id": 32, "tasks": ["22.3", "22.11", "24.4", "51.1"] },
+    { "id": 33, "tasks": ["22.12", "24.5", "24.8", "51.2"] },
+    { "id": 34, "tasks": ["24.6", "24.7", "25.2", "32.1", "35.4", "43.1", "44.2", "47.1", "52.5"] },
+    { "id": 35, "tasks": ["24.9", "25.3", "35.5", "43.2", "43.9"] },
+    { "id": 36, "tasks": ["25.4", "35.6", "39.2", "43.3", "43.6"] },
+    { "id": 37, "tasks": ["25.6", "39.5"] },
+    { "id": 38, "tasks": ["25.7", "25.8", "25.11", "25.12", "26.1"] },
+    { "id": 39, "tasks": ["25.9", "25.10", "26.2"] },
+    { "id": 40, "tasks": ["26.3", "26.6", "32.2", "42.4", "43.4", "46.1", "51.5", "55.1"] },
+    { "id": 41, "tasks": ["26.4", "26.5", "26.7", "32.3", "32.4", "42.5", "43.5", "43.7", "45.1", "46.2", "55.2"] },
+    { "id": 42, "tasks": ["26.8", "27.1", "32.5", "32.7", "42.6", "42.7", "45.6", "46.3", "47.2"] },
+    { "id": 43, "tasks": ["27.2", "27.3", "29.4", "29.8", "32.6", "32.8", "45.2", "46.4", "46.5", "47.3"] },
+    { "id": 44, "tasks": ["27.4", "27.5", "28.1", "29.5", "29.7", "32.9", "33.1", "45.3", "47.4", "47.5"] },
+    { "id": 45, "tasks": ["27.6", "28.2", "28.5", "29.6", "33.2", "37.3", "37.7", "44.3", "48.2", "49.1", "57.1"] },
+    { "id": 46, "tasks": ["27.7", "28.3", "33.4", "37.5", "42.8", "43.8", "44.4", "47.6", "48.3"] },
+    { "id": 47, "tasks": ["28.4", "33.5", "38.4", "44.5", "44.6", "45.4", "48.4", "59.1", "62.1"] },
+    { "id": 48, "tasks": ["28.6", "33.8", "45.5", "48.5", "59.2"] },
+    { "id": 49, "tasks": ["33.6", "38.5", "45.7", "45.8", "48.6", "52.2", "59.3"] },
+    { "id": 50, "tasks": ["33.7", "48.7", "48.9", "51.6", "52.3"] },
+    { "id": 51, "tasks": ["35.7", "46.6", "49.2", "57.2", "60.3"] },
+    { "id": 52, "tasks": ["35.8", "39.3", "39.6", "46.7", "46.8", "46.9", "46.10", "57.3"] },
+    { "id": 53, "tasks": ["40.4", "48.8", "49.4", "50.1", "51.7", "52.1", "52.6", "56.1", "57.4"] },
+    { "id": 54, "tasks": ["40.5", "40.7", "49.5", "49.10", "50.2", "50.8", "51.8", "51.9", "51.10", "51.11", "52.7", "52.8", "56.2"] },
+    { "id": 55, "tasks": ["40.8", "49.6", "49.7", "50.3", "50.9", "55.3", "56.3", "56.5", "61.2"] },
+    { "id": 56, "tasks": ["49.8", "49.9", "50.4", "50.5", "50.10", "50.11", "53.2", "53.3", "53.5", "53.6", "55.4", "56.4", "56.7", "61.3", "63.1"] },
+    { "id": 57, "tasks": ["50.6", "50.7", "53.4", "53.7", "55.5", "56.6", "61.4", "61.5", "61.6"] },
+    { "id": 58, "tasks": ["58.1", "60.4", "61.7"] },
+    { "id": 59, "tasks": ["58.2", "60.5"] },
+    { "id": 60, "tasks": ["58.3", "60.6", "60.8"] },
+    { "id": 61, "tasks": ["60.7", "60.10", "62.2"] },
+    { "id": 62, "tasks": ["60.9", "60.11", "60.12", "60.13", "60.14", "60.15", "60.17", "62.3"] },
+    { "id": 63, "tasks": ["60.16", "60.18"] },
+    { "id": 64, "tasks": ["62.4"] },
+    { "id": 65, "tasks": ["62.5"] },
+    { "id": 66, "tasks": ["63.2"] }
   ]
 }
 ```
