@@ -342,7 +342,21 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             // the first answered pulse, within a period of instant 0.
             let a = capture::analyze(&samples, inputs.samplerate_hz, rig.analyzer.stimulus_channel, rig.analyzer.response_channel, None, inputs.samplerate_hz as usize);
             let _ = pulse;
-            let run0 = a.window_s.map(|(f, _)| f).unwrap_or(0.0);
+            // The run starts at the first answered pulse that the next one
+            // follows within 100 ms (a pulse every 18 ms): a stray match
+            // before the run stands alone. Since 2026-11-13 the previous
+            // image holds the response line driven in its safe state (the
+            // safe state no longer ends in a watchdog reset), so flashing
+            // makes one edge seconds before the run, which the first match
+            // alone took for the run's start.
+            let secs = |r: usize| r as f64 / inputs.samplerate_hz as f64;
+            let run0 = a
+                .latencies_us
+                .windows(2)
+                .find(|w| secs(w[1].0) - secs(w[0].0) < 0.1)
+                .map(|w| secs(w[0].0))
+                .or(a.window_s.map(|(f, _)| f))
+                .unwrap_or(0.0);
             let count_in = |from_s: f64, to_s: f64| a.latencies_us.iter().filter(|(r, _)| { let t = *r as f64 / inputs.samplerate_hz as f64 - run0; t >= from_s && t < to_s }).count();
             let before_restart = count_in(0.0, 0.78);
             let between = count_in(0.86, 1.28);

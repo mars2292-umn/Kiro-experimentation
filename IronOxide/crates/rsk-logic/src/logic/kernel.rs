@@ -1092,6 +1092,15 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         assert(cfg.task_ok(u));
     }
 
+    /// The preemption stack is `old`'s with Jobs ended from the top only: what
+    /// every transition but a dispatch leaves of it (the audit's lead 2.1 and
+    /// finding 6, 2026-11-13: Kernel_Arch's level records follow the stack
+    /// through this fact, `arch::cm4::entry::arch_matches`).
+    pub open spec fn stack_prefix_of(&self, old: &Self) -> bool {
+        &&& self.sched.depth <= old.sched.depth
+        &&& forall|i: int| 0 <= i < self.sched.depth ==> self.sched.stack[i] == old.sched.stack[i]
+    }
+
     /// DD-10, R14.5, R14.9: the effect of `response` on Partition `p` for an
     /// event of Task `t`, from state `old`, as `apply_response` applies it.
     /// Every response but SAFE_STATE (which stops the whole system, R14.4)
@@ -1374,7 +1383,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     && forall|k: int| 0 <= k < old(self).history@.len() && #[trigger] old(self).history@[k].kind == ST_RELEASE
                         && old(self).history@[k].task == task@
                         ==> old(self).history@[k].arg + cfg.tasks[task@].period as int <= arg@,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).history@ == old(self).history@.push(old(self).step_now(kind, task@, arg@)),
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).log == old(self).log, final(self).stopped == old(self).stopped,
@@ -1509,7 +1519,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn push_event(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: u8, partition: u8, prs: u64, detail: u32)
         requires old(self).inv(cfg),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).stopped == old(self).stopped,
             final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
@@ -1525,7 +1536,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Health_Monitor and attributed to the sending Partition; task 21.2).
     pub fn record_event(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, t: u8)
         requires old(self).inv(cfg), (t as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).stopped == old(self).stopped,
             final(self).safe_state == old(self).safe_state, final(self).now == old(self).now,
@@ -1539,7 +1551,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Advances the observed instant (monotone; Kernel_Arch reads the time base).
     pub fn observe(&mut self, cfg: &Config<NT, NR, NP>, now: u64)
         requires old(self).inv(cfg), now <= cfg.operating_duration,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).now == (if now > old(self).now { now } else { old(self).now }),
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).started == old(self).started, final(self).safe_state == old(self).safe_state,
@@ -1708,7 +1721,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Arms the Budget event of the executing Job of `t` for its remaining Budget.
     fn arm_budget(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
         requires old(self).inv(cfg), (t as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing,
             final(self).started == old(self).started,
             final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
@@ -1735,10 +1749,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// resumed Job, and reports any Resources it still held (R8.9): as a
     /// forced release for a killed Job, as API misuse (PR-07) for a Job that
     /// returned holding one.
-    #[verifier::rlimit(40)]
+    // Raised from 40 on 2026-11-13: with the stack-prefix clause the mutant
+    // `job-return-disarms-held-deadline` reached the limit before its failing
+    // postcondition was reported.
+    #[verifier::rlimit(80)]
     pub fn job_return(&mut self, cfg: &Config<NT, NR, NP>, elapsed_cycles: u32)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             // `Sched::finish_top` lifted (Property 2 completion, R7.5, R8.9).
             final(self).ended_top(old(self), cfg),
             old(self).sched.top_holds_nothing() ==> final(self).sched.lock_len == old(self).sched.lock_len
@@ -1861,7 +1879,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn end_mit_window(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
             old(self).sched.release[t as int] == REL_NONE ==> !old(self).slots.armed(cfg.slot_deadline[t as int] as int),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
             final(self).log == old(self).log,
             final(self).timing.has_last == old(self).timing.has_last, final(self).timing.last_due == old(self).timing.last_due,
@@ -1908,7 +1927,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Kernel_Arch then writes BASEPRI from `sched.ceiling`.
     pub fn svc_lock(&mut self, cfg: &Config<NT, NR, NP>, r: u8) -> (ok: bool)
         requires old(self).inv(cfg), old(self).sched.depth > 0, (r as int) < NR,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             ok == (cfg.may_access(old(self).sched.top(), r as int) && !old(self).sched.held(r as int) && old(self).sched.lock_len < NL),
             // `Sched::lock` lifted (Property 3 lock entry, R8.1; Property 4, R8.3).
             ok ==> final(self).sched.lock_len == old(self).sched.lock_len + 1
@@ -1947,7 +1967,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// SVC unlock (R8.2, R8.6).
     pub fn svc_unlock(&mut self, cfg: &Config<NT, NR, NP>, r: u8) -> (ok: bool)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             // `Sched::unlock` lifted (Property 3 lock exit, R8.2, R8.6).
             ok == (old(self).sched.lock_len > 0 && old(self).sched.lock_res[old(self).sched.lock_len - 1] == r
                 && old(self).sched.entry_of_top(old(self).sched.lock_len - 1)),
@@ -2019,7 +2040,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     pub fn intake(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
             (source_partition as int) < NP, now <= cfg.operating_duration, (offender as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             exists|m: Self| #[trigger] m.overdue_deadline_served(old(self), cfg, t as int, now)
                 && final(self).intake_outcome(&m, cfg, t as int, source_partition as int, offender as int, now),
             final(self).mit_spaced(old(self), cfg),
@@ -2057,7 +2079,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             outcome@ < 8 ==> !m0@.timing.masked[t as int],
             old(self).timing.masked[t as int],
             old(self).timing.mask_until[t as int] as int >= old(self).now as int + cfg.tasks[t as int].period as int,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).history@ == old(self).history@.push(old(self).step_now(ST_INTAKE, t as int, outcome@)),
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).log == old(self).log, final(self).stopped == old(self).stopped,
@@ -2078,10 +2101,15 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     /// The Release_Source event of Sporadic_Task `t` taken in from the
     /// current state: the MIT decision of R10.1 to R10.3 and its record.
+    // Given a limit of its own on 2026-11-13 (the default is 10): with the
+    // stack-prefix clause the function sat at the default, and mutants of
+    // other functions were reported with a resource-limit failure here.
+    #[verifier::rlimit(30)]
     fn intake_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
             (source_partition as int) < NP, now <= cfg.operating_duration, (offender as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             // R9.9, R12.4, R14.5: an event in the safe state, before instant 0,
             // for a stopped Partition, or too late for its Job to complete
             // within the operating duration makes no Release; in the last
@@ -2230,7 +2258,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// restarted the sender's Partition.
     fn mit_violation(&mut self, cfg: &Config<NT, NR, NP>, t: u8, partition: u8, offender: u8)
         requires old(self).inv(cfg), (t as int) < NT, (partition as int) < NP, (offender as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).violation_applied(old(self), cfg, partition as int, offender as int),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, -1),
@@ -2289,7 +2318,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// so serving the due deadlines first reports every miss.
     pub fn timer_event(&mut self, cfg: &Config<NT, NR, NP>, now: u64, running_cycles: u32)
         requires old(self).inv(cfg), now <= cfg.operating_duration,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             // R9.9, R14.4: in the safe state no timed event takes effect.
             old(self).safe_state ==> final(self).sched == old(self).sched && final(self).slots == old(self).slots
                 && final(self).budget == old(self).budget,
@@ -2349,6 +2379,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let mut i: usize = 0;
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
+                self.stack_prefix_of(old(self)),
                 self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
                 self.now == now_obs, self.history_extends(&entry),
                 // Deadline slots only: no Periodic_Task's release slot is served.
@@ -2374,6 +2405,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let mut i: usize = 0;
         while i < NS
             invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
+                self.stack_prefix_of(old(self)),
                 self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
                 self.now == now_obs, self.history_extends(&entry),
                 self.flags_monotone(&entry), self.violations_monotone(&entry),
@@ -2494,7 +2526,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// response that ends its Task's Partition.
     fn serve_slot(&mut self, cfg: &Config<NT, NR, NP>, i: usize)
         requires old(self).inv(cfg), i < NS, old(self).slots.slots[i as int].armed,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).mit_spaced(old(self), cfg), final(self).budget.only_reset_from(&old(self).budget),
             // Property 7's link: the served slot's Periodic_Task has its
             // Release served; every other Periodic_Task is kept.
@@ -2586,7 +2619,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
             old(self).slots.slots[i as int].armed, old(self).slots.slots[i as int].kind == SLOT_RELEASE,
             old(self).slots.slots[i as int].task == t,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, i as int),
             final(self).periodic_release_served(old(self), cfg, t as int),
@@ -2700,7 +2734,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// R10.2: a deferred Release becomes due.
     fn deferred_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).budget == old(self).budget,
             final(self).periodic_env(old(self), cfg, i as int),
             // R10.2: the deferred Release becomes due, and pending, exactly one
@@ -2785,7 +2820,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// not completed (the slot is disarmed on completion).
     fn deadline_miss(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing.unmasked_only(&old(self).timing),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing.unmasked_only(&old(self).timing),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, i as int),
     {
@@ -2824,7 +2860,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// with no compare and no Overrun (Verification_Plan 11.6).
     fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing.unmasked_only(&old(self).timing),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing.unmasked_only(&old(self).timing),
             // R18.1: the event judges and responds; it charges nothing.
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, i as int),
@@ -2855,6 +2892,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             }
             self.budget.report(cfg, t);
             let partition = cfg.tasks[t as usize].partition;
+            // R18.2: the Overrun is marked reported here, before the response
+            // (stated at once, so that an omitted mark fails this assertion).
+            assert(self.budget.reported[t as int]);
             self.push_event(cfg, EV_OVERRUN, t, partition, PRS_BUDGET, self.budget.used[t as usize]);
             let ghost before = *self;
             proof {
@@ -2881,7 +2921,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// the Kernel when `kernel` is set (R14.4).
     pub fn fault(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, kernel: bool)
         requires old(self).inv(cfg),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             // R14.4: a Kernel fault, or a fault with no Job executing, enters
             // the safe state.
             kernel || old(self).sched.depth == 0 ==> final(self).safe_state && final(self).no_release()
@@ -2926,7 +2967,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// R14.9 requires unless it is `t`'s own.
     pub fn fault_of(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, t: u8)
         requires old(self).inv(cfg), (t as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).response_applied(old(self), cfg,
                 cfg.tasks[t as int].partition as int,
                 cfg.partitions[cfg.tasks[t as int].partition as int].fault_response,
@@ -2951,7 +2993,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// DD-10, R14.5: applies one response of the closed sets.
     fn apply_response(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, response: u8, cause: u8, t: u8)
         requires old(self).inv(cfg), (partition as int) < NP, (t as int) < NT,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).response_applied(old(self), cfg, partition as int, response, t as int),
             // R18.1: no response charges an account; a Partition-ending
             // response resets its Tasks' accounts (an ended Job's account
@@ -2981,6 +3024,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                         }
                         self.end_top(cfg);
                         proof {
+                            assert(mid.sched == old(self).sched);
+                            assert(self.stack_prefix_of(old(self)));
                             self.lemma_others_same_but_log(&mid, old(self), cfg, cfg.tasks[t as int].partition as int);
                             Self::lemma_kept_trans(old(self), &mid, self, cfg, -1, -1);
                         }
@@ -2997,6 +3042,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                             let ghost e = *self;
                             self.end_mit_window(cfg, t);
                             proof {
+                                assert(self.sched == e.sched);
+                                assert(self.stack_prefix_of(old(self)));
                                 assert(cfg.slot_ok(t as int));
                                 Self::lemma_release_slot_apart(cfg, t as int);
                                 Self::lemma_env_slots(&e, self, cfg, -1, cfg.slot_deadline[t as int] as int);
@@ -3038,7 +3085,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// bookkeeping here (task 4.13) are separate solver queries.
     fn end_top_release(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).ended_top(old(self), cfg),
             final(self).flags_eq(old(self)),
             final(self).budget == old(self).budget, final(self).timing == old(self).timing,
@@ -3083,7 +3131,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn end_top(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             // `Sched::end_job` lifted (Property 6, R8.9).
             final(self).ended_top(old(self), cfg),
@@ -3171,7 +3220,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// `end_partition_jobs` sees only this specification.
     fn kill_at(&mut self, cfg: &Config<NT, NR, NP>, i: usize)
         requires old(self).inv(cfg), i < old(self).sched.depth,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).sched.job[old(self).sched.stack[i as int] as int] == JOB_KILLED,
             forall|u: int| 0 <= u < NT && u != old(self).sched.stack[i as int] ==> final(self).sched.job[u] == old(self).sched.job[u],
             final(self).sched.release == old(self).sched.release,
@@ -3218,7 +3268,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// executing one, if the Partition's, has been ended already.
     fn kill_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget == old(self).budget,
             forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> final(self).sched.job[u] != JOB_RUNNING,
@@ -3272,7 +3323,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn clear_partition_releases(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
             forall|u: int| 0 <= u < NT && cfg.tasks[u].partition == partition ==> old(self).sched.job[u] != JOB_RUNNING,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).budget.reported_kept(&old(self).budget),
@@ -3356,7 +3408,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// that each solver query stays small.
     fn end_partition_jobs(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).budget.reported_kept(&old(self).budget),
@@ -3400,7 +3453,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn restart_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)),
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)),
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).budget.reported_kept(&old(self).budget),
@@ -3438,7 +3492,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn stop_partition(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, cause: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).stopped[partition as int],
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).stopped[partition as int],
             final(self).periodic_env(old(self), cfg, -1),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).budget.reported_kept(&old(self).budget),
@@ -3468,7 +3523,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// effective afterwards; Kernel_Arch applies the declared outputs.
     pub fn enter_safe_state(&mut self, cfg: &Config<NT, NR, NP>)
         requires old(self).inv(cfg),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).safe_state,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).safe_state,
             final(self).periodic_env(old(self), cfg, -1),
             // No Release stays pending or deferred; the Jobs in progress and
             // the lock stack are untouched (Kernel_Arch applies the outputs).
@@ -3509,7 +3565,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// reset. Logged before the boot checks' verdict; nothing else changes.
     pub fn boot_info(&mut self, cfg: &Config<NT, NR, NP>, debugger: bool, watchdog_reset: bool)
         requires old(self).inv(cfg),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
     {
@@ -3523,7 +3580,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     pub fn boot_check_failed(&mut self, cfg: &Config<NT, NR, NP>, failed: u32)
         requires old(self).inv(cfg),
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).safe_state,
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), final(self).safe_state,
             final(self).no_release(), final(self).jobs_eq(old(self)),
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
     {
@@ -3534,7 +3592,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Kernel_Arch acknowledges a Partition re-initialization.
     pub fn ack_reinit(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), !final(self).reinit_partition[partition as int],
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), !final(self).reinit_partition[partition as int],
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
             final(self).sched == old(self).sched,
     {
@@ -3544,7 +3603,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Kernel_Arch acknowledges that a Partition's EasyDMA transfers are stopped.
     pub fn ack_stop_dma(&mut self, cfg: &Config<NT, NR, NP>, partition: u8)
         requires old(self).inv(cfg), (partition as int) < NP,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), !final(self).stop_dma[partition as int],
+        ensures final(self).stack_prefix_of(old(self)),
+            final(self).inv(cfg), final(self).history_extends(old(self)), !final(self).stop_dma[partition as int],
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
             final(self).sched == old(self).sched,
     {

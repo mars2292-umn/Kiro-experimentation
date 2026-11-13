@@ -756,6 +756,26 @@ pub fn safe_state_idle() {
     safe_state_wait::<SAFE_STATE_FEED_POLLS>(SAFE_STATE_FEED_CYCLES);
 }
 
+/// The boot-check suite's watchdog case (task 7.2; revised 2026-11-13):
+/// with the watchdog never fed, a safe state reached while it runs waits
+/// for its reset and reports nothing, so that the one report of the case is
+/// the next boot's, which fails the watchdog check. The watchdog cannot be
+/// reconfigured once it runs and survives a soft reset; since the safe
+/// state keeps it fed (the audit's contested finding B) it is still running
+/// with the previous image's half-second reload when this case boots, the
+/// case's 50 ms reload is not taken, and the reset lands after the 200 ms
+/// run instead of inside it. Until that date every image's safe state ended
+/// in a watchdog reset, which stopped the watchdog for the next one.
+#[cfg(feature = "boot-mutation")]
+pub fn watchdog_case_hold() {
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    if super::boot_mutation() == crate::arch::cm4::MUT_WATCHDOG && mmio_read(addr::NRF_WDT + wdt::RUNSTATUS) & 1 != 0 {
+        loop {
+            safe_state_idle();
+        }
+    }
+}
+
 /// The safe state's feed interval in CPU cycles (2^21: 32.8 ms at 64 MHz),
 /// far inside the watchdog's reload (`entry::watchdog_reload`: half a
 /// second on the nRF52840).
@@ -1022,6 +1042,8 @@ pub mod wdt {
     pub const CRV: u32 = 0x504;
     pub const RREN: u32 = 0x508;
     pub const CONFIG: u32 = 0x50C;
+    /// RUNSTATUS (bit 0: the watchdog is running).
+    pub const RUNSTATUS: u32 = 0x400;
     pub const RR0: u32 = 0x600;
     /// The reload request value.
     pub const RELOAD: u32 = 0x6E52_4635;

@@ -61,6 +61,8 @@
 
 pub mod entry;
 pub mod plan;
+#[cfg(verus_keep_ghost)]
+pub mod stub_model;
 pub mod unsafe_module;
 
 use core::marker::PhantomData;
@@ -69,7 +71,7 @@ pub use entry::{
     Action, Binding, Cm4Hw, DispatchPlan, HwModel, KernelArch, ReturnPlan, Tables, CONTROL_JOB, EXC_RETURN_HANDLER_MSP,
     EXC_RETURN_THREAD_MSP, EXC_RETURN_THREAD_PSP, SVC_JOB_END, SVC_LOCK, SVC_NOW, SVC_PANIC, SVC_UNLOCK, XPSR_THUMB,
 };
-pub use plan::{compare_target, find_level, plan_frame, ArchState, EndpointCfg, LevelRecord, FRAME_BYTES, MAX_INSTANT, MAX_ENDPOINTS};
+pub use plan::{compare_target, plan_frame, top_active, ArchState, EndpointCfg, LevelRecord, FRAME_BYTES, MAX_INSTANT, MAX_ENDPOINTS};
 pub use unsafe_module::KernelCell;
 
 use crate::arch::{KernelOps, System};
@@ -454,7 +456,7 @@ pub fn start<S: System>() {
     let safe = entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
 }
 
@@ -485,11 +487,9 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     };
     #[cfg(feature = "trace-ram")]
     let (seq_before, top_before) = (k.log_seq(), k.top());
-    let depth_before = k.depth();
     let (plan, safe) = entry::irq_entry_core(
         k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
     );
-    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     {
         // R19.3: the cycles of this intake handler run, attributed to the
@@ -532,7 +532,7 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     }
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0);
@@ -588,9 +588,7 @@ pub fn timer<S: System>() -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
-    let depth_before = k.depth();
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
-    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     {
         entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
@@ -600,7 +598,7 @@ pub fn timer<S: System>() -> ReturnPlan {
     }
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0);
@@ -608,46 +606,34 @@ pub fn timer<S: System>() -> ReturnPlan {
     hop
 }
 
-/// Audit finding 4 (2026-11-13): a Kernel entry other than the SVC handler
-/// that ended a Job (fewer Jobs in progress than at its start; a dispatch
-/// only adds one) drops a pending SVCall, which can only be the ended
-/// executing Job's (`hw::svc_clear_pending`).
-fn svc_of_ended_job<K: KernelOps>(k: &K, depth_before: usize) {
-    if k.depth() < depth_before {
-        hw::svc_clear_pending();
-    }
+/// Enters the system safe state (R14.4). In a boot-check build under the
+/// watchdog case the report is withheld while the watchdog runs
+/// (`hw::watchdog_case_hold`).
+fn safe_state<S: System>() -> ! {
+    #[cfg(feature = "boot-mutation")]
+    hw::watchdog_case_hold();
+    S::safe_state()
 }
 
 /// R16.5 (the audit's findings 8 and 9 and contested finding D,
-/// 2026-11-13): the stack check of an SVC taken from a Job, before anything
-/// is read or written through the process stack pointer `psp`, the SVC
-/// instruction's number included. `None`: the frame lies inside the
-/// Partition's stack region and the SVC is served. Otherwise the Job has a
-/// stack violation: the Partition's fault response is applied, the stacking
-/// fault pending behind this handler (an SVC issued with less than a
-/// frame's room: the entry could not stack) is discarded, and the plan
-/// unwinds the ended Job. With no Job executing the frame is the Kernel's
-/// own (the idle activity's) and is not checked.
-pub fn svc_frame_check<S: System>(psp: u32) -> Option<ReturnPlan> {
-    let state = unsafe_module::arch_state();
-    let tables = SysTables::<S>(PhantomData);
-    if state.current_partition == 0xFF || entry::psp_in_stack(&tables, state, psp) {
-        return None;
-    }
+/// 2026-11-13): the stack check of an SVC, before anything is read or
+/// written through the caller's frame at `psp`, the SVC instruction's number
+/// included. The decision is `entry::svc_check_core`'s: `None` when the SVC
+/// is to be served, otherwise the plan after the stack violation's response.
+pub fn svc_frame_check<S: System>(psp: u32, exc_return: u32) -> Option<ReturnPlan> {
     let k = S::kernel().get();
     let mut hw = Cm4Hw::new();
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
+    let (hop, safe) = entry::svc_check_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), psp, exc_return)?;
     pins_enter();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
-    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
-    let (hop, safe) = entry::stack_violation_core(k, &mut hw, &tables, state);
-    hw::stacking_fault_discard();
-    #[cfg(feature = "trace-ram")]
     entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
@@ -656,19 +642,11 @@ pub fn svc_frame_check<S: System>(psp: u32) -> Option<ReturnPlan> {
 }
 
 /// The stacked PC of a faulting context for the fault record (R14.3), or 0
-/// when it cannot be read safely (the audit's contested finding A,
-/// 2026-11-13): the frame at `frame` was not stacked (CFSR.MSTKERR: the
-/// fault is this entry's own stacking failure), or it is on the process
-/// stack and not inside the stack region of the executing Job's Partition.
+/// when it cannot be read safely (`entry::fault_frame_readable`: the
+/// audit's contested finding A).
 fn fault_pc<S: System>(cfsr: u32, frame: u32, exc_return: u32) -> u32 {
-    if cfsr & (1 << 4) != 0 {
+    if !entry::fault_frame_readable(&SysTables::<S>(PhantomData), unsafe_module::arch_state(), cfsr, frame, exc_return) {
         return 0;
-    }
-    if exc_return & 4 != 0 {
-        let state = unsafe_module::arch_state();
-        if !entry::psp_in_stack(&SysTables::<S>(PhantomData), state, frame) {
-            return 0;
-        }
     }
     unsafe_module::frame_pc(frame)
 }
@@ -693,18 +671,13 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     // is served first (late arrival, Armv7-M B1.5.11), kills the Job
     // (Budget overrun, END_JOB) and unwinds its level; the pending SVC
     // then tail-chains onto the resumed context, whose frame is not the
-    // SVC's (the idle activity's return address follows a WFI). The SVC's
-    // request died with its Job: the entry is ignored and the context
-    // resumes. Before this guard the handler read the number from the
-    // resumed frame (48, the low byte of WFI) and the Kernel's panic
-    // response took the Target to the safe state.
-    if number == entry::SVC_STALE {
-        trace(b"svc", entry::SVC_STALE as u32);
-        #[cfg(feature = "trace-ram")]
-        span_close::<S>(k, unsafe_module::ENTRY_PANIC, false);
-        pins_running(k.top());
-        return 0;
-    }
+    // SVC's (the idle activity's return address follows a WFI). The number
+    // read is then `SVC_STALE`, for which `svc_core` serves nothing: the
+    // request died with its Job. Before this guard the handler read the
+    // number from the resumed frame (48, the low byte of WFI) and the
+    // Kernel's panic response took the Target to the safe state.
+    #[cfg(feature = "trace-ram")]
+    let stale = number == entry::SVC_STALE;
     // R18.8: the response time of the ending Job, from its Release's due
     // instant to now (the record the fault-injection suites read).
     #[cfg(feature = "trace-ram")]
@@ -734,7 +707,9 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
             entry::SVC_VIOLATION => unsafe_module::ENTRY_RAISE,
             _ => unsafe_module::ENTRY_PANIC,
         };
-        entry_record(k, kind, start, seq_before);
+        if !stale {
+            entry_record(k, kind, start, seq_before);
+        }
     }
     #[cfg(feature = "trace-ram")]
     if let Some((t, due)) = ending {
@@ -763,10 +738,10 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     }
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_JOB_END, hop != 0);
+    span_close::<S>(k, if stale { unsafe_module::ENTRY_PANIC } else { unsafe_module::ENTRY_JOB_END }, hop != 0);
     pins_running(k.top());
     hop
 }
@@ -794,7 +769,7 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     entry_record(k, unsafe_module::ENTRY_EPILOGUE, start, seq_before);
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_EPILOGUE, r.3 != 0);
@@ -811,15 +786,13 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
-    let depth_before = k.depth();
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
-    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
@@ -900,7 +873,7 @@ pub fn hard_fault<S: System>() -> ! {
     trace(b"mmfar", hw::mmio_read(0xE000_ED34));
     let k = S::kernel().get();
     k.fault(EV_HARDFAULT, true);
-    S::safe_state()
+    safe_state::<S>()
 }
 
 /// The panic handler body (PR-19, R14.2): a panic in a Job is a fault of
@@ -921,7 +894,7 @@ pub fn panic<S: System>(in_kernel: bool) -> ! {
     let mut hw = Cm4Hw::new();
     k.fault(EV_PANIC, true);
     let _ = entry::apply_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
-    S::safe_state()
+    safe_state::<S>()
 }
 
 #[cfg(test)]

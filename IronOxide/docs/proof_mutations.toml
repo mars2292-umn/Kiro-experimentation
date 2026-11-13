@@ -114,8 +114,8 @@ expect = ["plan.rs", "compare_for"]
 id = "apply-skips-basepri"
 kills = "apply_core: basepri_matches (A1: BASEPRI is written from the Kernel state after every transition)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    hw.apply(Action::SetBasepri(k.basepri_now()));\n    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    match k.select() {\n"
-replace = "    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    match k.select() {\n"
+find = "    hw.apply(Action::SetBasepri(k.basepri_now()));\n    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    let ghost h0 = hw.hw();\n"
+replace = "    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    let ghost h0 = hw.hw();\n"
 expect = ["entry.rs", "basepri_matches"]
 
 [[mutation]]
@@ -130,8 +130,8 @@ expect = ["entry.rs", "precondition not satisfied"]
 id = "dispatch-privileged"
 kills = "irq_entry_core: CONTROL_JOB (A5: a Job runs unprivileged)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "            (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
-replace = "            (DispatchPlan { psp: frame, control: 0, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
+find = "    (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
+replace = "    (DispatchPlan { psp: frame, control: 0, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
 expect = ["entry.rs", "CONTROL_JOB"]
 
 [[mutation]]
@@ -177,7 +177,7 @@ kills = "lemma_mit_spacing_over_run (argument 5.4): the run invariant must keep 
 file = "crates/rsk-logic/src/logic/history.rs"
 find = "        ==> h[i].arg + cfg.tasks[h[i].task].period as int <= h[j].arg\n}\n"
 replace = "        ==> h[i].arg <= h[j].arg\n}\n"
-expect = ["history.rs", "lemma_mit_spacing_over_run", "h[j].arg >= h[i].arg"]
+expect = ["history.rs", "postcondition not satisfied", "h[j].arg >= h[i].arg"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -195,7 +195,7 @@ kills = "lemma_no_new_blocking_section (argument 5.1, step 4): a lock step is by
 file = "crates/rsk-logic/src/logic/history.rs"
 find = "        &&& s.top == prev.top\n        &&& s.task == s.top\n"
 replace = "        &&& s.top == prev.top\n"
-expect = ["history.rs", "lemma_no_new_blocking_section"]
+expect = ["history.rs", "postcondition not satisfied"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -204,7 +204,7 @@ kills = "lemma_no_lower_dispatch_while_waiting (argument 5.1, step 1): a dispatc
 file = "crates/rsk-logic/src/logic/history.rs"
 find = "        &&& prev.ceiling < cfg.priority(s.task)\n"
 replace = "        &&& prev.ceiling <= 7\n"
-expect = ["history.rs", "lemma_no_lower_dispatch_while_waiting"]
+expect = ["history.rs", "postcondition not satisfied"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -604,3 +604,265 @@ file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
 find = "    if floor > top {\n        return None;\n    }\n"
 replace = ""
 expect = ["plan.rs", "postcondition not satisfied"]
+
+# The review of the audit fixes (2026-11-13): the three steps at which
+# Kernel_Arch's level records left the Kernel's preemption stack.
+
+[[mutation]]
+id = "unwind-chain-condition-reverted"
+kills = "epilogue_core's clause that an unwind stops only at the context of the Kernel's executing Job (the audit's lead 2.1): without the chain to the level of a Job that was ended in the same entry, the unwind returns into that Job's context"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let resumed_ended = rec.previous_task != 0xFF && match k.top() {\n        Some(t) => t != rec.previous_task,\n        None => true,\n    };"
+replace = "    let resumed_ended = false;"
+expect = ["entry.rs", "assertion failed"]
+
+[[mutation]]
+id = "dispatch-record-drops-previous-task"
+kills = "irq_entry_core's clause on the level record a dispatch writes: it names the Job the dispatch preempted (LevelRecord::previous_task), the link the unwind's chain follows"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        previous_task,\n        active: true,"
+replace = "        previous_task: 0xFF,\n        active: true,"
+expect = ["entry.rs", "assertion failed"]
+
+# `owed-unwind-overwritten` (finding 6: the second owed level replacing the
+# first) was retired on 2026-11-13: since `end_plan_core` names the topmost
+# level record and `arch_inv` holds, the second owed exception number equals
+# the first, the overwrite changes nothing, and Verus verifies the mutant
+# (233 items, 0 errors). The defect is now expressed by the entry that owes
+# an unwind and does not record it.
+
+[[mutation]]
+id = "owed-unwind-not-recorded"
+kills = "irq_entry_core keeps arch_inv (the audit's finding 6): a Job-ending entry in a dispatch stub's entry window hands its stub no plan, so the unwind must be owed in pending_unwind; without it the chain is longer than the stack with nothing planned or owed"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        if state.pending_unwind == 0 {\n            state.pending_unwind = r.0.hop;\n        }"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+
+# The invariant of the entry cores (`arch_inv`, 2026-11-13): the level
+# records, the ghost chain and the Kernel's preemption stack.
+
+[[mutation]]
+id = "unwind-leaves-record-active"
+kills = "epilogue_core keeps arch_inv (lemma_pop): the unwound level's record is no longer active, so that every active record is the record of a Job dispatched and not yet unwound"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    ended.active = false;\n    state.levels[level] = ended;"
+replace = "    state.levels[level] = ended;"
+expect = ["entry.rs", "precondition not satisfied"]
+
+[[mutation]]
+id = "end-plan-ignores-ended-job"
+kills = "end_plan_core's ended_plan: a Kernel entry that ended a Job plans the unwind of the topmost level record (arch_inv: the chain is longer than the stack only while an unwind is planned or owed)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if k.depth() < depth_before {\n        let level = top_active(&state.levels);"
+replace = "    if false {\n        let level = top_active(&state.levels);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "dispatch-starts-job-before-frame-check"
+kills = "irq_entry_core keeps arch_inv on its refusal paths: a refusal after Kernel::dispatch would leave a Job in progress with no level record (the checks precede the dispatch)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if k.depth() == depth_before {\n        // The Kernel refused the dispatch of a Task it found eligible\n        // (before instant 0): nothing to record or to return to.\n        k.fault(EV_HARDFAULT, true);"
+replace = "    if k.depth() != depth_before {\n        // The Kernel refused the dispatch of a Task it found eligible\n        // (before instant 0): nothing to record or to return to.\n        k.fault(EV_HARDFAULT, true);"
+expect = ["entry.rs"]
+
+# The assembly stubs against the machine model (Verification_Plan 5.17,
+# 2026-11-13). The first three mutate the model (the tie check of
+# `cargo xtask check` fails on them too); the others the cores' contracts
+# the stub theorems rest on.
+
+[[mutation]]
+id = "stub-unwind-pops-before-fp"
+kills = "lemma_unwind_round: rsk_unwind pops S16-S31 before R3-R11 and LR, the reverse of the dispatch stub's pushes; in the other order the registers are restored from the floating-point words"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "    let s = i_vpop_eq(s);\n    let s = i_pop_r3_r11_lr(s);\n    let s = i_msr_psp(s, 0);"
+replace = "    let s = i_pop_r3_r11_lr(s);\n    let s = i_vpop_eq(s);\n    let s = i_msr_psp(s, 0);"
+expect = ["stub_model.rs"]
+
+[[mutation]]
+id = "stub-irq-exc-return-not-kept"
+kills = "lemma_irq_restore: the dispatch stub keeps EXC_RETURN in R8 across the call, so that the path without a dispatch pops S16-S31 exactly when it pushed them"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "    let s = i_mov_r_lr(s, 8);\n"
+replace = ""
+expect = ["stub_model.rs"]
+
+[[mutation]]
+id = "stub-irq-out-pointer-offset"
+kills = "lemma_irq_call: the plan's out-pointer passed on the stack is the address the stub reads the plan back from"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "    let s = i_add_r_sp(s, 4, 8);"
+replace = "    let s = i_add_r_sp(s, 4, 4);"
+expect = ["stub_model.rs"]
+
+[[mutation]]
+id = "epilogue-returns-other-exc-return"
+kills = "epilogue_core's epi_rel: the EXC_RETURN value handed to rsk_unwind is the one the unwound level's record keeps (the stub pops the register record by its shape and returns with it, HW-07)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    ((rec.psp, rec.control, rec.exc_return, 0), false)\n}"
+replace = "    ((rec.psp, rec.control, EXC_RETURN_THREAD_PSP, 0), false)\n}"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "fault-in-kernel-not-kernel"
+kills = "fault_core's `in_kernel ==> r.0 == 0`: a fault taken from Handler mode or under PRIMASK is the Kernel's and plans no unwind (the stub would unwind over the processor's exception frame)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let kernel = in_kernel || kind == EV_HARDFAULT || k.depth() == 0;"
+replace = "    let kernel = kind == EV_HARDFAULT || k.depth() == 0;"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "handler-mode-entry-plans-unwind"
+kills = "irq_entry_core's irq_rel: an entry taken from Handler mode (at a dispatch stub's entry instruction, 5.8a) hands its stub no unwind plan; the unwind is owed instead"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 {"
+replace = "    if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 && false {"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "dispatch-frame-zero"
+kills = "irq_entry_core's irq_rel: a frame address of 0 is the stub's `no dispatch`, so a dispatch never returns it (the Kernel would hold a Job the stub did not start)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if frame == 0 {\n        k.fault(EV_HARDFAULT, true);"
+replace = "    if false {\n        k.fault(EV_HARDFAULT, true);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+# The facts of audit findings 12 to 14 and of A13, contracts since
+# 2026-11-13 (Verification_Plan 5.18).
+
+[[mutation]]
+id = "boot-vector-priority-kernel-level"
+kills = "boot_vectors' boot_vector_ok (A3): a dispatch vector is programmed at the level of its Task's Priority"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                hw.apply(Action::SetPriority(n, encode_level(p)));"
+replace = "                hw.apply(Action::SetPriority(n, encode_level(0)));"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "boot-skips-vector-check"
+kills = "boot_core's tables_wf (A12, A13): a boot with vector tables that disagree fails its checks"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if !vectors {\n"
+replace = "    if false {\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "apply-pends-other-vector"
+kills = "apply_core's vectors_applied (A4): the vector pended is the dispatch vector of the Task select returned"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            hw.apply(Action::Pend(tables.dispatch_vector(t)));"
+replace = "            hw.apply(Action::Pend(tables.dispatch_vector(0)));"
+expect = ["entry.rs", "assertion failed"]
+
+[[mutation]]
+id = "apply-enables-masked-source"
+kills = "apply_core's vectors_applied (A13, DD-06): the intake vector of a masked source stays disabled"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                if k.source_masked(t as u8) || k.partition_stopped(partition) {"
+replace = "                if k.partition_stopped(partition) {"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "unwind-skips-view-restore"
+kills = "epilogue_core's view_matches (A6, audit finding 12): the resumed Job runs under its own Partition's view"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        hw.apply(Action::LoadView(rec.previous_partition, view));"
+replace = "        let _ = view;"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "endpoint-args-skips-message-permitted"
+kills = "endpoint_args' contract (R42.2, audit finding 13): the message buffer lies in the RAM interval of the calling role's Partition"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                && k.message_permitted(cfg.partitions[role], ptr, len)\n"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "endpoint-slot-outside-storage"
+kills = "endpoint_slot's storage_permitted (R16.1, audit finding 13): a slot's bytes lie inside the Endpoint storage"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if off + payload <= total as u64 && base as u64 + off + payload <= 0xFFFF_FFFF {"
+replace = "    if base as u64 + off + payload <= 0xFFFF_FFFF {"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "stop-reinit-skips-peer-flag"
+kills = "endpoint_reinit's reinit_done (A-P6, R42.3, audit finding 14): a stopped or restarted Partition's Endpoints tell the roles of the other Partitions"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                if (r as u8) < cfg.roles && cfg.partitions[r] != p {\n                    state.peer_changed[role_slot(e, r)] = true;"
+replace = "                if false {\n                    state.peer_changed[role_slot(e, r)] = true;"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "dispatch-records-other-partition"
+kills = "dispatch_job_core keeps arch_inv (lemma_push): a level record names as preempted the Partition Kernel_Arch took as executing, which the unwind restores"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let previous_partition = state.current_partition;"
+replace = "    let previous_partition = 0xFF;"
+expect = ["entry.rs", "precondition not satisfied"]
+
+# The Config_Checker's recomputation core (crates/rsk-confcheck/src/derive_v.rs,
+# Verification_Plan 5.19, 2026-11-13).
+
+[[mutation]]
+id = "confcheck-ceiling-keeps-smaller"
+kills = "ceiling_of (R23.1): the recomputed Ceiling is the maximum Priority over the accessors"
+file = "crates/rsk-confcheck/src/derive_v.rs"
+find = "        if prios[i] > c {\n            c = prios[i];"
+replace = "        if prios[i] < c {\n            c = prios[i];"
+expect = ["derive_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-disjoint-adjacent-overlap"
+kills = "disjoint (R16.7): two regions are reported disjoint exactly when no address lies in both; adjacent regions are disjoint"
+file = "crates/rsk-confcheck/src/derive_v.rs"
+find = "            let ok = ea <= b_base as u128 || eb <= a_base as u128;"
+replace = "            let ok = ea < b_base as u128 || eb <= a_base as u128;"
+expect = ["derive_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-encode-level-shifted"
+kills = "encode_level (DD-02): the NVIC priority byte of level p is (8 - p) * 32"
+file = "crates/rsk-confcheck/src/derive_v.rs"
+find = "    if level == 0 || level > 8 { 0 } else { (8 - level) * 32 }"
+replace = "    if level == 0 || level > 8 { 0 } else { (8 - level) * 16 }"
+expect = ["derive_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+# The shells' decisions, verified cores since 2026-11-13 (Verification_Plan 5.18).
+
+[[mutation]]
+id = "kernel-entry-keeps-pending-svc"
+kills = "svc_of_ended_job_core (audit finding 4): a Kernel entry other than the SVC handler that ended a Job drops the pending SVCall"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if k.depth() < depth_before {\n        hw.svc_clear_pending();"
+replace = "    if false {\n        hw.svc_clear_pending();"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "svc-check-reads-any-frame"
+kills = "svc_check_core (R16.5, audit finding 8): an SVC is served from a Job's process stack only when its frame lies inside the Partition's stack region"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) {"
+replace = "    if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) || psp != 0 {"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "stack-violation-keeps-stacking-fault"
+kills = "svc_check_core (audit finding 9): the stacking fault behind an SVC answered as a stack violation is discarded"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let (hop, safe) = stack_violation_core(k, hw, tables, state);\n    hw.stacking_fault_discard();"
+replace = "    let (hop, safe) = stack_violation_core(k, hw, tables, state);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "fault-frame-read-after-stacking-failure"
+kills = "fault_frame_readable (audit contested finding A): the stacked PC is not read from a frame the entry failed to stack"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if cfsr & 0x10 != 0 {\n        return false;\n    }"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+

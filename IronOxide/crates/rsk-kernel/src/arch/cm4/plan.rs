@@ -19,8 +19,9 @@
 //! - [`compare_target`]: the TIMER compare value for a target instant,
 //!   never closer than `MIN_COMPARE_DISTANCE` to the counter (HW-12, the
 //!   near-counter rule, ASM-19): exactly `hw_model::compare_for`.
-//! - [`find_level`]: the level record that names an exception number,
-//!   as the unwind looks it up (the greatest matching level, 0 when none).
+//! - [`top_active`]: the greatest level whose record is active, which
+//!   the unwind takes (the last Job dispatched and not yet unwound; 0
+//!   when none).
 //! - [`LevelRecord`] and [`ArchState`]: the per-level records of the
 //!   preempted contexts and the Partition stack floors, so that the
 //!   functions above and, in later increments, the entry points can be
@@ -105,6 +106,10 @@ pub struct LevelRecord {
     /// executing Job (the audit's lead 2.1, 2026-11-13: one Kernel entry
     /// can end the Job of this level and the one it preempted).
     pub previous_task: u8,
+    /// Whether the record is of a Job in progress: set by the dispatch that
+    /// wrote it, cleared by the unwind of its level (`arch_matches`: the
+    /// active records are those of the Kernel's preemption stack).
+    pub active: bool,
 }
 
 /// One Endpoint of Generated_Config (task 21.2; R38.1, R40.1): two roles,
@@ -193,6 +198,51 @@ pub struct ArchState {
     /// at any time and impose the peer Partition's fault response.
     pub delivered: [bool; MAX_CHANNELS],
     pub first_fault_addr: u32,
+    /// Ghost: the Tasks of the active level records, from the first Job
+    /// dispatched to the last (`entry::arch_inv`): Kernel_Arch's own view of
+    /// the preemption stack, of which the Kernel's is a prefix. A dispatch
+    /// appends, the unwind of a level removes the last.
+    pub chain: Ghost<Seq<int>>,
+    /// Ghost: the level of each record of `chain`.
+    pub chain_levels: Ghost<Seq<int>>,
+}
+
+/// The level records, the owed unwind, and the ghost chain of `a` are those
+/// of `b`: what every Kernel_Arch function but a dispatch and an unwind
+/// leaves of them.
+pub open spec fn arch_frame(a: ArchState, b: ArchState) -> bool {
+    &&& a.levels == b.levels
+    &&& a.current_partition == b.current_partition
+    &&& a.pending_unwind == b.pending_unwind
+    &&& a.chain@ == b.chain@
+    &&& a.chain_levels@ == b.chain_levels@
+}
+
+/// The greatest level 1..=7 whose record is active, or 0 when none is: the
+/// level of the last Job dispatched and not yet unwound.
+pub fn top_active(levels: &[LevelRecord; 8]) -> (level: usize)
+    ensures
+        level < 8,
+        level != 0 ==> levels[level as int].active,
+        forall|i: int| level < i < 8 ==> !levels[i].active,
+        level == 0 ==> forall|i: int| 1 <= i < 8 ==> !levels[i].active,
+{
+    let mut level: usize = 0;
+    let mut i: usize = 1;
+    while i < 8
+        invariant
+            1 <= i <= 8, level < i,
+            level != 0 ==> levels[level as int].active,
+            forall|j: int| level < j < i ==> !levels[j].active,
+            level == 0 ==> forall|j: int| 1 <= j < i ==> !levels[j].active,
+        decreases 8 - i,
+    {
+        if levels[i].active {
+            level = i;
+        }
+        i += 1;
+    }
+    level
 }
 
 impl ArchState {
@@ -208,6 +258,7 @@ impl ArchState {
                 floor_before: 0,
                 previous_partition: 0xFF,
                 previous_task: 0xFF,
+                active: false,
             }; 8],
             floor: [0; 16],
             current_partition: 0xFF,
@@ -220,6 +271,8 @@ impl ArchState {
             fifos: [crate::logic::endpoint::Fifo { head: 0, count: 0 }; MAX_CHANNELS],
             peer_changed: [false; MAX_ROLE_SLOTS],
             delivered: [false; MAX_CHANNELS],
+            chain: Ghost(Seq::empty()),
+            chain_levels: Ghost(Seq::empty()),
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }
@@ -284,31 +337,6 @@ pub fn compare_target(now: u64, at: u64) -> (target: u64)
         target >= at,
 {
     if at < now + MIN_COMPARE_DISTANCE { now + MIN_COMPARE_DISTANCE } else { at }
-}
-
-/// The greatest level 1..=7 whose record names exception number `n`, or 0
-/// when none does (the unwind of `arch::cm4::epilogue`).
-pub fn find_level(levels: &[LevelRecord; 8], n: u16) -> (level: usize)
-    ensures
-        level < 8,
-        level != 0 ==> levels[level as int].exception_number == n,
-        forall|i: int| level < i < 8 ==> levels[i].exception_number != n,
-{
-    let mut level: usize = 0;
-    let mut i: usize = 1;
-    while i < 8
-        invariant
-            1 <= i <= 8, level < i,
-            level != 0 ==> levels[level as int].exception_number == n,
-            forall|j: int| level < j < i ==> levels[j].exception_number != n,
-        decreases 8 - i,
-    {
-        if levels[i].exception_number == n {
-            level = i;
-        }
-        i += 1;
-    }
-    level
 }
 
 } // verus!

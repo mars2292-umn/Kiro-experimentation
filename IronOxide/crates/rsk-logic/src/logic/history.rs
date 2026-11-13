@@ -441,6 +441,17 @@ pub proof fn lemma_ceiling_of_array<const NT: usize, const NR: usize, const NP: 
 
 // ---------------------------------------------- Theorem: bounded blocking (5.1)
 
+/// Step `k` of a well-formed history follows from step `k - 1` by
+/// `top_rel`.
+pub proof fn lemma_step_rel<const NT: usize, const NR: usize, const NP: usize>(h: Seq<Step>, cfg: &Config<NT, NR, NP>, now: int, k: int)
+    requires history_wf(h, cfg, now), 0 < k < h.len(),
+    ensures top_rel(h[k - 1], h[k], cfg),
+{
+    reveal(history_wf);
+    assert(top_rel(before(h, k), h[k], cfg));
+    assert(before(h, k) == h[k - 1]);
+}
+
 /// Verification_Plan argument 5.1, step 4 (R8.4, Property 5), over the
 /// history: while the pending Job of Task `t` waits (its Release at step
 /// `r`, never eligible after any step before its dispatch at `d`), a
@@ -462,9 +473,11 @@ pub proof fn lemma_no_new_blocking_section<const NT: usize, const NR: usize, con
         // The locker was already executing before the lock.
         h[k - 1].top == h[k].task,
 {
-    reveal(history_wf);
-    assert(top_rel(before(h, k), h[k], cfg));
-    assert(before(h, k) == h[k - 1]);
+    // The step relation is taken from the history alone (`lemma_step_rel`),
+    // so that this lemma's own obligations are checked without the
+    // history's quantifiers in scope (2026-11-13: with them in scope a
+    // weakened `top_rel` was rejected only by the solver's resource limit).
+    lemma_step_rel(h, cfg, now, k);
     assert(!eligible_after(h[k - 1], cfg, t));
 }
 
@@ -478,9 +491,7 @@ pub proof fn lemma_no_lower_dispatch_while_waiting<const NT: usize, const NR: us
         r < k < d, h[k].kind == ST_DISPATCH,
     ensures cfg.priority(h[k].task) >= cfg.priority(t),
 {
-    reveal(history_wf);
-    assert(top_rel(before(h, k), h[k], cfg));
-    assert(before(h, k) == h[k - 1]);
+    lemma_step_rel(h, cfg, now, k);
     assert(!eligible_after(h[k - 1], cfg, t));
 }
 
@@ -584,7 +595,12 @@ pub proof fn lemma_mit_spacing_over_run<const NT: usize, const NR: usize, const 
         // MIT apart in either order.
         h[j].arg - h[i].arg >= cfg.tasks[t].period as int,
 {
-    reveal(history_wf);
+    // Only this conjunct of the history's invariant is needed; taken alone,
+    // a weakened spacing fails this lemma's postcondition instead of the
+    // solver's resource limit (2026-11-13).
+    assert(releases_spaced(h, cfg)) by {
+        reveal(history_wf);
+    }
 }
 
 // --------------------------------------------- Theorem: ceiling restore (5.3)

@@ -6,6 +6,7 @@ pub mod deps;
 pub mod features;
 pub mod justifications;
 pub mod kani_bounds;
+pub mod stub_model;
 pub mod kernel_size;
 pub mod kernel_std;
 pub mod lockfile;
@@ -46,6 +47,8 @@ pub fn repository(root: &Path, report: &mut Report) -> Option<Workspace> {
     registers::check(root, report);
     // R45.8: the Kani harness bounds against the demo's Generated_Config.
     kani_bounds::check(root, report);
+    // Verification_Plan 5.17: the stub model against the assembly.
+    stub_model::check(root, report);
     ws
 }
 

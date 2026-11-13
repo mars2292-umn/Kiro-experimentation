@@ -45,34 +45,46 @@ pub fn easy_dma(target: &str) -> &'static [&'static str] {
     }
 }
 
+use crate::derive_v;
+
 /// DD-02: the NVIC priority byte of a Task level (3 implemented bits).
+/// The computation is `derive_v::encode_level` (verified; until 2026-11-13
+/// a level above 8 underflowed here before its range was reported).
 pub fn encode_level(level: u64) -> u64 {
-    if level == 0 { 0 } else { (8 - level) << 5 }
+    derive_v::encode_level(level)
 }
 
-fn size_of(r: &Region) -> u64 {
-    1u64 << r.size_log2
+/// The region arithmetic is `derive_v`'s (verified, free of overflow for
+/// every base and size; until 2026-11-13 a `size_log2` of 64 or more
+/// overflowed the shift, and a base near the top of the address space the
+/// sum).
+fn size_text(r: &Region) -> String {
+    match derive_v::size_of(r.size_log2) {
+        Some(s) => s.to_string(),
+        None => format!("2^{}", r.size_log2),
+    }
 }
 
 fn disjoint(a: &Region, b: &Region) -> bool {
-    a.base + size_of(a) <= b.base || b.base + size_of(b) <= a.base
+    derive_v::disjoint(a.base, a.size_log2, b.base, b.size_log2)
 }
 
 fn aligned(r: &Region) -> bool {
-    r.size_log2 >= 5 && r.size_log2 <= 32 && r.base % size_of(r) == 0
+    derive_v::aligned(r.base, r.size_log2)
 }
 
 /// The recomputed values against the Task_Model's derived values.
 pub fn check_model(m: &Model, out: &mut Outcome) {
     // Ceilings (R8.7, R23): the maximum Priority of the accessors.
     for res in &m.resources {
-        let mut ceiling = 0;
+        let mut priorities: Vec<u64> = Vec::new();
         for a in &res.accessors {
             match m.task_index(a) {
-                Some(t) => ceiling = ceiling.max(m.tasks[t].priority),
+                Some(t) => priorities.push(m.tasks[t].priority),
                 None => out.require(format!("{}.accessors", res.id), false, "a declared Task", format!("`{a}` (no such Task)")),
             }
         }
+        let ceiling = derive_v::ceiling_of(&priorities);
         out.mismatch(format!("{}.ceiling", res.id), ceiling, res.ceiling);
         // Every accessor lists the Resource, and the Resource's Partition is theirs.
         for a in &res.accessors {
@@ -84,9 +96,8 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     }
     // Priority-to-hardware mapping (DD-02): every Task level once, ascending,
     // with its encoding; the Kernel level is 0.
-    let mut levels: Vec<u64> = m.tasks.iter().map(|t| t.priority).collect();
-    levels.sort_unstable();
-    levels.dedup();
+    let priorities: Vec<u64> = m.tasks.iter().map(|t| t.priority).collect();
+    let levels = derive_v::levels_of(&priorities);
     let expected_map: Vec<(u64, u64)> = levels.iter().map(|&l| (l, encode_level(l))).collect();
     out.mismatch("priority_map", format!("{expected_map:?}"), format!("{:?}", m.priority_map));
     out.mismatch("kernel_levels", "[0]", format!("{:?}", m.kernel_levels));
@@ -106,18 +117,28 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     // Capacities (R23.4): the lock stack holds every Task's nested sections at
     // once; the timer queue holds three slots per Task plus the end-of-operation
     // and housekeeping slots (R9.4); the log capacity is declared.
-    let depth_sum: u64 = m.tasks.iter().map(|t| t.resources.len() as u64).sum();
-    out.mismatch("capacities.lock_stack", depth_sum, m.lock_stack);
-    out.mismatch("capacities.timer_slots", 3 * m.tasks.len() as u64 + 2, m.timer_slots);
+    let depths: Vec<u64> = m.tasks.iter().map(|t| t.resources.len() as u64).collect();
+    match derive_v::sum_checked(&depths) {
+        Some(depth_sum) => out.mismatch("capacities.lock_stack", depth_sum, m.lock_stack),
+        None => out.require("capacities.lock_stack", false, "a sum within 64 bits", "overflow"),
+    }
+    match derive_v::timer_slots(m.tasks.len() as u64) {
+        Some(slots) => out.mismatch("capacities.timer_slots", slots, m.timer_slots),
+        None => out.require("capacities.timer_slots", false, "a count within 64 bits", "overflow"),
+    }
     out.require("capacities.event_log", m.event_log > 0, "> 0", m.event_log);
     // Slots: release 3t, deadline 3t+1, budget 3t+2 (periodic and deferring
     // sporadic Tasks have a release slot; discarding ones have none).
     for (i, t) in m.tasks.iter().enumerate() {
         let i = i as u64;
         let has_release = !t.sporadic || t.mit_policy.as_deref() == Some("defer");
-        out.mismatch(format!("{}.slots.release", t.id), if has_release { 3 * i } else { image::NO_SLOT as u64 }, t.slot_release);
-        out.mismatch(format!("{}.slots.deadline", t.id), 3 * i + 1, t.slot_deadline);
-        out.mismatch(format!("{}.slots.budget", t.id), 3 * i + 2, t.slot_budget);
+        let (Some(release), Some(deadline), Some(budget)) = (derive_v::slot_index(i, 0), derive_v::slot_index(i, 1), derive_v::slot_index(i, 2)) else {
+            out.require(format!("{}.slots", t.id), false, "indices within 64 bits", "overflow");
+            continue;
+        };
+        out.mismatch(format!("{}.slots.release", t.id), if has_release { release } else { image::NO_SLOT as u64 }, t.slot_release);
+        out.mismatch(format!("{}.slots.deadline", t.id), deadline, t.slot_deadline);
+        out.mismatch(format!("{}.slots.budget", t.id), budget, t.slot_budget);
     }
     // Vectors: dispatch vectors ascend with the Task index (DD-03).
     for w in m.tasks.windows(2) {
@@ -141,7 +162,7 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
         // MPU permissions (DD-07, DD-08, R16.5).
         out.require(format!("{}.mpu.code", p.id), aligned(&p.code), "an aligned power-of-two region", format!("{:?}", p.code));
         out.require(format!("{}.mpu.ram", p.id), aligned(&p.ram), "an aligned power-of-two region", format!("{:?}", p.ram));
-        out.require(format!("{}.regions.stack", p.id), p.stack > 0 && p.stack <= size_of(&p.ram), format!("1 to {}", size_of(&p.ram)), p.stack);
+        out.require(format!("{}.regions.stack", p.id), derive_v::stack_fits(p.stack, p.ram.size_log2), format!("1 to {}", size_text(&p.ram)), p.stack);
         out.require(format!("{}.mpu.code/ram", p.id), disjoint(&p.code, &p.ram), "disjoint", "overlapping");
         for k in [&m.kernel_flash, &m.shared_code, &m.kernel_ram] {
             out.require(format!("{}.mpu vs Kernel regions", p.id), disjoint(&p.code, k) && disjoint(&p.ram, k), "disjoint", "overlapping");
@@ -187,6 +208,10 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     for (i, a) in m.partitions.iter().enumerate() {
         for b in &m.partitions[i + 1..] {
             out.require(format!("{}/{} regions", a.id, b.id), disjoint(&a.code, &b.code) && disjoint(&a.ram, &b.ram), "disjoint", "overlapping");
+            // R16.7 (2026-11-13): no Partition's RAM, which it writes, lies
+            // over another Partition's code. Until this date only code
+            // against code and RAM against RAM were compared.
+            out.require(format!("{}/{} regions (RAM against code)", a.id, b.id), disjoint(&a.code, &b.ram) && disjoint(&a.ram, &b.code), "disjoint", "overlapping");
         }
     }
 }

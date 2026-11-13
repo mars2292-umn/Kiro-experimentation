@@ -164,10 +164,8 @@ pub unsafe extern "C" fn rsk_irq_entry_rust(ipsr: u32, psp: u32, control: u32, e
 // nothing is read or written through it.
 #[no_mangle]
 pub unsafe extern "C" fn rsk_svc_rust(frame: *mut [u32; 8], exc_return: u32) -> u32 {
-    if exc_return & 4 != 0 {
-        if let Some(plan) = arch::svc_frame_check::<Sys>(frame as usize as u32) {
-            return plan;
-        }
+    if let Some(plan) = arch::svc_frame_check::<Sys>(frame as usize as u32, exc_return) {
+        return plan;
     }
     arch::svc::<Sys>(&mut *frame)
 }

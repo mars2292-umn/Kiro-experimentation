@@ -531,3 +531,314 @@ fn safe_state_feed_interval_is_inside_the_watchdog_reload() {
     hw::safe_state_wait::<4>(cycles);
     assert!(sim::write_count() == before);
 }
+
+// ---------------------------------------------------------------------------
+// The review of the audit fixes (2026-11-13): Kernel_Arch's level records
+// against the Kernel's preemption stack over a sequence of Kernel entries.
+
+/// The hardware of the sequence harness: a time base and a cycle counter the
+/// harness sets, and every `Action` accepted (the register writes are
+/// `apply_every_action_is_total`'s subject, not this harness's).
+struct SeqHw {
+    now: u64,
+    cycles: u32,
+}
+
+impl KernelArch for SeqHw {
+    fn apply(&mut self, _a: Action) {}
+    fn svc_clear_pending(&mut self) {}
+    fn stacking_fault_discard(&mut self) {}
+    fn copy_in(&mut self, _dst: u32, _src: u32, _len: u32) -> u32 {
+        0
+    }
+    fn copy_out(&mut self, _dst: u32, _src: u32, _len: u32) -> u32 {
+        0
+    }
+    fn now(&self) -> u64 {
+        self.now
+    }
+    fn cycles(&self) -> u32 {
+        self.cycles
+    }
+    fn boot_checks(&self, _expect: &BootExpect) -> u32 {
+        0
+    }
+    fn boot_info(&self) -> u32 {
+        0
+    }
+}
+
+/// The demo's tables as far as the entry cores read them: the dispatch
+/// vectors 36 to 42 in Task order, the time base on vector 25, `pulse`'s
+/// source on vector 26, the stack regions of the demo's layout, no EasyDMA
+/// channel, Endpoint or signal.
+struct SeqTables;
+
+const SEQ_RAM: [u32; 3] = [0x2000_8000, 0x2001_0000, 0x2001_8000];
+const SEQ_STACK: u32 = 4096;
+
+impl crate::arch::cm4::entry::Tables for SeqTables {
+    fn binding(&self, n: u16) -> crate::arch::Binding {
+        if n == 25 {
+            crate::arch::Binding::Kernel
+        } else if n >= 36 && n <= 42 {
+            crate::arch::Binding::Dispatch((n - 36) as u8)
+        } else if n == 26 {
+            crate::arch::Binding::Intake { task: 4, partition: 1 }
+        } else {
+            crate::arch::Binding::Unbound
+        }
+    }
+    fn dispatch_vector(&self, t: u8) -> u16 {
+        36 + t as u16
+    }
+    fn intake_vector(&self, t: u8) -> Option<u16> {
+        if t == 4 { Some(26) } else { None }
+    }
+    fn stack_top(&self, p: u8) -> u32 {
+        if (p as usize) < 3 { SEQ_RAM[p as usize] + SEQ_STACK } else { 0 }
+    }
+    fn stack_bottom(&self, p: u8) -> u32 {
+        if (p as usize) < 3 { SEQ_RAM[p as usize] } else { 0 }
+    }
+    fn task_entry_address(&self, _t: u8) -> u32 {
+        0x0002_0101
+    }
+    fn irq_count(&self) -> u16 {
+        48
+    }
+    fn config_checksum(&self) -> u32 {
+        0
+    }
+    fn layout_checksum(&self) -> u32 {
+        0
+    }
+    fn timer_vector(&self) -> u16 {
+        25
+    }
+    fn priority_bits(&self) -> u8 {
+        3
+    }
+    fn boot_expect(&self) -> BootExpect {
+        BootExpect { priority_bits: 3, cpuid: 0x410F_C241, hfclk_xtal: true, fpu_needed: true }
+    }
+    fn fp_flush_to_zero(&self) -> bool {
+        false
+    }
+    fn tick_hz(&self) -> u64 {
+        16_000_000
+    }
+    fn dma_count(&self) -> usize {
+        0
+    }
+    fn dma(&self, _i: usize) -> crate::arch::DmaCfg {
+        crate::arch::DmaCfg { partition: 0xFF, ptr: 0, maxcnt: 0, stops: [0, 0], lists: [0, 0], shorts: 0 }
+    }
+    fn endpoint_count(&self) -> usize {
+        0
+    }
+    fn endpoint(&self, _i: usize) -> crate::arch::EndpointCfg {
+        crate::arch::EndpointCfg { capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0, validates: [[false; 4]; 4] }
+    }
+    fn endpoint_storage(&self) -> (u32, u32) {
+        (0, 0)
+    }
+    fn signal_count(&self) -> usize {
+        0
+    }
+    fn signal(&self, _i: usize) -> crate::arch::SignalCfg {
+        crate::arch::SignalCfg { partition: 0xFF, task: 0xFF }
+    }
+}
+
+type SeqKernel = crate::arch::Bound<7, 3, 3, 6, 23, 32>;
+
+/// The executable form of `entry::arch_matches`: as many active level
+/// records as Jobs in progress, and for every position of the Kernel's
+/// stack the record of its Task's level, active, for that Task, naming the
+/// Task below as the Job it preempted.
+fn seq_records_match(k: &SeqKernel, state: &crate::arch::cm4::plan::ArchState) {
+    use crate::arch::KernelOps;
+    let depth = k.depth();
+    let mut active = 0;
+    let mut l = 0;
+    while l < 8 {
+        if state.levels[l].active {
+            active += 1;
+        }
+        l += 1;
+    }
+    assert!(active == depth);
+    let mut i = 0;
+    while i < depth {
+        let t = k.stack_at(i);
+        let rec = state.levels[k.job_info(t).priority as usize];
+        assert!(rec.active && rec.task == t);
+        assert!(rec.previous_task == if i == 0 { 0xFF } else { k.stack_at(i - 1) });
+        i += 1;
+    }
+}
+
+/// What a stub does with an unwind plan: unwinds the named level, then
+/// every further level the Rust half names.
+fn seq_unwind(k: &mut SeqKernel, hw: &mut SeqHw, state: &mut crate::arch::cm4::plan::ArchState, hop: u32) {
+    let mut n = hop;
+    let mut rounds = 0;
+    while n != 0 && rounds < 8 {
+        let ((_, _, _, next), safe) = crate::arch::cm4::entry::epilogue_core(k, hw, &SeqTables, state, n);
+        assert!(!safe);
+        n = next;
+        rounds += 1;
+    }
+    assert!(n == 0);
+}
+
+/// The review of the audit fixes (2026-11-13), `entry::arch_matches` as a
+/// bounded check of the executable (the predicate is proven as an invariant
+/// of the entry cores, `entry::arch_inv`, since the same day): on
+/// the demo's configuration, after each of five Kernel entries with their
+/// unwinds, Kernel_Arch's active level records are exactly those of the
+/// Kernel's preemption stack. The sequence is the audit's lead 2.1: the
+/// time base releases `sampler` and it is dispatched; the time base
+/// releases `log`; `log`'s dispatch charges `sampler` past its Budget; the
+/// time base's entry at `sampler`'s Budget instant finds it preempted; the
+/// time base's entry at `log`'s Budget instant ends `log` and, in the same
+/// entry, `sampler` (two Budget events in one timer entry). The stub then
+/// unwinds `log`'s level and, by the chain over
+/// `LevelRecord::previous_task`, `sampler`'s. With that chain's condition
+/// reverted the last check fails: one record stays active with no Job in
+/// progress (shown on 2026-11-13).
+#[kani::proof]
+#[kani::unwind(25)]
+fn arch_records_match_the_stack_over_kernel_entries() {
+    use crate::arch::cm4::entry::{irq_entry_core, start_core, timer_core};
+    use crate::arch::KernelOps;
+    let (log, sampler): (u8, u8) = (3, 6);
+    let mut cfg = crate::logic::kani_harness::demo_config();
+    cfg.tasks[0].offset = 200_000;
+    cfg.tasks[2].offset = 400_000;
+    cfg.tasks[5].offset = 300_000;
+    cfg.tasks[log as usize].offset = 12_480;
+    let no_window = Interval { base: 0, size_log2: 5 };
+    let part = |code: u32, ram: u32| crate::logic::mpu::PartitionLayout {
+        code: Interval { base: code, size_log2: 15 },
+        code_srd: 0,
+        ram: Interval { base: ram, size_log2: 15 },
+        ram_srd: 0,
+        stack_size: SEQ_STACK,
+        windows: [no_window; 5],
+        window_count: 0,
+        windows_ro: [false; 5],
+    };
+    let layout = crate::logic::mpu::Layout {
+        kernel_flash: Interval { base: 0x0000_0000, size_log2: 16 },
+        shared_code: Interval { base: 0x0001_0000, size_log2: 16 },
+        kernel_ram: Interval { base: 0x2000_0000, size_log2: 15 },
+        kernel_windows: [Interval { base: 0xE000_0000, size_log2: 20 }, no_window, no_window, no_window, no_window, no_window, no_window, no_window],
+        kernel_window_count: 1,
+        partitions: [part(0x0002_0000, SEQ_RAM[0]), part(0x0002_8000, SEQ_RAM[1]), part(0x0003_0000, SEQ_RAM[2])],
+    };
+    let mut k: SeqKernel = crate::arch::Bound { cfg, kernel: crate::arch::placeholder_kernel(), layout, views: [crate::arch::placeholder_view(), crate::arch::placeholder_view(), crate::arch::placeholder_view()] };
+    assert!(k.validate());
+    k.init();
+    let mut hw = SeqHw { now: 0, cycles: 0 };
+    let mut state = crate::arch::cm4::plan::ArchState::new();
+    // The stack floors as `boot_core` sets them.
+    state.floor[0] = SEQ_RAM[0] + SEQ_STACK;
+    state.floor[1] = SEQ_RAM[1] + SEQ_STACK;
+    state.floor[2] = SEQ_RAM[2] + SEQ_STACK;
+    state.booted = true;
+    assert!(!start_core(&mut k, &mut hw, &SeqTables, &mut state));
+    seq_records_match(&k, &state);
+    // Entry 1: the time base at instant 0 releases `sampler`; its dispatch from the idle activity.
+    let (hop, safe) = timer_core(&mut k, &mut hw, &SeqTables, &mut state);
+    assert!(hop == 0 && !safe);
+    let (plan_s, safe) = irq_entry_core(&mut k, &mut hw, &SeqTables, &mut state, 36 + sampler as u32, 0, 0, 0xFFFF_FFF9);
+    assert!(!safe && plan_s.psp != 0 && k.top() == Some(sampler));
+    seq_records_match(&k, &state);
+    // Entry 2: the time base at 12,480 releases `log`.
+    hw.now = 12_480;
+    hw.cycles = 12_480;
+    let (hop, safe) = timer_core(&mut k, &mut hw, &SeqTables, &mut state);
+    assert!(hop == 0 && !safe);
+    seq_records_match(&k, &state);
+    // Entry 3: `log`'s dispatch, 30 cycles later, preempts `sampler` on its own stack.
+    hw.cycles = 12_510;
+    let (plan_l, safe) = irq_entry_core(&mut k, &mut hw, &SeqTables, &mut state, 36 + log as u32, plan_s.psp, 1, 0xFFFF_FFFD);
+    assert!(!safe && plan_l.psp != 0 && k.top() == Some(log) && k.depth() == 2);
+    seq_records_match(&k, &state);
+    // Entry 4: `sampler`'s Budget instant, with `sampler` preempted.
+    hw.now = 12_520;
+    hw.cycles = 12_520;
+    let (hop, safe) = timer_core(&mut k, &mut hw, &SeqTables, &mut state);
+    assert!(hop == 0 && !safe && k.depth() == 2);
+    seq_records_match(&k, &state);
+    // Entry 5: `log`'s Budget instant: both Jobs are ended by this one entry.
+    hw.now = 162_480;
+    hw.cycles = 162_530;
+    let (hop, safe) = timer_core(&mut k, &mut hw, &SeqTables, &mut state);
+    assert!(!safe && hop != 0 && k.depth() == 0);
+    seq_unwind(&mut k, &mut hw, &mut state, hop);
+    seq_records_match(&k, &state);
+}
+
+/// Audit finding 4 (2026-11-13), R45.2: `svc_clear_pending` clears
+/// SHCSR.SVCALLPENDED (bit 15) and writes every other bit of the register
+/// back as read, the active bits (0 to 11) and the enable bits (16 to 18)
+/// among them, for any register contents; with the bit already clear it
+/// writes nothing. `entry::svc_of_ended_job_core`, which the timer, interrupt and
+/// fault cores call last, clears the bit exactly when the
+/// entry left fewer Jobs in progress than it found.
+#[kani::proof]
+#[kani::unwind(48)]
+fn svc_clear_pending_clears_only_the_pending_bit() {
+    use crate::arch::KernelOps;
+    sim::reset();
+    let shcsr: u32 = kani::any();
+    sim::write(addr::SHCSR, shcsr);
+    let before = sim::write_count();
+    hw::svc_clear_pending();
+    let after = sim::read(addr::SHCSR);
+    assert!(after & (1 << 15) == 0);
+    assert!(after | (1 << 15) == shcsr | (1 << 15));
+    assert!(after & 0x0007_0FFF == shcsr & 0x0007_0FFF);
+    if shcsr & (1 << 15) == 0 {
+        assert!(sim::write_count() == before && after == shcsr);
+    } else {
+        assert!(sim::write_count() == before + 1);
+    }
+    // The shells' call: an entry that ended a Job, and one that did not.
+    let no_window = Interval { base: 0, size_log2: 5 };
+    let part = |code: u32, ram: u32| crate::logic::mpu::PartitionLayout {
+        code: Interval { base: code, size_log2: 15 },
+        code_srd: 0,
+        ram: Interval { base: ram, size_log2: 15 },
+        ram_srd: 0,
+        stack_size: SEQ_STACK,
+        windows: [no_window; 5],
+        window_count: 0,
+        windows_ro: [false; 5],
+    };
+    let layout = crate::logic::mpu::Layout {
+        kernel_flash: Interval { base: 0x0000_0000, size_log2: 16 },
+        shared_code: Interval { base: 0x0001_0000, size_log2: 16 },
+        kernel_ram: Interval { base: 0x2000_0000, size_log2: 15 },
+        kernel_windows: [Interval { base: 0xE000_0000, size_log2: 20 }, no_window, no_window, no_window, no_window, no_window, no_window, no_window],
+        kernel_window_count: 1,
+        partitions: [part(0x0002_0000, SEQ_RAM[0]), part(0x0002_8000, SEQ_RAM[1]), part(0x0003_0000, SEQ_RAM[2])],
+    };
+    let mut k: SeqKernel = crate::arch::Bound { cfg: crate::logic::kani_harness::demo_config(), kernel: crate::arch::placeholder_kernel(), layout, views: [crate::arch::placeholder_view(), crate::arch::placeholder_view(), crate::arch::placeholder_view()] };
+    assert!(k.validate());
+    k.init();
+    assert!(k.depth() == 0);
+    let pending: u32 = kani::any();
+    sim::write(addr::SHCSR, pending);
+    let before = sim::write_count();
+    // Same depth as at the entry's start: the pending SVC is the executing Job's and stays.
+    let mut cm4 = Cm4Hw::new();
+    crate::arch::cm4::entry::svc_of_ended_job_core(&k, &mut cm4, 0);
+    assert!(sim::read(addr::SHCSR) == pending && sim::write_count() == before);
+    // One Job fewer than at the entry's start: the pending SVC was the ended Job's.
+    crate::arch::cm4::entry::svc_of_ended_job_core(&k, &mut cm4, 1);
+    assert!(sim::read(addr::SHCSR) == pending & !(1 << 15));
+}

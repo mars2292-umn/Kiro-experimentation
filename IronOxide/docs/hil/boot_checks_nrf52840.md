@@ -2,7 +2,7 @@
 
 Verdict: **pass**
 
-Target 1366:1060:001050217737; binary sha256:ecdcf4ae976d7ff83a7fda45b7d8442f862d9e12d86e9218481965d58ec51f71 (the HIL build with the `boot-mutation` feature; one run per case, the mutation word written over the probe before each).
+Target 1366:1060:001050217737; binary sha256:794519a67d044355242d158a0ecf3b0a3c02187c54be1e2b1d0308b392fc4ce2 (the HIL build with the `boot-mutation` feature; one run per case, the mutation word written over the probe before each).
 
 ## Cases
 
@@ -18,7 +18,7 @@ Target 1366:1060:001050217737; binary sha256:ecdcf4ae976d7ff83a7fda45b7d8442f862
 | case 8 (R12.3): the recorded LAYOUT checksum differs from the tables' | pass | safe state reached; boot_check detail 0x2000; bit 13 recorded alone; no Task released |
 | case 9 (R12.2): the recorded interrupt-line count (600) exceeds what the Kernel can serve | pass | safe state reached; boot_check detail 0x40; bit 6 recorded alone; no Task released |
 | case 10 (R12.2): the watchdog started with a 50 ms reload and never fed: the reset lands inside the run and the next boot fails the watchdog check (ORQ-31) | pass | safe state reached; boot_check detail 0x80; bit 7 recorded alone; no Task released |
-| no mutation: the build boots and runs (RSK-OK) | pass | RSK-OK after 10.1 s |
+| no mutation: the build boots and runs (RSK-OK) | pass | RSK-OK after 10.8 s |
 
 ## Target consoles
 
@@ -61,16 +61,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.87s
+     Finished in 8.05s
 Error: Application exit
 ```
 
@@ -113,16 +113,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.93s
+     Finished in 8.04s
 Error: Application exit
 ```
 
@@ -165,16 +165,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.91s
+     Finished in 8.06s
 Error: Application exit
 ```
 
@@ -217,16 +217,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.91s
+     Finished in 8.09s
 Error: Application exit
 ```
 
@@ -269,16 +269,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.93s
+     Finished in 8.00s
 Error: Application exit
 ```
 
@@ -321,16 +321,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.91s
+     Finished in 8.04s
 Error: Application exit
 ```
 
@@ -373,16 +373,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.90s
+     Finished in 8.03s
 Error: Application exit
 ```
 
@@ -425,16 +425,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.89s
+     Finished in 8.07s
 Error: Application exit
 ```
 
@@ -477,16 +477,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.90s
+     Finished in 8.05s
 Error: Application exit
 ```
 
@@ -535,16 +535,16 @@ event=18
 RSK-FAIL
 Firmware exited with: Application exit (Unknown exit code 1)
 Core 0
-    Frame 0: semihosting_exit @ 0xc2b6 inline
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:936:17
-    Frame 1: report_and_exit @ 0xc29a
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:311:5
-    Frame 2: safe_state @ 0xc7e4
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
-    Frame 3: Reset @ 0x1c74
-        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs
+    Frame 0: semihosting_exit @ 0x548
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1472:17
+    Frame 1: report_and_exit @ 0xf3d4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/system/src/lib.rs:527:5
+    Frame 2: safe_state @ 0xf8c4
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/apps/p1-demo/decl/src/nrf52840.rs:9:1
+    Frame 3: Reset @ 0x1fcc
+        /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/crates/rsk-entry/src/lib.rs:142:9
     Frame 4: Reset @ 0x0
-     Finished in 6.95s
+     Finished in 8.04s
 Error: Application exit
 ```
 
@@ -586,30 +586,30 @@ event=18
   prs_hi=0
 RSK-OK
 Firmware exited successfully
-     Finished in 7.07s
+     Finished in 7.93s
 ```
 
 ## Commands
 
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x1
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x2
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x3
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x4
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x5
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x6
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x7
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x8
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x9
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0xa
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault --no-catch-reset /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault --no-catch-reset /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
     probe-rs write --chip nRF52840_xxAA --probe 1366:1060:001050217737 b32 0x2003fff0 0x0
-    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo
+    probe-rs run --chip nRF52840_xxAA --probe 1366:1060:001050217737 --disable-progressbars --catch-hardfault /Users/mars2292/repos/Kiro-experimentation-fixes/IronOxide/target/xtask-hil/boot-checks/thumbv7em-none-eabihf/release/p1-demo

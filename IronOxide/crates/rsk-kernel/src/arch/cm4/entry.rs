@@ -50,7 +50,7 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, frame_in_stack, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
+use super::plan::{compare_target, top_active, frame_in_stack, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
 use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED, EV_STACK_VIOLATION};
@@ -123,6 +123,10 @@ pub const BOOT_FAIL_LAYOUT_CHECKSUM: u32 = 1 << 13;
 /// Bit 15: an EasyDMA register the Kernel mediates lies outside the read-only
 /// windows of its Partition (DD-08, R17.3; audit finding 1).
 pub const BOOT_FAIL_DMA_WINDOW: u32 = 1 << 15;
+/// Bit 16: the vector tables disagree: a Task's dispatch vector is not bound
+/// to its dispatch, or a Sporadic_Task's intake vector not to its intake
+/// (A12, A13; 2026-11-13).
+pub const BOOT_FAIL_VECTORS: u32 = 0x1_0000;
 /// `KernelArch::boot_info` bits.
 pub const BOOT_INFO_DEBUGGER: u32 = 1;
 pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
@@ -330,9 +334,28 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
 pub trait KernelArch: Sized {
     /// The ghost model of what has been written.
     spec fn hw(&self) -> HwModel;
+    /// Ghost: a pending SVCall was dropped, and a stacking fault discarded,
+    /// since this value was created (one per Kernel entry). Kept apart from
+    /// `HwModel`: no action changes them.
+    spec fn svc_dropped(&self) -> bool;
+    spec fn stacking_discarded(&self) -> bool;
     /// Performs one action; the model takes the corresponding step.
     fn apply(&mut self, a: Action)
-        ensures final(self).hw() == step(old(self).hw(), a);
+        ensures final(self).hw() == step(old(self).hw(), a),
+            final(self).svc_dropped() == old(self).svc_dropped(),
+            final(self).stacking_discarded() == old(self).stacking_discarded();
+    /// Audit finding 4: drops a pending SVCall (SHCSR.SVCALLPENDED), which
+    /// can only be that of a Job a Kernel entry other than the SVC handler
+    /// has just ended.
+    fn svc_clear_pending(&mut self)
+        ensures final(self).hw() == old(self).hw(), final(self).svc_dropped(),
+            final(self).stacking_discarded() == old(self).stacking_discarded();
+    /// Audit finding 9: discards the stacking fault of an SVC entry that
+    /// the handler has answered as a stack violation (the pending MemManage
+    /// and its status).
+    fn stacking_fault_discard(&mut self)
+        ensures final(self).hw() == old(self).hw(), final(self).stacking_discarded(),
+            final(self).svc_dropped() == old(self).svc_dropped();
     /// The copy of a message into the Endpoint storage (`len` bytes from the
     /// Partition's `src` to the slot `dst`), returning the first word now
     /// at `dst`: the model records it as the slot's label (A-P2).
@@ -361,23 +384,58 @@ pub trait KernelArch: Sized {
 pub uninterp spec fn spec_endpoint_of<T: ?Sized>(t: &T, i: int) -> EndpointCfg;
 /// The Endpoint storage base of a `Tables` as a specification.
 pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
+/// The Endpoint storage's length in bytes, and the number of Endpoints.
+pub uninterp spec fn spec_storage_len_of<T: ?Sized>(t: &T) -> int;
+pub uninterp spec fn spec_endpoint_count_of<T: ?Sized>(t: &T) -> int;
 /// The stack region `[bottom, top)` of Partition `p` of a `Tables`, as a specification.
 pub uninterp spec fn spec_stack_bottom_of<T: ?Sized>(t: &T, p: int) -> int;
 pub uninterp spec fn spec_stack_top_of<T: ?Sized>(t: &T, p: int) -> int;
 
+/// The vector tables of a `Tables` as specifications (the generated
+/// constants): the binding of an exception number, a Task's dispatch vector,
+/// a Sporadic_Task's intake vector, and the number of interrupt lines.
+pub uninterp spec fn spec_binding_of<T: ?Sized>(t: &T, n: int) -> Binding;
+pub uninterp spec fn spec_dispatch_vector_of<T: ?Sized>(t: &T, task: int) -> int;
+pub uninterp spec fn spec_intake_vector_of<T: ?Sized>(t: &T, task: int) -> Option<u16>;
+pub uninterp spec fn spec_irq_count_of<T: ?Sized>(t: &T) -> int;
+
+/// The vector tables agree for Task `t`: its dispatch vector is bound to its
+/// dispatch, and its intake vector, when it has one, to its intake.
+pub open spec fn vectors_of_ok<T: Tables>(tables: &T, t: int) -> bool {
+    &&& spec_binding_of(tables, spec_dispatch_vector_of(tables, t)) == Binding::Dispatch(t as u8)
+    &&& match spec_intake_vector_of(tables, t) {
+        Some(v) => match spec_binding_of(tables, v as int) {
+            Binding::Intake { task, partition: _ } => task as int == t,
+            _ => false,
+        },
+        None => true,
+    }
+}
+
+/// The vector tables agree for every Task (checked at boot, `vectors_ok`):
+/// so no two Tasks share a vector, and no intake vector is a dispatch vector
+/// (until 2026-11-13 a Generator fact, A12 and A13 of the Verification_Plan).
+pub open spec fn tables_wf<T: Tables>(tables: &T, nt: int) -> bool {
+    forall|t: int| 0 <= t < nt ==> #[trigger] vectors_of_ok(tables, t)
+}
+
 /// What the generated system crate provides (the `System` trait of
 /// `arch`, adapted by `arch::cm4`).
 pub trait Tables {
-    fn binding(&self, n: u16) -> Binding;
-    fn dispatch_vector(&self, t: u8) -> u16;
-    fn intake_vector(&self, t: u8) -> Option<u16>;
+    fn binding(&self, n: u16) -> (b: Binding)
+        ensures b == spec_binding_of(self, n as int);
+    fn dispatch_vector(&self, t: u8) -> (v: u16)
+        ensures v as int == spec_dispatch_vector_of(self, t as int);
+    fn intake_vector(&self, t: u8) -> (v: Option<u16>)
+        ensures v == spec_intake_vector_of(self, t as int);
     fn stack_top(&self, p: u8) -> (a: u32)
         ensures a as int == spec_stack_top_of(self, p as int);
     fn stack_bottom(&self, p: u8) -> (a: u32)
         ensures a as int == spec_stack_bottom_of(self, p as int);
     /// The address of Task `t`'s Job wrapper.
     fn task_entry_address(&self, t: u8) -> u32;
-    fn irq_count(&self) -> u16;
+    fn irq_count(&self) -> (n: u16)
+        ensures n as int == spec_irq_count_of(self);
     fn config_checksum(&self) -> u32;
     fn layout_checksum(&self) -> u32;
     fn timer_vector(&self) -> u16;
@@ -392,13 +450,14 @@ pub trait Tables {
     fn dma_count(&self) -> usize;
     fn dma(&self, i: usize) -> DmaCfg;
     /// The Endpoints (task 21.2) and their Kernel-owned storage (base, bytes).
-    fn endpoint_count(&self) -> usize;
+    fn endpoint_count(&self) -> (n: usize)
+        ensures n as int == spec_endpoint_count_of(self);
     /// The table as a specification (the generated crate's constants, a
     /// pure function of the index; trusted, as every `Tables` method).
     fn endpoint(&self, i: usize) -> (c: EndpointCfg)
         ensures c == spec_endpoint_of(self, i as int);
     fn endpoint_storage(&self) -> (r: (u32, u32))
-        ensures r.0 as int == spec_storage_base_of(self);
+        ensures r.0 as int == spec_storage_base_of(self), r.1 as int == spec_storage_len_of(self);
     /// The Release_Signals (R10.5).
     fn signal_count(&self) -> usize;
     fn signal(&self, i: usize) -> SignalCfg;
@@ -412,15 +471,38 @@ pub trait Tables {
 /// register-facing surface of the planning code.
 pub struct Cm4Hw {
     pub model: Ghost<HwModel>,
+    pub dropped: Ghost<bool>,
+    pub discarded: Ghost<bool>,
 }
 
 impl Cm4Hw {
     pub fn new() -> Cm4Hw {
-        Cm4Hw { model: Ghost(arbitrary()) }
+        Cm4Hw { model: Ghost(arbitrary()), dropped: Ghost(false), discarded: Ghost(false) }
     }
 }
 
 impl KernelArch for Cm4Hw {
+    open spec fn svc_dropped(&self) -> bool {
+        self.dropped@
+    }
+
+    open spec fn stacking_discarded(&self) -> bool {
+        self.discarded@
+    }
+
+    /// Trusted as `apply` (UJ-001: one read and one write of SHCSR; Kani
+    /// `svc_clear_pending_clears_only_the_pending_bit`).
+    #[verifier::external_body]
+    fn svc_clear_pending(&mut self) {
+        super::unsafe_module::hw::svc_clear_pending()
+    }
+
+    /// Trusted as `apply` (UJ-001: CFSR and SHCSR).
+    #[verifier::external_body]
+    fn stacking_fault_discard(&mut self) {
+        super::unsafe_module::hw::stacking_fault_discard()
+    }
+
     open spec fn hw(&self) -> HwModel {
         self.model@
     }
@@ -599,7 +681,9 @@ pub open spec fn booted(h: HwModel) -> bool {
 
 /// Cycles consumed by the executing context since the last switch
 /// (HW-13), updating the switch point.
-fn charge_point<A: KernelArch>(hw: &A, state: &mut ArchState) -> u32 {
+fn charge_point<A: KernelArch>(hw: &A, state: &mut ArchState) -> u32
+    ensures super::plan::arch_frame(*final(state), *old(state)),
+{
     let now = hw.cycles();
     let elapsed = now.wrapping_sub(state.last_switch);
     state.last_switch = now;
@@ -614,6 +698,7 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
     ensures final(hw).hw().basepri == old(hw).hw().basepri,
         final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
         final(hw).hw().compare.is_some(),
 {
     let now = hw.now();
@@ -628,9 +713,16 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
 /// masks, and the Partition requests. Returns whether the Kernel is in the
 /// safe state; the shell then enters `System::safe_state`.
 #[verifier::rlimit(40)]
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
     ensures
+        final(k).task_count_spec() == old(k).task_count_spec(),
+        // A4 and A13 (`vectors_applied`).
+        vectors_applied(old(k), tables, old(hw).hw(), final(hw).hw()),
         final(k).inv(),
         final(k).top_level() == old(k).top_level(),
         final(k).ceiling_level() == old(k).ceiling_level(),
@@ -638,26 +730,55 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         safe ==> final(hw).hw().basepri == 0,
         final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        // The Kernel's stack, the level records and the owed unwind are untouched.
+        final(k).spec_depth() == old(k).spec_depth(),
+        forall|i: int| 0 <= i < old(k).spec_depth() ==> final(k).spec_stack(i) == old(k).spec_stack(i),
+        final(k).spec_prio() == old(k).spec_prio(), final(k).spec_part() == old(k).spec_part(),
+        super::plan::arch_frame(*final(state), *old(state)),
 {
     hw.apply(Action::SetBasepri(k.basepri_now()));
     match k.next_compare() {
         Some(at) => arm_compare(hw, at),
         None => {}
     }
+    let ghost h0 = hw.hw();
     match k.select() {
-        Some(t) => hw.apply(Action::Pend(tables.dispatch_vector(t))),
+        Some(t) => {
+            hw.apply(Action::Pend(tables.dispatch_vector(t)));
+            proof {
+                assert(spec_dispatch_vector_of(tables, t as int) == spec_dispatch_vector_of(tables, t as int));
+                assert(eligible_vector(k, tables, spec_dispatch_vector_of(tables, t as int)));
+            }
+        }
         None => {}
     }
     let ghost h1 = hw.hw();
     let ghost k1 = *k;
+    proof {
+        assert(k1 == *old(k));
+        assert forall|v: int| #[trigger] h1.pending.contains(v) && !old(hw).hw().pending.contains(v)
+            implies eligible_vector(&k1, tables, v) by {}
+    }
     let n = k.task_count();
     let mut t: usize = 0;
     while t < n
         invariant
-            k.inv(), *k == k1, n <= 255,
+            k.inv(), *k == k1, n <= 255, t <= n, n as int == k1.task_count_spec(),
+            tables_wf(tables, k1.task_count_spec()),
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
+            forall|v: int| #[trigger] hw.hw().pending.contains(v) ==> h1.pending.contains(v),
+            forall|u: int| 0 <= u < t ==> #[trigger] intake_done(&k1, tables, hw.hw(), u),
         decreases n - t,
     {
+        let ghost hb = hw.hw();
+        proof {
+            // The vector touched in this round is no earlier Task's.
+            assert(vectors_of_ok(tables, t as int));
+            assert forall|u: int| 0 <= u < t implies spec_intake_vector_of(tables, u) != spec_intake_vector_of(tables, t as int)
+                || spec_intake_vector_of(tables, t as int) is None by {
+                assert(vectors_of_ok(tables, u));
+            }
+        }
         match tables.intake_vector(t as u8) {
             Some(v) => {
                 let partition = k.job_info(t as u8).partition;
@@ -675,14 +796,28 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             }
             None => {}
         }
+        proof {
+            assert forall|u: int| 0 <= u < t + 1 implies #[trigger] intake_done(&k1, tables, hw.hw(), u) by {
+                if u < t {
+                    assert(intake_done(&k1, tables, hb, u));
+                }
+            }
+        }
         t += 1;
     }
+    let ghost h2 = hw.hw();
     let np = k.partition_count();
     let mut p: usize = 0;
     while p < np
         invariant
             k.inv(), np <= 255,
             k.top_level() == k1.top_level(), k.ceiling_level() == k1.ceiling_level(),
+            k.spec_depth() == k1.spec_depth(),
+            forall|i: int| 0 <= i < k1.spec_depth() ==> k.spec_stack(i) == k1.spec_stack(i),
+            k.spec_prio() == k1.spec_prio(), k.spec_part() == k1.spec_part(),
+            k.task_count_spec() == k1.task_count_spec(),
+            super::plan::arch_frame(*state, *old(state)),
+            hw.hw().pending == h2.pending, hw.hw().enabled == h2.enabled,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
         decreases np - p,
     {
@@ -704,11 +839,159 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         }
         p += 1;
     }
-    if k.safe_state() {
+    let safe = k.safe_state();
+    if safe {
         hw.apply(Action::SetBasepri(0));
-        true
-    } else {
-        false
+    }
+    proof {
+        assert(hw.hw().pending == h2.pending && hw.hw().enabled == h2.enabled);
+        assert forall|u: int| 0 <= u < k1.task_count_spec() implies #[trigger] intake_done(&k1, tables, hw.hw(), u) by {
+            assert(intake_done(&k1, tables, h2, u));
+        }
+        assert forall|v: int| #[trigger] hw.hw().pending.contains(v) && !old(hw).hw().pending.contains(v)
+            implies eligible_vector(&k1, tables, v) by {
+            assert(h2.pending.contains(v));
+            assert(h1.pending.contains(v));
+        }
+        reveal(vectors_applied);
+    }
+    safe
+}
+
+/// The boot check of the vector tables (`tables_wf`).
+fn vectors_ok<K: KernelOps, T: Tables>(k: &K, tables: &T) -> (ok: bool)
+    requires k.inv(),
+    ensures ok ==> tables_wf(tables, k.task_count_spec()),
+{
+    let n = k.task_count();
+    let mut t: usize = 0;
+    while t < n
+        invariant
+            t <= n, n as int == k.task_count_spec(), n <= 255,
+            forall|u: int| 0 <= u < t ==> #[trigger] vectors_of_ok(tables, u),
+        decreases n - t,
+    {
+        match tables.binding(tables.dispatch_vector(t as u8)) {
+            Binding::Dispatch(u) => {
+                if u as usize != t {
+                    return false;
+                }
+            }
+            _ => {
+                return false;
+            }
+        }
+        match tables.intake_vector(t as u8) {
+            Some(v) => match tables.binding(v) {
+                Binding::Intake { task, partition: _ } => {
+                    if task as usize != t {
+                        return false;
+                    }
+                }
+                _ => {
+                    return false;
+                }
+            },
+            None => {}
+        }
+        t += 1;
+    }
+    true
+}
+
+/// A3: what boot programs for exception number `v`: a dispatch vector at
+/// the level of its Task's Priority, an intake or Kernel line at the Kernel
+/// level, each enabled; an unbound line disabled (R19.5).
+pub open spec fn boot_vector_ok<K: KernelOps, T: Tables>(k: &K, tables: &T, h: HwModel, v: int) -> bool {
+    match spec_binding_of(tables, v) {
+        Binding::Dispatch(t) => h.priority.contains_key(v) && h.priority[v] == hw_model::encode_level(k.spec_prio()[t as int])
+            && h.enabled.contains(v),
+        Binding::Unbound => !h.enabled.contains(v),
+        _ => h.priority.contains_key(v) && h.priority[v] == hw_model::encode_level(0) && h.enabled.contains(v),
+    }
+}
+
+/// A13: after a Kernel transition the intake vector of Task `u` is enabled
+/// exactly when its source is not masked and its Partition not stopped.
+pub open spec fn intake_done<K: KernelOps, T: Tables>(k: &K, tables: &T, h: HwModel, u: int) -> bool {
+    match spec_intake_vector_of(tables, u) {
+        Some(v) => h.enabled.contains(v as int) <==> !(k.spec_source_masked(u) || k.spec_partition_stopped(k.spec_part()[u])),
+        None => true,
+    }
+}
+
+/// What `apply_core` does to the vectors after a Kernel transition, from the
+/// Kernel state `k` and the hardware state `h0` at its entry. A4: a vector
+/// it pends is the dispatch vector of a Task the Kernel found eligible, and
+/// nothing else is pended. A13: every intake vector is enabled exactly when
+/// its source is unmasked and its Partition not stopped. Opaque: the cores
+/// carry it as one fact.
+#[verifier::opaque]
+pub open spec fn vectors_applied<K: KernelOps, T: Tables>(k: &K, tables: &T, h0: HwModel, h: HwModel) -> bool {
+    &&& forall|v: int| #[trigger] h.pending.contains(v) && !h0.pending.contains(v) ==> eligible_vector(k, tables, v)
+    &&& forall|u: int| 0 <= u < k.task_count_spec() ==> #[trigger] intake_done(k, tables, h, u)
+}
+
+/// A4: vector `v` is the dispatch vector of a Task the Kernel finds eligible.
+pub open spec fn eligible_vector<K: KernelOps, T: Tables>(k: &K, tables: &T, v: int) -> bool {
+    exists|u: int| 0 <= u < k.task_count_spec() && k.task_eligible(u) && v == #[trigger] spec_dispatch_vector_of(tables, u)
+}
+
+/// Boot's vector programming (A3): every interrupt line is disabled, then
+/// given the priority of its binding and enabled; an unbound line stays
+/// disabled (R19.5).
+fn boot_vectors<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T, irqs: u16)
+    requires k.inv(), irqs <= MAX_IRQS,
+    ensures
+        forall|v: int| 16 <= v < 16 + irqs ==> #[trigger] boot_vector_ok(k, tables, final(hw).hw(), v),
+        final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt, final(hw).hw().nonbasethrdena == old(hw).hw().nonbasethrdena,
+        final(hw).hw().disdefwbuf == old(hw).hw().disdefwbuf, final(hw).hw().fpu_eager == old(hw).hw().fpu_eager,
+        final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0,
+        final(hw).hw().mpu_enabled == old(hw).hw().mpu_enabled, final(hw).hw().timebase_running == old(hw).hw().timebase_running,
+        final(hw).hw().dwt_enabled == old(hw).hw().dwt_enabled, final(hw).hw().watchdog_running == old(hw).hw().watchdog_running,
+        final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost h1 = hw.hw();
+    let end: u16 = 16 + irqs;
+    let mut n: u16 = 16;
+    while n < end
+        invariant
+            k.inv(), end <= 16 + MAX_IRQS, 16 <= n <= end,
+            forall|v: int| 16 <= v < n ==> #[trigger] boot_vector_ok(k, tables, hw.hw(), v),
+            hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt, hw.hw().nonbasethrdena == h1.nonbasethrdena,
+            hw.hw().disdefwbuf == h1.disdefwbuf, hw.hw().fpu_eager == h1.fpu_eager,
+            hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0,
+            hw.hw().mpu_enabled == h1.mpu_enabled, hw.hw().timebase_running == h1.timebase_running,
+            hw.hw().dwt_enabled == h1.dwt_enabled, hw.hw().watchdog_running == h1.watchdog_running,
+            hw.hw().view == h1.view,
+        decreases end - n,
+    {
+        let ghost hb = hw.hw();
+        hw.apply(Action::Disable(n));
+        match tables.binding(n) {
+            Binding::Dispatch(t) => {
+                let p = k.job_info(t).priority;
+                hw.apply(Action::SetPriority(n, encode_level(p)));
+                hw.apply(Action::Enable(n));
+            }
+            Binding::Intake { task: _, partition: _ } => {
+                hw.apply(Action::SetPriority(n, encode_level(0)));
+                hw.apply(Action::Enable(n));
+            }
+            Binding::Kernel => {
+                hw.apply(Action::SetPriority(n, encode_level(0)));
+                hw.apply(Action::Enable(n));
+            }
+            Binding::Unbound => {}
+        }
+        proof {
+            assert forall|v: int| 16 <= v < n + 1 implies #[trigger] boot_vector_ok(k, tables, hw.hw(), v) by {
+                if v < n {
+                    assert(boot_vector_ok(k, tables, hb, v));
+                }
+            }
+        }
+        n += 1;
     }
 }
 
@@ -719,17 +1002,46 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
 /// Partition stack floors, the MPU background map, the time base, and the
 /// DWT. Returns `false` when a check fails (R12.2); the shell then enters
 /// the safe state.
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (ok: bool)
     ensures
         ok ==> final(k).inv(),
         ok ==> booted(final(hw).hw()),
         ok ==> final(state).booted,
+        // Boot establishes the invariant of the entry cores: no level
+        // record is active, nothing is owed, and no Job is in progress.
+        ok ==> arch_inv(final(k), *final(state), 0),
+        ok ==> view_matches(*final(state), final(hw)),
+        // The vector tables agree (A12, A13), and every vector has its
+        // priority and its enable (A3).
+        ok ==> tables_wf(tables, final(k).task_count_spec()),
+        ok ==> forall|v: int| 16 <= v < 16 + spec_irq_count_of(tables) ==> #[trigger] boot_vector_ok(final(k), tables, final(hw).hw(), v),
 {
     hw.apply(Action::Trace(TR_BOOT, 0));
     if !k.validate() {
         hw.apply(Action::Trace(TR_INVALID, 0));
         return false;
     }
+    // No level record is of a Job in progress and no unwind is owed, whatever
+    // the initializer held (the invariant `arch_inv` starts here).
+    let mut l: usize = 0;
+    while l < 8
+        invariant l <= 8, forall|i: int| 0 <= i < l ==> !(#[trigger] state.levels[i]).active,
+        decreases 8 - l,
+    {
+        let mut rec = state.levels[l];
+        rec.active = false;
+        state.levels[l] = rec;
+        l += 1;
+    }
+    state.pending_unwind = 0;
+    state.current_partition = 0xFF;
+    state.chain = Ghost(Seq::empty());
+    state.chain_levels = Ghost(Seq::empty());
+    let ghost sb = *state;
     k.init();
     // The debug state and the reset reason go to the log first (ORQ-30,
     // ORQ-31); a watchdog reset is then treated as a failed check.
@@ -751,6 +1063,14 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     }
     if !dma_windows_ok(k, tables) {
         failed = failed | BOOT_FAIL_DMA_WINDOW;
+    }
+    let vectors = vectors_ok(k, tables);
+    if !vectors {
+        let before = failed;
+        failed = before | BOOT_FAIL_VECTORS;
+        proof {
+            assert(before | 0x10000u32 != 0) by (bit_vector);
+        }
     }
     let irqs = tables.irq_count();
     if irqs > MAX_IRQS {
@@ -775,42 +1095,12 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     hw.apply(Action::Disdefwbuf(true));
     hw.apply(Action::FpuEager(tables.fp_flush_to_zero()));
     hw.apply(Action::KernelExceptionPriorities);
-    let ghost h1 = hw.hw();
-    let end: u16 = 16 + irqs;
-    let mut n: u16 = 16;
-    while n < end
-        invariant
-            k.inv(), end <= 16 + MAX_IRQS,
-            hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt, hw.hw().nonbasethrdena == h1.nonbasethrdena,
-            hw.hw().disdefwbuf == h1.disdefwbuf, hw.hw().fpu_eager == h1.fpu_eager,
-            hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0,
-            hw.hw().mpu_enabled == h1.mpu_enabled, hw.hw().timebase_running == h1.timebase_running,
-            hw.hw().dwt_enabled == h1.dwt_enabled,
-        decreases end - n,
-    {
-        hw.apply(Action::Disable(n));
-        match tables.binding(n) {
-            Binding::Dispatch(t) => {
-                let p = k.job_info(t).priority;
-                hw.apply(Action::SetPriority(n, encode_level(p)));
-                hw.apply(Action::Enable(n));
-            }
-            Binding::Intake { task: _, partition: _ } => {
-                hw.apply(Action::SetPriority(n, encode_level(0)));
-                hw.apply(Action::Enable(n));
-            }
-            Binding::Kernel => {
-                hw.apply(Action::SetPriority(n, encode_level(0)));
-                hw.apply(Action::Enable(n));
-            }
-            Binding::Unbound => {}
-        }
-        n += 1;
-    }
+    boot_vectors(k, hw, tables, irqs);
+    let ghost hl = hw.hw();
     let np = k.partition_count();
     let mut p: usize = 0;
     while p < np && p < MAX_FLOORS
-        invariant p <= MAX_FLOORS,
+        invariant p <= MAX_FLOORS, super::plan::arch_frame(*state, sb),
         decreases MAX_FLOORS - p,
     {
         state.floor[p] = tables.stack_top(p as u8);
@@ -824,6 +1114,14 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     hw.apply(Action::DwtEnable);
     state.booted = true;
     hw.apply(Action::Trace(TR_BOOTED, 1));
+    proof {
+        k.lemma_stack_rising();
+        lemma_fresh(k, *state);
+        assert(hw.hw().priority == hl.priority && hw.hw().enabled == hl.enabled);
+        assert forall|v: int| 16 <= v < 16 + spec_irq_count_of(tables) implies #[trigger] boot_vector_ok(k, tables, hw.hw(), v) by {
+            assert(boot_vector_ok(k, tables, hl, v));
+        }
+    }
     true
 }
 
@@ -837,12 +1135,14 @@ fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     ensures
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
 {
     let ghost h0 = hw.hw();
     let n = tables.dma_count();
     let mut i: usize = 0;
     while i < n
         invariant hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
+            hw.hw().pending == h0.pending, hw.hw().enabled == h0.enabled,
         decreases n - i,
     {
         let d = tables.dma(i);
@@ -915,9 +1215,13 @@ fn dma_boot<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &
 /// DMA-permitted memory, is programmed; anything else is refused before
 /// any register is written, and the refusal is a spatial violation of the
 /// Partition (R14.3). Returns whether the request was accepted.
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, ptr: u32, len: u32) -> (ok: bool)
     requires old(k).inv(),
-    ensures final(k).inv(),
+    ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         ok ==> *final(k) == *old(k),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
@@ -958,7 +1262,7 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
 /// way. Returns whether the write was performed.
 fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, offset: u32, value: u32) -> (ok: bool)
     requires old(k).inv(),
-    ensures final(k).inv(),
+    ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         ok ==> *final(k) == *old(k),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
@@ -1008,7 +1312,7 @@ fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
 /// Job only its Partition's signals, PR-06) and a fault of the Partition.
 fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize) -> (ok: bool)
     requires old(k).inv(),
-    ensures final(k).inv(),
+    ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
 {
@@ -1074,13 +1378,43 @@ fn role_slot(e: usize, r: usize) -> (i: usize)
     e * MAX_ROLES + r
 }
 
+/// Partition `p` holds a role of `cfg`.
+pub open spec fn spec_partition_in(cfg: EndpointCfg, p: int) -> bool {
+    exists|i: int| 0 <= i < MAX_ROLES && i < cfg.roles as int && (#[trigger] cfg.partitions[i]) as int == p
+}
+
+/// Every channel of Endpoint `e` is empty and its delivery latch clear.
+pub open spec fn endpoint_cleared(state: ArchState, e: int) -> bool {
+    forall|i: int| e * 16 <= i < e * 16 + 16 ==> (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i]
+}
+
+/// The roles of Endpoint `e` in Partitions other than `p` have their
+/// peer-state flag set (R42.3).
+pub open spec fn peers_told(state: ArchState, cfg: EndpointCfg, e: int, p: int) -> bool {
+    forall|q: int| 0 <= q < MAX_ROLES && q < cfg.roles as int && cfg.partitions[q] as int != p ==> #[trigger] state.peer_changed[e * 4 + q]
+}
+
+/// The re-initialization of Partition `p`'s Endpoint roles, for Endpoint
+/// `e` (A-P6): cleared and its peers told when `p` holds a role of it,
+/// its channels untouched otherwise.
+pub open spec fn reinit_done<T: Tables>(tables: &T, state: ArchState, old: ArchState, e: int, p: int) -> bool {
+    let cfg = spec_endpoint_of(tables, e);
+    if spec_partition_in(cfg, p) {
+        endpoint_cleared(state, e) && peers_told(state, cfg, e, p)
+    } else {
+        forall|i: int| e * 16 <= i < e * 16 + 16 ==> (#[trigger] state.fifos[i]) == old.fifos[i] && state.delivered[i] == old.delivered[i]
+    }
+}
+
 /// Whether Partition `p` holds a role of `cfg`.
 fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
+    ensures r == spec_partition_in(*cfg, p as int),
 {
     let mut i: usize = 0;
     let mut found = false;
     while i < MAX_ROLES
         invariant i <= MAX_ROLES,
+            found == (exists|j: int| 0 <= j < i && j < cfg.roles as int && (#[trigger] cfg.partitions[j]) as int == p as int),
         decreases MAX_ROLES - i,
     {
         if (i as u8) < cfg.roles && cfg.partitions[i] == p {
@@ -1094,7 +1428,15 @@ fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
 /// Empties every channel of Endpoint `e`.
 fn clear_channels(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
+    ensures super::plan::arch_frame(*final(state), *old(state)),
+        // A-P6 (audit finding 14): every channel of the Endpoint is empty and
+        // its delivery latch clear; nothing else changes.
+        endpoint_cleared(*final(state), e as int),
+        forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * 16 <= i < e as int * 16 + 16)
+            ==> (#[trigger] final(state).fifos[i]) == old(state).fifos[i] && final(state).delivered[i] == old(state).delivered[i],
+        final(state).peer_changed == old(state).peer_changed,
 {
+    let ghost before = *state;
     assert(MAX_ROLES * MAX_ROLES == 16) by (compute);
     assert(MAX_CHANNELS == 128) by (compute);
     assert(e * 16 + 16 <= 128) by (nonlinear_arith)
@@ -1102,7 +1444,12 @@ fn clear_channels(state: &mut ArchState, e: usize)
     let base = e * (MAX_ROLES * MAX_ROLES);
     let mut c: usize = 0;
     while c < MAX_ROLES * MAX_ROLES
-        invariant c <= 16, base + 16 <= MAX_CHANNELS, MAX_ROLES * MAX_ROLES == 16,
+        invariant c <= 16, base + 16 <= MAX_CHANNELS, MAX_ROLES * MAX_ROLES == 16, base == e * 16,
+            super::plan::arch_frame(*state, *old(state)),
+            forall|i: int| base as int <= i < base as int + c ==> (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i],
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c)
+                ==> (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i],
+            state.peer_changed == before.peer_changed,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
@@ -1112,21 +1459,113 @@ fn clear_channels(state: &mut ArchState, e: usize)
     }
 }
 
-fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
+/// One round of `endpoint_reinit`: from the state `s_e` before Endpoint `e`
+/// was considered to the state `s` after it. The round touched the channels
+/// and the flags of Endpoint `e` only, and set flags without clearing any.
+proof fn lemma_reinit_round<T: Tables>(tables: &T, before: ArchState, s_e: ArchState, s: ArchState, e: int, p: int)
+    requires
+        0 <= e < 8,
+        forall|f: int| 0 <= f < e ==> #[trigger] reinit_done(tables, s_e, before, f, p),
+        forall|i: int| e * 16 <= i < 128 ==> (#[trigger] s_e.fifos[i]) == before.fifos[i] && s_e.delivered[i] == before.delivered[i],
+        forall|i: int| 0 <= i < 128 && !(e * 16 <= i < e * 16 + 16) ==> (#[trigger] s.fifos[i]) == s_e.fifos[i] && s.delivered[i] == s_e.delivered[i],
+        forall|i: int| 0 <= i < 32 && s_e.peer_changed[i] ==> #[trigger] s.peer_changed[i],
+        spec_partition_in(spec_endpoint_of(tables, e), p)
+            ==> endpoint_cleared(s, e) && peers_told(s, spec_endpoint_of(tables, e), e, p),
+        !spec_partition_in(spec_endpoint_of(tables, e), p)
+            ==> forall|i: int| e * 16 <= i < e * 16 + 16 ==> (#[trigger] s.fifos[i]) == s_e.fifos[i] && s.delivered[i] == s_e.delivered[i],
+    ensures
+        forall|f: int| 0 <= f < e + 1 ==> #[trigger] reinit_done(tables, s, before, f, p),
+        forall|i: int| (e + 1) * 16 <= i < 128 ==> (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i],
+{
+    assert forall|f: int| 0 <= f < e + 1 implies #[trigger] reinit_done(tables, s, before, f, p) by {
+        let cf = spec_endpoint_of(tables, f);
+        if f < e {
+            assert(reinit_done(tables, s_e, before, f, p));
+            assert forall|i: int| f * 16 <= i < f * 16 + 16
+                implies (#[trigger] s.fifos[i]) == s_e.fifos[i] && s.delivered[i] == s_e.delivered[i] by {
+                assert(f * 16 + 16 <= e * 16);
+                assert(0 <= i);
+                assert(i < 128);
+                assert(!(e * 16 <= i < e * 16 + 16));
+                assert(s.fifos[i] == s_e.fifos[i]);
+                assert(s.delivered[i] == s_e.delivered[i]);
+            }
+            if spec_partition_in(cf, p) {
+                assert(endpoint_cleared(s_e, f));
+                assert forall|i: int| f * 16 <= i < f * 16 + 16
+                    implies (#[trigger] s.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !s.delivered[i] by {
+                    assert(s_e.fifos[i] == crate::logic::endpoint::Fifo::empty_spec());
+                }
+                assert(peers_told(s_e, cf, f, p));
+                assert forall|q: int| 0 <= q < MAX_ROLES && q < cf.roles as int && cf.partitions[q] as int != p
+                    implies #[trigger] s.peer_changed[f * 4 + q] by {
+                    assert(s_e.peer_changed[f * 4 + q]);
+                }
+            } else {
+                assert forall|i: int| f * 16 <= i < f * 16 + 16
+                    implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
+                    assert(s_e.fifos[i] == before.fifos[i]);
+                }
+            }
+        } else if !spec_partition_in(cf, p) {
+            assert forall|i: int| f * 16 <= i < f * 16 + 16
+                implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
+                assert(s_e.fifos[i] == before.fifos[i]);
+            }
+        }
+    }
+    assert forall|i: int| (e + 1) * 16 <= i < 128
+        implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
+        assert(s_e.fifos[i] == before.fifos[i]);
+    }
+}
+
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
+fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
+    ensures super::plan::arch_frame(*final(state), *old(state)),
+        // A-P6 for a Partition's stop or restart (audit finding 14): every
+        // Endpoint with a role of the Partition has its channels emptied,
+        // its latches cleared, and its other Partitions' roles told; no
+        // other Endpoint's channel changes.
+        forall|e: int| 0 <= e < MAX_ENDPOINTS && e < spec_endpoint_count_of(tables)
+            ==> #[trigger] reinit_done(tables, *final(state), *old(state), e, p as int),
+{
+    let ghost before = *state;
     let n = tables.endpoint_count();
     let mut e: usize = 0;
     while e < n && e < MAX_ENDPOINTS
-        invariant e <= MAX_ENDPOINTS,
+        invariant e <= MAX_ENDPOINTS, n as int == spec_endpoint_count_of(tables),
+            super::plan::arch_frame(*state, *old(state)),
+            forall|f: int| 0 <= f < e ==> #[trigger] reinit_done(tables, *state, before, f, p as int),
+            forall|i: int| e as int * 16 <= i < MAX_CHANNELS
+                ==> (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i],
         decreases MAX_ENDPOINTS - e,
     {
+        let ghost s_e = *state;
+        proof {
+            assert(MAX_CHANNELS == 128 && MAX_ROLE_SLOTS == 32) by (compute);
+            assert forall|i: int| e as int * 16 <= i < 128
+                implies (#[trigger] s_e.fifos[i]) == before.fifos[i] && s_e.delivered[i] == before.delivered[i] by {
+                assert(state.fifos[i] == before.fifos[i]);
+            }
+        }
         let cfg = tables.endpoint(e);
         if partition_in(&cfg, p) {
             clear_channels(state, e);
+            let ghost s_c = *state;
             // Every role of another Partition is marked (task 21.7: all
             // roles of a multiparty Endpoint start over together).
             let mut r: usize = 0;
             while r < MAX_ROLES
                 invariant r <= MAX_ROLES, e < MAX_ENDPOINTS,
+                    super::plan::arch_frame(*state, *old(state)),
+                    state.fifos == s_c.fifos, state.delivered == s_c.delivered,
+                    forall|i: int| 0 <= i < MAX_ROLE_SLOTS && s_c.peer_changed[i] ==> #[trigger] state.peer_changed[i],
+                    forall|q: int| 0 <= q < r && q < cfg.roles as int && cfg.partitions[q] as int != p as int
+                        ==> #[trigger] state.peer_changed[e as int * 4 + q],
                 decreases MAX_ROLES - r,
             {
                 if (r as u8) < cfg.roles && cfg.partitions[r] != p {
@@ -1134,6 +1573,19 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
                 }
                 r += 1;
             }
+            proof {
+                assert(endpoint_cleared(s_c, e as int));
+                assert forall|i: int| e as int * 16 <= i < e as int * 16 + 16
+                    implies (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i] by {
+                    assert(s_c.fifos[i] == crate::logic::endpoint::Fifo::empty_spec());
+                }
+                assert(endpoint_cleared(*state, e as int));
+                assert(peers_told(*state, cfg, e as int, p as int));
+            }
+        }
+        proof {
+            assert(MAX_CHANNELS == 128 && MAX_ROLE_SLOTS == 32) by (compute);
+            lemma_reinit_round(tables, before, s_e, *state, e as int, p as int);
         }
         e += 1;
     }
@@ -1166,6 +1618,7 @@ fn channel_push(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
             && final(state).fifos[ch as int] == channel_before(old(state).fifos[ch as int], cap as int),
         forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
         final(state).peer_changed == old(state).peer_changed,
+        super::plan::arch_frame(*final(state), *old(state)),
 {
     if !state.fifos[ch].is_wf(cap) {
         state.fifos[ch].clear();
@@ -1190,6 +1643,7 @@ fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
             && final(state).fifos[ch as int] == channel_before(old(state).fifos[ch as int], cap as int),
         forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
         final(state).peer_changed == old(state).peer_changed,
+        super::plan::arch_frame(*final(state), *old(state)),
 {
     if !state.fifos[ch].is_wf(cap) {
         state.fifos[ch].clear();
@@ -1226,6 +1680,7 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
         // R42.4 (audit finding 2): the Endpoint's delivery latches are clear, the others unchanged.
         forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
         forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).delivered[i] == old(state).delivered[i],
+        super::plan::arch_frame(*final(state), *old(state)),
 {
     let ghost before = *state;
     assert(e * (MAX_ROLES * MAX_ROLES) <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES)) by (nonlinear_arith)
@@ -1242,6 +1697,7 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
             forall|i: int| base as int <= i < base as int + c ==> !(#[trigger] state.delivered[i]),
             forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c) ==> #[trigger] state.delivered[i] == before.delivered[i],
             state.peer_changed == before.peer_changed,
+            super::plan::arch_frame(*state, before),
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
@@ -1259,6 +1715,7 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
             forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] state.delivered[i] == before.delivered[i],
             forall|i: int| rbase as int <= i < rbase as int + r ==> #[trigger] state.peer_changed[i],
             forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(rbase as int <= i < rbase as int + r) ==> #[trigger] state.peer_changed[i] == before.peer_changed[i],
+            super::plan::arch_frame(*state, before),
         decreases MAX_ROLES - r,
     {
         state.peer_changed[rbase + r] = true;
@@ -1278,7 +1735,7 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
 /// or an unknown form, is API misuse of the caller.
 fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut ArchState, arg: u32)
     requires old(k).inv(),
-    ensures final(k).inv(),
+    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
 {
     let t = match k.top() {
         Some(t) => t,
@@ -1343,7 +1800,7 @@ pub open spec fn spec_rejection_permitted(cfg: EndpointCfg, state: ArchState, e:
 /// could impose a higher one's fault response with one call.
 fn rejection_core<K: KernelOps>(k: &mut K, state: &mut ArchState, cfg: &EndpointCfg, e: usize, role: usize, from: usize)
     requires old(k).inv(), e < MAX_ENDPOINTS, role < MAX_ROLES, from < MAX_ROLES,
-    ensures final(k).inv(),
+    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> *final(state) == *old(state),
         spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==>
             forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
@@ -1369,7 +1826,14 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
         && (r.unwrap().1 as int) < r.unwrap().3.roles as int && (r.unwrap().2 as int) < r.unwrap().3.roles as int && r.unwrap().3.roles as int <= MAX_ROLES as int
         && r.unwrap().3.capacity >= 1 && r.unwrap().3.payload >= 4 && r.unwrap().3.payload % 4 == 0
         && r.unwrap().0 as int == (arg & 0xFF) as int && r.unwrap().1 as int == ((arg >> 8) & 0xF) as int && r.unwrap().2 as int == ((arg >> 12) & 0xF) as int
-        && r.unwrap().3 == spec_endpoint_of(tables, (arg & 0xFF) as int),
+        && r.unwrap().3 == spec_endpoint_of(tables, (arg & 0xFF) as int)
+        // R42.2 (audit finding 13): the message is word-aligned, of the
+        // Endpoint's payload length, and inside the RAM interval of the
+        // Partition of the role, which is the executing Job's Task's.
+        && ptr % 4 == 0 && len == r.unwrap().3.payload as u32
+        && (r.unwrap().3.partitions[r.unwrap().1 as int] as int) < k.partition_count_spec()
+        && k.message_permitted_spec(r.unwrap().3.partitions[r.unwrap().1 as int] as int, ptr as int, len as int)
+        && crate::arch::bound::top_task(k) == r.unwrap().3.tasks[r.unwrap().1 as int] as int,
 {
     // Task 21.7: `arg` = e | role << 8 | peer << 12 (the role performing
     // the operation, and the role it sends to or receives from).
@@ -1401,6 +1865,40 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
 /// The Kernel storage address of slot `slot` of channel `d` of `cfg`, when
 /// the slot's bytes lie inside the Endpoint storage; `None` otherwise (a
 /// Generated_Config the Generator never emits: the backstop is a refusal).
+/// `[a, a + len)` lies inside the Kernel-owned Endpoint storage (R16.1).
+pub open spec fn storage_permitted<T: Tables>(tables: &T, a: int, len: int) -> bool {
+    spec_storage_base_of(tables) <= a && a + len <= spec_storage_base_of(tables) + spec_storage_len_of(tables)
+}
+
+/// The copy of a message into the Endpoint storage, confined (R42.2, DD-09;
+/// audit finding 13): the source lies in the RAM interval of Partition `p`
+/// and the destination inside the Endpoint storage. The cores copy in
+/// through this function only.
+fn copy_in_checked<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T, Ghost(p): Ghost<int>, dst: u32, src: u32, len: u32) -> (first: u32)
+    requires
+        k.inv(), 0 <= p < k.partition_count_spec(), src % 4 == 0,
+        k.message_permitted_spec(p, src as int, len as int),
+        storage_permitted(tables, dst as int, len as int),
+    ensures final(hw).hw() == (HwModel { store: old(hw).hw().store.insert(dst as int, first as int), ..old(hw).hw() }),
+{
+    hw.copy_in(dst, src, len)
+}
+
+/// The copy of a message out of the Endpoint storage, confined as
+/// `copy_in_checked`: the destination lies in the RAM interval of Partition
+/// `p` and the source inside the Endpoint storage.
+fn copy_out_checked<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T, Ghost(p): Ghost<int>, dst: u32, src: u32, len: u32) -> (first: u32)
+    requires
+        k.inv(), 0 <= p < k.partition_count_spec(), dst % 4 == 0,
+        k.message_permitted_spec(p, dst as int, len as int),
+        storage_permitted(tables, src as int, len as int),
+    ensures
+        final(hw).hw() == old(hw).hw(),
+        old(hw).hw().store.contains_key(src as int) ==> first as int == old(hw).hw().store[src as int],
+{
+    hw.copy_out(dst, src, len)
+}
+
 /// The address of slot `slot` of channel `d` of an Endpoint (A-P2).
 pub open spec fn slot_addr(base: int, cfg: EndpointCfg, d: int, slot: int) -> int {
     base + cfg.storage as int + (d * cfg.capacity as int + slot) * cfg.payload as int
@@ -1439,6 +1937,8 @@ proof fn lemma_next_slot_fresh(f: crate::logic::endpoint::Fifo, cap: int)
 fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -> (a: Option<u32>)
     requires d < MAX_ROLES * MAX_ROLES,
     ensures a is Some ==> a.unwrap() as int == slot_addr(spec_storage_base_of(tables), *cfg, d as int, slot as int),
+        // Audit finding 13: the slot's bytes lie inside the Endpoint storage.
+        a is Some ==> storage_permitted(tables, a.unwrap() as int, cfg.payload as int),
 {
     let (base, total) = tables.endpoint_storage();
     let payload = cfg.payload as u64;
@@ -1555,7 +2055,7 @@ proof fn lemma_recv_labels(base: int, cfg: EndpointCfg, d: int, before: crate::l
 
 fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
     requires old(k).inv(),
-    ensures final(k).inv(),
+    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
         // A-P2 (2026-11-09): an accepted send appends the message's first
@@ -1592,7 +2092,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(dst) => {
-            let first = hw.copy_in(dst, ptr, len);
+            let first = copy_in_checked(k, hw, tables, Ghost(cfg.partitions[role as int] as int), dst, ptr, len);
             proof {
                 let base = spec_storage_base_of(tables);
                 let cap = cfg.capacity as int;
@@ -1632,7 +2132,9 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 /// copies it into the Partition; an empty channel returns `ENDPOINT_EMPTY`.
 fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (r: (u32, Ghost<int>))
     requires old(k).inv(),
-    ensures final(k).inv(),
+    ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // A receive that is not refused leaves the Kernel's stack as it was.
+        r.0 != ENDPOINT_REFUSED ==> final(k).spec_depth() == old(k).spec_depth(),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
         // A-P2 (2026-11-09): an accepted receive takes the oldest label of
@@ -1664,7 +2166,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
-            let first = hw.copy_out(ptr, src, len);
+            let first = copy_out_checked(k, hw, tables, Ghost(cfg.partitions[role as int] as int), ptr, src, len);
             // R42.4 (audit finding 2): a delivery over a validated upward
             // edge permits one rejection report of this role against `from`.
             if cfg.validates[role][from] {
@@ -1689,15 +2191,24 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 /// under PRIMASK. Returns whether the Kernel entered the safe state (the
 /// shell then enters `System::safe_state` with PRIMASK still set).
 pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !safe ==> basepri_matches(final(k), final(hw)) && !final(hw).hw().primask,
+        arch_inv(final(k), *final(state), 0),
+        records_same(*final(state), *old(state)),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
     hw.apply(Action::PrimaskSet);
     state.last_switch = hw.cycles();
     k.start();
     let safe = apply_core(k, hw, tables, state);
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, 0);
+    }
     hw.apply(Action::Trace(TR_START, 0));
     if !safe {
         hw.apply(Action::PrimaskClear);
@@ -1729,56 +2240,971 @@ pub fn psp_in_stack<T: Tables>(tables: &T, state: &ArchState, psp: u32) -> (ok: 
     frame_in_stack(psp, tables.stack_bottom(p), tables.stack_top(p))
 }
 
+/// Audit finding 4 (2026-11-13): a Kernel entry other than the SVC handler
+/// that ended a Job (fewer Jobs in progress than `depth_before`, the depth
+/// at its start) drops a pending SVCall, which can only be the ended
+/// executing Job's. Until the shells' decisions moved into the cores (the
+/// same date, later) this was a function of `arch::cm4`'s shells.
+#[inline(always)]
+pub fn svc_of_ended_job_core<K: KernelOps, A: KernelArch>(k: &K, hw: &mut A, depth_before: usize)
+    ensures
+        final(hw).hw() == old(hw).hw(),
+        final(hw).stacking_discarded() == old(hw).stacking_discarded(),
+        k.spec_depth() < depth_before as int ==> final(hw).svc_dropped(),
+        k.spec_depth() >= depth_before as int ==> final(hw).svc_dropped() == old(hw).svc_dropped(),
+{
+    if k.depth() < depth_before {
+        hw.svc_clear_pending();
+    }
+}
+
+/// The SVC handler's stack check (R16.5; the audit's findings 8 and 9 and
+/// contested finding D), before anything is read or written through the
+/// process stack pointer `psp`, the SVC instruction's number included.
+/// `None`: the SVC was not issued by a Job on its process stack
+/// (EXC_RETURN bit 2 clear: the frame is on the main stack; or no Job
+/// executes), or its frame lies inside the stack region of the executing
+/// Job's Partition; the SVC is served and nothing has changed. Otherwise
+/// the Job has a stack violation: the Partition's fault response is
+/// applied, the stacking fault pending behind this handler is discarded,
+/// and the plan unwinds the ended Job.
+pub fn svc_check_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, psp: u32, exc_return: u32,
+) -> (r: Option<(ReturnPlan, bool)>)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r is None ==> *final(k) == *old(k) && *final(state) == *old(state) && final(hw).hw() == old(hw).hw(),
+        // A frame on the process stack is read only inside the stack region
+        // of the executing Job's Partition.
+        r is None && exc_return & 4 != 0 && old(state).current_partition != 0xFF
+            ==> spec_psp_in_stack(tables, old(state).current_partition as int, psp as int),
+        r is Some ==> kentry_rel(final(k), *old(state), *final(state), r.unwrap().0 as int)
+            && final(hw).hw().view == old(hw).hw().view
+            && final(hw).stacking_discarded(),
+        r is Some && r.unwrap().1 ==> final(hw).hw().basepri == 0,
+{
+    if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) {
+        return None;
+    }
+    let (hop, safe) = stack_violation_core(k, hw, tables, state);
+    hw.stacking_fault_discard();
+    Some((hop, safe))
+}
+
+/// Whether the stacked PC of a faulting context may be read for the fault
+/// record (R14.3; the audit's contested finding A): the frame at `frame`
+/// was stacked (no CFSR.MSTKERR, bit 4: the fault is not this entry's own
+/// stacking failure) and, on the process stack, lies inside the stack
+/// region of the executing Job's Partition.
+pub fn fault_frame_readable<T: Tables>(tables: &T, state: &ArchState, cfsr: u32, frame: u32, exc_return: u32) -> (ok: bool)
+    ensures
+        ok ==> cfsr & 0x10 == 0,
+        ok && exc_return & 4 != 0 ==> state.current_partition != 0xFF
+            && spec_psp_in_stack(tables, state.current_partition as int, frame as int),
+{
+    if cfsr & 0x10 != 0 {
+        return false;
+    }
+    if exc_return & 4 != 0 {
+        return psp_in_stack(tables, state, frame);
+    }
+    true
+}
+
 /// The response to a process stack pointer outside the Partition's stack
 /// region: a stack violation of the executing Job's Partition (R16.5,
 /// R14.3; a Kernel fault when no Job executes), recorded and answered with
 /// the Partition's fault response, and the unwind plan of the Job that
 /// response ended. Nothing is read or written through the pointer.
 pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+        ended_plan(final(k), old(k), *final(state), r.0 as int),
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
     hw.apply(Action::Trace(TR_INVALID, 2));
-    let top_before = k.top();
+    let depth_before = k.depth();
     k.fault(EV_STACK_VIOLATION, false);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, top_before);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
     (hop, safe)
 }
 
-/// After a transition that may have ended the executing Job: the unwind
-/// plan naming its level's exception number, or 0.
-fn end_plan_core<K: KernelOps>(k: &K, state: &ArchState, top_before: Option<u8>) -> ReturnPlan
-    requires k.inv(),
+/// The record of level `l` is the one of the Job at position `i` of the
+/// Kernel's preemption stack: active, for that Task, and naming the Task
+/// below it as the Job it preempted (0xFF at the bottom).
+pub open spec fn record_at<K: KernelOps>(k: &K, state: ArchState, i: int, l: int) -> bool {
+    &&& state.levels[l].active
+    &&& state.levels[l].task as int == k.spec_stack(i)
+    &&& state.levels[l].previous_task as int == (if i == 0 { 0xFF } else { k.spec_stack(i - 1) })
+}
+
+/// Kernel_Arch's level records correspond one to one to the Kernel's
+/// preemption stack: every Job in progress has its record, and every active
+/// record is the record of a Job in progress (none for a Job the Kernel no
+/// longer holds). The order is the stack's: Priorities rise strictly along
+/// it (`Sched::inv`) and a record's index is its Task's Priority.
+///
+/// Established as an invariant of the entry cores on 2026-11-13 (the review
+/// of the audit fixes): `arch_inv` below is required and ensured by every
+/// entry core, and `lemma_arch_matches` derives this predicate from it
+/// whenever no unwind is owed. Inside a Kernel entry, from a transition that
+/// ends Jobs to the unwinds that follow, the records run ahead of the stack;
+/// `arch_inv` states that intermediate form with the stubs' unwind plans.
+pub open spec fn arch_matches<K: KernelOps>(k: &K, state: ArchState) -> bool {
+    &&& forall|i: int| 0 <= i < k.spec_depth() ==> #[trigger] has_record(k, state, i)
+    &&& forall|l: int| 0 <= l < 8 && state.levels[l].active ==> #[trigger] is_held(k, state, l)
+}
+
+/// The Job at position `i` of the Kernel's stack has its level record.
+pub open spec fn has_record<K: KernelOps>(k: &K, state: ArchState, i: int) -> bool {
+    exists|l: int| 0 <= l < 8 && #[trigger] record_at(k, state, i, l)
+}
+
+/// The record of level `l` is the record of a Job the Kernel holds.
+pub open spec fn is_held<K: KernelOps>(k: &K, state: ArchState, l: int) -> bool {
+    exists|i: int| 0 <= i < k.spec_depth() && #[trigger] record_at(k, state, i, l)
+}
+
+/// The ghost chain's entry `i` and its level record: the record at level
+/// `chain_levels[i]` is active, of Task `chain[i]`, names the entry below as
+/// the Job it preempted (0xFF at the bottom), carries a dispatch vector's
+/// exception number, and sits at the level of its Task's Priority.
+pub open spec fn link_ok<K: KernelOps>(k: &K, state: ArchState, i: int) -> bool {
+    let c = state.chain@;
+    let l = state.chain_levels@[i];
+    &&& 1 <= l < 8
+    &&& 0 <= c[i] < 0xFF
+    &&& l == k.spec_prio()[c[i]]
+    &&& state.levels[l].active
+    &&& state.levels[l].task as int == c[i]
+    &&& state.levels[l].previous_task as int == (if i == 0 { 0xFF } else { c[i - 1] })
+    &&& state.levels[l].exception_number != 0
+    &&& state.levels[l].exception_number <= 0x1FF
+    // The record's Partition is its Task's, and the Partition it names as
+    // preempted is the Partition of the entry below (none at the bottom).
+    &&& state.levels[l].partition as int == k.spec_part()[c[i]]
+    &&& state.levels[l].partition != 0xFF
+    &&& state.levels[l].previous_partition as int == (if i == 0 { 0xFF } else { k.spec_part()[c[i - 1]] })
+}
+
+/// Level `l` is the level of an entry of the ghost chain.
+pub open spec fn in_chain(state: ArchState, l: int) -> bool {
+    exists|i: int| 0 <= i < state.chain_levels@.len() && (#[trigger] state.chain_levels@[i]) == l
+}
+
+/// The ghost chain (`ArchState::chain`, the Tasks of the Jobs dispatched and
+/// not yet unwound, in dispatch order, with their levels) describes the
+/// level records exactly, and the Kernel's preemption stack is a prefix of
+/// it: the entries beyond the stack's depth are the Jobs the Kernel has
+/// ended and Kernel_Arch has not yet unwound. Opaque: the entry cores use
+/// it through the lemmas below.
+#[verifier::opaque]
+pub open spec fn chain_ok<K: KernelOps>(k: &K, state: ArchState) -> bool {
+    let c = state.chain@;
+    let cl = state.chain_levels@;
+    &&& c.len() == cl.len()
+    &&& k.spec_depth() <= c.len()
+    &&& forall|i: int| #![trigger c[i]] #![trigger k.spec_stack(i)] 0 <= i < k.spec_depth() ==> c[i] == k.spec_stack(i)
+    &&& forall|i: int| 0 <= i < c.len() ==> #[trigger] link_ok(k, state, i)
+    &&& forall|i: int, j: int| 0 <= i < j < cl.len() ==> #[trigger] cl[i] < #[trigger] cl[j]
+    &&& forall|l: int| 0 <= l < 8 && state.levels[l].active ==> #[trigger] in_chain(state, l)
+    // The Partition Kernel_Arch takes as executing is the Partition of the
+    // last Job dispatched and not yet unwound, or none.
+    &&& state.current_partition as int == (if c.len() == 0 { 0xFF } else { k.spec_part()[c.last()] })
+}
+
+/// The exception number of the last chain entry's level record: the level
+/// an unwind takes next.
+pub open spec fn top_exc(state: ArchState) -> int {
+    state.levels[state.chain_levels@.last()].exception_number as int
+}
+
+/// The invariant of the entry cores (the review of the audit fixes,
+/// 2026-11-13). `hop` is the unwind plan the core hands its stub: 0 between
+/// Kernel entries. The chain is exact (`chain_ok`); it is longer than the
+/// Kernel's stack exactly while an unwind is planned (`hop`) or owed
+/// (`pending_unwind`, 5.8a), and the planned or owed exception number is
+/// that of the topmost record, which is the next one to unwind.
+pub open spec fn arch_inv<K: KernelOps>(k: &K, state: ArchState, hop: int) -> bool {
+    let m = state.chain@.len() as int;
+    let d = k.spec_depth();
+    &&& chain_ok(k, state)
+    &&& hop != 0 ==> m > d && hop == top_exc(state)
+    &&& hop == 0 ==> (m > d <==> state.pending_unwind != 0)
+    &&& state.pending_unwind != 0 ==> m > d && state.pending_unwind as int == top_exc(state)
+}
+
+/// The level records and the ghost chain of `a` are those of `b` (the owed
+/// unwind may differ): what an entry that neither dispatches nor unwinds
+/// leaves of them.
+pub open spec fn records_same(a: ArchState, b: ArchState) -> bool {
+    &&& a.levels == b.levels
+    &&& a.current_partition == b.current_partition
+    &&& a.chain@ == b.chain@
+    &&& a.chain_levels@ == b.chain_levels@
+}
+
+/// What a Kernel entry that neither dispatches nor unwinds hands its stub
+/// (the SVC, fault and timer handlers; `arch::cm4::stub_model`): the
+/// invariant with its plan, and the records as they were.
+pub open spec fn kentry_rel<K: KernelOps>(k1: &K, s0: ArchState, s1: ArchState, hop: int) -> bool {
+    &&& arch_inv(k1, s1, hop)
+    &&& records_same(s1, s0)
+}
+
+/// A dispatch added one entry to the chain, wrote that entry's level record
+/// with the EXC_RETURN value of the entry (`exc_return`), and left every
+/// other record alone.
+pub open spec fn dispatched(s0: ArchState, s1: ArchState, exc_return: int) -> bool {
+    let level = s1.chain_levels@.last();
+    &&& s1.chain@.len() == s0.chain@.len() + 1
+    &&& s1.chain@.drop_last() == s0.chain@
+    &&& s1.chain_levels@.drop_last() == s0.chain_levels@
+    &&& 0 <= level < 8
+    &&& forall|l: int| 0 <= l < 8 && l != level ==> s1.levels[l] == s0.levels[l]
+    &&& s1.levels[level].exc_return as int == exc_return
+}
+
+/// What `irq_entry_core` hands the dispatch stub when it does not enter the
+/// safe state (`arch::cm4::stub_model`).
+pub open spec fn irq_rel<K: KernelOps>(k1: &K, s0: ArchState, s1: ArchState, exc_return: u32, plan: DispatchPlan) -> bool {
+    &&& arch_inv(k1, s1, plan.hop as int)
+    &&& plan.psp == 0 ==> records_same(s1, s0)
+    &&& plan.psp != 0 ==> plan.hop == 0 && dispatched(s0, s1, exc_return as int)
+            && plan.control == CONTROL_JOB && plan.exc_return == EXC_RETURN_THREAD_PSP
+    // An entry taken from Handler mode (at a dispatch stub's entry
+    // instruction, 5.8a) neither dispatches nor unwinds.
+    &&& WINDOW_DEFER && exc_return & 0x8 == 0 ==> plan.psp == 0 && plan.hop == 0
+}
+
+/// The unwind of the topmost record removed the chain's last entry, changed
+/// no other record, and returns that record's preempted context.
+pub open spec fn unwound(s0: ArchState, s1: ArchState, psp: u32, control: u32, exc_return: u32) -> bool {
+    let top = s0.chain_levels@.last();
+    &&& s1.chain@ == s0.chain@.drop_last()
+    &&& s1.chain_levels@ == s0.chain_levels@.drop_last()
+    &&& forall|l: int| 0 <= l < 8 && l != top ==> s1.levels[l] == s0.levels[l]
+    &&& psp == s0.levels[top].psp
+    &&& control == s0.levels[top].control
+    &&& exc_return == s0.levels[top].exc_return
+}
+
+/// What `epilogue_core` hands `rsk_unwind` when it does not enter the safe
+/// state (`arch::cm4::stub_model`).
+pub open spec fn epi_rel<K: KernelOps>(k1: &K, s0: ArchState, s1: ArchState, r: (u32, u32, u32, ReturnPlan)) -> bool {
+    &&& arch_inv(k1, s1, r.3 as int)
+    &&& unwound(s0, s1, r.0, r.1, r.2)
+    &&& r.3 == 0 ==> s1.pending_unwind == 0 && arch_matches(k1, s1)
+}
+
+/// A planned unwind names an exception number: non-zero and within the
+/// nine bits of IPSR, so that `epilogue_core`'s mask leaves it as it is.
+pub proof fn lemma_plan_number<K: KernelOps>(k: &K, state: ArchState, hop: int)
+    requires k.inv(), arch_inv(k, state, hop), hop != 0,
+    ensures 0 < hop <= 0x1FF, ((hop as u32) & 0x1FF) as int == hop, state.chain@.len() > 0,
 {
-    match top_before {
-        Some(t) => {
-            let still = match k.top() {
-                Some(u) => u == t,
-                None => false,
-            };
-            if still {
-                0
-            } else {
-                let level = k.job_info(t).priority as usize;
-                state.levels[level].exception_number as u32
-            }
-        }
-        None => 0,
+    reveal(chain_ok);
+    k.lemma_stack_rising();
+    assert(link_ok(k, state, state.chain@.len() - 1));
+    let h = hop as u32;
+    assert(h <= 0x1FF ==> h & 0x1FF == h) by (bit_vector);
+}
+
+/// A chain entry below the last has another level than the last's.
+pub proof fn lemma_level_below_top<K: KernelOps>(k: &K, state: ArchState, i: int)
+    requires chain_ok(k, state), 0 <= i < state.chain_levels@.len() - 1,
+    ensures state.chain_levels@[i] != state.chain_levels@.last(), state.chain@.len() == state.chain_levels@.len(),
+{
+    reveal(chain_ok);
+    assert(state.chain_levels@[i] < state.chain_levels@[state.chain_levels@.len() - 1]);
+}
+
+/// The MPU view loaded is the view of the Partition Kernel_Arch takes as
+/// executing, while a Job is dispatched and not yet unwound (A6; the idle
+/// activity runs privileged under the background map, whatever view stays
+/// loaded).
+pub open spec fn view_matches<A: KernelArch>(state: ArchState, hw: &A) -> bool {
+    state.chain@.len() > 0 ==> hw.hw().view == Some(state.current_partition as int)
+}
+
+/// With nothing owed, the Partition Kernel_Arch takes as executing and the
+/// MPU view loaded are those of the Kernel's executing Job; with no Job in
+/// progress Kernel_Arch takes none as executing (2026-11-13).
+pub proof fn lemma_executing_partition<K: KernelOps, A: KernelArch>(k: &K, state: ArchState, hw: &A)
+    requires k.inv(), arch_inv(k, state, 0), state.pending_unwind == 0, view_matches(state, hw),
+    ensures
+        k.spec_depth() == 0 ==> state.current_partition == 0xFF,
+        k.spec_depth() > 0 ==> state.current_partition as int == k.spec_part()[crate::arch::bound::top_task(k)]
+            && state.current_partition != 0xFF
+            && hw.hw().view == Some(k.spec_part()[crate::arch::bound::top_task(k)]),
+{
+    reveal(chain_ok);
+    k.lemma_stack_rising();
+    if k.spec_depth() > 0 {
+        let m = state.chain@.len() as int;
+        assert(link_ok(k, state, m - 1));
+        assert(state.chain@[m - 1] == k.spec_stack(m - 1));
     }
+}
+
+/// The plan of a Kernel entry that dispatched nothing: the topmost record's
+/// exception number when the entry ended a Job, else 0.
+pub open spec fn ended_plan<K: KernelOps>(k: &K, k0: &K, state: ArchState, hop: int) -> bool {
+    if k.spec_depth() < k0.spec_depth() { hop != 0 && hop == top_exc(state) } else { hop == 0 }
+}
+
+/// Kernel_Arch's state at boot: no level record active, nothing owed.
+pub open spec fn arch_fresh(state: ArchState) -> bool {
+    &&& forall|l: int| 0 <= l < 8 ==> !(#[trigger] state.levels[l]).active
+    &&& state.chain@.len() == 0
+    &&& state.chain_levels@.len() == 0
+    &&& state.pending_unwind == 0
+    &&& state.current_partition == 0xFF
+}
+
+/// With no Job in progress, the boot state satisfies the invariant.
+pub proof fn lemma_fresh<K: KernelOps>(k: &K, state: ArchState)
+    requires k.spec_depth() == 0, arch_fresh(state),
+    ensures arch_inv(k, state, 0),
+{
+    reveal(chain_ok);
+}
+
+/// The chain is at least as long as the Kernel's stack.
+pub proof fn lemma_chain_len<K: KernelOps>(k: &K, state: ArchState)
+    requires chain_ok(k, state),
+    ensures k.spec_depth() <= state.chain@.len(), state.chain@.len() == state.chain_levels@.len(),
+{
+    reveal(chain_ok);
+}
+
+/// Chain entry `i` and its level record.
+pub proof fn lemma_link<K: KernelOps>(k: &K, state: ArchState, i: int)
+    requires chain_ok(k, state), 0 <= i < state.chain@.len(),
+    ensures link_ok(k, state, i), k.spec_depth() <= state.chain@.len(), state.chain@.len() == state.chain_levels@.len(),
+{
+    reveal(chain_ok);
+}
+
+/// Chain entry `i` below the Kernel's depth is the stack's entry `i`.
+pub proof fn lemma_on_stack<K: KernelOps>(k: &K, state: ArchState, i: int)
+    requires chain_ok(k, state), 0 <= i < k.spec_depth(),
+    ensures i < state.chain@.len(), state.chain@[i] == k.spec_stack(i),
+{
+    reveal(chain_ok);
+}
+
+/// `chain_ok` depends on the records, the chain and the Kernel's stack only,
+/// and survives Jobs ending.
+pub proof fn lemma_chain_frame<K: KernelOps>(k: &K, k0: &K, state: ArchState, s0: ArchState)
+    requires
+        chain_ok(k0, s0),
+        crate::arch::bound::stack_prefix(k, k0),
+        state.levels == s0.levels, state.chain@ == s0.chain@, state.chain_levels@ == s0.chain_levels@,
+        state.current_partition == s0.current_partition,
+    ensures chain_ok(k, state),
+{
+    reveal(chain_ok);
+    assert forall|i: int| 0 <= i < state.chain@.len() implies #[trigger] link_ok(k, state, i) by {
+        assert(link_ok(k0, s0, i));
+    }
+    assert forall|l: int| 0 <= l < 8 && state.levels[l].active implies #[trigger] in_chain(state, l) by {
+        assert(in_chain(s0, l));
+    }
+}
+
+/// The greatest active level (`top_active`) is the last chain entry's.
+pub proof fn lemma_top_active<K: KernelOps>(k: &K, state: ArchState, level: int)
+    requires
+        chain_ok(k, state), state.chain@.len() > 0, 0 <= level < 8,
+        level != 0 ==> state.levels[level].active,
+        forall|i: int| level < i < 8 ==> !state.levels[i].active,
+    ensures level == state.chain_levels@.last(), level != 0,
+{
+    reveal(chain_ok);
+    let cl = state.chain_levels@;
+    let m = cl.len() as int;
+    assert(link_ok(k, state, m - 1));
+    assert(cl[m - 1] <= level);
+    assert(in_chain(state, level));
+    let i = choose|i: int| 0 <= i < cl.len() && (#[trigger] cl[i]) == level;
+    if i < m - 1 {
+        assert(cl[i] < cl[m - 1]);
+    }
+}
+
+/// A Kernel entry that leaves the records alone, ends Jobs from the top of
+/// the stack only, and plans by `ended_plan` keeps the invariant.
+pub proof fn lemma_kernel_entry<K: KernelOps>(k: &K, k0: &K, state: ArchState, s0: ArchState, hop: int)
+    requires
+        arch_inv(k0, s0, 0),
+        crate::arch::bound::stack_prefix(k, k0),
+        super::plan::arch_frame(state, s0),
+        ended_plan(k, k0, state, hop),
+    ensures arch_inv(k, state, hop),
+{
+    reveal(chain_ok);
+    lemma_chain_frame(k, k0, state, s0);
+}
+
+/// With no unwind planned or owed, the invariant is the one-to-one
+/// correspondence of the level records and the Kernel's preemption stack.
+pub proof fn lemma_arch_matches<K: KernelOps>(k: &K, state: ArchState)
+    requires arch_inv(k, state, 0), state.pending_unwind == 0,
+    ensures arch_matches(k, state),
+{
+    reveal(chain_ok);
+    assert forall|i: int| 0 <= i < k.spec_depth() implies #[trigger] has_record(k, state, i) by {
+        assert(link_ok(k, state, i));
+        assert(state.chain@[i] == k.spec_stack(i));
+        if i > 0 {
+            assert(state.chain@[i - 1] == k.spec_stack(i - 1));
+        }
+        assert(record_at(k, state, i, state.chain_levels@[i]));
+    }
+    assert forall|l: int| 0 <= l < 8 && state.levels[l].active implies #[trigger] is_held(k, state, l) by {
+        assert(in_chain(state, l));
+        let i = choose|i: int| 0 <= i < state.chain_levels@.len() && (#[trigger] state.chain_levels@[i]) == l;
+        assert(link_ok(k, state, i));
+        assert(state.chain@[i] == k.spec_stack(i));
+        if i > 0 {
+            assert(state.chain@[i - 1] == k.spec_stack(i - 1));
+        }
+        assert(record_at(k, state, i, l));
+    }
+}
+
+/// A dispatch from a state with nothing to unwind: the chain and the
+/// records gain the dispatched Job's entry, above every other.
+pub proof fn lemma_push<K: KernelOps>(k: &K, k0: &K, state: ArchState, s0: ArchState, t: int, level: int)
+    requires
+        k.inv(), chain_ok(k0, s0), s0.chain@.len() == k0.spec_depth(),
+        k.spec_prio() == k0.spec_prio(),
+        k.spec_depth() == k0.spec_depth() + 1,
+        forall|i: int| 0 <= i < k0.spec_depth() ==> k.spec_stack(i) == k0.spec_stack(i),
+        k.spec_stack(k0.spec_depth()) == t,
+        1 <= level < 8, level == k.spec_prio()[t],
+        state.chain@ == s0.chain@.push(t), state.chain_levels@ == s0.chain_levels@.push(level),
+        forall|l: int| 0 <= l < 8 && l != level ==> state.levels[l] == s0.levels[l],
+        state.levels[level].active, state.levels[level].task as int == t,
+        state.levels[level].previous_task as int == crate::arch::bound::top_task(k0),
+        state.levels[level].exception_number != 0, state.levels[level].exception_number <= 0x1FF,
+        k.spec_part() == k0.spec_part(),
+        state.levels[level].partition as int == k.spec_part()[t], state.levels[level].partition != 0xFF,
+        state.levels[level].previous_partition == s0.current_partition,
+        state.current_partition == state.levels[level].partition,
+    ensures chain_ok(k, state), state.chain@.len() == k.spec_depth(),
+{
+    reveal(chain_ok);
+    let m = s0.chain@.len() as int;
+    let cl0 = s0.chain_levels@;
+    k.lemma_stack_rising();
+    assert(0 <= k.spec_stack(m) < k.task_count_spec());
+    // The new level is above every chain entry's.
+    assert forall|i: int| 0 <= i < m implies (#[trigger] cl0[i]) < level by {
+        assert(link_ok(k0, s0, m - 1));
+        assert(s0.chain@[m - 1] == k0.spec_stack(m - 1));
+        assert(k.spec_prio()[k.spec_stack(m - 1)] < k.spec_prio()[k.spec_stack(m)]);
+        if i < m - 1 {
+            assert(cl0[i] < cl0[m - 1]);
+        }
+    }
+    assert forall|i: int| 0 <= i < state.chain@.len() implies #[trigger] link_ok(k, state, i) by {
+        if i < m {
+            assert(link_ok(k0, s0, i));
+            assert(cl0[i] < level);
+        }
+    }
+    assert forall|i: int, j: int| 0 <= i < j < state.chain_levels@.len()
+        implies (#[trigger] state.chain_levels@[i]) < (#[trigger] state.chain_levels@[j]) by {
+        if j < m {
+            assert(cl0[i] < cl0[j]);
+        } else {
+            assert(cl0[i] < level);
+        }
+    }
+    assert forall|l: int| 0 <= l < 8 && state.levels[l].active implies #[trigger] in_chain(state, l) by {
+        if l == level {
+            assert(state.chain_levels@[m] == l);
+        } else {
+            assert(in_chain(s0, l));
+            let i = choose|i: int| 0 <= i < cl0.len() && (#[trigger] cl0[i]) == l;
+            assert(state.chain_levels@[i] == l);
+        }
+    }
+    assert forall|i: int| #![trigger state.chain@[i]] #![trigger k.spec_stack(i)] 0 <= i < k.spec_depth() implies state.chain@[i] == k.spec_stack(i) by {
+        if i < m {
+            assert(s0.chain@[i] == k0.spec_stack(i));
+        }
+    }
+}
+
+/// An unwind of the topmost record: the chain loses its last entry.
+pub proof fn lemma_pop<K: KernelOps>(k: &K, state: ArchState, s0: ArchState)
+    requires
+        k.inv(), chain_ok(k, s0), s0.chain@.len() > k.spec_depth(),
+        state.chain@ == s0.chain@.drop_last(), state.chain_levels@ == s0.chain_levels@.drop_last(),
+        forall|l: int| 0 <= l < 8 && l != s0.chain_levels@.last() ==> state.levels[l] == s0.levels[l],
+        !state.levels[s0.chain_levels@.last()].active,
+        state.current_partition == s0.levels[s0.chain_levels@.last()].previous_partition,
+    ensures chain_ok(k, state),
+{
+    reveal(chain_ok);
+    let m = s0.chain@.len() as int;
+    let cl0 = s0.chain_levels@;
+    k.lemma_stack_rising();
+    assert(m == cl0.len());
+    assert(state.chain@.len() == m - 1);
+    assert(state.chain_levels@.len() == m - 1);
+    assert(link_ok(k, s0, m - 1));
+    if m - 1 > 0 {
+        assert(state.chain@.last() == s0.chain@[m - 2]);
+    }
+    assert forall|i: int| 0 <= i < state.chain@.len() implies #[trigger] link_ok(k, state, i) by {
+        assert(link_ok(k, s0, i));
+        assert(cl0[i] < cl0[m - 1]);
+    }
+    assert forall|i: int, j: int| 0 <= i < j < state.chain_levels@.len()
+        implies (#[trigger] state.chain_levels@[i]) < (#[trigger] state.chain_levels@[j]) by {
+        assert(cl0[i] < cl0[j]);
+    }
+    assert forall|l: int| 0 <= l < 8 && state.levels[l].active implies #[trigger] in_chain(state, l) by {
+        assert(in_chain(s0, l));
+        let i = choose|i: int| 0 <= i < cl0.len() && (#[trigger] cl0[i]) == l;
+        assert(state.chain_levels@[i] == l);
+    }
+    assert forall|i: int| #![trigger state.chain@[i]] #![trigger k.spec_stack(i)] 0 <= i < k.spec_depth() implies state.chain@[i] == k.spec_stack(i) by {
+        assert(s0.chain@[i] == k.spec_stack(i));
+    }
+}
+
+/// Two chain entries name different Tasks (their levels differ, and a level
+/// is its Task's Priority).
+pub proof fn lemma_chain_distinct<K: KernelOps>(k: &K, state: ArchState, i: int, j: int)
+    requires chain_ok(k, state), 0 <= i < j < state.chain@.len(),
+    ensures state.chain@[i] != state.chain@[j],
+{
+    reveal(chain_ok);
+    assert(link_ok(k, state, i));
+    assert(link_ok(k, state, j));
+    assert(state.chain_levels@[i] < state.chain_levels@[j]);
+}
+
+/// After a transition that may have ended Jobs (`depth_before` is the
+/// Kernel's depth before it): the unwind plan naming the exception number of
+/// the topmost active level record, or 0 when no Job ended. `k0` and `s0`
+/// are the Kernel and Kernel_Arch states at the entry.
+fn end_plan_core<K: KernelOps>(k: &K, state: &ArchState, depth_before: usize, Ghost(k0): Ghost<K>, Ghost(s0): Ghost<ArchState>) -> (hop: ReturnPlan)
+    requires
+        k.inv(), chain_ok(&k0, s0),
+        crate::arch::bound::stack_prefix(k, &k0),
+        super::plan::arch_frame(*state, s0),
+        depth_before as int == k0.spec_depth(),
+    ensures chain_ok(k, *state), ended_plan(k, &k0, *state, hop as int),
+{
+    proof {
+        lemma_chain_frame(k, &k0, *state, s0);
+    }
+    if k.depth() < depth_before {
+        let level = top_active(&state.levels);
+        proof {
+            lemma_chain_len(&k0, s0);
+            lemma_top_active(k, *state, level as int);
+            lemma_link(k, *state, state.chain@.len() - 1);
+        }
+        state.levels[level].exception_number as u32
+    } else {
+        0
+    }
+}
+
+/// The dispatch of Task `t` from the stub of exception number `n`, with
+/// nothing owed and the Task found eligible: decides what can refuse the
+/// dispatch, starts the Job in the Kernel, writes its level record and its
+/// initial frame, loads its Partition's view, and plans the return to it.
+/// Without a dispatch (a refusal: the safe state) the records are untouched.
+#[inline(always)]
+fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    n: u16, t: u8, psp: u32, control: u32, exc_return: u32,
+) -> (r: (DispatchPlan, bool))
+    requires
+        old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), old(state).pending_unwind == 0,
+        n != 0, n <= 0x1FF, (t as int) < old(k).task_count_spec(),
+    ensures
+        final(k).inv(),
+        r.0.psp != 0 ==> r.0.control == CONTROL_JOB && r.0.exc_return == EXC_RETURN_THREAD_PSP
+            && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
+            && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw))
+            && view_matches(*final(state), final(hw))
+            && arch_inv(final(k), *final(state), 0)
+            && dispatched(*old(state), *final(state), exc_return as int),
+        r.1 ==> final(hw).hw().basepri == 0,
+        r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
+            && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
+                && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
+                && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        final(k).spec_depth() >= old(k).spec_depth(),
+        // A refusal: nothing of the records or the view changes.
+        r.0.psp == 0 ==> r.0.hop == 0 && kentry_rel(final(k), *old(state), *final(state), 0)
+            && final(state).pending_unwind == 0
+            && final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
+    let preempted = charge_point(hw, state);
+    let previous_partition = state.current_partition;
+    if previous_partition != 0xFF && (previous_partition as usize) < MAX_FLOORS && (exc_return & 0xC) == 0xC {
+        // The preempted context is a Job in Thread mode on the PSP:
+        // its live stack pointer (below its stacked frame, HW-06)
+        // is the floor of its Partition's stack from here on.
+        state.floor[previous_partition as usize] = psp;
+    }
+    // The Job whose context this dispatch preempts (lead 2.1).
+    let previous_task = match k.top() {
+        Some(u) => u,
+        None => 0xFF,
+    };
+    // Everything that can refuse the dispatch is decided before the
+    // Kernel starts the Job, so that a Job the Kernel holds always
+    // has its level record (the review of the audit fixes,
+    // 2026-11-13: until then a refusal after `Kernel::dispatch` left
+    // a Job in progress without a record on the way to the safe
+    // state).
+    let info = k.job_info(t);
+    let level = info.priority as usize;
+    if (info.partition as usize) >= MAX_FLOORS {
+        // More Partitions than `ArchState` keeps floors for: a
+        // configuration the Generator rejects; the backstop is a
+        // Kernel fault into the safe state.
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    let floor_before = state.floor[info.partition as usize];
+    // The frame is 8-byte aligned and inside the Partition's stack
+    // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
+    // excludes the overflow case, and the backstop is a Kernel fault
+    // into the safe state (R16.5).
+    // A frame address of 0 is the plan's "no dispatch" (the stub tests
+    // it), so it is refused like an overflow: no stack lies at
+    // address 0 on a Target, and the stub and the Kernel can then
+    // never disagree on whether a Job was started.
+    let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
+        Some(frame) => frame,
+        None => 0,
+    };
+    if frame == 0 {
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    let depth_before = k.depth();
+    k.dispatch(t, preempted);
+    if k.depth() == depth_before {
+        // The Kernel refused the dispatch of a Task it found eligible
+        // (before instant 0): nothing to record or to return to.
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    let ghost s1 = *state;
+    state.levels[level] = LevelRecord {
+        exception_number: n,
+        task: t,
+        partition: info.partition,
+        psp,
+        control,
+        exc_return,
+        floor_before,
+        previous_partition,
+        previous_task,
+        active: true,
+    };
+    state.floor[info.partition as usize] = frame;
+    hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
+    let view = *k.partition_view(info.partition);
+    hw.apply(Action::LoadView(info.partition, view));
+    state.current_partition = info.partition;
+    // The ghost chain gains the dispatched Job's entry.
+    state.chain = Ghost(state.chain@.push(t as int));
+    state.chain_levels = Ghost(state.chain_levels@.push(level as int));
+    proof {
+        // Reached with no unwind owed (an owed one was consumed or
+        // the vector deferred above), so the chain was the stack.
+        assert(s0.pending_unwind == 0);
+        lemma_chain_len(&k0, s0);
+        assert(s0.chain@.len() == k0.spec_depth());
+        lemma_chain_frame(&k0, &k0, s1, s0);
+        lemma_push(k, &k0, *state, s1, t as int, level as int);
+    }
+    // The dispatched Job is the executing one, so its level or the
+    // System_Ceiling is `basepri_now` (A1).
+    hw.apply(Action::SetBasepri(k.basepri_now()));
+    match k.next_compare() {
+        Some(at) => arm_compare(hw, at),
+        None => {}
+    }
+    hw.apply(Action::FpuAccess(info.fpu));
+    // The frame is 8-byte aligned (`plan_frame`); the Task index
+    // rides in its low bits for the trace.
+    hw.apply(Action::Trace(TR_DISPATCH, frame | (t as u32 & 7)));
+    proof {
+        // The record written above is the dispatched Job's.
+        assert(k.spec_depth() == old(k).spec_depth() + 1);
+        assert(crate::arch::bound::top_task(k) == t as int);
+        assert(state.levels[level as int].active && state.levels[level as int].task as int == crate::arch::bound::top_task(k)
+            && state.levels[level as int].previous_task as int == crate::arch::bound::top_task(old(k)));
+        assert(state.chain@.drop_last() =~= s0.chain@);
+        assert(state.chain_levels@.drop_last() =~= s0.chain_levels@);
+        assert(state.chain_levels@.last() == level as int);
+        assert(dispatched(s0, *state, exc_return as int));
+    }
+    (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
+}
+
+/// A dispatch vector's entry (the `Binding::Dispatch` arm of
+/// `irq_entry_core`): an owed unwind is consumed, a vector taken at another
+/// stub's entry instruction is deferred (5.8a), a stale pending bit or a
+/// stack violation dispatches nothing, and otherwise the Job is dispatched
+/// (`dispatch_job_core`).
+#[inline(always)]
+fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    n: u16, t: u8, psp: u32, control: u32, exc_return: u32,
+) -> (r: (DispatchPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)), n <= 0x1FF,
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        !r.1 ==> view_matches(*final(state), final(hw)),
+        !r.1 ==> arch_inv(final(k), *final(state), r.0.hop as int),
+        !r.1 && r.0.psp == 0 ==> records_same(*final(state), *old(state)),
+        r.0.psp != 0 ==> r.0.control == CONTROL_JOB && r.0.exc_return == EXC_RETURN_THREAD_PSP
+            && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
+            && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw))
+            && dispatched(*old(state), *final(state), exc_return as int),
+        r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
+            && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
+                && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
+                && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        // Taken from Handler mode, the vector neither dispatches nor unwinds.
+        WINDOW_DEFER && exc_return & 0x8 == 0 && !r.1 ==> r.0.psp == 0 && r.0.hop == 0,
+        // An owed unwind is consumed or kept, never replaced (finding 6).
+        old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
+    // The unwind a Kernel-level entry owed while this stub sat at
+    // its entry instruction (below): this stub has pushed its record
+    // over the ended Job's, so it pops its own and unwinds that one
+    // (`hop`), and re-pends its vector to be taken again from the
+    // resumed context, where it dispatches.
+    if WINDOW_DEFER && exc_return & 0x8 != 0 && state.pending_unwind != 0 {
+        let h = state.pending_unwind;
+        state.pending_unwind = 0;
+        hw.apply(Action::Pend(n));
+        proof {
+            lemma_chain_frame(k, &k0, *state, s0);
+        }
+        return (DispatchPlan { psp: 0, control, exc_return, hop: h }, false);
+    }
+    // A dispatch vector taken while another handler is active: the
+    // preempted context is a handler (EXC_RETURN bit 3 clear), which
+    // can only be a dispatch stub of a lower level at its entry
+    // instruction, before its `cpsid i` (every other handler runs at
+    // the Kernel level, above every dispatch vector, and the return
+    // window is closed by FAULTMASK). A dispatch from here would
+    // return to Thread mode with that exception still active, which
+    // DD-01's invariant forbids and the processor refuses with
+    // NONBASETHRDENA clear (UFSR.INVPC: the finding of 2026-11-06,
+    // Verification_Plan 5.8a). The vector is deferred: disabled in
+    // the NVIC and recorded, so that the preempted stub runs its own
+    // entry under PRIMASK, re-enables and re-pends it (above), and
+    // returns, after which the NVIC takes it from Thread mode. A
+    // re-pend without the disable is a livelock (the witness run of
+    // 2026-11-07: the vector is taken again before the stub's next
+    // instruction). The backstop, with every slot taken, is a Kernel
+    // fault into the safe state (R16.5).
+    if WINDOW_DEFER && exc_return & 0x8 == 0 {
+        hw.apply(Action::Trace(TR_WINDOW, n as u32));
+        hw.apply(Action::Disable(n));
+        let mut slot: usize = 8;
+        let mut i: usize = 0;
+        while i < 8
+            invariant i <= 8, slot <= 8, super::plan::arch_frame(*state, s0),
+            decreases 8 - i,
+        {
+            if slot == 8 && (state.deferred[i] == 0 || state.deferred[i] == n) {
+                slot = i;
+            }
+            i += 1;
+        }
+        if slot < 8 {
+            state.deferred[slot] = n;
+            proof {
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
+            }
+            return (no_change, false);
+        }
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    if n == 0 || !k.eligible(t) {
+        // A stale pending bit (the Job was suppressed after it was
+        // pended): nothing to dispatch (A4). Exception number 0 is
+        // Thread mode, never an entry: a level record's exception
+        // number is not 0, which is how an unwind plan names it.
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, false);
+    }
+    // R16.5 (the audit's finding 8): the preempted Job's stack pointer
+    // becomes its Partition's stack floor, below which this
+    // dispatch writes a frame, only when its frame lies inside the
+    // Partition's stack region. Otherwise the Job has a stack
+    // violation, nothing is dispatched from this entry, and the
+    // vector is pended again for the context the response resumes.
+    if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        let depth_before = k.depth();
+        let (hop, safe) = stack_violation_core(k, hw, tables, state);
+        hw.apply(Action::Pend(n));
+        svc_of_ended_job_core(k, hw, depth_before);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+        }
+        return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
+    }
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, 0);
+    }
+    dispatch_job_core(k, hw, tables, state, n, t, psp, control, exc_return)
+}
+
+/// An intake vector's entry (the `Binding::Intake` arm of
+/// `irq_entry_core`, DD-06): the source's vector is disabled, a stack
+/// violation of the interrupted Job is reported (R16.5, the audit's finding
+/// 8), the event is taken in, and the plan unwinds a Job the responses ended.
+#[inline(always)]
+fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    n: u16, task: u8, partition: u8, psp: u32, exc_return: u32,
+) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        final(state).pending_unwind == old(state).pending_unwind,
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    let now = hw.now();
+    hw.apply(Action::Disable(n));
+    let depth_before = k.depth();
+    // R16.5 (the audit's finding 8): an intake taken from a Job whose
+    // stack pointer is outside its stack region reports the violation; the
+    // event is then taken in as usual, and the plan unwinds the Job the
+    // response ended.
+    if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+        hw.apply(Action::Trace(TR_INVALID, 2));
+        k.fault(EV_STACK_VIOLATION, false);
+    }
+    k.intake(task, partition, now, task);
+    let safe = apply_core(k, hw, tables, state);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
+    svc_of_ended_job_core(k, hw, depth_before);
+    (hop, safe)
+}
+
+/// The entry of a vector with no binding (R19.5): the line is disabled and
+/// the event is a Kernel fault.
+#[inline(always)]
+fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u16) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        final(state).pending_unwind == old(state).pending_unwind,
+        final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    hw.apply(Action::Disable(n));
+    let depth_before = k.depth();
+    k.fault(EV_UNBOUND_IRQ, true);
+    let safe = apply_core(k, hw, tables, state);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
+    svc_of_ended_job_core(k, hw, depth_before);
+    (hop, safe)
 }
 
 /// The Rust half of the dispatch stub, with PRIMASK held. Returns the plan
 /// and whether the Kernel entered the safe state.
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
     ipsr: u32, psp: u32, control: u32, exc_return: u32,
 ) -> (r: (DispatchPlan, bool))
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // The MPU view loaded is the view of the Partition of the last Job
+        // dispatched and not yet unwound (A6).
+        !r.1 ==> view_matches(*final(state), final(hw)),
+        // The invariant of the entry cores, with the plan handed to the stub,
+        // and what the stub's proof needs of the records (`irq_rel`).
+        !r.1 ==> arch_inv(final(k), *final(state), r.0.hop as int),
+        !r.1 ==> irq_rel(final(k), *old(state), *final(state), exc_return, r.0),
         // A dispatch (a non-zero frame address) returns to unprivileged
         // Thread mode on the PSP (A5), on an 8-byte-aligned frame (HW-06),
         // with the Job's Partition view loaded (A6) and BASEPRI at the
@@ -1787,7 +3213,20 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
             && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A dispatch puts its Job on the Kernel's stack and writes that Job's
+        // level record, active and naming the Job it preempted (the review of
+        // the audit fixes, 2026-11-13: the link the unwind's chain follows).
+        r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
+            && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
+                && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
+                && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        // An owed unwind is consumed or kept, never replaced (finding 6).
+        old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
     let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
     let n = (ipsr & 0x1FF) as u16;
     hw.apply(Action::Trace(TR_IRQ, n as u32));
@@ -1802,6 +3241,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         while i < 8
             invariant
                 k.inv(), i <= 8,
+                super::plan::arch_frame(*state, s0),
                 hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
             decreases 8 - i,
         {
@@ -1816,169 +3256,41 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     }
     let r: (DispatchPlan, bool) = match tables.binding(n) {
         Binding::Dispatch(t) => {
-            // The unwind a Kernel-level entry owed while this stub sat at
-            // its entry instruction (below): this stub has pushed its record
-            // over the ended Job's, so it pops its own and unwinds that one
-            // (`hop`), and re-pends its vector to be taken again from the
-            // resumed context, where it dispatches.
-            if WINDOW_DEFER && exc_return & 0x8 != 0 && state.pending_unwind != 0 {
-                let h = state.pending_unwind;
-                state.pending_unwind = 0;
-                hw.apply(Action::Pend(n));
-                return (DispatchPlan { psp: 0, control, exc_return, hop: h }, false);
+            proof {
+                assert(ipsr & 0x1FF <= 0x1FF) by (bit_vector);
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
             }
-            // A dispatch vector taken while another handler is active: the
-            // preempted context is a handler (EXC_RETURN bit 3 clear), which
-            // can only be a dispatch stub of a lower level at its entry
-            // instruction, before its `cpsid i` (every other handler runs at
-            // the Kernel level, above every dispatch vector, and the return
-            // window is closed by FAULTMASK). A dispatch from here would
-            // return to Thread mode with that exception still active, which
-            // DD-01's invariant forbids and the processor refuses with
-            // NONBASETHRDENA clear (UFSR.INVPC: the finding of 2026-11-06,
-            // Verification_Plan 5.8a). The vector is deferred: disabled in
-            // the NVIC and recorded, so that the preempted stub runs its own
-            // entry under PRIMASK, re-enables and re-pends it (above), and
-            // returns, after which the NVIC takes it from Thread mode. A
-            // re-pend without the disable is a livelock (the witness run of
-            // 2026-11-07: the vector is taken again before the stub's next
-            // instruction). The backstop, with every slot taken, is a Kernel
-            // fault into the safe state (R16.5).
-            if WINDOW_DEFER && exc_return & 0x8 == 0 {
-                hw.apply(Action::Trace(TR_WINDOW, n as u32));
-                hw.apply(Action::Disable(n));
-                let mut slot: usize = 8;
-                let mut i: usize = 0;
-                while i < 8
-                    invariant i <= 8, slot <= 8,
-                    decreases 8 - i,
-                {
-                    if slot == 8 && (state.deferred[i] == 0 || state.deferred[i] == n) {
-                        slot = i;
-                    }
-                    i += 1;
-                }
-                if slot < 8 {
-                    state.deferred[slot] = n;
-                    return (no_change, false);
-                }
-                k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables, state);
-                return (no_change, safe);
-            }
-            if !k.eligible(t) {
-                // A stale pending bit (the Job was suppressed after it was
-                // pended): nothing to dispatch (A4).
-                return (no_change, false);
-            }
-            // R16.5 (the audit's finding 8): the preempted Job's stack pointer
-            // becomes its Partition's stack floor, below which this
-            // dispatch writes a frame, only when its frame lies inside the
-            // Partition's stack region. Otherwise the Job has a stack
-            // violation, nothing is dispatched from this entry, and the
-            // vector is pended again for the context the response resumes.
-            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
-                let (hop, safe) = stack_violation_core(k, hw, tables, state);
-                hw.apply(Action::Pend(n));
-                return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
-            }
-            let preempted = charge_point(hw, state);
-            let previous_partition = state.current_partition;
-            if previous_partition != 0xFF && (previous_partition as usize) < MAX_FLOORS && (exc_return & 0xC) == 0xC {
-                // The preempted context is a Job in Thread mode on the PSP:
-                // its live stack pointer (below its stacked frame, HW-06)
-                // is the floor of its Partition's stack from here on.
-                state.floor[previous_partition as usize] = psp;
-            }
-            // The Job whose context this dispatch preempts (lead 2.1).
-            let previous_task = match k.top() {
-                Some(u) => u,
-                None => 0xFF,
-            };
-            k.dispatch(t, preempted);
-            let info = k.job_info(t);
-            let level = info.priority as usize;
-            if (info.partition as usize) >= MAX_FLOORS {
-                // More Partitions than `ArchState` keeps floors for: a
-                // configuration the Generator rejects; the backstop is a
-                // Kernel fault into the safe state.
-                k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables, state);
-                return (no_change, safe);
-            }
-            let floor_before = state.floor[info.partition as usize];
-            // The frame is 8-byte aligned and inside the Partition's stack
-            // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
-            // excludes the overflow case, and the backstop is a Kernel fault
-            // into the safe state (R16.5).
-            let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
-                Some(frame) => frame,
-                None => {
-                    k.fault(EV_HARDFAULT, true);
-                    let safe = apply_core(k, hw, tables, state);
-                    return (no_change, safe);
-                }
-            };
-            state.levels[level] = LevelRecord {
-                exception_number: n,
-                task: t,
-                partition: info.partition,
-                psp,
-                control,
-                exc_return,
-                floor_before,
-                previous_partition,
-                previous_task,
-            };
-            state.floor[info.partition as usize] = frame;
-            hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
-            let view = *k.partition_view(info.partition);
-            hw.apply(Action::LoadView(info.partition, view));
-            state.current_partition = info.partition;
-            // The dispatched Job is the executing one, so its level or the
-            // System_Ceiling is `basepri_now` (A1).
-            hw.apply(Action::SetBasepri(k.basepri_now()));
-            match k.next_compare() {
-                Some(at) => arm_compare(hw, at),
-                None => {}
-            }
-            hw.apply(Action::FpuAccess(info.fpu));
-            // The frame is 8-byte aligned (`plan_frame`); the Task index
-            // rides in its low bits for the trace.
-            hw.apply(Action::Trace(TR_DISPATCH, frame | (t as u32 & 7)));
-            (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
+            dispatch_vector_core(k, hw, tables, state, n, t, psp, control, exc_return)
         }
         Binding::Intake { task, partition } => {
-            let now = hw.now();
-            hw.apply(Action::Disable(n));
-            let top_before = k.top();
-            // R16.5 (the audit's finding 8): an intake taken from a Job whose
-            // stack pointer is outside its stack region reports the
-            // violation; the event is then taken in as usual, and the plan
-            // unwinds the Job the response ended.
-            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
-                hw.apply(Action::Trace(TR_INVALID, 2));
-                k.fault(EV_STACK_VIOLATION, false);
+            proof {
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
             }
-            k.intake(task, partition, now, task);
-            let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, top_before);
+            let (hop, safe) = intake_core(k, hw, tables, state, n, task, partition, psp, exc_return);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
         Binding::Kernel => {
             if n == tables.timer_vector() {
+                proof {
+                    lemma_kernel_entry(k, &k0, *state, s0, 0);
+                }
                 let (hop, safe) = timer_core(k, hw, tables, state);
+                proof {
+                    lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+                }
                 (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
             } else {
+                proof {
+                    lemma_kernel_entry(k, &k0, *state, s0, 0);
+                }
                 (no_change, false)
             }
         }
         Binding::Unbound => {
-            hw.apply(Action::Disable(n));
-            let top_before = k.top();
-            k.fault(EV_UNBOUND_IRQ, true);
-            let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, top_before);
+            proof {
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
+            }
+            let (hop, safe) = unbound_core(k, hw, tables, state, n);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
     };
@@ -1999,8 +3311,12 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         // longer the executing Job). Until this date the second entry
         // overwrote the slot and the stub unwound the deeper level over the
         // topmost record.
+        let ghost s2 = *state;
         if state.pending_unwind == 0 {
             state.pending_unwind = r.0.hop;
+        }
+        proof {
+            lemma_chain_frame(k, k, *state, s2);
         }
         return (DispatchPlan { psp: 0, control, exc_return, hop: 0 }, false);
     }
@@ -2010,42 +3326,182 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// The Kernel-level timer handler body. Returns the unwind plan when the
 /// executing Job was ended by a response, and the safe-state flag.
 pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         // Every time-base event feeds the watchdog (ORQ-31).
         final(hw).hw().watchdog_fed,
+        super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+        ended_plan(final(k), old(k), *final(state), r.0 as int),
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
     hw.apply(Action::TimebaseAck);
     let now = hw.now();
     hw.apply(Action::Trace(TR_TICK, now as u32));
     let running = charge_point(hw, state);
-    let top_before = k.top();
+    let depth_before = k.depth();
     k.timer_event(now, running);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, top_before);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
     // Fed last: a handler that did not complete does not feed (ORQ-31).
     hw.apply(Action::WatchdogFeed);
+    svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
+}
+
+/// The services of the SVC handler other than lock, unlock and the
+/// clock: EasyDMA, raise, the Endpoint operations, the violation report,
+/// the job end, and the panic. Each reads the Kernel's depth before the
+/// service, so that the plan unwinds a Job the service's response ended.
+#[inline(always)]
+fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
+) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        crate::arch::bound::stack_prefix(final(k), old(k)),
+        super::plan::arch_frame(*final(state), *old(state)),
+        ended_plan(final(k), old(k), *final(state), r.0 as int),
+        final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    if number == SVC_DMA {
+        // The executing Job is read before the request, as for the panic
+        // SVC below: a refusal applies the Partition's fault response
+        // (R17.2), and when that response ends the Job the end plan must
+        // unwind its level. Read after the refusal, the plan was 0 and the
+        // stub returned into the ended Job, which ran on with the Kernel
+        // holding no Job for it (the HIL isolation suite's first refused
+        // request, 2026-11-02, task 7.4: the next SVC was served with no
+        // executing Job and the Kernel entered the safe state).
+        // Bit 31 of r0 selects the register write of DD-08 (channel in the
+        // low byte, r1 the register offset, r2 the value; task 19.2).
+        let depth_before = k.depth();
+        let ok = if frame[0] & 0x8000_0000 != 0 {
+            dma_write_core(k, hw, tables, (frame[0] & 0xFF) as usize, frame[1], frame[2])
+        } else {
+            dma_request_core(k, hw, tables, frame[0] as usize, frame[1], frame[2])
+        };
+        frame[0] = if ok { 0 } else { 1 };
+        if ok {
+            (0, false)
+        } else {
+            let safe = apply_core(k, hw, tables, state);
+            let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+            (hop, safe)
+        }
+    } else if number == SVC_RAISE {
+        // As for the EasyDMA request: the executing Job is read before the
+        // raise, whose refusal applies the fault response (the same defect
+        // by inspection, fixed with it; never reached on the bench, since
+        // the demo's raises are all accepted).
+        let depth_before = k.depth();
+        let ok = raise_core(k, hw, tables, frame[0] as usize);
+        frame[0] = if ok { 0 } else { 1 };
+        // The released Task is pended if eligible; a refusal applied the
+        // Partition's fault response, which may have ended the Job.
+        let safe = apply_core(k, hw, tables, state);
+        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        (hop, safe)
+    } else if number == SVC_VIOLATION {
+        // Task 21.3 (R41.2): the Endpoint_Library's report of a Protocol
+        // violation, recorded against the executing Task; a Job that ends
+        // without storing its role state is reported by its wrapper after
+        // the body, still inside the Job. Task 21.4 (R42.4): the report of
+        // a rejected message, a fault of the sending Partition whose
+        // response may stop or restart it (never the executing Job's own
+        // Partition unless the sender is its own), hence the plan.
+        let depth_before = k.depth();
+        violation_core(k, tables, state, frame[0]);
+        frame[0] = 0;
+        let safe = apply_core(k, hw, tables, state);
+        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        (hop, safe)
+    } else if number == SVC_SEND || number == SVC_RECV {
+        // Task 21.2: as for the raise, the executing Job is read before the
+        // service; a refusal applies the fault response, and a send may
+        // release the receiving Task or, through the MIT policy's response
+        // to the sending Partition, end the Job.
+        let depth_before = k.depth();
+        let code = if number == SVC_SEND {
+            endpoint_send_core(k, hw, tables, state, frame[0], frame[1], frame[2])
+        } else {
+            endpoint_recv_core(k, hw, tables, state, frame[0], frame[1], frame[2]).0
+        };
+        frame[0] = code;
+        if number == SVC_RECV && code != ENDPOINT_REFUSED {
+            (0, false)
+        } else {
+            let safe = apply_core(k, hw, tables, state);
+            let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+            (hop, safe)
+        }
+    } else if number == SVC_JOB_END {
+        let elapsed = charge_point(hw, state);
+        let depth_before = k.depth();
+        k.job_return(elapsed);
+        let safe = apply_core(k, hw, tables, state);
+        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        (hop, safe)
+    } else {
+        // SVC_PANIC and anything else: a fault of the executing Job's
+        // Partition (PR-19, R14.2). The executing Job is read before the
+        // response so that the end plan unwinds its level when the
+        // response ended it (fi-PR-19, 2026-10-23: read after it, the plan
+        // was 0, the stub returned into the ended Job, and the next
+        // dispatch took a UsageFault).
+        let depth_before = k.depth();
+        k.fault(EV_PANIC, false);
+        let safe = apply_core(k, hw, tables, state);
+        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        (hop, safe)
+    }
 }
 
 /// The Rust half of the SVC handler: `frame` is the caller's exception
 /// frame (R0-R3 at words 0 to 3, PC at word 6); `number` the SVC number
 /// the shell read from the instruction. Lock and unlock leave BASEPRI at
 /// the executing Job's level or the (new) System_Ceiling (A1).
+// Checked in a solver instance of its own: in the context shared with the
+// functions before it the proof ran out of the default resource limit
+// (2026-11-13); alone it passes well inside it.
+#[verifier::spinoff_prover]
 pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
 ) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
     hw.apply(Action::Trace(TR_SVC, number as u32));
-    if number == SVC_LOCK {
+    // A late-arriving SVC of a Job that a higher-priority Kernel entry ended
+    // during the SVC's exception entry (the shell reads `SVC_STALE` for the
+    // resumed frame's instruction; task 7.5): the request died with its
+    // Job, nothing is served.
+    let r: (ReturnPlan, bool) = if number == SVC_STALE {
+        (0, false)
+    } else if number == SVC_LOCK {
         let ok = k.svc_lock(frame[0] as u8);
         frame[0] = if ok { 1 } else { 0 };
         hw.apply(Action::SetBasepri(k.basepri_now()));
@@ -2060,97 +3516,13 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         frame[0] = now as u32;
         frame[1] = (now >> 32) as u32;
         (0, false)
-    } else if number == SVC_DMA {
-        // The executing Job is read before the request, as for the panic
-        // SVC below: a refusal applies the Partition's fault response
-        // (R17.2), and when that response ends the Job the end plan must
-        // unwind its level. Read after the refusal, the plan was 0 and the
-        // stub returned into the ended Job, which ran on with the Kernel
-        // holding no Job for it (the HIL isolation suite's first refused
-        // request, 2026-11-02, task 7.4: the next SVC was served with no
-        // executing Job and the Kernel entered the safe state).
-        // Bit 31 of r0 selects the register write of DD-08 (channel in the
-        // low byte, r1 the register offset, r2 the value; task 19.2).
-        let top_before = k.top();
-        let ok = if frame[0] & 0x8000_0000 != 0 {
-            dma_write_core(k, hw, tables, (frame[0] & 0xFF) as usize, frame[1], frame[2])
-        } else {
-            dma_request_core(k, hw, tables, frame[0] as usize, frame[1], frame[2])
-        };
-        frame[0] = if ok { 0 } else { 1 };
-        if ok {
-            (0, false)
-        } else {
-            let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, top_before);
-            (hop, safe)
-        }
-    } else if number == SVC_RAISE {
-        // As for the EasyDMA request: the executing Job is read before the
-        // raise, whose refusal applies the fault response (the same defect
-        // by inspection, fixed with it; never reached on the bench, since
-        // the demo's raises are all accepted).
-        let top_before = k.top();
-        let ok = raise_core(k, hw, tables, frame[0] as usize);
-        frame[0] = if ok { 0 } else { 1 };
-        // The released Task is pended if eligible; a refusal applied the
-        // Partition's fault response, which may have ended the Job.
-        let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, top_before);
-        (hop, safe)
-    } else if number == SVC_VIOLATION {
-        // Task 21.3 (R41.2): the Endpoint_Library's report of a Protocol
-        // violation, recorded against the executing Task; a Job that ends
-        // without storing its role state is reported by its wrapper after
-        // the body, still inside the Job. Task 21.4 (R42.4): the report of
-        // a rejected message, a fault of the sending Partition whose
-        // response may stop or restart it (never the executing Job's own
-        // Partition unless the sender is its own), hence the plan.
-        let top_before = k.top();
-        violation_core(k, tables, state, frame[0]);
-        frame[0] = 0;
-        let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, top_before);
-        (hop, safe)
-    } else if number == SVC_SEND || number == SVC_RECV {
-        // Task 21.2: as for the raise, the executing Job is read before the
-        // service; a refusal applies the fault response, and a send may
-        // release the receiving Task or, through the MIT policy's response
-        // to the sending Partition, end the Job.
-        let top_before = k.top();
-        let code = if number == SVC_SEND {
-            endpoint_send_core(k, hw, tables, state, frame[0], frame[1], frame[2])
-        } else {
-            endpoint_recv_core(k, hw, tables, state, frame[0], frame[1], frame[2]).0
-        };
-        frame[0] = code;
-        if number == SVC_RECV && code != ENDPOINT_REFUSED {
-            (0, false)
-        } else {
-            let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, top_before);
-            (hop, safe)
-        }
-    } else if number == SVC_JOB_END {
-        let elapsed = charge_point(hw, state);
-        let top_before = k.top();
-        k.job_return(elapsed);
-        let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, top_before);
-        (hop, safe)
     } else {
-        // SVC_PANIC and anything else: a fault of the executing Job's
-        // Partition (PR-19, R14.2). The executing Job is read before the
-        // response so that the end plan unwinds its level when the
-        // response ended it (fi-PR-19, 2026-10-23: read after it, the plan
-        // was 0, the stub returned into the ended Job, and the next
-        // dispatch took a UsageFault).
-        let top_before = k.top();
-        k.fault(EV_PANIC, false);
-        let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, top_before);
-        (hop, safe)
+        svc_service_core(k, hw, tables, state, frame, number)
+    };
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, r.0 as int);
     }
+    r
 }
 
 /// The Rust half of the unwind of one level, named by its exception
@@ -2162,21 +3534,81 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
 // Near Z3's default resource limit since `HwModel` gained the watchdog
 // fields (task 5.3), and over 20 since `ArchState` gained the deferred
 // vectors (5.8a, 2026-11-07); the limit is raised rather than the proof split.
-#[verifier::rlimit(40)]
 #[verifier::rlimit(80)]
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
 ) -> (r: ((u32, u32, u32, ReturnPlan), bool))
-    requires old(k).inv(),
+    requires
+        old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
+        // The stub passes the plan it was handed: a non-zero exception
+        // number, with the invariant in the form that plan left.
+        (n & 0x1FF) != 0, arch_inv(old(k), *old(state), (n & 0x1FF) as int),
+        view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // The MPU view loaded is the resumed Job's Partition's (A6).
+        !r.1 ==> view_matches(*final(state), final(hw)),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // The invariant of the entry cores, with the next level to unwind,
+        // and the preempted context of the record unwound (`epi_rel`).
+        !r.1 ==> arch_inv(final(k), *final(state), r.0.3 as int),
+        !r.1 ==> epi_rel(final(k), *old(state), *final(state), r.0),
+        // The unwind stops (no further level named, no safe state) only at
+        // the context of the Kernel's executing Job: the Job that the
+        // unwound level's record names as preempted is the top of the
+        // Kernel's stack, or the record names none and the stack is empty
+        // (the audit's lead 2.1; the review of its fix, 2026-11-13). The
+        // level unwound is the topmost one, the last entry of the chain;
+        // with nothing owed the records then match the stack.
+        r.0.3 == 0 && !r.1 ==> crate::arch::bound::top_task(final(k))
+                == old(state).levels[old(state).chain_levels@.last()].previous_task as int
+            && final(state).pending_unwind == 0
+            && arch_matches(final(k), *final(state)),
+        // The unwound level's record is no longer active; no other record changes.
+        forall|l: int| 0 <= l < 8 ==> #[trigger] final(state).levels[l].task == old(state).levels[l].task
+            && final(state).levels[l].previous_task == old(state).levels[l].previous_task
+            && (final(state).levels[l].active ==> old(state).levels[l].active),
 {
+    let ghost n_arg = n;
+    let ghost s0 = *old(state);
+    let ghost m = s0.chain@.len() as int;
+    proof {
+        assert(n & 0x1FF <= 0x1FF) by (bit_vector);
+    }
     let n = (n & 0x1FF) as u16;
     hw.apply(Action::Trace(TR_EPILOGUE, n as u32));
-    let level = find_level(&state.levels, n);
+    // The level unwound is the topmost active one: the last Job dispatched
+    // and not yet unwound, whose frame is the top of the main stack.
+    let level = top_active(&state.levels);
+    proof {
+        k.lemma_stack_rising();
+        lemma_chain_len(k, *state);
+        lemma_top_active(k, *state, level as int);
+        lemma_link(k, *state, m - 1);
+    }
     let rec = state.levels[level];
+    if level == 0 || rec.exception_number != n {
+        // The plan names another level than the topmost record's, or no
+        // record is active: the stub and the records disagree. A Kernel
+        // fault (excluded by `arch_inv`; the check costs one comparison).
+        k.fault(EV_HARDFAULT, true);
+        let _ = apply_core(k, hw, tables, state);
+        hw.apply(Action::SetBasepri(0));
+        return ((rec.psp, rec.control, rec.exc_return, 0), true);
+    }
+    // The level is unwound: its record is no longer of a Job in progress,
+    // and nothing is owed to a stub any more.
+    let mut ended = rec;
+    ended.active = false;
+    state.levels[level] = ended;
+    state.chain = Ghost(state.chain@.drop_last());
+    state.chain_levels = Ghost(state.chain_levels@.drop_last());
+    state.pending_unwind = 0;
     if (rec.partition as usize) < MAX_FLOORS {
         state.floor[rec.partition as usize] = rec.floor_before;
     }
@@ -2190,6 +3622,14 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         hw.apply(Action::FpuAccess(k.job_info(k.stack_at(idx)).fpu));
     }
     state.current_partition = rec.previous_partition;
+    let ghost s1 = *state;
+    proof {
+        lemma_pop(k, s1, s0);
+        lemma_chain_len(k, s1);
+        if m - 1 > 0 {
+            lemma_link(k, s1, m - 2);
+        }
+    }
     // The audit's lead 2.1 (2026-11-13): the context this level preempted
     // is resumed only while its Job is still the executing Job. One Kernel
     // entry can end two Jobs outright (the Kani witness
@@ -2206,23 +3646,84 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     if resumed_ended {
         let l = k.job_info(rec.previous_task).priority as usize;
         let next = state.levels[l].exception_number as u32;
+        proof {
+            // The chain is still longer than the stack: were it the stack,
+            // the preempted Job would be the executing one.
+            if m - 1 == k.spec_depth() && m - 1 > 0 {
+                lemma_on_stack(k, s1, m - 2);
+            }
+            assert(m - 1 > k.spec_depth());
+            assert(l as int == s1.chain_levels@[m - 2]);
+        }
+        if next == 0 {
+            // No record names the level of the Job this level preempted:
+            // the records and the Kernel's stack disagree. A Kernel fault.
+            k.fault(EV_HARDFAULT, true);
+            let _ = apply_core(k, hw, tables, state);
+            hw.apply(Action::SetBasepri(0));
+            return ((rec.psp, rec.control, rec.exc_return, 0), true);
+        }
         hw.apply(Action::SetBasepri(k.basepri_now()));
         return ((rec.psp, rec.control, rec.exc_return, next), false);
+    }
+    proof {
+        // The chain is the stack again: were it longer, the Job this level
+        // preempted (the chain's last entry) would differ from the executing
+        // one, a lower entry of the same chain.
+        if m - 1 > k.spec_depth() {
+            if k.spec_depth() > 0 {
+                lemma_on_stack(k, s1, k.spec_depth() - 1);
+                lemma_chain_distinct(k, s1, k.spec_depth() - 1, m - 2);
+            }
+        }
+        assert(m - 1 == k.spec_depth());
+        if m - 1 > 0 {
+            lemma_on_stack(k, s1, m - 2);
+        }
+    }
+    if rec.previous_task == 0xFF && k.depth() != 0 {
+        // The record says this level preempted the idle activity, and the
+        // Kernel holds a Job: the records and the stack disagree.
+        k.fault(EV_HARDFAULT, true);
+        let _ = apply_core(k, hw, tables, state);
+        hw.apply(Action::SetBasepri(0));
+        return ((rec.psp, rec.control, rec.exc_return, 0), true);
     }
     // A killed resumed Job ends now and its level is unwound as well.
     match k.top() {
         Some(t) => {
             if k.is_killed(t) {
+                let ghost k1 = *k;
                 k.job_return(0);
                 let safe = apply_core(k, hw, tables, state);
                 let l = k.job_info(t).priority as usize;
                 let next = state.levels[l].exception_number as u32;
+                proof {
+                    lemma_chain_frame(k, &k1, *state, s1);
+                    lemma_link(k, *state, m - 2);
+                    assert(l as int == state.chain_levels@[m - 2]);
+                }
+                if next == 0 {
+                    // As above: no record for the killed Job's level.
+                    k.fault(EV_HARDFAULT, true);
+                    let _ = apply_core(k, hw, tables, state);
+                    hw.apply(Action::SetBasepri(0));
+                    return ((rec.psp, rec.control, rec.exc_return, 0), true);
+                }
                 return ((rec.psp, rec.control, rec.exc_return, next), safe);
             }
         }
         None => {}
     }
     hw.apply(Action::SetBasepri(k.basepri_now()));
+    proof {
+        // The level unwound is the witness: its record named the Job that is
+        // now the Kernel's executing Job, or none with the stack empty.
+        assert(s0.levels[level as int] == rec);
+        assert(crate::arch::bound::top_task(k) == rec.previous_task as int);
+        assert(arch_inv(k, *state, 0));
+        lemma_arch_matches(k, *state);
+    }
     ((rec.psp, rec.control, rec.exc_return, 0), false)
 }
 
@@ -2232,18 +3733,32 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
 pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, kind: u8, in_kernel: bool,
 ) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // A fault taken from Handler mode or with PRIMASK held is the
+        // Kernel's: it ends no Job and plans no unwind.
+        in_kernel ==> r.0 == 0,
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
     hw.apply(Action::Trace(TR_FAULT, kind as u32));
     let kernel = in_kernel || kind == EV_HARDFAULT || k.depth() == 0;
-    let top_before = k.top();
+    let depth_before = k.depth();
     k.fault(kind, kernel);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, top_before);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
+    svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
 }
 
