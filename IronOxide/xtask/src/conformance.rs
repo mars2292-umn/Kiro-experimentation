@@ -27,7 +27,7 @@ pub enum CaseKind {
     BuildCheck { fixture: String },
     LinkPatch { symbol: String, offset: u32, bytes: Vec<u8> },
     LinkRename { symbol: String, to: String },
-    FaultInjection { feature: String, event: u8 },
+    FaultInjection { feature: String, event: u8, absent: Vec<u8>, untagged: bool },
     Reason(String),
 }
 
@@ -98,7 +98,13 @@ pub fn load(root: &Path) -> Result<Suite, String> {
                     CaseKind::LinkPatch { symbol: str_of(c, "symbol", &id)?, offset, bytes }
                 }
             }
-            "fault-injection" => CaseKind::FaultInjection { feature: str_of(c, "feature", &id)?, event: c.get("event").and_then(Value::as_integer).ok_or(format!("{REGISTER}: {id}: missing `event`"))? as u8 },
+            "fault-injection" => CaseKind::FaultInjection {
+                feature: str_of(c, "feature", &id)?,
+                event: c.get("event").and_then(Value::as_integer).ok_or(format!("{REGISTER}: {id}: missing `event`"))? as u8,
+                // `absent`: event kinds the log must not hold; `untagged`: the event carries no restriction bit to check.
+                absent: c.get("absent").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_integer().map(|k| k as u8)).collect()).unwrap_or_default(),
+                untagged: c.get("untagged").and_then(Value::as_bool).unwrap_or(false),
+            },
             "reason" => CaseKind::Reason(str_of(c, "reason", &id)?),
             other => return Err(format!("{REGISTER}: {id}: unknown kind `{other}`")),
         };
@@ -338,7 +344,9 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                     }
                 }
             }
-            CaseKind::FaultInjection { feature, event } => {
+            CaseKind::FaultInjection { feature, event, absent, untagged } => {
+                // `feature` names a feature of p1-demo-part0, or `package/feature`.
+                let (fi_pkg, fi_feature) = feature.split_once('/').unwrap_or(("p1-demo-part0", feature.as_str()));
                 if qemu_version.is_none() {
                     notes.push("qemu-system-arm is not installed: the fault-injection run was not performed".to_string());
                 }
@@ -347,8 +355,8 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                     Err(String::new())
                 } else {
                 let build = Cmd::cargo_frozen("build")
-                    .args(["--release", "--target", &triple, "-p", &suite.binary, "-p", "p1-demo-part0", "--features"])
-                    .arg(format!("p1-demo-part0/{feature}"))
+                    .args(["--release", "--target", &triple, "-p", &suite.binary, "-p", fi_pkg, "--features"])
+                    .arg(format!("{fi_pkg}/{fi_feature}"))
                     .arg("--manifest-path")
                     .arg(cx.root.join("Cargo.toml"))
                     .arg("--target-dir")
@@ -375,7 +383,9 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                                 notes.push(format!("{} events logged, {hit} of kind {event}, exit {} after {:.1}s", events.len(), run.exit_code, run.seconds));
                                 if hit == 0 {
                                     Err(format!("no event of kind {event} in the Health_Monitor log"))
-                                } else if !tagged {
+                                } else if let Some(k) = absent.iter().find(|k| events.iter().any(|(e, _)| e == *k)) {
+                                    Err(format!("the Health_Monitor log holds an event of kind {k}, which the case excludes"))
+                                } else if !tagged && !*untagged {
                                     Err(format!("the event of kind {event} does not carry the {} bit (R3.9)", case.restriction))
                                 } else {
                                     Ok(true)

@@ -598,6 +598,17 @@ event = 9
 note = "control raises `tick` twice in one Job: the second Release falls due while echo's is pending and is counted as an MIT_Violation (R9.8)."
 
 [[case]]
+id = "fi-R42-4-forged-rejection"
+restriction = "PR-32"
+category = "RT"
+kind = "fault-injection"
+feature = "p1-demo-part1/fi-forged-rejection"
+event = 22
+absent = [16]
+untagged = true
+note = "Audit finding 2 (2026-11-13), R42.4, R18.7: `log` (level C) reports a rejected message against `control` (level A) over an edge it does not validate and with nothing delivered. The Kernel records API misuse (event 22) of `log` and applies part1's fault response; part0 is not restarted (no event 16), where until this date the report imposed part0's RESTART_PARTITION."
+
+[[case]]
 id = "fi-PR-15"
 restriction = "PR-15"
 category = "RT"

@@ -94,6 +94,11 @@ pub struct GenEndpoint {
     /// Per role (declaration order), the validation functions `(label,
     /// path)` of task 21.4 (R42.4).
     pub validators: Vec<Vec<(Option<String>, String)>>,
+    /// R42.4 (audit finding 2): `validates[r][f]`: role `r` declares a
+    /// validation function and role `f` is of another Partition of lower
+    /// Criticality_Level (`EndpointCfg::validates`: the edges on which the
+    /// Kernel accepts a rejection report).
+    pub validates: Vec<Vec<bool>>,
     /// Task 21.6 (R41.3, A-P8): per role, the Endpoints whose receives its
     /// operations may wait for (`after`).
     pub after: Vec<Vec<String>>,
@@ -441,6 +446,12 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
             }
         };
         let validators = e.roles.iter().map(|r| r.validate.clone()).collect();
+        let level = |r: &crate::decl::RoleDecl| decl.partitions.iter().find(|p| p.name == r.partition).map(|p| p.level.code()).expect("validated");
+        let validates: Vec<Vec<bool>> = e
+            .roles
+            .iter()
+            .map(|r| e.roles.iter().map(|f| !r.validate.is_empty() && r.partition != f.partition && level(r) < level(f)).collect())
+            .collect();
         let ops = e.roles.iter().map(|r| r.ops).collect();
         // Task 21.7 (R41.3): the explicit `after` edges, plus the implicit one
         // from the Protocol Endpoint whose arrival releases the role's Task
@@ -461,7 +472,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
             })
             .collect();
         let gating_rank = gating_rank(decl, &e.name);
-        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, verified_states, labels, after, gating_rank, capacity: e.capacity, payload: e.payload, roles, release, validators, ops, storage });
+        endpoints.push(GenEndpoint { name: e.name.clone(), index: ei, ty: e.ty.clone(), protocol: e.protocol.clone(), k, channels, configurations, projections, locals, verified_states, labels, after, gating_rank, capacity: e.capacity, payload: e.payload, roles, release, validators, validates, ops, storage });
         storage += (e.roles.len() * e.roles.len()) as u32 * e.capacity as u32 * e.payload as u32; // task 21.7: one channel per ordered pair, the diagonal unused
     }
     let endpoint_storage_bytes = storage;
@@ -636,6 +647,12 @@ pub fn endpoint_bytes(g: &Generated) -> Vec<u8> {
             out.push(e.release.get(r).copied().unwrap_or(false) as u8);
         }
         out.extend_from_slice(&e.storage.to_le_bytes());
+        // R42.4 (audit finding 2): validates[r][f], row by row.
+        for r in 0..crate::validate::MAX_ROLES {
+            for f in 0..crate::validate::MAX_ROLES {
+                out.push(e.validates.get(r).and_then(|v| v.get(f)).copied().unwrap_or(false) as u8);
+            }
+        }
     }
     out.extend_from_slice(&g.endpoint_storage_bytes.to_le_bytes());
     out

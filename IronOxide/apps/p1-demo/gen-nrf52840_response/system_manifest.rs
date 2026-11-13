@@ -90,20 +90,20 @@ pub const SIGNALS: [::rsk_kernel::arch::SignalCfg; NSIG] = [
     ::rsk_kernel::arch::SignalCfg { partition: 0, task: 1 }, // part0.tick
 ];
 pub const NEP: usize = 2;
-const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg { capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0 };
+const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg { capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0, validates: [[false; 4]; 4] };
 pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [
-    ::rsk_kernel::arch::EndpointCfg { capacity: 4, payload: 4, roles: 2, tasks: [0, 3, 0xFF, 0xFF], partitions: [0, 1, 0xFF, 0xFF], release: [false, false, false, false], storage: 0 }, // telemetry (plain `u32`): ctl => part0.control, sink => part1.log
-    ::rsk_kernel::arch::EndpointCfg { capacity: 1, payload: 8, roles: 2, tasks: [0, 3, 0xFF, 0xFF], partitions: [0, 1, 0xFF, 0xFF], release: [false, false, false, false], storage: 64 }, // pingpong (PingPong): ctl => part0.control, sink => part1.log
+    ::rsk_kernel::arch::EndpointCfg { capacity: 4, payload: 4, roles: 2, tasks: [0, 3, 0xFF, 0xFF], partitions: [0, 1, 0xFF, 0xFF], release: [false, false, false, false], storage: 0, validates: [[false, true, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]] }, // telemetry (plain `u32`): ctl => part0.control, sink => part1.log
+    ::rsk_kernel::arch::EndpointCfg { capacity: 1, payload: 8, roles: 2, tasks: [0, 3, 0xFF, 0xFF], partitions: [0, 1, 0xFF, 0xFF], release: [false, false, false, false], storage: 64, validates: [[false, true, false, false], [false, false, false, false], [false, false, false, false], [false, false, false, false]] }, // pingpong (PingPong): ctl => part0.control, sink => part1.log
 ];
 pub const ENDPOINT_STORAGE_BYTES: usize = 96;
 static ENDPOINT_STORAGE: ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage<ENDPOINT_STORAGE_BYTES> = ::rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage::new();
 /// Canonical image of the Endpoint table, for the Config_Checker (R26.4).
 #[used]
 #[no_mangle]
-pub static RSK_ENDPOINT_IMAGE: [u8; 48] = [0x02, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x02, 0x00, 0x03, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08, 0x00, 0x02, 0x00, 0x03, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00];
+pub static RSK_ENDPOINT_IMAGE: [u8; 80] = [0x02, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x02, 0x00, 0x03, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08, 0x00, 0x02, 0x00, 0x03, 0xff, 0xff, 0x00, 0x01, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00];
 #[used]
 #[no_mangle]
-pub static RSK_ENDPOINT_CHECKSUM: u32 = 0xe58f9895;
+pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x10081501;
 pub struct Sys;
 impl ::rsk_kernel::arch::System for Sys {
     type K = K;

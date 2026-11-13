@@ -1096,6 +1096,8 @@ fn clear_channels(state: &mut ArchState, e: usize)
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
+        // R42.4 (audit finding 2): no delivery of this Endpoint is left to report.
+        state.delivered[base + c] = false;
         c += 1;
     }
 }
@@ -1211,6 +1213,9 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
         forall|i: int| e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int ==> #[trigger] final(state).peer_changed[i],
         forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).fifos[i] == old(state).fifos[i],
         forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int) ==> #[trigger] final(state).peer_changed[i] == old(state).peer_changed[i],
+        // R42.4 (audit finding 2): the Endpoint's delivery latches are clear, the others unchanged.
+        forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
+        forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).delivered[i] == old(state).delivered[i],
 {
     let ghost before = *state;
     assert(e * (MAX_ROLES * MAX_ROLES) <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES)) by (nonlinear_arith)
@@ -1224,10 +1229,13 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
             c <= MAX_ROLES * MAX_ROLES, e < MAX_ENDPOINTS, base == e * (MAX_ROLES * MAX_ROLES), base <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES),
             forall|i: int| base as int <= i < base as int + c ==> #[trigger] state.fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
             forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c) ==> #[trigger] state.fifos[i] == before.fifos[i],
+            forall|i: int| base as int <= i < base as int + c ==> !(#[trigger] state.delivered[i]),
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c) ==> #[trigger] state.delivered[i] == before.delivered[i],
             state.peer_changed == before.peer_changed,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
+        state.delivered[base + c] = false;
         c += 1;
     }
     let rbase = e * MAX_ROLES;
@@ -1237,6 +1245,8 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
             r <= MAX_ROLES, e < MAX_ENDPOINTS, base == e * (MAX_ROLES * MAX_ROLES), rbase == e * MAX_ROLES, rbase <= (MAX_ENDPOINTS - 1) * MAX_ROLES, base <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES),
             forall|i: int| base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int ==> #[trigger] state.fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
             forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] state.fifos[i] == before.fifos[i],
+            forall|i: int| base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] state.delivered[i]),
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] state.delivered[i] == before.delivered[i],
             forall|i: int| rbase as int <= i < rbase as int + r ==> #[trigger] state.peer_changed[i],
             forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(rbase as int <= i < rbase as int + r) ==> #[trigger] state.peer_changed[i] == before.peer_changed[i],
         decreases MAX_ROLES - r,
@@ -1297,6 +1307,39 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut Ar
     }
     let cfg = tables.endpoint(e);
     if (role as u8) >= cfg.roles || (from as u8) >= cfg.roles || from == role || cfg.tasks[role] != t {
+        k.fault(EV_API_MISUSE, false);
+        return;
+    }
+    rejection_core(k, state, &cfg, e, role, from);
+}
+
+/// R42.4 (audit finding 2, 2026-11-13): whether the Kernel accepts a
+/// rejection report of role `role` of Endpoint `e` against role `from`: the
+/// role declares a validation function for what it receives from `from`
+/// over an upward Criticality_Level edge, and a message of that channel was
+/// delivered to it since the Endpoint's last re-initialization.
+pub open spec fn spec_rejection_permitted(cfg: EndpointCfg, state: ArchState, e: int, role: int, from: int) -> bool {
+    cfg.validates[role][from] && state.delivered[spec_channel_index(e, from, role)]
+}
+
+/// The rejected-message report of a role bound to the executing Task
+/// (R42.4). Permitted (`spec_rejection_permitted`): the fault of the sending
+/// Partition, recorded against the sending Task, and the Endpoint
+/// re-initialized, its delivery latches with it, so that one delivery
+/// permits one report. Not permitted (no validated upward edge from `from`,
+/// or nothing delivered): API misuse of the caller, and no Endpoint or
+/// latch state changes. Until 2026-11-13 the report was accepted from any
+/// role bound to the caller, so that a Partition of lower Criticality_Level
+/// could impose a higher one's fault response with one call.
+fn rejection_core<K: KernelOps>(k: &mut K, state: &mut ArchState, cfg: &EndpointCfg, e: usize, role: usize, from: usize)
+    requires old(k).inv(), e < MAX_ENDPOINTS, role < MAX_ROLES, from < MAX_ROLES,
+    ensures final(k).inv(),
+        !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> *final(state) == *old(state),
+        spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==>
+            forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
+{
+    let ch = channel_index(e, from, role);
+    if !(cfg.validates[role][from] && state.delivered[ch]) {
         k.fault(EV_API_MISUSE, false);
         return;
     }
@@ -1607,6 +1650,11 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
             let first = hw.copy_out(ptr, src, len);
+            // R42.4 (audit finding 2): a delivery over a validated upward
+            // edge permits one rejection report of this role against `from`.
+            if cfg.validates[role][from] {
+                state.delivered[ch] = true;
+            }
             proof {
                 let base = spec_storage_base_of(tables);
                 lemma_recv_labels(base, cfg, d as int, before, fifo_after, slot as int, hw.hw(), first as int);

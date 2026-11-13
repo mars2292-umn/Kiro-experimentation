@@ -298,10 +298,13 @@ mod tests {
     fn r41_3_a_message_release_gates_the_tasks_other_endpoints() {
         use crate::decl::{EndpointDecl, MitPolicy, ProtocolDecl, Release, RoleDecl, Source};
         let loop_text = "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }";
-        // Both roles validate what they receive, so the R42.4 rule is quiet whichever Partition plays which.
+        // The role played in part0 (level A) validates what it receives from part1 (level C), so
+        // the R42.4 rule is quiet whichever Partition plays which. Until 2026-11-13 both roles
+        // validated; a validation function on the downward edge is rejected since (audit finding 2:
+        // the Kernel accepts a rejection report only over an upward edge).
         let roles = |ctl: (&str, &str), sink: (&str, &str)| vec![
-            RoleDecl { role: "ctl".into(), partition: ctl.0.into(), task: ctl.1.into(), validate: vec![(Some("Rep".into()), "crate::ok".into())], ops: 1, after: vec![] },
-            RoleDecl { role: "sink".into(), partition: sink.0.into(), task: sink.1.into(), validate: vec![(Some("Req".into()), "crate::ok".into())], ops: 1, after: vec![] },
+            RoleDecl { role: "ctl".into(), partition: ctl.0.into(), task: ctl.1.into(), validate: if ctl.0 == "part0" { vec![(Some("Rep".into()), "crate::ok".into())] } else { vec![] }, ops: 1, after: vec![] },
+            RoleDecl { role: "sink".into(), partition: sink.0.into(), task: sink.1.into(), validate: if sink.0 == "part0" { vec![(Some("Req".into()), "crate::ok".into())] } else { vec![] }, ops: 1, after: vec![] },
         ];
         // `log` becomes sporadic, released by `ping` (it plays `sink`, which receives first: accepted).
         let mut d = demo();

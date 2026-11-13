@@ -235,7 +235,7 @@ pub fn system_source(g: &Generated) -> String {
     // storage of every channel (one static in the Kernel's RAM), and the
     // table's image for the Config_Checker.
     let _ = writeln!(s, "pub const NEP: usize = {};", g.endpoints.len());
-    let _ = writeln!(s, "const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg {{ capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0 }};");
+    let _ = writeln!(s, "const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg {{ capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0, validates: [[false; 4]; 4] }};");
     let _ = writeln!(s, "pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [");
     for e in &g.endpoints {
         // Task 21.7: `MAX_ROLES` slots per array, 0xFF (or false) beyond the roles.
@@ -243,11 +243,13 @@ pub fn system_source(g: &Generated) -> String {
         let part = |r: usize| e.roles.get(r).map_or("0xFF".to_string(), |(_, t)| g.tasks[*t].partition.to_string());
         let rel = |r: usize| e.release.get(r).copied().unwrap_or(false).to_string();
         let arr = |f: &dyn Fn(usize) -> String| (0..crate::validate::MAX_ROLES).map(f).collect::<Vec<_>>().join(", ");
+        // R42.4 (audit finding 2): the edges on which a rejection report is accepted.
+        let val = |r: usize| format!("[{}]", (0..crate::validate::MAX_ROLES).map(|f| e.validates.get(r).and_then(|v| v.get(f)).copied().unwrap_or(false).to_string()).collect::<Vec<_>>().join(", "));
         let binding: Vec<String> = e.roles.iter().map(|(r, t)| format!("{r} => {}", g.tasks[*t].id)).collect();
         let _ = writeln!(
             s,
-            "    ::rsk_kernel::arch::EndpointCfg {{ capacity: {}, payload: {}, roles: {}, tasks: [{}], partitions: [{}], release: [{}], storage: {} }}, // {} ({}): {}",
-            e.capacity, e.payload, e.roles.len(), arr(&task), arr(&part), arr(&rel), e.storage, e.name, e.protocol.clone().unwrap_or_else(|| format!("plain `{}`", e.ty)), binding.join(", ")
+            "    ::rsk_kernel::arch::EndpointCfg {{ capacity: {}, payload: {}, roles: {}, tasks: [{}], partitions: [{}], release: [{}], storage: {}, validates: [{}] }}, // {} ({}): {}",
+            e.capacity, e.payload, e.roles.len(), arr(&task), arr(&part), arr(&rel), e.storage, arr(&val), e.name, e.protocol.clone().unwrap_or_else(|| format!("plain `{}`", e.ty)), binding.join(", ")
         );
     }
     let _ = writeln!(s, "];");

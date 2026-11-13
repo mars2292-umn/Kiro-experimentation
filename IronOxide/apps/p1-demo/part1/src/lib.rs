@@ -163,6 +163,15 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::log_pre(&cx)))]
 #[allow(unused_labels)]
 pub fn log(mut cx: rsk_ctx::Log) {
+    // Audit finding 2 (2026-11-13; conformance case fi-R42-4-forged-rejection):
+    // a rejected-message report against `control`, role 0 of `telemetry`
+    // (Endpoint 0), from this Task's role 1, which declares no validation
+    // function and received nothing. The Kernel must record API misuse of
+    // this Task and leave part0 alone.
+    #[cfg(feature = "fi-forged-rejection")]
+    if cx.count.get() == 0 {
+        rsk::report_rejected_message(0, 1, 0);
+    }
     if cx.count.get() == 0 {
         pulse_source::start();
         // The measurement configurations (task 19.2): the EasyDMA traffic

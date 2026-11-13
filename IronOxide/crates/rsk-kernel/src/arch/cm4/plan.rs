@@ -111,6 +111,13 @@ pub struct EndpointCfg {
     pub partitions: [u8; MAX_ROLES],
     pub release: [bool; MAX_ROLES],
     pub storage: u32,
+    /// R42.4 (audit finding 2, 2026-11-13): `validates[r][f]` says that role
+    /// `r` declares a validation function for a message it receives from
+    /// role `f`, a role of another Partition of lower Criticality_Level (an
+    /// upward edge). The Kernel accepts a rejection report of role `r`
+    /// against role `f` only then, and only after a delivery
+    /// (`ArchState::delivered`).
+    pub validates: [[bool; MAX_ROLES]; MAX_ROLES],
 }
 
 /// The most roles an Endpoint may bind (task 21.7).
@@ -160,6 +167,15 @@ pub struct ArchState {
     /// next send or receive of role `r` returns the peer-state error and
     /// clears it.
     pub peer_changed: [bool; MAX_ROLE_SLOTS],
+    /// R42.4 (audit finding 2, 2026-11-13): the delivery latch of a
+    /// rejection report. Entry `channel_index(e, from, to)` is set when the
+    /// receive service delivers a message of that channel to role `to` on a
+    /// validated upward edge (`EndpointCfg::validates`), and cleared when
+    /// the Endpoint is re-initialized, which an accepted rejection report
+    /// does. A report with the entry clear is API misuse of the caller:
+    /// until this date any role could report a rejection against its peer
+    /// at any time and impose the peer Partition's fault response.
+    pub delivered: [bool; MAX_CHANNELS],
     pub first_fault_addr: u32,
 }
 
@@ -186,6 +202,7 @@ impl ArchState {
             pending_unwind: 0,
             fifos: [crate::logic::endpoint::Fifo { head: 0, count: 0 }; MAX_CHANNELS],
             peer_changed: [false; MAX_ROLE_SLOTS],
+            delivered: [false; MAX_CHANNELS],
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }

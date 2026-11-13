@@ -573,6 +573,20 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                     if !seen.insert(label.clone()) {
                         d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` declares two validation functions for {}", r.role, e.name, label.as_deref().unwrap_or("the payload"))));
                     }
+                    // Audit finding 2 (2026-11-13): the Kernel accepts a rejection report
+                    // only over an upward Criticality_Level edge between Partitions, so a
+                    // validation function for a message that does not cross one could only
+                    // ever report API misuse of its own Task.
+                    for (rl, from_name) in &received[ri] {
+                        if rl != label {
+                            continue;
+                        }
+                        let Some(other) = e.roles.iter().find(|q| &q.role == from_name) else { continue };
+                        let upward = r.partition != other.partition && matches!((level_of(r), level_of(other)), (Some(mine), Some(theirs)) if mine < theirs);
+                        if !upward {
+                            d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` declares a validation function ({path}) for {} from `{}.{}`, which is not of another Partition of lower Criticality_Level: the Kernel accepts a rejected-message report only over such an edge", r.role, e.name, label.as_deref().map_or("the payload".to_string(), |l| format!("label `{l}`")), other.partition, other.task)));
+                        }
+                    }
                     match (label, &e.protocol) {
                         (Some(l), None) => d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` validates label `{l}`, but the Endpoint has no Protocol: `validate = {path}` validates the payload", r.role, e.name))),
                         (None, Some(_)) => d.push(Diagnostic::new("R42.4", eref(), format!("role `{}` of Endpoint `{}` validates the payload, but the Endpoint has a Protocol: `validate = {{ LABEL = {path} }}` names the label", r.role, e.name))),
