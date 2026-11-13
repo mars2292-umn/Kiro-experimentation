@@ -81,3 +81,36 @@ hardware_rule = "None: host doubles so that the `rsk` API and the arch planning 
 harnesses = []
 validated = "n/a"
 validation = "The real assembly is exercised by the QEMU spike and reviewed (UJ-029 to UJ-034)."
+
+# Added 2026-11-13 (audit of ironoxide-eval-v2, finding 17): doubles that
+# existed at the tag and were not listed.
+
+[[stub]]
+id = "KS-08"
+name = "sim::ram_read / sim::ram_write"
+replaces = "the raw word leaves of the Endpoint message copy (hw::copy_words, UJ-056; task 21.2)"
+behaviour = "A table of RAM words: the stub asserts the SRAM-range precondition on every access and keeps the words written."
+hardware_rule = "None (plain RAM)."
+harnesses = ["copy_words_is_total_and_in_bounds"]
+validated = "n/a"
+validation = "The copy runs on the Target in every QEMU and HIL run of the demo's Endpoints; the wrappers copy_in_words and copy_out_words have no harness of their own (the same finding)."
+
+[[stub]]
+id = "KS-09"
+name = "sim::partition_reinit"
+replaces = "the zeroing of a restarted Partition's RAM image (R14.5; Action::ReinitPartition)"
+behaviour = "Counts a write; the host has no Partition image to zero."
+hardware_rule = "None."
+harnesses = ["apply_every_action_is_total"]
+validated = "n/a"
+validation = "The HIL response suite's restart cases read the Partition's counters after a restart (task 7.5)."
+
+[[stub]]
+id = "KS-10"
+name = "stubs_host::{svc_raise, svc_dma, svc_dma_write, svc_send, svc_recv, svc_violation}"
+replaces = "the SVC wrappers of stubs.rs for the signal, EasyDMA and Endpoint services (Target assembly)"
+behaviour = "svc_raise returns true; svc_dma and svc_dma_write return true; svc_send is always taken; svc_recv always finds the channel empty; svc_violation does nothing."
+hardware_rule = "None: host doubles so that the `rsk` API compiles and tests on the host."
+harnesses = []
+validated = "n/a"
+validation = "The real assembly is exercised by the QEMU demo and the HIL suites and reviewed."

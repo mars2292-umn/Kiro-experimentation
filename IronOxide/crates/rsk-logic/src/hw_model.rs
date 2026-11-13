@@ -63,8 +63,13 @@
 //! of late arrival (every stub reads the EXC_RETURN and PSP it was entered
 //! with, so correctness does not depend on which exception was taken
 //! first, only on HW-05 for the order); FAULTMASK as an input of the
-//! execution priority (HW-02: it is always clear, because nothing in the
-//! Kernel sets it and a Job cannot, `lemma_job_cannot_set_mask`); the
+//! execution priority (HW-02: a Job cannot set it,
+//! `lemma_job_cannot_set_mask`, and the Kernel sets it only in a stub's
+//! return window, `cpsid f` before the exception return, which clears it,
+//! Armv7-M ARM B1.4.3; restated 2026-11-13, the audit's finding 15: until
+//! then this list said that nothing in the Kernel sets it, which stopped
+//! being true with the 5.8a fix of 2026-11-07; that the return clears it
+//! is not formalized and has no differential test, R49.6); the
 //! fixed-priority exceptions Reset, NMI, and HardFault in HW-05
 //! arbitration (they are more urgent than every configurable level and
 //! lead to the system safe state, R14.4, so no proof depends on their
@@ -485,8 +490,10 @@ pub open spec fn mask_write(privileged: bool, current: bool, set: bool) -> bool 
 }
 
 /// A Job (Thread mode with CONTROL.nPRIV = 1, DD-01) cannot set PRIMASK or
-/// FAULTMASK. FAULTMASK, which `execution_priority` leaves out, is never
-/// set by the Kernel either, so it never masks the Kernel level.
+/// FAULTMASK. FAULTMASK, which `execution_priority` leaves out, is set by
+/// the Kernel only in a stub's return window and cleared by that
+/// exception return (not formalized; the audit's finding 15, 2026-11-13),
+/// so it never masks the Kernel level while a Job executes.
 pub proof fn lemma_job_cannot_set_mask(current: bool, set: bool)
     ensures mask_write(privileged(false, true), current, set) == current,
 {
