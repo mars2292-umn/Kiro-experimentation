@@ -534,6 +534,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 6. WHEN a Partition is stopped or restarted, THE Kernel SHALL stop every EasyDMA transfer of the Partition's peripherals before re-initializing or reassigning any memory that those transfers can access (R14.9).
 7. THE HIL_Rig SHALL demonstrate, for each EasyDMA-capable peripheral class that the Profile_Conformance_Suite Application uses, that a transfer request with a buffer outside the memory R17.1 permits is refused before any byte is transferred (R17.2), and that a Partition restart stops the Partition's transfers before its memory is re-initialized (R17.6).
 
+**Scope note (2026-11-13, audit findings 1 and 10).** In v1 the Kernel mediates EasyDMA for the SPIM class only: the Generator rejects (DD-08) an Application that assigns a RADIO, UARTE, SAADC, or PWM peripheral to a Partition, because the mediation writes the validated byte length as the transfer count and those classes count in other units or have no count register. R17.1 to R17.7 are therefore claimed for SPIM; the other classes need a count unit in the channel description. The mechanism of R17.3 is the read-only mapping of the peripheral's window in its owner's MPU view (`Layout::lemma_ro_window_not_writable`, boot check bit 15, the isolation suite's own-window attempt).
+
 ### Requirement 18: Temporal isolation and Budget enforcement (Phase P1)
 
 **User Story:** As a certification engineer, I want every Job's execution time budgeted, every overrun detected, and the response chosen by criticality, so that a lower-criticality Partition cannot make a higher-criticality Partition miss deadlines.

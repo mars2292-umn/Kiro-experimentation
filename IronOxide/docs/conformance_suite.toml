@@ -56,6 +56,58 @@ replace = "priority = 7, priority = 6, resources = [state, in_cs], raises = [tic
 expect = ["PR-03"]
 
 [[case]]
+id = "conf-PR-29-mc-dma-uarte"
+restriction = "PR-29"
+category = "MC"
+kind = "generator"
+# DD-08, R17.1 (audit finding 10, 2026-11-13): an EasyDMA-capable peripheral
+# whose registers the Target table does not describe cannot be mediated by
+# the Kernel and is refused; only the SPIM class is described.
+declaration = "apps/p1-demo/decl/src/nrf52840.rs"
+find = "peripherals = [SPIM0];"
+replace = "peripherals = [UARTE0];"
+expect = ["DD-08", "UARTE0"]
+
+[[case]]
+id = "conf-PR-29-mc-dma-saadc"
+restriction = "PR-29"
+category = "MC"
+kind = "generator"
+# DD-08, R17.1 (audit finding 10, 2026-11-13): an EasyDMA-capable peripheral
+# whose registers the Target table does not describe cannot be mediated by
+# the Kernel and is refused; only the SPIM class is described.
+declaration = "apps/p1-demo/decl/src/nrf52840.rs"
+find = "peripherals = [SPIM0];"
+replace = "peripherals = [SAADC];"
+expect = ["DD-08", "SAADC"]
+
+[[case]]
+id = "conf-PR-29-mc-dma-pwm"
+restriction = "PR-29"
+category = "MC"
+kind = "generator"
+# DD-08, R17.1 (audit finding 10, 2026-11-13): an EasyDMA-capable peripheral
+# whose registers the Target table does not describe cannot be mediated by
+# the Kernel and is refused; only the SPIM class is described.
+declaration = "apps/p1-demo/decl/src/nrf52840.rs"
+find = "peripherals = [SPIM0];"
+replace = "peripherals = [PWM0];"
+expect = ["DD-08", "PWM0"]
+
+[[case]]
+id = "conf-PR-29-mc-dma-radio"
+restriction = "PR-29"
+category = "MC"
+kind = "generator"
+# DD-08, R17.1 (audit finding 10, 2026-11-13): an EasyDMA-capable peripheral
+# whose registers the Target table does not describe cannot be mediated by
+# the Kernel and is refused; only the SPIM class is described.
+declaration = "apps/p1-demo/decl/src/nrf52840.rs"
+find = "peripherals = [SPIM0];"
+replace = "peripherals = [RADIO];"
+expect = ["DD-08", "RADIO"]
+
+[[case]]
 id = "conf-PR-04-mc"
 restriction = "PR-04"
 category = "MC"

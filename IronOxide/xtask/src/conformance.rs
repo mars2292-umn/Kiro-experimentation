@@ -20,7 +20,8 @@ pub const REGISTER: &str = "docs/conformance_suite.toml";
 
 #[derive(Debug, Clone)]
 pub enum CaseKind {
-    Generator { find: String, replace: String },
+    /// `declaration`: another declaration file than the suite's (a Target variant).
+    Generator { find: String, replace: String, declaration: Option<String> },
     CompileFail { member: String },
     Lint { file: String, scope: String },
     BuildCheck { fixture: String },
@@ -83,7 +84,7 @@ pub fn load(root: &Path) -> Result<Suite, String> {
         let id = str_of(c, "id", &ctx)?;
         let kind_name = str_of(c, "kind", &id)?;
         let kind = match kind_name.as_str() {
-            "generator" => CaseKind::Generator { find: str_of(c, "find", &id)?, replace: str_of(c, "replace", &id)? },
+            "generator" => CaseKind::Generator { find: str_of(c, "find", &id)?, replace: str_of(c, "replace", &id)?, declaration: c.get("declaration").and_then(Value::as_str).map(String::from) },
             "compile-fail" => CaseKind::CompileFail { member: str_of(c, "member", &id)? },
             "lint" => CaseKind::Lint { file: str_of(c, "file", &id)?, scope: str_of(c, "scope", &id)? },
             "build-check" => CaseKind::BuildCheck { fixture: str_of(c, "fixture", &id)? },
@@ -189,9 +190,17 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                 reasons += 1;
                 Err(String::new())
             }
-            CaseKind::Generator { find, replace } => {
-                if decl_text.matches(find.as_str()).count() != 1 {
-                    Err(format!("`find` occurs {} times in {}", decl_text.matches(find.as_str()).count(), suite.declaration))
+            CaseKind::Generator { find, replace, declaration } => {
+                let other = declaration.as_ref().map(|d| std::fs::read_to_string(cx.root.join(d)).map_err(|e| format!("{d}: {e}")));
+                let decl_name = declaration.as_deref().unwrap_or(suite.declaration.as_str());
+                let decl_text: &str = match &other {
+                    Some(Ok(t)) => t.as_str(),
+                    _ => decl_text.as_str(),
+                };
+                if let Some(Err(e)) = &other {
+                    Err(e.clone())
+                } else if decl_text.matches(find.as_str()).count() != 1 {
+                    Err(format!("`find` occurs {} times in {decl_name}", decl_text.matches(find.as_str()).count()))
                 } else {
                     let text = decl_text.replacen(find.as_str(), replace, 1);
                     let output = match rsk_gen::syntax::parse_source(&text) {
@@ -201,7 +210,7 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                             Err(diags) => diags.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"),
                         },
                     };
-                    command = format!("rsk-gen (library) on {} with `{}` -> `{}`", suite.declaration, find.replace('\n', "\\n"), replace.replace('\n', "\\n"));
+                    command = format!("rsk-gen (library) on {} with `{}` -> `{}`", decl_name, find.replace('\n', "\\n"), replace.replace('\n', "\\n"));
                     let log = format!("{}.log", case.id);
                     let _ = cx.store.write_artifact(&log, &output);
                     artifacts.push(log);
