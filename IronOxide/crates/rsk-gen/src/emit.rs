@@ -146,9 +146,14 @@ pub fn system_source(g: &Generated) -> String {
         while windows.len() < crate::layout::MAX_WINDOWS {
             windows.push("NO_WINDOW".to_string());
         }
+        // DD-08: the windows of EasyDMA-capable peripherals are read-only to the Partition.
+        let mut windows_ro: Vec<String> = p.windows.iter().map(|w| w.read_only.to_string()).collect();
+        while windows_ro.len() < crate::layout::MAX_WINDOWS {
+            windows_ro.push("false".to_string());
+        }
         let _ = writeln!(
             s,
-            "        PartitionLayout {{ code: {}, code_srd: 0x{:02x}, ram: {}, ram_srd: 0x{:02x}, stack_size: {}, windows: [{}], window_count: {} }}, // {}",
+            "        PartitionLayout {{ code: {}, code_srd: 0x{:02x}, ram: {}, ram_srd: 0x{:02x}, stack_size: {}, windows: [{}], window_count: {}, windows_ro: [{}] }}, // {}",
             interval(&p.code),
             p.code.srd,
             interval(&p.ram),
@@ -156,6 +161,7 @@ pub fn system_source(g: &Generated) -> String {
             p.stack,
             windows.join(", "),
             p.windows.len(),
+            windows_ro.join(", "),
             p.name
         );
     }
@@ -229,7 +235,7 @@ pub fn system_source(g: &Generated) -> String {
     // storage of every channel (one static in the Kernel's RAM), and the
     // table's image for the Config_Checker.
     let _ = writeln!(s, "pub const NEP: usize = {};", g.endpoints.len());
-    let _ = writeln!(s, "const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg {{ capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0 }};");
+    let _ = writeln!(s, "const NO_ENDPOINT: ::rsk_kernel::arch::EndpointCfg = ::rsk_kernel::arch::EndpointCfg {{ capacity: 0, payload: 0, roles: 0, tasks: [0xFF; 4], partitions: [0xFF; 4], release: [false; 4], storage: 0, validates: [[false; 4]; 4] }};");
     let _ = writeln!(s, "pub const ENDPOINTS: [::rsk_kernel::arch::EndpointCfg; NEP] = [");
     for e in &g.endpoints {
         // Task 21.7: `MAX_ROLES` slots per array, 0xFF (or false) beyond the roles.
@@ -237,11 +243,13 @@ pub fn system_source(g: &Generated) -> String {
         let part = |r: usize| e.roles.get(r).map_or("0xFF".to_string(), |(_, t)| g.tasks[*t].partition.to_string());
         let rel = |r: usize| e.release.get(r).copied().unwrap_or(false).to_string();
         let arr = |f: &dyn Fn(usize) -> String| (0..crate::validate::MAX_ROLES).map(f).collect::<Vec<_>>().join(", ");
+        // R42.4 (audit finding 2): the edges on which a rejection report is accepted.
+        let val = |r: usize| format!("[{}]", (0..crate::validate::MAX_ROLES).map(|f| e.validates.get(r).and_then(|v| v.get(f)).copied().unwrap_or(false).to_string()).collect::<Vec<_>>().join(", "));
         let binding: Vec<String> = e.roles.iter().map(|(r, t)| format!("{r} => {}", g.tasks[*t].id)).collect();
         let _ = writeln!(
             s,
-            "    ::rsk_kernel::arch::EndpointCfg {{ capacity: {}, payload: {}, roles: {}, tasks: [{}], partitions: [{}], release: [{}], storage: {} }}, // {} ({}): {}",
-            e.capacity, e.payload, e.roles.len(), arr(&task), arr(&part), arr(&rel), e.storage, e.name, e.protocol.clone().unwrap_or_else(|| format!("plain `{}`", e.ty)), binding.join(", ")
+            "    ::rsk_kernel::arch::EndpointCfg {{ capacity: {}, payload: {}, roles: {}, tasks: [{}], partitions: [{}], release: [{}], storage: {}, validates: [{}] }}, // {} ({}): {}",
+            e.capacity, e.payload, e.roles.len(), arr(&task), arr(&part), arr(&rel), e.storage, arr(&val), e.name, e.protocol.clone().unwrap_or_else(|| format!("plain `{}`", e.ty)), binding.join(", ")
         );
     }
     let _ = writeln!(s, "];");
@@ -423,6 +431,16 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         let mut w: Vec<String> = q.windows.iter().map(|w| format!("(0x{:08x}, 0x{:x})", w.base, 1u64 << w.size_log2)).collect();
         while w.len() < crate::layout::MAX_WINDOWS {
             w.push("(0, 0)".to_string());
+        }
+        let _ = writeln!(s, "            [{}],", w.join(", "));
+    }
+    let _ = writeln!(s, "        ];");
+    let _ = writeln!(s, "        /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).");
+    let _ = writeln!(s, "        pub const WINDOWS_RO: [[bool; {}]; PARTITIONS] = [", crate::layout::MAX_WINDOWS);
+    for q in &g.plan.partitions {
+        let mut w: Vec<String> = q.windows.iter().map(|w| w.read_only.to_string()).collect();
+        while w.len() < crate::layout::MAX_WINDOWS {
+            w.push("false".to_string());
         }
         let _ = writeln!(s, "            [{}],", w.join(", "));
     }

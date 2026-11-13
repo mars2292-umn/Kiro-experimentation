@@ -24,6 +24,12 @@ telemetry = []
 qemu-inject = []
 # Task 21.6 (A-P7, Verification_Plan 5.15): the flood configuration, `log` answers every `pingpong` request with an invalid reply.
 qemu-flood = []
+# Audit finding 2 (2026-11-13): `log` reports a rejected message against `control` (level A) that it never received; the Kernel must answer with API misuse of `log`, not with part0's fault response (conformance case fi-R42-4-forged-rejection).
+fi-forged-rejection = []
+# The audit's findings 8 and 9 (2026-11-13), R16.5: `log`'s first Job issues an SVC with its stack pointer in the Partition's own peripheral window, in unmapped memory, or 16 bytes above its stack's bottom (conformance cases fi-R16-5-stack-*).
+fi-stack-window = ["rsk/hw-dt"]
+fi-stack-unmapped = ["rsk/hw-dt"]
+fi-stack-bottom = ["rsk/hw-dt"]
 # Task 21.6 (R41.3): the gated Endpoints `relay` and `report` of the QEMU and plain measurement configurations (`log` plays `relay`'s ctl after its `pingpong` receive).
 gating = ["telemetry"]
 

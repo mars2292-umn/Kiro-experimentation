@@ -6,8 +6,16 @@
 //! - [`plan_frame`]: where a new Job's initial exception frame goes. The
 //!   frame is 8-byte aligned (HW-06, STKALIGN) and lies inside the
 //!   Partition's stack region, at or above its bottom (R16.5: a Job never
-//!   starts on a frame that already overflows its stack), and it is the
-//!   highest such address below the current floor.
+//!   starts on a frame that already overflows its stack) and below its
+//!   top, and it is the highest such address below the current floor. Both
+//!   bounds are results of the function since 2026-11-13 (the audit's
+//!   finding 8): the floor is a Job's stack pointer as a Kernel entry found
+//!   it, taken only when its frame lies inside the region
+//!   ([`frame_in_stack`], `entry::psp_in_stack`), and a floor above the
+//!   region's top places no frame.
+//! - [`frame_in_stack`]: whether the exception frame at a process stack
+//!   pointer lies inside a Partition's stack region: the check before the
+//!   Kernel reads or writes through the pointer or takes it as a floor.
 //! - [`compare_target`]: the TIMER compare value for a target instant,
 //!   never closer than `MIN_COMPARE_DISTANCE` to the counter (HW-12, the
 //!   near-counter rule, ASM-19): exactly `hw_model::compare_for`.
@@ -91,6 +99,12 @@ pub struct LevelRecord {
     pub floor_before: u32,
     /// The partition of the preempted Job whose view was loaded, 0xFF for the Kernel/idle.
     pub previous_partition: u8,
+    /// The Job this level's dispatch preempted, whose context the record
+    /// holds; 0xFF when it preempted the idle activity. The unwind of this
+    /// level resumes that context only while that Job is still the Kernel's
+    /// executing Job (the audit's lead 2.1, 2026-11-13: one Kernel entry
+    /// can end the Job of this level and the one it preempted).
+    pub previous_task: u8,
 }
 
 /// One Endpoint of Generated_Config (task 21.2; R38.1, R40.1): two roles,
@@ -111,6 +125,13 @@ pub struct EndpointCfg {
     pub partitions: [u8; MAX_ROLES],
     pub release: [bool; MAX_ROLES],
     pub storage: u32,
+    /// R42.4 (audit finding 2, 2026-11-13): `validates[r][f]` says that role
+    /// `r` declares a validation function for a message it receives from
+    /// role `f`, a role of another Partition of lower Criticality_Level (an
+    /// upward edge). The Kernel accepts a rejection report of role `r`
+    /// against role `f` only then, and only after a delivery
+    /// (`ArchState::delivered`).
+    pub validates: [[bool; MAX_ROLES]; MAX_ROLES],
 }
 
 /// The most roles an Endpoint may bind (task 21.7).
@@ -149,7 +170,9 @@ pub struct ArchState {
     pub deferred: [u16; 8],
     /// The unwind a Kernel-level entry owed while a dispatch stub was at
     /// its entry instruction (5.8a): the ended Job's level, unwound by that
-    /// stub once it has pushed its own record. Zero when none.
+    /// stub once it has pushed its own record. Zero when none. A second
+    /// entry in the same window keeps the first (topmost) level; the levels
+    /// below it follow by the unwind's chain (audit finding 6).
     pub pending_unwind: u32,
     /// The index state of every Endpoint channel (task 21.2; Property 11):
     /// channel `2 * e + d` carries what role `d` of Endpoint `e` sends.
@@ -160,6 +183,15 @@ pub struct ArchState {
     /// next send or receive of role `r` returns the peer-state error and
     /// clears it.
     pub peer_changed: [bool; MAX_ROLE_SLOTS],
+    /// R42.4 (audit finding 2, 2026-11-13): the delivery latch of a
+    /// rejection report. Entry `channel_index(e, from, to)` is set when the
+    /// receive service delivers a message of that channel to role `to` on a
+    /// validated upward edge (`EndpointCfg::validates`), and cleared when
+    /// the Endpoint is re-initialized, which an accepted rejection report
+    /// does. A report with the entry clear is API misuse of the caller:
+    /// until this date any role could report a rejection against its peer
+    /// at any time and impose the peer Partition's fault response.
+    pub delivered: [bool; MAX_CHANNELS],
     pub first_fault_addr: u32,
 }
 
@@ -175,6 +207,7 @@ impl ArchState {
                 exc_return: 0,
                 floor_before: 0,
                 previous_partition: 0xFF,
+                previous_task: 0xFF,
             }; 8],
             floor: [0; 16],
             current_partition: 0xFF,
@@ -186,25 +219,49 @@ impl ArchState {
             pending_unwind: 0,
             fifos: [crate::logic::endpoint::Fifo { head: 0, count: 0 }; MAX_CHANNELS],
             peer_changed: [false; MAX_ROLE_SLOTS],
+            delivered: [false; MAX_CHANNELS],
             first_fault_cfsr: 0,
             first_fault_addr: 0,
         }
     }
 }
 
+/// Whether the eight-word exception frame at `psp` lies inside the stack
+/// region `[bottom, top)` of a Partition (R16.5; the audit's findings 8
+/// and 9, 2026-11-13): the condition under which the Kernel reads or writes
+/// through a process stack pointer it was entered with, and takes it as a
+/// Partition's stack floor.
+pub open spec fn spec_frame_in_stack(psp: int, bottom: int, top: int) -> bool {
+    bottom <= psp && psp + FRAME_BYTES <= top
+}
+
+pub fn frame_in_stack(psp: u32, bottom: u32, top: u32) -> (ok: bool)
+    ensures ok == spec_frame_in_stack(psp as int, bottom as int, top as int),
+{
+    psp >= bottom && top >= FRAME_BYTES && psp <= top - FRAME_BYTES
+}
+
 /// The highest 8-byte-aligned address whose frame of `FRAME_BYTES` lies
 /// below `floor`, if that address is not below `bottom` (the lowest address
-/// of the Partition's stack region). `None` means the frame would overflow
-/// the stack: the caller raises a Kernel fault (R16.5 backstop) instead of
-/// writing below the region.
-pub fn plan_frame(floor: u32, bottom: u32) -> (frame: Option<u32>)
+/// of the Partition's stack region) and `floor` is not above `top` (its
+/// end). `None` means the frame would lie outside the region: the caller
+/// raises a Kernel fault (R16.5 backstop) instead of writing there. The
+/// upper bound is a result since 2026-11-13 (the audit's finding 8): until
+/// then `floor` had none, and a floor taken from a stack pointer outside
+/// the region placed the frame outside it.
+pub fn plan_frame(floor: u32, bottom: u32, top: u32) -> (frame: Option<u32>)
     ensures
         frame.is_some() ==> frame.unwrap() % 8 == 0,
         frame.is_some() ==> bottom <= frame.unwrap(),
         frame.is_some() ==> frame.unwrap() + FRAME_BYTES <= floor,
         frame.is_some() ==> floor < frame.unwrap() + FRAME_BYTES + 8,
-        frame.is_none() ==> floor < FRAME_BYTES || ((floor - FRAME_BYTES) / 8) * 8 < bottom,
+        // The frame lies inside the stack region.
+        frame.is_some() ==> floor <= top && spec_frame_in_stack(frame.unwrap() as int, bottom as int, top as int),
+        frame.is_none() ==> floor > top || floor < FRAME_BYTES || ((floor - FRAME_BYTES) / 8) * 8 < bottom,
 {
+    if floor > top {
+        return None;
+    }
     if floor < FRAME_BYTES {
         return None;
     }

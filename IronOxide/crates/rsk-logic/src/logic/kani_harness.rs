@@ -261,7 +261,7 @@ fn intake_late_event_masks_source() {
     let t: u8 = ECHO;
     let n: u64 = kani::any();
     kani::assume(n <= cfg.operating_duration);
-    k.intake(&cfg, t, 0, n);
+    k.intake(&cfg, t, 0, n, t);
     if n + cfg.tasks[1].deadline > cfg.operating_duration {
         assert!(k.sched.release[1] == REL_NONE);
         assert!(k.timing.masked[1]);
@@ -288,7 +288,7 @@ fn intake_outcomes_match_r10() {
     // 1. Accepted (R10.1).
     let n1: u64 = kani::any();
     kani::assume(n1 <= 500_000);
-    k.intake(&cfg, t, sp, n1);
+    k.intake(&cfg, t, sp, n1, t);
     assert!(k.sched.release[1] == REL_PENDING);
     assert!(k.timing.has_last[1] && k.timing.last_due[1] == n1 && k.timing.due[1] == n1);
     assert!(k.timing.masked[1]);
@@ -298,7 +298,7 @@ fn intake_outcomes_match_r10() {
     // 2. A second event while the Release is pending (R10.3).
     let n2: u64 = kani::any();
     kani::assume(n1 <= n2 && n2 <= 1_000_000);
-    k.intake(&cfg, t, sp, n2);
+    k.intake(&cfg, t, sp, n2, t);
     assert!(k.sched.release[1] == REL_PENDING);
     assert!(k.timing.has_last[1] && k.timing.last_due[1] == n1);
     assert!(k.mit_violations[0] == 1);
@@ -313,7 +313,7 @@ fn intake_outcomes_match_r10() {
     // 3. A third event: accepted, deferred, or discarded (R10.1, R10.2).
     let n3: u64 = kani::any();
     kani::assume(n2 <= n3 && n3 <= 1_000_000);
-    k.intake(&cfg, t, sp, n3);
+    k.intake(&cfg, t, sp, n3, t);
     if n3 >= n1 + mit {
         assert!(k.sched.release[1] == REL_PENDING);
         assert!(k.timing.last_due[1] == n3 && k.timing.due[1] == n3);
@@ -456,6 +456,128 @@ fn running_cycles_are_charged_at_every_timed_event() {
     assert!(k.sched.job[s] == JOB_NONE);
 }
 
+/// Audit finding 7 (2026-11-13; DD-06 step 4, design "Closed response
+/// sets": after END_JOB "the Task's next Release follows the normal
+/// schedule"): the Job of an interrupt-bound Sporadic_Task ended by its
+/// Partition's Overrun response ends the Task's MIT window as a returning
+/// Job does. `pulse` (part1, END_JOB, MIT 375,000) is released by an event
+/// at 1,000, overruns its Budget and is ended at 13,500: its source stays
+/// masked for the rest of the window, with the unmask event armed on its
+/// deadline slot for 376,000; that event unmasks the source, and the next
+/// event is accepted. Until this date nothing unmasked the source before
+/// its Partition's next restart.
+#[kani::proof]
+#[kani::unwind(25)]
+fn end_job_of_a_sporadic_task_ends_its_mit_window() {
+    const PULSE: u8 = 4;
+    let mut cfg = config();
+    cfg.tasks[CONTROL as usize].offset = 200_000;
+    cfg.tasks[SENSOR as usize].offset = 400_000;
+    cfg.tasks[LOG as usize].offset = 500_000;
+    cfg.tasks[FILTER as usize].offset = 600_000;
+    cfg.tasks[SAMPLER as usize].offset = 1_000_000;
+    assert!(cfg.validate());
+    let p = PULSE as usize;
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.intake(&cfg, PULSE, 1, 1_000, PULSE);
+    assert!(k.sched.release[p] == REL_PENDING && k.timing.masked[p]);
+    k.dispatch(&cfg, PULSE, 0);
+    // The Budget event, armed at the dispatch for 1,000 + 12,500: 12,600 cycles consumed.
+    k.timer_event(&cfg, 13_500, 12_600);
+    assert!(k.sched.depth == 0 && k.sched.job[p] == JOB_NONE);
+    // The window is not over: still masked, the unmask event armed for its end.
+    let slot = k.slots.slots[cfg.slot_deadline[p] as usize];
+    assert!(k.timing.masked[p]);
+    assert!(slot.armed && slot.kind == super::time::SLOT_UNMASK && slot.at == 376_000);
+    k.timer_event(&cfg, 376_000, 0);
+    assert!(!k.timing.masked[p]);
+    k.intake(&cfg, PULSE, 1, 376_001, PULSE);
+    assert!(k.sched.release[p] == REL_PENDING);
+}
+
+/// Audit finding 11 (2026-11-13; DD-10, R10.4, R10.7): an MIT_Violation
+/// past the threshold on a signal raise is answered for the raising Job.
+/// part0 here declares END_JOB as its fault response and a threshold of 0;
+/// `control` raises `echo`'s signal twice in one Job. The second raise
+/// finds `echo`'s Release pending: one violation against part0, past the
+/// threshold, and END_JOB ends `control`'s Job, which holds nothing. The
+/// Partition is not restarted and the receiver's pending Release is as it
+/// was. Until this date the released Task was passed to the response, it
+/// was not the executing one, and END_JOB fell through to a Partition
+/// restart.
+#[kani::proof]
+#[kani::unwind(25)]
+fn mit_violation_of_a_raise_under_end_job_ends_the_raising_job() {
+    let mut cfg = sporadic_config(super::MIT_DEFER);
+    cfg.partitions[0].fault_response = RESP_END_JOB;
+    cfg.partitions[0].mit_threshold = 0;
+    cfg.tasks[SENSOR as usize].offset = 400_000;
+    cfg.tasks[LOG as usize].offset = 500_000;
+    cfg.tasks[FILTER as usize].offset = 600_000;
+    cfg.tasks[SAMPLER as usize].offset = 1_000_000;
+    assert!(cfg.validate());
+    let (c, e) = (CONTROL as usize, ECHO as usize);
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(CONTROL));
+    k.dispatch(&cfg, CONTROL, 0);
+    // The first raise is accepted: `echo`'s Release is pending.
+    k.intake(&cfg, ECHO, 0, 10, CONTROL);
+    assert!(k.sched.release[e] == REL_PENDING && k.mit_violations[0] == 0);
+    // The second raise of the same Job: a violation past the threshold.
+    k.intake(&cfg, ECHO, 0, 20, CONTROL);
+    assert!(k.sched.depth == 0 && k.sched.job[c] == JOB_NONE);
+    assert!(!k.reinit_partition[0] && !k.stopped[0] && !k.safe_state);
+    assert!(k.sched.release[e] == REL_PENDING);
+}
+
+/// The audit's lead 2.1 (2026-11-13), a witness on the demo's configuration:
+/// one `timer_event` ends two Jobs. `sampler` (part2, END_JOB) crosses its
+/// Budget at the charge of `log`'s dispatch, 30 cycles after the time-base
+/// entry that released `log` and 10 cycles after its own Budget instant,
+/// whose compare is then served with `sampler` preempted and ignored (the
+/// state Verification_Plan 11.6 records from the rig). `log` (part1,
+/// END_JOB) overruns; its Budget event ends it, the resumed `sampler`'s
+/// Budget event is armed with no remainder at a higher slot index, and the
+/// same pass serves it and ends `sampler` too. The Kernel then holds no Job
+/// where two were in progress, so Kernel_Arch must unwind both levels in
+/// that entry (`epilogue_core`'s chain over `LevelRecord::previous_task`);
+/// until 2026-11-13 it unwound `log`'s alone and returned into `sampler`'s
+/// context, which ran on with no Job behind it.
+#[kani::proof]
+#[kani::unwind(25)]
+fn one_timer_event_ends_two_jobs_when_the_resumed_job_crossed_its_budget_at_a_preemption() {
+    let mut cfg = config();
+    cfg.tasks[CONTROL as usize].offset = 200_000;
+    cfg.tasks[SENSOR as usize].offset = 400_000;
+    cfg.tasks[FILTER as usize].offset = 300_000;
+    cfg.tasks[LOG as usize].offset = 12_480;
+    assert!(cfg.validate());
+    let (s, l) = (SAMPLER as usize, LOG as usize);
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(SAMPLER));
+    k.dispatch(&cfg, SAMPLER, 0);
+    // `log`'s Release, 20 ticks before `sampler`'s Budget instant.
+    k.timer_event(&cfg, 12_480, 12_480);
+    assert!(k.budget.used[s] == 12_480 && k.sched.release[l] == REL_PENDING);
+    assert!(k.select(&cfg) == Some(LOG));
+    // The dispatch stub's charge, 30 cycles later: `sampler`'s account crosses its Budget.
+    k.dispatch(&cfg, LOG, 30);
+    assert!(k.budget.used[s] == 12_510 && k.budget.used[s] > cfg.tasks[s].budget);
+    // `sampler`'s Budget compare, taken after the stub: `sampler` is preempted, nothing happens.
+    k.timer_event(&cfg, 12_520, 10);
+    assert!(k.sched.depth == 2 && k.sched.job[s] != JOB_NONE && !k.budget.reported[s]);
+    // `log`'s Budget event (armed at its dispatch for 12,480 + 150,000).
+    k.timer_event(&cfg, 162_480, 150_000);
+    // Both Jobs are ended by that one entry.
+    assert!(k.sched.depth == 0);
+    assert!(k.sched.job[l] == JOB_NONE && k.sched.job[s] == JOB_NONE);
+}
+
 /// Task 5.5 (R17.1, R17.2): the executable DMA buffer check agrees with a
 /// direct recomputation of its specification for every layout of a 1 KiB
 /// to 64 KiB Partition RAM and every buffer, as a cross-check of the Verus
@@ -481,6 +603,7 @@ fn dma_permitted_matches_recomputation() {
         stack_size: stack,
         windows: [no_window; MAX_WINDOWS],
         window_count: 0,
+        windows_ro: [false; MAX_WINDOWS],
     };
     let ptr: u32 = kani::any();
     let len: u32 = kani::any();

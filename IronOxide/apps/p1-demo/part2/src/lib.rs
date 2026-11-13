@@ -216,7 +216,7 @@ fn isolation_step(cx: &mut rsk_ctx::Sampler) {
         }
         _ => {
             let layout = rsk::matrix::Layout {
-                this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
+                this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS, windows_ro: &l::WINDOWS_RO,
                 kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
             };
             let i = (case - DMA_CASES) as usize;

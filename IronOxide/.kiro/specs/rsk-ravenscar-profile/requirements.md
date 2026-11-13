@@ -395,6 +395,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 9. IF the Kernel time base reaches instant 0 plus the maximum continuous operating duration declared in the App_Declaration, THEN THE Kernel SHALL report the event to the Health_Monitor and enter the system safe state recorded in Generated_Config, so that no Release whose nominal instant lies beyond that duration becomes effective.
 10. THE HIL_Rig SHALL execute the Profile_Conformance_Suite Application in a measurement build for at least PAR-05, recording for each periodic Release its nominal instant and the CPU cycles from the Kernel time base reaching that instant to the Release becoming effective, in configurations that include coinciding nominal instants of all Periodic_Tasks, a Critical_Section on the Resource with the highest Ceiling in progress at a nominal instant, at least one wrap of the counter of the timer hardware of R9.4, and a Job of a Periodic_Task that has not completed by the next two nominal instants of its Task (for example in a Partition whose Overrun_Response lets the Job complete, R18.6), and SHALL report a pass only when every recorded nominal instant equals O + k·T, every recorded interval lies between 0 and J_rel, and that Task produces the outcomes of R9.6, R9.7, and R9.8.
 
+**Note (2026-11-13, the audit's contested finding G).** R9.1 is read with R9.9: a Release whose absolute deadline lies beyond the operating duration is not made. The last nominal instants inside the final deadline window of a run therefore make no Release, which a count of Releases over a run must allow for.
+
 ### Requirement 10: Sporadic release and MIT enforcement (Phase P1)
 
 **User Story:** As a system integrator, I want sporadic Tasks released by interrupts, messages, or signals with their MIT enforced, so that analysis assumptions hold even when an event source misbehaves.
@@ -410,6 +412,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 7. THE Kernel SHALL attribute each MIT_Violation to the Partition that owns its event source: for an interrupt, the Partition that owns the peripheral (PR-29); for an Endpoint message, the sending Partition; for a Release_Signal, the Partition of the raising Task; and for R9.8, the Partition of the Task itself.
 8. WHERE a Sporadic_Task's Release_Source is an Endpoint receive role, THE Kernel SHALL leave in the Endpoint buffer every message whose arrival R10.2 or R10.3 discards as an event, so that MIT enforcement discards Releases but never messages (R39.4).
 9. THE Kernel SHALL apply R10.1–R10.3 to the interrupt events that reach the Kernel after any loss or coalescing that R19.4 records for the interrupt source (ORQ-23).
+
+**Note (2026-11-13, the audit's contested finding G).** R10.1 is read with R9.9 in the same way: an event too late for its Job to complete within the operating duration makes no Release (and leaves its source masked, DD-06).
 
 ### Requirement 11: FPU context management (Phase P1)
 
@@ -520,6 +524,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 9. THE Design_Document SHALL state, for each Criticality_Level, whether isolation relies on unprivileged execution with hardware enforcement or on privileged execution with MPU restrictions plus language-level guarantees, and THE Trust_Base_Register SHALL list the residual trusted components of each choice (ORQ-01).
 10. WHERE R16.9 records that an access class of a Partition is excluded by language-level guarantees instead of hardware enforcement, THE Link_Checker SHALL verify that the code reachable from that Partition's Task bodies contains no instruction or address constant that performs an access of that class (PR-22), and THE Trust_Base_Register SHALL list that check.
 
+**Note (2026-11-13, the audit's findings 8 and 9).** R16.5 is enforced at two places: the MPU, for a stack that grows past the bottom of its region, and the Kernel's stack check, for a process stack pointer that a Kernel entry finds outside the Partition's stack region (a Job that moved it, or an entry that could not stack): the Kernel then reads and writes nothing through it and applies the Partition's fault response (event `stack_violation`).
+
 ### Requirement 17: DMA isolation (Phase P1)
 
 **User Story:** As a certification engineer, I want DMA-capable peripherals contained, so that a Partition cannot corrupt another Partition's memory through a bus master that the CPU's MPU does not check.
@@ -533,6 +539,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 5. WHILE an EasyDMA transfer is in progress, THE Kernel SHALL ensure that no Job reads or writes the transfer's buffer other than through the peripheral's transfer-completion interface, so that DMA does not break data-race freedom within a Partition (PR-05, ORQ-21).
 6. WHEN a Partition is stopped or restarted, THE Kernel SHALL stop every EasyDMA transfer of the Partition's peripherals before re-initializing or reassigning any memory that those transfers can access (R14.9).
 7. THE HIL_Rig SHALL demonstrate, for each EasyDMA-capable peripheral class that the Profile_Conformance_Suite Application uses, that a transfer request with a buffer outside the memory R17.1 permits is refused before any byte is transferred (R17.2), and that a Partition restart stops the Partition's transfers before its memory is re-initialized (R17.6).
+
+**Scope note (2026-11-13, audit findings 1 and 10).** In v1 the Kernel mediates EasyDMA for the SPIM class only: the Generator rejects (DD-08) an Application that assigns a RADIO, UARTE, SAADC, or PWM peripheral to a Partition, because the mediation writes the validated byte length as the transfer count and those classes count in other units or have no count register. R17.1 to R17.7 are therefore claimed for SPIM; the other classes need a count unit in the channel description. The mechanism of R17.3 is the read-only mapping of the peripheral's window in its owner's MPU view (`Layout::lemma_ro_window_not_writable`, boot check bit 15, the isolation suite's own-window attempt).
 
 ### Requirement 18: Temporal isolation and Budget enforcement (Phase P1)
 
@@ -549,6 +557,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 7. WHILE every Task of Partition P executes within its Budget and every Release_Source of P respects its MIT, THE Kernel SHALL complete each Job of P within the WCRT computed by the Analyzer, regardless of the execution behaviour of Tasks in Partitions whose Overrun_Response stops overrunning Jobs and of MIT_Violations (Requirement 10) and faults (Requirement 14) in any other Partition, where the Analyzer bounds the interference and blocking that P suffers from those Partitions by values that the Kernel enforces (R29.4).
 8. THE HIL_Rig SHALL demonstrate R18.7 by fault injection in which Tasks of lower-criticality Partitions execute unbounded loops, exceed their Budgets both outside and inside Critical_Sections, hold Resources for their maximum Critical_Section lengths, and exceed the MITs of their Release_Sources, and SHALL report a pass only when no Job of the highest-criticality Partition exceeds its computed WCRT during PAR-05.
 9. WHERE more than one Partition has the highest Criticality_Level and any of them declares an Overrun_Response that lets an overrunning Job continue executing, THE Analyzer SHALL state in the analysis report (Requirement 30) that R18.7 does not protect those Partitions from one another.
+
+**Note (2026-11-13, the audit's contested finding F).** R18.1 is met within Δ_entry per interrupting Kernel entry: the Rust half of a Kernel entry that interrupts a Job is charged to that Job (Table 13-1's Δ_entry), whatever Task the entry serves.
 
 ### Requirement 19: Interrupt-source isolation (Phase P1)
 

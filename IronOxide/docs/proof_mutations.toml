@@ -542,3 +542,65 @@ replace = ""
 expect = ["proof failed", "vc_log"]
 package = "p1-demo-part1-stress-proof"
 prover = "creusot"
+
+# The audit of ironoxide-eval-v2 (2026-11-13): one mutation per fix that
+# changed a contract.
+
+[[mutation]]
+id = "ro-window-mapped-writable"
+kills = "Layout::view's postcondition is_view_of (DD-08, R17.3; audit finding 1): the view of a Partition maps a read-only window without unprivileged write permission, the premise of lemma_ro_window_not_writable"
+file = "crates/rsk-logic/src/logic/mpu.rs"
+find = "            regions[3 + w] = Region { enabled: true, interval: pl.windows[w], srd: 0, write: !pl.windows_ro[w], xn: true, device: true };"
+replace = "            regions[3 + w] = Region { enabled: true, interval: pl.windows[w], srd: 0, write: true, xn: true, device: true };"
+expect = ["mpu.rs", "invariant not satisfied"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "rejection-accepted-without-delivery"
+kills = "rejection_core's contract (R42.4; audit finding 2): a rejected-message report without a delivery over the validated upward edge changes no Endpoint or latch state (and is API misuse of the caller)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if !(cfg.validates[role][from] && state.delivered[ch]) {"
+replace = "    if !cfg.validates[role][from] {"
+expect = ["entry.rs", "postcondition not satisfied", "spec_rejection_permitted"]
+
+[[mutation]]
+id = "job-return-disarms-held-deadline"
+kills = "job_return's R9.6 clause (audit finding 5): with a Release of the Task held, its deadline event stays in the slot when the previous Job returns, so that the Job started from it has its miss reported"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        // unless a Release of the Task is held, whose deadline it then holds.\n        if self.sched.release[t as usize] == REL_NONE {"
+replace = "        // unless a Release of the Task is held, whose deadline it then holds.\n        if true {"
+expect = ["kernel.rs", "postcondition not satisfied"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "mit-violation-response-for-the-released-task"
+kills = "mit_violation's contract (DD-10, R10.4, R10.7; audit finding 11): the threshold response is applied for the offending Task (the executing sender of a raise or a send), not for the Task whose Release was refused"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, offender);"
+replace = "            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, t);"
+expect = ["kernel.rs", "assertion failed"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "stack-check-lower-bound-dropped"
+kills = "frame_in_stack's contract (R16.5; the audit's findings 8 and 9): a frame below the Partition's stack region is refused"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    psp >= bottom && top >= FRAME_BYTES && psp <= top - FRAME_BYTES"
+replace = "    top >= FRAME_BYTES && psp <= top - FRAME_BYTES"
+expect = ["plan.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "stack-check-upper-bound-dropped"
+kills = "frame_in_stack's contract (R16.5; the audit's finding 8): a frame that does not end inside the Partition's stack region is refused"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    psp >= bottom && top >= FRAME_BYTES && psp <= top - FRAME_BYTES"
+replace = "    psp >= bottom"
+expect = ["plan.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "frame-floor-above-stack-top"
+kills = "plan_frame's contract (R16.5; the audit's finding 8): a new Job's frame lies inside the stack region, so a floor above the region's top places none"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    if floor > top {\n        return None;\n    }\n"
+replace = ""
+expect = ["plan.rs", "postcondition not satisfied"]

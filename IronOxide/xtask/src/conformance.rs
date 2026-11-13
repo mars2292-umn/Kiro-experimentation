@@ -20,13 +20,14 @@ pub const REGISTER: &str = "docs/conformance_suite.toml";
 
 #[derive(Debug, Clone)]
 pub enum CaseKind {
-    Generator { find: String, replace: String },
+    /// `declaration`: another declaration file than the suite's (a Target variant).
+    Generator { find: String, replace: String, declaration: Option<String> },
     CompileFail { member: String },
     Lint { file: String, scope: String },
     BuildCheck { fixture: String },
     LinkPatch { symbol: String, offset: u32, bytes: Vec<u8> },
     LinkRename { symbol: String, to: String },
-    FaultInjection { feature: String, event: u8 },
+    FaultInjection { feature: String, event: u8, absent: Vec<u8>, untagged: bool, alternates: Vec<u8>, once: bool },
     Reason(String),
 }
 
@@ -83,7 +84,7 @@ pub fn load(root: &Path) -> Result<Suite, String> {
         let id = str_of(c, "id", &ctx)?;
         let kind_name = str_of(c, "kind", &id)?;
         let kind = match kind_name.as_str() {
-            "generator" => CaseKind::Generator { find: str_of(c, "find", &id)?, replace: str_of(c, "replace", &id)? },
+            "generator" => CaseKind::Generator { find: str_of(c, "find", &id)?, replace: str_of(c, "replace", &id)?, declaration: c.get("declaration").and_then(Value::as_str).map(String::from) },
             "compile-fail" => CaseKind::CompileFail { member: str_of(c, "member", &id)? },
             "lint" => CaseKind::Lint { file: str_of(c, "file", &id)?, scope: str_of(c, "scope", &id)? },
             "build-check" => CaseKind::BuildCheck { fixture: str_of(c, "fixture", &id)? },
@@ -97,7 +98,17 @@ pub fn load(root: &Path) -> Result<Suite, String> {
                     CaseKind::LinkPatch { symbol: str_of(c, "symbol", &id)?, offset, bytes }
                 }
             }
-            "fault-injection" => CaseKind::FaultInjection { feature: str_of(c, "feature", &id)?, event: c.get("event").and_then(Value::as_integer).ok_or(format!("{REGISTER}: {id}: missing `event`"))? as u8 },
+            "fault-injection" => CaseKind::FaultInjection {
+                feature: str_of(c, "feature", &id)?,
+                event: c.get("event").and_then(Value::as_integer).ok_or(format!("{REGISTER}: {id}: missing `event`"))? as u8,
+                // `absent`: event kinds the log must not hold; `untagged`: the event carries no restriction bit to check.
+                absent: c.get("absent").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_integer().map(|k| k as u8)).collect()).unwrap_or_default(),
+                untagged: c.get("untagged").and_then(Value::as_bool).unwrap_or(false),
+                // `alternates`: other event kinds that count as `event` (a hardware-dependent
+                // attribution); `once`: exactly one such event in the log.
+                alternates: c.get("alternates").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_integer().map(|k| k as u8)).collect()).unwrap_or_default(),
+                once: c.get("once").and_then(Value::as_bool).unwrap_or(false),
+            },
             "reason" => CaseKind::Reason(str_of(c, "reason", &id)?),
             other => return Err(format!("{REGISTER}: {id}: unknown kind `{other}`")),
         };
@@ -189,9 +200,17 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                 reasons += 1;
                 Err(String::new())
             }
-            CaseKind::Generator { find, replace } => {
-                if decl_text.matches(find.as_str()).count() != 1 {
-                    Err(format!("`find` occurs {} times in {}", decl_text.matches(find.as_str()).count(), suite.declaration))
+            CaseKind::Generator { find, replace, declaration } => {
+                let other = declaration.as_ref().map(|d| std::fs::read_to_string(cx.root.join(d)).map_err(|e| format!("{d}: {e}")));
+                let decl_name = declaration.as_deref().unwrap_or(suite.declaration.as_str());
+                let decl_text: &str = match &other {
+                    Some(Ok(t)) => t.as_str(),
+                    _ => decl_text.as_str(),
+                };
+                if let Some(Err(e)) = &other {
+                    Err(e.clone())
+                } else if decl_text.matches(find.as_str()).count() != 1 {
+                    Err(format!("`find` occurs {} times in {decl_name}", decl_text.matches(find.as_str()).count()))
                 } else {
                     let text = decl_text.replacen(find.as_str(), replace, 1);
                     let output = match rsk_gen::syntax::parse_source(&text) {
@@ -201,7 +220,7 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                             Err(diags) => diags.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"),
                         },
                     };
-                    command = format!("rsk-gen (library) on {} with `{}` -> `{}`", suite.declaration, find.replace('\n', "\\n"), replace.replace('\n', "\\n"));
+                    command = format!("rsk-gen (library) on {} with `{}` -> `{}`", decl_name, find.replace('\n', "\\n"), replace.replace('\n', "\\n"));
                     let log = format!("{}.log", case.id);
                     let _ = cx.store.write_artifact(&log, &output);
                     artifacts.push(log);
@@ -329,7 +348,9 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                     }
                 }
             }
-            CaseKind::FaultInjection { feature, event } => {
+            CaseKind::FaultInjection { feature, event, absent, untagged, alternates, once } => {
+                // `feature` names a feature of p1-demo-part0, or `package/feature`.
+                let (fi_pkg, fi_feature) = feature.split_once('/').unwrap_or(("p1-demo-part0", feature.as_str()));
                 if qemu_version.is_none() {
                     notes.push("qemu-system-arm is not installed: the fault-injection run was not performed".to_string());
                 }
@@ -338,8 +359,8 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                     Err(String::new())
                 } else {
                 let build = Cmd::cargo_frozen("build")
-                    .args(["--release", "--target", &triple, "-p", &suite.binary, "-p", "p1-demo-part0", "--features"])
-                    .arg(format!("p1-demo-part0/{feature}"))
+                    .args(["--release", "--target", &triple, "-p", &suite.binary, "-p", fi_pkg, "--features"])
+                    .arg(format!("{fi_pkg}/{fi_feature}"))
                     .arg("--manifest-path")
                     .arg(cx.root.join("Cargo.toml"))
                     .arg("--target-dir")
@@ -361,12 +382,16 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                                 let n: u32 = case.restriction.trim_start_matches("PR-").parse().unwrap_or(0);
                                 let bit = 1u64 << n;
                                 let events = events_of(&run.log);
-                                let hit = events.iter().filter(|(k, _)| *k == *event).count();
+                                let hit = events.iter().filter(|(k, _)| *k == *event || alternates.contains(k)).count();
                                 let tagged = events.iter().any(|(k, prs)| *k == *event && prs & bit != 0);
                                 notes.push(format!("{} events logged, {hit} of kind {event}, exit {} after {:.1}s", events.len(), run.exit_code, run.seconds));
                                 if hit == 0 {
                                     Err(format!("no event of kind {event} in the Health_Monitor log"))
-                                } else if !tagged {
+                                } else if *once && hit != 1 {
+                                    Err(format!("{hit} events of kind {event} or its alternates {alternates:?} in the Health_Monitor log, one expected"))
+                                } else if let Some(k) = absent.iter().find(|k| events.iter().any(|(e, _)| e == *k)) {
+                                    Err(format!("the Health_Monitor log holds an event of kind {k}, which the case excludes"))
+                                } else if !tagged && !*untagged {
                                     Err(format!("the event of kind {event} does not carry the {} bit (R3.9)", case.restriction))
                                 } else {
                                     Ok(true)

@@ -195,7 +195,8 @@ pub fn config_crc<const NT: usize, const NR: usize, const NP: usize>(cfg: &Confi
 /// decodes (R26.4): the three Kernel intervals, kernel_window_count and
 /// every Kernel peripheral slot (base, size_log2; R16.2), NP, then per
 /// Partition code and RAM (base, size_log2, srd), stack_size,
-/// window_count, and every window slot (base, size_log2).
+/// window_count, and every window slot (base, size_log2, read-only as 0 or 1;
+/// DD-08, audit finding 1).
 pub fn layout_crc<const NP: usize>(layout: &Layout<NP>) -> u32 {
     let mut c = Crc32::new();
     c = c.u32(layout.kernel_flash.base).byte(layout.kernel_flash.size_log2).byte(0);
@@ -225,7 +226,7 @@ pub fn layout_crc<const NP: usize>(layout: &Layout<NP>) -> u32 {
             invariant w <= crate::logic::mpu::MAX_WINDOWS, p < NP,
             decreases crate::logic::mpu::MAX_WINDOWS - w,
         {
-            c = c.u32(pl.windows[w].base).byte(pl.windows[w].size_log2);
+            c = c.u32(pl.windows[w].base).byte(pl.windows[w].size_log2).byte(if pl.windows_ro[w] { 1 } else { 0 });
             w += 1;
         }
         p += 1;
@@ -364,7 +365,10 @@ pub trait KernelOps: Sized {
     fn select(&self) -> (sel: Option<u8>)
         requires self.inv(),
         ensures sel.is_some() ==> (sel.unwrap() as int) < self.task_count_spec() && self.task_eligible(sel.unwrap() as int);
-    fn intake(&mut self, t: u8, source_partition: u8, now: u64)
+    /// `offender`: the Task a threshold response is for (DD-10; audit finding
+    /// 11): `t` for an interrupt source, the executing sender for a signal
+    /// raise or an Endpoint send.
+    fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(),
         ensures final(self).inv();
     fn timer_event(&mut self, now: u64, running_cycles: u32)
@@ -421,6 +425,13 @@ pub trait KernelOps: Sized {
     fn dma_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool)
         requires self.inv(),
         ensures ok == ((p as int) < self.partition_count_spec() && self.dma_permitted_spec(p as int, ptr as int, len as int));
+    /// DD-08, R17.3 (audit finding 1): whether `a` lies in a window of
+    /// Partition `p` that its view maps read-only (`Layout::lemma_ro_window_not_writable`:
+    /// no Partition's view then grants unprivileged write access to `a`).
+    spec fn ro_window_spec(&self, p: int, a: int) -> bool;
+    fn in_ro_window(&self, p: u8, a: u32) -> (ok: bool)
+        requires self.inv(),
+        ensures ok == ((p as int) < self.partition_count_spec() && self.ro_window_spec(p as int, a as int));
     /// R42.2 (task 21.2): `[ptr, ptr + len)` lies in Partition `p`'s RAM interval.
     spec fn message_permitted_spec(&self, p: int, ptr: int, len: int) -> bool;
     fn message_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool)
@@ -477,6 +488,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn dma_permitted_spec(&self, p: int, ptr: int, len: int) -> bool {
         self.layout.partitions[p].dma_permitted(ptr, len)
+    }
+
+    open spec fn ro_window_spec(&self, p: int, a: int) -> bool {
+        self.layout.partitions[p].in_ro_window(a)
     }
 
     open spec fn message_permitted_spec(&self, p: int, ptr: int, len: int) -> bool {
@@ -683,13 +698,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.kernel.select(&self.cfg)
     }
 
-    fn intake(&mut self, t: u8, source_partition: u8, now: u64) {
+    fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8) {
         if (t as usize) < NT
             && (source_partition as usize) < NP
             && self.cfg.tasks[t as usize].kind == KIND_SPORADIC
             && now <= self.cfg.operating_duration
         {
-            self.kernel.intake(&self.cfg, t, source_partition, now);
+            let offender = if (offender as usize) < NT { offender } else { t };
+            self.kernel.intake(&self.cfg, t, source_partition, now, offender);
         }
     }
 
@@ -792,6 +808,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(self.layout.partition_ok(p as int));
         }
         self.layout.partitions[p as usize].dma_permitted_exec(ptr, len)
+    }
+
+    fn in_ro_window(&self, p: u8, a: u32) -> (ok: bool) {
+        if (p as usize) >= NP {
+            return false;
+        }
+        proof {
+            assert(self.layout.partition_ok(p as int));
+        }
+        self.layout.partitions[p as usize].in_ro_window_exec(a)
     }
 
     fn message_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool) {

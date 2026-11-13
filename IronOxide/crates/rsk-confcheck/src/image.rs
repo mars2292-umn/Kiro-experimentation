@@ -102,6 +102,9 @@ pub struct EndpointCfg {
     pub partitions: [u8; 4],
     pub release: [bool; 4],
     pub storage: u32,
+    /// R42.4 (audit finding 2): `validates[r][f]`, the edges on which the
+    /// Kernel accepts a rejection report of role `r` against role `f`.
+    pub validates: [[bool; 4]; 4],
 }
 
 /// Decodes the Endpoint image: the count, the entries, the storage bytes.
@@ -120,7 +123,13 @@ pub fn decode_endpoints(bytes: &[u8]) -> Result<(Vec<EndpointCfg>, u32), String>
         let partitions = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
         let release = [r.u8()? != 0, r.u8()? != 0, r.u8()? != 0, r.u8()? != 0];
         let storage = r.u32()?;
-        out.push(EndpointCfg { capacity, payload, roles, tasks, partitions, release, storage });
+        let mut validates = [[false; 4]; 4];
+        for row in validates.iter_mut() {
+            for cell in row.iter_mut() {
+                *cell = r.u8()? != 0;
+            }
+        }
+        out.push(EndpointCfg { capacity, payload, roles, tasks, partitions, release, storage, validates });
     }
     let storage_bytes = r.u32()?;
     if r.pos != bytes.len() {
@@ -149,7 +158,8 @@ pub struct PartitionLayoutImg {
     pub stack_size: u32,
     pub window_count: u8,
     /// `MAX_WINDOWS` slots, (base, size_log2); unused slots are (0, 5).
-    pub windows: Vec<(u32, u8)>,
+    /// `MAX_WINDOWS` slots, (base, size_log2, read-only); unused slots are (0, 5, false).
+    pub windows: Vec<(u32, u8, bool)>,
 }
 
 /// The decoded `LAYOUT` image.
@@ -190,7 +200,11 @@ pub fn decode_layout(bytes: &[u8]) -> Result<LayoutImg, String> {
         let window_count = r.u8()?;
         let mut windows = Vec::with_capacity(MAX_WINDOWS);
         for _ in 0..MAX_WINDOWS {
-            windows.push((r.u32()?, r.u8()?));
+            let (base, size_log2, ro) = (r.u32()?, r.u8()?, r.u8()?);
+            if ro > 1 {
+                return Err(format!("layout image: a window's read-only byte is {ro}"));
+            }
+            windows.push((base, size_log2, ro == 1));
         }
         partitions.push(PartitionLayoutImg { code, ram, stack_size, window_count, windows });
     }

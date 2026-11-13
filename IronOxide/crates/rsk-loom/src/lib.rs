@@ -432,7 +432,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NS: usize> Machine
         let release_before = self.kernel.sched.release[t as usize];
         let safe_before = self.kernel.safe_state;
         let stopped_before = self.kernel.stopped[self.cfg.tasks[t as usize].partition as usize];
-        self.kernel.intake(&self.cfg, t, source_partition, self.now);
+        // The offending Task of a threshold response (DD-10, audit finding 11): the bound Task,
+        // as for an interrupt source.
+        self.kernel.intake(&self.cfg, t, source_partition, self.now, t);
         self.stats.intakes += 1;
         let s = &self.kernel.sched;
         // No Job starts or ends in an intake unless a response applies.

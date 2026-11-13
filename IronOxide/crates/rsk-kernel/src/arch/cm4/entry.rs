@@ -50,10 +50,10 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
+use super::plan::{compare_target, find_level, frame_in_stack, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED, EV_STACK_VIOLATION};
 use crate::logic::mpu::View;
 
 verus! {
@@ -119,6 +119,10 @@ pub const BOOT_FAIL_IRQ_COUNT: u32 = 64;
 pub const BOOT_FAIL_WATCHDOG_RESET: u32 = 128;
 /// Bit 13: the `LAYOUT` in memory does not match the checksum Generated_Config recorded (R12.3).
 pub const BOOT_FAIL_LAYOUT_CHECKSUM: u32 = 1 << 13;
+/// Bit 14 is `hw::boot_checks`'s: a PPI channel enabled after the boot clear (DD-08).
+/// Bit 15: an EasyDMA register the Kernel mediates lies outside the read-only
+/// windows of its Partition (DD-08, R17.3; audit finding 1).
+pub const BOOT_FAIL_DMA_WINDOW: u32 = 1 << 15;
 /// `KernelArch::boot_info` bits.
 pub const BOOT_INFO_DEBUGGER: u32 = 1;
 pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
@@ -357,6 +361,9 @@ pub trait KernelArch: Sized {
 pub uninterp spec fn spec_endpoint_of<T: ?Sized>(t: &T, i: int) -> EndpointCfg;
 /// The Endpoint storage base of a `Tables` as a specification.
 pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
+/// The stack region `[bottom, top)` of Partition `p` of a `Tables`, as a specification.
+pub uninterp spec fn spec_stack_bottom_of<T: ?Sized>(t: &T, p: int) -> int;
+pub uninterp spec fn spec_stack_top_of<T: ?Sized>(t: &T, p: int) -> int;
 
 /// What the generated system crate provides (the `System` trait of
 /// `arch`, adapted by `arch::cm4`).
@@ -364,8 +371,10 @@ pub trait Tables {
     fn binding(&self, n: u16) -> Binding;
     fn dispatch_vector(&self, t: u8) -> u16;
     fn intake_vector(&self, t: u8) -> Option<u16>;
-    fn stack_top(&self, p: u8) -> u32;
-    fn stack_bottom(&self, p: u8) -> u32;
+    fn stack_top(&self, p: u8) -> (a: u32)
+        ensures a as int == spec_stack_top_of(self, p as int);
+    fn stack_bottom(&self, p: u8) -> (a: u32)
+        ensures a as int == spec_stack_bottom_of(self, p as int);
     /// The address of Task `t`'s Job wrapper.
     fn task_entry_address(&self, t: u8) -> u32;
     fn irq_count(&self) -> u16;
@@ -727,6 +736,9 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     let info = hw.boot_info();
     k.boot_info(info & BOOT_INFO_DEBUGGER != 0, info & BOOT_INFO_WATCHDOG_RESET != 0);
     let expect = tables.boot_expect();
+    // DD-08: PPI is Kernel-owned; every channel is cleared before the checks,
+    // which read the enable register back (bit 14).
+    hw.apply(Action::PpiDisableAll);
     let mut failed = hw.boot_checks(&expect);
     if k.config_checksum() != tables.config_checksum() {
         failed = failed | BOOT_FAIL_CHECKSUM;
@@ -736,6 +748,9 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     }
     if info & BOOT_INFO_WATCHDOG_RESET != 0 {
         failed = failed | BOOT_FAIL_WATCHDOG_RESET;
+    }
+    if !dma_windows_ok(k, tables) {
+        failed = failed | BOOT_FAIL_DMA_WINDOW;
     }
     let irqs = tables.irq_count();
     if irqs > MAX_IRQS {
@@ -846,12 +861,39 @@ fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     }
 }
 
-/// Clears every EasyDMA list-mode register and every PPI channel at boot
-/// (DD-08: list mode forbidden, PPI Kernel-owned).
+/// DD-08, R17.3 (audit finding 1, 2026-11-13): every pointer and count
+/// register of every EasyDMA channel in Generated_Config lies in a window
+/// that its Partition's view maps read-only, so that the registers are
+/// reachable from a Job only through `dma_request_core`
+/// (`Layout::lemma_ro_window_not_writable`: no view grants unprivileged write
+/// access to such an address). A boot check (bit 15), since the channel table
+/// is Generated_Config's and the windows are the layout's.
+fn dma_windows_ok<K: KernelOps, T: Tables>(k: &K, tables: &T) -> (ok: bool)
+    requires k.inv(),
+{
+    let n = tables.dma_count();
+    let mut i: usize = 0;
+    while i < n
+        invariant k.inv(),
+        decreases n - i,
+    {
+        let d = tables.dma(i);
+        if !k.in_ro_window(d.partition, d.ptr) {
+            return false;
+        }
+        if d.maxcnt != 0 && !k.in_ro_window(d.partition, d.maxcnt) {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// Clears every EasyDMA list-mode register at boot (DD-08: list mode
+/// forbidden). The PPI channels are cleared by `boot_core` before its checks.
 fn dma_boot<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T)
     requires k.inv(),
 {
-    hw.apply(Action::PpiDisableAll);
     let n = tables.dma_count();
     let mut i: usize = 0;
     while i < n
@@ -985,7 +1027,12 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     if accepted {
         let sg = tables.signal(i);
         let now = hw.now();
-        k.intake(sg.task, sg.partition, now);
+        // DD-10 (audit finding 11): a threshold response is for the raising Job.
+        let offender = match k.top() {
+            Some(t) => t,
+            None => sg.task,
+        };
+        k.intake(sg.task, sg.partition, now, offender);
     } else {
         k.fault(EV_API_MISUSE, false);
     }
@@ -1059,6 +1106,8 @@ fn clear_channels(state: &mut ArchState, e: usize)
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
+        // R42.4 (audit finding 2): no delivery of this Endpoint is left to report.
+        state.delivered[base + c] = false;
         c += 1;
     }
 }
@@ -1174,6 +1223,9 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
         forall|i: int| e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int ==> #[trigger] final(state).peer_changed[i],
         forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).fifos[i] == old(state).fifos[i],
         forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(e as int * MAX_ROLES as int <= i < (e as int + 1) * MAX_ROLES as int) ==> #[trigger] final(state).peer_changed[i] == old(state).peer_changed[i],
+        // R42.4 (audit finding 2): the Endpoint's delivery latches are clear, the others unchanged.
+        forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
+        forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).delivered[i] == old(state).delivered[i],
 {
     let ghost before = *state;
     assert(e * (MAX_ROLES * MAX_ROLES) <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES)) by (nonlinear_arith)
@@ -1187,10 +1239,13 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
             c <= MAX_ROLES * MAX_ROLES, e < MAX_ENDPOINTS, base == e * (MAX_ROLES * MAX_ROLES), base <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES),
             forall|i: int| base as int <= i < base as int + c ==> #[trigger] state.fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
             forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c) ==> #[trigger] state.fifos[i] == before.fifos[i],
+            forall|i: int| base as int <= i < base as int + c ==> !(#[trigger] state.delivered[i]),
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c) ==> #[trigger] state.delivered[i] == before.delivered[i],
             state.peer_changed == before.peer_changed,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
+        state.delivered[base + c] = false;
         c += 1;
     }
     let rbase = e * MAX_ROLES;
@@ -1200,6 +1255,8 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
             r <= MAX_ROLES, e < MAX_ENDPOINTS, base == e * (MAX_ROLES * MAX_ROLES), rbase == e * MAX_ROLES, rbase <= (MAX_ENDPOINTS - 1) * MAX_ROLES, base <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES),
             forall|i: int| base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int ==> #[trigger] state.fifos[i] == crate::logic::endpoint::Fifo::empty_spec(),
             forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] state.fifos[i] == before.fifos[i],
+            forall|i: int| base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] state.delivered[i]),
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] state.delivered[i] == before.delivered[i],
             forall|i: int| rbase as int <= i < rbase as int + r ==> #[trigger] state.peer_changed[i],
             forall|i: int| 0 <= i < MAX_ROLE_SLOTS && !(rbase as int <= i < rbase as int + r) ==> #[trigger] state.peer_changed[i] == before.peer_changed[i],
         decreases MAX_ROLES - r,
@@ -1260,6 +1317,39 @@ fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut Ar
     }
     let cfg = tables.endpoint(e);
     if (role as u8) >= cfg.roles || (from as u8) >= cfg.roles || from == role || cfg.tasks[role] != t {
+        k.fault(EV_API_MISUSE, false);
+        return;
+    }
+    rejection_core(k, state, &cfg, e, role, from);
+}
+
+/// R42.4 (audit finding 2, 2026-11-13): whether the Kernel accepts a
+/// rejection report of role `role` of Endpoint `e` against role `from`: the
+/// role declares a validation function for what it receives from `from`
+/// over an upward Criticality_Level edge, and a message of that channel was
+/// delivered to it since the Endpoint's last re-initialization.
+pub open spec fn spec_rejection_permitted(cfg: EndpointCfg, state: ArchState, e: int, role: int, from: int) -> bool {
+    cfg.validates[role][from] && state.delivered[spec_channel_index(e, from, role)]
+}
+
+/// The rejected-message report of a role bound to the executing Task
+/// (R42.4). Permitted (`spec_rejection_permitted`): the fault of the sending
+/// Partition, recorded against the sending Task, and the Endpoint
+/// re-initialized, its delivery latches with it, so that one delivery
+/// permits one report. Not permitted (no validated upward edge from `from`,
+/// or nothing delivered): API misuse of the caller, and no Endpoint or
+/// latch state changes. Until 2026-11-13 the report was accepted from any
+/// role bound to the caller, so that a Partition of lower Criticality_Level
+/// could impose a higher one's fault response with one call.
+fn rejection_core<K: KernelOps>(k: &mut K, state: &mut ArchState, cfg: &EndpointCfg, e: usize, role: usize, from: usize)
+    requires old(k).inv(), e < MAX_ENDPOINTS, role < MAX_ROLES, from < MAX_ROLES,
+    ensures final(k).inv(),
+        !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> *final(state) == *old(state),
+        spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==>
+            forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
+{
+    let ch = channel_index(e, from, role);
+    if !(cfg.validates[role][from] && state.delivered[ch]) {
         k.fault(EV_API_MISUSE, false);
         return;
     }
@@ -1527,7 +1617,12 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     }
     if cfg.release[peer] {
         let now = hw.now();
-        k.intake(cfg.tasks[peer], cfg.partitions[role], now);
+        // DD-10 (audit finding 11): a threshold response is for the sending Job.
+        let offender = match k.top() {
+            Some(t) => t,
+            None => cfg.tasks[peer],
+        };
+        k.intake(cfg.tasks[peer], cfg.partitions[role], now, offender);
     }
     ENDPOINT_OK
 }
@@ -1570,6 +1665,11 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
             let first = hw.copy_out(ptr, src, len);
+            // R42.4 (audit finding 2): a delivery over a validated upward
+            // edge permits one rejection report of this role against `from`.
+            if cfg.validates[role][from] {
+                state.delivered[ch] = true;
+            }
             proof {
                 let base = spec_storage_base_of(tables);
                 lemma_recv_labels(base, cfg, d as int, before, fifo_after, slot as int, hw.hw(), first as int);
@@ -1603,6 +1703,49 @@ pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         hw.apply(Action::PrimaskClear);
     }
     safe
+}
+
+/// R16.5 (the audit's findings 8 and 9, and its contested findings A and
+/// D; 2026-11-13): whether the exception frame at the process stack pointer
+/// `psp` a Kernel entry was taken with lies inside the stack region of the
+/// Partition whose Job was executing. Kernel_Arch reads and writes through
+/// `psp` (the SVC's arguments, results and instruction; the faulting PC) and
+/// takes it as the Partition's stack floor (a dispatch) only after this
+/// check. A pointer the check refuses belongs to a Job that moved its stack
+/// pointer out of its stack, or whose exception entry could not stack (a
+/// full stack: the stacking fault is pending behind this entry).
+pub open spec fn spec_psp_in_stack<T: Tables>(tables: &T, p: int, psp: int) -> bool {
+    super::plan::spec_frame_in_stack(psp, spec_stack_bottom_of(tables, p), spec_stack_top_of(tables, p))
+}
+
+pub fn psp_in_stack<T: Tables>(tables: &T, state: &ArchState, psp: u32) -> (ok: bool)
+    ensures ok ==> state.current_partition != 0xFF && spec_psp_in_stack(tables, state.current_partition as int, psp as int),
+        !ok && state.current_partition != 0xFF ==> !spec_psp_in_stack(tables, state.current_partition as int, psp as int),
+{
+    let p = state.current_partition;
+    if p == 0xFF {
+        return false;
+    }
+    frame_in_stack(psp, tables.stack_bottom(p), tables.stack_top(p))
+}
+
+/// The response to a process stack pointer outside the Partition's stack
+/// region: a stack violation of the executing Job's Partition (R16.5,
+/// R14.3; a Kernel fault when no Job executes), recorded and answered with
+/// the Partition's fault response, and the unwind plan of the Job that
+/// response ended. Nothing is read or written through the pointer.
+pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        !r.1 ==> basepri_matches(final(k), final(hw)),
+        r.1 ==> final(hw).hw().basepri == 0,
+{
+    hw.apply(Action::Trace(TR_INVALID, 2));
+    let top_before = k.top();
+    k.fault(EV_STACK_VIOLATION, false);
+    let safe = apply_core(k, hw, tables, state);
+    let hop = end_plan_core(k, state, top_before);
+    (hop, safe)
 }
 
 /// After a transition that may have ended the executing Job: the unwind
@@ -1728,6 +1871,17 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 // pended): nothing to dispatch (A4).
                 return (no_change, false);
             }
+            // R16.5 (the audit's finding 8): the preempted Job's stack pointer
+            // becomes its Partition's stack floor, below which this
+            // dispatch writes a frame, only when its frame lies inside the
+            // Partition's stack region. Otherwise the Job has a stack
+            // violation, nothing is dispatched from this entry, and the
+            // vector is pended again for the context the response resumes.
+            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+                let (hop, safe) = stack_violation_core(k, hw, tables, state);
+                hw.apply(Action::Pend(n));
+                return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
+            }
             let preempted = charge_point(hw, state);
             let previous_partition = state.current_partition;
             if previous_partition != 0xFF && (previous_partition as usize) < MAX_FLOORS && (exc_return & 0xC) == 0xC {
@@ -1736,6 +1890,11 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 // is the floor of its Partition's stack from here on.
                 state.floor[previous_partition as usize] = psp;
             }
+            // The Job whose context this dispatch preempts (lead 2.1).
+            let previous_task = match k.top() {
+                Some(u) => u,
+                None => 0xFF,
+            };
             k.dispatch(t, preempted);
             let info = k.job_info(t);
             let level = info.priority as usize;
@@ -1752,7 +1911,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
             // excludes the overflow case, and the backstop is a Kernel fault
             // into the safe state (R16.5).
-            let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition)) {
+            let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
                 Some(frame) => frame,
                 None => {
                     k.fault(EV_HARDFAULT, true);
@@ -1769,6 +1928,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 exc_return,
                 floor_before,
                 previous_partition,
+                previous_task,
             };
             state.floor[info.partition as usize] = frame;
             hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
@@ -1792,7 +1952,15 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             let now = hw.now();
             hw.apply(Action::Disable(n));
             let top_before = k.top();
-            k.intake(task, partition, now);
+            // R16.5 (the audit's finding 8): an intake taken from a Job whose
+            // stack pointer is outside its stack region reports the
+            // violation; the event is then taken in as usual, and the plan
+            // unwinds the Job the response ended.
+            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+                hw.apply(Action::Trace(TR_INVALID, 2));
+                k.fault(EV_STACK_VIOLATION, false);
+            }
+            k.intake(task, partition, now, task);
             let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, top_before);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
@@ -1822,7 +1990,18 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     // stub (above), which performs it after its own pushes.
     if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 {
         hw.apply(Action::Trace(TR_WINDOW, 0x10000 | r.0.hop));
-        state.pending_unwind = r.0.hop;
+        // Audit finding 6 (2026-11-13): a second Kernel-level entry in the
+        // same window (tail-chained before the stub's `cpsid i`) that ends
+        // the Job the first one resumed owes a deeper level's unwind. The
+        // first owed level is the topmost record and stays the one the stub
+        // unwinds; the deeper one follows from it by `epilogue_core`'s chain
+        // (`LevelRecord::previous_task`: the Job that level preempted is no
+        // longer the executing Job). Until this date the second entry
+        // overwrote the slot and the stub unwound the deeper level over the
+        // topmost record.
+        if state.pending_unwind == 0 {
+            state.pending_unwind = r.0.hop;
+        }
         return (DispatchPlan { psp: 0, control, exc_return, hop: 0 }, false);
     }
     r
@@ -2011,6 +2190,25 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         hw.apply(Action::FpuAccess(k.job_info(k.stack_at(idx)).fpu));
     }
     state.current_partition = rec.previous_partition;
+    // The audit's lead 2.1 (2026-11-13): the context this level preempted
+    // is resumed only while its Job is still the executing Job. One Kernel
+    // entry can end two Jobs outright (the Kani witness
+    // `one_timer_event_ends_two_jobs_when_the_resumed_job_crossed_its_budget_at_a_preemption`:
+    // a Budget event ends the executing Job, the resumed Job's Budget event
+    // is armed with no remainder and served in the same pass); the Job this
+    // level preempted is then no longer the top, and its level is unwound
+    // as well. Until this date the unwind returned into that Job's context,
+    // which ran on with the Kernel holding no Job for it.
+    let resumed_ended = rec.previous_task != 0xFF && match k.top() {
+        Some(t) => t != rec.previous_task,
+        None => true,
+    };
+    if resumed_ended {
+        let l = k.job_info(rec.previous_task).priority as usize;
+        let next = state.levels[l].exception_number as u32;
+        hw.apply(Action::SetBasepri(k.basepri_now()));
+        return ((rec.psp, rec.control, rec.exc_return, next), false);
+    }
     // A killed resumed Job ends now and its level is unwound as well.
     match k.top() {
         Some(t) => {

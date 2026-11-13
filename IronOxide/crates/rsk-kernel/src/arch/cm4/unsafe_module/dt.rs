@@ -1024,3 +1024,32 @@ pub fn fetch(addr: u32) {
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     let _ = addr;
 }
+
+/// The stack-check probe (R16.5; the audit's findings 8 and 9, 2026-11-13):
+/// moves the process stack pointer to `sp` and issues an SVC (`SVC_NOW`,
+/// number 4). The Kernel's stack check must answer with a stack violation
+/// of the Partition, reading and writing nothing through the pointer; the
+/// Job does not continue. Test builds only (`hw-dt`).
+#[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn svc_with_sp(sp: u32) {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        // SAFETY (UJ-062): deliberately invalidates the Job's own stack
+        // pointer and enters the Kernel; the Kernel's check ends the Job
+        // (its Partition's fault response), so nothing of this function's
+        // frame is used afterwards. Unprivileged code: it can reach only
+        // what the Partition's MPU view grants.
+        unsafe {
+            core::arch::asm!(
+                "mov sp, {0}",
+                "svc #4",
+                in(reg) sp,
+                out("r0") _, out("r1") _,
+                options(nostack),
+            )
+        }
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    let _ = sp;
+}

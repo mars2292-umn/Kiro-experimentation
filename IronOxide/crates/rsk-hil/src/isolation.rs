@@ -111,7 +111,9 @@ pub fn attempts(model: &TaskModel, p: usize) -> Vec<Attempt> {
     let kwin = model.layout.kernel_windows.get(1);
     let kwin_name = kwin.map_or("none".to_string(), |w| w.peripherals.join(","));
     let kwin_addr = kwin.map(|w| w.base + 0x100);
-    let kernel: [(String, Option<u32>, Class, u8); 9] = [
+    // DD-08, R17.3 (audit finding 1): the Partition's own first read-only window, at SPIM's RXD.PTR.
+    let own_ro = model.partitions[p].mpu.windows.iter().find(|w| w.read_only).map(|w| w.base + 0x534);
+    let kernel: [(String, Option<u32>, Class, u8); 10] = [
         ("read the Kernel's RAM".into(), Some(kram), Class::Read, MEMMANAGE),
         ("write the Kernel's RAM".into(), Some(kram), Class::Write, MEMMANAGE),
         ("read the Kernel's flash".into(), Some(kflash), Class::Read, MEMMANAGE),
@@ -121,6 +123,7 @@ pub fn attempts(model: &TaskModel, p: usize) -> Vec<Attempt> {
         (format!("read the Kernel-owned peripheral {kwin_name} (R16.2)"), kwin_addr, Class::Read, MEMMANAGE),
         (format!("write the Kernel-owned peripheral {kwin_name} (R16.2)"), kwin_addr, Class::Write, MEMMANAGE),
         ("write the word below the own stack (R16.5)".into(), Some(own), Class::Write, MEMMANAGE),
+        ("write the own read-only window, an EasyDMA pointer register (DD-08, R17.3)".into(), own_ro, Class::Write, MEMMANAGE),
     ];
     for (what, address, class, kind) in kernel {
         out.push(Attempt { index: i, what, address, class, kind });
@@ -431,7 +434,10 @@ mod tests {
         assert_eq!(w[1].task, 3);
         assert_eq!(w[2].task, 6);
         let a = &w[1].attempts; // part1 against part0, part2, the Kernel
-        assert_eq!(a.len(), 2 * 8 + 9);
+        assert_eq!(a.len(), 2 * 8 + 10);
+        assert_eq!(a[25].address, None, "part1 owns no read-only window");
+        assert_eq!(w[2].attempts[25].address, Some(0x4000_3534), "part2's own SPIM0 window is read-only to it: RXD.PTR (DD-08, R17.3)");
+        assert_eq!(w[2].attempts[25].class, Class::Write);
         // part1's code: after the Kernel's 128 KiB of flash and the 64 KiB shared region (2026-11-06).
         assert_eq!(a[0].address, Some(0x0003_0100));
         assert_eq!(a[2].class, Class::Fetch);

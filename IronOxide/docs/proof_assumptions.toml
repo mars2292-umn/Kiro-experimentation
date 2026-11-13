@@ -18,14 +18,17 @@ schema = 1
 # The logic, the Hardware_Model lemmas, the MPU view, the bound Kernel, the
 # Analyzer's fixed-point core, and the Protocol_Checker's deadlock-freedom
 # certificate (task 21.6) are proved without `assume`, `admit`, or
-# `external_body`. The only assumption constructs are the five trusted
-# functions of `Cm4Hw` below (tasks 5.7 and 5.2). The Kani stubs that replace inline
+# `external_body`. The only assumption constructs are the seven trusted
+# functions of `Cm4Hw` below (tasks 5.7, 5.2 and 21.2; "five" here until the
+# audit of 2026-11-13, finding 16: `copy_in` and `copy_out` were listed below
+# but not counted), the boot-check mutation hook, and the Protocol text's
+# `chars_of`. The Kani stubs that replace inline
 # assembly are listed in docs/kani_stubs.toml.
 
 # Task 5.7 (2026-10-22): the Kernel_Arch entry points are verified cores
 # (crates/rsk-kernel/src/arch/cm4/entry.rs) over the `KernelArch` trait,
 # whose Cortex-M4F implementation `Cm4Hw` is the whole register-facing
-# surface of the planning code: five trusted functions. `apply` performs
+# surface of the planning code: seven trusted functions. `apply` performs
 # one `Action` by calling exactly one register-access function of the
 # Kernel_Unsafe_Module (each with its own UJ identifier, Kani harness, or
 # review); its specification is the step of the ghost `HwModel`, the

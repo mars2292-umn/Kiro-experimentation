@@ -73,6 +73,8 @@ pub struct Endpoint {
     pub payload_bytes: u64,
     /// (task id, arrival releases the Task) per role, in order.
     pub roles: Vec<(String, bool)>,
+    /// Per role: whether it declares a validation function (R42.4).
+    pub validating: Vec<bool>,
     pub storage_offset: u64,
 }
 
@@ -191,15 +193,18 @@ impl Model {
         for (i, e) in json.get("endpoints").and_then(|e| e.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
             let eat = format!("endpoints[{i}]");
             let mut roles = Vec::new();
+            let mut validating = Vec::new();
             for (j, r) in e.get("roles").and_then(|r| r.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
                 let rat = format!("{eat}.roles[{j}]");
                 roles.push((str_of(r, "task", &rat)?, bool_of(r, "release", &rat)?));
+                validating.push(r.get("validate").and_then(|v| v.as_array()).is_some_and(|a| !a.is_empty()));
             }
             endpoints.push(Endpoint {
                 id: str_of(e, "id", &eat)?,
                 capacity: u64_of(e, "capacity", &eat)?,
                 payload_bytes: u64_of(e, "payload_bytes", &eat)?,
                 roles,
+                validating,
                 storage_offset: e.get("storage_offset").and_then(|v| v.as_u64()).unwrap_or(0),
             });
         }

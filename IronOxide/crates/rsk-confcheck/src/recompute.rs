@@ -252,6 +252,8 @@ pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outc
         for (w, slot) in c.windows.iter().enumerate() {
             let want = part.windows.get(w).map_or((0u64, 5u8), |win| (win.region.base, win.region.size_log2));
             out.mismatch(item(&format!("windows[{w}]")), format!("{:?}", want), format!("{:?}", (slot.0 as u64, slot.1)));
+            // DD-08 (audit finding 1): the view maps the window read-only exactly when the model says so.
+            out.mismatch(item(&format!("windows[{w}].read_only")), part.windows.get(w).is_some_and(|win| win.read_only), slot.2);
         }
     }
 }
@@ -346,6 +348,20 @@ pub fn check_endpoints(m: &Model, img: &Image, table: &[image::EndpointCfg], sto
                     out.mismatch(item(&format!("partitions[{r}]")), 255u8, c.partitions[r]);
                     out.mismatch(item(&format!("release[{r}]")), false, c.release[r]);
                 }
+            }
+        }
+        // R42.4 (audit finding 2, 2026-11-13): the Kernel accepts a rejection
+        // report of role r against role f exactly where r declares a
+        // validation function and f is of another Partition of lower
+        // Criticality_Level, recomputed from the model's Partitions.
+        let part_of = |r: usize| e.roles.get(r).and_then(|(task, _)| m.task_index(task)).and_then(|t| m.partition_index(&m.tasks[t].partition));
+        for r in 0..4 {
+            for f in 0..4 {
+                let want = match (part_of(r), part_of(f)) {
+                    (Some(pr), Some(pf)) => e.validating.get(r).copied().unwrap_or(false) && pr != pf && m.partitions[pr].level < m.partitions[pf].level,
+                    _ => false,
+                };
+                out.mismatch(item(&format!("validates[{r}][{f}]")), want, c.validates[r][f]);
             }
         }
         offset += (e.roles.len() * e.roles.len()) as u64 * e.capacity * e.payload_bytes;

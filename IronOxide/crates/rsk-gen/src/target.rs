@@ -35,10 +35,6 @@ pub struct DmaRegs {
     pub shorts: u32,
 }
 
-/// RADIO (PS 6.20): PACKETPTR, length from PCNF1; DISABLE stops.
-pub const RADIO_DMA: DmaRegs = DmaRegs { channels: &[(0x504, 0)], stops: &[0x010], lists: &[], shorts: 0x200 };
-/// UARTE (PS 6.34): RXD and TXD; STOPRX and STOPTX.
-pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014, 0x01C], lists: &[], shorts: 0x200 };
 /// SPIM (PS 6.26): RXD and TXD with LIST registers; STOP.
 /// SPIM (PS 6.26): RXD.PTR 0x534, RXD.MAXCNT 0x538, RXD.AMOUNT 0x53C,
 /// RXD.LIST 0x540; TXD.PTR 0x544, TXD.MAXCNT 0x548, TXD.AMOUNT 0x54C,
@@ -49,10 +45,16 @@ pub const UARTE_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x5
 /// register and left LIST at its reset value, 0, which is the value it
 /// writes, so no behaviour differed; the table is now the map's.
 pub const SPIM_DMA: DmaRegs = DmaRegs { channels: &[(0x534, 0x538), (0x544, 0x548)], stops: &[0x014], lists: &[0x540, 0x550], shorts: 0x200 };
-/// SAADC (PS 6.23): RESULT; STOP.
-pub const SAADC_DMA: DmaRegs = DmaRegs { channels: &[(0x62C, 0x630)], stops: &[0x004], lists: &[], shorts: 0x200 };
-/// PWM (PS 6.17): SEQ[0] and SEQ[1]; STOP.
-pub const PWM_DMA: DmaRegs = DmaRegs { channels: &[(0x500, 0x504), (0x520, 0x524)], stops: &[0x004], lists: &[], shorts: 0x200 };
+
+// RADIO, UARTE, SAADC and PWM are EasyDMA-capable and have no `DmaRegs`
+// (audit finding 10, 2026-11-13), so the Generator's DD-08 rule rejects an
+// Application that assigns one to a Partition. Their tables were wrong for
+// the Kernel's mediation, which writes the validated byte length as the
+// count: SAADC's RESULT.MAXCNT counts 16-bit samples (twice the validated
+// bytes), RADIO has no count register (the length comes from PCNF1 and the
+// packet), the UARTE and SAADC stop tasks were at wrong offsets, and PWM's
+// SEQ[n].CNT counts 16-bit values with SEQ[1] unmediated. Describing them
+// needs a count unit in `DmaCfg`; until then R17 is met for SPIM only.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemoryRegion {
@@ -97,19 +99,19 @@ pub struct Target {
 
 const NRF52840_PERIPHERALS: &[Peripheral] = &[
     Peripheral { name: "CLOCK", window_base: 0x4000_0000, window_size: 0x1000, irq: Some(0), kernel_owned: true, easy_dma: false, dma: None },
-    Peripheral { name: "RADIO", window_base: 0x4000_1000, window_size: 0x1000, irq: Some(1), kernel_owned: false, easy_dma: true, dma: Some(&RADIO_DMA) },
-    Peripheral { name: "UARTE0", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: true, dma: Some(&UARTE_DMA) },
+    Peripheral { name: "RADIO", window_base: 0x4000_1000, window_size: 0x1000, irq: Some(1), kernel_owned: false, easy_dma: true, dma: None },
+    Peripheral { name: "UARTE0", window_base: 0x4000_2000, window_size: 0x1000, irq: Some(2), kernel_owned: false, easy_dma: true, dma: None },
     Peripheral { name: "SPIM0", window_base: 0x4000_3000, window_size: 0x1000, irq: Some(3), kernel_owned: false, easy_dma: true, dma: Some(&SPIM_DMA) },
     Peripheral { name: "SPIM1", window_base: 0x4000_4000, window_size: 0x1000, irq: Some(4), kernel_owned: false, easy_dma: true, dma: Some(&SPIM_DMA) },
     Peripheral { name: "GPIOTE", window_base: 0x4000_6000, window_size: 0x1000, irq: Some(6), kernel_owned: false, easy_dma: false, dma: None },
-    Peripheral { name: "SAADC", window_base: 0x4000_7000, window_size: 0x1000, irq: Some(7), kernel_owned: false, easy_dma: true, dma: Some(&SAADC_DMA) },
+    Peripheral { name: "SAADC", window_base: 0x4000_7000, window_size: 0x1000, irq: Some(7), kernel_owned: false, easy_dma: true, dma: None },
     Peripheral { name: "TIMER0", window_base: 0x4000_8000, window_size: 0x1000, irq: Some(8), kernel_owned: true, easy_dma: false, dma: None },
     Peripheral { name: "TIMER1", window_base: 0x4000_9000, window_size: 0x1000, irq: Some(9), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "TIMER2", window_base: 0x4000_A000, window_size: 0x1000, irq: Some(10), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "RTC0", window_base: 0x4000_B000, window_size: 0x1000, irq: Some(11), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "WDT", window_base: 0x4001_0000, window_size: 0x1000, irq: Some(16), kernel_owned: true, easy_dma: false, dma: None },
     Peripheral { name: "RTC1", window_base: 0x4001_1000, window_size: 0x1000, irq: Some(17), kernel_owned: false, easy_dma: false, dma: None },
-    Peripheral { name: "PWM0", window_base: 0x4001_C000, window_size: 0x1000, irq: Some(28), kernel_owned: false, easy_dma: true, dma: Some(&PWM_DMA) },
+    Peripheral { name: "PWM0", window_base: 0x4001_C000, window_size: 0x1000, irq: Some(28), kernel_owned: false, easy_dma: true, dma: None },
     Peripheral { name: "PPI", window_base: 0x4001_F000, window_size: 0x1000, irq: None, kernel_owned: true, easy_dma: false, dma: None },
     Peripheral { name: "P0", window_base: 0x5000_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false, dma: None },
 ];

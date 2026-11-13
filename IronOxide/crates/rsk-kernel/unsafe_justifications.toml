@@ -59,7 +59,7 @@ reviewed_on = "2026-10-08"
 
 [[justification]]
 id = "UJ-007"
-summary = "build_frame: writes the initial exception frame below the Partition stack floor"
+summary = "build_frame: writes the initial exception frame below the Partition stack floor (plan_frame places it inside the Partition's stack region: the floor is at most the region's top since 2026-11-13, the audit's finding 8)"
 kind = "kani"
 link = "uj_007_frame_layout"
 
@@ -67,7 +67,7 @@ link = "uj_007_frame_layout"
 id = "UJ-008"
 summary = "svc_number: reads the SVC instruction at the stacked PC minus 2"
 kind = "review"
-why_no_machine_check = "The precondition (PC is the return address stacked by an SVC taken from Thumb code, HW-06) is a hardware fact that no harness can produce; the SVC service tests of the QEMU spike and the HIL dispatch tests exercise every service number."
+why_no_machine_check = "The precondition (PC is the return address stacked by an SVC taken from Thumb code, HW-06) is a hardware fact that no harness can produce; the SVC service tests of the QEMU spike and the HIL dispatch tests exercise every service number. Since 2026-11-13 the stacked PC is read only from a frame that arch::cm4::svc_frame_check found inside the executing Job's stack region, or from the Kernel's own stack (the audit's contested finding D)."
 reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
 
@@ -175,7 +175,7 @@ reviewed_on = "2026-10-08"
 id = "UJ-026"
 summary = "rsk_memmanage_entry"
 kind = "review"
-why_no_machine_check = "As UJ-022; the in-Kernel attribution uses EXC_RETURN bit 3 and PRIMASK (R14.3), exercised by the HIL fault-injection cases of task 7.5."
+why_no_machine_check = "As UJ-022; the in-Kernel attribution uses EXC_RETURN bit 3 and PRIMASK (R14.3), exercised by the HIL fault-injection cases of task 7.5. Since 2026-11-13 the stub reads nothing through the frame pointer: the stacked PC is read by frame_pc (UJ-061) under fault_pc's conditions (the audit's contested finding A)."
 reviewed_by = "rsk kernel review (task 5.1)"
 reviewed_on = "2026-10-08"
 
@@ -433,3 +433,19 @@ why_no_machine_check = "The impl is emitted, not written: the derive (policy `un
 reviewed_by = "rsk kernel review (task 21.4)"
 reviewed_on = "2026-11-07"
 
+
+[[justification]]
+id = "UJ-061"
+summary = "frame_pc: reads the stacked PC of a fault's exception frame for the fault record (R14.3)"
+kind = "review"
+why_no_machine_check = "The caller, arch::cm4::fault_pc, reads only a frame that the exception entry stacked (CFSR.MSTKERR clear) and that lies on the Kernel's main stack or, by the verified check psp_in_stack, inside the stack region of the executing Job's Partition; a harness cannot produce a hardware exception frame. Until 2026-11-13 the read was in the stub and unconditional (the audit's contested finding A)."
+reviewed_by = "audit of ironoxide-eval-v2"
+reviewed_on = "2026-11-13"
+
+[[justification]]
+id = "UJ-062"
+summary = "dt::svc_with_sp: moves the Job's stack pointer to a given address and issues an SVC (the stack-check cases)"
+kind = "review"
+why_no_machine_check = "Unprivileged test code that invalidates its own stack pointer; what it can reach is bounded by the Partition's MPU view, and the Kernel's stack check ends the Job. A stack violation not reported is the failure the cases exist to detect. Test builds only (hw-dt)."
+reviewed_by = "audit of ironoxide-eval-v2"
+reviewed_on = "2026-11-13"

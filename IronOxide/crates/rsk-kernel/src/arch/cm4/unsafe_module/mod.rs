@@ -958,6 +958,26 @@ pub fn build_frame(sp: u32, entry: u32, trampoline: u32) {
     }
 }
 
+/// The stacked PC of the exception frame at `frame` (word 6), for the fault
+/// record (R14.3). The caller (`arch::cm4::fault_pc`) has established that
+/// the frame was stacked and where it lies.
+pub fn frame_pc(frame: u32) -> u32 {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        // SAFETY (UJ-061): `frame` is the address of an exception frame
+        // that this exception's entry stacked (CFSR.MSTKERR clear), on the
+        // Kernel's main stack or, checked by the caller, inside the stack
+        // region of the executing Job's Partition (`psp_in_stack`), so the
+        // word at offset 24 is readable RAM.
+        unsafe { core::ptr::read_volatile((frame as usize + 24) as *const u32) }
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    {
+        let _ = frame;
+        0
+    }
+}
+
 /// The SVC number of the instruction before the stacked return address
 /// (Thumb `SVC #imm8`: the low byte of the halfword at PC - 2), or
 /// `SVC_STALE` when that halfword is not an SVC instruction: the entry is
@@ -969,7 +989,11 @@ pub fn svc_number(stacked_pc: u32) -> u8 {
         // SAFETY (UJ-008): `stacked_pc` is the return address stacked by an
         // exception taken from Thumb code (HW-06), so `stacked_pc - 2` is
         // the address of the last instruction executed, in executable
-        // memory (the SVC instruction when the frame is the SVC's own).
+        // memory (the SVC instruction when the frame is the SVC's own). The
+        // value was read from a frame inside the executing Job's stack
+        // region (`svc_frame_check`, R16.5; since 2026-11-13, the audit's
+        // contested finding D), which the hardware stacked under the Job's
+        // MPU view, or from the Kernel's own stack.
         let halfword = unsafe { core::ptr::read_volatile((stacked_pc - 2) as usize as *const u16) };
         if halfword >> 8 != 0xDF {
             return super::entry::SVC_STALE;

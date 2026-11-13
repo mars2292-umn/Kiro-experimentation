@@ -172,6 +172,12 @@ pub mod rsk_target {
             [(0x40006000, 0x1000), (0x50000000, 0x1000), (0, 0), (0, 0), (0, 0)],
             [(0x40003000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],
         ];
+        /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).
+        pub const WINDOWS_RO: [[bool; 5]; PARTITIONS] = [
+            [false, false, false, false, false],
+            [false, false, false, false, false],
+            [true, false, false, false, false],
+        ];
     }
 }
 const _: () = assert!(::core::mem::size_of::<u32>() <= 4, "the payload of Endpoint `telemetry` exceeds its declared `payload` bytes (R38.1)");

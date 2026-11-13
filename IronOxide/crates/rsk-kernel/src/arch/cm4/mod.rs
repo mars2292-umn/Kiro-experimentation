@@ -485,9 +485,11 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     };
     #[cfg(feature = "trace-ram")]
     let (seq_before, top_before) = (k.log_seq(), k.top());
+    let depth_before = k.depth();
     let (plan, safe) = entry::irq_entry_core(
         k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
     );
+    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     {
         // R19.3: the cycles of this intake handler run, attributed to the
@@ -586,7 +588,9 @@ pub fn timer<S: System>() -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
+    let depth_before = k.depth();
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     {
         entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
@@ -602,6 +606,71 @@ pub fn timer<S: System>() -> ReturnPlan {
     span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0);
     pins_running(k.top());
     hop
+}
+
+/// Audit finding 4 (2026-11-13): a Kernel entry other than the SVC handler
+/// that ended a Job (fewer Jobs in progress than at its start; a dispatch
+/// only adds one) drops a pending SVCall, which can only be the ended
+/// executing Job's (`hw::svc_clear_pending`).
+fn svc_of_ended_job<K: KernelOps>(k: &K, depth_before: usize) {
+    if k.depth() < depth_before {
+        hw::svc_clear_pending();
+    }
+}
+
+/// R16.5 (the audit's findings 8 and 9 and contested finding D,
+/// 2026-11-13): the stack check of an SVC taken from a Job, before anything
+/// is read or written through the process stack pointer `psp`, the SVC
+/// instruction's number included. `None`: the frame lies inside the
+/// Partition's stack region and the SVC is served. Otherwise the Job has a
+/// stack violation: the Partition's fault response is applied, the stacking
+/// fault pending behind this handler (an SVC issued with less than a
+/// frame's room: the entry could not stack) is discarded, and the plan
+/// unwinds the ended Job. With no Job executing the frame is the Kernel's
+/// own (the idle activity's) and is not checked.
+pub fn svc_frame_check<S: System>(psp: u32) -> Option<ReturnPlan> {
+    let state = unsafe_module::arch_state();
+    let tables = SysTables::<S>(PhantomData);
+    if state.current_partition == 0xFF || entry::psp_in_stack(&tables, state, psp) {
+        return None;
+    }
+    let k = S::kernel().get();
+    let mut hw = Cm4Hw::new();
+    pins_enter();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
+    let (hop, safe) = entry::stack_violation_core(k, &mut hw, &tables, state);
+    hw::stacking_fault_discard();
+    #[cfg(feature = "trace-ram")]
+    entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
+    mirror_events(k);
+    if safe {
+        S::safe_state();
+    }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
+    pins_running(k.top());
+    Some(hop)
+}
+
+/// The stacked PC of a faulting context for the fault record (R14.3), or 0
+/// when it cannot be read safely (the audit's contested finding A,
+/// 2026-11-13): the frame at `frame` was not stacked (CFSR.MSTKERR: the
+/// fault is this entry's own stacking failure), or it is on the process
+/// stack and not inside the stack region of the executing Job's Partition.
+fn fault_pc<S: System>(cfsr: u32, frame: u32, exc_return: u32) -> u32 {
+    if cfsr & (1 << 4) != 0 {
+        return 0;
+    }
+    if exc_return & 4 != 0 {
+        let state = unsafe_module::arch_state();
+        if !entry::psp_in_stack(&SysTables::<S>(PhantomData), state, frame) {
+            return 0;
+        }
+    }
+    unsafe_module::frame_pc(frame)
 }
 
 /// The Rust half of the SVC handler: `frame` points at the caller's
@@ -742,8 +811,10 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
+    let depth_before = k.depth();
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
+    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
@@ -765,9 +836,10 @@ pub fn first_memmanage() -> (u32, u32) {
     (state.first_fault_cfsr, state.first_fault_addr)
 }
 
-pub fn mem_manage<S: System>(in_kernel: bool, pc: u32) -> ReturnPlan {
+pub fn mem_manage<S: System>(in_kernel: bool, frame: u32, exc_return: u32) -> ReturnPlan {
     {
         let (cfsr, mmfar) = hw::fault_status();
+        let pc = fault_pc::<S>(cfsr, frame, exc_return);
         let state = unsafe_module::arch_state();
         if state.first_fault_cfsr == 0 {
             state.first_fault_cfsr = cfsr | 0x8000_0000;
@@ -824,7 +896,7 @@ pub fn usage_fault<S: System>(in_kernel: bool) -> ReturnPlan {
 
 pub fn hard_fault<S: System>() -> ! {
     trace(b"hardfault", hw::mmio_read(unsafe_module::hw::addr::CFSR));
-    trace(b"hfsr", hw::mmio_read(0xE000_ED2C));
+    trace(b"hfsr", hw::mmio_read(hw::addr::HFSR));
     trace(b"mmfar", hw::mmio_read(0xE000_ED34));
     let k = S::kernel().get();
     k.fault(EV_HARDFAULT, true);
@@ -891,6 +963,7 @@ mod tests {
         sim::write(hw::addr::AIRCR, 0);
         sim::write(hw::addr::NRF_HFCLKSTAT, (1 << 16) | 1);
         sim::write(hw::addr::NRF_ICACHECNF, 0);
+        sim::write(hw::addr::NRF_PPI_CHEN, 0);
         sim::write(hw::addr::MVFR0, 0x1011_0021);
     }
 
@@ -937,6 +1010,10 @@ mod tests {
         simulate_expected_board();
         sim::write(hw::addr::NRF_ICACHECNF, 1);
         assert_eq!(hw::boot_checks(&expect), 1 << 11, "instruction cache enabled (ASM-04)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::NRF_PPI_CHEN, 1 << 3);
+        assert_eq!(hw::boot_checks(&expect), 1 << 14, "a PPI channel enabled after the boot clear (DD-08)");
 
         simulate_expected_board();
         sim::write(hw::addr::MVFR0, 0);

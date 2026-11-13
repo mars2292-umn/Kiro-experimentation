@@ -140,7 +140,7 @@ mod pulse_source {
 fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_, u32>) {
     use rsk_target::layout as l;
     let layout = rsk::matrix::Layout {
-        this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
+        this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS, windows_ro: &l::WINDOWS_RO,
         kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
     };
     let i = index.get();
@@ -163,6 +163,34 @@ fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::log_pre(&cx)))]
 #[allow(unused_labels)]
 pub fn log(mut cx: rsk_ctx::Log) {
+    // Audit finding 2 (2026-11-13; conformance case fi-R42-4-forged-rejection):
+    // a rejected-message report against `control`, role 0 of `telemetry`
+    // (Endpoint 0), from this Task's role 1, which declares no validation
+    // function and received nothing. The Kernel must record API misuse of
+    // this Task and leave part0 alone.
+    #[cfg(feature = "fi-forged-rejection")]
+    if cx.count.get() == 0 {
+        rsk::report_rejected_message(0, 1, 0);
+    }
+    // The audit's findings 8 and 9 (2026-11-13; conformance cases
+    // fi-R16-5-stack-*): an SVC with the stack pointer outside this
+    // Partition's stack region. The Kernel must report a stack violation of
+    // this Partition and read or write nothing through the pointer.
+    #[cfg(feature = "fi-stack-window")]
+    if cx.count.get() == 0 {
+        // Inside this Partition's own peripheral window (the first one).
+        rsk::hw_dt::svc_with_sp(rsk_target::layout::WINDOWS[rsk_target::layout::SELF][0].0 + 0x800);
+    }
+    #[cfg(feature = "fi-stack-unmapped")]
+    if cx.count.get() == 0 {
+        // No memory there: a Kernel read through it would be a Kernel fault.
+        rsk::hw_dt::svc_with_sp(0x6000_0100);
+    }
+    #[cfg(feature = "fi-stack-bottom")]
+    if cx.count.get() == 0 {
+        // Less than a frame's room: the SVC's entry cannot stack.
+        rsk::hw_dt::svc_with_sp(rsk_target::layout::RAM[rsk_target::layout::SELF].0 + 16);
+    }
     if cx.count.get() == 0 {
         pulse_source::start();
         // The measurement configurations (task 19.2): the EasyDMA traffic

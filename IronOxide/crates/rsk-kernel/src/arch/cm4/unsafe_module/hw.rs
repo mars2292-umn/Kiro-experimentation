@@ -27,6 +27,9 @@ pub mod addr {
     pub const SHPR2: u32 = 0xE000_ED1C;
     pub const SHPR3: u32 = 0xE000_ED20;
     pub const SHCSR: u32 = 0xE000_ED24;
+    /// HardFault status (Armv7-M ARM B3.2.16), read by `hard_fault` for the trace; in the
+    /// register list since 2026-11-13 (audit finding 18: the read used a literal outside it).
+    pub const HFSR: u32 = 0xE000_ED2C;
     pub const CFSR: u32 = 0xE000_ED28;
     /// MemManage Fault Address Register (valid when CFSR.MMARVALID).
     pub const MMFAR: u32 = 0xE000_ED34;
@@ -62,16 +65,21 @@ pub mod addr {
     pub const NRF_ICACHECNF: u32 = 0x4001_E540;
     /// nRF52840 WDT (PS 6.36), Kernel-owned (ORQ-31).
     pub const NRF_WDT: u32 = 0x4001_0000;
-    /// nRF52840 PPI.CHENCLR (PS 6.19): Kernel-owned (DD-08), every channel cleared at boot.
-    pub const NRF_PPI_CHENCLR: u32 = 0x4001_F504;
+    /// nRF52840 PPI.CHEN (PS 6.19, offset 0x500): the channel enable register, read back
+    /// by the boot check after the clear (bit 14; audit finding 3, 2026-11-13).
+    pub const NRF_PPI_CHEN: u32 = 0x4001_F500;
+    /// nRF52840 PPI.CHENCLR (PS 6.19, offset 0x508; 0x504 is CHENSET): Kernel-owned
+    /// (DD-08), every channel cleared at boot. Until 2026-11-13 this constant was
+    /// 0x4001_F504, CHENSET, and the boot write enabled all 32 channels.
+    pub const NRF_PPI_CHENCLR: u32 = 0x4001_F508;
     /// QEMU mps2-an386 CMSDK APB timers.
     pub const CMSDK_TIMER0: u32 = 0x4000_0000;
     pub const CMSDK_TIMER1: u32 = 0x4000_1000;
 
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
-        SHCSR, CFSR, MMFAR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
-        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHENCLR, CMSDK_TIMER0,
+        SHCSR, HFSR, CFSR, MMFAR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
+        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHEN, NRF_PPI_CHENCLR, CMSDK_TIMER0,
         CMSDK_TIMER1,
     ];
 
@@ -694,6 +702,38 @@ pub fn set_kernel_exception_priorities() {
     mmio_write(addr::SHCSR, v | (1 << 16) | (1 << 17) | (1 << 18));
 }
 
+/// Clears a pending SVCall (SHCSR.SVCALLPENDED, bit 15; Armv7-M B3.2.13).
+/// Called by the timer, interrupt, and fault shells when their entry ended
+/// the executing Job (audit finding 4, 2026-11-13): only a Job executes
+/// `SVC`, so an SVCall still pending then is the ended Job's, its request
+/// died with it, and left pending it tail-chains onto the resumed context.
+/// The `SVC_STALE` guard recognises that entry only when the resumed
+/// context is not itself parked behind an `SVC` instruction; a Job resumed
+/// at its own SVC's return had the service run a second time.
+pub fn svc_clear_pending() {
+    let v = mmio_read(addr::SHCSR);
+    if v & (1 << 15) != 0 {
+        mmio_write(addr::SHCSR, v & !(1 << 15));
+    }
+}
+
+/// Discards the stacking fault of an exception entry that the entered
+/// handler has already answered as a stack violation (the audit's finding
+/// 9, 2026-11-13): when the entry of an SVC could not stack its frame
+/// (CFSR.MSTKERR, bit 4), MemManage is pending behind the SVC handler, both
+/// being at the Kernel level. The handler's stack check has reported the
+/// violation and ended the Job, so the pending MemManage (SHCSR bit 13) and
+/// its status are cleared; left pending it would be taken on the context
+/// the response resumed and attributed a second time, to the wrong Job.
+pub fn stacking_fault_discard() {
+    let cfsr = mmio_read(addr::CFSR);
+    if cfsr & (1 << 4) != 0 {
+        let v = mmio_read(addr::SHCSR);
+        mmio_write(addr::SHCSR, v & !(1 << 13));
+        mmio_write(addr::CFSR, cfsr & 0xFF);
+    }
+}
+
 /// The configurable fault status and the MemManage fault address, for the
 /// HIL trace (R14.3 diagnosis; `trace` builds only read them).
 pub fn fault_status() -> (u32, u32) {
@@ -701,18 +741,51 @@ pub fn fault_status() -> (u32, u32) {
 }
 
 /// The safe state's idle step (ORQ-31): the Kernel-owned watchdog is fed,
-/// then the core waits for an interrupt. The Profile_Lint accepts
+/// then the core waits out the feed interval (`safe_state_wait`: a busy
+/// wait, no sleep; see there). The Profile_Lint accepts
 /// `loop { safe_state_idle() }` beside the idle loop as the two unbounded
 /// loops (PR-16); the QEMU board has no watchdog.
 pub fn safe_state_idle() {
     #[cfg(all(not(feature = "board-qemu-mps2"), feature = "boot-mutation"))]
     if super::boot_mutation() == crate::arch::cm4::MUT_WATCHDOG {
-        wait_for_interrupt();
+        safe_state_wait::<SAFE_STATE_FEED_POLLS>(SAFE_STATE_FEED_CYCLES);
         return;
     }
     #[cfg(not(feature = "board-qemu-mps2"))]
     watchdog_feed();
-    wait_for_interrupt();
+    safe_state_wait::<SAFE_STATE_FEED_POLLS>(SAFE_STATE_FEED_CYCLES);
+}
+
+/// The safe state's feed interval in CPU cycles (2^21: 32.8 ms at 64 MHz),
+/// far inside the watchdog's reload (`entry::watchdog_reload`: half a
+/// second on the nRF52840).
+pub const SAFE_STATE_FEED_CYCLES: u32 = 1 << 21;
+/// The polls of the cycle counter per feed interval at most, so that the
+/// wait ends when the counter does not advance (DEMCR.TRCENA cleared by a
+/// detaching probe, a board without a cycle counter): at
+/// `SAFE_STATE_POLL_CYCLES_MAX` cycles a poll, 2^24 cycles (262 ms at
+/// 64 MHz), still inside the reload.
+pub const SAFE_STATE_FEED_POLLS: u32 = 1 << 20;
+/// An upper bound of the cycles of one poll of `safe_state_wait` (a
+/// volatile read, a subtraction, two compares, an increment and a branch
+/// with the flash's wait states: about ten).
+pub const SAFE_STATE_POLL_CYCLES_MAX: u32 = 16;
+
+/// A busy wait of `cycles` CPU cycles by the DWT cycle counter, and of
+/// `POLLS` polls at most. The safe state waits here between two watchdog
+/// feeds (audit, contested finding B, 2026-11-13). Until this date the
+/// loop was `watchdog_feed(); wfi`: the safe state is entered from a
+/// Kernel-level handler on every run-time path, no configurable exception
+/// outranks that level, so nothing woke the core, the watchdog was not fed
+/// again, and it reset the Target, the next boot then reporting a watchdog
+/// reset in place of the run's own events. A busy wait needs no wake event.
+pub fn safe_state_wait<const POLLS: u32>(cycles: u32) {
+    let start = dwt_cyccnt();
+    let mut i: u32 = 0;
+    // PR-16: at most `POLLS` iterations, a constant of every call.
+    while i < POLLS && dwt_cyccnt().wrapping_sub(start) < cycles {
+        i += 1;
+    }
 }
 
 /// Clears the configurable fault status (write one to clear).
@@ -899,6 +972,11 @@ pub fn boot_checks(expect: &BootExpect) -> u32 {
         }
         if mmio_read(addr::NRF_ICACHECNF) & 1 != 0 {
             failed |= 1 << 11;
+        }
+        // DD-08: PPI is Kernel-owned and `boot_core` cleared every channel
+        // before these checks; a channel still enabled is a failed check.
+        if mmio_read(addr::NRF_PPI_CHEN) != 0 {
+            failed |= 1 << 14;
         }
     }
     if expect.fpu_needed && mmio_read(addr::MVFR0) == 0 {

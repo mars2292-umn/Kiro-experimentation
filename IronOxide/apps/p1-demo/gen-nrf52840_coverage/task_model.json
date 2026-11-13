@@ -13,7 +13,7 @@
     "tick_hz": 16000000
   },
   "config_checksum": "0xfdfa954c",
-  "layout_checksum": "0xf17109f3",
+  "layout_checksum": "0xdb1abc61",
   "operating_duration_ticks": 2880000000,
   "safe_state": "crate::report_and_exit",
   "fp_flush_to_zero": false,

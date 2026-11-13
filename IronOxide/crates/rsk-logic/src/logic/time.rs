@@ -455,6 +455,20 @@ impl<const NT: usize> Timing<NT> {
         self.mask_until[t as usize] = now + cfg.tasks[t as usize].period;
     }
 
+    /// The timing state is `old`'s except that sources masked in `old` may
+    /// be unmasked: what a response leaves of it (R14.5: the MIT history is
+    /// kept; audit finding 7, 2026-11-13: END_JOB ends the Sporadic_Task's
+    /// MIT window as a Job's return does, DD-06, so its source is unmasked
+    /// once the window is over). Every instant, the Release history, and
+    /// `mask_until` are `old`'s.
+    pub open spec fn unmasked_only(&self, old: &Self) -> bool {
+        &&& self.k == old.k && self.nominal == old.nominal
+        &&& self.has_last == old.has_last && self.last_due == old.last_due
+        &&& self.deferred_until == old.deferred_until && self.mask_until == old.mask_until
+        &&& self.due == old.due && self.job_due == old.job_due
+        &&& forall|u: int| 0 <= u < NT ==> (#[trigger] self.masked[u] ==> old.masked[u])
+    }
+
     pub fn try_unmask<const NR: usize, const NP: usize>(&mut self, cfg: &Config<NT, NR, NP>, t: u8, now: u64, job_ended: bool) -> (unmasked: bool)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
         ensures final(self).inv(cfg),
