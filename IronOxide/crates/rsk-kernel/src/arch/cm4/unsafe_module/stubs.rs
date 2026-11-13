@@ -156,6 +156,9 @@ pub unsafe extern "C" fn rsk_svc_entry() {
         "ite eq",
         "mrseq r0, msp",
         "mrsne r0, psp",
+        // EXC_RETURN for the Rust half's stack check (R16.5): a frame on the
+        // PSP is read only inside the Partition's stack region.
+        "mov r1, lr",
         "push {{r4, lr}}",
         "bl {svc}",
         "pop {{r4, lr}}",
@@ -245,12 +248,16 @@ pub unsafe extern "C" fn rsk_timer_entry() {
 
 /// Fault entries: `in_kernel` is 1 when the fault was taken from Handler
 /// mode (EXC_RETURN bit 3 clear) or with PRIMASK set (R14.3).
-// SAFETY (UJ-026): as UJ-022; in addition the stacked PC of the faulting
-// context is read (word 6 of the exception frame: on the PSP when
-// EXC_RETURN bit 2 is set, else on the MSP above the two words pushed
-// here) for the fault record (R14.3). The frame was stacked by this
-// exception's entry, so the word is readable; a stacking failure would
-// have raised MSTKERR before this handler ran.
+// SAFETY (UJ-026): as UJ-022; the stub reads nothing through the frame
+// pointer. It passes the frame's address (the PSP when EXC_RETURN bit 2 is
+// set, else the MSP above the two words pushed here) and EXC_RETURN to the
+// Rust half, which reads the stacked PC for the fault record (R14.3) under
+// `arch::cm4::fault_pc`'s conditions (UJ-061). Until 2026-11-13 the stub
+// loaded word 6 of the frame unconditionally, on the argument that a
+// stacking failure would have raised MSTKERR before this handler ran; a
+// stacking failure is delivered to this very handler (the audit's
+// contested finding A), and the load then read through a stack pointer
+// that had just faulted.
 #[unsafe(naked)]
 #[no_mangle]
 pub unsafe extern "C" fn rsk_memmanage_entry() {
@@ -264,7 +271,10 @@ pub unsafe extern "C" fn rsk_memmanage_entry() {
         "ite ne",
         "mrsne r1, psp",
         "addeq r1, sp, #8",
-        "ldr r1, [r1, #24]",
+        // The frame's address and EXC_RETURN: the Rust half reads the
+        // stacked PC only from a frame that was stacked (no MSTKERR) and,
+        // on the PSP, lies inside the Partition's stack region.
+        "mov r2, lr",
         "bl {f}",
         "pop {{r4, lr}}",
         "cbz r0, 1f",

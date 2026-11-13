@@ -156,9 +156,19 @@ pub unsafe extern "C" fn rsk_irq_entry_rust(ipsr: u32, psp: u32, control: u32, e
 }
 
 // SAFETY (UJ-103): `frame` is the exception frame the SVC handler located
-// (HW-06), eight words on the caller's stack.
+// (HW-06), eight words on the caller's stack: the Kernel's main stack, or
+// the process stack of a Job, where it is dereferenced only after
+// `arch::svc_frame_check` found it inside the stack region of the Job's
+// Partition (R16.5; since 2026-11-13, the audit's findings 8 and 9). A
+// frame the check refuses is answered there as a stack violation and
+// nothing is read or written through it.
 #[no_mangle]
-pub unsafe extern "C" fn rsk_svc_rust(frame: *mut [u32; 8]) -> u32 {
+pub unsafe extern "C" fn rsk_svc_rust(frame: *mut [u32; 8], exc_return: u32) -> u32 {
+    if exc_return & 4 != 0 {
+        if let Some(plan) = arch::svc_frame_check::<Sys>(frame as usize as u32) {
+            return plan;
+        }
+    }
     arch::svc::<Sys>(&mut *frame)
 }
 
@@ -176,8 +186,8 @@ pub extern "C" fn rsk_timer_rust() -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn rsk_memmanage_rust(in_kernel: u32, pc: u32) -> u32 {
-    arch::mem_manage::<Sys>(in_kernel != 0, pc)
+pub extern "C" fn rsk_memmanage_rust(in_kernel: u32, frame: u32, exc_return: u32) -> u32 {
+    arch::mem_manage::<Sys>(in_kernel != 0, frame, exc_return)
 }
 
 #[no_mangle]

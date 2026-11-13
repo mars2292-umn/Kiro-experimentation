@@ -618,6 +618,61 @@ fn svc_of_ended_job<K: KernelOps>(k: &K, depth_before: usize) {
     }
 }
 
+/// R16.5 (the audit's findings 8 and 9 and contested finding D,
+/// 2026-11-13): the stack check of an SVC taken from a Job, before anything
+/// is read or written through the process stack pointer `psp`, the SVC
+/// instruction's number included. `None`: the frame lies inside the
+/// Partition's stack region and the SVC is served. Otherwise the Job has a
+/// stack violation: the Partition's fault response is applied, the stacking
+/// fault pending behind this handler (an SVC issued with less than a
+/// frame's room: the entry could not stack) is discarded, and the plan
+/// unwinds the ended Job. With no Job executing the frame is the Kernel's
+/// own (the idle activity's) and is not checked.
+pub fn svc_frame_check<S: System>(psp: u32) -> Option<ReturnPlan> {
+    let state = unsafe_module::arch_state();
+    let tables = SysTables::<S>(PhantomData);
+    if state.current_partition == 0xFF || entry::psp_in_stack(&tables, state, psp) {
+        return None;
+    }
+    let k = S::kernel().get();
+    let mut hw = Cm4Hw::new();
+    pins_enter();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::span_enter();
+    #[cfg(feature = "trace-ram")]
+    let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
+    let (hop, safe) = entry::stack_violation_core(k, &mut hw, &tables, state);
+    hw::stacking_fault_discard();
+    #[cfg(feature = "trace-ram")]
+    entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
+    mirror_events(k);
+    if safe {
+        S::safe_state();
+    }
+    #[cfg(feature = "trace-ram")]
+    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
+    pins_running(k.top());
+    Some(hop)
+}
+
+/// The stacked PC of a faulting context for the fault record (R14.3), or 0
+/// when it cannot be read safely (the audit's contested finding A,
+/// 2026-11-13): the frame at `frame` was not stacked (CFSR.MSTKERR: the
+/// fault is this entry's own stacking failure), or it is on the process
+/// stack and not inside the stack region of the executing Job's Partition.
+fn fault_pc<S: System>(cfsr: u32, frame: u32, exc_return: u32) -> u32 {
+    if cfsr & (1 << 4) != 0 {
+        return 0;
+    }
+    if exc_return & 4 != 0 {
+        let state = unsafe_module::arch_state();
+        if !entry::psp_in_stack(&SysTables::<S>(PhantomData), state, frame) {
+            return 0;
+        }
+    }
+    unsafe_module::frame_pc(frame)
+}
+
 /// The Rust half of the SVC handler: `frame` points at the caller's
 /// exception frame (R0-R3 at offsets 0 to 12, PC at 24).
 pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
@@ -781,9 +836,10 @@ pub fn first_memmanage() -> (u32, u32) {
     (state.first_fault_cfsr, state.first_fault_addr)
 }
 
-pub fn mem_manage<S: System>(in_kernel: bool, pc: u32) -> ReturnPlan {
+pub fn mem_manage<S: System>(in_kernel: bool, frame: u32, exc_return: u32) -> ReturnPlan {
     {
         let (cfsr, mmfar) = hw::fault_status();
+        let pc = fault_pc::<S>(cfsr, frame, exc_return);
         let state = unsafe_module::arch_state();
         if state.first_fault_cfsr == 0 {
             state.first_fault_cfsr = cfsr | 0x8000_0000;

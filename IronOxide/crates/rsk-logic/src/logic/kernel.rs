@@ -143,7 +143,7 @@ pub fn fault_prs(kind: u8) -> u64 {
         PRS_PANIC
     } else if kind == EV_BUSFAULT || kind == EV_USAGEFAULT {
         PRS_PRIVILEGE
-    } else if kind == EV_MEMMANAGE {
+    } else if kind == EV_MEMMANAGE || kind == super::log::EV_STACK_VIOLATION {
         PRS_OWNERSHIP
     } else {
         PRS_PANIC | PRS_OWNERSHIP

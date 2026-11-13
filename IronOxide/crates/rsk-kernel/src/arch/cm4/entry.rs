@@ -50,10 +50,10 @@
 use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
-use super::plan::{compare_target, find_level, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
+use super::plan::{compare_target, find_level, frame_in_stack, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
-use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED};
+use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED, EV_STACK_VIOLATION};
 use crate::logic::mpu::View;
 
 verus! {
@@ -361,6 +361,9 @@ pub trait KernelArch: Sized {
 pub uninterp spec fn spec_endpoint_of<T: ?Sized>(t: &T, i: int) -> EndpointCfg;
 /// The Endpoint storage base of a `Tables` as a specification.
 pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
+/// The stack region `[bottom, top)` of Partition `p` of a `Tables`, as a specification.
+pub uninterp spec fn spec_stack_bottom_of<T: ?Sized>(t: &T, p: int) -> int;
+pub uninterp spec fn spec_stack_top_of<T: ?Sized>(t: &T, p: int) -> int;
 
 /// What the generated system crate provides (the `System` trait of
 /// `arch`, adapted by `arch::cm4`).
@@ -368,8 +371,10 @@ pub trait Tables {
     fn binding(&self, n: u16) -> Binding;
     fn dispatch_vector(&self, t: u8) -> u16;
     fn intake_vector(&self, t: u8) -> Option<u16>;
-    fn stack_top(&self, p: u8) -> u32;
-    fn stack_bottom(&self, p: u8) -> u32;
+    fn stack_top(&self, p: u8) -> (a: u32)
+        ensures a as int == spec_stack_top_of(self, p as int);
+    fn stack_bottom(&self, p: u8) -> (a: u32)
+        ensures a as int == spec_stack_bottom_of(self, p as int);
     /// The address of Task `t`'s Job wrapper.
     fn task_entry_address(&self, t: u8) -> u32;
     fn irq_count(&self) -> u16;
@@ -1700,6 +1705,49 @@ pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     safe
 }
 
+/// R16.5 (the audit's findings 8 and 9, and its contested findings A and
+/// D; 2026-11-13): whether the exception frame at the process stack pointer
+/// `psp` a Kernel entry was taken with lies inside the stack region of the
+/// Partition whose Job was executing. Kernel_Arch reads and writes through
+/// `psp` (the SVC's arguments, results and instruction; the faulting PC) and
+/// takes it as the Partition's stack floor (a dispatch) only after this
+/// check. A pointer the check refuses belongs to a Job that moved its stack
+/// pointer out of its stack, or whose exception entry could not stack (a
+/// full stack: the stacking fault is pending behind this entry).
+pub open spec fn spec_psp_in_stack<T: Tables>(tables: &T, p: int, psp: int) -> bool {
+    super::plan::spec_frame_in_stack(psp, spec_stack_bottom_of(tables, p), spec_stack_top_of(tables, p))
+}
+
+pub fn psp_in_stack<T: Tables>(tables: &T, state: &ArchState, psp: u32) -> (ok: bool)
+    ensures ok ==> state.current_partition != 0xFF && spec_psp_in_stack(tables, state.current_partition as int, psp as int),
+        !ok && state.current_partition != 0xFF ==> !spec_psp_in_stack(tables, state.current_partition as int, psp as int),
+{
+    let p = state.current_partition;
+    if p == 0xFF {
+        return false;
+    }
+    frame_in_stack(psp, tables.stack_bottom(p), tables.stack_top(p))
+}
+
+/// The response to a process stack pointer outside the Partition's stack
+/// region: a stack violation of the executing Job's Partition (R16.5,
+/// R14.3; a Kernel fault when no Job executes), recorded and answered with
+/// the Partition's fault response, and the unwind plan of the Job that
+/// response ended. Nothing is read or written through the pointer.
+pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(),
+    ensures final(k).inv(),
+        !r.1 ==> basepri_matches(final(k), final(hw)),
+        r.1 ==> final(hw).hw().basepri == 0,
+{
+    hw.apply(Action::Trace(TR_INVALID, 2));
+    let top_before = k.top();
+    k.fault(EV_STACK_VIOLATION, false);
+    let safe = apply_core(k, hw, tables, state);
+    let hop = end_plan_core(k, state, top_before);
+    (hop, safe)
+}
+
 /// After a transition that may have ended the executing Job: the unwind
 /// plan naming its level's exception number, or 0.
 fn end_plan_core<K: KernelOps>(k: &K, state: &ArchState, top_before: Option<u8>) -> ReturnPlan
@@ -1823,6 +1871,17 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 // pended): nothing to dispatch (A4).
                 return (no_change, false);
             }
+            // R16.5 (the audit's finding 8): the preempted Job's stack pointer
+            // becomes its Partition's stack floor, below which this
+            // dispatch writes a frame, only when its frame lies inside the
+            // Partition's stack region. Otherwise the Job has a stack
+            // violation, nothing is dispatched from this entry, and the
+            // vector is pended again for the context the response resumes.
+            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+                let (hop, safe) = stack_violation_core(k, hw, tables, state);
+                hw.apply(Action::Pend(n));
+                return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
+            }
             let preempted = charge_point(hw, state);
             let previous_partition = state.current_partition;
             if previous_partition != 0xFF && (previous_partition as usize) < MAX_FLOORS && (exc_return & 0xC) == 0xC {
@@ -1852,7 +1911,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
             // excludes the overflow case, and the backstop is a Kernel fault
             // into the safe state (R16.5).
-            let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition)) {
+            let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
                 Some(frame) => frame,
                 None => {
                     k.fault(EV_HARDFAULT, true);
@@ -1893,6 +1952,14 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             let now = hw.now();
             hw.apply(Action::Disable(n));
             let top_before = k.top();
+            // R16.5 (the audit's finding 8): an intake taken from a Job whose
+            // stack pointer is outside its stack region reports the
+            // violation; the event is then taken in as usual, and the plan
+            // unwinds the Job the response ended.
+            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+                hw.apply(Action::Trace(TR_INVALID, 2));
+                k.fault(EV_STACK_VIOLATION, false);
+            }
             k.intake(task, partition, now, task);
             let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, top_before);

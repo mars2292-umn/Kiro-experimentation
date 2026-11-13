@@ -27,7 +27,7 @@ pub enum CaseKind {
     BuildCheck { fixture: String },
     LinkPatch { symbol: String, offset: u32, bytes: Vec<u8> },
     LinkRename { symbol: String, to: String },
-    FaultInjection { feature: String, event: u8, absent: Vec<u8>, untagged: bool },
+    FaultInjection { feature: String, event: u8, absent: Vec<u8>, untagged: bool, alternates: Vec<u8>, once: bool },
     Reason(String),
 }
 
@@ -104,6 +104,10 @@ pub fn load(root: &Path) -> Result<Suite, String> {
                 // `absent`: event kinds the log must not hold; `untagged`: the event carries no restriction bit to check.
                 absent: c.get("absent").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_integer().map(|k| k as u8)).collect()).unwrap_or_default(),
                 untagged: c.get("untagged").and_then(Value::as_bool).unwrap_or(false),
+                // `alternates`: other event kinds that count as `event` (a hardware-dependent
+                // attribution); `once`: exactly one such event in the log.
+                alternates: c.get("alternates").and_then(Value::as_array).map(|a| a.iter().filter_map(|v| v.as_integer().map(|k| k as u8)).collect()).unwrap_or_default(),
+                once: c.get("once").and_then(Value::as_bool).unwrap_or(false),
             },
             "reason" => CaseKind::Reason(str_of(c, "reason", &id)?),
             other => return Err(format!("{REGISTER}: {id}: unknown kind `{other}`")),
@@ -344,7 +348,7 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                     }
                 }
             }
-            CaseKind::FaultInjection { feature, event, absent, untagged } => {
+            CaseKind::FaultInjection { feature, event, absent, untagged, alternates, once } => {
                 // `feature` names a feature of p1-demo-part0, or `package/feature`.
                 let (fi_pkg, fi_feature) = feature.split_once('/').unwrap_or(("p1-demo-part0", feature.as_str()));
                 if qemu_version.is_none() {
@@ -378,11 +382,13 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
                                 let n: u32 = case.restriction.trim_start_matches("PR-").parse().unwrap_or(0);
                                 let bit = 1u64 << n;
                                 let events = events_of(&run.log);
-                                let hit = events.iter().filter(|(k, _)| *k == *event).count();
+                                let hit = events.iter().filter(|(k, _)| *k == *event || alternates.contains(k)).count();
                                 let tagged = events.iter().any(|(k, prs)| *k == *event && prs & bit != 0);
                                 notes.push(format!("{} events logged, {hit} of kind {event}, exit {} after {:.1}s", events.len(), run.exit_code, run.seconds));
                                 if hit == 0 {
                                     Err(format!("no event of kind {event} in the Health_Monitor log"))
+                                } else if *once && hit != 1 {
+                                    Err(format!("{hit} events of kind {event} or its alternates {alternates:?} in the Health_Monitor log, one expected"))
                                 } else if let Some(k) = absent.iter().find(|k| events.iter().any(|(e, _)| e == *k)) {
                                     Err(format!("the Health_Monitor log holds an event of kind {k}, which the case excludes"))
                                 } else if !tagged && !*untagged {

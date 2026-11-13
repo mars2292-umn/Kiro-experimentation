@@ -580,3 +580,27 @@ find = "            self.apply_response(cfg, partition, response, EV_MIT_VIOLATI
 replace = "            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, t);"
 expect = ["kernel.rs", "assertion failed"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "stack-check-lower-bound-dropped"
+kills = "frame_in_stack's contract (R16.5; the audit's findings 8 and 9): a frame below the Partition's stack region is refused"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    psp >= bottom && top >= FRAME_BYTES && psp <= top - FRAME_BYTES"
+replace = "    top >= FRAME_BYTES && psp <= top - FRAME_BYTES"
+expect = ["plan.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "stack-check-upper-bound-dropped"
+kills = "frame_in_stack's contract (R16.5; the audit's finding 8): a frame that does not end inside the Partition's stack region is refused"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    psp >= bottom && top >= FRAME_BYTES && psp <= top - FRAME_BYTES"
+replace = "    psp >= bottom"
+expect = ["plan.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "frame-floor-above-stack-top"
+kills = "plan_frame's contract (R16.5; the audit's finding 8): a new Job's frame lies inside the stack region, so a floor above the region's top places none"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "    if floor > top {\n        return None;\n    }\n"
+replace = ""
+expect = ["plan.rs", "postcondition not satisfied"]

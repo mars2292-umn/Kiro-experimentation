@@ -172,6 +172,25 @@ pub fn log(mut cx: rsk_ctx::Log) {
     if cx.count.get() == 0 {
         rsk::report_rejected_message(0, 1, 0);
     }
+    // The audit's findings 8 and 9 (2026-11-13; conformance cases
+    // fi-R16-5-stack-*): an SVC with the stack pointer outside this
+    // Partition's stack region. The Kernel must report a stack violation of
+    // this Partition and read or write nothing through the pointer.
+    #[cfg(feature = "fi-stack-window")]
+    if cx.count.get() == 0 {
+        // Inside this Partition's own peripheral window (the first one).
+        rsk::hw_dt::svc_with_sp(rsk_target::layout::WINDOWS[rsk_target::layout::SELF][0].0 + 0x800);
+    }
+    #[cfg(feature = "fi-stack-unmapped")]
+    if cx.count.get() == 0 {
+        // No memory there: a Kernel read through it would be a Kernel fault.
+        rsk::hw_dt::svc_with_sp(0x6000_0100);
+    }
+    #[cfg(feature = "fi-stack-bottom")]
+    if cx.count.get() == 0 {
+        // Less than a frame's room: the SVC's entry cannot stack.
+        rsk::hw_dt::svc_with_sp(rsk_target::layout::RAM[rsk_target::layout::SELF].0 + 16);
+    }
     if cx.count.get() == 0 {
         pulse_source::start();
         // The measurement configurations (task 19.2): the EasyDMA traffic

@@ -41,6 +41,8 @@ pub const EV_DEBUGGER: u8 = 23;
 pub const EV_ENDPOINT_FULL: u8 = 25;
 /// A received message that the receiver's validation function rejected (R42.4, task 21.4): recorded against the sending Task, whose Partition receives its fault response.
 pub const EV_MESSAGE_REJECTED: u8 = 26;
+/// A Kernel entry from a Job found the process stack pointer outside the Partition's stack region (R16.5; the audit's findings 8 and 9, 2026-11-13): nothing is read or written through it, and the Partition receives its fault response.
+pub const EV_STACK_VIOLATION: u8 = 27;
 
 /// A bit set of Profile restriction identifiers: bit n stands for PR-n
 /// (R3.9, R14.6).

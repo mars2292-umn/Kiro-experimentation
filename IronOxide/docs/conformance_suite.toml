@@ -609,6 +609,50 @@ untagged = true
 note = "Audit finding 2 (2026-11-13), R42.4, R18.7: `log` (level C) reports a rejected message against `control` (level A) over an edge it does not validate and with nothing delivered. The Kernel records API misuse (event 22) of `log` and applies part1's fault response; part0 is not restarted (no event 16), where until this date the report imposed part0's RESTART_PARTITION."
 
 [[case]]
+id = "fi-R16-5-stack-window"
+restriction = "PR-22"
+category = "RT"
+kind = "fault-injection"
+feature = "p1-demo-part1/fi-stack-window"
+event = 27
+once = true
+absent = [2, 3, 5, 16]
+untagged = true
+note = "The audit's findings 8 and 9 (2026-11-13), R16.5: `log` issues an SVC with its stack pointer in the Partition's own peripheral window (CMSDK_DUALTIMER). The Kernel's stack check reports one stack violation (event 27) of part1 and applies its fault response before anything is read or written through the pointer: no BusFault (3), no Kernel fault (5), and part0 is not restarted (16)."
+
+[[case]]
+id = "fi-R16-5-stack-unmapped"
+restriction = "PR-22"
+category = "RT"
+kind = "fault-injection"
+feature = "p1-demo-part1/fi-stack-unmapped"
+event = 27
+# The entry of the SVC cannot stack: which of the SVC handler (the stack check, event 27) and MemManage
+# (event 2) runs first at their common priority is the hardware's; either way the fault is the
+# Partition's, exactly once (QEMU 9.2 takes MemManage first).
+alternates = [2]
+once = true
+absent = [3, 5, 16]
+untagged = true
+note = "The audit's findings 8 and 9 (2026-11-13), R16.5: `log` issues an SVC with its stack pointer in unmapped memory (0x60000100): a Kernel that read the frame before checking would take a BusFault at its own level, event 5. The Kernel's stack check reports one stack violation (event 27) of part1 and applies its fault response before anything is read or written through the pointer: no BusFault (3), no Kernel fault (5), and part0 is not restarted (16)."
+
+[[case]]
+id = "fi-R16-5-stack-bottom"
+restriction = "PR-22"
+category = "RT"
+kind = "fault-injection"
+feature = "p1-demo-part1/fi-stack-bottom"
+event = 27
+# The entry of the SVC cannot stack: which of the SVC handler (the stack check, event 27) and MemManage
+# (event 2) runs first at their common priority is the hardware's; either way the fault is the
+# Partition's, exactly once (QEMU 9.2 takes MemManage first).
+alternates = [2]
+once = true
+absent = [3, 5, 16]
+untagged = true
+note = "The audit's findings 8 and 9 (2026-11-13), R16.5: `log` issues an SVC with its stack pointer 16 bytes above the bottom of its stack, so that the SVC's entry cannot stack its frame and the stacking fault is pending behind the SVC handler; it must not be attributed a second time. The Kernel's stack check reports one stack violation (event 27) of part1 and applies its fault response before anything is read or written through the pointer: no BusFault (3), no Kernel fault (5), and part0 is not restarted (16)."
+
+[[case]]
 id = "fi-PR-15"
 restriction = "PR-15"
 category = "RT"

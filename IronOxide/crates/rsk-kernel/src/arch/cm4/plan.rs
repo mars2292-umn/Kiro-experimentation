@@ -6,8 +6,16 @@
 //! - [`plan_frame`]: where a new Job's initial exception frame goes. The
 //!   frame is 8-byte aligned (HW-06, STKALIGN) and lies inside the
 //!   Partition's stack region, at or above its bottom (R16.5: a Job never
-//!   starts on a frame that already overflows its stack), and it is the
-//!   highest such address below the current floor.
+//!   starts on a frame that already overflows its stack) and below its
+//!   top, and it is the highest such address below the current floor. Both
+//!   bounds are results of the function since 2026-11-13 (the audit's
+//!   finding 8): the floor is a Job's stack pointer as a Kernel entry found
+//!   it, taken only when its frame lies inside the region
+//!   ([`frame_in_stack`], `entry::psp_in_stack`), and a floor above the
+//!   region's top places no frame.
+//! - [`frame_in_stack`]: whether the exception frame at a process stack
+//!   pointer lies inside a Partition's stack region: the check before the
+//!   Kernel reads or writes through the pointer or takes it as a floor.
 //! - [`compare_target`]: the TIMER compare value for a target instant,
 //!   never closer than `MIN_COMPARE_DISTANCE` to the counter (HW-12, the
 //!   near-counter rule, ASM-19): exactly `hw_model::compare_for`.
@@ -218,19 +226,42 @@ impl ArchState {
     }
 }
 
+/// Whether the eight-word exception frame at `psp` lies inside the stack
+/// region `[bottom, top)` of a Partition (R16.5; the audit's findings 8
+/// and 9, 2026-11-13): the condition under which the Kernel reads or writes
+/// through a process stack pointer it was entered with, and takes it as a
+/// Partition's stack floor.
+pub open spec fn spec_frame_in_stack(psp: int, bottom: int, top: int) -> bool {
+    bottom <= psp && psp + FRAME_BYTES <= top
+}
+
+pub fn frame_in_stack(psp: u32, bottom: u32, top: u32) -> (ok: bool)
+    ensures ok == spec_frame_in_stack(psp as int, bottom as int, top as int),
+{
+    psp >= bottom && top >= FRAME_BYTES && psp <= top - FRAME_BYTES
+}
+
 /// The highest 8-byte-aligned address whose frame of `FRAME_BYTES` lies
 /// below `floor`, if that address is not below `bottom` (the lowest address
-/// of the Partition's stack region). `None` means the frame would overflow
-/// the stack: the caller raises a Kernel fault (R16.5 backstop) instead of
-/// writing below the region.
-pub fn plan_frame(floor: u32, bottom: u32) -> (frame: Option<u32>)
+/// of the Partition's stack region) and `floor` is not above `top` (its
+/// end). `None` means the frame would lie outside the region: the caller
+/// raises a Kernel fault (R16.5 backstop) instead of writing there. The
+/// upper bound is a result since 2026-11-13 (the audit's finding 8): until
+/// then `floor` had none, and a floor taken from a stack pointer outside
+/// the region placed the frame outside it.
+pub fn plan_frame(floor: u32, bottom: u32, top: u32) -> (frame: Option<u32>)
     ensures
         frame.is_some() ==> frame.unwrap() % 8 == 0,
         frame.is_some() ==> bottom <= frame.unwrap(),
         frame.is_some() ==> frame.unwrap() + FRAME_BYTES <= floor,
         frame.is_some() ==> floor < frame.unwrap() + FRAME_BYTES + 8,
-        frame.is_none() ==> floor < FRAME_BYTES || ((floor - FRAME_BYTES) / 8) * 8 < bottom,
+        // The frame lies inside the stack region.
+        frame.is_some() ==> floor <= top && spec_frame_in_stack(frame.unwrap() as int, bottom as int, top as int),
+        frame.is_none() ==> floor > top || floor < FRAME_BYTES || ((floor - FRAME_BYTES) / 8) * 8 < bottom,
 {
+    if floor > top {
+        return None;
+    }
     if floor < FRAME_BYTES {
         return None;
     }

@@ -714,6 +714,23 @@ pub fn svc_clear_pending() {
     }
 }
 
+/// Discards the stacking fault of an exception entry that the entered
+/// handler has already answered as a stack violation (the audit's finding
+/// 9, 2026-11-13): when the entry of an SVC could not stack its frame
+/// (CFSR.MSTKERR, bit 4), MemManage is pending behind the SVC handler, both
+/// being at the Kernel level. The handler's stack check has reported the
+/// violation and ended the Job, so the pending MemManage (SHCSR bit 13) and
+/// its status are cleared; left pending it would be taken on the context
+/// the response resumed and attributed a second time, to the wrong Job.
+pub fn stacking_fault_discard() {
+    let cfsr = mmio_read(addr::CFSR);
+    if cfsr & (1 << 4) != 0 {
+        let v = mmio_read(addr::SHCSR);
+        mmio_write(addr::SHCSR, v & !(1 << 13));
+        mmio_write(addr::CFSR, cfsr & 0xFF);
+    }
+}
+
 /// The configurable fault status and the MemManage fault address, for the
 /// HIL trace (R14.3 diagnosis; `trace` builds only read them).
 pub fn fault_status() -> (u32, u32) {

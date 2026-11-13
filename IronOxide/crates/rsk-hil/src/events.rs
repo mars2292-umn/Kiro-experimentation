@@ -64,6 +64,7 @@ pub fn kind_name(kind: u8) -> &'static str {
         24 => "exec_over(diag)",
         25 => "endpoint_full",
         26 => "message_rejected",
+        27 => "stack_violation",
         _ => "?",
     }
 }

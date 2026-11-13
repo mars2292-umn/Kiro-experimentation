@@ -670,6 +670,15 @@ pub mod hw_dt {
     pub fn dma_request_raw(channel: u8, ptr: u32, len: u32) -> bool {
         super::stubs::svc_dma(channel, ptr, len)
     }
+
+    /// The stack-check probe (R16.5; the audit's findings 8 and 9): moves
+    /// the stack pointer to `sp` and issues an SVC. The Kernel answers with
+    /// a stack violation of the Partition; the Job does not continue.
+    #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn svc_with_sp(sp: u32) {
+        dt::svc_with_sp(sp)
+    }
 }
 
 /// The access matrix of the HIL isolation suite (task 7.4, R16.8;
