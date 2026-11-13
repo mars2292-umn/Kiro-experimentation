@@ -802,3 +802,33 @@ find = "    let previous_partition = state.current_partition;"
 replace = "    let previous_partition = 0xFF;"
 expect = ["entry.rs", "precondition not satisfied"]
 
+# The Config_Checker's recomputation core (crates/rsk-confcheck/src/derive_v.rs,
+# Verification_Plan 5.19, 2026-11-13).
+
+[[mutation]]
+id = "confcheck-ceiling-keeps-smaller"
+kills = "ceiling_of (R23.1): the recomputed Ceiling is the maximum Priority over the accessors"
+file = "crates/rsk-confcheck/src/derive_v.rs"
+find = "        if prios[i] > c {\n            c = prios[i];"
+replace = "        if prios[i] < c {\n            c = prios[i];"
+expect = ["derive_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-disjoint-adjacent-overlap"
+kills = "disjoint (R16.7): two regions are reported disjoint exactly when no address lies in both; adjacent regions are disjoint"
+file = "crates/rsk-confcheck/src/derive_v.rs"
+find = "            let ok = ea <= b_base as u128 || eb <= a_base as u128;"
+replace = "            let ok = ea < b_base as u128 || eb <= a_base as u128;"
+expect = ["derive_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-encode-level-shifted"
+kills = "encode_level (DD-02): the NVIC priority byte of level p is (8 - p) * 32"
+file = "crates/rsk-confcheck/src/derive_v.rs"
+find = "    if level == 0 || level > 8 { 0 } else { (8 - level) * 32 }"
+replace = "    if level == 0 || level > 8 { 0 } else { (8 - level) * 16 }"
+expect = ["derive_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+

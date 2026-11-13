@@ -11,6 +11,18 @@ publish.workspace = true
 # the ELF reader shared with the Build_System; it never depends on rsk-model,
 # rsk-gen, rsk-logic, or rsk-kernel (the Kernel's table encodings it decodes
 # are restated here from the Kernel's documentation, which is the point).
+# The recomputation core is verified (`derive_v`, Verification_Plan 5.19):
+# `cargo verus verify -p rsk-confcheck` in the verification job. The Verus
+# library is the proof tool's, not Generator or Kernel code.
+[package.metadata.verus]
+verify = true
+
 [dependencies]
 serde_json.workspace = true
 rsk-elf.workspace = true
+vstd = { workspace = true, features = ["std"] }
+verus_builtin = { workspace = true }
+verus_builtin_macros = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)"] }

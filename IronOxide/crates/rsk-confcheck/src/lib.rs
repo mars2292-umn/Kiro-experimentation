@@ -25,9 +25,11 @@
 //! table encodings (`TaskCfg`, `PartitionCfg`, the kinds, policies, and
 //! responses) are restated in `image` from the Kernel's documentation.
 #![forbid(unsafe_code)]
+#![cfg_attr(not(verus_keep_ghost), allow(unused_imports))]
 
 use serde_json::Value;
 
+pub mod derive_v;
 pub mod image;
 pub mod model;
 pub mod recompute;
