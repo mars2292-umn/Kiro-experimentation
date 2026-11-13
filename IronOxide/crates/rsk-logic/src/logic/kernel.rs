@@ -1749,7 +1749,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// resumed Job, and reports any Resources it still held (R8.9): as a
     /// forced release for a killed Job, as API misuse (PR-07) for a Job that
     /// returned holding one.
-    #[verifier::rlimit(40)]
+    // Raised from 40 on 2026-11-13: with the stack-prefix clause the mutant
+    // `job-return-disarms-held-deadline` reached the limit before its failing
+    // postcondition was reported.
+    #[verifier::rlimit(80)]
     pub fn job_return(&mut self, cfg: &Config<NT, NR, NP>, elapsed_cycles: u32)
         requires old(self).inv(cfg), old(self).sched.depth > 0,
         ensures final(self).stack_prefix_of(old(self)),
@@ -2098,6 +2101,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     /// The Release_Source event of Sporadic_Task `t` taken in from the
     /// current state: the MIT decision of R10.1 to R10.3 and its record.
+    // Given a limit of its own on 2026-11-13 (the default is 10): with the
+    // stack-prefix clause the function sat at the default, and mutants of
+    // other functions were reported with a resource-limit failure here.
+    #[verifier::rlimit(30)]
     fn intake_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
             (source_partition as int) < NP, now <= cfg.operating_duration, (offender as int) < NT,
