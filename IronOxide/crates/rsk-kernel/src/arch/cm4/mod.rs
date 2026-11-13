@@ -485,9 +485,11 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     };
     #[cfg(feature = "trace-ram")]
     let (seq_before, top_before) = (k.log_seq(), k.top());
+    let depth_before = k.depth();
     let (plan, safe) = entry::irq_entry_core(
         k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
     );
+    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     {
         // R19.3: the cycles of this intake handler run, attributed to the
@@ -586,7 +588,9 @@ pub fn timer<S: System>() -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
+    let depth_before = k.depth();
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     {
         entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
@@ -602,6 +606,16 @@ pub fn timer<S: System>() -> ReturnPlan {
     span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0);
     pins_running(k.top());
     hop
+}
+
+/// Audit finding 4 (2026-11-13): a Kernel entry other than the SVC handler
+/// that ended a Job (fewer Jobs in progress than at its start; a dispatch
+/// only adds one) drops a pending SVCall, which can only be the ended
+/// executing Job's (`hw::svc_clear_pending`).
+fn svc_of_ended_job<K: KernelOps>(k: &K, depth_before: usize) {
+    if k.depth() < depth_before {
+        hw::svc_clear_pending();
+    }
 }
 
 /// The Rust half of the SVC handler: `frame` points at the caller's
@@ -742,8 +756,10 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
+    let depth_before = k.depth();
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
+    svc_of_ended_job(k, depth_before);
     #[cfg(feature = "trace-ram")]
     entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);

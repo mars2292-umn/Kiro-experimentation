@@ -699,6 +699,21 @@ pub fn set_kernel_exception_priorities() {
     mmio_write(addr::SHCSR, v | (1 << 16) | (1 << 17) | (1 << 18));
 }
 
+/// Clears a pending SVCall (SHCSR.SVCALLPENDED, bit 15; Armv7-M B3.2.13).
+/// Called by the timer, interrupt, and fault shells when their entry ended
+/// the executing Job (audit finding 4, 2026-11-13): only a Job executes
+/// `SVC`, so an SVCall still pending then is the ended Job's, its request
+/// died with it, and left pending it tail-chains onto the resumed context.
+/// The `SVC_STALE` guard recognises that entry only when the resumed
+/// context is not itself parked behind an `SVC` instruction; a Job resumed
+/// at its own SVC's return had the service run a second time.
+pub fn svc_clear_pending() {
+    let v = mmio_read(addr::SHCSR);
+    if v & (1 << 15) != 0 {
+        mmio_write(addr::SHCSR, v & !(1 << 15));
+    }
+}
+
 /// The configurable fault status and the MemManage fault address, for the
 /// HIL trace (R14.3 diagnosis; `trace` builds only read them).
 pub fn fault_status() -> (u32, u32) {
