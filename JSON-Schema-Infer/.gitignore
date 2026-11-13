@@ -6,6 +6,8 @@ build/
 dist/
 .pytest_cache/
 .hypothesis/
+.ruff_cache/
+/.toolchain/
 checkouts/
 /corpus/
 split.json
