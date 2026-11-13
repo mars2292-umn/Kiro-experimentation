@@ -1788,12 +1788,13 @@ pub fn psp_in_stack<T: Tables>(tables: &T, state: &ArchState, psp: u32) -> (ok: 
 /// the Partition's fault response, and the unwind plan of the Job that
 /// response ended. Nothing is read or written through the pointer.
 pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(), chain_ok(old(k), *old(state)),
+    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
     ensures final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -1802,6 +1803,9 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
     k.fault(EV_STACK_VIOLATION, false);
     let safe = apply_core(k, hw, tables, state);
     let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
     (hop, safe)
 }
 
@@ -1855,6 +1859,7 @@ pub open spec fn link_ok<K: KernelOps>(k: &K, state: ArchState, i: int) -> bool 
     &&& state.levels[l].task as int == c[i]
     &&& state.levels[l].previous_task as int == (if i == 0 { 0xFF } else { c[i - 1] })
     &&& state.levels[l].exception_number != 0
+    &&& state.levels[l].exception_number <= 0x1FF
 }
 
 /// Level `l` is the level of an entry of the ghost chain.
@@ -1899,6 +1904,90 @@ pub open spec fn arch_inv<K: KernelOps>(k: &K, state: ArchState, hop: int) -> bo
     &&& hop != 0 ==> m > d && hop == top_exc(state)
     &&& hop == 0 ==> (m > d <==> state.pending_unwind != 0)
     &&& state.pending_unwind != 0 ==> m > d && state.pending_unwind as int == top_exc(state)
+}
+
+/// The level records and the ghost chain of `a` are those of `b` (the owed
+/// unwind may differ): what an entry that neither dispatches nor unwinds
+/// leaves of them.
+pub open spec fn records_same(a: ArchState, b: ArchState) -> bool {
+    &&& a.levels == b.levels
+    &&& a.chain@ == b.chain@
+    &&& a.chain_levels@ == b.chain_levels@
+}
+
+/// What a Kernel entry that neither dispatches nor unwinds hands its stub
+/// (the SVC, fault and timer handlers; `arch::cm4::stub_model`): the
+/// invariant with its plan, and the records as they were.
+pub open spec fn kentry_rel<K: KernelOps>(k1: &K, s0: ArchState, s1: ArchState, hop: int) -> bool {
+    &&& arch_inv(k1, s1, hop)
+    &&& records_same(s1, s0)
+}
+
+/// A dispatch added one entry to the chain, wrote that entry's level record
+/// with the EXC_RETURN value of the entry (`exc_return`), and left every
+/// other record alone.
+pub open spec fn dispatched(s0: ArchState, s1: ArchState, exc_return: int) -> bool {
+    let level = s1.chain_levels@.last();
+    &&& s1.chain@.len() == s0.chain@.len() + 1
+    &&& s1.chain@.drop_last() == s0.chain@
+    &&& s1.chain_levels@.drop_last() == s0.chain_levels@
+    &&& 0 <= level < 8
+    &&& forall|l: int| 0 <= l < 8 && l != level ==> s1.levels[l] == s0.levels[l]
+    &&& s1.levels[level].exc_return as int == exc_return
+}
+
+/// What `irq_entry_core` hands the dispatch stub when it does not enter the
+/// safe state (`arch::cm4::stub_model`).
+pub open spec fn irq_rel<K: KernelOps>(k1: &K, s0: ArchState, s1: ArchState, exc_return: u32, plan: DispatchPlan) -> bool {
+    &&& arch_inv(k1, s1, plan.hop as int)
+    &&& plan.psp == 0 ==> records_same(s1, s0)
+    &&& plan.psp != 0 ==> plan.hop == 0 && dispatched(s0, s1, exc_return as int)
+            && plan.control == CONTROL_JOB && plan.exc_return == EXC_RETURN_THREAD_PSP
+    // An entry taken from Handler mode (at a dispatch stub's entry
+    // instruction, 5.8a) neither dispatches nor unwinds.
+    &&& WINDOW_DEFER && exc_return & 0x8 == 0 ==> plan.psp == 0 && plan.hop == 0
+}
+
+/// The unwind of the topmost record removed the chain's last entry, changed
+/// no other record, and returns that record's preempted context.
+pub open spec fn unwound(s0: ArchState, s1: ArchState, psp: u32, control: u32, exc_return: u32) -> bool {
+    let top = s0.chain_levels@.last();
+    &&& s1.chain@ == s0.chain@.drop_last()
+    &&& s1.chain_levels@ == s0.chain_levels@.drop_last()
+    &&& forall|l: int| 0 <= l < 8 && l != top ==> s1.levels[l] == s0.levels[l]
+    &&& psp == s0.levels[top].psp
+    &&& control == s0.levels[top].control
+    &&& exc_return == s0.levels[top].exc_return
+}
+
+/// What `epilogue_core` hands `rsk_unwind` when it does not enter the safe
+/// state (`arch::cm4::stub_model`).
+pub open spec fn epi_rel<K: KernelOps>(k1: &K, s0: ArchState, s1: ArchState, r: (u32, u32, u32, ReturnPlan)) -> bool {
+    &&& arch_inv(k1, s1, r.3 as int)
+    &&& unwound(s0, s1, r.0, r.1, r.2)
+    &&& r.3 == 0 ==> s1.pending_unwind == 0 && arch_matches(k1, s1)
+}
+
+/// A planned unwind names an exception number: non-zero and within the
+/// nine bits of IPSR, so that `epilogue_core`'s mask leaves it as it is.
+pub proof fn lemma_plan_number<K: KernelOps>(k: &K, state: ArchState, hop: int)
+    requires k.inv(), arch_inv(k, state, hop), hop != 0,
+    ensures 0 < hop <= 0x1FF, ((hop as u32) & 0x1FF) as int == hop, state.chain@.len() > 0,
+{
+    reveal(chain_ok);
+    k.lemma_stack_rising();
+    assert(link_ok(k, state, state.chain@.len() - 1));
+    let h = hop as u32;
+    assert(h <= 0x1FF ==> h & 0x1FF == h) by (bit_vector);
+}
+
+/// A chain entry below the last has another level than the last's.
+pub proof fn lemma_level_below_top<K: KernelOps>(k: &K, state: ArchState, i: int)
+    requires chain_ok(k, state), 0 <= i < state.chain_levels@.len() - 1,
+    ensures state.chain_levels@[i] != state.chain_levels@.last(), state.chain@.len() == state.chain_levels@.len(),
+{
+    reveal(chain_ok);
+    assert(state.chain_levels@[i] < state.chain_levels@[state.chain_levels@.len() - 1]);
 }
 
 /// The plan of a Kernel entry that dispatched nothing: the topmost record's
@@ -2040,7 +2129,7 @@ pub proof fn lemma_push<K: KernelOps>(k: &K, k0: &K, state: ArchState, s0: ArchS
         forall|l: int| 0 <= l < 8 && l != level ==> state.levels[l] == s0.levels[l],
         state.levels[level].active, state.levels[level].task as int == t,
         state.levels[level].previous_task as int == crate::arch::bound::top_task(k0),
-        state.levels[level].exception_number != 0,
+        state.levels[level].exception_number != 0, state.levels[level].exception_number <= 0x1FF,
     ensures chain_ok(k, state), state.chain@.len() == k.spec_depth(),
 {
     reveal(chain_ok);
@@ -2170,8 +2259,10 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
-        // The invariant of the entry cores, with the plan handed to the stub.
+        // The invariant of the entry cores, with the plan handed to the stub,
+        // and what the stub's proof needs of the records (`irq_rel`).
         !r.1 ==> arch_inv(final(k), *final(state), r.0.hop as int),
+        !r.1 ==> irq_rel(final(k), *old(state), *final(state), exc_return, r.0),
         // A dispatch (a non-zero frame address) returns to unprivileged
         // Thread mode on the PSP (A5), on an 8-byte-aligned frame (HW-06),
         // with the Job's Partition view loaded (A6) and BASEPRI at the
@@ -2298,7 +2389,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             // vector is pended again for the context the response resumes.
             if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
                 proof {
-                    lemma_chain_frame(k, &k0, *state, s0);
+                    lemma_kernel_entry(k, &k0, *state, s0, 0);
                 }
                 let (hop, safe) = stack_violation_core(k, hw, tables, state);
                 hw.apply(Action::Pend(n));
@@ -2344,17 +2435,22 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
             // excludes the overflow case, and the backstop is a Kernel fault
             // into the safe state (R16.5).
+            // A frame address of 0 is the plan's "no dispatch" (the stub tests
+            // it), so it is refused like an overflow: no stack lies at
+            // address 0 on a Target, and the stub and the Kernel can then
+            // never disagree on whether a Job was started.
             let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
                 Some(frame) => frame,
-                None => {
-                    k.fault(EV_HARDFAULT, true);
-                    let safe = apply_core(k, hw, tables, state);
-                    proof {
-                        lemma_kernel_entry(k, &k0, *state, s0, 0);
-                    }
-                    return (no_change, safe);
-                }
+                None => 0,
             };
+            if frame == 0 {
+                k.fault(EV_HARDFAULT, true);
+                let safe = apply_core(k, hw, tables, state);
+                proof {
+                    lemma_kernel_entry(k, &k0, *state, s0, 0);
+                }
+                return (no_change, safe);
+            }
             let depth_before = k.depth();
             k.dispatch(t, preempted);
             if k.depth() == depth_before {
@@ -2387,6 +2483,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 // Reached with no unwind owed (an owed one was consumed or
                 // the vector deferred above), so the chain was the stack.
                 assert(s0.pending_unwind == 0);
+                assert(ipsr & 0x1FF <= 0x1FF) by (bit_vector);
                 lemma_chain_len(&k0, s0);
                 assert(s0.chain@.len() == k0.spec_depth());
                 lemma_chain_frame(&k0, &k0, s1, s0);
@@ -2416,6 +2513,10 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 assert(state.levels[level as int].active && state.levels[level as int].task as int == crate::arch::bound::top_task(k)
                     && state.levels[level as int].previous_task as int == crate::arch::bound::top_task(old(k)));
                 lemma_chain_frame(k, k, *state, s3);
+                assert(state.chain@.drop_last() =~= s0.chain@);
+                assert(state.chain_levels@.drop_last() =~= s0.chain_levels@);
+                assert(state.chain_levels@.last() == level as int);
+                assert(dispatched(s0, *state, exc_return as int));
             }
             (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
         }
@@ -2442,7 +2543,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         Binding::Kernel => {
             if n == tables.timer_vector() {
                 proof {
-                    lemma_chain_frame(k, &k0, *state, s0);
+                    lemma_kernel_entry(k, &k0, *state, s0, 0);
                 }
                 let (hop, safe) = timer_core(k, hw, tables, state);
                 proof {
@@ -2500,7 +2601,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// The Kernel-level timer handler body. Returns the unwind plan when the
 /// executing Job was ended by a response, and the safe-state flag.
 pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(), chain_ok(old(k), *old(state)),
+    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -2509,6 +2610,7 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         final(hw).hw().watchdog_fed,
         super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -2520,6 +2622,9 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     k.timer_event(now, running);
     let safe = apply_core(k, hw, tables, state);
     let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
     // Fed last: a handler that did not complete does not feed (ORQ-31).
     hw.apply(Action::WatchdogFeed);
     (hop, safe)
@@ -2537,7 +2642,7 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(k).inv(),
         number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
-        arch_inv(final(k), *final(state), r.0 as int),
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -2676,8 +2781,10 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
-        // The invariant of the entry cores, with the next level to unwind.
+        // The invariant of the entry cores, with the next level to unwind,
+        // and the preempted context of the record unwound (`epi_rel`).
         !r.1 ==> arch_inv(final(k), *final(state), r.0.3 as int),
+        !r.1 ==> epi_rel(final(k), *old(state), *final(state), r.0),
         // The unwind stops (no further level named, no safe state) only at
         // the context of the Kernel's executing Job: the Job that the
         // unwound level's record names as preempted is the top of the
@@ -2858,7 +2965,10 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
-        arch_inv(final(k), *final(state), r.0 as int),
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // A fault taken from Handler mode or with PRIMASK held is the
+        // Kernel's: it ends no Job and plans no unwind.
+        in_kernel ==> r.0 == 0,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);

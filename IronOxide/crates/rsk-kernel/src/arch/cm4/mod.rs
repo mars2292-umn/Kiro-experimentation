@@ -61,6 +61,8 @@
 
 pub mod entry;
 pub mod plan;
+#[cfg(verus_keep_ghost)]
+pub mod stub_model;
 pub mod unsafe_module;
 
 use core::marker::PhantomData;

@@ -666,3 +666,64 @@ find = "            if k.depth() == depth_before {\n                // The Kerne
 replace = "            if k.depth() != depth_before {\n                // The Kernel refused the dispatch of a Task it found eligible\n                // (before instant 0): nothing to record or to return to.\n                k.fault(EV_HARDFAULT, true);"
 expect = ["entry.rs"]
 
+# The assembly stubs against the machine model (Verification_Plan 5.17,
+# 2026-11-13). The first three mutate the model (the tie check of
+# `cargo xtask check` fails on them too); the others the cores' contracts
+# the stub theorems rest on.
+
+[[mutation]]
+id = "stub-unwind-pops-before-fp"
+kills = "lemma_unwind_round: rsk_unwind pops S16-S31 before R3-R11 and LR, the reverse of the dispatch stub's pushes; in the other order the registers are restored from the floating-point words"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "    let s = i_vpop_eq(s);\n    let s = i_pop_r3_r11_lr(s);\n    let s = i_msr_psp(s, 0);"
+replace = "    let s = i_pop_r3_r11_lr(s);\n    let s = i_vpop_eq(s);\n    let s = i_msr_psp(s, 0);"
+expect = ["stub_model.rs"]
+
+[[mutation]]
+id = "stub-irq-exc-return-not-kept"
+kills = "lemma_irq_restore: the dispatch stub keeps EXC_RETURN in R8 across the call, so that the path without a dispatch pops S16-S31 exactly when it pushed them"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "    let s = i_mov_r_lr(s, 8);\n"
+replace = ""
+expect = ["stub_model.rs"]
+
+[[mutation]]
+id = "stub-irq-out-pointer-offset"
+kills = "lemma_irq_call: the plan's out-pointer passed on the stack is the address the stub reads the plan back from"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "    let s = i_add_r_sp(s, 4, 8);"
+replace = "    let s = i_add_r_sp(s, 4, 4);"
+expect = ["stub_model.rs"]
+
+[[mutation]]
+id = "epilogue-returns-other-exc-return"
+kills = "epilogue_core's epi_rel: the EXC_RETURN value handed to rsk_unwind is the one the unwound level's record keeps (the stub pops the register record by its shape and returns with it, HW-07)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    ((rec.psp, rec.control, rec.exc_return, 0), false)\n}"
+replace = "    ((rec.psp, rec.control, EXC_RETURN_THREAD_PSP, 0), false)\n}"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "fault-in-kernel-not-kernel"
+kills = "fault_core's `in_kernel ==> r.0 == 0`: a fault taken from Handler mode or under PRIMASK is the Kernel's and plans no unwind (the stub would unwind over the processor's exception frame)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let kernel = in_kernel || kind == EV_HARDFAULT || k.depth() == 0;"
+replace = "    let kernel = kind == EV_HARDFAULT || k.depth() == 0;"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "handler-mode-entry-plans-unwind"
+kills = "irq_entry_core's irq_rel: an entry taken from Handler mode (at a dispatch stub's entry instruction, 5.8a) hands its stub no unwind plan; the unwind is owed instead"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 {"
+replace = "    if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 && false {"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "dispatch-frame-zero"
+kills = "irq_entry_core's irq_rel: a frame address of 0 is the stub's `no dispatch`, so a dispatch never returns it (the Kernel would hold a Job the stub did not start)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            if frame == 0 {\n                k.fault(EV_HARDFAULT, true);"
+replace = "            if false {\n                k.fault(EV_HARDFAULT, true);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
