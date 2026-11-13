@@ -599,7 +599,9 @@ pub open spec fn booted(h: HwModel) -> bool {
 
 /// Cycles consumed by the executing context since the last switch
 /// (HW-13), updating the switch point.
-fn charge_point<A: KernelArch>(hw: &A, state: &mut ArchState) -> u32 {
+fn charge_point<A: KernelArch>(hw: &A, state: &mut ArchState) -> u32
+    ensures final(state).levels == old(state).levels, final(state).pending_unwind == old(state).pending_unwind,
+{
     let now = hw.cycles();
     let elapsed = now.wrapping_sub(state.last_switch);
     state.last_switch = now;
@@ -638,6 +640,10 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         safe ==> final(hw).hw().basepri == 0,
         final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        // The Kernel's stack, the level records and the owed unwind are untouched.
+        final(k).spec_depth() == old(k).spec_depth(),
+        forall|i: int| 0 <= i < old(k).spec_depth() ==> final(k).spec_stack(i) == old(k).spec_stack(i),
+        final(state).levels == old(state).levels, final(state).pending_unwind == old(state).pending_unwind,
 {
     hw.apply(Action::SetBasepri(k.basepri_now()));
     match k.next_compare() {
@@ -683,6 +689,9 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         invariant
             k.inv(), np <= 255,
             k.top_level() == k1.top_level(), k.ceiling_level() == k1.ceiling_level(),
+            k.spec_depth() == k1.spec_depth(),
+            forall|i: int| 0 <= i < k1.spec_depth() ==> k.spec_stack(i) == k1.spec_stack(i),
+            state.levels == old(state).levels, state.pending_unwind == old(state).pending_unwind,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
         decreases np - p,
     {
@@ -1094,6 +1103,7 @@ fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
 /// Empties every channel of Endpoint `e`.
 fn clear_channels(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
+    ensures final(state).levels == old(state).levels, final(state).pending_unwind == old(state).pending_unwind,
 {
     assert(MAX_ROLES * MAX_ROLES == 16) by (compute);
     assert(MAX_CHANNELS == 128) by (compute);
@@ -1103,6 +1113,7 @@ fn clear_channels(state: &mut ArchState, e: usize)
     let mut c: usize = 0;
     while c < MAX_ROLES * MAX_ROLES
         invariant c <= 16, base + 16 <= MAX_CHANNELS, MAX_ROLES * MAX_ROLES == 16,
+            state.levels == old(state).levels, state.pending_unwind == old(state).pending_unwind,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
@@ -1112,11 +1123,14 @@ fn clear_channels(state: &mut ArchState, e: usize)
     }
 }
 
-fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
+fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
+    ensures final(state).levels == old(state).levels, final(state).pending_unwind == old(state).pending_unwind,
+{
     let n = tables.endpoint_count();
     let mut e: usize = 0;
     while e < n && e < MAX_ENDPOINTS
         invariant e <= MAX_ENDPOINTS,
+            state.levels == old(state).levels, state.pending_unwind == old(state).pending_unwind,
         decreases MAX_ENDPOINTS - e,
     {
         let cfg = tables.endpoint(e);
@@ -1127,6 +1141,7 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8) {
             let mut r: usize = 0;
             while r < MAX_ROLES
                 invariant r <= MAX_ROLES, e < MAX_ENDPOINTS,
+                    state.levels == old(state).levels, state.pending_unwind == old(state).pending_unwind,
                 decreases MAX_ROLES - r,
             {
                 if (r as u8) < cfg.roles && cfg.partitions[r] != p {
@@ -1739,6 +1754,8 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
     ensures final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        final(state).levels == old(state).levels, final(state).pending_unwind == old(state).pending_unwind,
+        final(k).spec_depth() <= old(k).spec_depth(),
 {
     hw.apply(Action::Trace(TR_INVALID, 2));
     let top_before = k.top();
@@ -1746,6 +1763,49 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
     let safe = apply_core(k, hw, tables, state);
     let hop = end_plan_core(k, state, top_before);
     (hop, safe)
+}
+
+/// The record of level `l` is the one of the Job at position `i` of the
+/// Kernel's preemption stack: active, for that Task, and naming the Task
+/// below it as the Job it preempted (0xFF at the bottom).
+pub open spec fn record_at<K: KernelOps>(k: &K, state: ArchState, i: int, l: int) -> bool {
+    &&& state.levels[l].active
+    &&& state.levels[l].task as int == k.spec_stack(i)
+    &&& state.levels[l].previous_task as int == (if i == 0 { 0xFF } else { k.spec_stack(i - 1) })
+}
+
+/// Kernel_Arch's level records correspond one to one to the Kernel's
+/// preemption stack: every Job in progress has its record, and every active
+/// record is the record of a Job in progress (none for a Job the Kernel no
+/// longer holds). The order is the stack's: Priorities rise strictly along
+/// it (`Sched::inv`) and a record's index is its Task's Priority.
+///
+/// OPEN ASSUMPTION (2026-11-13, the review of the audit fixes): this
+/// predicate is not established as an invariant of the entry cores. It
+/// holds between Kernel entries only; inside one, from a transition that
+/// ends Jobs to the unwinds that follow, the records run ahead of the stack,
+/// and a proof needs that intermediate form with the stubs' unwind plans.
+/// What is proven instead are the three steps at which the correspondence
+/// was broken (the audit's lead 2.1, its finding 6, and the dispatch that
+/// records the preempted Job): `irq_entry_core`'s clauses on the record it
+/// writes and on the owed unwind, and `epilogue_core`'s clause that an
+/// unwind stops only at the context of the Kernel's executing Job. The
+/// whole-state evidence is the Kani harness
+/// `arch_records_match_the_stack_over_kernel_entries`
+/// (Verification_Plan 5.16).
+pub open spec fn arch_matches<K: KernelOps>(k: &K, state: ArchState) -> bool {
+    &&& forall|i: int| 0 <= i < k.spec_depth() ==> #[trigger] has_record(k, state, i)
+    &&& forall|l: int| 0 <= l < 8 && state.levels[l].active ==> #[trigger] is_held(k, state, l)
+}
+
+/// The Job at position `i` of the Kernel's stack has its level record.
+pub open spec fn has_record<K: KernelOps>(k: &K, state: ArchState, i: int) -> bool {
+    exists|l: int| 0 <= l < 8 && #[trigger] record_at(k, state, i, l)
+}
+
+/// The record of level `l` is the record of a Job the Kernel holds.
+pub open spec fn is_held<K: KernelOps>(k: &K, state: ArchState, l: int) -> bool {
+    exists|i: int| 0 <= i < k.spec_depth() && #[trigger] record_at(k, state, i, l)
 }
 
 /// After a transition that may have ended the executing Job: the unwind
@@ -1787,6 +1847,15 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
             && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A dispatch puts its Job on the Kernel's stack and writes that Job's
+        // level record, active and naming the Job it preempted (the review of
+        // the audit fixes, 2026-11-13: the link the unwind's chain follows).
+        r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
+            && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
+                && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
+                && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        // An owed unwind is consumed or kept, never replaced (finding 6).
+        old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
 {
     let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
     let n = (ipsr & 0x1FF) as u16;
@@ -1895,7 +1964,15 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 Some(u) => u,
                 None => 0xFF,
             };
+            let depth_before = k.depth();
             k.dispatch(t, preempted);
+            if k.depth() == depth_before {
+                // The Kernel refused the dispatch of a Task it found eligible
+                // (before instant 0): nothing to record or to return to.
+                k.fault(EV_HARDFAULT, true);
+                let safe = apply_core(k, hw, tables, state);
+                return (no_change, safe);
+            }
             let info = k.job_info(t);
             let level = info.priority as usize;
             if (info.partition as usize) >= MAX_FLOORS {
@@ -1929,6 +2006,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 floor_before,
                 previous_partition,
                 previous_task,
+                active: true,
             };
             state.floor[info.partition as usize] = frame;
             hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
@@ -1946,6 +2024,13 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             // The frame is 8-byte aligned (`plan_frame`); the Task index
             // rides in its low bits for the trace.
             hw.apply(Action::Trace(TR_DISPATCH, frame | (t as u32 & 7)));
+            proof {
+                // The record written above is the dispatched Job's.
+                assert(k.spec_depth() == old(k).spec_depth() + 1);
+                assert(crate::arch::bound::top_task(k) == t as int);
+                assert(state.levels[level as int].active && state.levels[level as int].task as int == crate::arch::bound::top_task(k)
+                    && state.levels[level as int].previous_task as int == crate::arch::bound::top_task(old(k)));
+            }
             (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
         }
         Binding::Intake { task, partition } => {
@@ -2017,6 +2102,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         r.1 ==> final(hw).hw().basepri == 0,
         // Every time-base event feeds the watchdog (ORQ-31).
         final(hw).hw().watchdog_fed,
+        final(state).levels == old(state).levels, final(state).pending_unwind == old(state).pending_unwind,
+        final(k).spec_depth() <= old(k).spec_depth(),
 {
     hw.apply(Action::TimebaseAck);
     let now = hw.now();
@@ -2162,7 +2249,6 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
 // Near Z3's default resource limit since `HwModel` gained the watchdog
 // fields (task 5.3), and over 20 since `ArchState` gained the deferred
 // vectors (5.8a, 2026-11-07); the limit is raised rather than the proof split.
-#[verifier::rlimit(40)]
 #[verifier::rlimit(80)]
 pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
@@ -2172,11 +2258,35 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // The unwind stops (no further level named, no safe state) only at
+        // the context of the Kernel's executing Job: the Job that the
+        // unwound level's record names as preempted is the top of the
+        // Kernel's stack, or the record names none and the stack is empty
+        // (the audit's lead 2.1; the review of its fix, 2026-11-13). The
+        // level is the greatest whose record names the exception number.
+        r.0.3 == 0 && !r.1 ==> exists|l: int| 0 <= l < 8
+            && (l != 0 ==> old(state).levels[l].exception_number as int == (n & 0x1FF) as int)
+            && (forall|i: int| l < i < 8 ==> old(state).levels[i].exception_number as int != (n & 0x1FF) as int)
+            && crate::arch::bound::top_task(final(k)) == #[trigger] old(state).levels[l].previous_task as int,
+        // The unwound level's record is no longer active; no other record changes.
+        forall|l: int| 0 <= l < 8 ==> #[trigger] final(state).levels[l].task == old(state).levels[l].task
+            && final(state).levels[l].previous_task == old(state).levels[l].previous_task
+            && (final(state).levels[l].active ==> old(state).levels[l].active),
 {
+    let ghost n_arg = n;
+    proof {
+        assert(n & 0x1FF <= 0x1FF) by (bit_vector);
+    }
     let n = (n & 0x1FF) as u16;
     hw.apply(Action::Trace(TR_EPILOGUE, n as u32));
     let level = find_level(&state.levels, n);
     let rec = state.levels[level];
+    // The level is unwound: its record is no longer of a Job in progress.
+    if level != 0 {
+        let mut ended = rec;
+        ended.active = false;
+        state.levels[level] = ended;
+    }
     if (rec.partition as usize) < MAX_FLOORS {
         state.floor[rec.partition as usize] = rec.floor_before;
     }
@@ -2206,8 +2316,24 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     if resumed_ended {
         let l = k.job_info(rec.previous_task).priority as usize;
         let next = state.levels[l].exception_number as u32;
+        if next == 0 {
+            // No record names the level of the Job this level preempted:
+            // the records and the Kernel's stack disagree. A Kernel fault.
+            k.fault(EV_HARDFAULT, true);
+            let _ = apply_core(k, hw, tables, state);
+            hw.apply(Action::SetBasepri(0));
+            return ((rec.psp, rec.control, rec.exc_return, 0), true);
+        }
         hw.apply(Action::SetBasepri(k.basepri_now()));
         return ((rec.psp, rec.control, rec.exc_return, next), false);
+    }
+    if rec.previous_task == 0xFF && k.depth() != 0 {
+        // The record says this level preempted the idle activity, and the
+        // Kernel holds a Job: the records and the stack disagree.
+        k.fault(EV_HARDFAULT, true);
+        let _ = apply_core(k, hw, tables, state);
+        hw.apply(Action::SetBasepri(0));
+        return ((rec.psp, rec.control, rec.exc_return, 0), true);
     }
     // A killed resumed Job ends now and its level is unwound as well.
     match k.top() {
@@ -2217,12 +2343,30 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
                 let safe = apply_core(k, hw, tables, state);
                 let l = k.job_info(t).priority as usize;
                 let next = state.levels[l].exception_number as u32;
+                if next == 0 {
+                    // As above: no record for the killed Job's level.
+                    k.fault(EV_HARDFAULT, true);
+                    let _ = apply_core(k, hw, tables, state);
+                    hw.apply(Action::SetBasepri(0));
+                    return ((rec.psp, rec.control, rec.exc_return, 0), true);
+                }
                 return ((rec.psp, rec.control, rec.exc_return, next), safe);
             }
         }
         None => {}
     }
     hw.apply(Action::SetBasepri(k.basepri_now()));
+    proof {
+        // The level unwound is the witness: its record named the Job that is
+        // now the Kernel's executing Job, or none with the stack empty.
+        assert(old(state).levels[level as int] == rec);
+        assert(crate::arch::bound::top_task(k) == rec.previous_task as int);
+        assert(n as int == (n_arg & 0x1FF) as int);
+        let l = level as int;
+        assert(l != 0 ==> old(state).levels[l].exception_number as int == (n_arg & 0x1FF) as int);
+        assert(forall|i: int| l < i < 8 ==> old(state).levels[i].exception_number as int != (n_arg & 0x1FF) as int);
+        assert(crate::arch::bound::top_task(k) == old(state).levels[l].previous_task as int);
+    }
     ((rec.psp, rec.control, rec.exc_return, 0), false)
 }
 

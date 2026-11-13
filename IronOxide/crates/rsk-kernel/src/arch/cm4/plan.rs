@@ -105,6 +105,10 @@ pub struct LevelRecord {
     /// executing Job (the audit's lead 2.1, 2026-11-13: one Kernel entry
     /// can end the Job of this level and the one it preempted).
     pub previous_task: u8,
+    /// Whether the record is of a Job in progress: set by the dispatch that
+    /// wrote it, cleared by the unwind of its level (`arch_matches`: the
+    /// active records are those of the Kernel's preemption stack).
+    pub active: bool,
 }
 
 /// One Endpoint of Generated_Config (task 21.2; R38.1, R40.1): two roles,
@@ -208,6 +212,7 @@ impl ArchState {
                 floor_before: 0,
                 previous_partition: 0xFF,
                 previous_task: 0xFF,
+                active: false,
             }; 8],
             floor: [0; 16],
             current_partition: 0xFF,
