@@ -1993,16 +1993,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     /// The outcome of the Release_Source event of Sporadic_Task `t` at
     /// `now`, from the state `old` it is taken in from (`intake_release`).
-    pub open spec fn intake_outcome(&self, old: &Self, cfg: &Config<NT, NR, NP>, t: int, source_partition: int, now: u64) -> bool {
+    pub open spec fn intake_outcome(&self, old: &Self, cfg: &Config<NT, NR, NP>, t: int, source_partition: int, offender: int, now: u64) -> bool {
         let n = Self::observed(old.now, now);
         &&& !old.intake_active(cfg, t, n) ==> self.unchanged_but_log(old) || self.unchanged_but_log_and_mask(old, t)
         &&& !old.intake_active(cfg, t, n) && !old.safe_state && old.started && !old.stopped[cfg.tasks[t].partition as int]
             ==> self.unchanged_but_log_and_mask(old, t)
         &&& old.intake_active(cfg, t, n) && old.mit_accepts(cfg, t, n) ==> self.accepted(old, cfg, t, n)
         &&& old.intake_active(cfg, t, n) && old.mit_defers(cfg, t, n)
-            ==> exists|d: Self| #[trigger] d.deferred(old, cfg, t) && self.violation_applied(&d, cfg, source_partition, t)
+            ==> exists|d: Self| #[trigger] d.deferred(old, cfg, t) && self.violation_applied(&d, cfg, source_partition, offender)
         &&& old.intake_active(cfg, t, n) && !old.mit_accepts(cfg, t, n) && !old.mit_defers(cfg, t, n)
-            ==> exists|d: Self| #[trigger] d.unchanged_but_log_and_mask(old, t) && self.violation_applied(&d, cfg, source_partition, t)
+            ==> exists|d: Self| #[trigger] d.unchanged_but_log_and_mask(old, t) && self.violation_applied(&d, cfg, source_partition, offender)
         &&& self.mit_spaced(old, cfg)
     }
 
@@ -2016,12 +2016,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// the event and the deadline fall at one instant (the deadline event
     /// pending behind this entry). The event's outcome is then that of
     /// `intake_release` from the state after the miss.
-    pub fn intake(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64)
+    pub fn intake(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
-            (source_partition as int) < NP, now <= cfg.operating_duration,
+            (source_partition as int) < NP, now <= cfg.operating_duration, (offender as int) < NT,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             exists|m: Self| #[trigger] m.overdue_deadline_served(old(self), cfg, t as int, now)
-                && final(self).intake_outcome(&m, cfg, t as int, source_partition as int, now),
+                && final(self).intake_outcome(&m, cfg, t as int, source_partition as int, offender as int, now),
             final(self).mit_spaced(old(self), cfg),
     {
         self.observe(cfg, now);
@@ -2037,9 +2037,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             assert(m.overdue_deadline_served(old(self), cfg, t as int, now));
         }
-        self.intake_release(cfg, t, source_partition, now);
+        self.intake_release(cfg, t, source_partition, now, offender);
         proof {
-            assert(self.intake_outcome(&m, cfg, t as int, source_partition as int, now));
+            assert(self.intake_outcome(&m, cfg, t as int, source_partition as int, offender as int, now));
             assert(m.mit_spaced(old(self), cfg));
             Self::lemma_mit_spaced_trans(old(self), &m, self, cfg);
         }
@@ -2078,9 +2078,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     /// The Release_Source event of Sporadic_Task `t` taken in from the
     /// current state: the MIT decision of R10.1 to R10.3 and its record.
-    fn intake_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64)
+    fn intake_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
-            (source_partition as int) < NP, now <= cfg.operating_duration,
+            (source_partition as int) < NP, now <= cfg.operating_duration, (offender as int) < NT,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
             // R9.9, R12.4, R14.5: an event in the safe state, before instant 0,
             // for a stopped Partition, or too late for its Job to complete
@@ -2102,7 +2102,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             old(self).intake_active(cfg, t as int, Self::observed(old(self).now, now))
                 && old(self).mit_defers(cfg, t as int, Self::observed(old(self).now, now))
                 ==> exists|d: Self| #[trigger] d.deferred(old(self), cfg, t as int)
-                    && final(self).violation_applied(&d, cfg, source_partition as int, t as int),
+                    && final(self).violation_applied(&d, cfg, source_partition as int, offender as int),
             // R10.2 under the discard policy, and R10.3 (a Release is already
             // pending or deferred): the event is discarded, the Task's timing
             // state is unchanged, and one MIT_Violation is recorded against
@@ -2112,7 +2112,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 && !old(self).mit_accepts(cfg, t as int, Self::observed(old(self).now, now))
                 && !old(self).mit_defers(cfg, t as int, Self::observed(old(self).now, now))
                 ==> exists|d: Self| #[trigger] d.unchanged_but_log_and_mask(old(self), t as int)
-                    && final(self).violation_applied(&d, cfg, source_partition as int, t as int),
+                    && final(self).violation_applied(&d, cfg, source_partition as int, offender as int),
             final(self).mit_spaced(old(self), cfg),
     {
         self.observe(cfg, now);
@@ -2203,28 +2203,35 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // The violation may trip the threshold and stop or restart the
             // Partition, which then suppresses the Release just deferred.
             let ghost before = *self;
-            self.mit_violation(cfg, t, source_partition);
+            self.mit_violation(cfg, t, source_partition, offender);
             proof {
-                self.lemma_violation_keeps_timing(&before, cfg, source_partition as int, t as int);
+                self.lemma_violation_keeps_timing(&before, cfg, source_partition as int, offender as int);
                 if d == INTAKE_DEFER && release_none {
                     assert(before.deferred(old(self), cfg, t as int));
                     assert(before.deferred(old(self), cfg, t as int)
-                        && self.violation_applied(&before, cfg, source_partition as int, t as int));
+                        && self.violation_applied(&before, cfg, source_partition as int, offender as int));
                 } else {
                     assert(before.unchanged_but_log_and_mask(old(self), t as int));
                     assert(before.unchanged_but_log_and_mask(old(self), t as int)
-                        && self.violation_applied(&before, cfg, source_partition as int, t as int));
+                        && self.violation_applied(&before, cfg, source_partition as int, offender as int));
                 }
             }
         }
     }
 
-    /// Records an MIT_Violation against `partition` and applies the fault
-    /// response when the threshold is exceeded (R10.4).
-    fn mit_violation(&mut self, cfg: &Config<NT, NR, NP>, t: u8, partition: u8)
-        requires old(self).inv(cfg), (t as int) < NT, (partition as int) < NP,
+    /// Records an MIT_Violation of Task `t`'s Release against `partition` and
+    /// applies the fault response when the threshold is exceeded (R10.4).
+    /// `offender` is the Task the response is for (DD-10; audit finding 11,
+    /// 2026-11-13): `t` itself for a periodic Release and an interrupt
+    /// source, the executing sender for a signal raise or an Endpoint send
+    /// (R10.7: its Partition is `partition`). Under END_JOB the offender's
+    /// executing Job is ended; until this date the released Task was passed,
+    /// which is not the executing one on those two paths, and END_JOB
+    /// restarted the sender's Partition.
+    fn mit_violation(&mut self, cfg: &Config<NT, NR, NP>, t: u8, partition: u8, offender: u8)
+        requires old(self).inv(cfg), (t as int) < NT, (partition as int) < NP, (offender as int) < NT,
         ensures final(self).inv(cfg), final(self).history_extends(old(self)),
-            final(self).violation_applied(old(self), cfg, partition as int, t as int),
+            final(self).violation_applied(old(self), cfg, partition as int, offender as int),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, -1),
             // The count rose, unless the response reset it (re-initialization), stopped the Partition, or entered the safe state.
@@ -2254,10 +2261,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
         if count > cfg.partitions[partition as usize].mit_threshold {
             let response = cfg.partitions[partition as usize].fault_response;
-            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, t);
+            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, offender);
             proof {
                 assert(mid.counted(old(self), partition as int, Self::incremented(old(self).mit_violations[partition as int]))
-                    && self.response_applied(&mid, cfg, partition as int, response, t as int));
+                    && self.response_applied(&mid, cfg, partition as int, response, offender as int));
                 Self::lemma_kept_trans(old(self), &mid, self, cfg, -1, -1);
             }
         }
@@ -2647,7 +2654,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             } else {
                 // R9.8: a Release is already pending; discard this one.
                 let ghost before = *self;
-                self.mit_violation(cfg, t, partition);
+                self.mit_violation(cfg, t, partition, t);
                 proof {
                     self.lemma_violation_keeps_timing(&before, cfg, partition as int, t as int);
                     assert(before == *old(self));

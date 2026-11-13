@@ -365,7 +365,10 @@ pub trait KernelOps: Sized {
     fn select(&self) -> (sel: Option<u8>)
         requires self.inv(),
         ensures sel.is_some() ==> (sel.unwrap() as int) < self.task_count_spec() && self.task_eligible(sel.unwrap() as int);
-    fn intake(&mut self, t: u8, source_partition: u8, now: u64)
+    /// `offender`: the Task a threshold response is for (DD-10; audit finding
+    /// 11): `t` for an interrupt source, the executing sender for a signal
+    /// raise or an Endpoint send.
+    fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(),
         ensures final(self).inv();
     fn timer_event(&mut self, now: u64, running_cycles: u32)
@@ -695,13 +698,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.kernel.select(&self.cfg)
     }
 
-    fn intake(&mut self, t: u8, source_partition: u8, now: u64) {
+    fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8) {
         if (t as usize) < NT
             && (source_partition as usize) < NP
             && self.cfg.tasks[t as usize].kind == KIND_SPORADIC
             && now <= self.cfg.operating_duration
         {
-            self.kernel.intake(&self.cfg, t, source_partition, now);
+            let offender = if (offender as usize) < NT { offender } else { t };
+            self.kernel.intake(&self.cfg, t, source_partition, now, offender);
         }
     }
 

@@ -261,7 +261,7 @@ fn intake_late_event_masks_source() {
     let t: u8 = ECHO;
     let n: u64 = kani::any();
     kani::assume(n <= cfg.operating_duration);
-    k.intake(&cfg, t, 0, n);
+    k.intake(&cfg, t, 0, n, t);
     if n + cfg.tasks[1].deadline > cfg.operating_duration {
         assert!(k.sched.release[1] == REL_NONE);
         assert!(k.timing.masked[1]);
@@ -288,7 +288,7 @@ fn intake_outcomes_match_r10() {
     // 1. Accepted (R10.1).
     let n1: u64 = kani::any();
     kani::assume(n1 <= 500_000);
-    k.intake(&cfg, t, sp, n1);
+    k.intake(&cfg, t, sp, n1, t);
     assert!(k.sched.release[1] == REL_PENDING);
     assert!(k.timing.has_last[1] && k.timing.last_due[1] == n1 && k.timing.due[1] == n1);
     assert!(k.timing.masked[1]);
@@ -298,7 +298,7 @@ fn intake_outcomes_match_r10() {
     // 2. A second event while the Release is pending (R10.3).
     let n2: u64 = kani::any();
     kani::assume(n1 <= n2 && n2 <= 1_000_000);
-    k.intake(&cfg, t, sp, n2);
+    k.intake(&cfg, t, sp, n2, t);
     assert!(k.sched.release[1] == REL_PENDING);
     assert!(k.timing.has_last[1] && k.timing.last_due[1] == n1);
     assert!(k.mit_violations[0] == 1);
@@ -313,7 +313,7 @@ fn intake_outcomes_match_r10() {
     // 3. A third event: accepted, deferred, or discarded (R10.1, R10.2).
     let n3: u64 = kani::any();
     kani::assume(n2 <= n3 && n3 <= 1_000_000);
-    k.intake(&cfg, t, sp, n3);
+    k.intake(&cfg, t, sp, n3, t);
     if n3 >= n1 + mit {
         assert!(k.sched.release[1] == REL_PENDING);
         assert!(k.timing.last_due[1] == n3 && k.timing.due[1] == n3);
@@ -480,7 +480,7 @@ fn end_job_of_a_sporadic_task_ends_its_mit_window() {
     let p = PULSE as usize;
     let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
     k.start(&cfg);
-    k.intake(&cfg, PULSE, 1, 1_000);
+    k.intake(&cfg, PULSE, 1, 1_000, PULSE);
     assert!(k.sched.release[p] == REL_PENDING && k.timing.masked[p]);
     k.dispatch(&cfg, PULSE, 0);
     // The Budget event, armed at the dispatch for 1,000 + 12,500: 12,600 cycles consumed.
@@ -492,8 +492,45 @@ fn end_job_of_a_sporadic_task_ends_its_mit_window() {
     assert!(slot.armed && slot.kind == super::time::SLOT_UNMASK && slot.at == 376_000);
     k.timer_event(&cfg, 376_000, 0);
     assert!(!k.timing.masked[p]);
-    k.intake(&cfg, PULSE, 1, 376_001);
+    k.intake(&cfg, PULSE, 1, 376_001, PULSE);
     assert!(k.sched.release[p] == REL_PENDING);
+}
+
+/// Audit finding 11 (2026-11-13; DD-10, R10.4, R10.7): an MIT_Violation
+/// past the threshold on a signal raise is answered for the raising Job.
+/// part0 here declares END_JOB as its fault response and a threshold of 0;
+/// `control` raises `echo`'s signal twice in one Job. The second raise
+/// finds `echo`'s Release pending: one violation against part0, past the
+/// threshold, and END_JOB ends `control`'s Job, which holds nothing. The
+/// Partition is not restarted and the receiver's pending Release is as it
+/// was. Until this date the released Task was passed to the response, it
+/// was not the executing one, and END_JOB fell through to a Partition
+/// restart.
+#[kani::proof]
+#[kani::unwind(25)]
+fn mit_violation_of_a_raise_under_end_job_ends_the_raising_job() {
+    let mut cfg = sporadic_config(super::MIT_DEFER);
+    cfg.partitions[0].fault_response = RESP_END_JOB;
+    cfg.partitions[0].mit_threshold = 0;
+    cfg.tasks[SENSOR as usize].offset = 400_000;
+    cfg.tasks[LOG as usize].offset = 500_000;
+    cfg.tasks[FILTER as usize].offset = 600_000;
+    cfg.tasks[SAMPLER as usize].offset = 1_000_000;
+    assert!(cfg.validate());
+    let (c, e) = (CONTROL as usize, ECHO as usize);
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(CONTROL));
+    k.dispatch(&cfg, CONTROL, 0);
+    // The first raise is accepted: `echo`'s Release is pending.
+    k.intake(&cfg, ECHO, 0, 10, CONTROL);
+    assert!(k.sched.release[e] == REL_PENDING && k.mit_violations[0] == 0);
+    // The second raise of the same Job: a violation past the threshold.
+    k.intake(&cfg, ECHO, 0, 20, CONTROL);
+    assert!(k.sched.depth == 0 && k.sched.job[c] == JOB_NONE);
+    assert!(!k.reinit_partition[0] && !k.stopped[0] && !k.safe_state);
+    assert!(k.sched.release[e] == REL_PENDING);
 }
 
 /// The audit's lead 2.1 (2026-11-13), a witness on the demo's configuration:

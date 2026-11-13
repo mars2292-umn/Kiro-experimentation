@@ -1022,7 +1022,12 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     if accepted {
         let sg = tables.signal(i);
         let now = hw.now();
-        k.intake(sg.task, sg.partition, now);
+        // DD-10 (audit finding 11): a threshold response is for the raising Job.
+        let offender = match k.top() {
+            Some(t) => t,
+            None => sg.task,
+        };
+        k.intake(sg.task, sg.partition, now, offender);
     } else {
         k.fault(EV_API_MISUSE, false);
     }
@@ -1607,7 +1612,12 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     }
     if cfg.release[peer] {
         let now = hw.now();
-        k.intake(cfg.tasks[peer], cfg.partitions[role], now);
+        // DD-10 (audit finding 11): a threshold response is for the sending Job.
+        let offender = match k.top() {
+            Some(t) => t,
+            None => cfg.tasks[peer],
+        };
+        k.intake(cfg.tasks[peer], cfg.partitions[role], now, offender);
     }
     ENDPOINT_OK
 }
@@ -1883,7 +1893,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             let now = hw.now();
             hw.apply(Action::Disable(n));
             let top_before = k.top();
-            k.intake(task, partition, now);
+            k.intake(task, partition, now, task);
             let safe = apply_core(k, hw, tables, state);
             let hop = end_plan_core(k, state, top_before);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)

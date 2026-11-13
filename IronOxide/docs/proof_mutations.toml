@@ -571,3 +571,12 @@ find = "        // unless a Release of the Task is held, whose deadline it then 
 replace = "        // unless a Release of the Task is held, whose deadline it then holds.\n        if true {"
 expect = ["kernel.rs", "postcondition not satisfied"]
 package = "rsk-logic"
+
+[[mutation]]
+id = "mit-violation-response-for-the-released-task"
+kills = "mit_violation's contract (DD-10, R10.4, R10.7; audit finding 11): the threshold response is applied for the offending Task (the executing sender of a raise or a send), not for the Task whose Release was refused"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, offender);"
+replace = "            self.apply_response(cfg, partition, response, EV_MIT_VIOLATION, t);"
+expect = ["kernel.rs", "assertion failed"]
+package = "rsk-logic"
