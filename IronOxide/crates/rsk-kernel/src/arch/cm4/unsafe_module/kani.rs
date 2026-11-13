@@ -527,9 +527,7 @@ fn safe_state_feed_interval_is_inside_the_watchdog_reload() {
     sim::reset();
     sim::write(addr::DWT_CYCCNT, kani::any());
     let cycles: u32 = kani::any();
-    let polls: u32 = kani::any();
-    kani::assume(polls <= 4);
     let before = sim::write_count();
-    hw::safe_state_wait(cycles, polls);
+    hw::safe_state_wait::<4>(cycles);
     assert!(sim::write_count() == before);
 }

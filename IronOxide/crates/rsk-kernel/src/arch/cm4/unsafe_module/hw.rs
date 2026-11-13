@@ -27,6 +27,9 @@ pub mod addr {
     pub const SHPR2: u32 = 0xE000_ED1C;
     pub const SHPR3: u32 = 0xE000_ED20;
     pub const SHCSR: u32 = 0xE000_ED24;
+    /// HardFault status (Armv7-M ARM B3.2.16), read by `hard_fault` for the trace; in the
+    /// register list since 2026-11-13 (audit finding 18: the read used a literal outside it).
+    pub const HFSR: u32 = 0xE000_ED2C;
     pub const CFSR: u32 = 0xE000_ED28;
     /// MemManage Fault Address Register (valid when CFSR.MMARVALID).
     pub const MMFAR: u32 = 0xE000_ED34;
@@ -75,7 +78,7 @@ pub mod addr {
 
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
-        SHCSR, CFSR, MMFAR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
+        SHCSR, HFSR, CFSR, MMFAR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
         DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHEN, NRF_PPI_CHENCLR, CMSDK_TIMER0,
         CMSDK_TIMER1,
     ];
@@ -745,12 +748,12 @@ pub fn fault_status() -> (u32, u32) {
 pub fn safe_state_idle() {
     #[cfg(all(not(feature = "board-qemu-mps2"), feature = "boot-mutation"))]
     if super::boot_mutation() == crate::arch::cm4::MUT_WATCHDOG {
-        safe_state_wait(SAFE_STATE_FEED_CYCLES, SAFE_STATE_FEED_POLLS);
+        safe_state_wait::<SAFE_STATE_FEED_POLLS>(SAFE_STATE_FEED_CYCLES);
         return;
     }
     #[cfg(not(feature = "board-qemu-mps2"))]
     watchdog_feed();
-    safe_state_wait(SAFE_STATE_FEED_CYCLES, SAFE_STATE_FEED_POLLS);
+    safe_state_wait::<SAFE_STATE_FEED_POLLS>(SAFE_STATE_FEED_CYCLES);
 }
 
 /// The safe state's feed interval in CPU cycles (2^21: 32.8 ms at 64 MHz),
@@ -769,17 +772,18 @@ pub const SAFE_STATE_FEED_POLLS: u32 = 1 << 20;
 pub const SAFE_STATE_POLL_CYCLES_MAX: u32 = 16;
 
 /// A busy wait of `cycles` CPU cycles by the DWT cycle counter, and of
-/// `polls` polls at most. The safe state waits here between two watchdog
+/// `POLLS` polls at most. The safe state waits here between two watchdog
 /// feeds (audit, contested finding B, 2026-11-13). Until this date the
 /// loop was `watchdog_feed(); wfi`: the safe state is entered from a
 /// Kernel-level handler on every run-time path, no configurable exception
 /// outranks that level, so nothing woke the core, the watchdog was not fed
 /// again, and it reset the Target, the next boot then reporting a watchdog
 /// reset in place of the run's own events. A busy wait needs no wake event.
-pub fn safe_state_wait(cycles: u32, polls: u32) {
+pub fn safe_state_wait<const POLLS: u32>(cycles: u32) {
     let start = dwt_cyccnt();
     let mut i: u32 = 0;
-    while i < polls && dwt_cyccnt().wrapping_sub(start) < cycles {
+    // PR-16: at most `POLLS` iterations, a constant of every call.
+    while i < POLLS && dwt_cyccnt().wrapping_sub(start) < cycles {
         i += 1;
     }
 }

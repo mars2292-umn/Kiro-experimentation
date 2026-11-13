@@ -896,7 +896,7 @@ pub fn usage_fault<S: System>(in_kernel: bool) -> ReturnPlan {
 
 pub fn hard_fault<S: System>() -> ! {
     trace(b"hardfault", hw::mmio_read(unsafe_module::hw::addr::CFSR));
-    trace(b"hfsr", hw::mmio_read(0xE000_ED2C));
+    trace(b"hfsr", hw::mmio_read(hw::addr::HFSR));
     trace(b"mmfar", hw::mmio_read(0xE000_ED34));
     let k = S::kernel().get();
     k.fault(EV_HARDFAULT, true);
