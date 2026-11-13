@@ -252,6 +252,8 @@ pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outc
         for (w, slot) in c.windows.iter().enumerate() {
             let want = part.windows.get(w).map_or((0u64, 5u8), |win| (win.region.base, win.region.size_log2));
             out.mismatch(item(&format!("windows[{w}]")), format!("{:?}", want), format!("{:?}", (slot.0 as u64, slot.1)));
+            // DD-08 (audit finding 1): the view maps the window read-only exactly when the model says so.
+            out.mismatch(item(&format!("windows[{w}].read_only")), part.windows.get(w).is_some_and(|win| win.read_only), slot.2);
         }
     }
 }

@@ -146,9 +146,14 @@ pub fn system_source(g: &Generated) -> String {
         while windows.len() < crate::layout::MAX_WINDOWS {
             windows.push("NO_WINDOW".to_string());
         }
+        // DD-08: the windows of EasyDMA-capable peripherals are read-only to the Partition.
+        let mut windows_ro: Vec<String> = p.windows.iter().map(|w| w.read_only.to_string()).collect();
+        while windows_ro.len() < crate::layout::MAX_WINDOWS {
+            windows_ro.push("false".to_string());
+        }
         let _ = writeln!(
             s,
-            "        PartitionLayout {{ code: {}, code_srd: 0x{:02x}, ram: {}, ram_srd: 0x{:02x}, stack_size: {}, windows: [{}], window_count: {} }}, // {}",
+            "        PartitionLayout {{ code: {}, code_srd: 0x{:02x}, ram: {}, ram_srd: 0x{:02x}, stack_size: {}, windows: [{}], window_count: {}, windows_ro: [{}] }}, // {}",
             interval(&p.code),
             p.code.srd,
             interval(&p.ram),
@@ -156,6 +161,7 @@ pub fn system_source(g: &Generated) -> String {
             p.stack,
             windows.join(", "),
             p.windows.len(),
+            windows_ro.join(", "),
             p.name
         );
     }
@@ -423,6 +429,16 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         let mut w: Vec<String> = q.windows.iter().map(|w| format!("(0x{:08x}, 0x{:x})", w.base, 1u64 << w.size_log2)).collect();
         while w.len() < crate::layout::MAX_WINDOWS {
             w.push("(0, 0)".to_string());
+        }
+        let _ = writeln!(s, "            [{}],", w.join(", "));
+    }
+    let _ = writeln!(s, "        ];");
+    let _ = writeln!(s, "        /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).");
+    let _ = writeln!(s, "        pub const WINDOWS_RO: [[bool; {}]; PARTITIONS] = [", crate::layout::MAX_WINDOWS);
+    for q in &g.plan.partitions {
+        let mut w: Vec<String> = q.windows.iter().map(|w| w.read_only.to_string()).collect();
+        while w.len() < crate::layout::MAX_WINDOWS {
+            w.push("false".to_string());
         }
         let _ = writeln!(s, "            [{}],", w.join(", "));
     }

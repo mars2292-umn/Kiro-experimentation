@@ -254,6 +254,12 @@ pub struct PartitionLayout {
     pub stack_size: u32,
     pub windows: [Interval; MAX_WINDOWS],
     pub window_count: u8,
+    /// Per window: read-only to unprivileged code (DD-08: the window of an
+    /// EasyDMA-capable peripheral; its registers are written through the
+    /// Kernel's `dma_request` and `dma_write` services only). Until
+    /// 2026-11-13 the layout did not carry this and every window was mapped
+    /// read-write (audit finding 1).
+    pub windows_ro: [bool; MAX_WINDOWS],
 }
 
 /// Subregion-disable bit `s` of an SRD byte.
@@ -382,6 +388,39 @@ impl PartitionLayout {
         exists|w: int| 0 <= w < self.window_count && self.windows[w].contains(a)
     }
 
+    /// Whether `a` lies in a window that is read-only to the Partition (DD-08).
+    pub open spec fn in_ro_window(&self, a: int) -> bool {
+        exists|w: int| 0 <= w < self.window_count && self.windows_ro[w] && self.windows[w].contains(a)
+    }
+
+    /// Executable form of `in_ro_window` for one address: the boot check that
+    /// every EasyDMA register the Kernel mediates lies in a read-only window
+    /// of its Partition (R17.3).
+    pub fn in_ro_window_exec(&self, a: u32) -> (ok: bool)
+        requires (self.window_count as int) <= MAX_WINDOWS,
+            forall|w: int| 0 <= w < self.window_count ==> self.windows[w].rules_ok(),
+        ensures ok == self.in_ro_window(a as int),
+    {
+        let count = self.window_count as usize;
+        let mut w: usize = 0;
+        while w < count
+            invariant w <= count, count <= MAX_WINDOWS, count == self.window_count as int,
+                forall|i: int| 0 <= i < self.window_count ==> self.windows[i].rules_ok(),
+                forall|i: int| 0 <= i < w ==> !(self.windows_ro[i] && self.windows[i].contains(a as int)),
+            decreases count - w,
+        {
+            let win = self.windows[w];
+            if self.windows_ro[w] {
+                let size = pow2_u32(win.size_log2) as u64;
+                if (win.base as u64) <= a as u64 && (a as u64) < win.base as u64 + size {
+                    return true;
+                }
+            }
+            w = w + 1;
+        }
+        false
+    }
+
     pub open spec fn wf(&self) -> bool {
         &&& self.code.rules_ok()
         &&& self.ram.rules_ok()
@@ -393,6 +432,9 @@ impl PartitionLayout {
         &&& forall|w: int| 0 <= w < self.window_count ==> self.windows[w].disjoint(&self.ram) && self.windows[w].disjoint(&self.code)
         // R16.5: the word below the stack belongs to no writable interval of the Partition.
         &&& forall|w: int| 0 <= w < self.window_count ==> !self.windows[w].contains(self.ram.base as int - 1)
+        // A Partition's own windows are pairwise disjoint, so that a read-only
+        // window (DD-08) is not also granted read-write by another region.
+        &&& forall|v: int, w: int| 0 <= v < w < self.window_count ==> self.windows[v].disjoint(&self.windows[w])
     }
 }
 
@@ -594,11 +636,27 @@ impl<const NP: usize> Layout<NP> {
                     && !pl.windows[i].contains(pl.ram.base as int - 1)
                     && pl.windows[i].disjoint(&self.kernel_flash) && pl.windows[i].disjoint(&self.kernel_ram) && pl.windows[i].disjoint(&self.shared_code)
                     && self.apart_from_kernel_windows(&pl.windows[i]),
+                forall|i: int, j: int| 0 <= i < j < w ==> pl.windows[i].disjoint(&pl.windows[j]),
             decreases count - w,
         {
             let win = pl.windows[w];
             if !win.check_rules() {
                 return false;
+            }
+            // The Partition's own windows are pairwise disjoint (DD-08).
+            let mut u: usize = 0;
+            while u < w
+                invariant u <= w, w < count, count <= MAX_WINDOWS, count == pl.window_count as int,
+                    win == pl.windows[w as int], win.rules_ok(),
+                    forall|i: int| 0 <= i < w ==> pl.windows[i].rules_ok(),
+                    forall|i: int| 0 <= i < u ==> pl.windows[i].disjoint(&win),
+                decreases w - u,
+            {
+                let other = pl.windows[u];
+                if !other.check_disjoint(&win) {
+                    return false;
+                }
+                u = u + 1;
             }
             if !(win.check_disjoint(&pl.ram) && win.check_disjoint(&pl.code) && win.check_disjoint(&self.kernel_flash)
                 && win.check_disjoint(&self.kernel_ram) && win.check_disjoint(&self.shared_code))
@@ -701,7 +759,8 @@ impl<const NP: usize> Layout<NP> {
 
     /// Region `i` of Partition `p`'s view: region 0 shared code (R, X),
     /// region 1 its code (R, X), region 2 its RAM (RW, XN), regions 3 to 7
-    /// its peripheral windows (RW, XN, device), unused regions disabled.
+    /// its peripheral windows (RW, or read-only where the layout says so, DD-08;
+    /// XN, device), unused regions disabled.
     pub open spec fn region_spec(&self, p: int, i: int) -> Region {
         let pl = self.partitions[p];
         if i == 0 {
@@ -711,7 +770,7 @@ impl<const NP: usize> Layout<NP> {
         } else if i == 2 {
             Region { enabled: true, interval: pl.ram, srd: pl.ram_srd, write: true, xn: true, device: false }
         } else if i < 3 + pl.window_count {
-            Region { enabled: true, interval: pl.windows[i - 3], srd: 0, write: true, xn: true, device: true }
+            Region { enabled: true, interval: pl.windows[i - 3], srd: 0, write: !pl.windows_ro[i - 3], xn: true, device: true }
         } else {
             Region::disabled_spec()
         }
@@ -752,7 +811,7 @@ impl<const NP: usize> Layout<NP> {
                 forall|i: int| 3 + w <= i < MPU_REGIONS ==> regions[i] == Region::disabled_spec(),
             decreases count - w,
         {
-            regions[3 + w] = Region { enabled: true, interval: pl.windows[w], srd: 0, write: true, xn: true, device: true };
+            regions[3 + w] = Region { enabled: true, interval: pl.windows[w], srd: 0, write: !pl.windows_ro[w], xn: true, device: true };
             w = w + 1;
         }
         View { regions }
@@ -865,6 +924,57 @@ impl<const NP: usize> Layout<NP> {
                 assert(pl.windows[w].disjoint(&self.kernel_windows[k]));
             }
             assert(false);
+        }
+    }
+
+    /// DD-08, R17.3 (audit finding 1, 2026-11-13): no Partition's view grants
+    /// unprivileged write access to an address of a read-only window, the
+    /// owner's included. The owner's view maps the window without write
+    /// permission and none of its other regions covers the address (its RAM
+    /// and its other windows are disjoint from the window); every other
+    /// Partition's view does not grant the address at all (`lemma_views_disjoint`
+    /// for the readable half is not needed: a writable address of `q` lies in
+    /// `q`'s RAM or windows, each disjoint from `p`'s windows). The boot
+    /// check `dma_windows_ok` establishes that every EasyDMA register the
+    /// Kernel mediates lies in such a window.
+    pub proof fn lemma_ro_window_not_writable(&self, p: int, q: int, vq: &View, a: int)
+        requires self.wf(), 0 <= p < NP, 0 <= q < NP, self.is_view_of(q, vq), self.partitions[p].in_ro_window(a),
+        ensures !vq.writable(a),
+    {
+        let pl = self.partitions[p];
+        let ql = self.partitions[q];
+        assert(self.partition_ok(p));
+        assert(self.partition_ok(q));
+        let w = choose|w: int| 0 <= w < pl.window_count && pl.windows_ro[w] && pl.windows[w].contains(a);
+        if vq.writable(a) {
+            let r = choose|r: int| 0 <= r < MPU_REGIONS && vq.regions[r].covers(a) && vq.regions[r].write;
+            assert(vq.regions[r] == self.region_spec(q, r));
+            if r == 2 {
+                assert(ql.ram.contains(a));
+                if p == q {
+                    assert(pl.windows[w].disjoint(&pl.ram));
+                } else {
+                    assert(self.pair_ok(p, q));
+                    assert(pl.windows[w].disjoint(&ql.ram));
+                }
+                assert(false);
+            } else {
+                assert(3 <= r < 3 + ql.window_count);
+                assert(ql.windows[r - 3].contains(a));
+                assert(!ql.windows_ro[r - 3]);
+                if p == q {
+                    assert(r - 3 != w);
+                    if r - 3 < w {
+                        assert(pl.windows[r - 3].disjoint(&pl.windows[w]));
+                    } else {
+                        assert(pl.windows[w].disjoint(&pl.windows[r - 3]));
+                    }
+                } else {
+                    assert(self.pair_ok(p, q));
+                    assert(pl.windows[w].disjoint(&ql.windows[r - 3]));
+                }
+                assert(false);
+            }
         }
     }
 

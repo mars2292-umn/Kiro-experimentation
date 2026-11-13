@@ -149,7 +149,8 @@ pub struct PartitionLayoutImg {
     pub stack_size: u32,
     pub window_count: u8,
     /// `MAX_WINDOWS` slots, (base, size_log2); unused slots are (0, 5).
-    pub windows: Vec<(u32, u8)>,
+    /// `MAX_WINDOWS` slots, (base, size_log2, read-only); unused slots are (0, 5, false).
+    pub windows: Vec<(u32, u8, bool)>,
 }
 
 /// The decoded `LAYOUT` image.
@@ -190,7 +191,11 @@ pub fn decode_layout(bytes: &[u8]) -> Result<LayoutImg, String> {
         let window_count = r.u8()?;
         let mut windows = Vec::with_capacity(MAX_WINDOWS);
         for _ in 0..MAX_WINDOWS {
-            windows.push((r.u32()?, r.u8()?));
+            let (base, size_log2, ro) = (r.u32()?, r.u8()?, r.u8()?);
+            if ro > 1 {
+                return Err(format!("layout image: a window's read-only byte is {ro}"));
+            }
+            windows.push((base, size_log2, ro == 1));
         }
         partitions.push(PartitionLayoutImg { code, ram, stack_size, window_count, windows });
     }

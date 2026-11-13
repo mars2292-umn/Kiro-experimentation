@@ -119,6 +119,10 @@ pub const BOOT_FAIL_IRQ_COUNT: u32 = 64;
 pub const BOOT_FAIL_WATCHDOG_RESET: u32 = 128;
 /// Bit 13: the `LAYOUT` in memory does not match the checksum Generated_Config recorded (R12.3).
 pub const BOOT_FAIL_LAYOUT_CHECKSUM: u32 = 1 << 13;
+/// Bit 14 is `hw::boot_checks`'s: a PPI channel enabled after the boot clear (DD-08).
+/// Bit 15: an EasyDMA register the Kernel mediates lies outside the read-only
+/// windows of its Partition (DD-08, R17.3; audit finding 1).
+pub const BOOT_FAIL_DMA_WINDOW: u32 = 1 << 15;
 /// `KernelArch::boot_info` bits.
 pub const BOOT_INFO_DEBUGGER: u32 = 1;
 pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
@@ -740,6 +744,9 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     if info & BOOT_INFO_WATCHDOG_RESET != 0 {
         failed = failed | BOOT_FAIL_WATCHDOG_RESET;
     }
+    if !dma_windows_ok(k, tables) {
+        failed = failed | BOOT_FAIL_DMA_WINDOW;
+    }
     let irqs = tables.irq_count();
     if irqs > MAX_IRQS {
         // An interrupt-line count the Kernel_Arch cannot serve (Armv7-M
@@ -847,6 +854,34 @@ fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
         }
         i += 1;
     }
+}
+
+/// DD-08, R17.3 (audit finding 1, 2026-11-13): every pointer and count
+/// register of every EasyDMA channel in Generated_Config lies in a window
+/// that its Partition's view maps read-only, so that the registers are
+/// reachable from a Job only through `dma_request_core`
+/// (`Layout::lemma_ro_window_not_writable`: no view grants unprivileged write
+/// access to such an address). A boot check (bit 15), since the channel table
+/// is Generated_Config's and the windows are the layout's.
+fn dma_windows_ok<K: KernelOps, T: Tables>(k: &K, tables: &T) -> (ok: bool)
+    requires k.inv(),
+{
+    let n = tables.dma_count();
+    let mut i: usize = 0;
+    while i < n
+        invariant k.inv(),
+        decreases n - i,
+    {
+        let d = tables.dma(i);
+        if !k.in_ro_window(d.partition, d.ptr) {
+            return false;
+        }
+        if d.maxcnt != 0 && !k.in_ro_window(d.partition, d.maxcnt) {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 /// Clears every EasyDMA list-mode register at boot (DD-08: list mode

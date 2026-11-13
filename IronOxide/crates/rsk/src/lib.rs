@@ -685,7 +685,9 @@ pub mod hw_dt {
 /// flash, a read and a write of the Private Peripheral Bus (the NVIC), a
 /// read and a write of the first Kernel-owned peripheral's window after
 /// the PPB (R16.2; skipped when the Target has none), and a write to the
-/// word below this Partition's own stack (R16.5).
+/// word below this Partition's own stack (R16.5), and a write to this
+/// Partition's own first read-only window at an EasyDMA pointer register
+/// (DD-08, R17.3; skipped when it owns none; audit finding 1, 2026-11-13).
 /// Every attempt the MPU refuses is a MemManage fault of the Partition
 /// (R16.4), the PPB attempts a BusFault (unprivileged, HW-08, HW-11);
 /// an attempt that returns is recorded by the caller as a mismatch.
@@ -699,6 +701,8 @@ pub mod matrix {
         pub ram: &'a [(u32, u32)],
         pub stack: &'a [u32],
         pub windows: &'a [[(u32, u32); 5]],
+        /// Whether each window is read-only to its Partition (DD-08; `rsk_target::layout::WINDOWS_RO`).
+        pub windows_ro: &'a [[bool; 5]],
         pub kernel_flash: (u32, u32),
         pub kernel_ram: (u32, u32),
         /// The Kernel's peripheral intervals, the PPB first (R16.2).
@@ -707,7 +711,11 @@ pub mod matrix {
 
     /// Attempts per other Partition and against the Kernel.
     pub const PER_PARTITION: usize = 8;
-    pub const KERNEL: usize = 9;
+    pub const KERNEL: usize = 10;
+    /// The register offset of the own-read-only-window attempt: SPIM's RXD.PTR
+    /// (nRF52840 PS 6.26), the EasyDMA pointer a Partition must not write itself
+    /// (DD-08, R17.3; audit finding 1, 2026-11-13).
+    pub const OWN_RO_OFFSET: u32 = 0x534;
     /// The private peripheral bus address attempted (NVIC_ISER0).
     pub const PPB: u32 = 0xE000_E100;
 
@@ -733,7 +741,7 @@ pub mod matrix {
     pub fn wf(l: &Layout<'_>) -> bool {
         pearlite! {
             l.code@.len() >= 1 && l.ram@.len() == l.code@.len() && l.stack@.len() == l.code@.len()
-                && l.windows@.len() == l.code@.len() && l.this@ < l.code@.len()
+                && l.windows@.len() == l.code@.len() && l.windows_ro@.len() == l.code@.len() && l.this@ < l.code@.len()
         }
     }
 
@@ -781,6 +789,24 @@ pub mod matrix {
                 6 => l.kernel_windows.get(1).map(|w| (w.0 + 0x100, 0)),
                 7 => l.kernel_windows.get(1).map(|w| (w.0 + 0x100, 1)),
                 8 => Some((l.ram[l.this].0.wrapping_sub(4), 1)),
+                // A write to this Partition's own first read-only window (skipped when it owns none).
+                9 => {
+                    let w = &l.windows[l.this];
+                    let r = &l.windows_ro[l.this];
+                    if r[0] && w[0].1 != 0 {
+                        Some((w[0].0.wrapping_add(OWN_RO_OFFSET), 1))
+                    } else if r[1] && w[1].1 != 0 {
+                        Some((w[1].0.wrapping_add(OWN_RO_OFFSET), 1))
+                    } else if r[2] && w[2].1 != 0 {
+                        Some((w[2].0.wrapping_add(OWN_RO_OFFSET), 1))
+                    } else if r[3] && w[3].1 != 0 {
+                        Some((w[3].0.wrapping_add(OWN_RO_OFFSET), 1))
+                    } else if r[4] && w[4].1 != 0 {
+                        Some((w[4].0.wrapping_add(OWN_RO_OFFSET), 1))
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
             }
         }

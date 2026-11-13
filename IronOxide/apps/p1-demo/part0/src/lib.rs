@@ -57,7 +57,7 @@ mod inject {
 fn matrix_step(index: &mut rsk::PerTask<'_, u32>, survived: &mut rsk::PerTask<'_, u32>) {
     use rsk_target::layout as l;
     let layout = rsk::matrix::Layout {
-        this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS,
+        this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS, windows_ro: &l::WINDOWS_RO,
         kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
     };
     let i = index.get();

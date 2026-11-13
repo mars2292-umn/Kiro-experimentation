@@ -481,6 +481,7 @@ fn dma_permitted_matches_recomputation() {
         stack_size: stack,
         windows: [no_window; MAX_WINDOWS],
         window_count: 0,
+        windows_ro: [false; MAX_WINDOWS],
     };
     let ptr: u32 = kani::any();
     let len: u32 = kani::any();

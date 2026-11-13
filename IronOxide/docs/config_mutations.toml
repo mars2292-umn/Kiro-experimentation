@@ -152,6 +152,20 @@ xor = 16
 expect = ["RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)", "LAYOUT.partitions[0].stack_size (part0): expected 4096, found 4112"]
 
 [[mutation]]
+id = "layout-image-window-read-only"
+class = "mpu-permissions"
+kind = "binary"
+symbol = "RSK_LAYOUT_IMAGE"
+# DD-08, audit finding 1 (2026-11-13): the read-only byte of part2's first
+# window (CMSDK_GPIO0, the demo's EasyDMA stand-in). 63 bytes precede the
+# Partitions (as above); each Partition is 47 bytes (code and ram 12,
+# stack_size 4, window_count 1, five windows of base, size_log2, read-only);
+# part2's first window starts 17 bytes in, its read-only byte 5 bytes later.
+offset = 179
+xor = 1
+expect = ["RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)", "LAYOUT.partitions[2].windows[0].read_only (part2): expected true, found false"]
+
+[[mutation]]
 id = "layout-checksum-word"
 class = "checksum"
 kind = "binary"

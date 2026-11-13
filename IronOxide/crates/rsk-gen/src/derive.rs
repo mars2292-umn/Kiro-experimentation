@@ -646,7 +646,8 @@ pub fn endpoint_bytes(g: &Generated) -> Vec<u8> {
 /// Config_Checker decodes: the three Kernel intervals (base u32, size_log2,
 /// srd), NP as u32, then per Partition code and RAM (base, size_log2, srd),
 /// stack_size u32, window_count, and `MAX_WINDOWS` windows (base,
-/// size_log2; the disabled window is base 0, size_log2 5).
+/// size_log2, read-only as 0 or 1 (DD-08); the disabled window is base 0,
+/// size_log2 5, read-only 0).
 pub fn layout_bytes(g: &Generated) -> Vec<u8> {
     fn region(out: &mut Vec<u8>, r: &crate::layout::Region) {
         out.extend_from_slice(&r.base.to_le_bytes());
@@ -681,10 +682,12 @@ pub fn layout_bytes(g: &Generated) -> Vec<u8> {
                 Some(win) => {
                     out.extend_from_slice(&win.base.to_le_bytes());
                     out.push(win.size_log2);
+                    out.push(win.read_only as u8);
                 }
                 None => {
                     out.extend_from_slice(&0u32.to_le_bytes());
                     out.push(5);
+                    out.push(0);
                 }
             }
         }

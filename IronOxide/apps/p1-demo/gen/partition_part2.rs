@@ -448,6 +448,12 @@ pub mod rsk_target {
             [(0x40002000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],
             [(0x40010000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],
         ];
+        /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).
+        pub const WINDOWS_RO: [[bool; 5]; PARTITIONS] = [
+            [false, false, false, false, false],
+            [false, false, false, false, false],
+            [true, false, false, false, false],
+        ];
     }
 }
 pub mod rsk_ctx {
