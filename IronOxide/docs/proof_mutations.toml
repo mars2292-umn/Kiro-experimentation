@@ -832,3 +832,37 @@ replace = "    if level == 0 || level > 8 { 0 } else { (8 - level) * 16 }"
 expect = ["derive_v.rs", "postcondition not satisfied"]
 package = "rsk-confcheck"
 
+# The shells' decisions, verified cores since 2026-11-13 (Verification_Plan 5.18).
+
+[[mutation]]
+id = "kernel-entry-keeps-pending-svc"
+kills = "svc_of_ended_job_core (audit finding 4): a Kernel entry other than the SVC handler that ended a Job drops the pending SVCall"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if k.depth() < depth_before {\n        hw.svc_clear_pending();"
+replace = "    if false {\n        hw.svc_clear_pending();"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "svc-check-reads-any-frame"
+kills = "svc_check_core (R16.5, audit finding 8): an SVC is served from a Job's process stack only when its frame lies inside the Partition's stack region"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) {"
+replace = "    if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) || psp != 0 {"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "stack-violation-keeps-stacking-fault"
+kills = "svc_check_core (audit finding 9): the stacking fault behind an SVC answered as a stack violation is discarded"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let (hop, safe) = stack_violation_core(k, hw, tables, state);\n    hw.stacking_fault_discard();"
+replace = "    let (hop, safe) = stack_violation_core(k, hw, tables, state);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "fault-frame-read-after-stacking-failure"
+kills = "fault_frame_readable (audit contested finding A): the stacked PC is not read from a frame the entry failed to stack"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if cfsr & 0x10 != 0 {\n        return false;\n    }"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+

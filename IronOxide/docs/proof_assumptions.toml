@@ -18,8 +18,9 @@ schema = 1
 # The logic, the Hardware_Model lemmas, the MPU view, the bound Kernel, the
 # Analyzer's fixed-point core, and the Protocol_Checker's deadlock-freedom
 # certificate (task 21.6) are proved without `assume`, `admit`, or
-# `external_body`. The only assumption constructs are the seven trusted
-# functions of `Cm4Hw` below (tasks 5.7, 5.2 and 21.2; "five" here until the
+# `external_body`. The only assumption constructs are the nine trusted
+# functions of `Cm4Hw` below (tasks 5.7, 5.2 and 21.2, and two since
+# 2026-11-13 that were calls of unverified shell code before; "five" here until the
 # audit of 2026-11-13, finding 16: `copy_in` and `copy_out` were listed below
 # but not counted), the boot-check mutation hook, and the Protocol text's
 # `chars_of`. The Kani stubs that replace inline
@@ -28,7 +29,7 @@ schema = 1
 # Task 5.7 (2026-10-22): the Kernel_Arch entry points are verified cores
 # (crates/rsk-kernel/src/arch/cm4/entry.rs) over the `KernelArch` trait,
 # whose Cortex-M4F implementation `Cm4Hw` is the whole register-facing
-# surface of the planning code: seven trusted functions. `apply` performs
+# surface of the planning code: nine trusted functions. `apply` performs
 # one `Action` by calling exactly one register-access function of the
 # Kernel_Unsafe_Module (each with its own UJ identifier, Kani harness, or
 # review); its specification is the step of the ghost `HwModel`, the
@@ -55,6 +56,20 @@ construct = "#[verifier::external_body]"
 item = "copy_out"
 why = "The copy of a message out of an Endpoint slot and the read of the word at the slot's start (A-P2): volatile accesses Verus cannot model; the model says the word read is the one recorded, because copy_in is the storage's only writer (R16.1)."
 evidence = "hw::copy_out_words is hw::copy_words (the Kani harness copy_words_is_total_and_in_bounds) followed by one raw word read of the source slot the cores checked (endpoint_slot); the HIL Protocol runs (5.14, 5.15) deliver every label the receivers expect. The receiving side's use of the word: rsk::Endpoint::recv_words' contract (rsk::channel::received(id, from, role, w[0]) on Ok(Some(w))) and every generated try_recv's per-variant ensures, proven by the App_Prover."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+construct = "#[verifier::external_body]"
+item = "svc_clear_pending"
+why = "The drop of a pending SVCall of an ended Job (audit finding 4) is one read and one write of SHCSR, volatile accesses Verus cannot model. The model says the hardware state the cores reason about is unchanged and records that the drop happened. Added 2026-11-13 when the decision moved from the shells into the verified cores (`svc_of_ended_job_core`); until then the call was in unverified shell code."
+evidence = "hw::svc_clear_pending under Kani for every register value (svc_clear_pending_clears_only_the_pending_bit: only bit 15 changes, nothing is written when it is clear); the fault-injection suite's late-SVC case (task 7.5)."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+construct = "#[verifier::external_body]"
+item = "stacking_fault_discard"
+why = "The discard of the stacking fault of an SVC entry answered as a stack violation (audit finding 9): reads and writes of CFSR and SHCSR. The model says the hardware state the cores reason about is unchanged and records that the discard happened. Added 2026-11-13 with `svc_check_core`; until then the call was in unverified shell code."
+evidence = "By inspection of hw::stacking_fault_discard (the MMFSR byte and SHCSR.MEMFAULTPENDED only, under CFSR.MSTKERR); the SVC at the stack's bottom on silicon is on the hardware list (Verification_Plan 5.16)."
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"

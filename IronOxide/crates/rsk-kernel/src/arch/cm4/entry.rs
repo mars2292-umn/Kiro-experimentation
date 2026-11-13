@@ -334,9 +334,28 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
 pub trait KernelArch: Sized {
     /// The ghost model of what has been written.
     spec fn hw(&self) -> HwModel;
+    /// Ghost: a pending SVCall was dropped, and a stacking fault discarded,
+    /// since this value was created (one per Kernel entry). Kept apart from
+    /// `HwModel`: no action changes them.
+    spec fn svc_dropped(&self) -> bool;
+    spec fn stacking_discarded(&self) -> bool;
     /// Performs one action; the model takes the corresponding step.
     fn apply(&mut self, a: Action)
-        ensures final(self).hw() == step(old(self).hw(), a);
+        ensures final(self).hw() == step(old(self).hw(), a),
+            final(self).svc_dropped() == old(self).svc_dropped(),
+            final(self).stacking_discarded() == old(self).stacking_discarded();
+    /// Audit finding 4: drops a pending SVCall (SHCSR.SVCALLPENDED), which
+    /// can only be that of a Job a Kernel entry other than the SVC handler
+    /// has just ended.
+    fn svc_clear_pending(&mut self)
+        ensures final(self).hw() == old(self).hw(), final(self).svc_dropped(),
+            final(self).stacking_discarded() == old(self).stacking_discarded();
+    /// Audit finding 9: discards the stacking fault of an SVC entry that
+    /// the handler has answered as a stack violation (the pending MemManage
+    /// and its status).
+    fn stacking_fault_discard(&mut self)
+        ensures final(self).hw() == old(self).hw(), final(self).stacking_discarded(),
+            final(self).svc_dropped() == old(self).svc_dropped();
     /// The copy of a message into the Endpoint storage (`len` bytes from the
     /// Partition's `src` to the slot `dst`), returning the first word now
     /// at `dst`: the model records it as the slot's label (A-P2).
@@ -452,15 +471,38 @@ pub trait Tables {
 /// register-facing surface of the planning code.
 pub struct Cm4Hw {
     pub model: Ghost<HwModel>,
+    pub dropped: Ghost<bool>,
+    pub discarded: Ghost<bool>,
 }
 
 impl Cm4Hw {
     pub fn new() -> Cm4Hw {
-        Cm4Hw { model: Ghost(arbitrary()) }
+        Cm4Hw { model: Ghost(arbitrary()), dropped: Ghost(false), discarded: Ghost(false) }
     }
 }
 
 impl KernelArch for Cm4Hw {
+    open spec fn svc_dropped(&self) -> bool {
+        self.dropped@
+    }
+
+    open spec fn stacking_discarded(&self) -> bool {
+        self.discarded@
+    }
+
+    /// Trusted as `apply` (UJ-001: one read and one write of SHCSR; Kani
+    /// `svc_clear_pending_clears_only_the_pending_bit`).
+    #[verifier::external_body]
+    fn svc_clear_pending(&mut self) {
+        super::unsafe_module::hw::svc_clear_pending()
+    }
+
+    /// Trusted as `apply` (UJ-001: CFSR and SHCSR).
+    #[verifier::external_body]
+    fn stacking_fault_discard(&mut self) {
+        super::unsafe_module::hw::stacking_fault_discard()
+    }
+
     open spec fn hw(&self) -> HwModel {
         self.model@
     }
@@ -671,6 +713,10 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
 /// masks, and the Partition requests. Returns whether the Kernel is in the
 /// safe state; the shell then enters `System::safe_state`.
 #[verifier::rlimit(40)]
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
     ensures
@@ -956,6 +1002,10 @@ fn boot_vectors<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, table
 /// Partition stack floors, the MPU background map, the time base, and the
 /// DWT. Returns `false` when a check fails (R12.2); the shell then enters
 /// the safe state.
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (ok: bool)
     ensures
         ok ==> final(k).inv(),
@@ -1165,6 +1215,10 @@ fn dma_boot<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &
 /// DMA-permitted memory, is programmed; anything else is refused before
 /// any register is written, and the refusal is a spatial violation of the
 /// Partition (R14.3). Returns whether the request was accepted.
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, ptr: u32, len: u32) -> (ok: bool)
     requires old(k).inv(),
     ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
@@ -1405,6 +1459,71 @@ fn clear_channels(state: &mut ArchState, e: usize)
     }
 }
 
+/// One round of `endpoint_reinit`: from the state `s_e` before Endpoint `e`
+/// was considered to the state `s` after it. The round touched the channels
+/// and the flags of Endpoint `e` only, and set flags without clearing any.
+proof fn lemma_reinit_round<T: Tables>(tables: &T, before: ArchState, s_e: ArchState, s: ArchState, e: int, p: int)
+    requires
+        0 <= e < 8,
+        forall|f: int| 0 <= f < e ==> #[trigger] reinit_done(tables, s_e, before, f, p),
+        forall|i: int| e * 16 <= i < 128 ==> (#[trigger] s_e.fifos[i]) == before.fifos[i] && s_e.delivered[i] == before.delivered[i],
+        forall|i: int| 0 <= i < 128 && !(e * 16 <= i < e * 16 + 16) ==> (#[trigger] s.fifos[i]) == s_e.fifos[i] && s.delivered[i] == s_e.delivered[i],
+        forall|i: int| 0 <= i < 32 && s_e.peer_changed[i] ==> #[trigger] s.peer_changed[i],
+        spec_partition_in(spec_endpoint_of(tables, e), p)
+            ==> endpoint_cleared(s, e) && peers_told(s, spec_endpoint_of(tables, e), e, p),
+        !spec_partition_in(spec_endpoint_of(tables, e), p)
+            ==> forall|i: int| e * 16 <= i < e * 16 + 16 ==> (#[trigger] s.fifos[i]) == s_e.fifos[i] && s.delivered[i] == s_e.delivered[i],
+    ensures
+        forall|f: int| 0 <= f < e + 1 ==> #[trigger] reinit_done(tables, s, before, f, p),
+        forall|i: int| (e + 1) * 16 <= i < 128 ==> (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i],
+{
+    assert forall|f: int| 0 <= f < e + 1 implies #[trigger] reinit_done(tables, s, before, f, p) by {
+        let cf = spec_endpoint_of(tables, f);
+        if f < e {
+            assert(reinit_done(tables, s_e, before, f, p));
+            assert forall|i: int| f * 16 <= i < f * 16 + 16
+                implies (#[trigger] s.fifos[i]) == s_e.fifos[i] && s.delivered[i] == s_e.delivered[i] by {
+                assert(f * 16 + 16 <= e * 16);
+                assert(0 <= i);
+                assert(i < 128);
+                assert(!(e * 16 <= i < e * 16 + 16));
+                assert(s.fifos[i] == s_e.fifos[i]);
+                assert(s.delivered[i] == s_e.delivered[i]);
+            }
+            if spec_partition_in(cf, p) {
+                assert(endpoint_cleared(s_e, f));
+                assert forall|i: int| f * 16 <= i < f * 16 + 16
+                    implies (#[trigger] s.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !s.delivered[i] by {
+                    assert(s_e.fifos[i] == crate::logic::endpoint::Fifo::empty_spec());
+                }
+                assert(peers_told(s_e, cf, f, p));
+                assert forall|q: int| 0 <= q < MAX_ROLES && q < cf.roles as int && cf.partitions[q] as int != p
+                    implies #[trigger] s.peer_changed[f * 4 + q] by {
+                    assert(s_e.peer_changed[f * 4 + q]);
+                }
+            } else {
+                assert forall|i: int| f * 16 <= i < f * 16 + 16
+                    implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
+                    assert(s_e.fifos[i] == before.fifos[i]);
+                }
+            }
+        } else if !spec_partition_in(cf, p) {
+            assert forall|i: int| f * 16 <= i < f * 16 + 16
+                implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
+                assert(s_e.fifos[i] == before.fifos[i]);
+            }
+        }
+    }
+    assert forall|i: int| (e + 1) * 16 <= i < 128
+        implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
+        assert(s_e.fifos[i] == before.fifos[i]);
+    }
+}
+
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
     ensures super::plan::arch_frame(*final(state), *old(state)),
         // A-P6 for a Partition's stop or restart (audit finding 14): every
@@ -1426,6 +1545,13 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
         decreases MAX_ENDPOINTS - e,
     {
         let ghost s_e = *state;
+        proof {
+            assert(MAX_CHANNELS == 128 && MAX_ROLE_SLOTS == 32) by (compute);
+            assert forall|i: int| e as int * 16 <= i < 128
+                implies (#[trigger] s_e.fifos[i]) == before.fifos[i] && s_e.delivered[i] == before.delivered[i] by {
+                assert(state.fifos[i] == before.fifos[i]);
+            }
+        }
         let cfg = tables.endpoint(e);
         if partition_in(&cfg, p) {
             clear_channels(state, e);
@@ -1458,52 +1584,8 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
             }
         }
         proof {
-            // This round touched the channels and the flags of Endpoint `e` only,
-            // and set flags without clearing any.
             assert(MAX_CHANNELS == 128 && MAX_ROLE_SLOTS == 32) by (compute);
-            assert forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * 16 <= i < e as int * 16 + 16)
-                implies (#[trigger] state.fifos[i]) == s_e.fifos[i] && state.delivered[i] == s_e.delivered[i] by {}
-            assert forall|i: int| 0 <= i < MAX_ROLE_SLOTS && s_e.peer_changed[i] implies #[trigger] state.peer_changed[i] by {}
-            assert forall|f: int| 0 <= f < e + 1 implies #[trigger] reinit_done(tables, *state, before, f, p as int) by {
-                let cf = spec_endpoint_of(tables, f);
-                if f < e {
-                    assert(reinit_done(tables, s_e, before, f, p as int));
-                    assert forall|i: int| f * 16 <= i < f * 16 + 16
-                        implies (#[trigger] state.fifos[i]) == s_e.fifos[i] && state.delivered[i] == s_e.delivered[i] by {
-                        assert(f * 16 + 16 <= e as int * 16);
-                        assert(0 <= i);
-                        assert(i < 128);
-                        assert(!(e as int * 16 <= i < e as int * 16 + 16));
-                        assert(state.fifos[i] == s_e.fifos[i]);
-                        assert(state.delivered[i] == s_e.delivered[i]);
-                    }
-                    if spec_partition_in(cf, p as int) {
-                        assert(endpoint_cleared(s_e, f));
-                        assert forall|i: int| f * 16 <= i < f * 16 + 16
-                            implies (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i] by {
-                            assert(s_e.fifos[i] == crate::logic::endpoint::Fifo::empty_spec());
-                        }
-                        assert(peers_told(s_e, cf, f, p as int));
-                        assert forall|q: int| 0 <= q < MAX_ROLES && q < cf.roles as int && cf.partitions[q] as int != p as int
-                            implies #[trigger] state.peer_changed[f * 4 + q] by {
-                            assert(s_e.peer_changed[f * 4 + q]);
-                        }
-                    }
-                } else if !spec_partition_in(cf, p as int) {
-                    assert forall|i: int| f * 16 <= i < f * 16 + 16
-                        implies (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i] by {
-                        assert(s_e.fifos[i] == before.fifos[i]);
-                    }
-                } else {
-                    assert(cf == cfg);
-                    assert(endpoint_cleared(*state, f) && peers_told(*state, cf, f, p as int));
-                }
-            }
-            assert forall|i: int| (e as int + 1) * 16 <= i < MAX_CHANNELS
-                implies (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i] by {
-                assert(s_e.fifos[i] == before.fifos[i]);
-                assert(!(e as int * 16 <= i < e as int * 16 + 16));
-            }
+            lemma_reinit_round(tables, before, s_e, *state, e as int, p as int);
         }
         e += 1;
     }
@@ -2158,6 +2240,78 @@ pub fn psp_in_stack<T: Tables>(tables: &T, state: &ArchState, psp: u32) -> (ok: 
     frame_in_stack(psp, tables.stack_bottom(p), tables.stack_top(p))
 }
 
+/// Audit finding 4 (2026-11-13): a Kernel entry other than the SVC handler
+/// that ended a Job (fewer Jobs in progress than `depth_before`, the depth
+/// at its start) drops a pending SVCall, which can only be the ended
+/// executing Job's. Until the shells' decisions moved into the cores (the
+/// same date, later) this was a function of `arch::cm4`'s shells.
+#[inline(always)]
+pub fn svc_of_ended_job_core<K: KernelOps, A: KernelArch>(k: &K, hw: &mut A, depth_before: usize)
+    ensures
+        final(hw).hw() == old(hw).hw(),
+        final(hw).stacking_discarded() == old(hw).stacking_discarded(),
+        k.spec_depth() < depth_before as int ==> final(hw).svc_dropped(),
+        k.spec_depth() >= depth_before as int ==> final(hw).svc_dropped() == old(hw).svc_dropped(),
+{
+    if k.depth() < depth_before {
+        hw.svc_clear_pending();
+    }
+}
+
+/// The SVC handler's stack check (R16.5; the audit's findings 8 and 9 and
+/// contested finding D), before anything is read or written through the
+/// process stack pointer `psp`, the SVC instruction's number included.
+/// `None`: the SVC was not issued by a Job on its process stack
+/// (EXC_RETURN bit 2 clear: the frame is on the main stack; or no Job
+/// executes), or its frame lies inside the stack region of the executing
+/// Job's Partition; the SVC is served and nothing has changed. Otherwise
+/// the Job has a stack violation: the Partition's fault response is
+/// applied, the stacking fault pending behind this handler is discarded,
+/// and the plan unwinds the ended Job.
+pub fn svc_check_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, psp: u32, exc_return: u32,
+) -> (r: Option<(ReturnPlan, bool)>)
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r is None ==> *final(k) == *old(k) && *final(state) == *old(state) && final(hw).hw() == old(hw).hw(),
+        // A frame on the process stack is read only inside the stack region
+        // of the executing Job's Partition.
+        r is None && exc_return & 4 != 0 && old(state).current_partition != 0xFF
+            ==> spec_psp_in_stack(tables, old(state).current_partition as int, psp as int),
+        r is Some ==> kentry_rel(final(k), *old(state), *final(state), r.unwrap().0 as int)
+            && final(hw).hw().view == old(hw).hw().view
+            && final(hw).stacking_discarded(),
+        r is Some && r.unwrap().1 ==> final(hw).hw().basepri == 0,
+{
+    if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) {
+        return None;
+    }
+    let (hop, safe) = stack_violation_core(k, hw, tables, state);
+    hw.stacking_fault_discard();
+    Some((hop, safe))
+}
+
+/// Whether the stacked PC of a faulting context may be read for the fault
+/// record (R14.3; the audit's contested finding A): the frame at `frame`
+/// was stacked (no CFSR.MSTKERR, bit 4: the fault is not this entry's own
+/// stacking failure) and, on the process stack, lies inside the stack
+/// region of the executing Job's Partition.
+pub fn fault_frame_readable<T: Tables>(tables: &T, state: &ArchState, cfsr: u32, frame: u32, exc_return: u32) -> (ok: bool)
+    ensures
+        ok ==> cfsr & 0x10 == 0,
+        ok && exc_return & 4 != 0 ==> state.current_partition != 0xFF
+            && spec_psp_in_stack(tables, state.current_partition as int, frame as int),
+{
+    if cfsr & 0x10 != 0 {
+        return false;
+    }
+    if exc_return & 4 != 0 {
+        return psp_in_stack(tables, state, frame);
+    }
+    true
+}
+
 /// The response to a process stack pointer outside the Partition's stack
 /// region: a stack violation of the executing Job's Partition (R16.5,
 /// R14.3; a Kernel fault when no Job executes), recorded and answered with
@@ -2702,6 +2856,7 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
             && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
                 && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
                 && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        final(k).spec_depth() >= old(k).spec_depth(),
         // A refusal: nothing of the records or the view changes.
         r.0.psp == 0 ==> r.0.hop == 0 && kentry_rel(final(k), *old(state), *final(state), 0)
             && final(state).pending_unwind == 0
@@ -2859,6 +3014,8 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         WINDOW_DEFER && exc_return & 0x8 == 0 && !r.1 ==> r.0.psp == 0 && r.0.hop == 0,
         // An owed unwind is consumed or kept, never replaced (finding 6).
         old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -2942,8 +3099,10 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, 0);
         }
+        let depth_before = k.depth();
         let (hop, safe) = stack_violation_core(k, hw, tables, state);
         hw.apply(Action::Pend(n));
+        svc_of_ended_job_core(k, hw, depth_before);
         proof {
             lemma_kernel_entry(k, &k0, *state, s0, hop as int);
         }
@@ -2972,6 +3131,8 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(state).pending_unwind == old(state).pending_unwind,
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -2992,6 +3153,7 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
+    svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
 }
 
@@ -3006,6 +3168,8 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         final(state).pending_unwind == old(state).pending_unwind,
         final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3017,11 +3181,16 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
+    svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
 }
 
 /// The Rust half of the dispatch stub, with PRIMASK held. Returns the plan
 /// and whether the Kernel entered the safe state.
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
     ipsr: u32, psp: u32, control: u32, exc_return: u32,
@@ -3053,6 +3222,8 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
         // An owed unwind is consumed or kept, never replaced (finding 6).
         old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3167,6 +3338,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3183,6 +3356,7 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     }
     // Fed last: a handler that did not complete does not feed (ORQ-31).
     hw.apply(Action::WatchdogFeed);
+    svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
 }
 
@@ -3321,7 +3495,13 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
     hw.apply(Action::Trace(TR_SVC, number as u32));
-    let r: (ReturnPlan, bool) = if number == SVC_LOCK {
+    // A late-arriving SVC of a Job that a higher-priority Kernel entry ended
+    // during the SVC's exception entry (the shell reads `SVC_STALE` for the
+    // resumed frame's instruction; task 7.5): the request died with its
+    // Job, nothing is served.
+    let r: (ReturnPlan, bool) = if number == SVC_STALE {
+        (0, false)
+    } else if number == SVC_LOCK {
         let ok = k.svc_lock(frame[0] as u8);
         frame[0] = if ok { 1 } else { 0 };
         hw.apply(Action::SetBasepri(k.basepri_now()));
@@ -3355,6 +3535,10 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
 // fields (task 5.3), and over 20 since `ArchState` gained the deferred
 // vectors (5.8a, 2026-11-07); the limit is raised rather than the proof split.
 #[verifier::rlimit(80)]
+// Checked in a solver instance of its own (2026-11-13): in the context
+// shared with the functions before it the proof was not stable against
+// unrelated changes; alone it passes inside the default resource limit.
+#[verifier::spinoff_prover]
 pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
 ) -> (r: ((u32, u32, u32, ReturnPlan), bool))
@@ -3560,6 +3744,8 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         in_kernel ==> r.0 == 0,
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
+        final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3572,6 +3758,7 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
+    svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
 }
 

@@ -546,6 +546,8 @@ struct SeqHw {
 
 impl KernelArch for SeqHw {
     fn apply(&mut self, _a: Action) {}
+    fn svc_clear_pending(&mut self) {}
+    fn stacking_fault_discard(&mut self) {}
     fn copy_in(&mut self, _dst: u32, _src: u32, _len: u32) -> u32 {
         0
     }
@@ -784,8 +786,8 @@ fn arch_records_match_the_stack_over_kernel_entries() {
 /// SHCSR.SVCALLPENDED (bit 15) and writes every other bit of the register
 /// back as read, the active bits (0 to 11) and the enable bits (16 to 18)
 /// among them, for any register contents; with the bit already clear it
-/// writes nothing. `svc_of_ended_job`, the one call the timer, interrupt and
-/// fault shells make after their core, clears the bit exactly when the
+/// writes nothing. `entry::svc_of_ended_job_core`, which the timer, interrupt and
+/// fault cores call last, clears the bit exactly when the
 /// entry left fewer Jobs in progress than it found.
 #[kani::proof]
 #[kani::unwind(48)]
@@ -833,9 +835,10 @@ fn svc_clear_pending_clears_only_the_pending_bit() {
     sim::write(addr::SHCSR, pending);
     let before = sim::write_count();
     // Same depth as at the entry's start: the pending SVC is the executing Job's and stays.
-    crate::arch::cm4::svc_of_ended_job(&k, 0);
+    let mut cm4 = Cm4Hw::new();
+    crate::arch::cm4::entry::svc_of_ended_job_core(&k, &mut cm4, 0);
     assert!(sim::read(addr::SHCSR) == pending && sim::write_count() == before);
     // One Job fewer than at the entry's start: the pending SVC was the ended Job's.
-    crate::arch::cm4::svc_of_ended_job(&k, 1);
+    crate::arch::cm4::entry::svc_of_ended_job_core(&k, &mut cm4, 1);
     assert!(sim::read(addr::SHCSR) == pending & !(1 << 15));
 }
