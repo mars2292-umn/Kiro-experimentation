@@ -195,7 +195,7 @@ kills = "lemma_no_new_blocking_section (argument 5.1, step 4): a lock step is by
 file = "crates/rsk-logic/src/logic/history.rs"
 find = "        &&& s.top == prev.top\n        &&& s.task == s.top\n"
 replace = "        &&& s.top == prev.top\n"
-expect = ["history.rs", "lemma_no_new_blocking_section"]
+expect = ["history.rs", "postcondition not satisfied"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -204,7 +204,7 @@ kills = "lemma_no_lower_dispatch_while_waiting (argument 5.1, step 1): a dispatc
 file = "crates/rsk-logic/src/logic/history.rs"
 find = "        &&& prev.ceiling < cfg.priority(s.task)\n"
 replace = "        &&& prev.ceiling <= 7\n"
-expect = ["history.rs", "lemma_no_lower_dispatch_while_waiting"]
+expect = ["history.rs", "postcondition not satisfied"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -726,4 +726,79 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 find = "    if frame == 0 {\n        k.fault(EV_HARDFAULT, true);"
 replace = "    if false {\n        k.fault(EV_HARDFAULT, true);"
 expect = ["entry.rs", "postcondition not satisfied"]
+
+# The facts of audit findings 12 to 14 and of A13, contracts since
+# 2026-11-13 (Verification_Plan 5.18).
+
+[[mutation]]
+id = "boot-vector-priority-kernel-level"
+kills = "boot_vectors' boot_vector_ok (A3): a dispatch vector is programmed at the level of its Task's Priority"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                hw.apply(Action::SetPriority(n, encode_level(p)));"
+replace = "                hw.apply(Action::SetPriority(n, encode_level(0)));"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "boot-skips-vector-check"
+kills = "boot_core's tables_wf (A12, A13): a boot with vector tables that disagree fails its checks"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if !vectors {\n"
+replace = "    if false {\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "apply-pends-other-vector"
+kills = "apply_core's vectors_applied (A4): the vector pended is the dispatch vector of the Task select returned"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            hw.apply(Action::Pend(tables.dispatch_vector(t)));"
+replace = "            hw.apply(Action::Pend(tables.dispatch_vector(0)));"
+expect = ["entry.rs", "assertion failed"]
+
+[[mutation]]
+id = "apply-enables-masked-source"
+kills = "apply_core's vectors_applied (A13, DD-06): the intake vector of a masked source stays disabled"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                if k.source_masked(t as u8) || k.partition_stopped(partition) {"
+replace = "                if k.partition_stopped(partition) {"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "unwind-skips-view-restore"
+kills = "epilogue_core's view_matches (A6, audit finding 12): the resumed Job runs under its own Partition's view"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        hw.apply(Action::LoadView(rec.previous_partition, view));"
+replace = "        let _ = view;"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "endpoint-args-skips-message-permitted"
+kills = "endpoint_args' contract (R42.2, audit finding 13): the message buffer lies in the RAM interval of the calling role's Partition"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                && k.message_permitted(cfg.partitions[role], ptr, len)\n"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "endpoint-slot-outside-storage"
+kills = "endpoint_slot's storage_permitted (R16.1, audit finding 13): a slot's bytes lie inside the Endpoint storage"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if off + payload <= total as u64 && base as u64 + off + payload <= 0xFFFF_FFFF {"
+replace = "    if base as u64 + off + payload <= 0xFFFF_FFFF {"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "stop-reinit-skips-peer-flag"
+kills = "endpoint_reinit's reinit_done (A-P6, R42.3, audit finding 14): a stopped or restarted Partition's Endpoints tell the roles of the other Partitions"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                if (r as u8) < cfg.roles && cfg.partitions[r] != p {\n                    state.peer_changed[role_slot(e, r)] = true;"
+replace = "                if false {\n                    state.peer_changed[role_slot(e, r)] = true;"
+expect = ["entry.rs"]
+
+[[mutation]]
+id = "dispatch-records-other-partition"
+kills = "dispatch_job_core keeps arch_inv (lemma_push): a level record names as preempted the Partition Kernel_Arch took as executing, which the unwind restores"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let previous_partition = state.current_partition;"
+replace = "    let previous_partition = 0xFF;"
+expect = ["entry.rs", "precondition not satisfied"]
 

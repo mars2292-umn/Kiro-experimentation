@@ -365,6 +365,9 @@ pub trait KernelArch: Sized {
 pub uninterp spec fn spec_endpoint_of<T: ?Sized>(t: &T, i: int) -> EndpointCfg;
 /// The Endpoint storage base of a `Tables` as a specification.
 pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
+/// The Endpoint storage's length in bytes, and the number of Endpoints.
+pub uninterp spec fn spec_storage_len_of<T: ?Sized>(t: &T) -> int;
+pub uninterp spec fn spec_endpoint_count_of<T: ?Sized>(t: &T) -> int;
 /// The stack region `[bottom, top)` of Partition `p` of a `Tables`, as a specification.
 pub uninterp spec fn spec_stack_bottom_of<T: ?Sized>(t: &T, p: int) -> int;
 pub uninterp spec fn spec_stack_top_of<T: ?Sized>(t: &T, p: int) -> int;
@@ -428,13 +431,14 @@ pub trait Tables {
     fn dma_count(&self) -> usize;
     fn dma(&self, i: usize) -> DmaCfg;
     /// The Endpoints (task 21.2) and their Kernel-owned storage (base, bytes).
-    fn endpoint_count(&self) -> usize;
+    fn endpoint_count(&self) -> (n: usize)
+        ensures n as int == spec_endpoint_count_of(self);
     /// The table as a specification (the generated crate's constants, a
     /// pure function of the index; trusted, as every `Tables` method).
     fn endpoint(&self, i: usize) -> (c: EndpointCfg)
         ensures c == spec_endpoint_of(self, i as int);
     fn endpoint_storage(&self) -> (r: (u32, u32))
-        ensures r.0 as int == spec_storage_base_of(self);
+        ensures r.0 as int == spec_storage_base_of(self), r.1 as int == spec_storage_len_of(self);
     /// The Release_Signals (R10.5).
     fn signal_count(&self) -> usize;
     fn signal(&self, i: usize) -> SignalCfg;
@@ -671,13 +675,8 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
     ensures
         final(k).task_count_spec() == old(k).task_count_spec(),
-        // A4: a vector this function pends is the dispatch vector of a Task
-        // the Kernel found eligible; nothing else is pended.
-        forall|v: int| #[trigger] final(hw).hw().pending.contains(v) && !old(hw).hw().pending.contains(v)
-            ==> eligible_vector(old(k), tables, v),
-        // A13: every intake vector is enabled exactly when its source is
-        // unmasked and its Partition not stopped (the Kernel state at entry).
-        forall|u: int| 0 <= u < old(k).task_count_spec() ==> #[trigger] intake_done(old(k), tables, final(hw).hw(), u),
+        // A4 and A13 (`vectors_applied`).
+        vectors_applied(old(k), tables, old(hw).hw(), final(hw).hw()),
         final(k).inv(),
         final(k).top_level() == old(k).top_level(),
         final(k).ceiling_level() == old(k).ceiling_level(),
@@ -808,6 +807,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             assert(h2.pending.contains(v));
             assert(h1.pending.contains(v));
         }
+        reveal(vectors_applied);
     }
     safe
 }
@@ -872,6 +872,18 @@ pub open spec fn intake_done<K: KernelOps, T: Tables>(k: &K, tables: &T, h: HwMo
         Some(v) => h.enabled.contains(v as int) <==> !(k.spec_source_masked(u) || k.spec_partition_stopped(k.spec_part()[u])),
         None => true,
     }
+}
+
+/// What `apply_core` does to the vectors after a Kernel transition, from the
+/// Kernel state `k` and the hardware state `h0` at its entry. A4: a vector
+/// it pends is the dispatch vector of a Task the Kernel found eligible, and
+/// nothing else is pended. A13: every intake vector is enabled exactly when
+/// its source is unmasked and its Partition not stopped. Opaque: the cores
+/// carry it as one fact.
+#[verifier::opaque]
+pub open spec fn vectors_applied<K: KernelOps, T: Tables>(k: &K, tables: &T, h0: HwModel, h: HwModel) -> bool {
+    &&& forall|v: int| #[trigger] h.pending.contains(v) && !h0.pending.contains(v) ==> eligible_vector(k, tables, v)
+    &&& forall|u: int| 0 <= u < k.task_count_spec() ==> #[trigger] intake_done(k, tables, h, u)
 }
 
 /// A4: vector `v` is the dispatch vector of a Task the Kernel finds eligible.
@@ -1312,13 +1324,43 @@ fn role_slot(e: usize, r: usize) -> (i: usize)
     e * MAX_ROLES + r
 }
 
+/// Partition `p` holds a role of `cfg`.
+pub open spec fn spec_partition_in(cfg: EndpointCfg, p: int) -> bool {
+    exists|i: int| 0 <= i < MAX_ROLES && i < cfg.roles as int && (#[trigger] cfg.partitions[i]) as int == p
+}
+
+/// Every channel of Endpoint `e` is empty and its delivery latch clear.
+pub open spec fn endpoint_cleared(state: ArchState, e: int) -> bool {
+    forall|i: int| e * 16 <= i < e * 16 + 16 ==> (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i]
+}
+
+/// The roles of Endpoint `e` in Partitions other than `p` have their
+/// peer-state flag set (R42.3).
+pub open spec fn peers_told(state: ArchState, cfg: EndpointCfg, e: int, p: int) -> bool {
+    forall|q: int| 0 <= q < MAX_ROLES && q < cfg.roles as int && cfg.partitions[q] as int != p ==> #[trigger] state.peer_changed[e * 4 + q]
+}
+
+/// The re-initialization of Partition `p`'s Endpoint roles, for Endpoint
+/// `e` (A-P6): cleared and its peers told when `p` holds a role of it,
+/// its channels untouched otherwise.
+pub open spec fn reinit_done<T: Tables>(tables: &T, state: ArchState, old: ArchState, e: int, p: int) -> bool {
+    let cfg = spec_endpoint_of(tables, e);
+    if spec_partition_in(cfg, p) {
+        endpoint_cleared(state, e) && peers_told(state, cfg, e, p)
+    } else {
+        forall|i: int| e * 16 <= i < e * 16 + 16 ==> (#[trigger] state.fifos[i]) == old.fifos[i] && state.delivered[i] == old.delivered[i]
+    }
+}
+
 /// Whether Partition `p` holds a role of `cfg`.
 fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
+    ensures r == spec_partition_in(*cfg, p as int),
 {
     let mut i: usize = 0;
     let mut found = false;
     while i < MAX_ROLES
         invariant i <= MAX_ROLES,
+            found == (exists|j: int| 0 <= j < i && j < cfg.roles as int && (#[trigger] cfg.partitions[j]) as int == p as int),
         decreases MAX_ROLES - i,
     {
         if (i as u8) < cfg.roles && cfg.partitions[i] == p {
@@ -1333,7 +1375,14 @@ fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
 fn clear_channels(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
     ensures super::plan::arch_frame(*final(state), *old(state)),
+        // A-P6 (audit finding 14): every channel of the Endpoint is empty and
+        // its delivery latch clear; nothing else changes.
+        endpoint_cleared(*final(state), e as int),
+        forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * 16 <= i < e as int * 16 + 16)
+            ==> (#[trigger] final(state).fifos[i]) == old(state).fifos[i] && final(state).delivered[i] == old(state).delivered[i],
+        final(state).peer_changed == old(state).peer_changed,
 {
+    let ghost before = *state;
     assert(MAX_ROLES * MAX_ROLES == 16) by (compute);
     assert(MAX_CHANNELS == 128) by (compute);
     assert(e * 16 + 16 <= 128) by (nonlinear_arith)
@@ -1341,8 +1390,12 @@ fn clear_channels(state: &mut ArchState, e: usize)
     let base = e * (MAX_ROLES * MAX_ROLES);
     let mut c: usize = 0;
     while c < MAX_ROLES * MAX_ROLES
-        invariant c <= 16, base + 16 <= MAX_CHANNELS, MAX_ROLES * MAX_ROLES == 16,
+        invariant c <= 16, base + 16 <= MAX_CHANNELS, MAX_ROLES * MAX_ROLES == 16, base == e * 16,
             super::plan::arch_frame(*state, *old(state)),
+            forall|i: int| base as int <= i < base as int + c ==> (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i],
+            forall|i: int| 0 <= i < MAX_CHANNELS && !(base as int <= i < base as int + c)
+                ==> (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i],
+            state.peer_changed == before.peer_changed,
         decreases MAX_ROLES * MAX_ROLES - c,
     {
         state.fifos[base + c].clear();
@@ -1354,29 +1407,102 @@ fn clear_channels(state: &mut ArchState, e: usize)
 
 fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
     ensures super::plan::arch_frame(*final(state), *old(state)),
+        // A-P6 for a Partition's stop or restart (audit finding 14): every
+        // Endpoint with a role of the Partition has its channels emptied,
+        // its latches cleared, and its other Partitions' roles told; no
+        // other Endpoint's channel changes.
+        forall|e: int| 0 <= e < MAX_ENDPOINTS && e < spec_endpoint_count_of(tables)
+            ==> #[trigger] reinit_done(tables, *final(state), *old(state), e, p as int),
 {
+    let ghost before = *state;
     let n = tables.endpoint_count();
     let mut e: usize = 0;
     while e < n && e < MAX_ENDPOINTS
-        invariant e <= MAX_ENDPOINTS,
+        invariant e <= MAX_ENDPOINTS, n as int == spec_endpoint_count_of(tables),
             super::plan::arch_frame(*state, *old(state)),
+            forall|f: int| 0 <= f < e ==> #[trigger] reinit_done(tables, *state, before, f, p as int),
+            forall|i: int| e as int * 16 <= i < MAX_CHANNELS
+                ==> (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i],
         decreases MAX_ENDPOINTS - e,
     {
+        let ghost s_e = *state;
         let cfg = tables.endpoint(e);
         if partition_in(&cfg, p) {
             clear_channels(state, e);
+            let ghost s_c = *state;
             // Every role of another Partition is marked (task 21.7: all
             // roles of a multiparty Endpoint start over together).
             let mut r: usize = 0;
             while r < MAX_ROLES
                 invariant r <= MAX_ROLES, e < MAX_ENDPOINTS,
                     super::plan::arch_frame(*state, *old(state)),
+                    state.fifos == s_c.fifos, state.delivered == s_c.delivered,
+                    forall|i: int| 0 <= i < MAX_ROLE_SLOTS && s_c.peer_changed[i] ==> #[trigger] state.peer_changed[i],
+                    forall|q: int| 0 <= q < r && q < cfg.roles as int && cfg.partitions[q] as int != p as int
+                        ==> #[trigger] state.peer_changed[e as int * 4 + q],
                 decreases MAX_ROLES - r,
             {
                 if (r as u8) < cfg.roles && cfg.partitions[r] != p {
                     state.peer_changed[role_slot(e, r)] = true;
                 }
                 r += 1;
+            }
+            proof {
+                assert(endpoint_cleared(s_c, e as int));
+                assert forall|i: int| e as int * 16 <= i < e as int * 16 + 16
+                    implies (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i] by {
+                    assert(s_c.fifos[i] == crate::logic::endpoint::Fifo::empty_spec());
+                }
+                assert(endpoint_cleared(*state, e as int));
+                assert(peers_told(*state, cfg, e as int, p as int));
+            }
+        }
+        proof {
+            // This round touched the channels and the flags of Endpoint `e` only,
+            // and set flags without clearing any.
+            assert(MAX_CHANNELS == 128 && MAX_ROLE_SLOTS == 32) by (compute);
+            assert forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * 16 <= i < e as int * 16 + 16)
+                implies (#[trigger] state.fifos[i]) == s_e.fifos[i] && state.delivered[i] == s_e.delivered[i] by {}
+            assert forall|i: int| 0 <= i < MAX_ROLE_SLOTS && s_e.peer_changed[i] implies #[trigger] state.peer_changed[i] by {}
+            assert forall|f: int| 0 <= f < e + 1 implies #[trigger] reinit_done(tables, *state, before, f, p as int) by {
+                let cf = spec_endpoint_of(tables, f);
+                if f < e {
+                    assert(reinit_done(tables, s_e, before, f, p as int));
+                    assert forall|i: int| f * 16 <= i < f * 16 + 16
+                        implies (#[trigger] state.fifos[i]) == s_e.fifos[i] && state.delivered[i] == s_e.delivered[i] by {
+                        assert(f * 16 + 16 <= e as int * 16);
+                        assert(0 <= i);
+                        assert(i < 128);
+                        assert(!(e as int * 16 <= i < e as int * 16 + 16));
+                        assert(state.fifos[i] == s_e.fifos[i]);
+                        assert(state.delivered[i] == s_e.delivered[i]);
+                    }
+                    if spec_partition_in(cf, p as int) {
+                        assert(endpoint_cleared(s_e, f));
+                        assert forall|i: int| f * 16 <= i < f * 16 + 16
+                            implies (#[trigger] state.fifos[i]) == crate::logic::endpoint::Fifo::empty_spec() && !state.delivered[i] by {
+                            assert(s_e.fifos[i] == crate::logic::endpoint::Fifo::empty_spec());
+                        }
+                        assert(peers_told(s_e, cf, f, p as int));
+                        assert forall|q: int| 0 <= q < MAX_ROLES && q < cf.roles as int && cf.partitions[q] as int != p as int
+                            implies #[trigger] state.peer_changed[f * 4 + q] by {
+                            assert(s_e.peer_changed[f * 4 + q]);
+                        }
+                    }
+                } else if !spec_partition_in(cf, p as int) {
+                    assert forall|i: int| f * 16 <= i < f * 16 + 16
+                        implies (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i] by {
+                        assert(s_e.fifos[i] == before.fifos[i]);
+                    }
+                } else {
+                    assert(cf == cfg);
+                    assert(endpoint_cleared(*state, f) && peers_told(*state, cf, f, p as int));
+                }
+            }
+            assert forall|i: int| (e as int + 1) * 16 <= i < MAX_CHANNELS
+                implies (#[trigger] state.fifos[i]) == before.fifos[i] && state.delivered[i] == before.delivered[i] by {
+                assert(s_e.fifos[i] == before.fifos[i]);
+                assert(!(e as int * 16 <= i < e as int * 16 + 16));
             }
         }
         e += 1;
@@ -1618,7 +1744,14 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
         && (r.unwrap().1 as int) < r.unwrap().3.roles as int && (r.unwrap().2 as int) < r.unwrap().3.roles as int && r.unwrap().3.roles as int <= MAX_ROLES as int
         && r.unwrap().3.capacity >= 1 && r.unwrap().3.payload >= 4 && r.unwrap().3.payload % 4 == 0
         && r.unwrap().0 as int == (arg & 0xFF) as int && r.unwrap().1 as int == ((arg >> 8) & 0xF) as int && r.unwrap().2 as int == ((arg >> 12) & 0xF) as int
-        && r.unwrap().3 == spec_endpoint_of(tables, (arg & 0xFF) as int),
+        && r.unwrap().3 == spec_endpoint_of(tables, (arg & 0xFF) as int)
+        // R42.2 (audit finding 13): the message is word-aligned, of the
+        // Endpoint's payload length, and inside the RAM interval of the
+        // Partition of the role, which is the executing Job's Task's.
+        && ptr % 4 == 0 && len == r.unwrap().3.payload as u32
+        && (r.unwrap().3.partitions[r.unwrap().1 as int] as int) < k.partition_count_spec()
+        && k.message_permitted_spec(r.unwrap().3.partitions[r.unwrap().1 as int] as int, ptr as int, len as int)
+        && crate::arch::bound::top_task(k) == r.unwrap().3.tasks[r.unwrap().1 as int] as int,
 {
     // Task 21.7: `arg` = e | role << 8 | peer << 12 (the role performing
     // the operation, and the role it sends to or receives from).
@@ -1650,6 +1783,40 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
 /// The Kernel storage address of slot `slot` of channel `d` of `cfg`, when
 /// the slot's bytes lie inside the Endpoint storage; `None` otherwise (a
 /// Generated_Config the Generator never emits: the backstop is a refusal).
+/// `[a, a + len)` lies inside the Kernel-owned Endpoint storage (R16.1).
+pub open spec fn storage_permitted<T: Tables>(tables: &T, a: int, len: int) -> bool {
+    spec_storage_base_of(tables) <= a && a + len <= spec_storage_base_of(tables) + spec_storage_len_of(tables)
+}
+
+/// The copy of a message into the Endpoint storage, confined (R42.2, DD-09;
+/// audit finding 13): the source lies in the RAM interval of Partition `p`
+/// and the destination inside the Endpoint storage. The cores copy in
+/// through this function only.
+fn copy_in_checked<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T, Ghost(p): Ghost<int>, dst: u32, src: u32, len: u32) -> (first: u32)
+    requires
+        k.inv(), 0 <= p < k.partition_count_spec(), src % 4 == 0,
+        k.message_permitted_spec(p, src as int, len as int),
+        storage_permitted(tables, dst as int, len as int),
+    ensures final(hw).hw() == (HwModel { store: old(hw).hw().store.insert(dst as int, first as int), ..old(hw).hw() }),
+{
+    hw.copy_in(dst, src, len)
+}
+
+/// The copy of a message out of the Endpoint storage, confined as
+/// `copy_in_checked`: the destination lies in the RAM interval of Partition
+/// `p` and the source inside the Endpoint storage.
+fn copy_out_checked<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T, Ghost(p): Ghost<int>, dst: u32, src: u32, len: u32) -> (first: u32)
+    requires
+        k.inv(), 0 <= p < k.partition_count_spec(), dst % 4 == 0,
+        k.message_permitted_spec(p, dst as int, len as int),
+        storage_permitted(tables, src as int, len as int),
+    ensures
+        final(hw).hw() == old(hw).hw(),
+        old(hw).hw().store.contains_key(src as int) ==> first as int == old(hw).hw().store[src as int],
+{
+    hw.copy_out(dst, src, len)
+}
+
 /// The address of slot `slot` of channel `d` of an Endpoint (A-P2).
 pub open spec fn slot_addr(base: int, cfg: EndpointCfg, d: int, slot: int) -> int {
     base + cfg.storage as int + (d * cfg.capacity as int + slot) * cfg.payload as int
@@ -1688,6 +1855,8 @@ proof fn lemma_next_slot_fresh(f: crate::logic::endpoint::Fifo, cap: int)
 fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -> (a: Option<u32>)
     requires d < MAX_ROLES * MAX_ROLES,
     ensures a is Some ==> a.unwrap() as int == slot_addr(spec_storage_base_of(tables), *cfg, d as int, slot as int),
+        // Audit finding 13: the slot's bytes lie inside the Endpoint storage.
+        a is Some ==> storage_permitted(tables, a.unwrap() as int, cfg.payload as int),
 {
     let (base, total) = tables.endpoint_storage();
     let payload = cfg.payload as u64;
@@ -1841,7 +2010,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(dst) => {
-            let first = hw.copy_in(dst, ptr, len);
+            let first = copy_in_checked(k, hw, tables, Ghost(cfg.partitions[role as int] as int), dst, ptr, len);
             proof {
                 let base = spec_storage_base_of(tables);
                 let cap = cfg.capacity as int;
@@ -1915,7 +2084,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
-            let first = hw.copy_out(ptr, src, len);
+            let first = copy_out_checked(k, hw, tables, Ghost(cfg.partitions[role as int] as int), ptr, src, len);
             // R42.4 (audit finding 2): a delivery over a validated upward
             // edge permits one rejection report of this role against `from`.
             if cfg.validates[role][from] {
@@ -3133,6 +3302,10 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// frame (R0-R3 at words 0 to 3, PC at word 6); `number` the SVC number
 /// the shell read from the instruction. Lock and unlock leave BASEPRI at
 /// the executing Job's level or the (new) System_Ceiling (A1).
+// Checked in a solver instance of its own: in the context shared with the
+// functions before it the proof ran out of the default resource limit
+// (2026-11-13); alone it passes well inside it.
+#[verifier::spinoff_prover]
 pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
 ) -> (r: (ReturnPlan, bool))
