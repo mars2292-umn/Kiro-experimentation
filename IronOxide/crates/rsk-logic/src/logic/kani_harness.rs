@@ -456,6 +456,51 @@ fn running_cycles_are_charged_at_every_timed_event() {
     assert!(k.sched.job[s] == JOB_NONE);
 }
 
+/// The audit's lead 2.1 (2026-11-13), a witness on the demo's configuration:
+/// one `timer_event` ends two Jobs. `sampler` (part2, END_JOB) crosses its
+/// Budget at the charge of `log`'s dispatch, 30 cycles after the time-base
+/// entry that released `log` and 10 cycles after its own Budget instant,
+/// whose compare is then served with `sampler` preempted and ignored (the
+/// state Verification_Plan 11.6 records from the rig). `log` (part1,
+/// END_JOB) overruns; its Budget event ends it, the resumed `sampler`'s
+/// Budget event is armed with no remainder at a higher slot index, and the
+/// same pass serves it and ends `sampler` too. The Kernel then holds no Job
+/// where two were in progress, so Kernel_Arch must unwind both levels in
+/// that entry (`epilogue_core`'s chain over `LevelRecord::previous_task`);
+/// until 2026-11-13 it unwound `log`'s alone and returned into `sampler`'s
+/// context, which ran on with no Job behind it.
+#[kani::proof]
+#[kani::unwind(25)]
+fn one_timer_event_ends_two_jobs_when_the_resumed_job_crossed_its_budget_at_a_preemption() {
+    let mut cfg = config();
+    cfg.tasks[CONTROL as usize].offset = 200_000;
+    cfg.tasks[SENSOR as usize].offset = 400_000;
+    cfg.tasks[FILTER as usize].offset = 300_000;
+    cfg.tasks[LOG as usize].offset = 12_480;
+    assert!(cfg.validate());
+    let (s, l) = (SAMPLER as usize, LOG as usize);
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(SAMPLER));
+    k.dispatch(&cfg, SAMPLER, 0);
+    // `log`'s Release, 20 ticks before `sampler`'s Budget instant.
+    k.timer_event(&cfg, 12_480, 12_480);
+    assert!(k.budget.used[s] == 12_480 && k.sched.release[l] == REL_PENDING);
+    assert!(k.select(&cfg) == Some(LOG));
+    // The dispatch stub's charge, 30 cycles later: `sampler`'s account crosses its Budget.
+    k.dispatch(&cfg, LOG, 30);
+    assert!(k.budget.used[s] == 12_510 && k.budget.used[s] > cfg.tasks[s].budget);
+    // `sampler`'s Budget compare, taken after the stub: `sampler` is preempted, nothing happens.
+    k.timer_event(&cfg, 12_520, 10);
+    assert!(k.sched.depth == 2 && k.sched.job[s] != JOB_NONE && !k.budget.reported[s]);
+    // `log`'s Budget event (armed at its dispatch for 12,480 + 150,000).
+    k.timer_event(&cfg, 162_480, 150_000);
+    // Both Jobs are ended by that one entry.
+    assert!(k.sched.depth == 0);
+    assert!(k.sched.job[l] == JOB_NONE && k.sched.job[s] == JOB_NONE);
+}
+
 /// Task 5.5 (R17.1, R17.2): the executable DMA buffer check agrees with a
 /// direct recomputation of its specification for every layout of a 1 KiB
 /// to 64 KiB Partition RAM and every buffer, as a cross-check of the Verus

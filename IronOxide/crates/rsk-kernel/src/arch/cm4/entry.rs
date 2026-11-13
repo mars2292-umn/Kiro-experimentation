@@ -1821,6 +1821,11 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 // is the floor of its Partition's stack from here on.
                 state.floor[previous_partition as usize] = psp;
             }
+            // The Job whose context this dispatch preempts (lead 2.1).
+            let previous_task = match k.top() {
+                Some(u) => u,
+                None => 0xFF,
+            };
             k.dispatch(t, preempted);
             let info = k.job_info(t);
             let level = info.priority as usize;
@@ -1854,6 +1859,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
                 exc_return,
                 floor_before,
                 previous_partition,
+                previous_task,
             };
             state.floor[info.partition as usize] = frame;
             hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
@@ -2096,6 +2102,25 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         hw.apply(Action::FpuAccess(k.job_info(k.stack_at(idx)).fpu));
     }
     state.current_partition = rec.previous_partition;
+    // The audit's lead 2.1 (2026-11-13): the context this level preempted
+    // is resumed only while its Job is still the executing Job. One Kernel
+    // entry can end two Jobs outright (the Kani witness
+    // `one_timer_event_ends_two_jobs_when_the_resumed_job_crossed_its_budget_at_a_preemption`:
+    // a Budget event ends the executing Job, the resumed Job's Budget event
+    // is armed with no remainder and served in the same pass); the Job this
+    // level preempted is then no longer the top, and its level is unwound
+    // as well. Until this date the unwind returned into that Job's context,
+    // which ran on with the Kernel holding no Job for it.
+    let resumed_ended = rec.previous_task != 0xFF && match k.top() {
+        Some(t) => t != rec.previous_task,
+        None => true,
+    };
+    if resumed_ended {
+        let l = k.job_info(rec.previous_task).priority as usize;
+        let next = state.levels[l].exception_number as u32;
+        hw.apply(Action::SetBasepri(k.basepri_now()));
+        return ((rec.psp, rec.control, rec.exc_return, next), false);
+    }
     // A killed resumed Job ends now and its level is unwound as well.
     match k.top() {
         Some(t) => {

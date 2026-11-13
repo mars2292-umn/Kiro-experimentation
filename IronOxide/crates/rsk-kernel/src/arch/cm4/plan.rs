@@ -91,6 +91,12 @@ pub struct LevelRecord {
     pub floor_before: u32,
     /// The partition of the preempted Job whose view was loaded, 0xFF for the Kernel/idle.
     pub previous_partition: u8,
+    /// The Job this level's dispatch preempted, whose context the record
+    /// holds; 0xFF when it preempted the idle activity. The unwind of this
+    /// level resumes that context only while that Job is still the Kernel's
+    /// executing Job (the audit's lead 2.1, 2026-11-13: one Kernel entry
+    /// can end the Job of this level and the one it preempted).
+    pub previous_task: u8,
 }
 
 /// One Endpoint of Generated_Config (task 21.2; R38.1, R40.1): two roles,
@@ -191,6 +197,7 @@ impl ArchState {
                 exc_return: 0,
                 floor_before: 0,
                 previous_partition: 0xFF,
+                previous_task: 0xFF,
             }; 8],
             floor: [0; 16],
             current_partition: 0xFF,
