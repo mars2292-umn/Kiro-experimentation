@@ -692,7 +692,8 @@ fn seq_unwind(k: &mut SeqKernel, hw: &mut SeqHw, state: &mut crate::arch::cm4::p
 }
 
 /// The review of the audit fixes (2026-11-13), `entry::arch_matches` as a
-/// bounded check (the predicate is an open assumption of the proofs): on
+/// bounded check of the executable (the predicate is proven as an invariant
+/// of the entry cores, `entry::arch_inv`, since the same day): on
 /// the demo's configuration, after each of five Kernel entries with their
 /// unwinds, Kernel_Arch's active level records are exactly those of the
 /// Kernel's preemption stack. The sequence is the audit's lead 2.1: the

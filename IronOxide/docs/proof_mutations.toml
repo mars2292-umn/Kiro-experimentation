@@ -624,10 +624,45 @@ find = "                previous_task,\n                active: true,"
 replace = "                previous_task: 0xFF,\n                active: true,"
 expect = ["entry.rs", "assertion failed"]
 
+# `owed-unwind-overwritten` (finding 6: the second owed level replacing the
+# first) was retired on 2026-11-13: since `end_plan_core` names the topmost
+# level record and `arch_inv` holds, the second owed exception number equals
+# the first, the overwrite changes nothing, and Verus verifies the mutant
+# (233 items, 0 errors). The defect is now expressed by the entry that owes
+# an unwind and does not record it.
+
 [[mutation]]
-id = "owed-unwind-overwritten"
-kills = "irq_entry_core's clause that an owed unwind is consumed or kept, never replaced (the audit's finding 6): a second Job-ending entry in a dispatch stub's entry window must not overwrite the first owed level"
+id = "owed-unwind-not-recorded"
+kills = "irq_entry_core keeps arch_inv (the audit's finding 6): a Job-ending entry in a dispatch stub's entry window hands its stub no plan, so the unwind must be owed in pending_unwind; without it the chain is longer than the stack with nothing planned or owed"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 find = "        if state.pending_unwind == 0 {\n            state.pending_unwind = r.0.hop;\n        }"
-replace = "        state.pending_unwind = r.0.hop;"
+replace = ""
 expect = ["entry.rs", "postcondition not satisfied"]
+
+# The invariant of the entry cores (`arch_inv`, 2026-11-13): the level
+# records, the ghost chain and the Kernel's preemption stack.
+
+[[mutation]]
+id = "unwind-leaves-record-active"
+kills = "epilogue_core keeps arch_inv (lemma_pop): the unwound level's record is no longer active, so that every active record is the record of a Job dispatched and not yet unwound"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    ended.active = false;\n    state.levels[level] = ended;"
+replace = "    state.levels[level] = ended;"
+expect = ["entry.rs", "precondition not satisfied"]
+
+[[mutation]]
+id = "end-plan-ignores-ended-job"
+kills = "end_plan_core's ended_plan: a Kernel entry that ended a Job plans the unwind of the topmost level record (arch_inv: the chain is longer than the stack only while an unwind is planned or owed)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if k.depth() < depth_before {\n        let level = top_active(&state.levels);"
+replace = "    if false {\n        let level = top_active(&state.levels);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "dispatch-starts-job-before-frame-check"
+kills = "irq_entry_core keeps arch_inv on its refusal paths: a refusal after Kernel::dispatch would leave a Job in progress with no level record (the checks precede the dispatch)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            if k.depth() == depth_before {\n                // The Kernel refused the dispatch of a Task it found eligible\n                // (before instant 0): nothing to record or to return to.\n                k.fault(EV_HARDFAULT, true);"
+replace = "            if k.depth() != depth_before {\n                // The Kernel refused the dispatch of a Task it found eligible\n                // (before instant 0): nothing to record or to return to.\n                k.fault(EV_HARDFAULT, true);"
+expect = ["entry.rs"]
+

@@ -264,6 +264,7 @@ pub struct Bound<const NT: usize, const NR: usize, const NP: usize, const NL: us
 pub open spec fn stack_prefix<K: KernelOps>(a: &K, old: &K) -> bool {
     &&& a.spec_depth() <= old.spec_depth()
     &&& forall|i: int| 0 <= i < a.spec_depth() ==> a.spec_stack(i) == old.spec_stack(i)
+    &&& a.spec_prio() == old.spec_prio()
 }
 
 /// The executing Job's Task, or 0xFF when no Job is in progress: the value
@@ -278,6 +279,20 @@ pub trait KernelOps: Sized {
     /// (position 0 the first Job started, the last one the executing Job).
     spec fn spec_depth(&self) -> int;
     spec fn spec_stack(&self, i: int) -> int;
+    /// The Priority of each Task index 0..=255 (0 beyond the configuration's
+    /// Tasks): fixed by the configuration, the same after every operation
+    /// (the level of a Job's record, `arch_inv`).
+    spec fn spec_prio(&self) -> Seq<int>;
+    /// The preemption stack holds Tasks of the configuration in strictly
+    /// rising Priority (`Sched::inv`): a dispatched Job's level is above the
+    /// level of every Job in progress.
+    proof fn lemma_stack_rising(&self)
+        requires self.inv(),
+        ensures
+            self.task_count_spec() <= 255, self.spec_depth() >= 0,
+            forall|i: int| 0 <= i < self.spec_depth() ==> 0 <= #[trigger] self.spec_stack(i) < self.task_count_spec(),
+            forall|i: int, j: int| #![trigger self.spec_stack(i), self.spec_stack(j)]
+                0 <= i < j < self.spec_depth() ==> self.spec_prio()[self.spec_stack(i)] < self.spec_prio()[self.spec_stack(j)];
     /// The configuration is well formed, the Kernel state satisfies the
     /// logic's invariant, and the Partition views are those of the
     /// validated layout.
@@ -320,13 +335,16 @@ pub trait KernelOps: Sized {
         ensures final(self).inv(), final(self).spec_depth() == 0;
     fn start(&mut self)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
-            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
+            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
+            final(self).spec_depth() == old(self).spec_depth();
     fn started(&self) -> bool;
     fn safe_state(&self) -> bool;
     fn job_info(&self, t: u8) -> (info: JobInfo)
         requires self.inv(),
-        ensures info.task == t, info.priority <= MAX_PRIORITY;
+        ensures info.task == t, info.priority <= MAX_PRIORITY,
+            info.priority as int == self.spec_prio()[t as int],
+            (t as int) < self.task_count_spec() ==> info.priority >= 1;
     fn depth(&self) -> (d: usize)
         ensures d as int == self.spec_depth();
     /// `(periodic, due instant, offset, period)` of `t`: the instant its
@@ -368,21 +386,25 @@ pub trait KernelOps: Sized {
         requires old(self).inv(),
         ensures final(self).inv(),
             // The dispatched Job goes on top of the stack, or nothing changes.
+            final(self).spec_prio() == old(self).spec_prio(),
             forall|i: int| 0 <= i < old(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i),
             final(self).spec_depth() == old(self).spec_depth()
                 || (final(self).spec_depth() == old(self).spec_depth() + 1 && final(self).spec_stack(old(self).spec_depth()) == t as int);
     fn job_return(&mut self, elapsed_cycles: u32)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
-            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
+            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
+            old(self).spec_depth() > 0 ==> final(self).spec_depth() == old(self).spec_depth() - 1;
     fn svc_lock(&mut self, r: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
-            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
+            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
+            final(self).spec_depth() == old(self).spec_depth();
     fn svc_unlock(&mut self, r: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
-            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
+            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
+            final(self).spec_depth() == old(self).spec_depth();
     fn ceiling(&self) -> (c: u8)
         requires self.inv(),
         ensures c as int == self.ceiling_level();
@@ -400,16 +422,17 @@ pub trait KernelOps: Sized {
     /// raise or an Endpoint send.
     fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     fn timer_event(&mut self, now: u64, running_cycles: u32)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     fn fault(&mut self, kind: u8, kernel: bool)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
-            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
+            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
+            kernel ==> final(self).spec_depth() == old(self).spec_depth();
     fn next_compare(&self) -> Option<u64>
         requires self.inv();
     fn source_masked(&self, t: u8) -> bool
@@ -419,12 +442,12 @@ pub trait KernelOps: Sized {
     fn take_reinit(&mut self, p: u8) -> bool
         requires old(self).inv(),
         ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
-            final(self).spec_depth() <= old(self).spec_depth()
+            final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn take_stop_dma(&mut self, p: u8) -> bool
         requires old(self).inv(),
         ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
-            final(self).spec_depth() <= old(self).spec_depth()
+            final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn log_len(&self) -> usize
         requires self.inv();
@@ -449,12 +472,12 @@ pub trait KernelOps: Sized {
     /// R12.2: records the failed boot checks (bit set) before the safe state.
     fn boot_failed(&mut self, failed: u32)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// Logs the debug state and a watchdog reset at boot (ORQ-30, ORQ-31).
     fn boot_info(&mut self, debugger: bool, watchdog_reset: bool)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// Whether Partition `p` is stopped (R14.5): its interrupt sources stay disabled.
     fn partition_stopped(&self, p: u8) -> bool
@@ -479,14 +502,14 @@ pub trait KernelOps: Sized {
     /// R40.5 (task 21.2): an event against Task `t` with no response.
     fn record_event(&mut self, kind: u8, t: u8)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// R42.4 (task 21.4): a fault of Task `t`'s Partition raised by another
     /// Partition's Job (a rejected message): the event against `t` and
     /// `t`'s Partition's fault response.
     fn fault_of(&mut self, kind: u8, t: u8)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     spec fn partition_count_spec(&self) -> int;
 }
@@ -509,6 +532,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn spec_stack(&self, i: int) -> int {
         self.kernel.sched.stack[i] as int
+    }
+
+    open spec fn spec_prio(&self) -> Seq<int> {
+        Seq::new(256, |t: int| if t < NT { self.cfg.priority(t) as int } else { 0 })
+    }
+
+    proof fn lemma_stack_rising(&self) {
+        assert forall|i: int, j: int| #![trigger self.spec_stack(i), self.spec_stack(j)]
+            0 <= i < j < self.spec_depth() implies self.spec_prio()[self.spec_stack(i)] < self.spec_prio()[self.spec_stack(j)] by {
+            assert((self.kernel.sched.stack[i] as int) < NT);
+            assert((self.kernel.sched.stack[j] as int) < NT);
+            assert(self.cfg.priority(self.kernel.sched.stack[i] as int) < self.cfg.priority(self.kernel.sched.stack[j] as int));
+        }
     }
 
     open spec fn valid(&self) -> bool {

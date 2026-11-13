@@ -69,7 +69,7 @@ pub use entry::{
     Action, Binding, Cm4Hw, DispatchPlan, HwModel, KernelArch, ReturnPlan, Tables, CONTROL_JOB, EXC_RETURN_HANDLER_MSP,
     EXC_RETURN_THREAD_MSP, EXC_RETURN_THREAD_PSP, SVC_JOB_END, SVC_LOCK, SVC_NOW, SVC_PANIC, SVC_UNLOCK, XPSR_THUMB,
 };
-pub use plan::{compare_target, find_level, plan_frame, ArchState, EndpointCfg, LevelRecord, FRAME_BYTES, MAX_INSTANT, MAX_ENDPOINTS};
+pub use plan::{compare_target, plan_frame, top_active, ArchState, EndpointCfg, LevelRecord, FRAME_BYTES, MAX_INSTANT, MAX_ENDPOINTS};
 pub use unsafe_module::KernelCell;
 
 use crate::arch::{KernelOps, System};
