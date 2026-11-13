@@ -1744,10 +1744,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             forall|u: int| 0 <= u < NT && u != old(self).sched.top() ==> final(self).budget.used[u] == old(self).budget.used[u],
             // R9.6, R18.2: the ended Job's deadline and Budget events are
             // disarmed; the resumed Job's Budget event is armed.
-            // The deadline slot is disarmed, or holds the unmask event of the
-            // Task's MIT window (DD-06), never a deadline.
-            final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int)
-                ==> final(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int].kind == SLOT_UNMASK,
+            // With no Release of the Task held, the deadline slot is disarmed,
+            // or holds the unmask event of the Task's MIT window (DD-06), never
+            // a deadline. With a Release held (R9.7: it became due while this
+            // Job was in progress) the slot holds that Release's deadline event
+            // and is kept, so that the Job started from it has its miss
+            // reported (R9.6; audit finding 5, 2026-11-13: until then the slot
+            // was disarmed here and such a miss was never logged).
+            old(self).sched.release[old(self).sched.top() as int] == REL_NONE ==>
+                (final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int)
+                    ==> final(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int].kind == SLOT_UNMASK),
+            old(self).sched.release[old(self).sched.top() as int] != REL_NONE ==>
+                final(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int]
+                    == old(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int],
             !final(self).slots.armed(cfg.slot_budget[old(self).sched.top()] as int),
             final(self).sched.depth > 0 ==> final(self).slots.armed(cfg.slot_budget[final(self).sched.top()] as int),
             final(self).flags_eq(old(self)),
@@ -1782,10 +1791,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
         }
-        let ghost b2 = *self;
-        self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
-        proof {
-            Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_deadline[t as int] as int);
+        // R9.6 (audit finding 5): the slot is the ended Job's deadline event
+        // unless a Release of the Task is held, whose deadline it then holds.
+        if self.sched.release[t as usize] == REL_NONE {
+            let ghost b2 = *self;
+            self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
+            proof {
+                Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_deadline[t as int] as int);
+            }
         }
         if cfg.tasks[t as usize].kind == KIND_SPORADIC {
             self.end_mit_window(cfg, t);
@@ -1842,7 +1855,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// deferral event fires first and that Job's end re-arms the window.
     fn end_mit_window(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
         requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
-            !old(self).slots.armed(cfg.slot_deadline[t as int] as int),
+            old(self).sched.release[t as int] == REL_NONE ==> !old(self).slots.armed(cfg.slot_deadline[t as int] as int),
         ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
             final(self).log == old(self).log,
@@ -1851,8 +1864,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).timing.deferred_until == old(self).timing.deferred_until, final(self).timing.due == old(self).timing.due,
             final(self).timing.job_due == old(self).timing.job_due, final(self).timing.mask_until == old(self).timing.mask_until,
             forall|j: int| 0 <= j < NS && j != cfg.slot_deadline[t as int] ==> final(self).slots.slots[j] == old(self).slots.slots[j],
-            final(self).slots.armed(cfg.slot_deadline[t as int] as int)
-                ==> final(self).slots.slots[cfg.slot_deadline[t as int] as int].kind == SLOT_UNMASK,
+            old(self).sched.release[t as int] == REL_NONE ==>
+                (final(self).slots.armed(cfg.slot_deadline[t as int] as int)
+                    ==> final(self).slots.slots[cfg.slot_deadline[t as int] as int].kind == SLOT_UNMASK),
+            // A held Release's deadline event stays in the slot (R9.6).
+            old(self).sched.release[t as int] != REL_NONE ==>
+                final(self).slots.slots[cfg.slot_deadline[t as int] as int] == old(self).slots.slots[cfg.slot_deadline[t as int] as int],
     {
         proof {
             assert(cfg.task_ok(t as int));
@@ -2981,7 +2998,13 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).flags_eq(old(self)),
             final(self).budget == old(self).budget, final(self).timing == old(self).timing,
             !final(self).slots.armed(cfg.slot_budget[old(self).sched.top()] as int),
-            !final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int),
+            // R9.6 (audit finding 5): the ended Job's deadline event is disarmed;
+            // a held Release's deadline event, in the same slot, is kept.
+            old(self).sched.release[old(self).sched.top() as int] == REL_NONE ==>
+                !final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int),
+            old(self).sched.release[old(self).sched.top() as int] != REL_NONE ==>
+                final(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int]
+                    == old(self).slots.slots[cfg.slot_deadline[old(self).sched.top()] as int],
             forall|j: int| 0 <= j < NS && j != cfg.slot_budget[old(self).sched.top()] && j != cfg.slot_deadline[old(self).sched.top()]
                 ==> final(self).slots.slots[j] == old(self).slots.slots[j],
     {
@@ -3004,10 +3027,12 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
         }
-        let ghost b2 = *self;
-        self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
-        proof {
-            Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_deadline[t as int] as int);
+        if self.sched.release[t as usize] == REL_NONE {
+            let ghost b2 = *self;
+            self.slots.disarm(cfg.slot_deadline[t as usize] as usize);
+            proof {
+                Self::lemma_consistent_disarm(&b2, self, cfg, cfg.slot_deadline[t as int] as int);
+            }
         }
     }
 
