@@ -727,6 +727,9 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     let info = hw.boot_info();
     k.boot_info(info & BOOT_INFO_DEBUGGER != 0, info & BOOT_INFO_WATCHDOG_RESET != 0);
     let expect = tables.boot_expect();
+    // DD-08: PPI is Kernel-owned; every channel is cleared before the checks,
+    // which read the enable register back (bit 14).
+    hw.apply(Action::PpiDisableAll);
     let mut failed = hw.boot_checks(&expect);
     if k.config_checksum() != tables.config_checksum() {
         failed = failed | BOOT_FAIL_CHECKSUM;
@@ -846,12 +849,11 @@ fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     }
 }
 
-/// Clears every EasyDMA list-mode register and every PPI channel at boot
-/// (DD-08: list mode forbidden, PPI Kernel-owned).
+/// Clears every EasyDMA list-mode register at boot (DD-08: list mode
+/// forbidden). The PPI channels are cleared by `boot_core` before its checks.
 fn dma_boot<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T)
     requires k.inv(),
 {
-    hw.apply(Action::PpiDisableAll);
     let n = tables.dma_count();
     let mut i: usize = 0;
     while i < n

@@ -891,6 +891,7 @@ mod tests {
         sim::write(hw::addr::AIRCR, 0);
         sim::write(hw::addr::NRF_HFCLKSTAT, (1 << 16) | 1);
         sim::write(hw::addr::NRF_ICACHECNF, 0);
+        sim::write(hw::addr::NRF_PPI_CHEN, 0);
         sim::write(hw::addr::MVFR0, 0x1011_0021);
     }
 
@@ -937,6 +938,10 @@ mod tests {
         simulate_expected_board();
         sim::write(hw::addr::NRF_ICACHECNF, 1);
         assert_eq!(hw::boot_checks(&expect), 1 << 11, "instruction cache enabled (ASM-04)");
+
+        simulate_expected_board();
+        sim::write(hw::addr::NRF_PPI_CHEN, 1 << 3);
+        assert_eq!(hw::boot_checks(&expect), 1 << 14, "a PPI channel enabled after the boot clear (DD-08)");
 
         simulate_expected_board();
         sim::write(hw::addr::MVFR0, 0);

@@ -415,7 +415,11 @@ fn apply_every_action_is_total() {
                 assert!(writes == 0);
             }
         }
-        25 => assert!(sim::read(addr::NRF_PPI_CHENCLR) == 0xFFFF_FFFF && writes == 1),
+        // The address is typed here from the nRF52840 Product Specification's PPI
+        // register table (base 0x4001F000: CHEN 0x500, CHENSET 0x504, CHENCLR 0x508),
+        // not taken from `addr`, so that a wrong constant there fails this case
+        // (audit finding 3: the shared constant was CHENSET and the case agreed with it).
+        25 => assert!(sim::read(0x4001_F508u32) == 0xFFFF_FFFF && writes == 1),
         26 => assert!(writes == 1),
         27 => {
             assert!(sim::read(addr::NRF_WDT + hw::wdt::CRV) == w);

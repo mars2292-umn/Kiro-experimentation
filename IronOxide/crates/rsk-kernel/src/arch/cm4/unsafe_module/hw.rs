@@ -62,8 +62,13 @@ pub mod addr {
     pub const NRF_ICACHECNF: u32 = 0x4001_E540;
     /// nRF52840 WDT (PS 6.36), Kernel-owned (ORQ-31).
     pub const NRF_WDT: u32 = 0x4001_0000;
-    /// nRF52840 PPI.CHENCLR (PS 6.19): Kernel-owned (DD-08), every channel cleared at boot.
-    pub const NRF_PPI_CHENCLR: u32 = 0x4001_F504;
+    /// nRF52840 PPI.CHEN (PS 6.19, offset 0x500): the channel enable register, read back
+    /// by the boot check after the clear (bit 14; audit finding 3, 2026-11-13).
+    pub const NRF_PPI_CHEN: u32 = 0x4001_F500;
+    /// nRF52840 PPI.CHENCLR (PS 6.19, offset 0x508; 0x504 is CHENSET): Kernel-owned
+    /// (DD-08), every channel cleared at boot. Until 2026-11-13 this constant was
+    /// 0x4001_F504, CHENSET, and the boot write enabled all 32 channels.
+    pub const NRF_PPI_CHENCLR: u32 = 0x4001_F508;
     /// QEMU mps2-an386 CMSDK APB timers.
     pub const CMSDK_TIMER0: u32 = 0x4000_0000;
     pub const CMSDK_TIMER1: u32 = 0x4000_1000;
@@ -71,7 +76,7 @@ pub mod addr {
     pub const ALL: &[u32] = &[
         ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, CPUID, ICSR, AIRCR, CCR, SHPR1, SHPR2, SHPR3,
         SHCSR, CFSR, MMFAR, CPACR, MPU_TYPE, MPU_CTRL, MPU_RNR, MPU_RBAR, MPU_RASR, DEMCR, FPCCR, FPDSCR, DWT_CTRL,
-        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHENCLR, CMSDK_TIMER0,
+        DWT_CYCCNT, MVFR0, DHCSR, NRF_TIMER0, NRF_RESETREAS, NRF_APPROTECT_DISABLE, NRF_HFCLKSTART, NRF_HFCLKSTARTED, NRF_HFCLKSTAT, NRF_ICACHECNF, NRF_WDT, NRF_PPI_CHEN, NRF_PPI_CHENCLR, CMSDK_TIMER0,
         CMSDK_TIMER1,
     ];
 
@@ -899,6 +904,11 @@ pub fn boot_checks(expect: &BootExpect) -> u32 {
         }
         if mmio_read(addr::NRF_ICACHECNF) & 1 != 0 {
             failed |= 1 << 11;
+        }
+        // DD-08: PPI is Kernel-owned and `boot_core` cleared every channel
+        // before these checks; a channel still enabled is a failed check.
+        if mmio_read(addr::NRF_PPI_CHEN) != 0 {
+            failed |= 1 << 14;
         }
     }
     if expect.fpu_needed && mmio_read(addr::MVFR0) == 0 {
