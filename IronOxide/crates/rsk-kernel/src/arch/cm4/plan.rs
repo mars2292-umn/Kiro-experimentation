@@ -162,7 +162,9 @@ pub struct ArchState {
     pub deferred: [u16; 8],
     /// The unwind a Kernel-level entry owed while a dispatch stub was at
     /// its entry instruction (5.8a): the ended Job's level, unwound by that
-    /// stub once it has pushed its own record. Zero when none.
+    /// stub once it has pushed its own record. Zero when none. A second
+    /// entry in the same window keeps the first (topmost) level; the levels
+    /// below it follow by the unwind's chain (audit finding 6).
     pub pending_unwind: u32,
     /// The index state of every Endpoint channel (task 21.2; Property 11):
     /// channel `2 * e + d` carries what role `d` of Endpoint `e` sends.

@@ -1913,7 +1913,18 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     // stub (above), which performs it after its own pushes.
     if WINDOW_DEFER && r.0.psp == 0 && r.0.hop != 0 && exc_return & 0x8 == 0 && !r.1 {
         hw.apply(Action::Trace(TR_WINDOW, 0x10000 | r.0.hop));
-        state.pending_unwind = r.0.hop;
+        // Audit finding 6 (2026-11-13): a second Kernel-level entry in the
+        // same window (tail-chained before the stub's `cpsid i`) that ends
+        // the Job the first one resumed owes a deeper level's unwind. The
+        // first owed level is the topmost record and stays the one the stub
+        // unwinds; the deeper one follows from it by `epilogue_core`'s chain
+        // (`LevelRecord::previous_task`: the Job that level preempted is no
+        // longer the executing Job). Until this date the second entry
+        // overwrote the slot and the stub unwound the deeper level over the
+        // topmost record.
+        if state.pending_unwind == 0 {
+            state.pending_unwind = r.0.hop;
+        }
         return (DispatchPlan { psp: 0, control, exc_return, hop: 0 }, false);
     }
     r
