@@ -1036,4 +1036,165 @@ pub proof fn theorem_timer_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState,
     lemma_kentry_tail(s, c, call_ret(c, h, hop), k1, s0, s1, hop, fs, g, tpsp);
 }
 
+// ---- The exception model at a handler, and the entry-instruction window (5.8a).
+
+/// HW-06: exception `n` taken while a handler executes (Handler mode, on the
+/// main stack) in state `s`. The processor stacks the interrupted handler's
+/// frame on the main stack (`g` bytes, at least the eight words of a basic
+/// frame: R0 to R3, R12 and LR in its first six words; the rest of the room,
+/// the return address, xPSR, an extended frame and padding among it, is not
+/// modelled, `hx`), sets LR to the Handler-mode EXC_RETURN value and IPSR to
+/// `n`, and leaves every other register as it is.
+pub open spec fn exc_enter_handler(s: M, n: int, g: int, hx: M) -> M {
+    let b = s.sp - g;
+    M {
+        sp: b,
+        lr: 0xFFFF_FFF1,
+        ipsr: n,
+        mem: |x: int|
+            if x == b { s.r[0] } else if x == b + 4 { s.r[1] } else if x == b + 8 { s.r[2] }
+            else if x == b + 12 { s.r[3] } else if x == b + 16 { s.r[12] } else if x == b + 20 { s.lr }
+            else if b <= x < s.sp { (hx.mem)(x) } else { (s.mem)(x) },
+        ..s
+    }
+}
+
+/// HW-07: the exception return to a handler from state `f`, whose main
+/// stack pointer is at the frame the entry stacked: R0 to R3, R12 and LR
+/// come back from the frame, the stack pointer rises over its `g` bytes,
+/// IPSR is the interrupted handler's again, and FAULTMASK is cleared.
+pub open spec fn exc_return_handler(f: M, g: int, ipsr: int) -> M {
+    M {
+        sp: f.sp + g,
+        lr: (f.mem)(f.sp + 20),
+        ipsr: ipsr,
+        faultmask: false,
+        r: Seq::new(13, |i: int|
+            if i == 0 { (f.mem)(f.sp) } else if i == 1 { (f.mem)(f.sp + 4) } else if i == 2 { (f.mem)(f.sp + 8) }
+            else if i == 3 { (f.mem)(f.sp + 12) } else if i == 12 { (f.mem)(f.sp + 16) } else { f.r[i] }),
+        ..f
+    }
+}
+
+/// The interrupted handler finds its state as it left it: every register,
+/// the stack pointers, the floating-point registers and the memory at and
+/// above its stack pointer; the masks are clear.
+pub open spec fn resumed_as_left(r: M, s: M) -> bool {
+    &&& r.r =~= s.r && r.sp == s.sp && r.lr == s.lr && r.psp == s.psp && r.control == s.control
+    &&& r.fp =~= s.fp && r.ipsr == s.ipsr
+    &&& !r.primask && !r.faultmask
+    &&& forall|x: int| x >= s.sp ==> (s.mem)(x) == #[trigger] (r.mem)(x)
+}
+
+/// The Handler-mode EXC_RETURN value: neither Thread mode nor the process stack.
+pub proof fn lemma_handler_exc_return()
+    ensures !has_bit(0xFFFF_FFF1, 0x8), !has_bit(0xFFFF_FFF1, 0x4), 0xFFFF_FFF1u32 & 0x8 == 0,
+{
+    assert(0xFFFF_FFF1u32 & 0x8 == 0) by (bit_vector);
+    assert(0xFFFF_FFF1u32 & 0x4 == 0) by (bit_vector);
+}
+
+/// The entry-instruction window (5.8a), an interrupt vector's case. A
+/// handler in state `s`, PRIMASK clear (a dispatch stub at its entry
+/// instruction, with the main stack and the records in agreement for its
+/// own entry, `g0`), is preempted by an interrupt vector: any binding, the
+/// time base, an intake, another dispatch vector. The preempting stub's
+/// Rust half answers as `irq_entry_core`'s contract states for an entry
+/// from Handler mode: no dispatch and no unwind plan (a dispatch vector is
+/// deferred, an unwind is owed). Then that stub returns as entered and the
+/// exception return gives the preempted handler back every register, its
+/// stack pointer, the memory at and above it, and the agreement of the main
+/// stack and the records for the Kernel state the preempting entry left;
+/// which is the precondition of the preempted stub's own theorem
+/// (`theorem_irq_stub`), now for that Kernel state.
+pub proof fn theorem_nested_irq<K: KernelOps>(s: M, n: int, g: int, hx: M, h: M, k1: &K, s0: ArchState, s1: ArchState, plan: DispatchPlan, fs: Seq<Frame>, g0: int, tpsp: bool)
+    requires
+        wf(s), !s.primask, g >= 32, g0 >= 0,
+        world(s0, s.mem, s.sp + g0, fs, tpsp),
+        k1.inv(), WINDOW_DEFER,
+        super::entry::irq_rel(k1, s0, s1, 0xFFFF_FFF1u32, plan),
+    ensures ({
+        let e = exc_enter_handler(s, n, g, hx);
+        let p = (plan.psp as int, plan.control as int, plan.exc_return as int, plan.hop as int);
+        let f = irq_return(irq_restore(irq_called(e, h, p)));
+        let r = exc_return_handler(f, g, s.ipsr);
+        &&& plan.psp == 0 && plan.hop == 0
+        &&& resumed_as_left(r, s)
+        &&& world(s1, r.mem, r.sp + g0, fs, tpsp)
+        &&& super::entry::arch_inv(k1, s1, 0)
+    }),
+{
+    lemma_handler_exc_return();
+    let e = exc_enter_handler(s, n, g, hx);
+    let p = (plan.psp as int, plan.control as int, plan.exc_return as int, plan.hop as int);
+    assert(wf(e));
+    lemma_frames_ext(s.mem, e.mem, s.sp + g0, fs);
+    assert(hw_entry(e.lr, g + g0, tpsp));
+    theorem_irq_stub(e, h, k1, s0, s1, plan, fs, g + g0, tpsp);
+    lemma_irq_restore(e, h, p);
+    let u = irq_restore(irq_called(e, h, p));
+    let f = irq_return(u);
+    let r = exc_return_handler(f, g, s.ipsr);
+    assert forall|i: int| 0 <= i < 13 implies r.r[i] == s.r[i] by {
+        assert((e.mem)(e.sp) == s.r[0] && (e.mem)(e.sp + 4) == s.r[1] && (e.mem)(e.sp + 8) == s.r[2]
+            && (e.mem)(e.sp + 12) == s.r[3] && (e.mem)(e.sp + 16) == s.r[12]);
+        assert((e.mem)(e.sp) == (u.mem)(e.sp) && (e.mem)(e.sp + 4) == (u.mem)(e.sp + 4) && (e.mem)(e.sp + 8) == (u.mem)(e.sp + 8)
+            && (e.mem)(e.sp + 12) == (u.mem)(e.sp + 12) && (e.mem)(e.sp + 16) == (u.mem)(e.sp + 16));
+        if 3 <= i <= 11 {
+            assert(u.r[i] == e.r[i]);
+        }
+    }
+    assert((e.mem)(e.sp + 20) == (u.mem)(e.sp + 20));
+    assert forall|x: int| x >= s.sp implies (s.mem)(x) == #[trigger] (r.mem)(x) by {
+        assert((e.mem)(x) == (u.mem)(x));
+    }
+}
+
+/// The entry-instruction window, a fault's case (BusFault, UsageFault; the
+/// MemManage stub differs in its arguments only): a fault taken from
+/// Handler mode is passed to the Rust half as the Kernel's (`in_kernel`),
+/// for which `fault_core` plans no unwind; an entry that returns at all
+/// (the Kernel's fault response is the safe state) gives the interrupted
+/// handler back its state as `theorem_nested_irq` states.
+pub proof fn theorem_nested_fault<K: KernelOps>(s: M, n: int, g: int, hx: M, h: M, k1: &K, s0: ArchState, s1: ArchState, hop: int, fs: Seq<Frame>, g0: int, tpsp: bool)
+    requires
+        wf(s), !s.primask, !s.faultmask, g >= 32, g0 >= 0,
+        world(s0, s.mem, s.sp + g0, fs, tpsp),
+        k1.inv(),
+        super::entry::kentry_rel(k1, s0, s1, hop),
+        // `fault_core`: `in_kernel ==> r.0 == 0`, with the stub's argument.
+        fault_to_call(exc_enter_handler(s, n, g, hx)).r[0] != 0 ==> hop == 0,
+    ensures ({
+        let e = exc_enter_handler(s, n, g, hx);
+        let f = kentry_return(kentry_after_call(call_ret(fault_to_call(e), h, hop)));
+        let r = exc_return_handler(f, g, s.ipsr);
+        &&& fault_to_call(e).r[0] != 0 && hop == 0
+        &&& resumed_as_left(r, s)
+        &&& world(s1, r.mem, r.sp + g0, fs, tpsp)
+        &&& super::entry::arch_inv(k1, s1, 0)
+    }),
+{
+    lemma_handler_exc_return();
+    let e = exc_enter_handler(s, n, g, hx);
+    assert(wf(e));
+    lemma_frames_ext(s.mem, e.mem, s.sp + g0, fs);
+    assert(hw_entry(e.lr, g + g0, tpsp));
+    theorem_fault_stub(e, h, k1, s0, s1, hop, fs, g + g0, tpsp);
+    let c = fault_to_call(e);
+    let t = call_ret(c, h, hop);
+    let f = kentry_return(kentry_after_call(t));
+    let r = exc_return_handler(f, g, s.ipsr);
+    assert forall|x: int| x >= e.sp implies (e.mem)(x) == #[trigger] (f.mem)(x) by {}
+    assert forall|i: int| 0 <= i < 13 implies r.r[i] == s.r[i] by {
+        assert((e.mem)(e.sp) == s.r[0] && (e.mem)(e.sp + 4) == s.r[1] && (e.mem)(e.sp + 8) == s.r[2]
+            && (e.mem)(e.sp + 12) == s.r[3] && (e.mem)(e.sp + 16) == s.r[12]);
+        assert((f.mem)(e.sp) == (e.mem)(e.sp) && (f.mem)(e.sp + 4) == (e.mem)(e.sp + 4) && (f.mem)(e.sp + 8) == (e.mem)(e.sp + 8)
+            && (f.mem)(e.sp + 12) == (e.mem)(e.sp + 12) && (f.mem)(e.sp + 16) == (e.mem)(e.sp + 16));
+    }
+    assert((f.mem)(e.sp + 20) == (e.mem)(e.sp + 20));
+    assert forall|x: int| x >= s.sp implies (s.mem)(x) == #[trigger] (r.mem)(x) by {
+        assert((e.mem)(x) == (f.mem)(x));
+    }
+}
+
 } // verus!
