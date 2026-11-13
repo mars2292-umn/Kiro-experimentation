@@ -503,17 +503,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
     }
 
-    /// Every response keeps the timing state, MIT history included (R14.5).
+    /// Every response keeps the timing state, MIT history included (R14.5),
+    /// but for the unmasking of an ended Sporadic_Task's source (END_JOB,
+    /// audit finding 7).
     pub proof fn lemma_response_keeps_timing(&self, before: &Self, cfg: &Config<NT, NR, NP>, p: int, response: u8, t: int)
         requires self.response_applied(before, cfg, p, response, t),
-        ensures self.timing == before.timing,
+        ensures self.timing.unmasked_only(&before.timing),
     {
     }
 
     /// So does every MIT_Violation, whether or not it trips the threshold.
     pub proof fn lemma_violation_keeps_timing(&self, before: &Self, cfg: &Config<NT, NR, NP>, sp: int, t: int)
         requires self.violation_applied(before, cfg, sp, t),
-        ensures self.timing == before.timing,
+        ensures self.timing.unmasked_only(&before.timing),
     {
         if Self::incremented(before.mit_violations[sp]) > cfg.partitions[sp].mit_threshold {
             let m = choose|m: Self| #[trigger] m.counted(before, sp, Self::incremented(before.mit_violations[sp]))
@@ -1102,7 +1104,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         } else if response == RESP_END_JOB && old.sched.depth > 0 && old.sched.top() == t && old.sched.top_holds_nothing() {
             &&& self.ended_top(old, cfg)
             &&& self.others_unchanged(old, cfg, cfg.tasks[t].partition as int)
-            &&& self.timing == old.timing
+            // The MIT history is kept; the ended Sporadic_Task's MIT window
+            // ends as at a Job's return (DD-06; audit finding 7), so its
+            // source may be unmasked.
+            &&& self.timing.unmasked_only(&old.timing)
         } else if response == RESP_END_JOB || response == RESP_RESTART_PARTITION {
             // END_JOB on a Job holding a Resource escalates (R18.4).
             &&& self.partition_ended(cfg, p)
@@ -1870,6 +1875,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // A held Release's deadline event stays in the slot (R9.6).
             old(self).sched.release[t as int] != REL_NONE ==>
                 final(self).slots.slots[cfg.slot_deadline[t as int] as int] == old(self).slots.slots[cfg.slot_deadline[t as int] as int],
+            // Only t's source may be unmasked.
+            final(self).timing.unmasked_only(&old(self).timing),
+            forall|u: int| 0 <= u < NT && u != t ==> final(self).timing.masked[u] == old(self).timing.masked[u],
+            final(self).stopped == old(self).stopped && final(self).mit_violations == old(self).mit_violations,
     {
         proof {
             assert(cfg.task_ok(t as int));
@@ -1978,7 +1987,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// of `t` was overdue; the Task's timing state is untouched either way.
     pub open spec fn overdue_deadline_served(&self, old: &Self, cfg: &Config<NT, NR, NP>, t: int, now: u64) -> bool {
         let s = old.slots.slots[cfg.slot_deadline[t] as int];
-        &&& self.inv(cfg) && self.history_extends(old) && self.timing == old.timing
+        &&& self.inv(cfg) && self.history_extends(old) && self.timing.unmasked_only(&old.timing)
         &&& !(s.armed && s.kind == SLOT_DEADLINE && s.at as int <= Self::observed(old.now, now)) ==> self.unchanged_but_log(old)
     }
 
@@ -2769,7 +2778,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// not completed (the slot is disarmed on completion).
     fn deadline_miss(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing.unmasked_only(&old(self).timing),
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, i as int),
     {
@@ -2808,7 +2817,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// with no compare and no Overrun (Verification_Plan 11.6).
     fn budget_event(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
-        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing == old(self).timing,
+        ensures final(self).inv(cfg), final(self).history_extends(old(self)), final(self).timing.unmasked_only(&old(self).timing),
             // R18.1: the event judges and responds; it charges nothing.
             final(self).budget.only_reset_from(&old(self).budget),
             final(self).periodic_env(old(self), cfg, i as int),
@@ -2877,7 +2886,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 cfg.partitions[cfg.tasks[old(self).sched.top()].partition as int].fault_response,
                 old(self).sched.top()),
             // Every response keeps the MIT history (R14.5).
-            final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
+            final(self).timing.unmasked_only(&old(self).timing), final(self).mit_spaced(old(self), cfg),
     {
         let prs = fault_prs(kind);
         if kernel || self.sched.depth == 0 {
@@ -2915,7 +2924,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 cfg.tasks[t as int].partition as int,
                 cfg.partitions[cfg.tasks[t as int].partition as int].fault_response,
                 t as int),
-            final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
+            final(self).timing.unmasked_only(&old(self).timing), final(self).mit_spaced(old(self), cfg),
     {
         let prs = fault_prs(kind);
         proof {
@@ -2967,6 +2976,35 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                         proof {
                             self.lemma_others_same_but_log(&mid, old(self), cfg, cfg.tasks[t as int].partition as int);
                             Self::lemma_kept_trans(old(self), &mid, self, cfg, -1, -1);
+                        }
+                        // Audit finding 7 (2026-11-13): the ended Job of a
+                        // Sporadic_Task ends its MIT window as a returning
+                        // one does (DD-06): the source is unmasked when the
+                        // window is over, else the unmask event is armed.
+                        // Until this date END_JOB left an interrupt-bound
+                        // source masked until its Partition's next restart.
+                        proof {
+                            assert(cfg.task_ok(t as int));
+                        }
+                        if cfg.tasks[t as usize].kind == KIND_SPORADIC {
+                            let ghost e = *self;
+                            self.end_mit_window(cfg, t);
+                            proof {
+                                assert(cfg.slot_ok(t as int));
+                                Self::lemma_release_slot_apart(cfg, t as int);
+                                Self::lemma_env_slots(&e, self, cfg, -1, cfg.slot_deadline[t as int] as int);
+                                Self::lemma_kept_trans(old(self), &e, self, cfg, -1, -1);
+                                // R14.9: the unmask touches t's source and t's deadline slot only.
+                                let pt = cfg.tasks[t as int].partition as int;
+                                assert(e.others_unchanged(old(self), cfg, pt));
+                                assert forall|u: int| 0 <= u < NT && (#[trigger] cfg.tasks[u].partition as int) != pt
+                                    implies self.task_unchanged(old(self), cfg, u) by {
+                                    Self::lemma_slots_apart(cfg, t as int, u);
+                                    Self::lemma_slots_own(cfg, u);
+                                    assert(e.task_unchanged(old(self), cfg, u));
+                                }
+                                assert(self.others_unchanged(old(self), cfg, pt));
+                            }
                         }
                         return;
                     }
@@ -3046,6 +3084,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).budget == old(self).budget, final(self).timing == old(self).timing,
             // R14.9: only the ended Job's Partition is affected.
             final(self).others_unchanged(old(self), cfg, cfg.tasks[old(self).sched.top()].partition as int),
+            // With no Release of the ended Job's Task held, its deadline slot is
+            // free (for the unmask event of its MIT window, audit finding 7).
+            old(self).sched.release[old(self).sched.top() as int] == REL_NONE ==>
+                !final(self).slots.armed(cfg.slot_deadline[old(self).sched.top()] as int),
     {
         let t = self.sched.stack[self.sched.depth - 1];
         proof {
@@ -3058,8 +3100,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             let resumed = self.sched.stack[self.sched.depth - 1];
             proof {
                 assert(cfg.task_ok(resumed as int));
+                // The resumed Job is not the ended one: its Budget slot is
+                // none of the ended Job's slots.
+                assert(old(self).sched.stack[m.sched.depth - 1] != old(self).sched.stack[old(self).sched.depth - 1]);
+                assert(cfg.slots_distinct(resumed as int, t as int));
+                assert(cfg.slots_distinct(t as int, resumed as int));
+                assert(cfg.slot_ok(resumed as int));
             }
             self.arm_budget(cfg, resumed);
+            proof {
+                assert((cfg.slot_budget[resumed as int] as int) != (cfg.slot_deadline[t as int] as int));
+                assert(self.slots.slots[cfg.slot_deadline[t as int] as int] == m.slots.slots[cfg.slot_deadline[t as int] as int]);
+            }
         }
         proof {
             // The slots touched are t's Budget and deadline slots and the

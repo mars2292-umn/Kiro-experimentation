@@ -456,6 +456,46 @@ fn running_cycles_are_charged_at_every_timed_event() {
     assert!(k.sched.job[s] == JOB_NONE);
 }
 
+/// Audit finding 7 (2026-11-13; DD-06 step 4, design "Closed response
+/// sets": after END_JOB "the Task's next Release follows the normal
+/// schedule"): the Job of an interrupt-bound Sporadic_Task ended by its
+/// Partition's Overrun response ends the Task's MIT window as a returning
+/// Job does. `pulse` (part1, END_JOB, MIT 375,000) is released by an event
+/// at 1,000, overruns its Budget and is ended at 13,500: its source stays
+/// masked for the rest of the window, with the unmask event armed on its
+/// deadline slot for 376,000; that event unmasks the source, and the next
+/// event is accepted. Until this date nothing unmasked the source before
+/// its Partition's next restart.
+#[kani::proof]
+#[kani::unwind(25)]
+fn end_job_of_a_sporadic_task_ends_its_mit_window() {
+    const PULSE: u8 = 4;
+    let mut cfg = config();
+    cfg.tasks[CONTROL as usize].offset = 200_000;
+    cfg.tasks[SENSOR as usize].offset = 400_000;
+    cfg.tasks[LOG as usize].offset = 500_000;
+    cfg.tasks[FILTER as usize].offset = 600_000;
+    cfg.tasks[SAMPLER as usize].offset = 1_000_000;
+    assert!(cfg.validate());
+    let p = PULSE as usize;
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.intake(&cfg, PULSE, 1, 1_000);
+    assert!(k.sched.release[p] == REL_PENDING && k.timing.masked[p]);
+    k.dispatch(&cfg, PULSE, 0);
+    // The Budget event, armed at the dispatch for 1,000 + 12,500: 12,600 cycles consumed.
+    k.timer_event(&cfg, 13_500, 12_600);
+    assert!(k.sched.depth == 0 && k.sched.job[p] == JOB_NONE);
+    // The window is not over: still masked, the unmask event armed for its end.
+    let slot = k.slots.slots[cfg.slot_deadline[p] as usize];
+    assert!(k.timing.masked[p]);
+    assert!(slot.armed && slot.kind == super::time::SLOT_UNMASK && slot.at == 376_000);
+    k.timer_event(&cfg, 376_000, 0);
+    assert!(!k.timing.masked[p]);
+    k.intake(&cfg, PULSE, 1, 376_001);
+    assert!(k.sched.release[p] == REL_PENDING);
+}
+
 /// The audit's lead 2.1 (2026-11-13), a witness on the demo's configuration:
 /// one `timer_event` ends two Jobs. `sampler` (part2, END_JOB) crosses its
 /// Budget at the charge of `log`'s dispatch, 30 cycles after the time-base
