@@ -612,7 +612,7 @@ pub fn timer<S: System>() -> ReturnPlan {
 /// that ended a Job (fewer Jobs in progress than at its start; a dispatch
 /// only adds one) drops a pending SVCall, which can only be the ended
 /// executing Job's (`hw::svc_clear_pending`).
-fn svc_of_ended_job<K: KernelOps>(k: &K, depth_before: usize) {
+pub(crate) fn svc_of_ended_job<K: KernelOps>(k: &K, depth_before: usize) {
     if k.depth() < depth_before {
         hw::svc_clear_pending();
     }

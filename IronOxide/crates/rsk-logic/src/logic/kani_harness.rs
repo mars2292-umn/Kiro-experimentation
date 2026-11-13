@@ -578,6 +578,13 @@ fn one_timer_event_ends_two_jobs_when_the_resumed_job_crossed_its_budget_at_a_pr
     assert!(k.sched.job[l] == JOB_NONE && k.sched.job[s] == JOB_NONE);
 }
 
+/// The demo's `CONFIG` for the Kernel_Arch harness of rsk-kernel
+/// (`arch_records_match_the_stack_over_kernel_entries`): the same literal,
+/// so that the R45.8 rule covers both.
+pub fn demo_config() -> Config<NT, NR, NP> {
+    config()
+}
+
 /// Task 5.5 (R17.1, R17.2): the executable DMA buffer check agrees with a
 /// direct recomputation of its specification for every layout of a 1 KiB
 /// to 64 KiB Partition RAM and every buffer, as a cross-check of the Verus
