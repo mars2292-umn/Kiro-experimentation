@@ -130,8 +130,8 @@ expect = ["entry.rs", "precondition not satisfied"]
 id = "dispatch-privileged"
 kills = "irq_entry_core: CONTROL_JOB (A5: a Job runs unprivileged)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "            (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
-replace = "            (DispatchPlan { psp: frame, control: 0, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
+find = "    (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
+replace = "    (DispatchPlan { psp: frame, control: 0, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)\n"
 expect = ["entry.rs", "CONTROL_JOB"]
 
 [[mutation]]
@@ -620,8 +620,8 @@ expect = ["entry.rs", "assertion failed"]
 id = "dispatch-record-drops-previous-task"
 kills = "irq_entry_core's clause on the level record a dispatch writes: it names the Job the dispatch preempted (LevelRecord::previous_task), the link the unwind's chain follows"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "                previous_task,\n                active: true,"
-replace = "                previous_task: 0xFF,\n                active: true,"
+find = "        previous_task,\n        active: true,"
+replace = "        previous_task: 0xFF,\n        active: true,"
 expect = ["entry.rs", "assertion failed"]
 
 # `owed-unwind-overwritten` (finding 6: the second owed level replacing the
@@ -662,8 +662,8 @@ expect = ["entry.rs", "postcondition not satisfied"]
 id = "dispatch-starts-job-before-frame-check"
 kills = "irq_entry_core keeps arch_inv on its refusal paths: a refusal after Kernel::dispatch would leave a Job in progress with no level record (the checks precede the dispatch)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "            if k.depth() == depth_before {\n                // The Kernel refused the dispatch of a Task it found eligible\n                // (before instant 0): nothing to record or to return to.\n                k.fault(EV_HARDFAULT, true);"
-replace = "            if k.depth() != depth_before {\n                // The Kernel refused the dispatch of a Task it found eligible\n                // (before instant 0): nothing to record or to return to.\n                k.fault(EV_HARDFAULT, true);"
+find = "    if k.depth() == depth_before {\n        // The Kernel refused the dispatch of a Task it found eligible\n        // (before instant 0): nothing to record or to return to.\n        k.fault(EV_HARDFAULT, true);"
+replace = "    if k.depth() != depth_before {\n        // The Kernel refused the dispatch of a Task it found eligible\n        // (before instant 0): nothing to record or to return to.\n        k.fault(EV_HARDFAULT, true);"
 expect = ["entry.rs"]
 
 # The assembly stubs against the machine model (Verification_Plan 5.17,
@@ -723,7 +723,7 @@ expect = ["entry.rs", "postcondition not satisfied"]
 id = "dispatch-frame-zero"
 kills = "irq_entry_core's irq_rel: a frame address of 0 is the stub's `no dispatch`, so a dispatch never returns it (the Kernel would hold a Job the stub did not start)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "            if frame == 0 {\n                k.fault(EV_HARDFAULT, true);"
-replace = "            if false {\n                k.fault(EV_HARDFAULT, true);"
+find = "    if frame == 0 {\n        k.fault(EV_HARDFAULT, true);"
+replace = "    if false {\n        k.fault(EV_HARDFAULT, true);"
 expect = ["entry.rs", "postcondition not satisfied"]
 

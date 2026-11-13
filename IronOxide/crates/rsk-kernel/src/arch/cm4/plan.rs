@@ -212,6 +212,7 @@ pub struct ArchState {
 /// leaves of them.
 pub open spec fn arch_frame(a: ArchState, b: ArchState) -> bool {
     &&& a.levels == b.levels
+    &&& a.current_partition == b.current_partition
     &&& a.pending_unwind == b.pending_unwind
     &&& a.chain@ == b.chain@
     &&& a.chain_levels@ == b.chain_levels@

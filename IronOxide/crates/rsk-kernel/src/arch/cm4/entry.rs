@@ -123,6 +123,10 @@ pub const BOOT_FAIL_LAYOUT_CHECKSUM: u32 = 1 << 13;
 /// Bit 15: an EasyDMA register the Kernel mediates lies outside the read-only
 /// windows of its Partition (DD-08, R17.3; audit finding 1).
 pub const BOOT_FAIL_DMA_WINDOW: u32 = 1 << 15;
+/// Bit 16: the vector tables disagree: a Task's dispatch vector is not bound
+/// to its dispatch, or a Sporadic_Task's intake vector not to its intake
+/// (A12, A13; 2026-11-13).
+pub const BOOT_FAIL_VECTORS: u32 = 0x1_0000;
 /// `KernelArch::boot_info` bits.
 pub const BOOT_INFO_DEBUGGER: u32 = 1;
 pub const BOOT_INFO_WATCHDOG_RESET: u32 = 2;
@@ -365,19 +369,51 @@ pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
 pub uninterp spec fn spec_stack_bottom_of<T: ?Sized>(t: &T, p: int) -> int;
 pub uninterp spec fn spec_stack_top_of<T: ?Sized>(t: &T, p: int) -> int;
 
+/// The vector tables of a `Tables` as specifications (the generated
+/// constants): the binding of an exception number, a Task's dispatch vector,
+/// a Sporadic_Task's intake vector, and the number of interrupt lines.
+pub uninterp spec fn spec_binding_of<T: ?Sized>(t: &T, n: int) -> Binding;
+pub uninterp spec fn spec_dispatch_vector_of<T: ?Sized>(t: &T, task: int) -> int;
+pub uninterp spec fn spec_intake_vector_of<T: ?Sized>(t: &T, task: int) -> Option<u16>;
+pub uninterp spec fn spec_irq_count_of<T: ?Sized>(t: &T) -> int;
+
+/// The vector tables agree for Task `t`: its dispatch vector is bound to its
+/// dispatch, and its intake vector, when it has one, to its intake.
+pub open spec fn vectors_of_ok<T: Tables>(tables: &T, t: int) -> bool {
+    &&& spec_binding_of(tables, spec_dispatch_vector_of(tables, t)) == Binding::Dispatch(t as u8)
+    &&& match spec_intake_vector_of(tables, t) {
+        Some(v) => match spec_binding_of(tables, v as int) {
+            Binding::Intake { task, partition: _ } => task as int == t,
+            _ => false,
+        },
+        None => true,
+    }
+}
+
+/// The vector tables agree for every Task (checked at boot, `vectors_ok`):
+/// so no two Tasks share a vector, and no intake vector is a dispatch vector
+/// (until 2026-11-13 a Generator fact, A12 and A13 of the Verification_Plan).
+pub open spec fn tables_wf<T: Tables>(tables: &T, nt: int) -> bool {
+    forall|t: int| 0 <= t < nt ==> #[trigger] vectors_of_ok(tables, t)
+}
+
 /// What the generated system crate provides (the `System` trait of
 /// `arch`, adapted by `arch::cm4`).
 pub trait Tables {
-    fn binding(&self, n: u16) -> Binding;
-    fn dispatch_vector(&self, t: u8) -> u16;
-    fn intake_vector(&self, t: u8) -> Option<u16>;
+    fn binding(&self, n: u16) -> (b: Binding)
+        ensures b == spec_binding_of(self, n as int);
+    fn dispatch_vector(&self, t: u8) -> (v: u16)
+        ensures v as int == spec_dispatch_vector_of(self, t as int);
+    fn intake_vector(&self, t: u8) -> (v: Option<u16>)
+        ensures v == spec_intake_vector_of(self, t as int);
     fn stack_top(&self, p: u8) -> (a: u32)
         ensures a as int == spec_stack_top_of(self, p as int);
     fn stack_bottom(&self, p: u8) -> (a: u32)
         ensures a as int == spec_stack_bottom_of(self, p as int);
     /// The address of Task `t`'s Job wrapper.
     fn task_entry_address(&self, t: u8) -> u32;
-    fn irq_count(&self) -> u16;
+    fn irq_count(&self) -> (n: u16)
+        ensures n as int == spec_irq_count_of(self);
     fn config_checksum(&self) -> u32;
     fn layout_checksum(&self) -> u32;
     fn timer_vector(&self) -> u16;
@@ -616,6 +652,7 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
     ensures final(hw).hw().basepri == old(hw).hw().basepri,
         final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
         final(hw).hw().compare.is_some(),
 {
     let now = hw.now();
@@ -631,8 +668,16 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
 /// safe state; the shell then enters `System::safe_state`.
 #[verifier::rlimit(40)]
 pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
-    requires old(k).inv(),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
     ensures
+        final(k).task_count_spec() == old(k).task_count_spec(),
+        // A4: a vector this function pends is the dispatch vector of a Task
+        // the Kernel found eligible; nothing else is pended.
+        forall|v: int| #[trigger] final(hw).hw().pending.contains(v) && !old(hw).hw().pending.contains(v)
+            ==> eligible_vector(old(k), tables, v),
+        // A13: every intake vector is enabled exactly when its source is
+        // unmasked and its Partition not stopped (the Kernel state at entry).
+        forall|u: int| 0 <= u < old(k).task_count_spec() ==> #[trigger] intake_done(old(k), tables, final(hw).hw(), u),
         final(k).inv(),
         final(k).top_level() == old(k).top_level(),
         final(k).ceiling_level() == old(k).ceiling_level(),
@@ -643,7 +688,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         // The Kernel's stack, the level records and the owed unwind are untouched.
         final(k).spec_depth() == old(k).spec_depth(),
         forall|i: int| 0 <= i < old(k).spec_depth() ==> final(k).spec_stack(i) == old(k).spec_stack(i),
-        final(k).spec_prio() == old(k).spec_prio(),
+        final(k).spec_prio() == old(k).spec_prio(), final(k).spec_part() == old(k).spec_part(),
         super::plan::arch_frame(*final(state), *old(state)),
 {
     hw.apply(Action::SetBasepri(k.basepri_now()));
@@ -651,20 +696,44 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         Some(at) => arm_compare(hw, at),
         None => {}
     }
+    let ghost h0 = hw.hw();
     match k.select() {
-        Some(t) => hw.apply(Action::Pend(tables.dispatch_vector(t))),
+        Some(t) => {
+            hw.apply(Action::Pend(tables.dispatch_vector(t)));
+            proof {
+                assert(spec_dispatch_vector_of(tables, t as int) == spec_dispatch_vector_of(tables, t as int));
+                assert(eligible_vector(k, tables, spec_dispatch_vector_of(tables, t as int)));
+            }
+        }
         None => {}
     }
     let ghost h1 = hw.hw();
     let ghost k1 = *k;
+    proof {
+        assert(k1 == *old(k));
+        assert forall|v: int| #[trigger] h1.pending.contains(v) && !old(hw).hw().pending.contains(v)
+            implies eligible_vector(&k1, tables, v) by {}
+    }
     let n = k.task_count();
     let mut t: usize = 0;
     while t < n
         invariant
-            k.inv(), *k == k1, n <= 255,
+            k.inv(), *k == k1, n <= 255, t <= n, n as int == k1.task_count_spec(),
+            tables_wf(tables, k1.task_count_spec()),
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
+            forall|v: int| #[trigger] hw.hw().pending.contains(v) ==> h1.pending.contains(v),
+            forall|u: int| 0 <= u < t ==> #[trigger] intake_done(&k1, tables, hw.hw(), u),
         decreases n - t,
     {
+        let ghost hb = hw.hw();
+        proof {
+            // The vector touched in this round is no earlier Task's.
+            assert(vectors_of_ok(tables, t as int));
+            assert forall|u: int| 0 <= u < t implies spec_intake_vector_of(tables, u) != spec_intake_vector_of(tables, t as int)
+                || spec_intake_vector_of(tables, t as int) is None by {
+                assert(vectors_of_ok(tables, u));
+            }
+        }
         match tables.intake_vector(t as u8) {
             Some(v) => {
                 let partition = k.job_info(t as u8).partition;
@@ -682,8 +751,16 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             }
             None => {}
         }
+        proof {
+            assert forall|u: int| 0 <= u < t + 1 implies #[trigger] intake_done(&k1, tables, hw.hw(), u) by {
+                if u < t {
+                    assert(intake_done(&k1, tables, hb, u));
+                }
+            }
+        }
         t += 1;
     }
+    let ghost h2 = hw.hw();
     let np = k.partition_count();
     let mut p: usize = 0;
     while p < np
@@ -692,8 +769,10 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             k.top_level() == k1.top_level(), k.ceiling_level() == k1.ceiling_level(),
             k.spec_depth() == k1.spec_depth(),
             forall|i: int| 0 <= i < k1.spec_depth() ==> k.spec_stack(i) == k1.spec_stack(i),
-            k.spec_prio() == k1.spec_prio(),
+            k.spec_prio() == k1.spec_prio(), k.spec_part() == k1.spec_part(),
+            k.task_count_spec() == k1.task_count_spec(),
             super::plan::arch_frame(*state, *old(state)),
+            hw.hw().pending == h2.pending, hw.hw().enabled == h2.enabled,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
         decreases np - p,
     {
@@ -715,11 +794,146 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         }
         p += 1;
     }
-    if k.safe_state() {
+    let safe = k.safe_state();
+    if safe {
         hw.apply(Action::SetBasepri(0));
-        true
-    } else {
-        false
+    }
+    proof {
+        assert(hw.hw().pending == h2.pending && hw.hw().enabled == h2.enabled);
+        assert forall|u: int| 0 <= u < k1.task_count_spec() implies #[trigger] intake_done(&k1, tables, hw.hw(), u) by {
+            assert(intake_done(&k1, tables, h2, u));
+        }
+        assert forall|v: int| #[trigger] hw.hw().pending.contains(v) && !old(hw).hw().pending.contains(v)
+            implies eligible_vector(&k1, tables, v) by {
+            assert(h2.pending.contains(v));
+            assert(h1.pending.contains(v));
+        }
+    }
+    safe
+}
+
+/// The boot check of the vector tables (`tables_wf`).
+fn vectors_ok<K: KernelOps, T: Tables>(k: &K, tables: &T) -> (ok: bool)
+    requires k.inv(),
+    ensures ok ==> tables_wf(tables, k.task_count_spec()),
+{
+    let n = k.task_count();
+    let mut t: usize = 0;
+    while t < n
+        invariant
+            t <= n, n as int == k.task_count_spec(), n <= 255,
+            forall|u: int| 0 <= u < t ==> #[trigger] vectors_of_ok(tables, u),
+        decreases n - t,
+    {
+        match tables.binding(tables.dispatch_vector(t as u8)) {
+            Binding::Dispatch(u) => {
+                if u as usize != t {
+                    return false;
+                }
+            }
+            _ => {
+                return false;
+            }
+        }
+        match tables.intake_vector(t as u8) {
+            Some(v) => match tables.binding(v) {
+                Binding::Intake { task, partition: _ } => {
+                    if task as usize != t {
+                        return false;
+                    }
+                }
+                _ => {
+                    return false;
+                }
+            },
+            None => {}
+        }
+        t += 1;
+    }
+    true
+}
+
+/// A3: what boot programs for exception number `v`: a dispatch vector at
+/// the level of its Task's Priority, an intake or Kernel line at the Kernel
+/// level, each enabled; an unbound line disabled (R19.5).
+pub open spec fn boot_vector_ok<K: KernelOps, T: Tables>(k: &K, tables: &T, h: HwModel, v: int) -> bool {
+    match spec_binding_of(tables, v) {
+        Binding::Dispatch(t) => h.priority.contains_key(v) && h.priority[v] == hw_model::encode_level(k.spec_prio()[t as int])
+            && h.enabled.contains(v),
+        Binding::Unbound => !h.enabled.contains(v),
+        _ => h.priority.contains_key(v) && h.priority[v] == hw_model::encode_level(0) && h.enabled.contains(v),
+    }
+}
+
+/// A13: after a Kernel transition the intake vector of Task `u` is enabled
+/// exactly when its source is not masked and its Partition not stopped.
+pub open spec fn intake_done<K: KernelOps, T: Tables>(k: &K, tables: &T, h: HwModel, u: int) -> bool {
+    match spec_intake_vector_of(tables, u) {
+        Some(v) => h.enabled.contains(v as int) <==> !(k.spec_source_masked(u) || k.spec_partition_stopped(k.spec_part()[u])),
+        None => true,
+    }
+}
+
+/// A4: vector `v` is the dispatch vector of a Task the Kernel finds eligible.
+pub open spec fn eligible_vector<K: KernelOps, T: Tables>(k: &K, tables: &T, v: int) -> bool {
+    exists|u: int| 0 <= u < k.task_count_spec() && k.task_eligible(u) && v == #[trigger] spec_dispatch_vector_of(tables, u)
+}
+
+/// Boot's vector programming (A3): every interrupt line is disabled, then
+/// given the priority of its binding and enabled; an unbound line stays
+/// disabled (R19.5).
+fn boot_vectors<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &T, irqs: u16)
+    requires k.inv(), irqs <= MAX_IRQS,
+    ensures
+        forall|v: int| 16 <= v < 16 + irqs ==> #[trigger] boot_vector_ok(k, tables, final(hw).hw(), v),
+        final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt, final(hw).hw().nonbasethrdena == old(hw).hw().nonbasethrdena,
+        final(hw).hw().disdefwbuf == old(hw).hw().disdefwbuf, final(hw).hw().fpu_eager == old(hw).hw().fpu_eager,
+        final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0,
+        final(hw).hw().mpu_enabled == old(hw).hw().mpu_enabled, final(hw).hw().timebase_running == old(hw).hw().timebase_running,
+        final(hw).hw().dwt_enabled == old(hw).hw().dwt_enabled, final(hw).hw().watchdog_running == old(hw).hw().watchdog_running,
+        final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost h1 = hw.hw();
+    let end: u16 = 16 + irqs;
+    let mut n: u16 = 16;
+    while n < end
+        invariant
+            k.inv(), end <= 16 + MAX_IRQS, 16 <= n <= end,
+            forall|v: int| 16 <= v < n ==> #[trigger] boot_vector_ok(k, tables, hw.hw(), v),
+            hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt, hw.hw().nonbasethrdena == h1.nonbasethrdena,
+            hw.hw().disdefwbuf == h1.disdefwbuf, hw.hw().fpu_eager == h1.fpu_eager,
+            hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0,
+            hw.hw().mpu_enabled == h1.mpu_enabled, hw.hw().timebase_running == h1.timebase_running,
+            hw.hw().dwt_enabled == h1.dwt_enabled, hw.hw().watchdog_running == h1.watchdog_running,
+            hw.hw().view == h1.view,
+        decreases end - n,
+    {
+        let ghost hb = hw.hw();
+        hw.apply(Action::Disable(n));
+        match tables.binding(n) {
+            Binding::Dispatch(t) => {
+                let p = k.job_info(t).priority;
+                hw.apply(Action::SetPriority(n, encode_level(p)));
+                hw.apply(Action::Enable(n));
+            }
+            Binding::Intake { task: _, partition: _ } => {
+                hw.apply(Action::SetPriority(n, encode_level(0)));
+                hw.apply(Action::Enable(n));
+            }
+            Binding::Kernel => {
+                hw.apply(Action::SetPriority(n, encode_level(0)));
+                hw.apply(Action::Enable(n));
+            }
+            Binding::Unbound => {}
+        }
+        proof {
+            assert forall|v: int| 16 <= v < n + 1 implies #[trigger] boot_vector_ok(k, tables, hw.hw(), v) by {
+                if v < n {
+                    assert(boot_vector_ok(k, tables, hb, v));
+                }
+            }
+        }
+        n += 1;
     }
 }
 
@@ -738,6 +952,11 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         // Boot establishes the invariant of the entry cores: no level
         // record is active, nothing is owed, and no Job is in progress.
         ok ==> arch_inv(final(k), *final(state), 0),
+        ok ==> view_matches(*final(state), final(hw)),
+        // The vector tables agree (A12, A13), and every vector has its
+        // priority and its enable (A3).
+        ok ==> tables_wf(tables, final(k).task_count_spec()),
+        ok ==> forall|v: int| 16 <= v < 16 + spec_irq_count_of(tables) ==> #[trigger] boot_vector_ok(final(k), tables, final(hw).hw(), v),
 {
     hw.apply(Action::Trace(TR_BOOT, 0));
     if !k.validate() {
@@ -757,6 +976,7 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         l += 1;
     }
     state.pending_unwind = 0;
+    state.current_partition = 0xFF;
     state.chain = Ghost(Seq::empty());
     state.chain_levels = Ghost(Seq::empty());
     let ghost sb = *state;
@@ -782,6 +1002,14 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     if !dma_windows_ok(k, tables) {
         failed = failed | BOOT_FAIL_DMA_WINDOW;
     }
+    let vectors = vectors_ok(k, tables);
+    if !vectors {
+        let before = failed;
+        failed = before | BOOT_FAIL_VECTORS;
+        proof {
+            assert(before | 0x10000u32 != 0) by (bit_vector);
+        }
+    }
     let irqs = tables.irq_count();
     if irqs > MAX_IRQS {
         // An interrupt-line count the Kernel_Arch cannot serve (Armv7-M
@@ -805,38 +1033,8 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     hw.apply(Action::Disdefwbuf(true));
     hw.apply(Action::FpuEager(tables.fp_flush_to_zero()));
     hw.apply(Action::KernelExceptionPriorities);
-    let ghost h1 = hw.hw();
-    let end: u16 = 16 + irqs;
-    let mut n: u16 = 16;
-    while n < end
-        invariant
-            k.inv(), end <= 16 + MAX_IRQS,
-            hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt, hw.hw().nonbasethrdena == h1.nonbasethrdena,
-            hw.hw().disdefwbuf == h1.disdefwbuf, hw.hw().fpu_eager == h1.fpu_eager,
-            hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0,
-            hw.hw().mpu_enabled == h1.mpu_enabled, hw.hw().timebase_running == h1.timebase_running,
-            hw.hw().dwt_enabled == h1.dwt_enabled,
-        decreases end - n,
-    {
-        hw.apply(Action::Disable(n));
-        match tables.binding(n) {
-            Binding::Dispatch(t) => {
-                let p = k.job_info(t).priority;
-                hw.apply(Action::SetPriority(n, encode_level(p)));
-                hw.apply(Action::Enable(n));
-            }
-            Binding::Intake { task: _, partition: _ } => {
-                hw.apply(Action::SetPriority(n, encode_level(0)));
-                hw.apply(Action::Enable(n));
-            }
-            Binding::Kernel => {
-                hw.apply(Action::SetPriority(n, encode_level(0)));
-                hw.apply(Action::Enable(n));
-            }
-            Binding::Unbound => {}
-        }
-        n += 1;
-    }
+    boot_vectors(k, hw, tables, irqs);
+    let ghost hl = hw.hw();
     let np = k.partition_count();
     let mut p: usize = 0;
     while p < np && p < MAX_FLOORS
@@ -857,6 +1055,10 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     proof {
         k.lemma_stack_rising();
         lemma_fresh(k, *state);
+        assert(hw.hw().priority == hl.priority && hw.hw().enabled == hl.enabled);
+        assert forall|v: int| 16 <= v < 16 + spec_irq_count_of(tables) implies #[trigger] boot_vector_ok(k, tables, hw.hw(), v) by {
+            assert(boot_vector_ok(k, tables, hl, v));
+        }
     }
     true
 }
@@ -871,12 +1073,14 @@ fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     ensures
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
 {
     let ghost h0 = hw.hw();
     let n = tables.dma_count();
     let mut i: usize = 0;
     while i < n
         invariant hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
+            hw.hw().pending == h0.pending, hw.hw().enabled == h0.enabled,
         decreases n - i,
     {
         let d = tables.dma(i);
@@ -1736,11 +1940,14 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 /// under PRIMASK. Returns whether the Kernel entered the safe state (the
 /// shell then enters `System::safe_state` with PRIMASK still set).
 pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (safe: bool)
-    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !safe ==> basepri_matches(final(k), final(hw)) && !final(hw).hw().primask,
         arch_inv(final(k), *final(state), 0),
+        records_same(*final(state), *old(state)),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -1788,13 +1995,15 @@ pub fn psp_in_stack<T: Tables>(tables: &T, state: &ArchState, psp: u32) -> (ok: 
 /// the Partition's fault response, and the unwind plan of the Job that
 /// response ended. Nothing is read or written through the pointer.
 pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -1860,6 +2069,11 @@ pub open spec fn link_ok<K: KernelOps>(k: &K, state: ArchState, i: int) -> bool 
     &&& state.levels[l].previous_task as int == (if i == 0 { 0xFF } else { c[i - 1] })
     &&& state.levels[l].exception_number != 0
     &&& state.levels[l].exception_number <= 0x1FF
+    // The record's Partition is its Task's, and the Partition it names as
+    // preempted is the Partition of the entry below (none at the bottom).
+    &&& state.levels[l].partition as int == k.spec_part()[c[i]]
+    &&& state.levels[l].partition != 0xFF
+    &&& state.levels[l].previous_partition as int == (if i == 0 { 0xFF } else { k.spec_part()[c[i - 1]] })
 }
 
 /// Level `l` is the level of an entry of the ghost chain.
@@ -1883,6 +2097,9 @@ pub open spec fn chain_ok<K: KernelOps>(k: &K, state: ArchState) -> bool {
     &&& forall|i: int| 0 <= i < c.len() ==> #[trigger] link_ok(k, state, i)
     &&& forall|i: int, j: int| 0 <= i < j < cl.len() ==> #[trigger] cl[i] < #[trigger] cl[j]
     &&& forall|l: int| 0 <= l < 8 && state.levels[l].active ==> #[trigger] in_chain(state, l)
+    // The Partition Kernel_Arch takes as executing is the Partition of the
+    // last Job dispatched and not yet unwound, or none.
+    &&& state.current_partition as int == (if c.len() == 0 { 0xFF } else { k.spec_part()[c.last()] })
 }
 
 /// The exception number of the last chain entry's level record: the level
@@ -1911,6 +2128,7 @@ pub open spec fn arch_inv<K: KernelOps>(k: &K, state: ArchState, hop: int) -> bo
 /// leaves of them.
 pub open spec fn records_same(a: ArchState, b: ArchState) -> bool {
     &&& a.levels == b.levels
+    &&& a.current_partition == b.current_partition
     &&& a.chain@ == b.chain@
     &&& a.chain_levels@ == b.chain_levels@
 }
@@ -1990,6 +2208,34 @@ pub proof fn lemma_level_below_top<K: KernelOps>(k: &K, state: ArchState, i: int
     assert(state.chain_levels@[i] < state.chain_levels@[state.chain_levels@.len() - 1]);
 }
 
+/// The MPU view loaded is the view of the Partition Kernel_Arch takes as
+/// executing, while a Job is dispatched and not yet unwound (A6; the idle
+/// activity runs privileged under the background map, whatever view stays
+/// loaded).
+pub open spec fn view_matches<A: KernelArch>(state: ArchState, hw: &A) -> bool {
+    state.chain@.len() > 0 ==> hw.hw().view == Some(state.current_partition as int)
+}
+
+/// With nothing owed, the Partition Kernel_Arch takes as executing and the
+/// MPU view loaded are those of the Kernel's executing Job; with no Job in
+/// progress Kernel_Arch takes none as executing (2026-11-13).
+pub proof fn lemma_executing_partition<K: KernelOps, A: KernelArch>(k: &K, state: ArchState, hw: &A)
+    requires k.inv(), arch_inv(k, state, 0), state.pending_unwind == 0, view_matches(state, hw),
+    ensures
+        k.spec_depth() == 0 ==> state.current_partition == 0xFF,
+        k.spec_depth() > 0 ==> state.current_partition as int == k.spec_part()[crate::arch::bound::top_task(k)]
+            && state.current_partition != 0xFF
+            && hw.hw().view == Some(k.spec_part()[crate::arch::bound::top_task(k)]),
+{
+    reveal(chain_ok);
+    k.lemma_stack_rising();
+    if k.spec_depth() > 0 {
+        let m = state.chain@.len() as int;
+        assert(link_ok(k, state, m - 1));
+        assert(state.chain@[m - 1] == k.spec_stack(m - 1));
+    }
+}
+
 /// The plan of a Kernel entry that dispatched nothing: the topmost record's
 /// exception number when the entry ended a Job, else 0.
 pub open spec fn ended_plan<K: KernelOps>(k: &K, k0: &K, state: ArchState, hop: int) -> bool {
@@ -2002,6 +2248,7 @@ pub open spec fn arch_fresh(state: ArchState) -> bool {
     &&& state.chain@.len() == 0
     &&& state.chain_levels@.len() == 0
     &&& state.pending_unwind == 0
+    &&& state.current_partition == 0xFF
 }
 
 /// With no Job in progress, the boot state satisfies the invariant.
@@ -2043,6 +2290,7 @@ pub proof fn lemma_chain_frame<K: KernelOps>(k: &K, k0: &K, state: ArchState, s0
         chain_ok(k0, s0),
         crate::arch::bound::stack_prefix(k, k0),
         state.levels == s0.levels, state.chain@ == s0.chain@, state.chain_levels@ == s0.chain_levels@,
+        state.current_partition == s0.current_partition,
     ensures chain_ok(k, state),
 {
     reveal(chain_ok);
@@ -2130,6 +2378,10 @@ pub proof fn lemma_push<K: KernelOps>(k: &K, k0: &K, state: ArchState, s0: ArchS
         state.levels[level].active, state.levels[level].task as int == t,
         state.levels[level].previous_task as int == crate::arch::bound::top_task(k0),
         state.levels[level].exception_number != 0, state.levels[level].exception_number <= 0x1FF,
+        k.spec_part() == k0.spec_part(),
+        state.levels[level].partition as int == k.spec_part()[t], state.levels[level].partition != 0xFF,
+        state.levels[level].previous_partition == s0.current_partition,
+        state.current_partition == state.levels[level].partition,
     ensures chain_ok(k, state), state.chain@.len() == k.spec_depth(),
 {
     reveal(chain_ok);
@@ -2183,6 +2435,7 @@ pub proof fn lemma_pop<K: KernelOps>(k: &K, state: ArchState, s0: ArchState)
         state.chain@ == s0.chain@.drop_last(), state.chain_levels@ == s0.chain_levels@.drop_last(),
         forall|l: int| 0 <= l < 8 && l != s0.chain_levels@.last() ==> state.levels[l] == s0.levels[l],
         !state.levels[s0.chain_levels@.last()].active,
+        state.current_partition == s0.levels[s0.chain_levels@.last()].previous_partition,
     ensures chain_ok(k, state),
 {
     reveal(chain_ok);
@@ -2192,6 +2445,10 @@ pub proof fn lemma_pop<K: KernelOps>(k: &K, state: ArchState, s0: ArchState)
     assert(m == cl0.len());
     assert(state.chain@.len() == m - 1);
     assert(state.chain_levels@.len() == m - 1);
+    assert(link_ok(k, s0, m - 1));
+    if m - 1 > 0 {
+        assert(state.chain@.last() == s0.chain@[m - 2]);
+    }
     assert forall|i: int| 0 <= i < state.chain@.len() implies #[trigger] link_ok(k, state, i) by {
         assert(link_ok(k, s0, i));
         assert(cl0[i] < cl0[m - 1]);
@@ -2250,15 +2507,362 @@ fn end_plan_core<K: KernelOps>(k: &K, state: &ArchState, depth_before: usize, Gh
     }
 }
 
+/// The dispatch of Task `t` from the stub of exception number `n`, with
+/// nothing owed and the Task found eligible: decides what can refuse the
+/// dispatch, starts the Job in the Kernel, writes its level record and its
+/// initial frame, loads its Partition's view, and plans the return to it.
+/// Without a dispatch (a refusal: the safe state) the records are untouched.
+#[inline(always)]
+fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    n: u16, t: u8, psp: u32, control: u32, exc_return: u32,
+) -> (r: (DispatchPlan, bool))
+    requires
+        old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), old(state).pending_unwind == 0,
+        n != 0, n <= 0x1FF, (t as int) < old(k).task_count_spec(),
+    ensures
+        final(k).inv(),
+        r.0.psp != 0 ==> r.0.control == CONTROL_JOB && r.0.exc_return == EXC_RETURN_THREAD_PSP
+            && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
+            && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw))
+            && view_matches(*final(state), final(hw))
+            && arch_inv(final(k), *final(state), 0)
+            && dispatched(*old(state), *final(state), exc_return as int),
+        r.1 ==> final(hw).hw().basepri == 0,
+        r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
+            && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
+                && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
+                && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        // A refusal: nothing of the records or the view changes.
+        r.0.psp == 0 ==> r.0.hop == 0 && kentry_rel(final(k), *old(state), *final(state), 0)
+            && final(state).pending_unwind == 0
+            && final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
+    let preempted = charge_point(hw, state);
+    let previous_partition = state.current_partition;
+    if previous_partition != 0xFF && (previous_partition as usize) < MAX_FLOORS && (exc_return & 0xC) == 0xC {
+        // The preempted context is a Job in Thread mode on the PSP:
+        // its live stack pointer (below its stacked frame, HW-06)
+        // is the floor of its Partition's stack from here on.
+        state.floor[previous_partition as usize] = psp;
+    }
+    // The Job whose context this dispatch preempts (lead 2.1).
+    let previous_task = match k.top() {
+        Some(u) => u,
+        None => 0xFF,
+    };
+    // Everything that can refuse the dispatch is decided before the
+    // Kernel starts the Job, so that a Job the Kernel holds always
+    // has its level record (the review of the audit fixes,
+    // 2026-11-13: until then a refusal after `Kernel::dispatch` left
+    // a Job in progress without a record on the way to the safe
+    // state).
+    let info = k.job_info(t);
+    let level = info.priority as usize;
+    if (info.partition as usize) >= MAX_FLOORS {
+        // More Partitions than `ArchState` keeps floors for: a
+        // configuration the Generator rejects; the backstop is a
+        // Kernel fault into the safe state.
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    let floor_before = state.floor[info.partition as usize];
+    // The frame is 8-byte aligned and inside the Partition's stack
+    // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
+    // excludes the overflow case, and the backstop is a Kernel fault
+    // into the safe state (R16.5).
+    // A frame address of 0 is the plan's "no dispatch" (the stub tests
+    // it), so it is refused like an overflow: no stack lies at
+    // address 0 on a Target, and the stub and the Kernel can then
+    // never disagree on whether a Job was started.
+    let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
+        Some(frame) => frame,
+        None => 0,
+    };
+    if frame == 0 {
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    let depth_before = k.depth();
+    k.dispatch(t, preempted);
+    if k.depth() == depth_before {
+        // The Kernel refused the dispatch of a Task it found eligible
+        // (before instant 0): nothing to record or to return to.
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    let ghost s1 = *state;
+    state.levels[level] = LevelRecord {
+        exception_number: n,
+        task: t,
+        partition: info.partition,
+        psp,
+        control,
+        exc_return,
+        floor_before,
+        previous_partition,
+        previous_task,
+        active: true,
+    };
+    state.floor[info.partition as usize] = frame;
+    hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
+    let view = *k.partition_view(info.partition);
+    hw.apply(Action::LoadView(info.partition, view));
+    state.current_partition = info.partition;
+    // The ghost chain gains the dispatched Job's entry.
+    state.chain = Ghost(state.chain@.push(t as int));
+    state.chain_levels = Ghost(state.chain_levels@.push(level as int));
+    proof {
+        // Reached with no unwind owed (an owed one was consumed or
+        // the vector deferred above), so the chain was the stack.
+        assert(s0.pending_unwind == 0);
+        lemma_chain_len(&k0, s0);
+        assert(s0.chain@.len() == k0.spec_depth());
+        lemma_chain_frame(&k0, &k0, s1, s0);
+        lemma_push(k, &k0, *state, s1, t as int, level as int);
+    }
+    // The dispatched Job is the executing one, so its level or the
+    // System_Ceiling is `basepri_now` (A1).
+    hw.apply(Action::SetBasepri(k.basepri_now()));
+    match k.next_compare() {
+        Some(at) => arm_compare(hw, at),
+        None => {}
+    }
+    hw.apply(Action::FpuAccess(info.fpu));
+    // The frame is 8-byte aligned (`plan_frame`); the Task index
+    // rides in its low bits for the trace.
+    hw.apply(Action::Trace(TR_DISPATCH, frame | (t as u32 & 7)));
+    proof {
+        // The record written above is the dispatched Job's.
+        assert(k.spec_depth() == old(k).spec_depth() + 1);
+        assert(crate::arch::bound::top_task(k) == t as int);
+        assert(state.levels[level as int].active && state.levels[level as int].task as int == crate::arch::bound::top_task(k)
+            && state.levels[level as int].previous_task as int == crate::arch::bound::top_task(old(k)));
+        assert(state.chain@.drop_last() =~= s0.chain@);
+        assert(state.chain_levels@.drop_last() =~= s0.chain_levels@);
+        assert(state.chain_levels@.last() == level as int);
+        assert(dispatched(s0, *state, exc_return as int));
+    }
+    (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
+}
+
+/// A dispatch vector's entry (the `Binding::Dispatch` arm of
+/// `irq_entry_core`): an owed unwind is consumed, a vector taken at another
+/// stub's entry instruction is deferred (5.8a), a stale pending bit or a
+/// stack violation dispatches nothing, and otherwise the Job is dispatched
+/// (`dispatch_job_core`).
+#[inline(always)]
+fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    n: u16, t: u8, psp: u32, control: u32, exc_return: u32,
+) -> (r: (DispatchPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)), n <= 0x1FF,
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        !r.1 ==> view_matches(*final(state), final(hw)),
+        !r.1 ==> arch_inv(final(k), *final(state), r.0.hop as int),
+        !r.1 && r.0.psp == 0 ==> records_same(*final(state), *old(state)),
+        r.0.psp != 0 ==> r.0.control == CONTROL_JOB && r.0.exc_return == EXC_RETURN_THREAD_PSP
+            && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
+            && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw))
+            && dispatched(*old(state), *final(state), exc_return as int),
+        r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
+            && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
+                && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
+                && final(state).levels[l].previous_task as int == crate::arch::bound::top_task(old(k)),
+        // Taken from Handler mode, the vector neither dispatches nor unwinds.
+        WINDOW_DEFER && exc_return & 0x8 == 0 && !r.1 ==> r.0.psp == 0 && r.0.hop == 0,
+        // An owed unwind is consumed or kept, never replaced (finding 6).
+        old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    let no_change = DispatchPlan { psp: 0, control, exc_return, hop: 0 };
+    // The unwind a Kernel-level entry owed while this stub sat at
+    // its entry instruction (below): this stub has pushed its record
+    // over the ended Job's, so it pops its own and unwinds that one
+    // (`hop`), and re-pends its vector to be taken again from the
+    // resumed context, where it dispatches.
+    if WINDOW_DEFER && exc_return & 0x8 != 0 && state.pending_unwind != 0 {
+        let h = state.pending_unwind;
+        state.pending_unwind = 0;
+        hw.apply(Action::Pend(n));
+        proof {
+            lemma_chain_frame(k, &k0, *state, s0);
+        }
+        return (DispatchPlan { psp: 0, control, exc_return, hop: h }, false);
+    }
+    // A dispatch vector taken while another handler is active: the
+    // preempted context is a handler (EXC_RETURN bit 3 clear), which
+    // can only be a dispatch stub of a lower level at its entry
+    // instruction, before its `cpsid i` (every other handler runs at
+    // the Kernel level, above every dispatch vector, and the return
+    // window is closed by FAULTMASK). A dispatch from here would
+    // return to Thread mode with that exception still active, which
+    // DD-01's invariant forbids and the processor refuses with
+    // NONBASETHRDENA clear (UFSR.INVPC: the finding of 2026-11-06,
+    // Verification_Plan 5.8a). The vector is deferred: disabled in
+    // the NVIC and recorded, so that the preempted stub runs its own
+    // entry under PRIMASK, re-enables and re-pends it (above), and
+    // returns, after which the NVIC takes it from Thread mode. A
+    // re-pend without the disable is a livelock (the witness run of
+    // 2026-11-07: the vector is taken again before the stub's next
+    // instruction). The backstop, with every slot taken, is a Kernel
+    // fault into the safe state (R16.5).
+    if WINDOW_DEFER && exc_return & 0x8 == 0 {
+        hw.apply(Action::Trace(TR_WINDOW, n as u32));
+        hw.apply(Action::Disable(n));
+        let mut slot: usize = 8;
+        let mut i: usize = 0;
+        while i < 8
+            invariant i <= 8, slot <= 8, super::plan::arch_frame(*state, s0),
+            decreases 8 - i,
+        {
+            if slot == 8 && (state.deferred[i] == 0 || state.deferred[i] == n) {
+                slot = i;
+            }
+            i += 1;
+        }
+        if slot < 8 {
+            state.deferred[slot] = n;
+            proof {
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
+            }
+            return (no_change, false);
+        }
+        k.fault(EV_HARDFAULT, true);
+        let safe = apply_core(k, hw, tables, state);
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, safe);
+    }
+    if n == 0 || !k.eligible(t) {
+        // A stale pending bit (the Job was suppressed after it was
+        // pended): nothing to dispatch (A4). Exception number 0 is
+        // Thread mode, never an entry: a level record's exception
+        // number is not 0, which is how an unwind plan names it.
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        return (no_change, false);
+    }
+    // R16.5 (the audit's finding 8): the preempted Job's stack pointer
+    // becomes its Partition's stack floor, below which this
+    // dispatch writes a frame, only when its frame lies inside the
+    // Partition's stack region. Otherwise the Job has a stack
+    // violation, nothing is dispatched from this entry, and the
+    // vector is pended again for the context the response resumes.
+    if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, 0);
+        }
+        let (hop, safe) = stack_violation_core(k, hw, tables, state);
+        hw.apply(Action::Pend(n));
+        proof {
+            lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+        }
+        return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
+    }
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, 0);
+    }
+    dispatch_job_core(k, hw, tables, state, n, t, psp, control, exc_return)
+}
+
+/// An intake vector's entry (the `Binding::Intake` arm of
+/// `irq_entry_core`, DD-06): the source's vector is disabled, a stack
+/// violation of the interrupted Job is reported (R16.5, the audit's finding
+/// 8), the event is taken in, and the plan unwinds a Job the responses ended.
+#[inline(always)]
+fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
+    n: u16, task: u8, partition: u8, psp: u32, exc_return: u32,
+) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        final(state).pending_unwind == old(state).pending_unwind,
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    let now = hw.now();
+    hw.apply(Action::Disable(n));
+    let depth_before = k.depth();
+    // R16.5 (the audit's finding 8): an intake taken from a Job whose
+    // stack pointer is outside its stack region reports the violation; the
+    // event is then taken in as usual, and the plan unwinds the Job the
+    // response ended.
+    if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
+        hw.apply(Action::Trace(TR_INVALID, 2));
+        k.fault(EV_STACK_VIOLATION, false);
+    }
+    k.intake(task, partition, now, task);
+    let safe = apply_core(k, hw, tables, state);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
+    (hop, safe)
+}
+
+/// The entry of a vector with no binding (R19.5): the line is disabled and
+/// the event is a Kernel fault.
+#[inline(always)]
+fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u16) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        final(state).pending_unwind == old(state).pending_unwind,
+        final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    hw.apply(Action::Disable(n));
+    let depth_before = k.depth();
+    k.fault(EV_UNBOUND_IRQ, true);
+    let safe = apply_core(k, hw, tables, state);
+    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    proof {
+        lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+    }
+    (hop, safe)
+}
+
 /// The Rust half of the dispatch stub, with PRIMASK held. Returns the plan
 /// and whether the Kernel entered the safe state.
 pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState,
     ipsr: u32, psp: u32, control: u32, exc_return: u32,
 ) -> (r: (DispatchPlan, bool))
-    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // The MPU view loaded is the view of the Partition of the last Job
+        // dispatched and not yet unwound (A6).
+        !r.1 ==> view_matches(*final(state), final(hw)),
         // The invariant of the entry cores, with the plan handed to the stub,
         // and what the stub's proof needs of the records (`irq_rel`).
         !r.1 ==> arch_inv(final(k), *final(state), r.0.hop as int),
@@ -2312,232 +2916,17 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     }
     let r: (DispatchPlan, bool) = match tables.binding(n) {
         Binding::Dispatch(t) => {
-            // The unwind a Kernel-level entry owed while this stub sat at
-            // its entry instruction (below): this stub has pushed its record
-            // over the ended Job's, so it pops its own and unwinds that one
-            // (`hop`), and re-pends its vector to be taken again from the
-            // resumed context, where it dispatches.
-            if WINDOW_DEFER && exc_return & 0x8 != 0 && state.pending_unwind != 0 {
-                let h = state.pending_unwind;
-                state.pending_unwind = 0;
-                hw.apply(Action::Pend(n));
-                proof {
-                    lemma_chain_frame(k, &k0, *state, s0);
-                }
-                return (DispatchPlan { psp: 0, control, exc_return, hop: h }, false);
-            }
-            // A dispatch vector taken while another handler is active: the
-            // preempted context is a handler (EXC_RETURN bit 3 clear), which
-            // can only be a dispatch stub of a lower level at its entry
-            // instruction, before its `cpsid i` (every other handler runs at
-            // the Kernel level, above every dispatch vector, and the return
-            // window is closed by FAULTMASK). A dispatch from here would
-            // return to Thread mode with that exception still active, which
-            // DD-01's invariant forbids and the processor refuses with
-            // NONBASETHRDENA clear (UFSR.INVPC: the finding of 2026-11-06,
-            // Verification_Plan 5.8a). The vector is deferred: disabled in
-            // the NVIC and recorded, so that the preempted stub runs its own
-            // entry under PRIMASK, re-enables and re-pends it (above), and
-            // returns, after which the NVIC takes it from Thread mode. A
-            // re-pend without the disable is a livelock (the witness run of
-            // 2026-11-07: the vector is taken again before the stub's next
-            // instruction). The backstop, with every slot taken, is a Kernel
-            // fault into the safe state (R16.5).
-            if WINDOW_DEFER && exc_return & 0x8 == 0 {
-                hw.apply(Action::Trace(TR_WINDOW, n as u32));
-                hw.apply(Action::Disable(n));
-                let mut slot: usize = 8;
-                let mut i: usize = 0;
-                while i < 8
-                    invariant i <= 8, slot <= 8, super::plan::arch_frame(*state, s0),
-                    decreases 8 - i,
-                {
-                    if slot == 8 && (state.deferred[i] == 0 || state.deferred[i] == n) {
-                        slot = i;
-                    }
-                    i += 1;
-                }
-                if slot < 8 {
-                    state.deferred[slot] = n;
-                    proof {
-                        lemma_kernel_entry(k, &k0, *state, s0, 0);
-                    }
-                    return (no_change, false);
-                }
-                k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables, state);
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, 0);
-                }
-                return (no_change, safe);
-            }
-            if n == 0 || !k.eligible(t) {
-                // A stale pending bit (the Job was suppressed after it was
-                // pended): nothing to dispatch (A4). Exception number 0 is
-                // Thread mode, never an entry: a level record's exception
-                // number is not 0, which is how an unwind plan names it.
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, 0);
-                }
-                return (no_change, false);
-            }
-            // R16.5 (the audit's finding 8): the preempted Job's stack pointer
-            // becomes its Partition's stack floor, below which this
-            // dispatch writes a frame, only when its frame lies inside the
-            // Partition's stack region. Otherwise the Job has a stack
-            // violation, nothing is dispatched from this entry, and the
-            // vector is pended again for the context the response resumes.
-            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, 0);
-                }
-                let (hop, safe) = stack_violation_core(k, hw, tables, state);
-                hw.apply(Action::Pend(n));
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, hop as int);
-                }
-                return (DispatchPlan { psp: 0, control, exc_return, hop }, safe);
-            }
-            let preempted = charge_point(hw, state);
-            let previous_partition = state.current_partition;
-            if previous_partition != 0xFF && (previous_partition as usize) < MAX_FLOORS && (exc_return & 0xC) == 0xC {
-                // The preempted context is a Job in Thread mode on the PSP:
-                // its live stack pointer (below its stacked frame, HW-06)
-                // is the floor of its Partition's stack from here on.
-                state.floor[previous_partition as usize] = psp;
-            }
-            // The Job whose context this dispatch preempts (lead 2.1).
-            let previous_task = match k.top() {
-                Some(u) => u,
-                None => 0xFF,
-            };
-            // Everything that can refuse the dispatch is decided before the
-            // Kernel starts the Job, so that a Job the Kernel holds always
-            // has its level record (the review of the audit fixes,
-            // 2026-11-13: until then a refusal after `Kernel::dispatch` left
-            // a Job in progress without a record on the way to the safe
-            // state).
-            let info = k.job_info(t);
-            let level = info.priority as usize;
-            if (info.partition as usize) >= MAX_FLOORS {
-                // More Partitions than `ArchState` keeps floors for: a
-                // configuration the Generator rejects; the backstop is a
-                // Kernel fault into the safe state.
-                k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables, state);
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, 0);
-                }
-                return (no_change, safe);
-            }
-            let floor_before = state.floor[info.partition as usize];
-            // The frame is 8-byte aligned and inside the Partition's stack
-            // region (`plan_frame`); the Link_Checker's stack bound (R37.2)
-            // excludes the overflow case, and the backstop is a Kernel fault
-            // into the safe state (R16.5).
-            // A frame address of 0 is the plan's "no dispatch" (the stub tests
-            // it), so it is refused like an overflow: no stack lies at
-            // address 0 on a Target, and the stub and the Kernel can then
-            // never disagree on whether a Job was started.
-            let frame = match plan_frame(floor_before, tables.stack_bottom(info.partition), tables.stack_top(info.partition)) {
-                Some(frame) => frame,
-                None => 0,
-            };
-            if frame == 0 {
-                k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables, state);
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, 0);
-                }
-                return (no_change, safe);
-            }
-            let depth_before = k.depth();
-            k.dispatch(t, preempted);
-            if k.depth() == depth_before {
-                // The Kernel refused the dispatch of a Task it found eligible
-                // (before instant 0): nothing to record or to return to.
-                k.fault(EV_HARDFAULT, true);
-                let safe = apply_core(k, hw, tables, state);
-                proof {
-                    lemma_kernel_entry(k, &k0, *state, s0, 0);
-                }
-                return (no_change, safe);
-            }
-            let ghost s1 = *state;
-            state.levels[level] = LevelRecord {
-                exception_number: n,
-                task: t,
-                partition: info.partition,
-                psp,
-                control,
-                exc_return,
-                floor_before,
-                previous_partition,
-                previous_task,
-                active: true,
-            };
-            // The ghost chain gains the dispatched Job's entry.
-            state.chain = Ghost(state.chain@.push(t as int));
-            state.chain_levels = Ghost(state.chain_levels@.push(level as int));
             proof {
-                // Reached with no unwind owed (an owed one was consumed or
-                // the vector deferred above), so the chain was the stack.
-                assert(s0.pending_unwind == 0);
                 assert(ipsr & 0x1FF <= 0x1FF) by (bit_vector);
-                lemma_chain_len(&k0, s0);
-                assert(s0.chain@.len() == k0.spec_depth());
-                lemma_chain_frame(&k0, &k0, s1, s0);
-                lemma_push(k, &k0, *state, s1, t as int, level as int);
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
             }
-            let ghost s3 = *state;
-            state.floor[info.partition as usize] = frame;
-            hw.apply(Action::WriteFrame(frame, tables.task_entry_address(t)));
-            let view = *k.partition_view(info.partition);
-            hw.apply(Action::LoadView(info.partition, view));
-            state.current_partition = info.partition;
-            // The dispatched Job is the executing one, so its level or the
-            // System_Ceiling is `basepri_now` (A1).
-            hw.apply(Action::SetBasepri(k.basepri_now()));
-            match k.next_compare() {
-                Some(at) => arm_compare(hw, at),
-                None => {}
-            }
-            hw.apply(Action::FpuAccess(info.fpu));
-            // The frame is 8-byte aligned (`plan_frame`); the Task index
-            // rides in its low bits for the trace.
-            hw.apply(Action::Trace(TR_DISPATCH, frame | (t as u32 & 7)));
-            proof {
-                // The record written above is the dispatched Job's.
-                assert(k.spec_depth() == old(k).spec_depth() + 1);
-                assert(crate::arch::bound::top_task(k) == t as int);
-                assert(state.levels[level as int].active && state.levels[level as int].task as int == crate::arch::bound::top_task(k)
-                    && state.levels[level as int].previous_task as int == crate::arch::bound::top_task(old(k)));
-                lemma_chain_frame(k, k, *state, s3);
-                assert(state.chain@.drop_last() =~= s0.chain@);
-                assert(state.chain_levels@.drop_last() =~= s0.chain_levels@);
-                assert(state.chain_levels@.last() == level as int);
-                assert(dispatched(s0, *state, exc_return as int));
-            }
-            (DispatchPlan { psp: frame, control: CONTROL_JOB, exc_return: EXC_RETURN_THREAD_PSP, hop: 0 }, false)
+            dispatch_vector_core(k, hw, tables, state, n, t, psp, control, exc_return)
         }
         Binding::Intake { task, partition } => {
-            let now = hw.now();
-            hw.apply(Action::Disable(n));
-            let depth_before = k.depth();
-            // R16.5 (the audit's finding 8): an intake taken from a Job whose
-            // stack pointer is outside its stack region reports the
-            // violation; the event is then taken in as usual, and the plan
-            // unwinds the Job the response ended.
-            if state.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !psp_in_stack(tables, state, psp) {
-                hw.apply(Action::Trace(TR_INVALID, 2));
-                k.fault(EV_STACK_VIOLATION, false);
-            }
-            k.intake(task, partition, now, task);
-            let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
             proof {
-                lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
             }
+            let (hop, safe) = intake_core(k, hw, tables, state, n, task, partition, psp, exc_return);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
         Binding::Kernel => {
@@ -2558,14 +2947,10 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             }
         }
         Binding::Unbound => {
-            hw.apply(Action::Disable(n));
-            let depth_before = k.depth();
-            k.fault(EV_UNBOUND_IRQ, true);
-            let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
             proof {
-                lemma_kernel_entry(k, &k0, *state, s0, hop as int);
+                lemma_kernel_entry(k, &k0, *state, s0, 0);
             }
+            let (hop, safe) = unbound_core(k, hw, tables, state, n);
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
     };
@@ -2601,7 +2986,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
 /// The Kernel-level timer handler body. Returns the unwind plan when the
 /// executing Job was ended by a response, and the safe-state flag.
 pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -2611,6 +2996,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -2630,39 +3017,26 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     (hop, safe)
 }
 
-/// The Rust half of the SVC handler: `frame` is the caller's exception
-/// frame (R0-R3 at words 0 to 3, PC at word 6); `number` the SVC number
-/// the shell read from the instruction. Lock and unlock leave BASEPRI at
-/// the executing Job's level or the (new) System_Ceiling (A1).
-pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
+/// The services of the SVC handler other than lock, unlock and the
+/// clock: EasyDMA, raise, the Endpoint operations, the violation report,
+/// the job end, and the panic. Each reads the Kernel's depth before the
+/// service, so that the plan unwinds a Job the service's response ended.
+#[inline(always)]
+fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
 ) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
-        number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
-        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        crate::arch::bound::stack_prefix(final(k), old(k)),
+        super::plan::arch_frame(*final(state), *old(state)),
+        ended_plan(final(k), old(k), *final(state), r.0 as int),
+        final(hw).hw().view == old(hw).hw().view,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
-    hw.apply(Action::Trace(TR_SVC, number as u32));
-    let r: (ReturnPlan, bool) = if number == SVC_LOCK {
-        let ok = k.svc_lock(frame[0] as u8);
-        frame[0] = if ok { 1 } else { 0 };
-        hw.apply(Action::SetBasepri(k.basepri_now()));
-        (0, false)
-    } else if number == SVC_UNLOCK {
-        let ok = k.svc_unlock(frame[0] as u8);
-        frame[0] = if ok { 1 } else { 0 };
-        let safe = apply_core(k, hw, tables, state);
-        (0, safe)
-    } else if number == SVC_NOW {
-        let now = hw.now();
-        frame[0] = now as u32;
-        frame[1] = (now >> 32) as u32;
-        (0, false)
-    } else if number == SVC_DMA {
+    if number == SVC_DMA {
         // The executing Job is read before the request, as for the panic
         // SVC below: a refusal applies the Partition's fault response
         // (R17.2), and when that response ends the Job the end plan must
@@ -2752,6 +3126,45 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         let safe = apply_core(k, hw, tables, state);
         let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
         (hop, safe)
+    }
+}
+
+/// The Rust half of the SVC handler: `frame` is the caller's exception
+/// frame (R0-R3 at words 0 to 3, PC at word 6); `number` the SVC number
+/// the shell read from the instruction. Lock and unlock leave BASEPRI at
+/// the executing Job's level or the (new) System_Ceiling (A1).
+pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
+    k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, frame: &mut [u32; 8], number: u8,
+) -> (r: (ReturnPlan, bool))
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
+    ensures
+        final(k).inv(),
+        number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
+        r.1 ==> final(hw).hw().basepri == 0,
+        kentry_rel(final(k), *old(state), *final(state), r.0 as int),
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
+{
+    let ghost k0 = *old(k);
+    let ghost s0 = *old(state);
+    hw.apply(Action::Trace(TR_SVC, number as u32));
+    let r: (ReturnPlan, bool) = if number == SVC_LOCK {
+        let ok = k.svc_lock(frame[0] as u8);
+        frame[0] = if ok { 1 } else { 0 };
+        hw.apply(Action::SetBasepri(k.basepri_now()));
+        (0, false)
+    } else if number == SVC_UNLOCK {
+        let ok = k.svc_unlock(frame[0] as u8);
+        frame[0] = if ok { 1 } else { 0 };
+        let safe = apply_core(k, hw, tables, state);
+        (0, safe)
+    } else if number == SVC_NOW {
+        let now = hw.now();
+        frame[0] = now as u32;
+        frame[1] = (now >> 32) as u32;
+        (0, false)
+    } else {
+        svc_service_core(k, hw, tables, state, frame, number)
     };
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, r.0 as int);
@@ -2773,12 +3186,15 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, n: u32,
 ) -> (r: ((u32, u32, u32, ReturnPlan), bool))
     requires
-        old(k).inv(),
+        old(k).inv(), tables_wf(tables, old(k).task_count_spec()),
         // The stub passes the plan it was handed: a non-zero exception
         // number, with the invariant in the form that plan left.
         (n & 0x1FF) != 0, arch_inv(old(k), *old(state), (n & 0x1FF) as int),
+        view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // The MPU view loaded is the resumed Job's Partition's (A6).
+        !r.1 ==> view_matches(*final(state), final(hw)),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         // The invariant of the entry cores, with the next level to unwind,
@@ -2960,7 +3376,7 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
 pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, kind: u8, in_kernel: bool,
 ) -> (r: (ReturnPlan, bool))
-    requires old(k).inv(), arch_inv(old(k), *old(state), 0),
+    requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -2969,6 +3385,8 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         // A fault taken from Handler mode or with PRIMASK held is the
         // Kernel's: it ends no Job and plans no unwind.
         in_kernel ==> r.0 == 0,
+        // The MPU view is left as it was (A6).
+        final(hw).hw().view == old(hw).hw().view,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
