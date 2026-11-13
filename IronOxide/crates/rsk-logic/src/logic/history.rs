@@ -595,7 +595,12 @@ pub proof fn lemma_mit_spacing_over_run<const NT: usize, const NR: usize, const 
         // MIT apart in either order.
         h[j].arg - h[i].arg >= cfg.tasks[t].period as int,
 {
-    reveal(history_wf);
+    // Only this conjunct of the history's invariant is needed; taken alone,
+    // a weakened spacing fails this lemma's postcondition instead of the
+    // solver's resource limit (2026-11-13).
+    assert(releases_spaced(h, cfg)) by {
+        reveal(history_wf);
+    }
 }
 
 // --------------------------------------------- Theorem: ceiling restore (5.3)

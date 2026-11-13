@@ -177,7 +177,7 @@ kills = "lemma_mit_spacing_over_run (argument 5.4): the run invariant must keep 
 file = "crates/rsk-logic/src/logic/history.rs"
 find = "        ==> h[i].arg + cfg.tasks[h[i].task].period as int <= h[j].arg\n}\n"
 replace = "        ==> h[i].arg <= h[j].arg\n}\n"
-expect = ["history.rs", "lemma_mit_spacing_over_run", "h[j].arg >= h[i].arg"]
+expect = ["history.rs", "postcondition not satisfied", "h[j].arg >= h[i].arg"]
 package = "rsk-logic"
 
 [[mutation]]

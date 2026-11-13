@@ -2892,6 +2892,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             }
             self.budget.report(cfg, t);
             let partition = cfg.tasks[t as usize].partition;
+            // R18.2: the Overrun is marked reported here, before the response
+            // (stated at once, so that an omitted mark fails this assertion).
+            assert(self.budget.reported[t as int]);
             self.push_event(cfg, EV_OVERRUN, t, partition, PRS_BUDGET, self.budget.used[t as usize]);
             let ghost before = *self;
             proof {
