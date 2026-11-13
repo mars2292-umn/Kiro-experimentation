@@ -463,6 +463,9 @@ fn boot_checks_report_each_failed_check() {
     sim::write(addr::MVFR0, mvfr0);
     sim::write(addr::NRF_HFCLKSTAT, hf);
     sim::write(addr::NRF_ICACHECNF, icache);
+    // DD-08 (audit finding 3): the PPI channel enables read back after the boot clear.
+    let chen: u32 = kani::any();
+    sim::write(addr::NRF_PPI_CHEN, chen);
     let expect = BootExpect { priority_bits: kani::any(), cpuid: kani::any(), hfclk_xtal: kani::any(), fpu_needed: kani::any() };
     let failed = hw::boot_checks(&expect);
     assert!((failed & 1 != 0) == ((cpuid >> 24) != 0x41));
@@ -475,8 +478,9 @@ fn boot_checks_report_each_failed_check() {
     assert!((failed & (1 << 10) != 0) == ((hf >> 16) & 1 == 0 || !expect.hfclk_xtal));
     assert!((failed & (1 << 11) != 0) == (icache & 1 != 0));
     assert!((failed & (1 << 12) != 0) == (expect.fpu_needed && mvfr0 == 0));
-    // Bits 5 to 7 and 13 are the caller's; nothing else is reported.
-    assert!(failed & !0b1_1111_0001_1111 == 0);
+    assert!((failed & (1 << 14) != 0) == (chen != 0));
+    // Bits 5 to 7, 13 and 15 are the caller's; nothing else is reported.
+    assert!(failed & !0b101_1111_0001_1111 == 0);
     // The DWT was made readable for its check (DEMCR.TRCENA).
     assert!(sim::read(addr::DEMCR) & (1 << 24) != 0);
 }
@@ -498,4 +502,34 @@ fn boot_info_reports_debugger_and_watchdog() {
     assert!((info & hw::BOOT_INFO_WATCHDOG_RESET != 0) == (reasons & 1 == 0 && reasons & 2 != 0));
     assert!(info & !3 == 0);
     assert!(sim::write_count() - before == (reasons != 0) as u32);
+}
+
+/// The audit's contested finding B (2026-11-13), ORQ-31, R45.2: the safe
+/// state's busy wait between two watchdog feeds ends for any contents of
+/// the cycle counter, a counter that does not advance included (the poll
+/// bound), and its two bounds are inside the watchdog's reload on the
+/// nRF52840: the feed interval in cycles, and the poll bound at the
+/// stated cycles per poll, each converted to watchdog ticks at the 64 MHz
+/// CPU clock (`CYCLES_PER_TICK` cycles per tick of the 16 MHz time base),
+/// against `watchdog_reload` for that time base. One idle step feeds the
+/// watchdog exactly once.
+#[kani::proof]
+#[kani::unwind(48)]
+fn safe_state_feed_interval_is_inside_the_watchdog_reload() {
+    use crate::arch::cm4::entry::{watchdog_reload, WATCHDOG_HZ};
+    let tick_hz: u64 = 16_000_000;
+    let cpu_hz: u64 = tick_hz * crate::logic::kernel::CYCLES_PER_TICK;
+    let reload = watchdog_reload(tick_hz) as u64;
+    let by_counter = hw::SAFE_STATE_FEED_CYCLES as u64 * WATCHDOG_HZ / cpu_hz + 1;
+    let by_polls = hw::SAFE_STATE_FEED_POLLS as u64 * hw::SAFE_STATE_POLL_CYCLES_MAX as u64 * WATCHDOG_HZ / cpu_hz + 1;
+    assert!(by_counter < reload && by_polls < reload);
+    // The wait itself, at small bounds: it returns whatever the counter reads.
+    sim::reset();
+    sim::write(addr::DWT_CYCCNT, kani::any());
+    let cycles: u32 = kani::any();
+    let polls: u32 = kani::any();
+    kani::assume(polls <= 4);
+    let before = sim::write_count();
+    hw::safe_state_wait(cycles, polls);
+    assert!(sim::write_count() == before);
 }

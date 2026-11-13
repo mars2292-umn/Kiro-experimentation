@@ -721,18 +721,50 @@ pub fn fault_status() -> (u32, u32) {
 }
 
 /// The safe state's idle step (ORQ-31): the Kernel-owned watchdog is fed,
-/// then the core waits for an interrupt. The Profile_Lint accepts
+/// then the core waits out the feed interval (`safe_state_wait`: a busy
+/// wait, no sleep; see there). The Profile_Lint accepts
 /// `loop { safe_state_idle() }` beside the idle loop as the two unbounded
 /// loops (PR-16); the QEMU board has no watchdog.
 pub fn safe_state_idle() {
     #[cfg(all(not(feature = "board-qemu-mps2"), feature = "boot-mutation"))]
     if super::boot_mutation() == crate::arch::cm4::MUT_WATCHDOG {
-        wait_for_interrupt();
+        safe_state_wait(SAFE_STATE_FEED_CYCLES, SAFE_STATE_FEED_POLLS);
         return;
     }
     #[cfg(not(feature = "board-qemu-mps2"))]
     watchdog_feed();
-    wait_for_interrupt();
+    safe_state_wait(SAFE_STATE_FEED_CYCLES, SAFE_STATE_FEED_POLLS);
+}
+
+/// The safe state's feed interval in CPU cycles (2^21: 32.8 ms at 64 MHz),
+/// far inside the watchdog's reload (`entry::watchdog_reload`: half a
+/// second on the nRF52840).
+pub const SAFE_STATE_FEED_CYCLES: u32 = 1 << 21;
+/// The polls of the cycle counter per feed interval at most, so that the
+/// wait ends when the counter does not advance (DEMCR.TRCENA cleared by a
+/// detaching probe, a board without a cycle counter): at
+/// `SAFE_STATE_POLL_CYCLES_MAX` cycles a poll, 2^24 cycles (262 ms at
+/// 64 MHz), still inside the reload.
+pub const SAFE_STATE_FEED_POLLS: u32 = 1 << 20;
+/// An upper bound of the cycles of one poll of `safe_state_wait` (a
+/// volatile read, a subtraction, two compares, an increment and a branch
+/// with the flash's wait states: about ten).
+pub const SAFE_STATE_POLL_CYCLES_MAX: u32 = 16;
+
+/// A busy wait of `cycles` CPU cycles by the DWT cycle counter, and of
+/// `polls` polls at most. The safe state waits here between two watchdog
+/// feeds (audit, contested finding B, 2026-11-13). Until this date the
+/// loop was `watchdog_feed(); wfi`: the safe state is entered from a
+/// Kernel-level handler on every run-time path, no configurable exception
+/// outranks that level, so nothing woke the core, the watchdog was not fed
+/// again, and it reset the Target, the next boot then reporting a watchdog
+/// reset in place of the run's own events. A busy wait needs no wake event.
+pub fn safe_state_wait(cycles: u32, polls: u32) {
+    let start = dwt_cyccnt();
+    let mut i: u32 = 0;
+    while i < polls && dwt_cyccnt().wrapping_sub(start) < cycles {
+        i += 1;
+    }
 }
 
 /// Clears the configurable fault status (write one to clear).
