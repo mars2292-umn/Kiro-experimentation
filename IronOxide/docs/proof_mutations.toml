@@ -114,8 +114,8 @@ expect = ["plan.rs", "compare_for"]
 id = "apply-skips-basepri"
 kills = "apply_core: basepri_matches (A1: BASEPRI is written from the Kernel state after every transition)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    hw.apply(Action::SetBasepri(k.basepri_now()));\n    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    match k.select() {\n"
-replace = "    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    match k.select() {\n"
+find = "    hw.apply(Action::SetBasepri(k.basepri_now()));\n    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    let ghost h0 = hw.hw();\n"
+replace = "    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    let ghost h0 = hw.hw();\n"
 expect = ["entry.rs", "basepri_matches"]
 
 [[mutation]]
