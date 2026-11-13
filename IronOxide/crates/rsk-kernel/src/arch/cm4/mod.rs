@@ -454,7 +454,7 @@ pub fn start<S: System>() {
     let safe = entry::start_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
 }
 
@@ -532,7 +532,7 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     }
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0);
@@ -600,12 +600,21 @@ pub fn timer<S: System>() -> ReturnPlan {
     }
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0);
     pins_running(k.top());
     hop
+}
+
+/// Enters the system safe state (R14.4). In a boot-check build under the
+/// watchdog case the report is withheld while the watchdog runs
+/// (`hw::watchdog_case_hold`).
+fn safe_state<S: System>() -> ! {
+    #[cfg(feature = "boot-mutation")]
+    hw::watchdog_case_hold();
+    S::safe_state()
 }
 
 /// Audit finding 4 (2026-11-13): a Kernel entry other than the SVC handler
@@ -647,7 +656,7 @@ pub fn svc_frame_check<S: System>(psp: u32) -> Option<ReturnPlan> {
     entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
@@ -763,7 +772,7 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     }
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_JOB_END, hop != 0);
@@ -794,7 +803,7 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     entry_record(k, unsafe_module::ENTRY_EPILOGUE, start, seq_before);
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_EPILOGUE, r.3 != 0);
@@ -819,7 +828,7 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
-        S::safe_state();
+        safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
     span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
@@ -900,7 +909,7 @@ pub fn hard_fault<S: System>() -> ! {
     trace(b"mmfar", hw::mmio_read(0xE000_ED34));
     let k = S::kernel().get();
     k.fault(EV_HARDFAULT, true);
-    S::safe_state()
+    safe_state::<S>()
 }
 
 /// The panic handler body (PR-19, R14.2): a panic in a Job is a fault of
@@ -921,7 +930,7 @@ pub fn panic<S: System>(in_kernel: bool) -> ! {
     let mut hw = Cm4Hw::new();
     k.fault(EV_PANIC, true);
     let _ = entry::apply_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
-    S::safe_state()
+    safe_state::<S>()
 }
 
 #[cfg(test)]
