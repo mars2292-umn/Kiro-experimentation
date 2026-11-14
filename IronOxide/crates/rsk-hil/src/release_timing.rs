@@ -319,8 +319,24 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     // trace freeze at the first one outside the run's expected set.
     match target.read_events(inputs.target_elf, &scratch) {
         Ok(Some(ev)) => {
-            let unexpected = ev.unexpected();
+            // The deliberate overload case of the timing configurations
+            // (`Events::overload_misses`): a deadline miss of `control`
+            // (Task 0) within three `sensor` periods of a late `sensor`
+            // (Task 2) Job is a consequence of the injection. The stress
+            // configurations inject nothing of the kind.
+            let overload: Vec<u32> = if inputs.stress.is_none() {
+                ev.overload_misses(0, 2, 60 * inputs.tick_hz / 1000).iter().map(|e| e.seq).collect()
+            } else {
+                Vec::new()
+            };
+            let unexpected: Vec<&crate::events::EventRec> = ev.unexpected().into_iter().filter(|e| !overload.contains(&e.seq)).collect();
             let mut detail = ev.summary(inputs.tick_hz);
+            if !overload.is_empty() {
+                detail.push_str(&format!(
+                    "; the deliberate overload case: {} deadline miss(es) of Task 0 (control) after the injected late Job of Task 2 (sensor), whose 12 ms Critical_Section then blocks control for nearly its 10 ms deadline; the trace and the mirror stop at the first, so the events after it are not judged by this step",
+                    overload.len()
+                ));
+            }
             if !unexpected.is_empty() {
                 detail.push_str("; unexpected: ");
                 let shown: Vec<String> = unexpected
@@ -344,7 +360,8 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                 detail.push_str("; events of the protected Partition's Tasks: ");
                 detail.push_str(&protected_events.join(", "));
             }
-            out.step("Kernel events", unexpected.is_empty() && ev.frozen_in_run().is_none() && protected_events.is_empty(), detail);
+            let frozen_elsewhere = ev.frozen_in_run().is_some_and(|seq| !overload.contains(&seq));
+            out.step("Kernel events", unexpected.is_empty() && !frozen_elsewhere && protected_events.is_empty(), detail);
             out.events = Some(ev);
         }
         Ok(None) => out.step("Kernel events", true, "the build has no event mirror"),

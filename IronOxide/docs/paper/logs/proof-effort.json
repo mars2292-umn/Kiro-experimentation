@@ -1,0 +1,1083 @@
+{
+  "command": "cargo xtask proof-effort",
+  "consistent_with_kernel_size_check": true,
+  "crates": [
+    {
+      "exec": 102,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 99,
+      "exec_lines_without_own_token": 3,
+      "feature_gated": 5,
+      "files": {
+        "built_counted": 1,
+        "gated": {
+          "feature": 0,
+          "generated_skipped": 0,
+          "host": 0,
+          "kani": 0,
+          "test": 0,
+          "total": 0
+        },
+        "generated_skipped": 0,
+        "tests_dir": 0
+      },
+      "harness": {
+        "host": 1,
+        "kani": 0,
+        "test": 0,
+        "total": 1
+      },
+      "name": "rsk-entry",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      }
+    },
+    {
+      "exec": 2040,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 21,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 1904,
+      "exec_lines_without_own_token": 136,
+      "feature_gated": 1422,
+      "files": {
+        "built_counted": 9,
+        "gated": {
+          "feature": 1,
+          "generated_skipped": 0,
+          "host": 1,
+          "kani": 2,
+          "test": 0,
+          "total": 4
+        },
+        "generated_skipped": 1,
+        "tests_dir": 0
+      },
+      "harness": {
+        "host": 41,
+        "kani": 401,
+        "test": 103,
+        "total": 545
+      },
+      "name": "rsk-kernel",
+      "proof": 84,
+      "proof_breakdown": {
+        "code": 79,
+        "layout_only": 5,
+        "without_own_token": 0
+      },
+      "spec": 246,
+      "spec_breakdown": {
+        "code": 231,
+        "layout_only": 13,
+        "without_own_token": 2
+      }
+    },
+    {
+      "exec": 1337,
+      "exec_lines_in_cut_ghost_statements": 1,
+      "exec_lines_in_ghost_typed_data_types": 14,
+      "exec_lines_in_item_fragments": 144,
+      "exec_lines_with_code_token": 1241,
+      "exec_lines_without_own_token": 96,
+      "feature_gated": 0,
+      "files": {
+        "built_counted": 10,
+        "gated": {
+          "feature": 0,
+          "generated_skipped": 0,
+          "host": 0,
+          "kani": 1,
+          "test": 0,
+          "total": 1
+        },
+        "generated_skipped": 0,
+        "tests_dir": 0
+      },
+      "harness": {
+        "host": 0,
+        "kani": 312,
+        "test": 0,
+        "total": 312
+      },
+      "name": "rsk-logic",
+      "proof": 2290,
+      "proof_breakdown": {
+        "code": 1627,
+        "layout_only": 569,
+        "without_own_token": 94
+      },
+      "spec": 2039,
+      "spec_breakdown": {
+        "code": 1815,
+        "layout_only": 186,
+        "without_own_token": 38
+      }
+    }
+  ],
+  "default_features_treated_as_off": [
+    {
+      "crate": "rsk-entry",
+      "features": [
+        "app-p1-demo"
+      ]
+    },
+    {
+      "crate": "rsk-kernel",
+      "features": [
+        "board-nrf52840"
+      ]
+    }
+  ],
+  "definitions": "definitions: exec = executable lines by the PAR-01 counter (Target cfg, no features; attributes, layout-only lines, generated files, and files under a cfg-false `mod` excluded; equal to the R6.2/PAR-01 note of `cargo xtask check`); spec = `spec fn` items, the signature clauses of exec and proof fns (requires, ensures, recommends, returns, opens_invariants, no_unwind/unwind, default_ensures), and global/axiom/assume_specification/ghost/tracked items; proof = `proof fn` items apart from those clauses, proof blocks, assert/assume with their `by` proofs, assert forall, let ghost/tracked, reveal/hide, broadcast use, calc!, loop clauses, and decreases clauses of proof/exec fns; one class per line by the precedence exec > spec > proof, and spec + proof = the PAR-01 counter's spec/proof count in every file (with the layout-only and comment lines inside spec and proof items, which exec leaves out); harness = kani + test + host = code lines (a token outside attributes, not layout only) that the Target does not build: under cfg(kani); under cfg(test) or in tests/; excluded by a target predicate (host doubles); feature-gated = code lines excluded only because a Cargo feature is off (default features included), which are NEITHER exec NOR harness.",
+  "errors": [],
+  "features": [],
+  "files": [
+    {
+      "crate": "rsk-entry",
+      "cut_ghost_statements": [],
+      "exec": 102,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 99,
+      "exec_lines_without_own_token": 3,
+      "feature_gated": 5,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 1,
+        "kani": 0,
+        "test": 0,
+        "total": 1
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-entry/src/lib.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 318,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 318,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 4,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/bound.rs",
+      "proof": 41,
+      "proof_breakdown": {
+        "code": 37,
+        "layout_only": 4,
+        "without_own_token": 0
+      },
+      "spec": 105,
+      "spec_breakdown": {
+        "code": 95,
+        "layout_only": 8,
+        "without_own_token": 2
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 655,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 21,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 615,
+      "exec_lines_without_own_token": 40,
+      "feature_gated": 9,
+      "ghost_typed_data_types": [
+        {
+          "first_line": 232,
+          "last_line": 253
+        }
+      ],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "proof": 34,
+      "proof_breakdown": {
+        "code": 34,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 126,
+      "spec_breakdown": {
+        "code": 121,
+        "layout_only": 5,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 191,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 187,
+      "exec_lines_without_own_token": 4,
+      "feature_gated": 231,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 95,
+        "total": 95
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 101,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 80,
+      "exec_lines_without_own_token": 21,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/plan.rs",
+      "proof": 9,
+      "proof_breakdown": {
+        "code": 8,
+        "layout_only": 1,
+        "without_own_token": 0
+      },
+      "spec": 15,
+      "spec_breakdown": {
+        "code": 15,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 400,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 362,
+      "exec_lines_without_own_token": 38,
+      "feature_gated": 105,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 15,
+        "kani": 0,
+        "test": 0,
+        "total": 15
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 62,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 54,
+      "exec_lines_without_own_token": 8,
+      "feature_gated": 345,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 4,
+        "kani": 2,
+        "test": 8,
+        "total": 14
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 226,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 201,
+      "exec_lines_without_own_token": 25,
+      "feature_gated": 2,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 83,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 83,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/mod.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 4,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 4,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/lib.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 0,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 0,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/profile_version.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "generated"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 14,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 14,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/hw_model.rs",
+      "proof": 249,
+      "proof_breakdown": {
+        "code": 155,
+        "layout_only": 75,
+        "without_own_token": 19
+      },
+      "spec": 211,
+      "spec_breakdown": {
+        "code": 179,
+        "layout_only": 32,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 3,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 3,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/lib.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 33,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 23,
+      "exec_lines_without_own_token": 10,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/budget.rs",
+      "proof": 14,
+      "proof_breakdown": {
+        "code": 8,
+        "layout_only": 6,
+        "without_own_token": 0
+      },
+      "spec": 32,
+      "spec_breakdown": {
+        "code": 28,
+        "layout_only": 4,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 26,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 14,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 20,
+      "exec_lines_without_own_token": 6,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [
+        {
+          "first_line": 90,
+          "last_line": 104
+        }
+      ],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/history.rs",
+      "proof": 226,
+      "proof_breakdown": {
+        "code": 158,
+        "layout_only": 61,
+        "without_own_token": 7
+      },
+      "spec": 203,
+      "spec_breakdown": {
+        "code": 164,
+        "layout_only": 28,
+        "without_own_token": 11
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [
+        {
+          "first_line": 2083,
+          "last_line": 2083
+        }
+      ],
+      "exec": 543,
+      "exec_lines_in_cut_ghost_statements": 1,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 144,
+      "exec_lines_with_code_token": 512,
+      "exec_lines_without_own_token": 31,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [
+        {
+          "first_line": 2271,
+          "last_line": 2273
+        },
+        {
+          "first_line": 2273,
+          "last_line": 2275
+        },
+        {
+          "first_line": 2275,
+          "last_line": 2441
+        }
+      ],
+      "path": "crates/rsk-logic/src/logic/kernel.rs",
+      "proof": 1041,
+      "proof_breakdown": {
+        "code": 738,
+        "layout_only": 257,
+        "without_own_token": 46
+      },
+      "spec": 924,
+      "spec_breakdown": {
+        "code": 844,
+        "layout_only": 61,
+        "without_own_token": 19
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 66,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 60,
+      "exec_lines_without_own_token": 6,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/log.rs",
+      "proof": 17,
+      "proof_breakdown": {
+        "code": 13,
+        "layout_only": 4,
+        "without_own_token": 0
+      },
+      "spec": 24,
+      "spec_breakdown": {
+        "code": 20,
+        "layout_only": 4,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 164,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 145,
+      "exec_lines_without_own_token": 19,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 1,
+        "test": 0,
+        "total": 1
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/mod.rs",
+      "proof": 81,
+      "proof_breakdown": {
+        "code": 66,
+        "layout_only": 14,
+        "without_own_token": 1
+      },
+      "spec": 81,
+      "spec_breakdown": {
+        "code": 70,
+        "layout_only": 11,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 217,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 206,
+      "exec_lines_without_own_token": 11,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/mpu.rs",
+      "proof": 226,
+      "proof_breakdown": {
+        "code": 180,
+        "layout_only": 40,
+        "without_own_token": 6
+      },
+      "spec": 179,
+      "spec_breakdown": {
+        "code": 148,
+        "layout_only": 29,
+        "without_own_token": 2
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 134,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 130,
+      "exec_lines_without_own_token": 4,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/sched.rs",
+      "proof": 373,
+      "proof_breakdown": {
+        "code": 263,
+        "layout_only": 98,
+        "without_own_token": 12
+      },
+      "spec": 255,
+      "spec_breakdown": {
+        "code": 237,
+        "layout_only": 12,
+        "without_own_token": 6
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 137,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 128,
+      "exec_lines_without_own_token": 9,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/time.rs",
+      "proof": 63,
+      "proof_breakdown": {
+        "code": 46,
+        "layout_only": 14,
+        "without_own_token": 3
+      },
+      "spec": 130,
+      "spec_breakdown": {
+        "code": 125,
+        "layout_only": 5,
+        "without_own_token": 0
+      },
+      "status": "built"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 0,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 0,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 726,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 0,
+        "test": 0,
+        "total": 0
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/dt.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "gated-feature"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 0,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 0,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 285,
+        "test": 0,
+        "total": 285
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "gated-kani"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 0,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 0,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 114,
+        "test": 0,
+        "total": 114
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/sim.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "gated-kani"
+    },
+    {
+      "crate": "rsk-kernel",
+      "cut_ghost_statements": [],
+      "exec": 0,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 0,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 22,
+        "kani": 0,
+        "test": 0,
+        "total": 22
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs_host.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "gated-host"
+    },
+    {
+      "crate": "rsk-logic",
+      "cut_ghost_statements": [],
+      "exec": 0,
+      "exec_lines_in_cut_ghost_statements": 0,
+      "exec_lines_in_ghost_typed_data_types": 0,
+      "exec_lines_in_item_fragments": 0,
+      "exec_lines_with_code_token": 0,
+      "exec_lines_without_own_token": 0,
+      "feature_gated": 0,
+      "ghost_typed_data_types": [],
+      "harness": {
+        "host": 0,
+        "kani": 311,
+        "test": 0,
+        "total": 311
+      },
+      "item_fragments": [],
+      "path": "crates/rsk-logic/src/logic/kani_harness.rs",
+      "proof": 0,
+      "proof_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "spec": 0,
+      "spec_breakdown": {
+        "code": 0,
+        "layout_only": 0,
+        "without_own_token": 0
+      },
+      "status": "gated-kani"
+    }
+  ],
+  "git": {
+    "commit": "95a3e921b8bca1659b257839500a7ab83f129410",
+    "describe": "ironoxide-eval-v1-1-g95a3e92",
+    "kernel_sources_modified": false
+  },
+  "kernel_size_note": "R6.2/PAR-01: the Kernel has 3479 executable lines (limit 5000; 4659 spec/proof lines not counted; 1 generated files skipped; 5 files under a `mod` the Target's cfg excludes not counted) [rsk-entry: 102, rsk-kernel: 2040, rsk-logic: 1337]",
+  "schema": 1,
+  "spec_plus_proof": 4659,
+  "target": "thumbv7em-none-eabihf",
+  "total": {
+    "exec": 3479,
+    "exec_lines_in_cut_ghost_statements": 1,
+    "exec_lines_in_ghost_typed_data_types": 35,
+    "exec_lines_in_item_fragments": 144,
+    "exec_lines_with_code_token": 3244,
+    "exec_lines_without_own_token": 235,
+    "feature_gated": 1427,
+    "files": {
+      "built_counted": 20,
+      "gated": {
+        "feature": 1,
+        "generated_skipped": 0,
+        "host": 1,
+        "kani": 3,
+        "test": 0,
+        "total": 5
+      },
+      "generated_skipped": 1,
+      "tests_dir": 0
+    },
+    "harness": {
+      "host": 42,
+      "kani": 713,
+      "test": 103,
+      "total": 858
+    },
+    "proof": 2374,
+    "proof_breakdown": {
+      "code": 1706,
+      "layout_only": 574,
+      "without_own_token": 94
+    },
+    "spec": 2285,
+    "spec_breakdown": {
+      "code": 2046,
+      "layout_only": 199,
+      "without_own_token": 40
+    }
+  }
+}

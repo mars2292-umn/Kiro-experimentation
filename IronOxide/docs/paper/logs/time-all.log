@@ -1,0 +1,48 @@
+2026-11-12T23:33:29Z
+ironoxide-eval-v1-1-g95a3e92
+17:33  up 23 days, 22:03, 1 user, load averages: 2.48 6.40 10.34
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running `target/debug/xtask proof-effort --time all`
+cargo xtask proof-effort --time: wall-clock time of the proof steps of the verification job
+revision: ironoxide-eval-v1-1-g95a3e92 (commit 95a3e921b8bca1659b257839500a7ab83f129410); Kernel crate directories modified against that commit: no
+host: Apple M4 Pro; 14 logical cores, 14 physical (10 performance, 4 efficiency); 48.0 GiB memory; Darwin 27.0.0 arm64
+network sandbox: macOS sandbox-exec, profile (deny network*) (as in the verification job)
+verus: cold run into target/xtask-proof-effort/verus (deleted and recreated empty)
+   $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/verus
+   $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/verus
+   $ cargo-verus verus verify -p rsk-analyzer --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/verus
+kani: cold run into target/xtask-proof-effort/kani (deleted and recreated empty)
+   $ cargo kani -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/kani -Z unstable-options --extra-pointer-checks
+   $ cargo kani -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/kani -Z valid-value-checks -Z uninit-checks -Z unstable-options --extra-pointer-checks
+
+verus: 58.6 s wall-clock, passed (std::time::Instant around the verification job's runner)
+  cold run: target/xtask-proof-effort/verus was deleted and recreated empty before the step
+  tool: Verus 0.2026.10.04.426d8b0 (1.98.1-aarch64-apple-darwin (overridden by environment variable RUSTUP_TOOLCHAIN)), Z3 version 4.16.0 - 64 bit
+  threads: tool default: proofs::run_verus passes no --num-threads (the command is `cargo-verus verus verify -p <crate> --target-dir <dir>`), so each rust_verify process uses Verus's default, 13 on this machine, as `verus --help` states for --num-threads; Cargo's job count for the crates of one package graph: Cargo's default, the number of logical cores: CARGO_BUILD_JOBS is not set and none of the 2 Cargo configuration file(s) that apply sets build.jobs
+  $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/verus
+  $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/verus
+  $ cargo-verus verus verify -p rsk-analyzer --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/verus
+  rsk-logic (Kernel crate): 34.6 s, 325 items verified; its log has 1 results line(s) of dependencies before its own, 1876 items verified, whose time is in this crate's
+  rsk-kernel (Kernel crate): 7.7 s, 154 items verified
+  rsk-analyzer: 16.3 s, 64 items verified; its log has 1 results line(s) of dependencies before its own, 2060 items verified, whose time is in this crate's
+  total: 543 items verified; Kernel crates: 479 items verified in 42.3 s (per-crate times are the intervals between the runner's log files, one per invocation)
+  the Kernel crates' time is NOT the time of their own items alone: each invocation also compiles and verifies into the empty target directory whatever the crate depends on and is not built yet. The first invocation does that for the vendored vstd (a Cargo dependency with `[package.metadata.verus] verify = true`; the release's prebuilt vstd is not used) and builds verus_builtin and the Verus macros. The logs of the Kernel crates' invocations report 1876 items verified in dependency results lines; the runner writes one log per invocation, so the dependencies' share of the time cannot be separated.
+  note: R44.6: rsk-logic: 325 items verified by Verus 0.2026.10.04.426d8b0 (Z3 Z3 version 4.16.0 - 64 bit)
+  note: R44.6: rsk-kernel: 154 items verified by Verus 0.2026.10.04.426d8b0 (Z3 Z3 version 4.16.0 - 64 bit)
+  note: R32.1: rsk-analyzer: 64 items verified by Verus 0.2026.10.04.426d8b0 (Z3 Z3 version 4.16.0 - 64 bit)
+kani: 175.2 s wall-clock, passed (std::time::Instant around the verification job's runner)
+  cold run: target/xtask-proof-effort/kani was deleted and recreated empty before the step
+  tool: Kani 0.68.0 (cargo plugin), CBMC 6.11.0
+  threads: tool default: proofs::run_kani passes no -j/--jobs (the command is `cargo kani -p <crate> --target-dir <dir>` plus the crate's check flags), so harnesses are verified sequentially, one at a time (`cargo kani --help`: "Omit the flag entirely to run sequentially (i.e. one thread)"); no --solver is passed, and `cargo kani --help` states that Kani then uses CaDiCaL unless a harness names a solver; Cargo's job count for the build before it: Cargo's default, the number of logical cores: CARGO_BUILD_JOBS is not set and none of the 2 Cargo configuration file(s) that apply sets build.jobs
+  $ cargo kani -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/kani -Z unstable-options --extra-pointer-checks
+  $ cargo kani -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-eval/IronOxide/target/xtask-proof-effort/kani -Z valid-value-checks -Z uninit-checks -Z unstable-options --extra-pointer-checks
+  rsk-kernel (Kernel crate): 143.7 s, 9 harnesses passed
+  rsk-logic (Kernel crate): 31.4 s, 10 harnesses passed
+  total: 19 harnesses passed; Kernel crates: 19 harnesses passed in 175.1 s (per-crate times are the intervals between the runner's log files, one per invocation)
+  note: R45.5: rsk-kernel: 9 Kani harnesses passed with every check (Kani 0.68.0 (cargo plugin), CBMC 6.11.0)
+  note: R45.5: rsk-logic: 10 Kani harnesses passed with every check (Kani 0.68.0 (cargo plugin), CBMC 6.11.0)
+cold means an empty target directory, so everything Cargo builds for the step is built and verified within the time measured: for Verus that includes compiling and verifying the vendored vstd and building verus_builtin and the Verus macros; for Kani the build of the crates for the harnesses. Warm are only the tools' own installations (the Verus binaries and Z3, Kani's toolchain and CBMC) and the operating system's file cache.
+written: target/xtask-proof-effort/timing-all.json
+EXIT 0
+17:37  up 23 days, 22:06, 1 user, load averages: 2.64 5.28 8.98
+2026-11-12T23:37:24Z

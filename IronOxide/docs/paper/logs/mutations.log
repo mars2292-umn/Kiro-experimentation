@@ -1,0 +1,97 @@
+2026-11-12T23:01:19Z
+2bc1eb8673efecf049768341ce6f4550b99a7cef
+   Compiling unicode-ident v1.0.26
+   Compiling serde_core v1.0.229
+   Compiling quote v1.0.47
+   Compiling proc-macro2 v1.0.107
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.151
+   Compiling itoa v1.0.18
+   Compiling serde v1.0.229
+   Compiling memchr v2.8.3
+   Compiling winnow v1.0.4
+   Compiling rsk-elf v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/crates/rsk-elf)
+   Compiling rsk-digest v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/crates/rsk-digest)
+   Compiling toml_parser v1.1.4+spec-1.1.0
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling toml v1.1.7+spec-1.1.0
+   Compiling serde_derive v1.0.229
+   Compiling rsk-gen v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/crates/rsk-gen)
+   Compiling rsk-link v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/crates/rsk-link)
+   Compiling rsk-model v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/crates/rsk-model)
+   Compiling rsk-hil v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/crates/rsk-hil)
+   Compiling xtask v0.0.0 (/Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.89s
+     Running `target/debug/xtask mutations`
+   mutation `dispatch-vector-order` (lemma_dispatch_selects_srp_choice (DD-03 tie order)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `kernel-level-encoding` (lemma_encoding_order, lemma_kernel_level_never_masked (encode_level(0) must be 0x00)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `shared-code-writable` (lemma_view_within_layout (a writable address lies in the Partition's RAM or a window; Property 12)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `mpu-grants-every-write` (lemma_mpu_grant_covered (the hardware grant implies the view's over-approximation)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `restart-kills-one-job` (end_partition_jobs: partition_ended (every Job of the Partition is ended or killed)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `kill-other-partitions` (others_unchanged (R14.9: a response leaves every other Partition as it was)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `discard-clears-release` (intake: violation_applied (a discarded event leaves the existing Release unchanged, R10.3)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `bound-dispatch-unguarded` (Kernel::dispatch requires started (A9: the Bound guard mirrors the precondition)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `basepri-lower-level` (basepri_for (A1: BASEPRI is the higher of the Job's level and the System_Ceiling)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `frame-overlaps-floor` (plan_frame (HW-06, R16.5: the new frame lies wholly below the floor)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `compare-ignores-near-counter` (compare_target (HW-12: the compare is never closer than MIN_COMPARE_DISTANCE to the counter)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `apply-skips-basepri` (apply_core: basepri_matches (A1: BASEPRI is written from the Kernel state after every transition)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `boot-skips-init` (boot_core: KernelOps requires inv (A11: the Kernel is initialized before any transition)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `dispatch-privileged` (irq_entry_core: CONTROL_JOB (A5: a Job runs unprivileged)): $ cargo-verus verus verify -p rsk-kernel --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `history-step-after-now` (record: lemma_history_push requires s.at == now (no step beyond the observed instant; task 4.11)): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `history-step-dropped` (record: the history left is the one found with the step appended (task 4.11)): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `history-end-forgets-prefix` (lemma_prefix_kept, hence lemma_ceiling_restored (argument 5.3): a Job end may release only a suffix of the lock stack; task 4.13): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `lazy-release-no-job-above` (lemma_lazy_release_delays_nothing (argument 5.2): needs a Job in progress above the killed one; task 4.13): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `mit-run-spacing-dropped` (lemma_mit_spacing_over_run (argument 5.4): the run invariant must keep Release steps one MIT apart, not just ordered; task 4.14): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `deadlock-equal-priority-unblocked` (lemma_deadlock_free (argument 5.5): a pending Job of the executing Job's Priority is blocked by it; task 4.14): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `lock-by-other-than-top` (lemma_no_new_blocking_section (argument 5.1, step 4): a lock step is by the executing Job; task 4.12): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `dispatch-below-ceiling` (lemma_no_lower_dispatch_while_waiting (argument 5.1, step 1): a dispatched Task was above the ceiling; task 4.12): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `dma-buffer-in-stack` (PartitionLayout::dma_permitted_exec (R17.1): a buffer inside the stack region is refused; task 5.5): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `periodic-release-not-recorded` (periodic_release_served (Property 7's link, R9.1): a nominal instant that is due with no Release pending must put a Release step at that instant into the history; 2026-11-05): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `discard-leaves-source-unmasked` (intakes_linked and the intake record of Property 9 (R19.1): a discarded event must mask its source for one MIT like every other outcome; 2026-11-05): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `restart-keeps-violation-count` (violations_linked and the restart step of R10.4: a Partition restart must start its MIT_Violation count again; 2026-11-05): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `overrun-not-marked-reported` (budget_event's R18.2 clause: an Overrun found with the Job executing must be reported (Budget::reported set), else the next Budget event reports it again or, after a response, the Job runs on uncounted; 2026-11-05): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `layout-window-over-kernel-peripheral` (R16.2 in the layout proof: the boot validation must refuse a Partition window over a Kernel peripheral interval (the PPB or a Kernel-owned peripheral), else `validate` no longer establishes `wf` and `lemma_view_no_kernel_window` has no premise; 2026-11-05): $ cargo-verus verus verify -p rsk-logic --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `blocking-ignores-overrun-partition` (R29.2's cross-Partition clause in the Analyzer's term derivation: a site of a lower Task of another Partition that stops overrunning Jobs must block for Budget_l + Δ_detect + Δ_enforce, not the site's WCET, else `blocking` no longer computes `spec_b`; 2026-11-06): $ cargo-verus verus verify -p rsk-analyzer --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `overhead-drops-sporadic-intake` (R29.3 and R19.2 in the Analyzer's term derivation: a Sporadic_Task's own Job carries Δ_irq + Δ_stamp, else `overhead` no longer computes `spec_o`; 2026-11-06): $ cargo-verus verus verify -p rsk-analyzer --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+   mutation `interference-bound-ignores-overrun-response` (R29.4 in the Analyzer's term derivation: a Task of a Partition that stops overrunning Jobs interferes for Budget + Δ_detect + Δ_enforce + L_j + O_j, else `interference_bound` no longer computes `spec_e`; 2026-11-06): $ cargo-verus verus verify -p rsk-analyzer --target-dir /Users/mars2292/repos/Kiro-experimentation-evaltag/IronOxide/target/xtask-mutations/verus
+note: R52.2: 31 proof mutations registered in docs/proof_mutations.toml
+note: mutation `dispatch-vector-order` killed by lemma_dispatch_selects_srp_choice (DD-03 tie order): error: assertion failed
+note: mutation `kernel-level-encoding` killed by lemma_encoding_order, lemma_kernel_level_never_masked (encode_level(0) must be 0x00): error: postcondition not satisfied
+note: mutation `shared-code-writable` killed by lemma_view_within_layout (a writable address lies in the Partition's RAM or a window; Property 12): error: invariant not satisfied before loop
+note: mutation `mpu-grants-every-write` killed by lemma_mpu_grant_covered (the hardware grant implies the view's over-approximation): error: assertion failed
+note: mutation `restart-kills-one-job` killed by end_partition_jobs: partition_ended (every Job of the Partition is ended or killed): error: invariant not satisfied at end of loop body
+note: mutation `kill-other-partitions` killed by others_unchanged (R14.9: a response leaves every other Partition as it was): error: invariant not satisfied at end of loop body
+note: mutation `discard-clears-release` killed by intake: violation_applied (a discarded event leaves the existing Release unchanged, R10.3): error: precondition not satisfied
+note: mutation `bound-dispatch-unguarded` killed by Kernel::dispatch requires started (A9: the Bound guard mirrors the precondition): error: precondition not satisfied
+note: mutation `basepri-lower-level` killed by basepri_for (A1: BASEPRI is the higher of the Job's level and the System_Ceiling): error: postcondition not satisfied
+note: mutation `frame-overlaps-floor` killed by plan_frame (HW-06, R16.5: the new frame lies wholly below the floor): error: postcondition not satisfied
+note: mutation `compare-ignores-near-counter` killed by compare_target (HW-12: the compare is never closer than MIN_COMPARE_DISTANCE to the counter): error: postcondition not satisfied
+note: mutation `apply-skips-basepri` killed by apply_core: basepri_matches (A1: BASEPRI is written from the Kernel state after every transition): error: postcondition not satisfied
+note: mutation `boot-skips-init` killed by boot_core: KernelOps requires inv (A11: the Kernel is initialized before any transition): error: precondition not satisfied
+note: mutation `dispatch-privileged` killed by irq_entry_core: CONTROL_JOB (A5: a Job runs unprivileged): error: postcondition not satisfied
+note: mutation `history-step-after-now` killed by record: lemma_history_push requires s.at == now (no step beyond the observed instant; task 4.11): error: precondition not satisfied
+note: mutation `history-step-dropped` killed by record: the history left is the one found with the step appended (task 4.11): error: assertion failed
+note: mutation `history-end-forgets-prefix` killed by lemma_prefix_kept, hence lemma_ceiling_restored (argument 5.3): a Job end may release only a suffix of the lock stack; task 4.13: error: assertion failed
+note: mutation `lazy-release-no-job-above` killed by lemma_lazy_release_delays_nothing (argument 5.2): needs a Job in progress above the killed one; task 4.13: error: assertion failed
+note: mutation `mit-run-spacing-dropped` killed by lemma_mit_spacing_over_run (argument 5.4): the run invariant must keep Release steps one MIT apart, not just ordered; task 4.14: error: function body check: Resource limit (rlimit) exceeded; consider rerunning with --profile for more details
+note: mutation `deadlock-equal-priority-unblocked` killed by lemma_deadlock_free (argument 5.5): a pending Job of the executing Job's Priority is blocked by it; task 4.14: error: assertion failed
+note: mutation `lock-by-other-than-top` killed by lemma_no_new_blocking_section (argument 5.1, step 4): a lock step is by the executing Job; task 4.12: error: function body check: Resource limit (rlimit) exceeded; consider rerunning with --profile for more details
+note: mutation `dispatch-below-ceiling` killed by lemma_no_lower_dispatch_while_waiting (argument 5.1, step 1): a dispatched Task was above the ceiling; task 4.12: error: function body check: Resource limit (rlimit) exceeded; consider rerunning with --profile for more details
+note: mutation `dma-buffer-in-stack` killed by PartitionLayout::dma_permitted_exec (R17.1): a buffer inside the stack region is refused; task 5.5: error: postcondition not satisfied
+note: mutation `periodic-release-not-recorded` killed by periodic_release_served (Property 7's link, R9.1): a nominal instant that is due with no Release pending must put a Release step at that instant into the history; 2026-11-05: error: assertion failed
+note: mutation `discard-leaves-source-unmasked` killed by intakes_linked and the intake record of Property 9 (R19.1): a discarded event must mask its source for one MIT like every other outcome; 2026-11-05: error: precondition not satisfied
+note: mutation `restart-keeps-violation-count` killed by violations_linked and the restart step of R10.4: a Partition restart must start its MIT_Violation count again; 2026-11-05: error: precondition not satisfied
+note: mutation `overrun-not-marked-reported` killed by budget_event's R18.2 clause: an Overrun found with the Job executing must be reported (Budget::reported set), else the next Budget event reports it again or, after a response, the Job runs on uncounted; 2026-11-05: error: postcondition not satisfied
+note: mutation `layout-window-over-kernel-peripheral` killed by R16.2 in the layout proof: the boot validation must refuse a Partition window over a Kernel peripheral interval (the PPB or a Kernel-owned peripheral), else `validate` no longer establishes `wf` and `lemma_view_no_kernel_window` has no premise; 2026-11-05: error: invariant not satisfied at end of loop body
+note: mutation `blocking-ignores-overrun-partition` killed by R29.2's cross-Partition clause in the Analyzer's term derivation: a site of a lower Task of another Partition that stops overrunning Jobs must block for Budget_l + Δ_detect + Δ_enforce, not the site's WCET, else `blocking` no longer computes `spec_b`; 2026-11-06: error: assertion failed
+note: mutation `overhead-drops-sporadic-intake` killed by R29.3 and R19.2 in the Analyzer's term derivation: a Sporadic_Task's own Job carries Δ_irq + Δ_stamp, else `overhead` no longer computes `spec_o`; 2026-11-06: error: postcondition not satisfied
+note: mutation `interference-bound-ignores-overrun-response` killed by R29.4 in the Analyzer's term derivation: a Task of a Partition that stops overrunning Jobs interferes for Budget + Δ_detect + Δ_enforce + L_j + O_j, else `interference_bound` no longer computes `spec_e`; 2026-11-06: error: postcondition not satisfied
+every proof mutant was killed
+real 513.36
+user 649.85
+sys 21.08
+EXIT 0
+2026-11-12T23:09:53Z

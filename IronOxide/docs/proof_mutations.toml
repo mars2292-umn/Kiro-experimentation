@@ -934,3 +934,62 @@ replace = ""
 expect = ["kernel.rs", "assertion failed", "before_arm.slots.armed"]
 package = "rsk-logic"
 
+[[mutation]]
+id = "lower-periodic-release-event-dropped"
+kills = "spec_interferers (R19.2, 2026-11-14): a lower-Priority Periodic_Task's release event is a timer entry at the Kernel level, charged once per period"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "        let intake: u64 = if t.periodic { p.timer } else { p.irq };\n"
+replace = "        let intake: u64 = if t.periodic { 0 } else { p.irq };\n"
+expect = ["terms.rs"]
+package = "rsk-analyzer"
+
+
+[[mutation]]
+id = "lower-task-timed-events-dropped"
+kills = "spec_terms (R19.2, 2026-11-14): a lower-Priority Task's other timed events (unmask, deferral, a deadline event that can fire) are in the recurrence"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "                if t.events > 0 {\n                    out.push(TermOf { task: j, kind: TERM_EVENTS, term: Term { jitter: 0, period: t.period, bound: t.events } });\n                }\n"
+replace = ""
+expect = ["terms.rs", "assertion failed"]
+package = "rsk-analyzer"
+
+
+[[mutation]]
+id = "housekeeping-term-dropped"
+kills = "spec_all_terms (2026-11-14): the Kernel's housekeeping event is in every Task's recurrence"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    out.push(TermOf { task: tasks.len(), kind: TERM_HOUSEKEEPING, term: hk });\n"
+replace = ""
+expect = ["terms.rs"]
+package = "rsk-analyzer"
+
+
+[[mutation]]
+id = "timed-events-undercounted"
+kills = "spec_o / timed_events (R29.3, 2026-11-14): four timed events per Job of a Periodic_Task (release, deadline, Budget, a blocking Job's Budget event)"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    let events: u64 = if t.periodic { 4 } else if t.defer { 5 } else { 4 };\n"
+replace = "    let events: u64 = if t.periodic { 3 } else if t.defer { 5 } else { 4 };\n"
+expect = ["terms.rs", "postcondition not satisfied"]
+package = "rsk-analyzer"
+
+
+[[mutation]]
+id = "quiet-task-not-rechecked"
+kills = "analyse_all's postcondition (2026-11-14): a Task whose deadline event is left out of the recurrences above it is schedulable in the same result"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "        if !ok {\n            break;\n        }\n        quiet = next;\n"
+replace = "        quiet = next;\n"
+expect = ["terms.rs", "invariant not satisfied"]
+package = "rsk-analyzer"
+
+
+[[mutation]]
+id = "deadline-event-dropped-for-an-unschedulable-task"
+kills = "spec_interferer / lower_events (2026-11-14): the deadline event of a lower Task is left out only when the Task is marked quiet"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    if quiet { base } else { base + 1 }\n"
+replace = "    base\n"
+expect = ["terms.rs", "postcondition not satisfied"]
+package = "rsk-analyzer"
+

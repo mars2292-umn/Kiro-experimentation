@@ -134,6 +134,26 @@ impl Events {
         self.run_entries().iter().filter(|e| !self.is_expected(e)).collect()
     }
 
+    /// The deadline misses of Task `blocked` that follow, within
+    /// `window_ticks`, an overrun, a deadline miss or a release overlap of
+    /// Task `late`: the deliberate overload case of the release-timing
+    /// configuration (2026-11-14). There `sensor` holds its Resource for
+    /// 12 ms against `control`'s 10 ms deadline, so that the section is in
+    /// progress at `control`'s Releases; every 1,024th `sensor` Job is
+    /// made 38 ms late, which shifts the next section, and when it begins
+    /// shortly before a `control` Release that Job is blocked for nearly
+    /// its whole deadline and can miss it (seen in the hour-long run of
+    /// 2026-11-13: blocked 9.68 ms, missed by less than one timer entry).
+    /// No analysis passes that configuration; the miss is a consequence of
+    /// the injection, not a defect.
+    pub fn overload_misses(&self, blocked: u8, late: u8, window_ticks: u64) -> Vec<&EventRec> {
+        let run = self.run_entries();
+        run.iter()
+            .filter(|e| e.kind == 7 && e.task == blocked)
+            .filter(|e| run.iter().any(|l| l.task == late && matches!(l.kind, 6 | 7 | 8) && l.instant <= e.instant && e.instant - l.instant <= window_ticks))
+            .collect()
+    }
+
     /// Counts per `(kind, task)`, sorted.
     pub fn counts(&self) -> Vec<((u8, u8), usize)> {
         let mut m: std::collections::BTreeMap<(u8, u8), usize> = Default::default();
@@ -222,6 +242,29 @@ mod tests {
         assert!(e.summary(16_000_000).contains("the trace froze at event 2 (deadline_miss of Task 2 at 3.000 ms)"));
         assert!(e.render(16_000_000).contains("<- unexpected"));
         assert!(Events::decode(&[0; 8]).is_err());
+    }
+
+    #[test]
+    fn a_miss_of_the_blocked_task_after_the_late_job_is_the_overload_case() {
+        let rec = |seq: u32, kind: u8, task: u8, ms: u64| EventRec { seq, kind, task, partition: 0, instant: ms * 16_000, detail: 0 };
+        let e = Events {
+            written: 4,
+            frozen_at: Some(3),
+            expect_kinds: 1 << 6 | 1 << 7 | 1 << 8,
+            expect_task: 2,
+            // The 2026-11-13 run's last events: the late sensor Job, then control's miss.
+            entries: vec![rec(0, 6, 2, 3_443_977), rec(1, 7, 2, 3_444_000), rec(2, 8, 2, 3_444_020), rec(3, 7, 0, 3_444_040)],
+        };
+        assert_eq!(e.unexpected().len(), 1);
+        let over = e.overload_misses(0, 2, 60 * 16_000);
+        assert_eq!(over.len(), 1);
+        assert_eq!(over[0].seq, 3);
+        // A miss of the blocked Task with no late Job before it is not one.
+        let alone = Events { entries: vec![rec(0, 7, 0, 100)], written: 1, ..e.clone() };
+        assert!(alone.overload_misses(0, 2, 60 * 16_000).is_empty());
+        // Nor is one long after the late Job.
+        let far = Events { entries: vec![rec(0, 7, 2, 100), rec(1, 7, 0, 500)], written: 2, ..e.clone() };
+        assert!(far.overload_misses(0, 2, 60 * 16_000).is_empty());
     }
 
     #[test]
