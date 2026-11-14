@@ -79,12 +79,15 @@ from the Verus-erased build. The handwritten files:
 - `lean/Sched/Run.lean`: the run (`Step`, `Reach`) and the structure of the
   scheduler state in it, the Stack Resource Policy included (`Wf.step`);
 - `lean/Sched/Window.lean`: the busy-window argument over the naturals;
-- `lean/Sched/Stage.lean`: the bound over the run (`stage2`, `stage1`);
+- `lean/Sched/Stage.lean`: the bound over the run (`stage3`);
 - `lean/Sched/Link.lean`: the bound with the response time `response_of`
-  returns (`property18_stage2`, `property18_stage1`).
+  returns (`property18`, and its instances `property18_stage2`,
+  `property18_stage1`).
 
-Stages 1 and 2 only (interference and SRP blocking; no overhead, no
-jitter); the plan states what is assumed and what is not done.
+The run has interference, SRP blocking, release jitter and one amount of
+Kernel work per arrival; the plan states what it assumes and what it
+leaves out (the Kernel transitions around `Sched`, and the Kernel's
+overhead at dispatch, lock, unlock and Job end).
 
 Regenerating the translations:
 

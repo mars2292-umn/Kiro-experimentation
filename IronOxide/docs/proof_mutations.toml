@@ -891,18 +891,36 @@ prover = "lean"
 
 [[mutation]]
 id = "lean-budget-bound-dropped"
-kills = "level_step (a Release adds at most C_k to the window's work), hence stage2 and property18_stage2"
+kills = "level_step (a Release adds at most C_k to the window's work), hence stage3 and property18"
 file = "proofs/aeneas/lean/Sched/Run.lean"
 find = "(hd1 : 1 ≤ d) (hd2 : d ≤ P.C t.val)"
 replace = "(hd1 : 1 ≤ d) (hd2 : True)"
-expect = ["Sched/Stage.lean", "Application type mismatch"]
+expect = ["Sched/Stage.lean"]
 prover = "lean"
 
 [[mutation]]
 id = "lean-section-bound-dropped"
-kills = "Wf.step (a Critical_Section's remaining execution is within its bound), hence the blocking term of stage2"
+kills = "Wf.step (a Critical_Section's remaining execution is within its bound), hence the blocking term of stage3"
 file = "proofs/aeneas/lean/Sched/Run.lean"
 find = "      (ha : a ≤ P.L (stk st.s (st.s.depth.val - 1)) r.val)\n"
 replace = "      (ha : True)\n"
 expect = ["Sched/Run.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-jitter-bound-dropped"
+kills = "Wf.step (an arrival that awaits its Release is within its jitter), hence the jitter term of stage3"
+file = "proofs/aeneas/lean/Sched/Run.lean"
+find = "  ∀ k a, st.wait k = true → st.last k = some a → st.now + 1 ≤ a + P.J k\n"
+replace = "  ∀ k a, st.wait k = true → st.last k = some a → True\n"
+expect = ["Sched/Run.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-intake-bound-dropped"
+kills = "level_step (the Kernel's work for an arrival is at most I_k), hence the overhead and intake terms of stage3"
+file = "proofs/aeneas/lean/Sched/Run.lean"
+find = "(ht : t < NT.val) (hc : c ≤ P.I t)"
+replace = "(ht : t < NT.val) (hc : True)"
+expect = ["Sched/Stage.lean"]
 prover = "lean"

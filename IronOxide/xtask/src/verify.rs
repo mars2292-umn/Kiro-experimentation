@@ -1697,7 +1697,7 @@ fn aeneas_evaluation(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manif
     let sorries = text.matches("declaration uses 'sorry'").count() + text.matches("declaration uses `sorry`").count();
     let ok = ok && sorries == 0;
     if ok {
-        report.note(format!("R46.1: Aeneas evaluation: the Lean proofs over the control law's translation and over the Analyzer's response-time fixed point (the Verus-erased build, verification_plan.md 7.2) and stages 1 and 2 of Property 18 over the Kernel's scheduler (7.3) check ({lean_version}; {lake_version})"));
+        report.note(format!("R46.1: Aeneas evaluation: the Lean proofs over the control law's translation and over the Analyzer's response-time fixed point (the Verus-erased build, verification_plan.md 7.2) and the response-time bound over a run of the Kernel's scheduler as extracted (7.3) check ({lean_version}; {lake_version})"));
     } else {
         report.error(Rule::Step, None, format!("Aeneas evaluation: lake build failed or left {sorries} sorry (see aeneas.log)"));
     }

@@ -4,33 +4,33 @@ open Aeneas Aeneas.Std Result
 
 /-!
 The busy-window argument, over the naturals only: nothing here mentions
-the scheduler. `L` is a set of Tasks (in the use: those of Priority at
-least that of the Task under analysis, itself included), `rm k` the
-execution Task `k`'s released Jobs still need, `last k` the instant of
-its last Release, `β` the execution a lower Task's Critical_Section that
+the scheduler. `A` is a set of Tasks, `wk k` the work now owed on Task
+`k`'s account that the level under analysis has to wait for, `cost k` the
+most one arrival of Task `k` adds to it, `last k` the instant of its last
+arrival, and `β` the execution a lower Task's Critical_Section that
 blocks the level may still take.
 -/
 
 namespace P18
 open rsk_analyzer (ceilDiv ceilDiv_mono)
 
-/-- The earliest instant of Task `k`'s next Release, from its last one. -/
+/-- The earliest instant of Task `k`'s next arrival, from its last one. -/
 def nxt (T : Nat → Nat) (last : Nat → Option Nat) (k : Nat) : Nat :=
   match last k with
   | none => 0
   | some r => r + T k
 
-/-- Task `k`'s share of the work still to do before `s0 + R`: what its
-released Jobs still need, and `C k` for each Release still possible. -/
-def term (P : Params) (R s0 now : Nat) (last : Nat → Option Nat) (rm : Nat → Nat) (k : Nat) : Nat :=
-  rm k + P.C k * ceilDiv (s0 + R - max now (nxt P.T last k)) (P.T k)
+/-- Task `k`'s share of the work still to do before `s0 + R`: what is owed
+now, and `cost k` for each arrival still possible. -/
+def term (T cost : Nat → Nat) (R s0 now : Nat) (last : Nat → Option Nat) (wk : Nat → Nat)
+    (k : Nat) : Nat :=
+  wk k + cost k * ceilDiv (s0 + R - max now (nxt T last k)) (T k)
 
 /-- The potential: the time since the window began at `s0`, the blocking
-still possible, and the work of the Tasks of `L` still to do before
-`s0 + R`. -/
-def Phi (P : Params) (R : Nat) (L : Finset Nat) (s0 β now : Nat) (last : Nat → Option Nat)
-    (rm : Nat → Nat) : Nat :=
-  (now - s0) + β + ∑ k ∈ L, term P R s0 now last rm k
+still possible, and the work still to do before `s0 + R`. -/
+def Phi (T cost : Nat → Nat) (R : Nat) (A : Finset Nat) (s0 β now : Nat)
+    (last : Nat → Option Nat) (wk : Nat → Nat) : Nat :=
+  (now - s0) + β + ∑ k ∈ A, term T cost R s0 now last wk k
 
 theorem ceilDiv_step (x T : Nat) (hT : 0 < T) (hx : 0 < x) :
     ceilDiv (x - T) T + 1 = ceilDiv x T := by
@@ -43,119 +43,113 @@ theorem ceilDiv_step (x T : Nat) (hT : 0 < T) (hx : 0 < x) :
   · have : x + (T - 1) = (x - T + (T - 1)) + T := by omega
     rw [this, Nat.add_div_right _ hT]
 
-variable {P : Params} {R B : Nat} {L : Finset Nat}
+variable {T cost : Nat → Nat} {R B : Nat} {A : Finset Nat}
 
-/-- When the Tasks of `L` have no work, a window that starts now is within
-the bound: this is the fixed-point inequality. -/
-theorem idle_anchor (hFix : B + ∑ k ∈ L, P.C k * ceilDiv R (P.T k) ≤ R) {β : Nat} (hβ : β ≤ B)
-    (now : Nat) (last : Nat → Option Nat) (rm : Nat → Nat) (h0 : ∀ k ∈ L, rm k = 0) :
-    Phi P R L now β now last rm ≤ R := by
+/-- A window that starts now is within the bound when each Task's term is
+within its share of the fixed-point inequality. -/
+theorem idle_anchor {Je : Nat → Nat}
+    (hFix : B + ∑ k ∈ A, cost k * ceilDiv (R + Je k) (T k) ≤ R) {β : Nat} (hβ : β ≤ B)
+    (now : Nat) (last : Nat → Option Nat) (wk : Nat → Nat)
+    (hterm : ∀ k ∈ A, term T cost R now now last wk k ≤ cost k * ceilDiv (R + Je k) (T k)) :
+    Phi T cost R A now β now last wk ≤ R := by
   unfold Phi
-  have : ∑ k ∈ L, term P R now now last rm k ≤ ∑ k ∈ L, P.C k * ceilDiv R (P.T k) := by
-    apply Finset.sum_le_sum
-    intro k hk
-    unfold term
-    rw [h0 k hk, Nat.zero_add]
-    apply Nat.mul_le_mul_left
-    apply ceilDiv_mono
-    have := Nat.le_max_left now (nxt P.T last k)
-    omega
+  have := Finset.sum_le_sum hterm
   omega
 
-theorem rm_le_sum (R s0 now : Nat) (last : Nat → Option Nat) (rm : Nat → Nat) {k : Nat}
-    (hk : k ∈ L) : rm k ≤ ∑ k ∈ L, term P R s0 now last rm k := by
-  have h1 : rm k ≤ term P R s0 now last rm k := by unfold term; omega
-  have h2 := Finset.single_le_sum (f := fun k => term P R s0 now last rm k)
+theorem wk_le_sum (R s0 now : Nat) (last : Nat → Option Nat) (wk : Nat → Nat) {k : Nat}
+    (hk : k ∈ A) : wk k ≤ ∑ k ∈ A, term T cost R s0 now last wk k := by
+  have h1 : wk k ≤ term T cost R s0 now last wk k := by unfold term; omega
+  have h2 := Finset.single_le_sum (f := fun k => term T cost R s0 now last wk k)
     (fun _ _ => Nat.zero_le _) hk
   exact Nat.le_trans h1 h2
 
-/-- While a Task of `L` has work, the window has lasted less than `R`. -/
-theorem Phi.busy_lt {s0 β now : Nat} {last : Nat → Option Nat} {rm : Nat → Nat} {k : Nat}
-    (hk : k ∈ L) (hpos : 0 < rm k) (h : Phi P R L s0 β now last rm ≤ R) : now < s0 + R := by
-  have := rm_le_sum (P := P) R s0 now last rm hk
+/-- While work is owed, the window has lasted less than `R`. -/
+theorem Phi.busy_lt {s0 β now : Nat} {last : Nat → Option Nat} {wk : Nat → Nat} {k : Nat}
+    (hk : k ∈ A) (hpos : 0 < wk k) (h : Phi T cost R A s0 β now last wk ≤ R) : now < s0 + R := by
+  have := wk_le_sum (T := T) (cost := cost) R s0 now last wk hk
   unfold Phi at h
   omega
 
-/-- One unit of time spent either on a Job of a Task of `L` or inside the
-blocking Critical_Section. -/
-theorem Phi.tick {s0 β β' now : Nat} {last : Nat → Option Nat} {rm rm' : Nat → Nat}
-    (hs0 : s0 ≤ now) (hle : ∀ k ∈ L, rm' k ≤ rm k)
-    (h : ((∃ a ∈ L, rm' a + 1 ≤ rm a) ∧ β' ≤ β) ∨ β' + 1 ≤ β) :
-    Phi P R L s0 β' (now + 1) last rm' ≤ Phi P R L s0 β now last rm := by
-  have hmono : ∀ k ∈ L, term P R s0 (now + 1) last rm' k ≤ term P R s0 now last rm k := by
+/-- One unit of time spent either on owed work or inside the blocking
+Critical_Section. -/
+theorem Phi.tick {s0 β β' now : Nat} {last : Nat → Option Nat} {wk wk' : Nat → Nat}
+    (hs0 : s0 ≤ now) (hle : ∀ k ∈ A, wk' k ≤ wk k)
+    (h : ((∃ a ∈ A, wk' a + 1 ≤ wk a) ∧ β' ≤ β) ∨ β' + 1 ≤ β) :
+    Phi T cost R A s0 β' (now + 1) last wk' ≤ Phi T cost R A s0 β now last wk := by
+  have hN : ∀ k, cost k * ceilDiv (s0 + R - max (now + 1) (nxt T last k)) (T k)
+      ≤ cost k * ceilDiv (s0 + R - max now (nxt T last k)) (T k) := by
+    intro k
+    apply Nat.mul_le_mul_left
+    apply ceilDiv_mono
+    have : max now (nxt T last k) ≤ max (now + 1) (nxt T last k) :=
+      max_le_max (Nat.le_succ now) (Nat.le_refl _)
+    omega
+  have hmono : ∀ k ∈ A, term T cost R s0 (now + 1) last wk' k ≤ term T cost R s0 now last wk k := by
     intro k hk
     unfold term
     have h1 := hle k hk
-    have h2 : P.C k * ceilDiv (s0 + R - max (now + 1) (nxt P.T last k)) (P.T k)
-        ≤ P.C k * ceilDiv (s0 + R - max now (nxt P.T last k)) (P.T k) := by
-      apply Nat.mul_le_mul_left
-      apply ceilDiv_mono
-      have : max now (nxt P.T last k) ≤ max (now + 1) (nxt P.T last k) :=
-        max_le_max (Nat.le_succ now) (Nat.le_refl _)
-      omega
+    have h2 := hN k
     omega
   have hsum := Finset.sum_le_sum hmono
   unfold Phi
   rcases h with ⟨⟨a, ha, hdec⟩, hβ⟩ | hβ
-  · have hlt : ∑ k ∈ L, term P R s0 (now + 1) last rm' k < ∑ k ∈ L, term P R s0 now last rm k := by
+  · have hlt : ∑ k ∈ A, term T cost R s0 (now + 1) last wk' k
+        < ∑ k ∈ A, term T cost R s0 now last wk k := by
       apply Finset.sum_lt_sum hmono
       refine ⟨a, ha, ?_⟩
-      have h2 : P.C a * ceilDiv (s0 + R - max (now + 1) (nxt P.T last a)) (P.T a)
-          ≤ P.C a * ceilDiv (s0 + R - max now (nxt P.T last a)) (P.T a) := by
-        apply Nat.mul_le_mul_left
-        apply ceilDiv_mono
-        have : max now (nxt P.T last a) ≤ max (now + 1) (nxt P.T last a) :=
-          max_le_max (Nat.le_succ now) (Nat.le_refl _)
-        omega
+      have h2 := hN a
       unfold term
       omega
     omega
   · omega
 
-/-- A step that changes neither the instant nor, for the Tasks of `L`,
-their work or their last Release. -/
-theorem Phi.congr {s0 β now : Nat} {last last' : Nat → Option Nat} {rm rm' : Nat → Nat}
-    (hrm : ∀ k ∈ L, rm' k = rm k) (hlast : ∀ k ∈ L, last' k = last k) :
-    Phi P R L s0 β now last' rm' = Phi P R L s0 β now last rm := by
-  have : ∑ k ∈ L, term P R s0 now last' rm' k = ∑ k ∈ L, term P R s0 now last rm k := by
-    apply Finset.sum_congr rfl
+/-- A step at one instant that lowers or keeps every Task's owed work and
+keeps the arrivals. -/
+theorem Phi.mono {s0 β now : Nat} {last last' : Nat → Option Nat} {wk wk' : Nat → Nat}
+    (hwk : ∀ k ∈ A, wk' k ≤ wk k) (hlast : ∀ k ∈ A, last' k = last k) :
+    Phi T cost R A s0 β now last' wk' ≤ Phi T cost R A s0 β now last wk := by
+  have : ∑ k ∈ A, term T cost R s0 now last' wk' k ≤ ∑ k ∈ A, term T cost R s0 now last wk k := by
+    apply Finset.sum_le_sum
     intro k hk
     unfold term nxt
-    rw [hrm k hk, hlast k hk]
+    rw [hlast k hk]
+    have := hwk k hk
+    omega
   unfold Phi
   omega
 
-/-- A Release of a Task of `L`, at least its period after its last one, of
-a Job within its bound, in a window that has lasted less than `R`. -/
-theorem Phi.release {t : Nat} (ht : t ∈ L) (hT : 0 < P.T t)
-    {s0 β now : Nat} {last : Nat → Option Nat} {rm : Nat → Nat} {d : Nat}
-    (hd : d ≤ P.C t) (hsp : ∀ r, last t = some r → r + P.T t ≤ now) (hlt : now < s0 + R) :
-    Phi P R L s0 β now (Function.update last t (some now)) (Function.update rm t (rm t + d))
-      ≤ Phi P R L s0 β now last rm := by
-  have hnx : nxt P.T last t ≤ now := by
+/-- An arrival of Task `t`, at least its period after its last one, in a
+window that has lasted less than `R`: it adds at most `cost t`. -/
+theorem Phi.arrive {t : Nat} (ht : t ∈ A) (hT : 0 < T t)
+    {s0 β now : Nat} {last : Nat → Option Nat} {wk wk' : Nat → Nat}
+    (hadd : wk' t ≤ wk t + cost t) (hsame : ∀ k ∈ A, k ≠ t → wk' k = wk k)
+    (hsp : ∀ r, last t = some r → r + T t ≤ now) (hlt : now < s0 + R) :
+    Phi T cost R A s0 β now (Function.update last t (some now)) wk'
+      ≤ Phi T cost R A s0 β now last wk := by
+  have hnx : nxt T last t ≤ now := by
     unfold nxt
     cases hl : last t with
     | none => simp
     | some r => simpa using hsp r hl
-  have hle : ∑ k ∈ L, term P R s0 now (Function.update last t (some now))
-      (Function.update rm t (rm t + d)) k ≤ ∑ k ∈ L, term P R s0 now last rm k := by
+  have hle : ∑ k ∈ A, term T cost R s0 now (Function.update last t (some now)) wk' k
+      ≤ ∑ k ∈ A, term T cost R s0 now last wk k := by
     apply Finset.sum_le_sum
     intro k hk
     by_cases hkt : k = t
     · subst hkt
       unfold term
-      have e1 : nxt P.T (Function.update last k (some now)) k = now + P.T k := by
+      have e1 : nxt T (Function.update last k (some now)) k = now + T k := by
         simp [nxt]
-      have e2 : max now (nxt P.T last k) = now := max_eq_left hnx
-      have e3 : max now (now + P.T k) = now + P.T k := max_eq_right (by omega)
-      rw [e1, e2, e3, Function.update_self]
-      have e4 : s0 + R - (now + P.T k) = (s0 + R - now) - P.T k := by omega
+      have e2 : max now (nxt T last k) = now := max_eq_left hnx
+      have e3 : max now (now + T k) = now + T k := max_eq_right (by omega)
+      rw [e1, e2, e3]
+      have e4 : s0 + R - (now + T k) = (s0 + R - now) - T k := by omega
       rw [e4]
-      have := ceilDiv_step (s0 + R - now) (P.T k) hT (by omega)
+      have := ceilDiv_step (s0 + R - now) (T k) hT (by omega)
       rw [← this, Nat.mul_add, Nat.mul_one]
       omega
     · unfold term nxt
-      rw [Function.update_of_ne hkt, Function.update_of_ne hkt]
+      rw [Function.update_of_ne hkt, hsame k hk hkt]
   unfold Phi
   omega
 
