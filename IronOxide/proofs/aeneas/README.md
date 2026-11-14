@@ -31,14 +31,16 @@ The `.llbc` file is not committed (`.gitignore`); the Lean translation is.
 
 `lean/Rta/Rta.lean` is the Aeneas translation of the Analyzer's numeric
 chain, taken from `crates/rsk-analyzer` itself as rustc compiles it without
-Verus (the `verus!` macro erases the ghost code): `terms::derive_all` with
-the functions it calls, `terms::terms_for`, `rta::fixpoint`, and
-`terms::response_of`. The handwritten proofs:
+Verus (the `verus!` macro erases the ghost code): `terms::analyse_all` and
+everything it calls (`terms::derive_all`, `terms::terms_for`,
+`rta::fixpoint`, `terms::response_of`). The handwritten proofs:
 
 - `lean/Rta/Proofs.lean`: the fixed point (`fixpoint_spec`);
 - `lean/Rta/Chain.lean`: the terms of a Task's recurrence and the verdict
   for one Task end to end (`terms_for_spec`, `response_of_spec`);
 - `lean/Rta/Derive.lean`: the term derivation (`derive_all_spec`).
+- `lean/Rta/Whole.lean`: the whole numeric analysis, from the Task set to
+  every Task's verdict (`analyse_all_spec`).
 
 `lake build` in `lean/` checks them with the control law's.
 
@@ -47,7 +49,7 @@ Regenerating the translation:
 ```sh
 cd crates/rsk-analyzer
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from 'crate::terms::response_of' --start-from 'crate::terms::derive_all' \
+    --start-from 'crate::terms::analyse_all' \
     --dest-file /tmp/rta.llbc -- --lib
 ../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Rta /tmp/rta.llbc
 ```
