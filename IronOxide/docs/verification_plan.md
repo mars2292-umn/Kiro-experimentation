@@ -580,9 +580,12 @@ Designation: Creusot (ORQ-10, design.md). It is the only active candidate that c
 
 **Conclusion.** Aeneas fits the role the design gives it: small pure computations (control laws, validation functions of R42.4) for which a Lean-level functional proof, possibly against Mathlib, is wanted, as substitute evidence under R46.5 where the App_Prover cannot express a construct. It does not replace Creusot for Task bodies: Creusot proves the demo's bodies against the `rsk` API's contracts with no manual proof text, where Aeneas needs the proof written by hand and its translation needs the code shaped for it. The designation of section 7 stands.
 
-### 7.2 The Analyzer's fixed point on the code as compiled: Aeneas over the Verus-erased build (2026-11-14)
+### 7.2 The Analyzer's computation on the code as compiled: Aeneas over the Verus-erased build (2026-11-14)
 
-**Question.** The Verus proof of `rta::fixpoint` (P-19, Property 16) is a proof about the source under Verus's reading of it; what runs is the same source compiled by rustc with the ghost code erased by the `verus!` macro. Can the erased build be given to Aeneas, and the result proven there, so that the response-time analysis is also proven sound against an independent model of its execution?
+**What this section proves, and what it does not (stated 2026-11-14 after review).** It proves Property 16 a second time, on the code as compiled: the Analyzer's *computation*, from the Task set's numbers to each Task's verdict, returns the least fixed point of the R29.1 recurrence with the terms of R29.2 to R29.4 (or a not-schedulable verdict, or an overflow). It does **not** prove Property 18, "RTA is sound against execution": nothing here says that a Job of a Task reported schedulable completes within the computed `R_i` in an execution of the Kernel. A theorem about the recurrence is a theorem about arithmetic; that the recurrence bounds response times is a theorem about the scheduler, with a model of releases, execution and the SRP. Property 18's evidence remains the PBT against the discrete-event SRP simulator and the UPPAAL corpus (P-19, 5.10, 8.7); the proof of it against the Kernel's own scheduler is section 7.3.
+
+
+**Question.** The Verus proof of `rta::fixpoint` (P-19, Property 16) is a proof about the source under Verus's reading of it; what runs is the same source compiled by rustc with the ghost code erased by the `verus!` macro. Can the erased build be given to Aeneas, and the result proven there, so that the Analyzer's computation is also proven against an independent reading of the code that runs (the execution of the Analyzer, not of the Tasks it analyses)?
 
 **What was done.** Charon was run on `crates/rsk-analyzer` itself, not on a copy: `charon cargo --preset=aeneas --start-from 'crate::rta::fixpoint' -- --lib` compiles the crate and its dependencies (`vstd` and the Verus macro crates among them) with Charon's pinned nightly and no `cfg(verus_keep_ghost)`, so the macro emits the erased code, and extracts `fixpoint`, `interference_exec` and `ceil_div_exec` from the compiler's MIR. Aeneas renders them as three Lean functions (`proofs/aeneas/lean/Rta/Rta.lean`, generated, committed, 120 lines): the recursion as a `partial_fixpoint` definition, the loop as the library's `loop` over a body function, every arithmetic operation and the vector index as a fallible step. No source change was needed and nothing of Verus appears in the translation.
 
@@ -624,6 +627,32 @@ On the code as compiled (`Rta/Whole.lean`, about 300 lines; the translation is t
 **What remains outside.** `inputs::prepare`'s own work before the numbers exist: reading the Task_Model, the WCET_Records and the Kernel_Timing_Parameters, choosing the records, resolving each site to its Resource and Ceiling, and the conversion of ticks to cycles (`ticks_to_cycles_down`, verified in Verus, not translated); the UPPAAL export; the report (the interference breakdown per term is recomputed for display); and R29.9's utilization test, which precedes the iteration. That the Task set handed to `analyse_all` is the one the Task_Model declares is by the Analyzer's tests and the cross-checks of section 8.
 
 **Findings of the extension.** (1) Aeneas's Lean for a function with a local variable named like a module does not compile: `let terms = ...` shadowed the `terms` module in every later reference; the local is renamed in the Rust source. (2) A function with early returns under several `if`s is translated with its tail duplicated per branch (`overhead`: 390 lines of Lean for 45 of Rust); splitting on the flags first and then `step*` proves all sixteen copies without a line per case, at about a minute of checking and a raised heartbeat limit for that theorem and for `blocking`'s loop body (thirty-two cases, the same way). (3) `usize` against `u64`: the library knows a `usize` is 32 or 64 bits wide (`Usize.bounds_eq`), which a counter bounded by a vector's length needs spelled out.
+
+### 7.3 Property 18 against the Kernel's own scheduler (started 2026-11-14; not proven)
+
+**Status: not proven. Property 18's evidence is still the PBT against the discrete-event simulator and the UPPAAL corpus.** This section records what was tried and what a proof needs.
+
+**Goal.** In every run of the Kernel's scheduler in which a Task's Releases are at least its period or MIT apart and each Job's charged execution is at most its Budget, every Job of a Task that `response_of` reports schedulable completes within `R_i` of its Release; first with `C` and interference only, then with `B_i` (SRP blocking), then with `O_i` and `J_i`.
+
+**Extraction, as for 7.2 (Charon and Aeneas on the Verus-erased build).**
+
+| Item | Result |
+|---|---|
+| `Sched` and its state functions (`new`, `make_pending`, `start`, `complete`, `finish_top`, `end_job`, `lock`, `unlock`, `kill`; rsk-logic `logic::sched`) | Translate (19 of the module's 20 functions) |
+| `Sched::select` | Does not translate: Aeneas fails on its loop (an `Option` assigned inside a `match` in the loop body) |
+| The SRP eligibility test as executed (`Bound::eligible`, rsk-kernel `arch::bound`) | Translates |
+| The Kernel transitions (`Kernel::dispatch`, `job_return`, `svc_lock`, `svc_unlock`, `periodic_release`, `intake_release`, and everything that calls `record`) | Do not translate. In the erased build a ghost argument `Ghost(e)` is `Ghost::assume_new_fallback(|| ..)`, a closure coerced to a function pointer, which this Aeneas rejects (`fn_def_to_fn_ptr`). 14 of the Kernel module's functions fail for this reason alone |
+| `Kernel::budget_event`, `timer_event`, `end_top`, `apply_response` | Translate, but call functions of the previous row |
+| `Sched`'s functions and `Bound::eligible` in one translation | Charon panics when a `--start-from` names an item of a dependency; the two translate separately, each with its own copy of the `Sched` type |
+
+Two facts of the code matter for the statement. `Sched::start` (the dispatch) contains no eligibility test: SRP eligibility is its Verus precondition, and the test that runs is `Bound::eligible`, called by `Bound::dispatch` and by the dispatch stub's core. And the Kernel's `select` chooses the highest-Priority pending Task and then tests only that one.
+
+**What a proof against the Kernel's own scheduler therefore needs decided.**
+
+1. Which transitions the run is over. Either the `Sched` state functions with `Bound::eligible` (what translates today; the Kernel wrappers add the Budget account, the timer slots and the log around them), or the Kernel transitions themselves, which needs either a change to how the Kernel passes ghost values (a `proof` block that assigns ghost state, in place of `Ghost` arguments, at about fifteen call sites of `record`) or a newer Aeneas.
+2. Equal Priorities. The Analyzer's terms take every Task of equal or higher Priority as an interferer, and the Kernel never preempts a Job by one of equal Priority. The argument sketched below is short for distinct Priorities; with ties it needs the busy period of the whole Priority level.
+
+**The argument planned for the first stage** (no blocking, no overheads; distinct Priorities). A run is a sequence of Releases (`make_pending`, at least `T_j` after the Task's last), dispatches (`start`, only of a Task `Bound::eligible` accepts), and ticks (one unit of the top Job's execution, ending it through `finish_top` when its demand, at most `C_j`, is spent; a tick is taken only when no pending Task is eligible, which is the Hardware_Model's dispatch rule). For a Task `i` let `s` be the last instant at which no Job of a higher-Priority Task was pending or in progress. The invariant is a potential: `(now - s) + (the remaining demand of i's Job, or C_i reserved for it) + Σ_j (the remaining demand of j's Job + C_j · ⌈(s + R_i - e_j)⁺ / T_j⌉) ≤ R_i` over the higher-Priority Tasks `j`, with `e_j` the earliest instant `j` can be released next. A tick spends one unit of a Job of `i` or of a higher Task (from `Sched`'s stack order and the eligibility test); a Release of `j` turns one counted future Release into at most `C_j` of demand; at an instant where the higher Tasks have nothing pending the bound is the fixed-point equation itself. The invariant gives `now < s + R_i ≤ r + R_i` while `i`'s Job is incomplete. Stage 2 adds one Critical_Section of a lower Task to the potential (the SRP lemma of 5.1, to be proven again on the extracted `lock` and `unlock`); stage 3 the overhead terms and the jitter.
 
 ## 8. Tool qualification (R51)
 
