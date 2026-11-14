@@ -22,3 +22,14 @@ handwritten proofs (Verification_Plan 7.2). -/
 @[default_target] lean_lib «Rta» {
   globs := #[.submodules `Rta]
 }
+
+/-- `Sched/Sched.lean`: the Aeneas translation of the Kernel's scheduler
+state functions (`crates/rsk-logic/src/logic/sched.rs`: `new`,
+`make_pending`, `start`, `finish_top`, `lock`, `unlock` and what they call),
+and `Sched/Eligible.lean`: that of the SRP eligibility test as executed
+(`Bound::eligible`, `crates/rsk-kernel/src/arch/bound.rs`); both from the
+crates as rustc compiles them without Verus, generated and committed. The
+other files are handwritten (Verification_Plan 7.3). -/
+@[default_target] lean_lib «Sched» {
+  globs := #[.submodules `Sched]
+}

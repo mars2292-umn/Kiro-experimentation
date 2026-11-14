@@ -1693,10 +1693,11 @@ fn aeneas_evaluation(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manif
         Err(e) => (false, format!("cannot run lake: {e}")),
     };
     let _ = store.write_artifact("aeneas.log", &text);
-    let sorries = text.matches("declaration uses 'sorry'").count();
+    // Lean prints the name in quotes or, since 4.2x, in backticks.
+    let sorries = text.matches("declaration uses 'sorry'").count() + text.matches("declaration uses `sorry`").count();
     let ok = ok && sorries == 0;
     if ok {
-        report.note(format!("R46.1: Aeneas evaluation: the Lean proofs over the control law's translation and over the Analyzer's response-time fixed point (the Verus-erased build, verification_plan.md 7.2) check ({lean_version}; {lake_version})"));
+        report.note(format!("R46.1: Aeneas evaluation: the Lean proofs over the control law's translation and over the Analyzer's response-time fixed point (the Verus-erased build, verification_plan.md 7.2) and the first stage of Property 18 over the Kernel's scheduler (7.3) check ({lean_version}; {lake_version})"));
     } else {
         report.error(Rule::Step, None, format!("Aeneas evaluation: lake build failed or left {sorries} sorry (see aeneas.log)"));
     }

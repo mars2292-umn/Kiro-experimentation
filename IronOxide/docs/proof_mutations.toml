@@ -12,7 +12,9 @@
 # Verus prints with the error, or from the file name); package (optional);
 # prover (optional, `verus` or `creusot`: an App_Prover mutation names a
 # proof member of proofs/creusot as its package and is killed when
-# `cargo creusot -p <member>` fails with the expected text, 2026-11-09).
+# `cargo creusot -p <member>` fails with the expected text, 2026-11-09;
+# a `lean` mutation changes a file under proofs/aeneas/lean and is killed
+# when `lake build` fails there with the expected text, 2026-11-14).
 #
 # The first seven reproduce the manual vacuity checks of 2026-10-11 to
 # 2026-10-14 (verification_plan.md 9.2) or an equivalent of them; the rest
@@ -866,3 +868,23 @@ find = "    if cfsr & 0x10 != 0 {\n        return false;\n    }"
 replace = ""
 expect = ["entry.rs", "postcondition not satisfied"]
 
+# Property 18 in Lean (verification_plan.md 7.3): the run of the Kernel's
+# scheduler as Aeneas extracts it, and the response-time bound over it.
+
+[[mutation]]
+id = "lean-eligibility-top-test-dropped"
+kills = "eligible_ok (the extracted Bound::eligible is the R7.1 condition), on which every dispatch of a run and Property 18 rest"
+file = "proofs/aeneas/lean/Sched/Eligible.lean"
+find = "            ok (tc.priority > tc1.priority)\n"
+replace = "            ok true\n"
+expect = ["Sched/Model.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-budget-bound-dropped"
+kills = "level_step (a Release adds at most C_k to the window's work), hence stage1 and property18_stage1"
+file = "proofs/aeneas/lean/Sched/Run.lean"
+find = "(hd1 : 1 ≤ d) (hd2 : d ≤ P.C t.val)"
+replace = "(hd1 : 1 ≤ d) (hd2 : True)"
+expect = ["Sched/Stage1.lean", "Application type mismatch"]
+prover = "lean"

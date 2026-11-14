@@ -30,7 +30,8 @@ pub(crate) fn copy_tree(src: &Path, dest: &Path) -> Result<(), String> {
         let entry = entry.map_err(|e| e.to_string())?;
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str == "target" || name_str == ".git" {
+        // `.lake`: Lean build output and fetched packages (several GB).
+        if name_str == "target" || name_str == ".git" || name_str == ".lake" {
             continue;
         }
         let from = entry.path();

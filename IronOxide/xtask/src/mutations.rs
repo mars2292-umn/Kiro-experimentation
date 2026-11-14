@@ -15,6 +15,11 @@
 //! in the copied tree's `proofs/creusot`, the package a proof member, and
 //! the mutant is killed when the proof fails with the expected text (the
 //! contracts the generated role modules carry, Verification_Plan 5.15).
+//! A mutation with `prover = "lean"` (2026-11-14) changes a file of the
+//! Lean project `proofs/aeneas/lean` (an Aeneas translation or a statement
+//! over one) and is killed when `lake build` fails with the expected text
+//! in a copy of the project at `target/xtask-mutations/lean`
+//! (Verification_Plan 7.3).
 //!
 //! `--check` validates the register without Verus: every mutation names an
 //! existing file in which `find` occurs exactly once (so the mutation stays
@@ -54,7 +59,7 @@ pub struct Mutation {
     /// The package `cargo-verus verify -p` runs on (or, for the App_Prover,
     /// the proof member `cargo creusot -p` runs on).
     pub package: String,
-    /// `verus` (the default) or `creusot`.
+    /// `verus` (the default), `creusot` or `lean`.
     pub prover: String,
 }
 
@@ -116,8 +121,11 @@ pub fn check(root: &Path, report: &mut Report) -> Vec<Mutation> {
         if m.find == m.replace {
             report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}` changes nothing", m.id));
         }
-        if m.prover != "verus" && m.prover != "creusot" {
-            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: `prover` must be `verus` or `creusot`, not `{}`", m.id, m.prover));
+        if m.prover != "verus" && m.prover != "creusot" && m.prover != "lean" {
+            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: `prover` must be `verus`, `creusot` or `lean`, not `{}`", m.id, m.prover));
+        }
+        if m.prover == "lean" && !m.file.starts_with(LEAN_DIR) {
+            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: a `lean` mutation's file must be under {LEAN_DIR}", m.id));
         }
         match std::fs::read_to_string(root.join(&m.file)) {
             Ok(text) => {
@@ -153,6 +161,18 @@ pub enum Verdict {
 /// `cargo creusot` output: proved when it succeeds and reports `Proved (`)
 /// against the mutation's expectations.
 pub fn classify(m: &Mutation, exit_ok: bool, text: &str) -> Verdict {
+    if m.prover == "lean" {
+        // `lake build` succeeds only when every file elaborates; a `sorry`
+        // is a warning, so it counts as a survivor only if the build passes.
+        if exit_ok {
+            return Verdict::Survived { verified: 0 };
+        }
+        let first_error = text.lines().find(|l| l.starts_with("error")).unwrap_or("(no error line)").to_string();
+        return match m.expect.iter().find(|e| !text.contains(e.as_str())) {
+            None => Verdict::Killed { first_error },
+            Some(missing) => Verdict::Unexpected { first_error, missing: missing.clone() },
+        };
+    }
     if m.prover == "creusot" {
         if exit_ok && text.contains("Proved (") {
             return Verdict::Survived { verified: 0 };
@@ -182,6 +202,49 @@ pub fn classify(m: &Mutation, exit_ok: bool, text: &str) -> Verdict {
         None => Verdict::Killed { first_error },
         Some(missing) => Verdict::Unexpected { first_error, missing: missing.clone() },
     }
+}
+
+/// The Lean project of the Aeneas translations and their proofs.
+const LEAN_DIR: &str = "proofs/aeneas/lean/";
+
+/// `lake`, from the PATH or from elan's directory.
+fn lake() -> Option<String> {
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
+    ["lake".to_string(), home.join(".elan").join("bin").join("lake").to_string_lossy().into_owned()]
+        .into_iter()
+        .find(|c| Cmd::new(c).arg("--version").output(None).map(|o| o.status.success()).unwrap_or(false))
+}
+
+/// A copy of the Lean project for the `lean` mutants, at `work/lean`: the
+/// sources, the main project's build output (so that only the mutated file
+/// and what imports it are checked again), a link to its fetched packages,
+/// and the path of the Aeneas library made absolute (the project names it
+/// relative to its own place in the tree).
+fn prepare_lean(root: &Path, work: &Path) -> Result<std::path::PathBuf, String> {
+    let src = root.join(LEAN_DIR);
+    let dest = work.join("lean");
+    if dest.exists() {
+        std::fs::remove_dir_all(&dest).map_err(|e| format!("cannot remove {}: {e}", dest.display()))?;
+    }
+    copy_tree(&src, &dest)?;
+    let lake_src = src.join(".lake");
+    if !lake_src.join("packages").is_dir() || !lake_src.join("build").is_dir() {
+        return Err(format!("{LEAN_DIR}.lake is not built: run `lake build` there first"));
+    }
+    std::fs::create_dir_all(dest.join(".lake")).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(lake_src.join("packages"), dest.join(".lake").join("packages")).map_err(|e| format!("cannot link the Lean packages: {e}"))?;
+    #[cfg(not(unix))]
+    return Err("the lean mutants need a Unix host".to_string());
+    copy_tree(&lake_src.join("build"), &dest.join(".lake").join("build"))?;
+    let aeneas = src.join("../../../../aeneas/backends/lean");
+    let aeneas = aeneas.canonicalize().map_err(|e| format!("the Aeneas Lean library is not at {}: {e}", aeneas.display()))?;
+    for name in ["lakefile.lean", "lake-manifest.json"] {
+        let path = dest.join(name);
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        std::fs::write(&path, text.replace("../../../../aeneas/backends/lean", &aeneas.to_string_lossy())).map_err(|e| e.to_string())?;
+    }
+    Ok(dest)
 }
 
 /// Applies the mutations one at a time to a copy of the tree and runs Verus
@@ -218,9 +281,22 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
     }
     let _ = std::fs::create_dir_all(&work);
     let mut all_ok = true;
+    let mut lean_tree: Option<std::path::PathBuf> = None;
     for m in selected {
         let original = root.join(&m.file);
-        let mutated = tree.join(&m.file);
+        if m.prover == "lean" && lean_tree.is_none() {
+            match prepare_lean(root, &work) {
+                Ok(d) => lean_tree = Some(d),
+                Err(e) => {
+                    report.error(Rule::Proof, None, e);
+                    return false;
+                }
+            }
+        }
+        let mutated = match (&lean_tree, m.prover.as_str()) {
+            (Some(d), "lean") => d.join(m.file.trim_start_matches(LEAN_DIR)),
+            _ => tree.join(&m.file),
+        };
         let text = match std::fs::read_to_string(&original) {
             Ok(t) => t,
             Err(e) => {
@@ -235,7 +311,13 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
             all_ok = false;
             continue;
         }
-        let cmd = if m.prover == "creusot" {
+        let cmd = if m.prover == "lean" {
+            let Some(lake) = lake() else {
+                report.error(Rule::Proof, None, "lake (Lean) is not installed: the lean mutants cannot be judged".to_string());
+                return false;
+            };
+            Cmd::new(lake).arg("build").cwd(lean_tree.as_ref().expect("prepared above"))
+        } else if m.prover == "creusot" {
             // The App_Prover over the copied proof workspace: a fresh session
             // (the copy carries the main tree's `verif` and `.why3find`), the
             // member built from the mutated tree's crates.
@@ -274,7 +356,9 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
                 report.error(
                     Rule::Proof,
                     Some(m.file.clone()),
-                    if m.prover == "creusot" {
+                    if m.prover == "lean" {
+                        format!("mutation `{}` survived: the Lean project builds with it, so {} does not exclude it (R52.2 vacuity)", m.id, m.kills)
+                    } else if m.prover == "creusot" {
                         format!("mutation `{}` survived: the App_Prover proved the member, so {} does not exclude it (R52.2 vacuity)", m.id, m.kills)
                     } else {
                         format!(
