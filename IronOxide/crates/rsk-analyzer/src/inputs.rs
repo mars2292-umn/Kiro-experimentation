@@ -481,11 +481,16 @@ pub fn prepare(
 /// (`terms::terms_for`, proven): every j in hep(i), j ≠ i, by its Jobs
 /// (R29.1), and every lower-Priority Sporadic_Task by its intake (R19.2).
 pub fn terms_for(tasks: &[AnalysedTask], i: usize) -> Vec<terms::TermOf> {
-    let interferers: Vec<terms::Interferer> = tasks
+    terms::terms_for(&interferers(tasks), i)
+}
+
+/// Every Task as an interferer of the others' recurrences: its Priority,
+/// J_j, T_j (at least 1), E_j, and its intake cost.
+pub fn interferers(tasks: &[AnalysedTask]) -> Vec<terms::Interferer> {
+    tasks
         .iter()
         .map(|t| terms::Interferer { priority: t.priority, jitter: t.j, period: t.period_cycles.max(1), bound: t.e, intake: t.intake })
-        .collect();
-    terms::terms_for(&interferers, i)
+        .collect()
 }
 
 /// R29.9: Σ E_j / T_j > 1 fails without iteration (`terms::utilization_exceeds_one`,

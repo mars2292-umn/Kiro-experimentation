@@ -69,20 +69,14 @@ pub fn load(model: &str, wcet: &str, timing: &str, manifest: &str) -> Result<Loa
 /// R29.9), with the intake terms of R19.2.
 pub fn response_times(tasks: &[inputs::AnalysedTask]) -> Vec<Wcrt> {
     let mut out = Vec::new();
+    // The arithmetic of each Task's verdict is `terms::response_of`
+    // (verified since 2026-11-14: the terms, the fixed point from
+    // C + B + O, and R = J + w against the deadline); what follows it here
+    // is the report's breakdown.
+    let interferers = inputs::interferers(tasks);
     for (i, t) in tasks.iter().enumerate() {
-        let terms = inputs::terms_for(tasks, i);
-        let plain: Vec<rta::Term> = terms.iter().map(|t| t.term).collect();
-        let base = t.c.saturating_add(t.b).saturating_add(t.o);
-        let (w, schedulable, overflow) = if t.c.checked_add(t.b).and_then(|x| x.checked_add(t.o)).is_none() {
-            (u64::MAX, false, true)
-        } else {
-            match rta::fixpoint(base, &plain, t.j, t.deadline_cycles) {
-                rta::Outcome::Fixpoint(w) => (w, true, false),
-                rta::Outcome::NotSchedulable(w) => (w, false, false),
-                rta::Outcome::Overflow => (u64::MAX, false, true),
-            }
-        };
-        let r = w.saturating_add(t.j);
+        let (verdict, terms) = terms::response_of(&interferers, i, t.c, t.b, t.o, t.deadline_cycles);
+        let (w, r, schedulable, overflow) = (verdict.w, verdict.r, verdict.schedulable, verdict.overflow);
         let interference = terms
             .iter()
             .map(|term| {
@@ -98,7 +92,7 @@ pub fn response_times(tasks: &[inputs::AnalysedTask]) -> Vec<Wcrt> {
         out.push(Wcrt {
             id: t.id.clone(),
             r,
-            schedulable: schedulable && r <= t.deadline_cycles,
+            schedulable,
             overflow,
             interference,
         });
