@@ -1,3 +1,10 @@
+/-
+  The Analyzer's verdict for one Task, end to end, on the code as compiled
+  (Verification_Plan 7.2, 2026-11-14): `terms::terms_for` returns the terms
+  of the Task's recurrence, and `terms::response_of` (the terms, the fixed
+  point from `C + B + O`, the verdict) returns what R29.1 and R29.5 to R29.7
+  say. Handwritten; `Rta/Rta.lean` is the generated translation.
+-/
 import Aeneas
 import Rta.Rta
 import Rta.Proofs

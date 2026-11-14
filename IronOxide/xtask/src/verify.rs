@@ -1703,7 +1703,7 @@ fn aeneas_evaluation(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manif
     let mut item = Item::new(
         "proof-app-aeneas",
         Kind::Proof,
-        "Aeneas evaluation (task 17.3): the Lean proofs over the Aeneas translation of the fixed-point PI control law (panic and overflow freedom, saturation, integral bound), and over the translation of the Analyzer's `rta::fixpoint` as compiled without Verus (verification_plan.md 7.2: it returns, and its result is the least fixed point of the recurrence or a lower bound beyond the deadline)",
+        "Aeneas evaluation (task 17.3): the Lean proofs over the Aeneas translation of the fixed-point PI control law (panic and overflow freedom, saturation, integral bound), and over the translation of the Analyzer's numeric chain as compiled without Verus (verification_plan.md 7.2: the fixed point, the terms of a Task's recurrence, one Task's verdict end to end, and the term derivation)",
         Tool { name: "Lean (Aeneas library)".to_string(), version: format!("{lean_version}; {lake_version}"), solvers: vec![] },
         Verdict::from_bool(ok),
     )

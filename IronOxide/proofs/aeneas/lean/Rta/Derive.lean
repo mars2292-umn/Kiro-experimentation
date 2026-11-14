@@ -1,3 +1,13 @@
+/-
+  The Analyzer's term derivation on the code as compiled (Verification_Plan
+  7.2, 2026-11-14): `terms::derive_all` and the functions it calls
+  (`site_stats`, `overhead`, `interference_bound`, `blocking`). When they
+  return a value it is the term of R29.2 to R29.4 as restated here (`specO`,
+  `specE`, `siteCount`, `longestCs`, `maxCandidate`), and they return for
+  every input in which each site names a Task. What is not stated here and
+  is in the Verus contract: that `None` is returned only when a term does
+  not fit 64 bits, and which site attains `B_i`. Handwritten.
+-/
 import Aeneas
 import Rta.Rta
 import Rta.Proofs
@@ -158,5 +168,277 @@ theorem site_stats_body_spec (sites : alloc.vec.Vec terms.Site) (t : Usize)
     simp
     rw [← heq]
     exact ⟨hc, hl⟩
+
+theorem site_stats_spec (sites : alloc.vec.Vec terms.Site) (t : Usize) :
+    terms.site_stats sites t ⦃ r =>
+      r.count.val = siteCount sites.val t.val sites.val.length
+        ∧ r.longest.val = longestCs sites.val t.val sites.val.length ⦄ := by
+  unfold terms.site_stats
+  have hloop : terms.site_stats_loop sites t 0#u64 0#u64 0#usize ⦃ r =>
+      r.1.val = siteCount sites.val t.val sites.val.length
+        ∧ r.2.val = longestCs sites.val t.val sites.val.length ⦄ := by
+    unfold terms.site_stats_loop
+    apply loop.spec_decr_nat
+      (fun (s : U64 × U64 × Usize) => sites.val.length - s.2.2.val)
+      (fun s => s.2.2.val ≤ sites.val.length ∧ s.1.val ≤ s.2.2.val
+        ∧ s.1.val = siteCount sites.val t.val s.2.2.val
+        ∧ s.2.1.val = longestCs sites.val t.val s.2.2.val)
+    · intro s hs
+      obtain ⟨c, l, k⟩ := s
+      obtain ⟨h1, h2, h3, h4⟩ := hs
+      simp only [] at h1 h2 h3 h4
+      apply WP.spec_mono (site_stats_body_spec sites t c l k h1 h2 h3 h4)
+      intro r hr
+      cases r with
+      | done q =>
+        obtain ⟨c', l'⟩ := q
+        simpa using hr
+      | cont s' =>
+        obtain ⟨c', l', k'⟩ := s'
+        simp only [] at hr ⊢
+        obtain ⟨e1, e2, e3, e4, e5⟩ := hr
+        exact ⟨⟨e2, e3, e4, e5⟩, by omega⟩
+    · simp [siteCount, longestCs]
+  step with hloop as ⟨ c, l, hc, hl ⟩
+  exact ⟨hc, hl⟩
+
+/-- The Kernel-level blocking: `L_kernel` or the Partition stop and restart
+work, whichever is larger. -/
+def bFloor (p : terms.Params) : Nat :=
+  if p.l_kernel.val ≥ (if p.restart.val ≥ p.stop.val then p.restart.val else p.stop.val)
+  then p.l_kernel.val
+  else (if p.restart.val ≥ p.stop.val then p.restart.val else p.stop.val)
+
+/-- The blocking a site of a lower Task `l` costs Task `ti` (R29.2). -/
+def candidateOf (ti l : terms.TaskIn) (s : terms.Site) (p : terms.Params) : Nat :=
+  if s.endpoint = false ∧ l.partition ≠ ti.partition ∧ l.stops_overruns = true
+  then l.budget.val + p.detect.val + p.enforce.val
+  else s.wcet.val
+
+/-- `B_i` over the first `n` sites: the largest candidate of the sites
+that can block the Task (a holder of lower Priority, a Ceiling of at least
+the Task's Priority), and at least the Kernel-level blocking. -/
+def maxCandidate (tasks : List terms.TaskIn) (sites : List terms.Site) (ti : terms.TaskIn)
+    (p : terms.Params) : Nat → Nat
+  | 0 => bFloor p
+  | n + 1 =>
+    let r := maxCandidate tasks sites ti p n
+    match sites[n]? with
+    | none => r
+    | some s =>
+      match tasks[s.task.val]? with
+      | none => r
+      | some l =>
+        if l.priority.val < ti.priority.val ∧ ti.priority.val ≤ s.ceiling.val
+            ∧ candidateOf ti l s p > r
+        then candidateOf ti l s p else r
+
+set_option maxHeartbeats 8000000 in
+theorem blocking_body_spec (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+    (p : terms.Params) (ti : terms.TaskIn) (b : U64) (site : Option Usize) (k : Usize)
+    (hsok : ∀ s ∈ sites.val, s.task.val < tasks.val.length)
+    (hk : k.val ≤ sites.val.length)
+    (hb : b.val = maxCandidate tasks.val sites.val ti p k.val) :
+    terms.blocking_loop.body tasks sites p.detect p.enforce ti b site k ⦃ r =>
+      match r with
+      | .done o => ∀ bl, o = some bl →
+          bl.b.val = maxCandidate tasks.val sites.val ti p sites.val.length
+      | .cont (b', site', k') => k'.val = k.val + 1 ∧ k'.val ≤ sites.val.length
+          ∧ b'.val = maxCandidate tasks.val sites.val ti p k'.val ⦄ := by
+  unfold terms.blocking_loop.body
+  simp only []
+  split
+  · rename_i hlt
+    have hlt' : k.val < sites.val.length := by scalar_tac
+    step as ⟨ s, hs ⟩
+    have hgets : sites.val[k.val]? = some s := by
+      rw [hs]; exact List.getElem?_eq_getElem hlt'
+    have hst : s.task.val < tasks.val.length := by
+      apply hsok; rw [hs]; exact List.getElem_mem _
+    step as ⟨ l, hl ⟩
+    have hgetl : tasks.val[s.task.val]? = some l := by
+      rw [hl]; exact List.getElem?_eq_getElem hst
+    have hnext : maxCandidate tasks.val sites.val ti p (k.val + 1) =
+        (if l.priority.val < ti.priority.val ∧ ti.priority.val ≤ s.ceiling.val
+            ∧ candidateOf ti l s p > b.val
+         then candidateOf ti l s p else b.val) := by
+      simp [maxCandidate, hgets, hgetl, hb]
+    by_cases h1 : l.priority.val < ti.priority.val <;>
+      by_cases h2 : ti.priority.val ≤ s.ceiling.val <;>
+      cases h3 : s.endpoint <;>
+      by_cases h4 : l.partition = ti.partition <;>
+      cases h5 : l.stops_overruns
+    all_goals simp [h1, h2, h3, h4, h5]
+    all_goals (repeat' (first | split | step))
+    all_goals first
+      | (simp_all [candidateOf]; done)
+      | (simp_all [candidateOf]; omega)
+      | (simp_all [candidateOf]; scalar_tac)
+      | skip
+  · rename_i hge
+    have heq : k.val = sites.val.length := by scalar_tac
+    simp
+    rw [← heq]
+    exact hb
+
+theorem blocking_loop_spec (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+    (p : terms.Params) (ti : terms.TaskIn) (b0 : U64)
+    (hsok : ∀ s ∈ sites.val, s.task.val < tasks.val.length)
+    (hb0 : b0.val = bFloor p) :
+    terms.blocking_loop tasks sites p.detect p.enforce ti b0 none 0#usize ⦃ r =>
+      ∀ bl, r = some bl → bl.b.val = maxCandidate tasks.val sites.val ti p sites.val.length ⦄ := by
+  unfold terms.blocking_loop
+  apply loop.spec_decr_nat
+    (fun (s : U64 × Option Usize × Usize) => sites.val.length - s.2.2.val)
+    (fun s => s.2.2.val ≤ sites.val.length
+      ∧ s.1.val = maxCandidate tasks.val sites.val ti p s.2.2.val)
+  · intro s hs
+    obtain ⟨b, site, k⟩ := s
+    obtain ⟨h1, h2⟩ := hs
+    simp only [] at h1 h2
+    apply WP.spec_mono (blocking_body_spec tasks sites p ti b site k hsok h1 h2)
+    intro r hr
+    cases r with
+    | done o => simpa using hr
+    | cont s' =>
+      obtain ⟨b', site', k'⟩ := s'
+      simp only [] at hr ⊢
+      obtain ⟨e1, e2, e3⟩ := hr
+      exact ⟨⟨e2, e3⟩, by omega⟩
+  · simp [maxCandidate, hb0]
+
+/-- `B_i` of R29.2 for Task `i`, when the function returns one. -/
+theorem blocking_spec (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+    (i : Usize) (p : terms.Params) (ti : terms.TaskIn) (hti : tasks.val[i.val]? = some ti)
+    (hsok : ∀ s ∈ sites.val, s.task.val < tasks.val.length) :
+    terms.blocking tasks sites i p ⦃ r =>
+      ∀ bl, r = some bl → bl.b.val = maxCandidate tasks.val sites.val ti p sites.val.length ⦄ := by
+  have hi : i.val < tasks.val.length := by
+    rcases List.getElem?_eq_some_iff.mp hti with ⟨h, _⟩; exact h
+  unfold terms.blocking
+  step as ⟨ ti0, hti0 ⟩
+  have hti1 : ti0 = ti := by
+    have := List.getElem?_eq_getElem hi
+    rw [this] at hti; simp at hti; rw [hti0]; exact hti
+  subst hti1
+  by_cases hr : p.restart.val ≥ p.stop.val <;> by_cases hlr : p.l_kernel.val ≥ p.restart.val <;>
+    by_cases hls : p.l_kernel.val ≥ p.stop.val
+  all_goals simp [hr, hlr, hls]
+  all_goals first
+    | (apply blocking_loop_spec tasks sites p ti0 _ hsok; simp [bFloor, hr, hlr, hls]; done)
+    | (apply blocking_loop_spec tasks sites p ti0 _ hsok; simp [bFloor, hr, hlr, hls]; omega)
+    | (split <;> (apply blocking_loop_spec tasks sites p ti0 _ hsok; simp_all [bFloor]; try omega))
+
+/-- `d` holds the terms of the Task `ti` at index `j` (R29.2 to R29.4). -/
+def derivedOk (tasks : List terms.TaskIn) (sites : List terms.Site) (p : terms.Params)
+    (any_fpu : Bool) (j : Nat) (ti : terms.TaskIn) (d : terms.Derived) : Prop :=
+  d.sites.val = siteCount sites j sites.length
+  ∧ d.longest_cs.val = longestCs sites j sites.length
+  ∧ d.o.val = specO ti p d.sites.val any_fpu
+  ∧ d.e.val = specE ti p d.longest_cs.val d.o.val
+  ∧ d.b.val = maxCandidate tasks sites ti p sites.length
+  ∧ d.j = p.j_rel
+
+/-- Every entry of `out` holds the terms of the Task at its index. -/
+def allDerived (tasks : List terms.TaskIn) (sites : List terms.Site) (p : terms.Params)
+    (any_fpu : Bool) (out : List terms.Derived) : Prop :=
+  ∀ j d ti, out[j]? = some d → tasks[j]? = some ti → derivedOk tasks sites p any_fpu j ti d
+
+theorem derive_all_body_spec (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+    (p : terms.Params) (any_fpu : Bool) (out : alloc.vec.Vec terms.Derived) (i : Usize)
+    (hsok : ∀ s ∈ sites.val, s.task.val < tasks.val.length)
+    (hi : i.val ≤ tasks.val.length) (hlen : out.val.length = i.val)
+    (hall : allDerived tasks.val sites.val p any_fpu out.val) :
+    terms.derive_all_loop.body tasks sites p any_fpu out i ⦃ r =>
+      match r with
+      | .done o => ∀ v, o = some v → v.val.length = tasks.val.length
+          ∧ allDerived tasks.val sites.val p any_fpu v.val
+      | .cont (out', i') => i'.val = i.val + 1 ∧ i'.val ≤ tasks.val.length
+          ∧ out'.val.length = i'.val
+          ∧ allDerived tasks.val sites.val p any_fpu out'.val ⦄ := by
+  unfold terms.derive_all_loop.body
+  simp only []
+  split
+  · rename_i hlt
+    have hlt' : i.val < tasks.val.length := by scalar_tac
+    step as ⟨ t, ht ⟩
+    have hget : tasks.val[i.val]? = some t := by
+      rw [ht]; exact List.getElem?_eq_getElem hlt'
+    step with site_stats_spec as ⟨ stats, hcount, hlongest ⟩
+    step with overhead_spec as ⟨ o, ho ⟩
+    cases o with
+    | none => simp
+    | some v =>
+      simp only []
+      have hv := ho v rfl
+      step with interference_bound_spec as ⟨ o1, ho1 ⟩
+      cases o1 with
+      | none => simp
+      | some v1 =>
+        simp only []
+        have hv1 := ho1 v1 rfl
+        step with blocking_spec tasks sites i p t hget hsok as ⟨ o2, ho2 ⟩
+        cases o2 with
+        | none => simp
+        | some v2 =>
+          simp only []
+          have hv2 := ho2 v2 rfl
+          step as ⟨ out1, hout1 ⟩
+          step as ⟨ i2, hi2 ⟩
+          refine ⟨hi2, by scalar_tac, by rw [hout1]; simp; omega, ?_⟩
+          intro j d tj hd htj
+          rw [hout1] at hd
+          by_cases hj : j < out.val.length
+          · rw [List.getElem?_append_left hj] at hd
+            exact hall j d tj hd htj
+          · have hjl : j = out.val.length := by
+              have := (List.getElem?_eq_some_iff.mp hd).1
+              simp at this; omega
+            subst hjl
+            simp at hd
+            subst hd
+            rw [hlen] at htj
+            rw [hget] at htj
+            simp at htj
+            subst htj
+            simp only [derivedOk]
+            rw [hlen]
+            exact ⟨hcount, hlongest, hv, hv1, hv2, trivial⟩
+  · rename_i hge
+    have heq : i.val = tasks.val.length := by scalar_tac
+    simp
+    exact ⟨by omega, hall⟩
+
+/-- The term derivation (R29.2 to R29.4), on the code as compiled. When
+`derive_all` returns a list it has one entry per Task and every entry
+holds that Task's terms: its site count and longest Critical_Section,
+`O_i`, `E_i`, `B_i`, and `J_i = J_rel`. It returns for every input in
+which each site names a Task of the set (no panic, no overflow: an
+overflowing sum is answered with `None`). -/
+theorem derive_all_spec (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+    (p : terms.Params) (any_fpu : Bool)
+    (hsok : ∀ s ∈ sites.val, s.task.val < tasks.val.length) :
+    terms.derive_all tasks sites p any_fpu ⦃ r =>
+      ∀ v, r = some v → v.val.length = tasks.val.length
+        ∧ allDerived tasks.val sites.val p any_fpu v.val ⦄ := by
+  unfold terms.derive_all terms.derive_all_loop
+  apply loop.spec_decr_nat
+    (fun (s : alloc.vec.Vec terms.Derived × Usize) => tasks.val.length - s.2.val)
+    (fun s => s.2.val ≤ tasks.val.length ∧ s.1.val.length = s.2.val
+      ∧ allDerived tasks.val sites.val p any_fpu s.1.val)
+  · intro s hs
+    obtain ⟨out, i⟩ := s
+    obtain ⟨h1, h2, h3⟩ := hs
+    simp only [] at h1 h2 h3
+    apply WP.spec_mono (derive_all_body_spec tasks sites p any_fpu out i hsok h1 h2 h3)
+    intro r hr
+    cases r with
+    | done o => simpa using hr
+    | cont s' =>
+      obtain ⟨out', i'⟩ := s'
+      simp only [] at hr ⊢
+      obtain ⟨e1, e2, e3, e4⟩ := hr
+      exact ⟨⟨e2, e3, e4⟩, by omega⟩
+  · simp [allDerived]
 
 end rsk_analyzer
