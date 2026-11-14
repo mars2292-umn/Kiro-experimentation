@@ -74,7 +74,7 @@ pub fn response_times(tasks: &[inputs::AnalysedTask]) -> Vec<Wcrt> {
     // C + B + O, and R = J + w against the deadline).
     let interferers = inputs::interferers(tasks);
     for (i, t) in tasks.iter().enumerate() {
-        let (verdict, terms) = terms::response_of(&interferers, i, t.c, t.b, t.o, t.deadline_cycles);
+        let (verdict, terms) = terms::response_of(&interferers, i, t.c, t.b, t.o, t.deadline_cycles, inputs::housekeeping(tasks));
         out.push(wcrt_of(tasks, i, verdict, &terms));
     }
     out
@@ -96,7 +96,12 @@ fn wcrt_of(tasks: &[inputs::AnalysedTask], i: usize, verdict: terms::Verdict, te
         .map(|term| {
             let jobs = if overflow { 0 } else { (w.saturating_add(term.term.jitter)).div_ceil(term.term.period) };
             Interference {
-                task: if term.intake { format!("{} (intake, R19.2)", tasks[term.task].id) } else { tasks[term.task].id.clone() },
+                task: match term.kind {
+                    terms::TERM_INTAKE => format!("{} (intake, R19.2)", tasks[term.task].id),
+                    terms::TERM_EVENTS => format!("{} (timed events, R19.2)", tasks[term.task].id),
+                    terms::TERM_HOUSEKEEPING => "Kernel housekeeping (R19.2)".to_string(),
+                    _ => tasks[term.task].id.clone(),
+                },
                 e_cycles: term.term.bound,
                 jobs,
                 cycles: jobs.saturating_mul(term.term.bound),

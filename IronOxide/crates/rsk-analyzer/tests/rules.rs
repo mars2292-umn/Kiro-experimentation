@@ -228,7 +228,7 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         o: 0,
         j: 0,
         e: c,
-        intake: 0,
+        intake: 0, events: 0, hk_period: 1, hk_cost: 0,
         stops_overruns: false,
         sporadic: false,
         longest_cs: 0,
@@ -421,31 +421,55 @@ fn r28_1_a_critical_section_site_whose_resource_is_unknown_is_rejected_naming_it
 }
 
 #[test]
-fn r19_2_the_intake_of_a_lower_sporadic_task_interferes_with_every_task() {
+fn r19_2_the_kernel_level_work_of_a_lower_task_interferes_with_every_task() {
     let m = model();
     let (w, t) = placeholders::make(&m, HASH, "off");
     let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
     let by = |id: &str| p.tasks.iter().position(|x| x.id == id).unwrap();
+    let timer = p.tasks[0].hk_cost;
+    assert!(timer > 0);
     // echo (sporadic, P6) is below control (P7): control's recurrence
     // carries echo's intake, ⌈w / MIT⌉ · Δ_irq (300 placeholder cycles per
-    // 500,000-cycle MIT), and nothing else of echo.
+    // 500,000-cycle MIT), and its other timed events (deadline, Budget,
+    // unmask) for one Job more, and nothing else of echo.
     let control = inputs::terms_for(&p.tasks, by("part0.control"));
     let echo_terms: Vec<_> = control.iter().filter(|x| x.task == by("part0.echo")).collect();
-    assert_eq!(echo_terms.len(), 1);
-    assert!(echo_terms[0].intake);
+    assert_eq!(echo_terms.len(), 2);
+    assert_eq!(echo_terms[0].kind, rsk_analyzer::terms::TERM_INTAKE);
     assert_eq!((echo_terms[0].term.jitter, echo_terms[0].term.period, echo_terms[0].term.bound), (0, 500_000, 300));
+    assert_eq!(echo_terms[1].kind, rsk_analyzer::terms::TERM_EVENTS);
+    assert_eq!((echo_terms[1].term.jitter, echo_terms[1].term.period), (500_000, 500_000));
+    assert!(echo_terms[1].term.bound == 3 * timer || echo_terms[1].term.bound == 4 * timer);
+    // sensor (periodic, P5) is below control: its release event once per
+    // period, its deadline and Budget events for one Job more (2026-11-14;
+    // a lower Periodic_Task had no term before).
+    let sensor_terms: Vec<_> = control.iter().filter(|x| x.task == by("part0.sensor")).collect();
+    assert_eq!(sensor_terms.len(), 2);
+    assert_eq!((sensor_terms[0].kind, sensor_terms[0].term.jitter, sensor_terms[0].term.bound), (rsk_analyzer::terms::TERM_INTAKE, 0, timer));
+    assert_eq!((sensor_terms[1].kind, sensor_terms[1].term.jitter, sensor_terms[1].term.bound), (rsk_analyzer::terms::TERM_EVENTS, sensor_terms[1].term.period, 2 * timer));
+    // The housekeeping event is the last term of every Task.
+    let hk = control.last().unwrap();
+    assert_eq!((hk.kind, hk.task, hk.term.jitter, hk.term.period, hk.term.bound), (rsk_analyzer::terms::TERM_HOUSEKEEPING, p.tasks.len(), 0, inputs::HOUSEKEEPING_PERIOD_CYCLES, timer));
     // sensor (P5) is below echo: echo is in hep(sensor) and interferes by
     // its Jobs (E = Budget + O, the intake in O), not by a separate term.
     let sensor = inputs::terms_for(&p.tasks, by("part0.sensor"));
     let echo_terms: Vec<_> = sensor.iter().filter(|x| x.task == by("part0.echo")).collect();
     assert_eq!(echo_terms.len(), 1);
-    assert!(!echo_terms[0].intake);
+    assert_eq!(echo_terms[0].kind, rsk_analyzer::terms::TERM_JOBS);
     assert_eq!(echo_terms[0].term.bound, p.tasks[by("part0.echo")].e);
-    // A Periodic_Task has no intake term anywhere.
-    assert!(p.tasks.iter().filter(|x| !x.sporadic).all(|x| x.intake == 0));
     let r = response_times(&p.tasks);
     let control_r = r.iter().find(|x| x.id == "part0.control").unwrap();
     assert!(control_r.interference.iter().any(|i| i.task == "part0.echo (intake, R19.2)" && i.e_cycles == 300 && i.jobs == 1));
+    assert!(control_r.interference.iter().any(|i| i.task == "part0.sensor (timed events, R19.2)" && i.jobs == 2));
+    assert!(control_r.interference.iter().any(|i| i.task == "Kernel housekeeping (R19.2)" && i.jobs == 1));
+}
+
+#[test]
+fn the_housekeeping_period_is_the_kernels() {
+    let src = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../rsk-logic/src/logic/kernel.rs")).unwrap();
+    assert!(src.contains("pub const HOUSEKEEPING_PERIOD: u64 = 16_000_000 / 8;"));
+    assert!(src.contains("pub const CYCLES_PER_TICK: u64 = 4;"));
+    assert_eq!(inputs::HOUSEKEEPING_PERIOD_CYCLES, 16_000_000 / 8 * 4);
 }
 
 // ------------------------------------------------------------- R29.8
@@ -647,7 +671,7 @@ fn task_19_1_a_measured_critical_section_record_replaces_the_placeholder_blockin
 #[test]
 fn r40_2_endpoint_operations_are_kernel_level_critical_sections() {
     use rsk_analyzer::terms::{blocking, overhead, site_stats, Params, Site, TaskIn};
-    let p = Params { release: 1, dispatch: 1, complete: 1, wake: 1, timer: 1, fp_save: 0, fp_restore: 0, lock_in: 10, lock_out: 10, detect: 100, enforce: 100, hm: 1, irq: 1, stamp: 1, entry: 1, l_kernel: 1_000, j_rel: 0, restart: 0, stop: 0, send: 3_000, recv: 2_500 };
+    let p = Params { release: 1, dispatch: 1, complete: 1, wake: 1, timer: 1, fp_save: 0, fp_restore: 0, lock_in: 10, lock_out: 10, detect: 100, enforce: 100, hm: 1, irq: 1, stamp: 1, entry: 1, l_kernel: 1_000, j_rel: 0, restart: 0, stop: 0, send: 3_000, recv: 2_500, hk_period: 1_000_000_000 };
     let lo = TaskIn { priority: 2, partition: 1, budget: 50_000, stops_overruns: true, periodic: true, defer: false, endpoint_cost: 4 * 3_000 };
     let hi = TaskIn { priority: 7, partition: 0, budget: 1_000, stops_overruns: false, periodic: true, defer: false, endpoint_cost: 0 };
     let tasks = vec![lo, hi];

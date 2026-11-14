@@ -64,10 +64,19 @@ pub struct AnalysedTask {
     pub j: u64,
     /// E_i: the interference bound this Task imposes on lower ones (R29.4).
     pub e: u64,
-    /// The intake cost of the Task's Release_Source per MIT (Δ_irq for a
-    /// Sporadic_Task, 0 for a Periodic_Task): interference on every Task
-    /// its Jobs cannot preempt (R19.2).
+    /// The Kernel-level cost of one arrival of the Task (Δ_irq for a
+    /// Sporadic_Task's Release_Source, Δ_timer for a Periodic_Task's
+    /// release event): interference on every Task its Jobs cannot preempt
+    /// (R19.2).
     pub intake: u64,
+    /// The Kernel-level cost of a Job's other timed events
+    /// (`terms::carried_events` · Δ_timer), charged to every Task its Jobs
+    /// cannot preempt for one Job more than the arrivals (R19.2).
+    pub events: u64,
+    /// The Kernel's housekeeping event, charged to every Task: its period
+    /// in cycles and its cost (Δ_timer). The same for every Task of a set.
+    pub hk_period: u64,
+    pub hk_cost: u64,
     pub stops_overruns: bool,
     /// A Sporadic_Task (its period is the MIT), for the UPPAAL release generator (R31.2).
     pub sporadic: bool,
@@ -312,6 +321,7 @@ pub fn prepare(
         stop: ktp("delta_stop"),
         send: ktp("delta_send"),
         recv: ktp("delta_recv"),
+        hk_period: HOUSEKEEPING_PERIOD_CYCLES,
     };
     if tick_hz == 0 {
         return Err(vec![reject("R29.8", "the Task_Model's tick_hz is 0: no clock ratio")]);
@@ -418,7 +428,10 @@ pub fn prepare(
             o: d.o,
             j: d.j,
             e: d.e,
-            intake: if t.is_periodic() { 0 } else { params.irq },
+            intake: if t.is_periodic() { params.timer } else { params.irq },
+            events: params.timer.saturating_mul(if task_in[i].periodic { 2 } else if task_in[i].defer { 4 } else { 3 }),
+            hk_period: params.hk_period,
+            hk_cost: params.timer,
             stops_overruns: task_in[i].stops_overruns,
             sporadic: !t.is_periodic(),
             longest_cs: d.longest_cs,
@@ -474,8 +487,8 @@ pub fn prepare(
     if !any_fpu {
         omitted_terms.push("no FPU-using Task: Δ_fp_save and Δ_fp_restore are not charged".to_string());
     }
-    if tasks.iter().any(|t| t.intake > 0) {
-        omitted_terms.push("the intake handling of a Sporadic_Task's Release_Source (R19.2, Δ_irq per MIT) interferes with every Task in the RTA; the UPPAAL model carries it only in E_j, on the Tasks the Task's Jobs preempt".to_string());
+    if tasks.iter().any(|t| t.intake > 0 || t.events > 0 || t.hk_cost > 0) {
+        omitted_terms.push("the Kernel-level work of a lower-Priority Task's arrivals and timed events and of the housekeeping event (R19.2) interferes with every Task in the RTA; the UPPAAL model carries a Task's own in E_j only, on the Tasks the Task's Jobs preempt".to_string());
     }
     Ok(Prepared {
         tasks,
@@ -489,11 +502,24 @@ pub fn prepare(
     })
 }
 
+/// The period of the Kernel's housekeeping event in CPU cycles:
+/// `rsk_logic::logic::kernel::HOUSEKEEPING_PERIOD` ticks (16,000,000 / 8)
+/// of `CYCLES_PER_TICK` = 4 cycles. `tests/rules.rs` reads both constants
+/// from the Kernel's source and compares.
+pub const HOUSEKEEPING_PERIOD_CYCLES: u64 = 16_000_000 / 8 * 4;
+
 /// The terms of Task `i`'s recurrence, each with its origin
 /// (`terms::terms_for`, proven): every j in hep(i), j ≠ i, by its Jobs
-/// (R29.1), and every lower-Priority Sporadic_Task by its intake (R19.2).
+/// (R29.1), every lower-Priority Task by its Kernel-level work, and the
+/// housekeeping event (R19.2).
 pub fn terms_for(tasks: &[AnalysedTask], i: usize) -> Vec<terms::TermOf> {
-    terms::terms_for(&interferers(tasks), i)
+    terms::terms_for(&interferers(tasks), i, housekeeping(tasks))
+}
+
+/// The housekeeping event's term of a prepared set (`terms::spec_hk`).
+pub fn housekeeping(tasks: &[AnalysedTask]) -> crate::rta::Term {
+    let (period, cost) = tasks.first().map(|t| (t.hk_period, t.hk_cost)).unwrap_or((1, 0));
+    crate::rta::Term { jitter: 0, period: period.max(1), bound: cost }
 }
 
 /// Every Task as an interferer of the others' recurrences: its Priority,
@@ -501,7 +527,7 @@ pub fn terms_for(tasks: &[AnalysedTask], i: usize) -> Vec<terms::TermOf> {
 pub fn interferers(tasks: &[AnalysedTask]) -> Vec<terms::Interferer> {
     tasks
         .iter()
-        .map(|t| terms::Interferer { priority: t.priority, jitter: t.j, period: t.period_cycles.max(1), bound: t.e, intake: t.intake })
+        .map(|t| terms::Interferer { priority: t.priority, jitter: t.j, period: t.period_cycles.max(1), bound: t.e, intake: t.intake, events: t.events })
         .collect()
 }
 

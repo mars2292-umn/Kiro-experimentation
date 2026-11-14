@@ -47,7 +47,7 @@ fn task(id: &str, priority: u8, c: u64, period: u64, deadline: u64) -> AnalysedT
         o: 0,
         j: 0,
         e: c,
-        intake: 0,
+        intake: 0, events: 0, hk_period: 1, hk_cost: 0,
         stops_overruns: false,
         sporadic: false,
         longest_cs: 0,
@@ -255,12 +255,17 @@ fn reference_rta(tasks: &[AnalysedTask]) -> Vec<(String, u128, bool)> {
                 let jobs = (w + u.j as u128 + p - 1) / p;
                 next += jobs * u.e as u128;
             }
-            // R19.2: the intake handling of a lower Sporadic_Task's source,
-            // once per MIT, with no jitter.
-            for u in order.iter().copied().filter(|u| u.priority < t.priority && u.intake > 0) {
+            // R19.2: the Kernel-level work of a lower Task: its arrivals
+            // (once per period or MIT, no jitter) and its other timed
+            // events (one Job more than the arrivals).
+            for u in order.iter().copied().filter(|u| u.priority < t.priority) {
                 let p = u.period_cycles.max(1) as u128;
                 next += ((w + p - 1) / p) * u.intake as u128;
+                next += ((w + p - 1) / p + 1) * u.events as u128;
             }
+            // The Kernel's housekeeping event, on every Task.
+            let hk = t.hk_period.max(1) as u128;
+            next += ((w + hk - 1) / hk) * t.hk_cost as u128;
             if next == w {
                 break (w, true);
             }

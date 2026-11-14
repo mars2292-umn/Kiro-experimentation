@@ -7,9 +7,12 @@
 //! and calls `derive_all`, whose postcondition is the requirement:
 //!
 //! - `spec_o` is O_i of R29.3: Δ_release + Δ_dispatch + Δ_complete + Δ_wake
-//!   per Job; Δ_timer per timed event (release, Budget, and the deadline of
-//!   a Periodic_Task or the MIT deferral of a Sporadic_Task with the
-//!   `defer` policy); Δ_lock_in + Δ_lock_out per Critical_Section site;
+//!   per Job; Δ_timer per timed event of a Job (`timed_events`: the release
+//!   of a Periodic_Task, the deadline, the Budget, the MIT unmask of a
+//!   Sporadic_Task and its deferral under the `defer` policy, and the stale
+//!   Budget event of the Job it preempts, whose Budget slot stays armed and
+//!   fires once while the preempting Job executes; 2026-11-14);
+//!   Δ_lock_in + Δ_lock_out per Critical_Section site;
 //!   Δ_hm; Δ_entry (R13.6); Δ_fp_save + Δ_fp_restore when the set has an
 //!   FPU-using Task; Δ_irq + Δ_stamp for a Sporadic_Task (R19.2);
 //! - `spec_e` is E_j of R29.4: Budget_j + Δ_detect + Δ_enforce + L_j + O_j
@@ -26,11 +29,16 @@
 //! - J_i is J_rel for every Task (Table 13-1);
 //! - `terms_for` lists the terms of a Task's recurrence (`spec_terms`):
 //!   every other Task of hep(i) by its Jobs, ⌈(w + J_j) / T_j⌉ · E_j
-//!   (R29.1), and every lower-Priority Sporadic_Task by the intake handling
-//!   of its Release_Source, ⌈w / MIT_j⌉ · Δ_irq (R19.2: the handler runs at
-//!   the Kernel level and preempts every Task, where the Task's own Jobs
-//!   preempt only those at or below its Priority; for a Task of hep(i) the
-//!   intake is in O_j already);
+//!   (R29.1); every lower-Priority Task by the Kernel-level work of its
+//!   arrivals, ⌈w / T_j⌉ · Δ_irq for a Sporadic_Task's Release_Source and
+//!   ⌈w / T_j⌉ · Δ_timer for a Periodic_Task's release event (R19.2: the
+//!   handler runs at the Kernel level and preempts every Task, where the
+//!   Task's own Jobs preempt only those at or below its Priority; for a
+//!   Task of hep(i) the cost is in O_j already), and by its other timed
+//!   events, (⌈w / T_j⌉ + 1) · `carried_events` · Δ_timer (the deadline,
+//!   Budget, unmask and deferral events of a Job released before the busy
+//!   period can fire inside it, hence the one Job more; 2026-11-14); and
+//!   the Kernel's housekeeping event, ⌈w / T_hk⌉ · Δ_timer, on every Task;
 //! - `ticks_to_cycles_down` and `ticks_to_cycles_up` are the rounding of
 //!   R29.8 (periods, MITs, and deadlines down; execution times and jitter
 //!   up);
@@ -113,6 +121,9 @@ pub struct Params {
     /// Task 21.5 (R40.2): Δ_send and Δ_recv, the Endpoint operations.
     pub send: u64,
     pub recv: u64,
+    /// The period of the Kernel's housekeeping event (the watchdog feed),
+    /// in cycles (`rsk_logic::logic::kernel::HOUSEKEEPING_PERIOD` ticks).
+    pub hk_period: u64,
 }
 
 /// The terms of one Task.
@@ -140,11 +151,24 @@ pub open spec fn u64_max() -> int {
 
 // ------------------------------------------------------------------ specs
 
-/// The timed events of R9.4 a Job of the Task costs: its release and its
-/// Budget, plus its deadline for a Periodic_Task or its MIT deferral for a
-/// Sporadic_Task with the `defer` policy.
+/// The timed events of R9.4 a Job of the Task costs, each a timer entry at
+/// the Kernel level (2026-11-14, counted from the Kernel's slots): for a
+/// Periodic_Task its release, its deadline, its Budget, and the stale
+/// Budget event of the Job it preempts (a preempted Job's Budget slot stays
+/// armed and fires once while the preempting Job executes); for a
+/// Sporadic_Task its deadline, its Budget, its MIT unmask and that stale
+/// event, plus its MIT deferral under the `defer` policy. Until then the
+/// count was 3 (periodic or `defer`) or 2.
 pub open spec fn timed_events(t: TaskIn) -> int {
-    if t.periodic || t.defer { 3 } else { 2 }
+    if t.periodic { 4 } else if t.defer { 5 } else { 4 }
+}
+
+/// The timed events of a Job that can fire in a busy period the Job was
+/// released before (so that one Job more than ⌈w / T⌉ counts): all of the
+/// Task's own but the release of a Periodic_Task (deadline and Budget; for
+/// a Sporadic_Task also the unmask, and the deferral under `defer`).
+pub open spec fn carried_events(t: TaskIn) -> int {
+    if t.periodic { 2 } else if t.defer { 4 } else { 3 }
 }
 
 /// O_i of R29.3 for a Task with `sites` Critical_Section sites.
@@ -369,7 +393,7 @@ pub fn overhead(t: TaskIn, p: Params, sites: u64, any_fpu: bool) -> (r: Option<u
         r.is_some() <==> spec_o(t, p, sites as int, any_fpu) <= u64_max(),
         r matches Some(v) ==> v as int == spec_o(t, p, sites as int, any_fpu),
 {
-    let events: u64 = if t.periodic || t.defer { 3 } else { 2 };
+    let events: u64 = if t.periodic { 4 } else if t.defer { 5 } else { 4 };
     // Each product as a value, so that the remaining reasoning is linear;
     // a term the Task does not carry is not summed (its parameters may be
     // anything).
@@ -684,8 +708,10 @@ pub fn utilization_exceeds_one(loads: &Vec<Load>) -> (r: bool)
 }
 
 /// One Task as an interferer of another's recurrence: its Priority, J_j,
-/// T_j (period or MIT), E_j, and the intake cost of its Release_Source per
-/// MIT (Δ_irq for a Sporadic_Task, 0 for a Periodic_Task; R19.2).
+/// T_j (period or MIT), E_j, the Kernel-level cost of one arrival (`intake`:
+/// Δ_irq for a Sporadic_Task's Release_Source, Δ_timer for a
+/// Periodic_Task's release event; R19.2) and the Kernel-level cost of a
+/// Job's other timed events (`events`: `carried_events` · Δ_timer).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Interferer {
     pub priority: u8,
@@ -693,14 +719,24 @@ pub struct Interferer {
     pub period: u64,
     pub bound: u64,
     pub intake: u64,
+    pub events: u64,
 }
 
-/// One term of a Task's recurrence with its origin: the Jobs of Task
-/// `task` (R29.1), or the intake handling of its Release_Source (R19.2).
+/// The origin of a term: the Jobs of a Task (R29.1).
+pub const TERM_JOBS: u8 = 0;
+/// The Kernel-level work of a lower-Priority Task's arrivals (R19.2).
+pub const TERM_INTAKE: u8 = 1;
+/// The other timed events of a lower-Priority Task's Jobs (R19.2).
+pub const TERM_EVENTS: u8 = 2;
+/// The Kernel's housekeeping event (`task` is then the number of Tasks).
+pub const TERM_HOUSEKEEPING: u8 = 3;
+
+/// One term of a Task's recurrence with its origin (`kind`, and the Task
+/// it comes from).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TermOf {
     pub task: usize,
-    pub intake: bool,
+    pub kind: u8,
     pub term: Term,
 }
 
@@ -710,18 +746,37 @@ pub open spec fn periods_ok(tasks: Seq<Interferer>) -> bool {
 
 /// The interference of Task `j`'s Jobs: ⌈(w + J_j) / T_j⌉ · E_j (R29.1).
 pub open spec fn term_of_jobs(j: int, t: Interferer) -> TermOf {
-    TermOf { task: j as usize, intake: false, term: Term { jitter: t.jitter, period: t.period, bound: t.bound } }
+    TermOf { task: j as usize, kind: TERM_JOBS, term: Term { jitter: t.jitter, period: t.period, bound: t.bound } }
 }
 
-/// The interference of Task `j`'s Release_Source: ⌈w / MIT_j⌉ · Δ_irq
+/// The Kernel-level work of Task `j`'s arrivals: ⌈w / T_j⌉ · `intake`
 /// (R19.2), on a Task its Jobs cannot preempt.
 pub open spec fn term_of_intake(j: int, t: Interferer) -> TermOf {
-    TermOf { task: j as usize, intake: true, term: Term { jitter: 0, period: t.period, bound: t.intake } }
+    TermOf { task: j as usize, kind: TERM_INTAKE, term: Term { jitter: 0, period: t.period, bound: t.intake } }
+}
+
+/// The other timed events of Task `j`'s Jobs: ⌈(w + T_j) / T_j⌉ · `events`,
+/// one Job more than the arrivals in `w` (the events of a Job released
+/// before the busy period can fire inside it).
+pub open spec fn term_of_events(j: int, t: Interferer) -> TermOf {
+    TermOf { task: j as usize, kind: TERM_EVENTS, term: Term { jitter: t.period, period: t.period, bound: t.events } }
+}
+
+/// The housekeeping event's term, for a set of `n` Tasks.
+pub open spec fn term_of_hk(n: int, hk: Term) -> TermOf {
+    TermOf { task: n as usize, kind: TERM_HOUSEKEEPING, term: hk }
+}
+
+/// The terms a lower-Priority Task `j` adds: its arrivals' and its other
+/// timed events', each when it has a cost.
+pub open spec fn push_lower(prev: Seq<TermOf>, j: int, t: Interferer) -> Seq<TermOf> {
+    let a = if t.intake > 0 { prev.push(term_of_intake(j, t)) } else { prev };
+    if t.events > 0 { a.push(term_of_events(j, t)) } else { a }
 }
 
 /// The terms of Task `i`'s recurrence over the first `n` Tasks: every Task
 /// of hep(i) other than `i` by its Jobs (R29.1), and every lower-Priority
-/// Sporadic_Task by its intake (R19.2).
+/// Task by its Kernel-level work (R19.2, `push_lower`).
 pub open spec fn spec_terms(tasks: Seq<Interferer>, i: int, n: int) -> Seq<TermOf>
     decreases n,
 {
@@ -734,22 +789,27 @@ pub open spec fn spec_terms(tasks: Seq<Interferer>, i: int, n: int) -> Seq<TermO
             prev
         } else if tasks[j].priority >= tasks[i].priority {
             prev.push(term_of_jobs(j, tasks[j]))
-        } else if tasks[j].intake > 0 {
-            prev.push(term_of_intake(j, tasks[j]))
         } else {
-            prev
+            push_lower(prev, j, tasks[j])
         }
     }
 }
 
+/// The terms of Task `i`'s recurrence: those of the other Tasks, then the
+/// housekeeping event's.
+pub open spec fn spec_all_terms(tasks: Seq<Interferer>, i: int, hk: Term) -> Seq<TermOf> {
+    spec_terms(tasks, i, tasks.len() as int).push(term_of_hk(tasks.len() as int, hk))
+}
+
 /// The terms of Task `i`'s recurrence (R29.1 with R19.2), each with its
 /// origin, in Task order; every period positive (`rta::terms_ok`).
-pub fn terms_for(tasks: &Vec<Interferer>, i: usize) -> (r: Vec<TermOf>)
+pub fn terms_for(tasks: &Vec<Interferer>, i: usize, hk: Term) -> (r: Vec<TermOf>)
     requires
         i < tasks.len(),
         periods_ok(tasks@),
+        hk.period > 0,
     ensures
-        r@ == spec_terms(tasks@, i as int, tasks.len() as int),
+        r@ == spec_all_terms(tasks@, i as int, hk),
         forall|k: int| 0 <= k < r.len() ==> (#[trigger] r@[k]).term.period > 0,
 {
     let mut out: Vec<TermOf> = Vec::new();
@@ -768,14 +828,21 @@ pub fn terms_for(tasks: &Vec<Interferer>, i: usize) -> (r: Vec<TermOf>)
         let t = tasks[j];
         if j != i {
             if t.priority >= ti.priority {
-                out.push(TermOf { task: j, intake: false, term: Term { jitter: t.jitter, period: t.period, bound: t.bound } });
-            } else if t.intake > 0 {
-                out.push(TermOf { task: j, intake: true, term: Term { jitter: 0, period: t.period, bound: t.intake } });
+                out.push(TermOf { task: j, kind: TERM_JOBS, term: Term { jitter: t.jitter, period: t.period, bound: t.bound } });
+            } else {
+                if t.intake > 0 {
+                    out.push(TermOf { task: j, kind: TERM_INTAKE, term: Term { jitter: 0, period: t.period, bound: t.intake } });
+                }
+                if t.events > 0 {
+                    out.push(TermOf { task: j, kind: TERM_EVENTS, term: Term { jitter: t.period, period: t.period, bound: t.events } });
+                }
             }
         }
         assert(out@ =~= spec_terms(tasks@, i as int, j as int + 1));
         j = j + 1;
     }
+    out.push(TermOf { task: tasks.len(), kind: TERM_HOUSEKEEPING, term: hk });
+    assert(out@ =~= spec_all_terms(tasks@, i as int, hk));
     out
 }
 
@@ -810,12 +877,13 @@ pub open spec fn meets_deadline(base: int, ts: Seq<Term>, jitter: int, deadline:
 /// `R = J + w` for the least fixed point `w`, and `R <= D`; a Task reported
 /// not schedulable without an overflow has no fixed point within its
 /// deadline; an overflow claims nothing (R29.6).
-pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, deadline: u64) -> (v: (Verdict, Vec<TermOf>))
+pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, deadline: u64, hk: Term) -> (v: (Verdict, Vec<TermOf>))
     requires
         i < tasks.len(),
         periods_ok(tasks@),
+        hk.period > 0,
     ensures
-        v.1@ == spec_terms(tasks@, i as int, tasks.len() as int),
+        v.1@ == spec_all_terms(tasks@, i as int, hk),
         v.0.overflow ==> !v.0.schedulable,
         v.0.schedulable ==> c + b + o <= u64_max()
             && crate::rta::is_fixpoint(c + b + o, plain(v.1@), v.0.w as int)
@@ -825,7 +893,7 @@ pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, de
         !v.0.schedulable && !v.0.overflow
             ==> !meets_deadline(c + b + o, plain(v.1@), tasks@[i as int].jitter as int, deadline as int),
 {
-    let own_terms = terms_for(tasks, i);
+    let own_terms = terms_for(tasks, i, hk);
     let jitter = tasks[i].jitter;
     let mut plain_terms: Vec<Term> = Vec::new();
     let mut k: usize = 0;
@@ -888,8 +956,14 @@ pub open spec fn spec_interferer(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params
         jitter: p.j_rel,
         period: if windows[j].period == 0 { 1 } else { windows[j].period },
         bound: spec_e(tasks[j], p, longest_cs(sites, j, n), o) as u64,
-        intake: if tasks[j].periodic { 0 } else { p.irq },
+        intake: if tasks[j].periodic { p.timer } else { p.irq },
+        events: (p.timer as int * carried_events(tasks[j])) as u64,
     }
+}
+
+/// The housekeeping event's term: ⌈w / T_hk⌉ · Δ_timer.
+pub open spec fn spec_hk(p: Params) -> Term {
+    Term { jitter: 0, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer }
 }
 
 pub open spec fn spec_interferers(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>) -> Seq<Interferer> {
@@ -904,7 +978,7 @@ pub open spec fn verdict_ok(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any
     let its = spec_interferers(tasks, sites, p, any_fpu, windows);
     let base = tasks[i].budget as int + spec_b(tasks, sites, i, p)
         + spec_o(tasks[i], p, site_count(sites, i, sites.len() as int), any_fpu);
-    &&& ts == spec_terms(its, i, tasks.len() as int)
+    &&& ts == spec_all_terms(its, i, spec_hk(p))
     &&& v.overflow ==> !v.schedulable
     &&& v.schedulable ==> crate::rta::is_fixpoint(base, plain(ts), v.w as int)
             && (forall|x: int| x >= 0 && #[trigger] crate::rta::is_fixpoint(base, plain(ts), x) ==> v.w as int <= x)
@@ -960,7 +1034,17 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
             jitter: d.j,
             period: if w.period == 0 { 1 } else { w.period },
             bound: d.e,
-            intake: if t.periodic { 0 } else { p.irq },
+            intake: if t.periodic { p.timer } else { p.irq },
+            events: {
+                let k: u64 = if t.periodic { 2 } else if t.defer { 4 } else { 3 };
+                proof {
+                    // Δ_timer · carried_events is part of O_j, which fits.
+                    assert(p.timer as int * k as int <= spec_o(t, p, d.sites as int, any_fpu)) by (nonlinear_arith)
+                        requires k as int == carried_events(t), carried_events(t) <= timed_events(t), timed_events(t) >= 0,
+                            spec_o(t, p, d.sites as int, any_fpu) >= p.timer as int * timed_events(t);
+                }
+                p.timer * k
+            },
         });
         j = j + 1;
     }
@@ -990,7 +1074,8 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
             assert(derived_ok(tasks@, sites@, p, any_fpu, i as int, derived@[i as int]));
             assert(its@[i as int] == spec_interferer(tasks@, sites@, p, any_fpu, windows@, i as int));
         }
-        let (verdict, own_terms) = response_of(&its, i, t.budget, d.b, d.o, w.deadline);
+        let hk = Term { jitter: 0, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer };
+        let (verdict, own_terms) = response_of(&its, i, t.budget, d.b, d.o, w.deadline, hk);
         verdicts.push(verdict);
         all_terms.push(own_terms);
         i = i + 1;
