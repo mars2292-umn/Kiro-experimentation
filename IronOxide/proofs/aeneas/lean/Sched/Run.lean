@@ -1,4 +1,4 @@
-import Sched.Model
+import Sched.Views
 open Aeneas Aeneas.Std Result
 
 namespace P18
@@ -6,105 +6,37 @@ open rsk_logic
 
 variable {NT NR NL NP NS NE : Usize}
 
-/-! Views of the scheduler state as functions over the naturals. -/
-
-def rel (s : logic.sched.Sched NT NR NL) (k : Nat) : Nat := (s.release.val[k]!).val
-def job (s : logic.sched.Sched NT NR NL) (k : Nat) : Nat := (s.job.val[k]!).val
-def stk (s : logic.sched.Sched NT NR NL) (p : Nat) : Nat := (s.stack.val[p]!).val
-
-theorem get_set_u8 {n : Usize} (v : Array U8 n) (i : Usize) (x : U8) (k : Nat)
-    (hi : i.val < n.val) :
-    ((v.set i x).val[k]!) = if k = i.val then x else v.val[k]! := by
-  have := v.property
-  simp only [Array.set_val_eq]
-  split
-  · rename_i h; subst h; simp [*]
-  · rename_i h; simp [*]
-
-theorem rel_pending : logic.sched.REL_PENDING = 1#u8 := by
-  unfold logic.sched.REL_PENDING; rfl
-theorem rel_none : logic.sched.REL_NONE = 0#u8 := by
-  unfold logic.sched.REL_NONE; rfl
-theorem job_none : logic.sched.JOB_NONE = 0#u8 := by
-  unfold logic.sched.JOB_NONE; rfl
-theorem job_running : logic.sched.JOB_RUNNING = 1#u8 := by
-  unfold logic.sched.JOB_RUNNING; rfl
-theorem idle_ceiling : logic.IDLE_CEILING = 0#u8 := by
-  unfold logic.IDLE_CEILING; rfl
-
-theorem make_pending_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP}
-    {t : U8} (h : logic.sched.Sched.make_pending s cfg t = ok s') :
-    t.val < NT.val ∧ (∀ k, rel s' k = if k = t.val then 1 else rel s k) ∧
-    (∀ k, job s' k = job s k) ∧ (∀ p, stk s' p = stk s p) ∧ s'.depth = s.depth ∧
-    s'.ceiling = s.ceiling ∧ s'.lock_len = s.lock_len := by
-  obtain ⟨ht, rfl⟩ := make_pending_ok h
-  refine ⟨ht, ?_, fun _ => rfl, fun _ => rfl, rfl, rfl, rfl⟩
-  intro k
-  simp only [rel]
-  rw [get_set_u8 _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact ht), U8.cast_Usize_val_eq, rel_pending]
-  split <;> rfl
-
-theorem start_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP}
-    {t : U8} (h : logic.sched.Sched.start s cfg t = ok s') :
-    t.val < NT.val ∧ s.depth.val < NT.val ∧
-    (∀ k, rel s' k = if k = t.val then 0 else rel s k) ∧
-    (∀ k, job s' k = if k = t.val then 1 else job s k) ∧
-    (∀ p, stk s' p = if p = s.depth.val then t.val else stk s p) ∧
-    s'.depth.val = s.depth.val + 1 ∧ s'.ceiling = s.ceiling ∧ s'.lock_len = s.lock_len := by
-  obtain ⟨ht, hd, d, hd', rfl⟩ := start_ok h
-  refine ⟨ht, hd, ?_, ?_, ?_, hd', rfl, rfl⟩
-  · intro k
-    simp only [rel]
-    rw [get_set_u8 _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact ht), U8.cast_Usize_val_eq, rel_none]
-    split <;> rfl
-  · intro k
-    simp only [job]
-    rw [get_set_u8 _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact ht), U8.cast_Usize_val_eq, job_running]
-    split <;> rfl
-  · intro p
-    simp only [stk]
-    rw [get_set_u8 _ _ _ _ hd]
-    split <;> rfl
-
-theorem finish_top_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP}
-    {r : Usize} (hl : s.lock_len = 0#usize)
-    (h : logic.sched.Sched.finish_top s cfg = ok (r, s')) :
-    1 ≤ s.depth.val ∧ s.depth.val ≤ NT.val ∧ stk s (s.depth.val - 1) < NT.val ∧
-    (∀ k, rel s' k = rel s k) ∧
-    (∀ k, job s' k = if k = stk s (s.depth.val - 1) then 0 else job s k) ∧
-    (∀ p, stk s' p = stk s p) ∧
-    s'.depth.val = s.depth.val - 1 ∧ s'.ceiling.val = 0 ∧ s'.lock_len = s.lock_len := by
-  obtain ⟨h1, h2, h3, d, hd, rfl⟩ := finish_top_ok0 hl h
-  refine ⟨h1, h2, h3, fun _ => rfl, ?_, fun _ => rfl, hd, ?_, rfl⟩
-  · intro k
-    simp only [job, stk]
-    rw [get_set_u8 _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact h3), U8.cast_Usize_val_eq, job_none]
-    by_cases hk : k = (s.stack.val[s.depth.val - 1]!).val
-    · simp only [hk, ite_true]; rfl
-    · simp only [hk, ite_false]
-  · show (logic.IDLE_CEILING).val = 0
-    rw [idle_ceiling]; rfl
-
 /-! ## The run -/
 
 /-- A state of a run: the Kernel's scheduler state, the instant, and per
 Task the instant of its last Release, the execution its pending Job will
-ask for, and the execution its Job in progress still needs. -/
+ask for, and the execution its Job in progress still needs; per entry of
+the lock stack, the execution its Critical_Section may still take. -/
 structure St (NT NR NL : Usize) where
   s : logic.sched.Sched NT NR NL
   now : Nat
   last : Nat → Option Nat
   pend : Nat → Nat
   run : Nat → Nat
+  allow : Nat → Nat
 
-/-- The timing parameters of a run: per Task its period or MIT, and the
-bound on the execution of one Job (its Budget). -/
+/-- The timing parameters of a run: per Task its period or MIT and the
+bound on the execution of one Job (its Budget); per Task and Resource the
+bound on the execution of one Critical_Section. -/
 structure Params where
   T : Nat → Nat
   C : Nat → Nat
+  L : Nat → Nat → Nat
 
 abbrev eligibleFn {NT NR NP NL NS NE : Usize} :=
   @_root_.rsk_kernel.arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible NT NR NP NL NS NE
+
+/-- The lock entries of the Job on top of the stack. -/
+def topEntry (s : logic.sched.Sched NT NR NL) (p : Nat) : Prop :=
+  p < s.lock_len.val ∧ ldep s p = s.depth.val - 1
+
+instance (s : logic.sched.Sched NT NR NL) (p : Nat) : Decidable (topEntry s p) := by
+  unfold topEntry; infer_instance
 
 /-- One transition of a run. The scheduler state changes only through the
 Kernel's functions as extracted, and a dispatch only of a Task for which
@@ -113,12 +45,19 @@ the Kernel's eligibility test, as extracted, answers true.
 - `release`: a Release of Task `t` (`make_pending`), at least `T t` after
   its last one, of a Job that will execute for `d`, `1 ≤ d ≤ C t`.
 - `dispatch`: the start of a pending Task the test accepts (`start`).
-- `idle`, `exec`, `finish`: one unit of time, taken only when the test
-  accepts no Task (a pending eligible Task is dispatched at once, which is
-  the Hardware_Model's rule: the dispatch exception is taken before the
-  preempted code continues). `idle`: no Job is in progress. `exec`: the Job
-  on top of the stack executes for one unit and needs more. `finish`: it
-  executes its last unit and ends (`finish_top`). -/
+- `lock`, `unlock`: the Job on top of the stack takes or returns a
+  Resource (`lock`, `unlock`, when they grant it). The Critical_Section
+  may execute for `a`, at most `L` of the Task and the Resource.
+- `idle`, `exec`, `finish`: one unit of time. `idle`: no Job is in
+  progress. `exec`: the Job on top of the stack executes for one unit and
+  needs more. `finish`: it executes its last unit and ends (`finish_top`).
+  A unit of execution is taken from every Critical_Section the Job is in,
+  and none of them may be exhausted.
+
+Every transition but a Release is taken only when the test accepts no
+Task: a pending eligible Task is dispatched at once, which is the
+Hardware_Model's rule (the dispatch exception is taken before the
+preempted code continues). -/
 inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St NT NR NL → Prop
   | release (st : St NT NR NL) (t : U8) (d : Nat) (s' : logic.sched.Sched NT NR NL)
       (hd1 : 1 ≤ d) (hd2 : d ≤ P.C t.val)
@@ -135,6 +74,20 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
       Step cfg P st { st with
         s := s', run := Function.update st.run t.val (st.pend t.val),
         pend := Function.update st.pend t.val 0 }
+  | lock (st : St NT NR NL) {NS NE : Usize}
+      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
+      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+      (r : U8) (a : Nat) (s' : logic.sched.Sched NT NR NL)
+      (ha : a ≤ P.L (stk st.s (st.s.depth.val - 1)) r.val)
+      (hs : logic.sched.Sched.lock st.s cfg r = ok (true, s')) :
+      Step cfg P st { st with
+        s := s', allow := Function.update st.allow st.s.lock_len.val a }
+  | unlock (st : St NT NR NL) {NS NE : Usize}
+      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
+      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+      (r : U8) (s' : logic.sched.Sched NT NR NL)
+      (hs : logic.sched.Sched.unlock st.s cfg r = ok (true, s')) :
+      Step cfg P st { st with s := s' }
   | idle (st : St NT NR NL) {NS NE : Usize}
       (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
       (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
@@ -143,16 +96,19 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
   | exec (st : St NT NR NL) {NS NE : Usize}
       (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
       (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
-      (hd : 0 < st.s.depth.val) (hr : 1 < st.run (stk st.s (st.s.depth.val - 1))) :
+      (hd : 0 < st.s.depth.val) (hr : 1 < st.run (stk st.s (st.s.depth.val - 1)))
+      (hal : ∀ p, topEntry st.s p → 0 < st.allow p) :
       Step cfg P st { st with
         now := st.now + 1,
         run := Function.update st.run (stk st.s (st.s.depth.val - 1))
-          (st.run (stk st.s (st.s.depth.val - 1)) - 1) }
+          (st.run (stk st.s (st.s.depth.val - 1)) - 1),
+        allow := fun p => if topEntry st.s p then st.allow p - 1 else st.allow p }
   | finish (st : St NT NR NL) {NS NE : Usize}
       (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
       (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
       (r : Usize) (s' : logic.sched.Sched NT NR NL)
       (hd : 0 < st.s.depth.val) (hr : st.run (stk st.s (st.s.depth.val - 1)) ≤ 1)
+      (hal : ∀ p, topEntry st.s p → 0 < st.allow p)
       (hs : logic.sched.Sched.finish_top st.s cfg = ok (r, s')) :
       Step cfg P st { st with
         s := s', now := st.now + 1,
@@ -161,14 +117,12 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
 /-- The states a run reaches from boot (`Sched::new`, instant 0, no Job). -/
 inductive Reach (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → Prop
   | boot (s0 : logic.sched.Sched NT NR NL) (h : logic.sched.Sched.new NL cfg = ok s0) :
-      Reach cfg P { s := s0, now := 0, last := fun _ => none, pend := fun _ => 0, run := fun _ => 0 }
+      Reach cfg P ⟨s0, 0, fun _ => none, fun _ => 0, fun _ => 0, fun _ => 0⟩
   | step (st st' : St NT NR NL) (h : Reach cfg P st) (hs : Step cfg P st st') : Reach cfg P st'
 
-/-! ## The structure of the scheduler state in a run without locks -/
+/-! ## The structure of the scheduler state in a run -/
 
-structure Wf (cfg : logic.Config NT NR NP) (st : St NT NR NL) : Prop where
-  lock0 : st.s.lock_len = 0#usize
-  ceil0 : st.s.ceiling.val = 0
+structure Wf (cfg : logic.Config NT NR NP) (P : Params) (st : St NT NR NL) : Prop where
   depth_le : st.s.depth.val ≤ NT.val
   stk_lt : ∀ p, p < st.s.depth.val → stk st.s p < NT.val
   sorted : ∀ p q, p < q → q < st.s.depth.val → prio cfg (stk st.s p) < prio cfg (stk st.s q)
@@ -176,19 +130,38 @@ structure Wf (cfg : logic.Config NT NR NP) (st : St NT NR NL) : Prop where
   on_stack : ∀ k, k < NT.val → (job st.s k = 1 ↔ ∃ p, p < st.s.depth.val ∧ stk st.s p = k)
   run_iff : ∀ k, k < NT.val → (0 < st.run k ↔ job st.s k = 1)
   pend_iff : ∀ k, k < NT.val → (0 < st.pend k ↔ rel st.s k = 1)
+  /-- The System_Ceiling is that of the lock stack. -/
+  ceil_is : IsCeil cfg st.s st.s.lock_len.val st.s.ceiling.val
+  /-- An entry is held by a Job on the stack; -/
+  ldep_lt : ∀ p, p < st.s.lock_len.val → ldep st.s p < st.s.depth.val
+  /-- the entries of a Job higher on the stack are higher on the lock stack; -/
+  ldep_mono : ∀ p q, p ≤ q → q < st.s.lock_len.val → ldep st.s p ≤ ldep st.s q
+  /-- and a Job above an entry's holder has a Priority above the entry's
+  Ceiling (the Stack Resource Policy). -/
+  srp : ∀ p q, p < st.s.lock_len.val → q < st.s.depth.val → ldep st.s p < q →
+    ceil cfg (lres st.s p) < prio cfg (stk st.s q)
+  /-- A Critical_Section's remaining execution is within its bound. -/
+  allow_le : ∀ p, p < st.s.lock_len.val →
+    st.allow p ≤ P.L (stk st.s (ldep st.s p)) (lres st.s p)
 
 theorem elig_views {cfg : logic.Config NT NR NP} {s : logic.sched.Sched NT NR NL} {t : Nat} :
     Elig cfg s t ↔ (t < NT.val ∧ rel s t = 1 ∧ job s t = 0 ∧ s.ceiling.val < prio cfg t ∧
       (s.depth.val = 0 ∨ prio cfg (stk s (s.depth.val - 1)) < prio cfg t)) := Iff.rfl
 
+theorem IsCeil.same {cfg : logic.Config NT NR NP} {s s' : logic.sched.Sched NT NR NL} {n c : Nat}
+    (hl : ∀ p, lres s' p = lres s p) (h : IsCeil cfg s n c) : IsCeil cfg s' n c := by
+  obtain ⟨h1, h2⟩ := h
+  refine ⟨fun p hp => by rw [hl]; exact h1 p hp, ?_⟩
+  rcases h2 with h | ⟨p, hp, hc⟩
+  · left; exact h
+  · right; exact ⟨p, hp, by rw [hl]; exact hc⟩
+
 theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL}
-    (w : Wf cfg st) (h : Step cfg P st st') : Wf cfg st' := by
+    (w : Wf cfg P st) (h : Step cfg P st st') : Wf cfg P st' := by
   cases h with
   | release t d s' hd1 hd2 hsp hs =>
-    obtain ⟨ht, hrel, hjob, hstk, hdep, hceil, hlock⟩ := make_pending_views hs
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
-    · rw [hlock]; exact w.lock0
-    · rw [hceil]; exact w.ceil0
+    obtain ⟨ht, hrel, hjob, hstk, hdep, hlr, hld, hll, hlc⟩ := make_pending_views hs
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
     · rw [hdep]; exact w.depth_le
     · intro p hp; rw [hstk]; rw [hdep] at hp; exact w.stk_lt p hp
     · intro p q hpq hq; rw [hstk, hstk]; rw [hdep] at hq; exact w.sorted p q hpq hq
@@ -199,12 +172,16 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       by_cases h : k = t.val
       · subst h; simp [Function.update]; omega
       · rw [Function.update_of_ne h]; simp only [h, ite_false]; exact w.pend_iff k hk
+    · rw [hll, hlc]; exact w.ceil_is.same hlr
+    · intro p hp; rw [hld, hdep]; rw [hll] at hp; exact w.ldep_lt p hp
+    · intro p q hpq hq; rw [hld, hld]; rw [hll] at hq; exact w.ldep_mono p q hpq hq
+    · intro p q hp hq hpq; rw [hll] at hp; rw [hdep] at hq; rw [hld] at hpq
+      rw [hlr, hstk]; exact w.srp p q hp hq hpq
+    · intro p hp; rw [hll] at hp; rw [hld, hlr, hstk]; exact w.allow_le p hp
   | dispatch b t s' hm he hs =>
     obtain ⟨_, hr1, hj0, hc, htop⟩ := elig_views.mp ((eligible_ok hm he).mp rfl)
-    obtain ⟨ht, hdl, hrel, hjob, hstk, hdep, hceil, hlock⟩ := start_views hs
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
-    · rw [hlock]; exact w.lock0
-    · rw [hceil]; exact w.ceil0
+    obtain ⟨ht, hdl, hrel, hjob, hstk, hdep, hlr, hld, hll, hlc⟩ := start_views hs
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
     · rw [hdep]; omega
     · intro p hp; rw [hstk]; rw [hdep] at hp
       by_cases h : p = st.s.depth.val
@@ -250,22 +227,114 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       by_cases h : k = t.val
       · subst h; simp [Function.update]
       · rw [Function.update_of_ne h]; simp only [h, ite_false]; exact w.pend_iff k hk
+    · rw [hll, hlc]; exact w.ceil_is.same hlr
+    · intro p hp; rw [hld, hdep]; rw [hll] at hp; have := w.ldep_lt p hp; omega
+    · intro p q hpq hq; rw [hld, hld]; rw [hll] at hq; exact w.ldep_mono p q hpq hq
+    · intro p q hp hq hpq; rw [hll] at hp; rw [hdep] at hq; rw [hld] at hpq
+      rw [hlr, hstk]
+      by_cases h : q = st.s.depth.val
+      · simp only [h, ite_true]
+        have := w.ceil_is.1 p hp
+        omega
+      · simp only [h, ite_false]; exact w.srp p q hp (by omega) hpq
+    · intro p hp; rw [hll] at hp; rw [hld, hlr, hstk]
+      have := w.ldep_lt p hp
+      simp only [show ldep st.s p ≠ st.s.depth.val by omega, ite_false]
+      exact w.allow_le p hp
+  | lock b hm hne r a s' ha hs =>
+    obtain ⟨⟨hrel, hjob, hstk, hdep⟩, hd1, hl, hll, hlr, hld, hlc⟩ := lock_views hs
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
+    · rw [hdep]; exact w.depth_le
+    · intro p hp; rw [hstk]; rw [hdep] at hp; exact w.stk_lt p hp
+    · intro p q hpq hq; rw [hstk, hstk]; rw [hdep] at hq; exact w.sorted p q hpq hq
+    · intro k hk; rw [hjob]; exact w.job01 k hk
+    · intro k hk; rw [hjob, hdep]; simp only [hstk]; exact w.on_stack k hk
+    · intro k hk; rw [hjob]; exact w.run_iff k hk
+    · intro k hk; rw [hrel]; exact w.pend_iff k hk
+    · rw [hll, hlc]
+      obtain ⟨c1, c2⟩ := w.ceil_is
+      constructor
+      · intro p hp
+        rw [hlr]
+        by_cases h : p = st.s.lock_len.val
+        · simp only [h, ite_true]; exact Nat.le_max_right _ _
+        · simp only [h, ite_false]
+          exact Nat.le_trans (c1 p (by omega)) (Nat.le_max_left _ _)
+      · by_cases hge : st.s.ceiling.val ≤ ceil cfg r.val
+        · right
+          refine ⟨st.s.lock_len.val, by omega, ?_⟩
+          rw [hlr]; simp only [ite_true]; exact Nat.max_eq_right hge
+        · rw [Nat.max_eq_left (by omega)]
+          rcases c2 with h | ⟨p, hp, hc⟩
+          · left; exact h
+          · right
+            refine ⟨p, by omega, ?_⟩
+            rw [hlr]; simp only [show p ≠ st.s.lock_len.val by omega, ite_false]; exact hc
+    · intro p hp; rw [hld, hdep]; rw [hll] at hp
+      by_cases h : p = st.s.lock_len.val
+      · simp only [h, ite_true]; omega
+      · simp only [h, ite_false]; exact w.ldep_lt p (by omega)
+    · intro p q hpq hq; rw [hld, hld]; rw [hll] at hq
+      by_cases h : q = st.s.lock_len.val
+      · simp only [h, ite_true]
+        by_cases h' : p = st.s.lock_len.val
+        · simp only [h', ite_true]; exact Nat.le_refl _
+        · simp only [h', ite_false]
+          have := w.ldep_lt p (by omega)
+          omega
+      · simp only [h, ite_false, show p ≠ st.s.lock_len.val by omega]
+        exact w.ldep_mono p q hpq (by omega)
+    · intro p q hp hq hpq; rw [hll] at hp; rw [hdep] at hq; rw [hld] at hpq
+      rw [hlr, hstk]
+      by_cases h : p = st.s.lock_len.val
+      · simp only [h, ite_true] at hpq; omega
+      · simp only [h, ite_false] at hpq ⊢; exact w.srp p q (by omega) hq hpq
+    · intro p hp; rw [hll] at hp; rw [hld, hlr]; simp only [hstk]
+      by_cases h : p = st.s.lock_len.val
+      · simp only [h, ite_true, Function.update_self]; exact ha
+      · simp only [h, ite_false]; rw [Function.update_of_ne h]; exact w.allow_le p (by omega)
+  | unlock b hm hne r s' hs =>
+    obtain ⟨⟨hrel, hjob, hstk, hdep⟩, hl1, hd1, _, _, hll, hlr, hld, hc⟩ := unlock_views hs
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
+    · rw [hdep]; exact w.depth_le
+    · intro p hp; rw [hstk]; rw [hdep] at hp; exact w.stk_lt p hp
+    · intro p q hpq hq; rw [hstk, hstk]; rw [hdep] at hq; exact w.sorted p q hpq hq
+    · intro k hk; rw [hjob]; exact w.job01 k hk
+    · intro k hk; rw [hjob, hdep]; simp only [hstk]; exact w.on_stack k hk
+    · intro k hk; rw [hjob]; exact w.run_iff k hk
+    · intro k hk; rw [hrel]; exact w.pend_iff k hk
+    · rw [hll]; exact hc.same hlr
+    · intro p hp; rw [hld, hdep]; rw [hll] at hp; exact w.ldep_lt p (by omega)
+    · intro p q hpq hq; rw [hld, hld]; rw [hll] at hq; exact w.ldep_mono p q hpq (by omega)
+    · intro p q hp hq hpq; rw [hll] at hp; rw [hdep] at hq; rw [hld] at hpq
+      rw [hlr, hstk]; exact w.srp p q (by omega) hq hpq
+    · intro p hp; rw [hll] at hp; rw [hld, hlr, hstk]; exact w.allow_le p (by omega)
   | idle b hm hne hd =>
-    exact ⟨w.lock0, w.ceil0, w.depth_le, w.stk_lt, w.sorted, w.job01, w.on_stack, w.run_iff, w.pend_iff⟩
-  | exec b hm hne hd hr =>
-    refine ⟨w.lock0, w.ceil0, w.depth_le, w.stk_lt, w.sorted, w.job01, w.on_stack, ?_, w.pend_iff⟩
-    dsimp only
-    intro k hk
-    by_cases h : k = stk st.s (st.s.depth.val - 1)
-    · subst h
-      have := (w.run_iff _ hk).mp (by omega)
-      simp [Function.update]; exact ⟨fun _ => this, fun _ => hr⟩
-    · rw [Function.update_of_ne h]; exact w.run_iff k hk
-  | finish b hm hne r s' hd hr hs =>
-    obtain ⟨h1, h2, h3, hrel, hjob, hstk, hdep, hceil, hlock⟩ := finish_top_views w.lock0 hs
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
-    · rw [hlock]; exact w.lock0
-    · exact hceil
+    exact ⟨w.depth_le, w.stk_lt, w.sorted, w.job01, w.on_stack, w.run_iff, w.pend_iff, w.ceil_is,
+      w.ldep_lt, w.ldep_mono, w.srp, w.allow_le⟩
+  | exec b hm hne hd hr hal =>
+    refine ⟨w.depth_le, w.stk_lt, w.sorted, w.job01, w.on_stack, ?_, w.pend_iff, w.ceil_is,
+      w.ldep_lt, w.ldep_mono, w.srp, ?_⟩ <;> dsimp only
+    · intro k hk
+      by_cases h : k = stk st.s (st.s.depth.val - 1)
+      · subst h
+        have := (w.run_iff _ hk).mp (by omega)
+        simp [Function.update]; exact ⟨fun _ => this, fun _ => hr⟩
+      · rw [Function.update_of_ne h]; exact w.run_iff k hk
+    · intro p hp
+      have := w.allow_le p hp
+      split <;> omega
+  | finish b hm hne r s' hd hr hal hs =>
+    obtain ⟨h1, h2, h3, hrel, hjob, hstk, hdep, hlr, hld, hn, hpop, hkeep, hc⟩ :=
+      finish_top_views hs
+    have hbelow : ∀ p, p < s'.lock_len.val → ldep st.s p < st.s.depth.val - 1 := by
+      intro p hp
+      rcases hkeep with h0 | hne'
+      · omega
+      · have m := w.ldep_mono p (s'.lock_len.val - 1) (by omega) (by omega)
+        have l := w.ldep_lt (s'.lock_len.val - 1) (by omega)
+        omega
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
     · rw [hdep]; omega
     · intro p hp; rw [hstk]; rw [hdep] at hp; exact w.stk_lt p (by omega)
     · intro p q hpq hq; rw [hstk, hstk]; rw [hdep] at hq; exact w.sorted p q hpq (by omega)
@@ -295,5 +364,11 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       · subst h; simp [Function.update]
       · rw [Function.update_of_ne h]; simp only [h, ite_false]; exact w.run_iff k hk
     · intro k hk; rw [hrel]; exact w.pend_iff k hk
+    · exact hc.same hlr
+    · intro p hp; rw [hld, hdep]; exact hbelow p hp
+    · intro p q hpq hq; rw [hld, hld]; exact w.ldep_mono p q hpq (by omega)
+    · intro p q hp hq hpq; rw [hdep] at hq; rw [hld] at hpq
+      rw [hlr, hstk]; exact w.srp p q (by omega) (by omega) hpq
+    · intro p hp; rw [hld, hlr, hstk]; exact w.allow_le p (by omega)
 
 end P18

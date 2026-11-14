@@ -70,18 +70,21 @@ call), and `lean/Sched/Eligible.lean` that of the eligibility test as
 executed (`Bound::eligible`, `crates/rsk-kernel/src/arch/bound.rs`), both
 from the Verus-erased build. The handwritten files:
 
-- `lean/Sched/Model.lean`: what each extracted function returns
-  (`make_pending_ok`, `start_ok`, `finish_top_ok0`, `eligible_ok`), and the
-  correspondence between the two translations' copies of the Kernel's types;
+- `lean/Sched/Model.lean`, `lean/Sched/Locks.lean`: what each extracted
+  function returns (`make_pending_ok`, `start_ok`, `eligible_ok`,
+  `lock_ok`, `unlock_ok`, `finish_top_ok`), and the correspondence between
+  the two translations' copies of the Kernel's types;
+- `lean/Sched/Views.lean`: the scheduler state as functions over the
+  naturals;
 - `lean/Sched/Run.lean`: the run (`Step`, `Reach`) and the structure of the
-  scheduler state in it (`Wf.step`);
+  scheduler state in it, the Stack Resource Policy included (`Wf.step`);
 - `lean/Sched/Window.lean`: the busy-window argument over the naturals;
-- `lean/Sched/Stage1.lean`: the bound over the run (`stage1`);
+- `lean/Sched/Stage.lean`: the bound over the run (`stage2`, `stage1`);
 - `lean/Sched/Link.lean`: the bound with the response time `response_of`
-  returns (`property18_stage1`).
+  returns (`property18_stage2`, `property18_stage1`).
 
-Stage 1 only (no Resource locked, no overhead, no jitter); the plan states
-what is assumed and what is not done.
+Stages 1 and 2 only (interference and SRP blocking; no overhead, no
+jitter); the plan states what is assumed and what is not done.
 
 Regenerating the translations:
 

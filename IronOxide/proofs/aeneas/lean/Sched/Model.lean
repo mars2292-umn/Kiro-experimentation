@@ -275,4 +275,15 @@ theorem eligible_ok {b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE}
       · rintro ⟨_, h2, _⟩
         exact absurd (by scalar_tac) hrel
 
+theorem rel_pending : logic.sched.REL_PENDING = 1#u8 := by
+  unfold logic.sched.REL_PENDING; rfl
+theorem rel_none : logic.sched.REL_NONE = 0#u8 := by
+  unfold logic.sched.REL_NONE; rfl
+theorem job_none : logic.sched.JOB_NONE = 0#u8 := by
+  unfold logic.sched.JOB_NONE; rfl
+theorem job_running : logic.sched.JOB_RUNNING = 1#u8 := by
+  unfold logic.sched.JOB_RUNNING; rfl
+theorem idle_ceiling : logic.IDLE_CEILING = 0#u8 := by
+  unfold logic.IDLE_CEILING; rfl
+
 end P18

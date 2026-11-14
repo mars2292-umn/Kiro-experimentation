@@ -628,9 +628,9 @@ On the code as compiled (`Rta/Whole.lean`, about 300 lines; the translation is t
 
 **Findings of the extension.** (1) Aeneas's Lean for a function with a local variable named like a module does not compile: `let terms = ...` shadowed the `terms` module in every later reference; the local is renamed in the Rust source. (2) A function with early returns under several `if`s is translated with its tail duplicated per branch (`overhead`: 390 lines of Lean for 45 of Rust); splitting on the flags first and then `step*` proves all sixteen copies without a line per case, at about a minute of checking and a raised heartbeat limit for that theorem and for `blocking`'s loop body (thirty-two cases, the same way). (3) `usize` against `u64`: the library knows a `usize` is 32 or 64 bits wide (`Usize.bounds_eq`), which a counter bounded by a vector's length needs spelled out.
 
-### 7.3 Property 18 against the Kernel's own scheduler (started 2026-11-14; stage 1 of 3 proven)
+### 7.3 Property 18 against the Kernel's own scheduler (started 2026-11-14; stages 1 and 2 of 3 proven)
 
-**Status: stage 1 is proven in Lean; stages 2 and 3 are not. Property 18 as the requirements state it (with blocking, Kernel overheads and jitter) is therefore still not proven, and its evidence is still the PBT against the discrete-event simulator and the UPPAAL corpus.**
+**Status: stages 1 and 2 are proven in Lean; stage 3 is not. Property 18 as the requirements state it (with Kernel overheads and jitter) is therefore still not proven, and its evidence is still the PBT against the discrete-event simulator and the UPPAAL corpus.**
 
 **Goal.** In every run of the Kernel's scheduler in which a Task's Releases are at least its period or MIT apart and each Job's charged execution is at most its Budget, every Job of a Task that `response_of` reports schedulable completes within `R_i` of its Release; first with `C` and interference only (stage 1), then with `B_i` (SRP blocking, stage 2), then with `O_i` and `J_i` (stage 3).
 
@@ -647,37 +647,43 @@ On the code as compiled (`Rta/Whole.lean`, about 300 lines; the translation is t
 
 The commands are in `proofs/aeneas/README.md`. Two facts of the code matter for the statement. `Sched::start` (the dispatch) contains no eligibility test: SRP eligibility is its Verus precondition, and the test that runs is `Bound::eligible`, called by `Bound::dispatch` and by the dispatch stub's core. And the Kernel's `select` chooses the highest-Priority pending Task and then tests only that one.
 
-**The run (`Sched/Run.lean`).** A state is the Kernel's `Sched`, the instant, and per Task the instant of its last Release, the execution its pending Job will ask for and the execution its Job in progress still needs. A run starts from `Sched::new` at instant 0 and takes these transitions; the scheduler state changes only through the extracted functions, and a transition exists only where the extracted function returns:
+**The run (`Sched/Run.lean`).** A state is the Kernel's `Sched`, the instant, per Task the instant of its last Release, the execution its pending Job will ask for and the execution its Job in progress still needs, and per entry of the lock stack the execution its Critical_Section may still take. A run starts from `Sched::new` at instant 0 and takes these transitions; the scheduler state changes only through the extracted functions, and a transition exists only where the extracted function returns:
 
 | Transition | Kernel function | Condition |
 |---|---|---|
 | `release` of Task `t`, a Job of execution `d` | `make_pending` | `1 ≤ d ≤ C_t`; at least `T_t` after `t`'s last Release |
 | `dispatch` of Task `t` | `start` | `Bound::eligible` returns true for `t` on a Kernel object holding this configuration and scheduler state |
-| `idle` (one unit of time) | none | `Bound::eligible` returns false for every Task; no Job in progress |
-| `exec` (one unit: the top Job executes and needs more) | none | `Bound::eligible` returns false for every Task |
-| `finish` (one unit: the top Job executes its last unit and ends) | `finish_top` | `Bound::eligible` returns false for every Task |
+| `lock` of Resource `r` by the top Job, a Critical_Section of execution at most `a` | `lock`, when it grants | `a ≤ L(task, r)` |
+| `unlock` of Resource `r` by the top Job | `unlock`, when it grants | |
+| `idle` (one unit of time) | none | No Job in progress |
+| `exec` (one unit: the top Job executes and needs more) | none | None of the Critical_Sections the Job is in is exhausted; each loses one unit |
+| `finish` (one unit: the top Job executes its last unit and ends) | `finish_top` | As `exec` |
 
-Time passes only when the test accepts no Task: a pending eligible Task is dispatched at once, which is the Hardware_Model's rule (the dispatch exception is taken before the preempted code continues). Which eligible Task is dispatched is not fixed, so the run covers `select`'s choice and any other.
+Every transition but a Release is taken only when `Bound::eligible` returns false for every Task: a pending eligible Task is dispatched at once, which is the Hardware_Model's rule (the dispatch exception is taken before the preempted code continues). Which eligible Task is dispatched is not fixed, so the run covers `select`'s choice and any other.
 
-**Stage 1, proven** (`Sched/Model.lean`, `Run.lean`, `Window.lean`, `Stage1.lean`, `Link.lean`; handwritten, about 1,100 lines; `lake build` checks them; no `sorry`; `#print axioms` of `property18_stage1` gives Lean's `propext`, `Classical.choice`, `Quot.sound`).
+**Stages 1 and 2, proven** (`Sched/Model.lean`, `Locks.lean`, `Views.lean`, `Run.lean`, `Window.lean`, `Stage.lean`, `Link.lean`; handwritten, about 1,900 lines; `lake build` checks them; no `sorry`; `#print axioms` of `property18_stage2` gives Lean's `propext`, `Classical.choice`, `Quot.sound`).
 
 | Theorem | Statement |
 |---|---|
-| `make_pending_ok`, `start_ok`, `finish_top_ok0` | What the extracted function's result is whenever it returns (no assumption on the state) |
+| `make_pending_ok`, `start_ok`, `lock_ok`, `unlock_ok`, `finish_top_ok` | What the extracted function's result is whenever it returns, with no assumption on the state; the loops of `end_job` and `recompute_ceiling` by induction (`end_job_loop_ok`, `recompute_loop_ok`) |
 | `eligible_ok` | Whenever the extracted `Bound::eligible` returns, it returns true exactly when R7.1 holds: the Task is pending, has no Job in progress, and its Priority is above the System_Ceiling and above the Priority of the Job on top of the stack |
-| `Wf.step` | In a run the stack's Priorities rise strictly from the bottom, a Task has a Job in progress exactly when it is on the stack, and the model's accounts agree with the Kernel's `release` and `job` arrays |
-| `stage1` | For a Task `i` and any `R > 0` with `Σ_{k : P_k ≥ P_i} C_k · ⌈R / T_k⌉ ≤ R` (the sum includes `i`): in every state a run reaches in which `i` has unfinished work, `i`'s last Release was less than `R` ago |
-| `property18_stage1` | The same with `R` the response time `response_of` (as compiled, 7.2) returns for a Task it reports schedulable, the run's `T_k` and `C_k` being the period and the bound of the Analyzer's inputs, for inputs with no jitter, no intake cost, no blocking and no overhead |
+| `Wf.step` | In a run: the stack's Priorities rise strictly from the bottom; a Task has a Job in progress exactly when it is on the stack; the System_Ceiling is the greatest Ceiling on the lock stack; the entries of a Job higher on the stack are higher on the lock stack; and a Job above an entry's holder has a Priority above the entry's Ceiling (the Stack Resource Policy, proven here on the extracted code; section 5.1 has it in Verus) |
+| `busy_block` | While Tasks of Priority at least `P_i` have work, the test accepts none, and the Job on top is of lower Priority, a lock entry of Ceiling at least `P_i` is held, and every such entry is held by the Job on top |
+| `stage2` | For a Task `i`, `B` a bound on every Critical_Section of a Task of lower Priority on a Resource of Ceiling at least `P_i`, and any `R > 0` with `B + Σ_{k : P_k ≥ P_i} C_k · ⌈R / T_k⌉ ≤ R` (the sum includes `i`): in every state a run reaches in which `i` has unfinished work, `i`'s last Release was less than `R` ago |
+| `property18_stage2` | The same with `R` the response time `response_of` (as compiled, 7.2) returns for a Task it reports schedulable with blocking term `b` (`B = b`), the run's `T_k` and `C_k` being the period and the bound of the Analyzer's inputs, for inputs with no jitter, no intake cost and no overhead |
+| `stage1`, `property18_stage1` | The case `B = 0`, `b = 0`: no Critical_Section of a lower Task on a Resource of Ceiling at least `P_i` executes |
 
-The argument is the busy period of the Priority level, which needs no distinct Priorities (the Kernel never preempts a Job by one of equal Priority, and the Analyzer counts every Task of equal or higher Priority as an interferer; the earlier note that ties need separate treatment is resolved by taking the level, Task `i` included). The invariant is a potential over the Tasks of the level: for some window start `s`, `(now - s) + Σ_k (the work k's released Jobs still need + C_k · ⌈(s + R - e_k)⁺ / T_k⌉) ≤ R`, with `e_k` the earliest instant of `k`'s next Release. A unit of time in which the level has work is spent on a Job of the level (from the stack order and the eligibility test); a Release of `k` turns one counted future Release into at most `C_k` of work; when the level has no work the window restarts and the bound is the fixed-point inequality.
+The argument is the busy period of the Priority level, which needs no distinct Priorities (the Kernel never preempts a Job by one of equal Priority, and the Analyzer counts every Task of equal or higher Priority as an interferer; the level includes Task `i`). The invariant is a potential over the Tasks of the level: for some window start `s` and blocking allowance `β`, `(now - s) + β + Σ_k (the work k's released Jobs still need + C_k · ⌈(s + R - e_k)⁺ / T_k⌉) ≤ R`, with `e_k` the earliest instant of `k`'s next Release and `β` at least what the outermost blocking Critical_Section may still execute. A unit of time in which the level has work is spent on a Job of the level or inside that Critical_Section (`busy_block`); a Release of `k` turns one counted future Release into at most `C_k` of work; when the level has no work the window restarts and the bound is the fixed-point inequality.
 
-**What stage 1 assumes or leaves out.**
+**What stages 1 and 2 assume or leave out.**
 
 | Item | Detail |
 |---|---|
-| Transitions | The `Sched` state functions and `Bound::eligible`, not the Kernel transitions around them (the Budget account, the timer slots, the log), which do not extract. No `lock` or `unlock` in a stage 1 run |
-| Time | Discrete units; a Job that ends in the unit starting at `now` completes at `now + 1`, and the theorem gives `now < r + R` |
-| The Budget bound | A hypothesis of the run (`d ≤ C_t`). The Kernel's Budget enforcement (`budget_event`) is not part of the run |
+| Transitions | The `Sched` state functions and `Bound::eligible`, not the Kernel transitions around them (the Budget account, the timer slots, the log), which do not extract |
+| Time | Discrete units; a Job that ends in the unit starting at `now` completes at `now + 1`, and the theorem gives `now < r + R`. Dispatch, lock and unlock take no time (their cost is the overhead of stage 3) |
+| The Budget bound and the Critical_Section bound | Hypotheses of the run (`d ≤ C_t`, `a ≤ L(t, r)`). The Kernel's Budget enforcement (`budget_event`) and its ending of an overrun Critical_Section are not part of the run |
+| `B` and the Analyzer's `B_i` | `property18_stage2` takes the blocking term `b` passed to `response_of` and assumes the run's Critical_Sections are within it. That the Analyzer's `blocking` computes such a bound from the sites is 7.2's `derive_all_spec`; the two are not yet joined in one statement |
+| A refused `lock` or `unlock` | Not a transition (the extracted function returns the state unchanged) |
 | A Release while the Task's earlier Job is unfinished | The model adds the new Job's execution to the Task's account; the Kernel's deadline handling is not modelled. For a Task the theorem covers this never occurs when `R ≤ T` |
 | Configuration | At most 256 Tasks; every Priority above the idle System_Ceiling (0); the Analyzer's inputs and the Kernel's configuration agree on the Priorities (a hypothesis, not derived from the Generator) |
 | The Analyzer's own cost and deadline | `0 < c`, `tasks[i].bound ≤ c`, `deadline ≤ tasks[i].period` |
@@ -687,11 +693,13 @@ The argument is the busy period of the Priority level, which needs no distinct P
 | Mutant | Change | Where the proof breaks |
 |---|---|---|
 | `lean-eligibility-top-test-dropped` | The extracted `Bound::eligible` answers true without comparing with the top of the stack | `eligible_ok` (`Sched/Model.lean`) |
-| `lean-budget-bound-dropped` | A Release's Job may execute for any time (`d ≤ C_t` replaced by `True`) | `level_step` (`Sched/Stage1.lean`) |
+| `lean-eligibility-ceiling-test-dropped` | The extracted `Bound::eligible` does not compare with the System_Ceiling | `eligible_ok` (`Sched/Model.lean`) |
+| `lean-budget-bound-dropped` | A Release's Job may execute for any time (`d ≤ C_t` replaced by `True`) | `level_step` (`Sched/Stage.lean`) |
+| `lean-section-bound-dropped` | A Critical_Section may execute for any time (`a ≤ L(t, r)` replaced by `True`) | `Wf.step` (`Sched/Run.lean`) |
 
 **Also found.** The verification job counted `sorry` in the Lean output by the text Lean printed before version 4.2x (straight quotes); the installed Lean prints backticks, so the count was always 0. `lake build` itself does not fail on `sorry`. Fixed to count both forms (`xtask/src/verify.rs`). The mutation runner's tree copy included the Lean project's `.lake` directory (7.2 GB of fetched packages); it now skips it.
 
-**Stages 2 and 3, not done.** Stage 2 adds the `lock` and `unlock` transitions and a bound on each Critical_Section's execution to the run, and one Critical_Section of a lower Task to the potential (the SRP lemma of 5.1 has to be proven again on the extracted `lock`, `unlock` and `end_job`, whose loops stage 1 only evaluates at an empty lock stack). Stage 3 adds the overhead terms and the jitter. The Kernel transitions themselves need either a change to how the Kernel passes ghost values (a `proof` block that assigns ghost state in place of `Ghost` arguments, at about fifteen call sites of `record`) or a newer Aeneas.
+**Stage 3, not done.** It adds the overhead terms and the jitter: a cost for each Release, dispatch, lock, unlock and Job end charged as the Analyzer's terms charge them, and a Release that takes effect up to `J` after its nominal instant. The Kernel transitions themselves need either a change to how the Kernel passes ghost values (a `proof` block that assigns ghost state in place of `Ghost` arguments, at about fifteen call sites of `record`) or a newer Aeneas.
 
 ## 8. Tool qualification (R51)
 

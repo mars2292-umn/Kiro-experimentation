@@ -881,10 +881,28 @@ expect = ["Sched/Model.lean"]
 prover = "lean"
 
 [[mutation]]
+id = "lean-eligibility-ceiling-test-dropped"
+kills = "eligible_ok (R7.1: a Task starts only with a Priority above the System_Ceiling, the SRP rule the blocking bound rests on)"
+file = "proofs/aeneas/lean/Sched/Eligible.lean"
+find = "        if tc.priority > self.kernel.sched.ceiling\n"
+replace = "        if true\n"
+expect = ["Sched/Model.lean"]
+prover = "lean"
+
+[[mutation]]
 id = "lean-budget-bound-dropped"
-kills = "level_step (a Release adds at most C_k to the window's work), hence stage1 and property18_stage1"
+kills = "level_step (a Release adds at most C_k to the window's work), hence stage2 and property18_stage2"
 file = "proofs/aeneas/lean/Sched/Run.lean"
 find = "(hd1 : 1 ≤ d) (hd2 : d ≤ P.C t.val)"
 replace = "(hd1 : 1 ≤ d) (hd2 : True)"
-expect = ["Sched/Stage1.lean", "Application type mismatch"]
+expect = ["Sched/Stage.lean", "Application type mismatch"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-section-bound-dropped"
+kills = "Wf.step (a Critical_Section's remaining execution is within its bound), hence the blocking term of stage2"
+file = "proofs/aeneas/lean/Sched/Run.lean"
+find = "      (ha : a ≤ P.L (stk st.s (st.s.depth.val - 1)) r.val)\n"
+replace = "      (ha : True)\n"
+expect = ["Sched/Run.lean"]
 prover = "lean"
