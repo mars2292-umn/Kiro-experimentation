@@ -931,6 +931,6 @@ kills = "Kernel::dispatch's postcondition (2026-11-14): the preempted Job's Budg
 file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "            self.slots.disarm(cfg.slot_budget[prev as usize] as usize);\n            proof {\n                Self::lemma_consistent_disarm(&b0, self, cfg, cfg.slot_budget[prev as int] as int);\n            }\n"
 replace = ""
-expect = ["kernel.rs", "postcondition not satisfied"]
+expect = ["kernel.rs", "assertion failed", "before_arm.slots.armed"]
 package = "rsk-logic"
 
