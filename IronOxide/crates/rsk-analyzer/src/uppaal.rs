@@ -51,10 +51,25 @@ fn xml_escape(s: &str) -> String {
 /// - `Task(i)`: `Idle`, `Pending` (released, waiting for the SRP start
 ///   condition `eligible(i)`: no Job of higher or equal Priority and lower
 ///   identifier executing, Priority above the System_Ceiling), `Blocked`
-///   (the blocking term, an interval up to `BLOCK[i]`), `Running` (a
-///   stopwatch `exec[i]` that progresses only while the Task executes;
-///   the Job completes at any point of the interval up to `EXEC[i]`), and
-///   `Missed`, entered from any busy location when the deadline passes.
+///   (the blocking term, an interval up to `BLOCK[i]`), `Ready` (the
+///   blocking interval is over and another Job took the processor in it),
+///   `Running` (a stopwatch `exec[i]` that progresses only while the Task
+///   executes; the Job completes at any point of the interval up to
+///   `EXEC[i]`), and `Missed`, entered from any busy location once the
+///   deadline has passed.
+///
+/// Dispatch is urgent (`rsk-uppaal/3`, 2026-11-14): the steps out of
+/// `Pending` and `Ready` synchronise on the urgent broadcast channel `go`,
+/// so no time passes while a Task is eligible. This is the Hardware_Model's
+/// rule (the dispatch exception is taken before the preempted code
+/// continues). `rsk-uppaal/2` let an eligible Task wait with the processor
+/// idle until its deadline, so a miss was reachable in every model. The
+/// deadline clock `dl[i]` starts at the nominal release instant, before the
+/// jitter, as the response time R_i = J_i + w_i is measured (R29.1), and a
+/// Job that completes exactly at its deadline has not missed it. The
+/// stopwatches are ordinary clocks with a rate: `rsk-uppaal/2` declared
+/// them `hybrid clock`, which UPPAAL's symbolic checker does not support
+/// (verifyta 5.0.0 and 5.1.0-beta5 crash on it).
 ///   Preemption: a higher Task entering `Running` takes `running`; on its
 ///   completion `running` returns to the highest-Priority preempted Task
 ///   (`resume()`), as fixed-priority preemptive dispatching does (R7.1 to
@@ -69,7 +84,7 @@ fn xml_escape(s: &str) -> String {
 pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
     let n = tasks.len();
     let mut decl = String::new();
-    decl.push_str("// rsk UPPAAL export (rsk-uppaal/2). Times in CPU cycles.\n");
+    decl.push_str("// rsk UPPAAL export (rsk-uppaal/3). Times in CPU cycles.\n");
     decl.push_str(&format!("const int N = {n};\n"));
     decl.push_str("typedef int[0,N-1] task_t;\n");
     let col = |name: &str, f: &dyn Fn(&AnalysedTask) -> u64| {
@@ -91,7 +106,9 @@ pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
     decl.push_str("bool pending[N];          // released, not started\n");
     decl.push_str("bool started[N];          // started and not completed (executing or preempted)\n");
     decl.push_str("chan release[N];\n");
-    decl.push_str("hybrid clock exec[N];     // stopwatches: progress only while running\n");
+    decl.push_str("urgent broadcast chan go;  // dispatch: no time passes while a Task is eligible\n");
+    decl.push_str("clock dl[N];              // time since the nominal release instant\n");
+    decl.push_str("clock exec[N];            // stopwatches: progress only while running (a rate of 0 or 1 in the invariant; `hybrid clock` is for the statistical checker and crashes verifyta's symbolic one)\n");
     decl.push_str("bool preempts(task_t i, int j) { return j < 0 || PRIO[i] > PRIO[j] || (PRIO[i] == PRIO[j] && i < j); }\n");
     decl.push_str("bool eligible(task_t i) { return pending[i] && PRIO[i] > ceiling && preempts(i, running); }\n");
     decl.push_str("// The Task that resumes when the executing one completes: the started one of highest Priority, lowest identifier among equals (R7.3); -1 when none.\n");
@@ -106,28 +123,35 @@ pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
 <location id="g0" x="0" y="0"><name>Wait</name><label kind="invariant">SPORADIC[i] || x &lt;= PERIOD[i]</label></location>
 <location id="g1" x="200" y="0"><name>Jitter</name><label kind="invariant">jit &lt;= JITTER[i]</label></location>
 <init ref="g0"/>
-<transition><source ref="g0"/><target ref="g1"/><label kind="guard">x &gt;= PERIOD[i]</label><label kind="assignment">x = 0, jit = 0</label></transition>
+<transition><source ref="g0"/><target ref="g1"/><label kind="guard">x &gt;= PERIOD[i]</label><label kind="assignment">x = 0, jit = 0, dl[i] = 0</label></transition>
 <transition><source ref="g1"/><target ref="g0"/><label kind="synchronisation">release[i]!</label><label kind="assignment">pending[i] = true</label></transition>
 </template>
 "#,
     );
-    // Task automaton: Idle -> Pending -> Blocked -> Running -> Idle; Missed on deadline.
+    // Task automaton: Idle -> Pending -> Blocked -> (Ready ->) Running ->
+    // Idle; Missed at the deadline, from Running only while the Job still
+    // needs execution (a Job that has executed for EXEC at its deadline
+    // completes at it and has not missed).
     templates.push_str(
         r#"<template><name>Task</name><parameter>const task_t i</parameter>
-<declaration>clock d; clock b;</declaration>
+<declaration>clock b;</declaration>
 <location id="t0" x="0" y="0"><name>Idle</name></location>
-<location id="t1" x="200" y="0"><name>Pending</name><label kind="invariant">d &lt;= DEADLINE[i]</label></location>
-<location id="t2" x="400" y="0"><name>Blocked</name><label kind="invariant">b &lt;= BLOCK[i] &amp;&amp; d &lt;= DEADLINE[i]</label></location>
-<location id="t3" x="600" y="0"><name>Running</name><label kind="invariant">exec[i]' == (running == i) &amp;&amp; exec[i] &lt;= EXEC[i] &amp;&amp; d &lt;= DEADLINE[i]</label></location>
+<location id="t1" x="200" y="0"><name>Pending</name><label kind="invariant">dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t2" x="400" y="0"><name>Blocked</name><label kind="invariant">b &lt;= BLOCK[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t5" x="500" y="100"><name>Ready</name><label kind="invariant">dl[i] &lt;= DEADLINE[i]</label></location>
+<location id="t3" x="600" y="0"><name>Running</name><label kind="invariant">exec[i]' == (running == i) &amp;&amp; exec[i] &lt;= EXEC[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]</label></location>
 <location id="t4" x="800" y="0"><name>Missed</name></location>
 <init ref="t0"/>
-<transition><source ref="t0"/><target ref="t1"/><label kind="synchronisation">release[i]?</label><label kind="assignment">d = 0</label></transition>
-<transition><source ref="t1"/><target ref="t2"/><label kind="guard">eligible(i)</label><label kind="assignment">b = 0, pending[i] = false</label></transition>
+<transition><source ref="t0"/><target ref="t1"/><label kind="synchronisation">release[i]?</label></transition>
+<transition><source ref="t1"/><target ref="t2"/><label kind="guard">eligible(i)</label><label kind="synchronisation">go!</label><label kind="assignment">b = 0, pending[i] = false</label></transition>
 <transition><source ref="t2"/><target ref="t3"/><label kind="guard">b &lt;= BLOCK[i] &amp;&amp; preempts(i, running)</label><label kind="assignment">running = i, started[i] = true, exec[i] = 0</label></transition>
+<transition><source ref="t2"/><target ref="t5"/><label kind="guard">b &gt;= BLOCK[i]</label><label kind="assignment">pending[i] = true</label></transition>
+<transition><source ref="t5"/><target ref="t3"/><label kind="guard">eligible(i)</label><label kind="synchronisation">go!</label><label kind="assignment">pending[i] = false, running = i, started[i] = true, exec[i] = 0</label></transition>
 <transition><source ref="t3"/><target ref="t0"/><label kind="guard">exec[i] &lt;= EXEC[i] &amp;&amp; running == i</label><label kind="assignment">started[i] = false, running = resume()</label></transition>
-<transition><source ref="t1"/><target ref="t4"/><label kind="guard">d &gt;= DEADLINE[i]</label></transition>
-<transition><source ref="t2"/><target ref="t4"/><label kind="guard">d &gt;= DEADLINE[i]</label></transition>
-<transition><source ref="t3"/><target ref="t4"/><label kind="guard">d &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t1"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t2"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t5"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
+<transition><source ref="t3"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i] &amp;&amp; exec[i] &lt; EXEC[i]</label></transition>
 </template>
 "#,
     );
@@ -277,6 +301,20 @@ pub fn cross_check(xml_path: &std::path::Path, q_path: &std::path::Path, rta_pas
     let out = child.wait_with_output().map(|o| format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))).unwrap_or_default();
     let satisfied = out.contains("is satisfied");
     let not_satisfied = out.contains("NOT satisfied");
+    // With stopwatches verifyta checks an over-approximation: a property it
+    // reports satisfied holds, and a violation it finds only there is
+    // reported as "MAY NOT be satisfied", with no trace.
+    let may_not = out.contains("MAY NOT be satisfied");
+    if may_not && !satisfied && !not_satisfied {
+        return if rta_pass {
+            CrossCheck {
+                status: "discrepancy",
+                detail: format!("verifyta {version}: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); REQUIRES CONFIRMATION (R31.5)"),
+            }
+        } else {
+            CrossCheck { status: "agree", detail: format!("verifyta {version}: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL") }
+        };
+    }
     match (rta_pass, satisfied, not_satisfied) {
         (true, true, _) => CrossCheck { status: "agree", detail: format!("verifyta {version}: no deadline miss reachable; RTA PASS") },
         (false, _, true) => CrossCheck { status: "agree", detail: format!("verifyta {version}: a deadline miss is reachable; RTA FAIL") },

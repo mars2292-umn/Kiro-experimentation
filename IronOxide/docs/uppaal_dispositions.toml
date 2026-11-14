@@ -9,5 +9,13 @@
 # model = "m07"
 # disposition = "..."
 #
-# None recorded: no machine with UPPAAL has run the corpus yet (the
-# Verification_Plan, section 8, records this; ORQ-22).
+# First run with a verifier: 2026-11-14, UPPAAL 5.0.0, model rsk-uppaal/3
+# (Verification_Plan 8.7).
+
+[[discrepancy]]
+model = "m01"
+disposition = "OPEN (2026-11-14): verifyta reports that a miss may be reachable, found in the stopwatch over-approximation, with no trace. Not confirmed and not refuted. Candidate explanations: a spurious state of the over-approximation; pessimism of the export, which delays every Job by up to its own B_i where the Analyzer charges blocking once per busy period (two higher-Priority Tasks of m01 have B of about 320,000 cycles); an optimism of the Analyzer."
+
+[[discrepancy]]
+model = "m49"
+disposition = "OPEN (2026-11-14): as m01; a possible miss in the stopwatch over-approximation, no trace, neither confirmed nor refuted."
