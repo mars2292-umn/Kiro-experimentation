@@ -924,3 +924,13 @@ find = "(ht : t < NT.val) (hc : c ≤ P.I t)"
 replace = "(ht : t < NT.val) (hc : True)"
 expect = ["Sched/Stage.lean"]
 prover = "lean"
+
+[[mutation]]
+id = "preempted-budget-slot-left-armed"
+kills = "Kernel::dispatch's postcondition (2026-11-14): the preempted Job's Budget event is disarmed, so no stale timer entry fires while the preempting Job executes (the response-time analysis charges none)"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            self.slots.disarm(cfg.slot_budget[prev as usize] as usize);\n            proof {\n                Self::lemma_consistent_disarm(&b0, self, cfg, cfg.slot_budget[prev as int] as int);\n            }\n"
+replace = ""
+expect = ["kernel.rs", "postcondition not satisfied"]
+package = "rsk-logic"
+

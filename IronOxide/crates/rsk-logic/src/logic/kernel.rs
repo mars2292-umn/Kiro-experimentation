@@ -1686,6 +1686,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             // R18.2: the new Job's Budget event is armed; R9.6: its deadline
             // check refers to the Release it serves.
             final(self).slots.armed(cfg.slot_budget[t as int] as int),
+            // 2026-11-14: the preempted Job's Budget event is not left armed
+            // (no stale timer entry while the preempting Job executes).
+            old(self).sched.depth > 0 ==> !final(self).slots.armed(cfg.slot_budget[old(self).sched.top()] as int),
             final(self).timing.job_due[t as int] == old(self).timing.due[t as int],
             final(self).flags_eq(old(self)),
             final(self).timing.has_last == old(self).timing.has_last,
@@ -1702,6 +1705,20 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.sched.depth > 0 {
             let prev = self.sched.stack[self.sched.depth - 1];
             self.budget.charge(prev, preempted_cycles);
+            // 2026-11-14: the preempted Job's Budget event is disarmed (it is
+            // armed again when the Job resumes, `job_return` and `end_top`).
+            // Left armed it fired once, stale, while the preempting Job
+            // executed: a timer entry at the Kernel level that the
+            // response-time analysis had to charge to every preemption.
+            proof {
+                assert(cfg.task_ok(prev as int));
+                assert(cfg.slot_ok(prev as int));
+            }
+            let ghost b0 = *self;
+            self.slots.disarm(cfg.slot_budget[prev as usize] as usize);
+            proof {
+                Self::lemma_consistent_disarm(&b0, self, cfg, cfg.slot_budget[prev as int] as int);
+            }
         }
         self.sched.start(cfg, t);
         self.timing.job_started(cfg, t);
@@ -1715,7 +1732,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // Recorded before the Budget event is armed: `arm_budget` requires
         // the full invariant, which the step re-establishes.
         self.record(cfg, ST_DISPATCH, Ghost(t as int), Ghost(0));
+        let ghost before_arm = *self;
         self.arm_budget(cfg, t);
+        proof {
+            // The preempted Job's Budget slot is another slot than `t`'s,
+            // and nothing since the disarm has armed it.
+            if old(self).sched.depth > 0 {
+                let pv = old(self).sched.top();
+                assert(cfg.task_ok(pv));
+                assert(cfg.slots_distinct(pv, t as int));
+                assert(!before_arm.slots.armed(cfg.slot_budget[pv] as int));
+            }
+        }
     }
 
     /// Arms the Budget event of the executing Job of `t` for its remaining Budget.
@@ -2991,6 +3019,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     }
 
     /// DD-10, R14.5: applies one response of the closed sets.
+    #[verifier::spinoff_prover]
     fn apply_response(&mut self, cfg: &Config<NT, NR, NP>, partition: u8, response: u8, cause: u8, t: u8)
         requires old(self).inv(cfg), (partition as int) < NP, (t as int) < NT,
         ensures final(self).stack_prefix_of(old(self)),
