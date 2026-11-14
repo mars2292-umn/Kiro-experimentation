@@ -14,3 +14,11 @@ the handwritten proofs. -/
 @[default_target] lean_lib «ControlLaw» {
   globs := #[.submodules `ControlLaw]
 }
+
+/-- `Rta/Rta.lean`: the Aeneas translation of the Analyzer's response-time
+fixed point (`crates/rsk-analyzer/src/rta.rs`, compiled without Verus: the
+ghost code erased), generated and committed; `Rta/Proofs.lean`: the
+handwritten proofs (Verification_Plan 7.2). -/
+@[default_target] lean_lib «Rta» {
+  globs := #[.submodules `Rta]
+}
