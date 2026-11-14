@@ -49,7 +49,7 @@ use vstd::prelude::*;
 
 #[cfg(verus_keep_ghost)]
 use crate::rta::ceil_div;
-use crate::rta::Term;
+use crate::rta::{Outcome, Term};
 
 verus! {
 
@@ -777,6 +777,97 @@ pub fn terms_for(tasks: &Vec<Interferer>, i: usize) -> (r: Vec<TermOf>)
         j = j + 1;
     }
     out
+}
+
+/// The plain terms of a recurrence: the terms without their origins.
+pub open spec fn plain(ts: Seq<TermOf>) -> Seq<Term> {
+    Seq::new(ts.len(), |k: int| ts[k].term)
+}
+
+/// The verdict of the analysis for one Task (R29.5, R29.7): `w` is the
+/// fixed point or the iterate that passed the deadline, `r = w + J` its
+/// response time (saturated when the Task is not schedulable).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Verdict {
+    pub w: u64,
+    pub r: u64,
+    pub schedulable: bool,
+    pub overflow: bool,
+}
+
+/// The recurrence of Task `i` has a fixed point within the deadline.
+pub open spec fn meets_deadline(base: int, ts: Seq<Term>, jitter: int, deadline: int) -> bool {
+    exists|x: int| x >= 0 && #[trigger] crate::rta::is_fixpoint(base, ts, x) && jitter + x <= deadline
+}
+
+/// The analysis of one Task (R29.1 with R19.2, R29.5 to R29.7), composed:
+/// the terms of Task `i` (`terms_for`), its recurrence from
+/// `base = C + B + O` (`rta::fixpoint`), and the verdict. Until 2026-11-14
+/// this composition was plain Rust in `response_times`, checked against a
+/// reference implementation only.
+///
+/// A Task is reported schedulable exactly with its response time
+/// `R = J + w` for the least fixed point `w`, and `R <= D`; a Task reported
+/// not schedulable without an overflow has no fixed point within its
+/// deadline; an overflow claims nothing (R29.6).
+pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, deadline: u64) -> (v: (Verdict, Vec<TermOf>))
+    requires
+        i < tasks.len(),
+        periods_ok(tasks@),
+    ensures
+        v.1@ == spec_terms(tasks@, i as int, tasks.len() as int),
+        v.0.overflow ==> !v.0.schedulable,
+        v.0.schedulable ==> c + b + o <= u64_max()
+            && crate::rta::is_fixpoint(c + b + o, plain(v.1@), v.0.w as int)
+            && (forall|x: int| x >= 0 && #[trigger] crate::rta::is_fixpoint(c + b + o, plain(v.1@), x) ==> v.0.w as int <= x)
+            && v.0.r as int == tasks@[i as int].jitter as int + v.0.w as int
+            && v.0.r <= deadline,
+        !v.0.schedulable && !v.0.overflow
+            ==> !meets_deadline(c + b + o, plain(v.1@), tasks@[i as int].jitter as int, deadline as int),
+{
+    let own_terms = terms_for(tasks, i);
+    let jitter = tasks[i].jitter;
+    let mut plain_terms: Vec<Term> = Vec::new();
+    let mut k: usize = 0;
+    while k < own_terms.len()
+        invariant
+            k <= own_terms.len(),
+            plain_terms.len() == k,
+            forall|m: int| 0 <= m < k ==> (#[trigger] plain_terms@[m]) == own_terms@[m].term,
+            forall|m: int| 0 <= m < own_terms.len() ==> (#[trigger] own_terms@[m]).term.period > 0,
+        decreases own_terms.len() - k,
+    {
+        plain_terms.push(own_terms[k].term);
+        k = k + 1;
+    }
+    assert(plain_terms@ =~= plain(own_terms@));
+    assert(crate::rta::terms_ok(plain_terms@)) by {
+        assert forall|m: int| 0 <= m < plain_terms@.len() implies (#[trigger] plain_terms@[m]).period > 0 by {
+            assert(own_terms@[m].term.period > 0);
+        }
+    }
+    let saturated = Verdict { w: u64::MAX, r: u64::MAX, schedulable: false, overflow: true };
+    let cb = match add(c, b) {
+        Some(x) => x,
+        None => return (saturated, own_terms),
+    };
+    let base = match add(cb, o) {
+        Some(x) => x,
+        None => return (saturated, own_terms),
+    };
+    match crate::rta::fixpoint(base, &plain_terms, jitter, deadline) {
+        Outcome::Fixpoint(w) => (Verdict { w, r: w + jitter, schedulable: true, overflow: false }, own_terms),
+        Outcome::NotSchedulable(w) => {
+            let r = if w > u64::MAX - jitter { u64::MAX } else { w + jitter };
+            proof {
+                // Every fixed point is at least `w`, which is already late.
+                assert forall|x: int| x >= 0 && #[trigger] crate::rta::is_fixpoint(base as int, plain_terms@, x)
+                    implies !(jitter as int + x <= deadline as int) by {}
+            }
+            (Verdict { w, r, schedulable: false, overflow: false }, own_terms)
+        }
+        Outcome::Overflow => (saturated, own_terms),
+    }
 }
 
 } // verus!

@@ -600,6 +600,27 @@ These are the clauses of the Verus contract, with termination and the absence of
 
 **Findings.** (1) The erased build goes through Charon unchanged; the one obstacle was the crate's binary target, which has no `rta` module (`-- --lib`). (2) The proof effort was an afternoon's, most of it the shapes of the library's facts: `u64::MAX` appears in three spellings (`core.num.U64.MAX`, `U64.rMax`, `U64.max`) that `scalar_tac` does not connect by itself, and a specification stated with a `match` over the loop's control flow needs `WP.spec_mono` to meet `loop.spec_decr_nat`'s own `match`. (3) The mathematics is short over the naturals (monotonicity of the ceiling division and of the sum; an iterate below a fixed point stays below it), shorter than the Verus lemmas over the integers. (4) The step is not in the verification job beyond `lake build` of the committed translation: regenerating it needs Charon and its nightly, as for 7.1.
 
+**Extended the same day to the whole numeric chain.** Three further steps, each on the erased build as above (the translation is now 1,087 lines of Lean from `--start-from 'crate::terms::response_of' --start-from 'crate::terms::derive_all'`).
+
+*The composition, first in Verus.* One Task's analysis from its terms through the fixed point to the verdict was plain Rust in `response_times` (the plan's oldest open proof item, R29.5). It is now `terms::response_of`, inside `verus!` (rsk-analyzer: 71 items verified, 0 errors): a Task reported schedulable has `R = J + w` for the least fixed point `w` of its recurrence from `C + B + O`, with `R <= D`; a Task reported not schedulable without an overflow has no fixed point within its deadline (`meets_deadline` is false); an overflow is never reported schedulable. `response_times` calls it and keeps only the report's breakdown; the Analyzer's tests pass unchanged, the comparison with the reference implementation among them.
+
+*The same chain in Lean* (`Rta/Chain.lean`, about 290 lines):
+
+| Theorem | Statement |
+|---|---|
+| `terms_for_spec` | For positive periods `terms_for` returns, and the plain terms are those of Task `i`'s recurrence (`specTerms`: every other Task of equal or higher Priority by its Jobs, R29.1; every lower one with an intake cost by its intake, R19.2), each with a positive period |
+| `response_of_spec` | For positive periods and every Task `i`, `response_of` returns; the terms it used are `specTerms`; schedulable implies `w` is a fixed point of `w = (C + B + O) + Σ ⌈(w + J_j) / T_j⌉ · E_j`, at most every fixed point, `R = J + w` and `R ≤ D`; not schedulable without overflow implies every fixed point `x` has `J + x > D`; overflow implies not schedulable |
+
+`response_of_spec` is the end-to-end statement for one Task: from the Task set's numbers to the verdict, on the code as compiled, with no hypothesis left about the terms (the "positive periods" premise of `fixpoint_spec` is discharged by `terms_for_spec`).
+
+*The term derivation in Lean* (`Rta/Derive.lean`, about 420 lines): `derive_all_spec`, with `site_stats_spec`, `overhead_spec`, `interference_bound_spec`, `blocking_spec`. For every input in which each site names a Task, `derive_all` returns; a returned list has one entry per Task, and each entry holds that Task's Resource-site count, longest Critical_Section, `O_i` (R29.3), `E_i` (R29.4), `B_i` (R29.2: the largest candidate over the sites that can block the Task, at least the Kernel-level term), and `J_i = J_rel`. Two parts of the Verus contract are not restated: that `None` is returned only when a term does not fit 64 bits, and which site attains `B_i`.
+
+Three more changes to the generated file were tried and each fails the build: the Jobs' term given the intake cost as its bound, `O_i` stored from `E_i`, and the Ceiling test of a blocking site made strict.
+
+**What still joins the two halves by reading.** `derive_all` produces `B_i`, `O_i`, `E_i`; `response_of` consumes `C`, `B`, `O` and the Tasks' `E_j`. Between them is `inputs::prepare`, plain Rust that reads the Task_Model and the timing records, converts ticks to cycles, and copies the derived numbers into the analysed Tasks; it is not translated (it handles strings and the JSON models), so that the numbers `response_of` receives are the ones `derive_all` returned is by inspection and by the Analyzer's tests. The UPPAAL export and the report are outside as before.
+
+**Findings of the extension.** (1) Aeneas's Lean for a function with a local variable named like a module does not compile: `let terms = ...` shadowed the `terms` module in every later reference; the local is renamed in the Rust source. (2) A function with early returns under several `if`s is translated with its tail duplicated per branch (`overhead`: 390 lines of Lean for 45 of Rust); splitting on the flags first and then `step*` proves all sixteen copies without a line per case, at about a minute of checking and a raised heartbeat limit for that theorem and for `blocking`'s loop body (thirty-two cases, the same way). (3) `usize` against `u64`: the library knows a `usize` is 32 or 64 bits wide (`Usize.bounds_eq`), which a counter bounded by a vector's length needs spelled out.
+
 ## 8. Tool qualification (R51)
 
 ### 8.1 Classification (R51.1, R51.2)
@@ -1101,8 +1122,8 @@ Review record: this plan (task 8.1) and its section 6 (task 6.3, Kani's limitati
 
 Open items for v2 (restated 2026-11-05; the items closed since the first draft are struck from the list, not kept):
 
-- proofs still partial at the logic level (9.5): the composition of the Analyzer (`response_times`: the fixed point per Task and the verdict of R29.5, plain Rust checked against the reference implementation) and the rational statement of R29.9; (the Analyzer's term derivation, R29.2 to R29.4 and R29.8, closed 2026-11-06: `terms::derive_all` proven, with the intake terms of R19.2 in `terms::terms_for`; the Kernel-owned peripherals of the layout proof, R16.2, closed 2026-11-05: the layout carries the PPB and the Kernel-owned peripherals as intervals outside every view)
-- (closed 2026-11-14, 7.2: the Verus-erased build of `rta::fixpoint` translated by Aeneas and proven in Lean against the recurrence, termination and absence of panics included); what would extend it: the same for `terms::derive_all`, and for `response_times` once it is inside `verus!`;
+- proofs still partial at the logic level (9.5): the rational statement of R29.9; (the composition of the Analyzer closed 2026-11-14: `terms::response_of` is verified, 7.2; the Analyzer's term derivation, R29.2 to R29.4 and R29.8, closed 2026-11-06: `terms::derive_all` proven, with the intake terms of R19.2 in `terms::terms_for`; the Kernel-owned peripherals of the layout proof, R16.2, closed 2026-11-05: the layout carries the PPB and the Kernel-owned peripherals as intervals outside every view)
+- (closed 2026-11-14, 7.2: the Analyzer's numeric chain on the Verus-erased build, translated by Aeneas and proven in Lean: the fixed point, the terms, the verdict for one Task end to end, and the term derivation); what remains of it: `inputs::prepare`, which joins the derivation to the verdict, is plain Rust and not translated;
 - the proof mutation register: the three manual checks of 2026-10-14 never reproduced (9.2), and a full run of the 31 mutations before the next revision;
 - (closed 2026-11-06: the Kani flight-path restructuring and the harness bounds at the demo's size, 6.1 and 6.3; section 6 changed after the review record of 2026-11-05 and is to be re-read at the next sign-off);
 - (closed 2026-11-06: cross-solver confirmation for the App_Prover, two disjoint solver sets per configuration, 9.1);
