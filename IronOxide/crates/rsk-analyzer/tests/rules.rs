@@ -321,10 +321,11 @@ fn r29_2_blocking_is_the_longest_lower_priority_critical_section_with_a_ceiling_
     let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
     let by = |id: &str| p.tasks.iter().find(|x| x.id == id).unwrap();
     // control (P7) and echo (P6): sensor (P5) holds `state` (Ceiling 7) for
-    // its placeholder WCET, the Budget of 8.7 ms = 217,500 cycles (8.75 ms
-    // before task 21.6 added `control`'s `report` role).
-    assert_eq!((by("part0.control").b, by("part0.control").b_source.as_str()), (217_500, "part0.sensor#cs:state"));
-    assert_eq!(by("part0.echo").b, 217_500);
+    // its placeholder WCET, the Budget of 8.5 ms = 212,500 cycles (8.75 ms
+    // before task 21.6 added `control`'s `report` role, 8.7 ms until the
+    // Kernel-level terms of 2026-11-14).
+    assert_eq!((by("part0.control").b, by("part0.control").b_source.as_str()), (212_500, "part0.sensor#cs:state"));
+    assert_eq!(by("part0.echo").b, 212_500);
     // sensor itself and the Tasks below the Ceiling's reach with no lower
     // locker: the Kernel-level terms (L_kernel 2,000 or the stop/restart
     // work 5,000 of R14.10, whichever is larger).
@@ -353,24 +354,27 @@ fn r29_3_the_kernel_overhead_of_a_job_sums_the_table_13_1_terms() {
     let p = inputs::prepare(&m, &w, &t, &manifest(&m), &dev()).unwrap();
     let by = |id: &str| p.tasks.iter().find(|x| x.id == id).unwrap();
     // Placeholders: every Δ is 300 cycles. control: release + dispatch +
-    // complete + wake (1,200), three timed events (900), two Critical_Section
+    // complete + wake (1,200), four timed events (release, deadline, Budget,
+    // and the Budget event of a Job that blocks it: 1,200; three until
+    // 2026-11-14), two Critical_Section
     // sites' lock in + out (1,200), Δ_hm (300), FP save + restore because the
-    // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,500; plus,
+    // set has an FPU-using Task (600), Δ_entry (300, R13.6): 4,800; plus,
     // since task 21.5 (R40.2), its Endpoint roles' operations per Job at
     // max(Δ_send, Δ_recv): one each on `telemetry` and `pingpong`, and
     // since task 21.6 two on `report` (a receive and a reply), and since
-    // task 21.7 one on the three-role `triangle` (1,500): 6,000.
-    assert_eq!(by("part0.control").o, 6_000);
+    // task 21.7 one on the three-role `triangle` (1,500): 6,300.
+    assert_eq!(by("part0.control").o, 6_300);
     // echo (sporadic, deferral policy, no Critical_Section, no Endpoint):
-    // the same without the lock and Endpoint terms plus Δ_irq and Δ_stamp:
-    // 3,900.
-    assert_eq!(by("part0.echo").o, 3_900);
-    // log (periodic, no Critical_Section): 3,300, plus its roles' declared
+    // five timed events (deadline, Budget, unmask, deferral, a blocking
+    // Job's Budget event: 1,500), no lock and Endpoint terms, plus Δ_irq
+    // and Δ_stamp: 4,500.
+    assert_eq!(by("part0.echo").o, 4_500);
+    // log (periodic, no Critical_Section): 3,600, plus its roles' declared
     // operations (`telemetry` sink `ops = 4`, `pingpong` sink `ops = 2`, a
     // receive and a reply per Job, since task 21.6 `relay` ctl, one
     // operation per Job, and since task 21.7 `triangle` mid, `ops = 2`:
-    // 2,700): 6,000.
-    assert_eq!(by("part1.log").o, 6_000);
+    // 2,700): 6,300.
+    assert_eq!(by("part1.log").o, 6_300);
     // J is J_rel for every Task (Table 13-1).
     assert!(p.tasks.iter().all(|x| x.j == 500));
 }

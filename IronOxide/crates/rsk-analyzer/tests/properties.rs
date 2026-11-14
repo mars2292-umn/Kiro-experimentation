@@ -144,11 +144,13 @@ fn r32_2_wcrts_are_monotone_in_every_term() {
 /// Priority than Task i that holds no Resource with a Ceiling at or above
 /// P_i changes R_i by at most the Kernel overhead the changed Task
 /// contributes. In the R29.1 recurrence a lower-Priority Task enters R_i
-/// only through B_i, so without a relevant Critical_Section the change is
-/// exactly zero; the one shared term is the FP save and restore that the
+/// only through B_i and through the Kernel-level work of its arrivals and
+/// timed events (R19.2), so without a relevant Critical_Section and
+/// without that cost the change is exactly zero, and with it the change is
+/// those terms; the one shared term is the FP save and restore that the
 /// first FPU-using Task adds to every O_i (R29.3).
 #[test]
-fn r32_3_lower_priority_tasks_without_a_relevant_resource_do_not_change_wcrts() {
+fn r32_3_lower_priority_tasks_without_a_relevant_resource_change_wcrts_only_by_their_kernel_level_terms() {
     let mut rng = Rng(11);
     for _ in 0..300 {
         let base = random_set(&mut rng);
@@ -181,7 +183,8 @@ fn r32_3_lower_priority_tasks_without_a_relevant_resource_do_not_change_wcrts() 
         }
     }
     // On the P1 demo through `prepare`: without `part1.log` (Priority 2, no
-    // Resource) every higher Task keeps its WCRT.
+    // Resource) no higher Task's WCRT grows, and what it loses is at most
+    // the Kernel-level terms `part1.log` had in its recurrence (R19.2).
     let m: TaskModel = rsk_model::read_task_model(DEMO).unwrap();
     let manifest = manifest(&m);
     let (w, t) = placeholders::make(&m, "sha256:demo", "off");
@@ -200,7 +203,10 @@ fn r32_3_lower_priority_tasks_without_a_relevant_resource_do_not_change_wcrts() 
     for x in &reduced {
         let r = by_id(&full, &x.id).r;
         if m.task(&x.id).unwrap().priority > 2 {
-            assert_eq!(x.r, r, "{} changed without part1.log", x.id);
+            let was = by_id(&full, &x.id);
+            let kernel_level: u64 = was.interference.iter().filter(|i| i.task.starts_with("part1.log (")).map(|i| i.cycles).sum();
+            assert!(kernel_level > 0, "{} carried no Kernel-level term of part1.log", x.id);
+            assert!(x.r <= r && r - x.r <= kernel_level, "{} changed by more than part1.log's Kernel-level terms", x.id);
         }
     }
     // Adding the first FPU-using Task to a set changes every O_i by exactly

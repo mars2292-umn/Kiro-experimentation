@@ -13,7 +13,7 @@
 //! `pulse`'s Budget is 500 µs (task 19.1, 2026-11-02): the HIL build's agent measured its Job at 0.278 ms with the Budget accounting charging the SVC handlers' time to the Job, over the 200 µs first declared, and under the storm the ended Jobs answered a third of the windows.
 //!
 //! `echo`'s Budget is 300 µs (200 first) and `filter`'s 800 µs (500 first) since the WCET_Records of task 19.1 (2026-11-02): the measured executions with the 25 % margin of R34.6 are 15,712 and 49,419 cycles, and R28.4 keeps every Budget at or above its WCET.
-//! `sensor`'s Budget is 8.7 ms here (8.8 ms first, 8.75 ms from 2026-11-06 to 2026-11-08, and still 8.8 ms in the HIL configurations): its Critical_Section is 6 ms (8 first) since the same records, so that its measured Job (about 6.4 ms, 7.9 ms with the margin) fits the Budget and `control`'s measured blocking term (about 7.7 ms with the margin) fits its 10 ms deadline. With placeholder timing every Critical_Section is its Task's whole Budget, which put `control` at exactly its deadline (B = 8.8 ms, C = 1 ms, O and J the rest); the 50 µs of 2026-11-06 gave it the slack for the intake terms of R19.2 (`echo`'s and `pulse`'s sources), and the further 50 µs of 2026-11-08 (task 21.6) the slack for the two operations per Job of its `sink` role on `report` (R40.2: 2 × max(Δ_send, Δ_recv) in O_i, 22 µs with the placeholders), both staying above the measured Job.
+//! `sensor`'s Budget is 8.5 ms here (8.8 ms first, 8.75 ms from 2026-11-06 to 2026-11-08, 8.7 ms until 2026-11-14, when the analysis began to charge `control` the timer entries of the Tasks below it and the housekeeping event; still 8.8 ms in the HIL configurations): its Critical_Section is 6 ms (8 first) since the same records, so that its measured Job (about 6.4 ms, 7.9 ms with the margin) fits the Budget and `control`'s measured blocking term (about 7.7 ms with the margin) fits its 10 ms deadline. With placeholder timing every Critical_Section is its Task's whole Budget, which put `control` at exactly its deadline (B = 8.8 ms, C = 1 ms, O and J the rest); the 50 µs of 2026-11-06 gave it the slack for the intake terms of R19.2 (`echo`'s and `pulse`'s sources), and the further 50 µs of 2026-11-08 (task 21.6) the slack for the two operations per Job of its `sink` role on `report` (R40.2: 2 × max(Δ_send, Δ_recv) in O_i, 22 µs with the placeholders), both staying above the measured Job.
 //! | `filter` | `part2` (level B) | 3 | 25 ms; uses the FPU | none |
 //! | `sampler` | `part2` (level B) | 1 | 100 ms; EasyDMA requests on CMSDK_GPIO0 | none |
 //!
@@ -133,7 +133,7 @@ rsk::app! {
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
                    budget = 300.us(), priority = 6);
-        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8700.us(),
+        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8500.us(),
                      priority = 5, resources = [state, in_cs]);
     }
 
