@@ -870,4 +870,132 @@ pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, de
     }
 }
 
+/// A Task's period or MIT and its deadline, in cycles (R29.8).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Window {
+    pub period: u64,
+    pub deadline: u64,
+}
+
+/// Task `j` as an interferer of the others' recurrences, from the Task set
+/// and its sites: its Priority, `J_rel`, its period (at least 1), `E_j`
+/// (R29.4) and the intake cost of its Release_Source (R19.2).
+pub open spec fn spec_interferer(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, j: int) -> Interferer {
+    let n = sites.len() as int;
+    let o = spec_o(tasks[j], p, site_count(sites, j, n), any_fpu);
+    Interferer {
+        priority: tasks[j].priority,
+        jitter: p.j_rel,
+        period: if windows[j].period == 0 { 1 } else { windows[j].period },
+        bound: spec_e(tasks[j], p, longest_cs(sites, j, n), o) as u64,
+        intake: if tasks[j].periodic { 0 } else { p.irq },
+    }
+}
+
+pub open spec fn spec_interferers(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>) -> Seq<Interferer> {
+    Seq::new(tasks.len(), |j: int| spec_interferer(tasks, sites, p, any_fpu, windows, j))
+}
+
+/// The verdict `v` and the terms `ts` are those of Task `i` of the Task
+/// set (R29.1 to R29.7, with R19.2): the recurrence is the one from
+/// `C_i + B_i + O_i` over the terms of the Tasks' `E_j`, each term derived
+/// from the Task set and its sites.
+pub open spec fn verdict_ok(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, i: int, v: Verdict, ts: Seq<TermOf>) -> bool {
+    let its = spec_interferers(tasks, sites, p, any_fpu, windows);
+    let base = tasks[i].budget as int + spec_b(tasks, sites, i, p)
+        + spec_o(tasks[i], p, site_count(sites, i, sites.len() as int), any_fpu);
+    &&& ts == spec_terms(its, i, tasks.len() as int)
+    &&& v.overflow ==> !v.schedulable
+    &&& v.schedulable ==> crate::rta::is_fixpoint(base, plain(ts), v.w as int)
+            && (forall|x: int| x >= 0 && #[trigger] crate::rta::is_fixpoint(base, plain(ts), x) ==> v.w as int <= x)
+            && v.r as int == p.j_rel as int + v.w as int
+            && v.r <= windows[i].deadline
+    &&& !v.schedulable && !v.overflow ==> !meets_deadline(base, plain(ts), p.j_rel as int, windows[i].deadline as int)
+}
+
+/// The whole numeric analysis (R29.1 to R29.7 with R19.2), from the Task
+/// set, its Critical_Section sites, the Kernel_Timing_Parameters and each
+/// Task's period and deadline to every Task's terms and verdict: the term
+/// derivation (`derive_all`), the Tasks as each other's interferers, and
+/// each Task's recurrence and verdict (`response_of`). Until 2026-11-14
+/// the derived terms reached the recurrences through plain Rust in
+/// `inputs::prepare` and `response_times`.
+///
+/// `None`: a term of some Task does not fit 64 bits (R29.6).
+pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: bool, windows: &Vec<Window>) -> (r: Option<(Vec<Derived>, Vec<Verdict>, Vec<Vec<TermOf>>)>)
+    requires
+        sites_ok(tasks@, sites@),
+        windows.len() == tasks.len(),
+    ensures
+        r matches Some(out) ==> out.0.len() == tasks.len() && out.1.len() == tasks.len() && out.2.len() == tasks.len()
+            && (forall|i: int| 0 <= i < tasks.len() ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] out.0@[i]))
+            && (forall|i: int| 0 <= i < tasks.len() ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, i, #[trigger] out.1@[i], out.2@[i]@)),
+        r.is_none() ==> exists|i: int| 0 <= i < tasks.len() && !terms_fit(tasks@, sites@, p, any_fpu, i),
+{
+    let derived = match derive_all(tasks, sites, p, any_fpu) {
+        Some(d) => d,
+        None => return None,
+    };
+    let n = tasks.len();
+    let ghost spec_its = spec_interferers(tasks@, sites@, p, any_fpu, windows@);
+    let mut its: Vec<Interferer> = Vec::new();
+    let mut j: usize = 0;
+    while j < n
+        invariant
+            j <= n, n == tasks.len(), n == windows.len(), n == derived.len(),
+            its.len() == j,
+            spec_its == spec_interferers(tasks@, sites@, p, any_fpu, windows@),
+            forall|i: int| 0 <= i < n ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] derived@[i]),
+            forall|m: int| 0 <= m < j ==> (#[trigger] its@[m]) == spec_its[m],
+        decreases n - j,
+    {
+        let t = tasks[j];
+        let d = derived[j];
+        let w = windows[j];
+        proof {
+            assert(derived_ok(tasks@, sites@, p, any_fpu, j as int, derived@[j as int]));
+        }
+        its.push(Interferer {
+            priority: t.priority,
+            jitter: d.j,
+            period: if w.period == 0 { 1 } else { w.period },
+            bound: d.e,
+            intake: if t.periodic { 0 } else { p.irq },
+        });
+        j = j + 1;
+    }
+    assert(its@ =~= spec_its);
+    assert(periods_ok(its@)) by {
+        assert forall|k: int| 0 <= k < its@.len() implies (#[trigger] its@[k]).period > 0 by {
+            assert(its@[k] == spec_its[k]);
+        }
+    }
+    let mut verdicts: Vec<Verdict> = Vec::new();
+    let mut all_terms: Vec<Vec<TermOf>> = Vec::new();
+    let mut i: usize = 0;
+    while i < n
+        invariant
+            i <= n, n == tasks.len(), n == windows.len(), n == derived.len(), n == its.len(),
+            verdicts.len() == i, all_terms.len() == i,
+            its@ == spec_interferers(tasks@, sites@, p, any_fpu, windows@),
+            periods_ok(its@),
+            forall|k: int| 0 <= k < n ==> derived_ok(tasks@, sites@, p, any_fpu, k, #[trigger] derived@[k]),
+            forall|k: int| 0 <= k < i ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, k, #[trigger] verdicts@[k], all_terms@[k]@),
+        decreases n - i,
+    {
+        let t = tasks[i];
+        let d = derived[i];
+        let w = windows[i];
+        proof {
+            assert(derived_ok(tasks@, sites@, p, any_fpu, i as int, derived@[i as int]));
+            assert(its@[i as int] == spec_interferer(tasks@, sites@, p, any_fpu, windows@, i as int));
+        }
+        let (verdict, own_terms) = response_of(&its, i, t.budget, d.b, d.o, w.deadline);
+        verdicts.push(verdict);
+        all_terms.push(own_terms);
+        i = i + 1;
+    }
+    Some((derived, verdicts, all_terms))
+}
+
 } // verus!

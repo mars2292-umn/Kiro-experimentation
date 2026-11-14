@@ -89,6 +89,10 @@ pub struct AnalysedTask {
 #[derive(Clone, Debug)]
 pub struct Prepared {
     pub tasks: Vec<AnalysedTask>,
+    /// Each Task's verdict and the terms of its recurrence, from
+    /// `terms::analyse_all` (verified): what the report states.
+    pub verdicts: Vec<terms::Verdict>,
+    pub terms: Vec<Vec<terms::TermOf>>,
     /// Task 21.5 (R41.4): the declared chains, resolved to Task indices.
     pub chains: Vec<AnalysedChain>,
     /// Δ_stamp in cycles, the first term of a chain that starts at an
@@ -384,7 +388,13 @@ pub fn prepare(
     }
     // The terms (R29.2 to R29.4; `terms::derive_all`, proven): O_i, E_i,
     // L_i, B_i with the site that attains it, and J_i = J_rel.
-    let derived = terms::derive_all(&task_in, &sites_in, params, any_fpu)
+    // Since 2026-11-14 the derivation, the Tasks as each other's
+    // interferers, and every Task's recurrence and verdict are one verified
+    // function (`terms::analyse_all`): nothing of the numbers passes
+    // through this function's own arithmetic between the terms and the
+    // verdicts.
+    let windows: Vec<terms::Window> = per_task.iter().map(|x| terms::Window { period: x.0, deadline: x.1 }).collect();
+    let (derived, verdicts, own_terms) = terms::analyse_all(&task_in, &sites_in, params, any_fpu, &windows)
         .ok_or_else(|| vec![reject("R29.6", "a term of the response-time analysis exceeds u64 (overflow)")])?;
     let restart_work = params.restart.max(params.stop);
     let floor_source = if restart_work > params.l_kernel { "Partition stop/restart work (R14.10)" } else { "L_kernel" };
@@ -469,6 +479,8 @@ pub fn prepare(
     }
     Ok(Prepared {
         tasks,
+        verdicts,
+        terms: own_terms,
         chains,
         stamp_cycles: params.stamp,
         omitted_terms,

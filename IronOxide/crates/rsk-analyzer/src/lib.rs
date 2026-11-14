@@ -71,33 +71,39 @@ pub fn response_times(tasks: &[inputs::AnalysedTask]) -> Vec<Wcrt> {
     let mut out = Vec::new();
     // The arithmetic of each Task's verdict is `terms::response_of`
     // (verified since 2026-11-14: the terms, the fixed point from
-    // C + B + O, and R = J + w against the deadline); what follows it here
-    // is the report's breakdown.
+    // C + B + O, and R = J + w against the deadline).
     let interferers = inputs::interferers(tasks);
     for (i, t) in tasks.iter().enumerate() {
         let (verdict, terms) = terms::response_of(&interferers, i, t.c, t.b, t.o, t.deadline_cycles);
-        let (w, r, schedulable, overflow) = (verdict.w, verdict.r, verdict.schedulable, verdict.overflow);
-        let interference = terms
-            .iter()
-            .map(|term| {
-                let jobs = if overflow { 0 } else { (w.saturating_add(term.term.jitter)).div_ceil(term.term.period) };
-                Interference {
-                    task: if term.intake { format!("{} (intake, R19.2)", tasks[term.task].id) } else { tasks[term.task].id.clone() },
-                    e_cycles: term.term.bound,
-                    jobs,
-                    cycles: jobs.saturating_mul(term.term.bound),
-                }
-            })
-            .collect();
-        out.push(Wcrt {
-            id: t.id.clone(),
-            r,
-            schedulable,
-            overflow,
-            interference,
-        });
+        out.push(wcrt_of(tasks, i, verdict, &terms));
     }
     out
+}
+
+/// The results of a prepared analysis: the verdicts `terms::analyse_all`
+/// computed from the Task set (verified end to end), with the report's
+/// breakdown.
+pub fn prepared_response_times(prepared: &inputs::Prepared) -> Vec<Wcrt> {
+    (0..prepared.tasks.len()).map(|i| wcrt_of(&prepared.tasks, i, prepared.verdicts[i], &prepared.terms[i])).collect()
+}
+
+/// One Task's result with the breakdown of its interference by term (the
+/// report's detail; the verdict itself is the verified one).
+fn wcrt_of(tasks: &[inputs::AnalysedTask], i: usize, verdict: terms::Verdict, terms: &[terms::TermOf]) -> Wcrt {
+    let (w, overflow) = (verdict.w, verdict.overflow);
+    let interference = terms
+        .iter()
+        .map(|term| {
+            let jobs = if overflow { 0 } else { (w.saturating_add(term.term.jitter)).div_ceil(term.term.period) };
+            Interference {
+                task: if term.intake { format!("{} (intake, R19.2)", tasks[term.task].id) } else { tasks[term.task].id.clone() },
+                e_cycles: term.term.bound,
+                jobs,
+                cycles: jobs.saturating_mul(term.term.bound),
+            }
+        })
+        .collect();
+    Wcrt { id: tasks[i].id.clone(), r: verdict.r, schedulable: verdict.schedulable, overflow, interference }
 }
 
 /// The whole analysis (R28 to R31). `names` are the input file names or
@@ -145,7 +151,7 @@ pub fn analyze(
     };
     let utilization_percent = inputs::utilization_percent(&prepared.tasks);
     let over_utilized = inputs::utilization_exceeds_one(&prepared.tasks);
-    let wcrts = if over_utilized { Vec::new() } else { response_times(&prepared.tasks) };
+    let wcrts = if over_utilized { Vec::new() } else { prepared_response_times(&prepared) };
     let mut all_ok = !over_utilized;
     let mut rejections = Vec::new();
     if over_utilized {

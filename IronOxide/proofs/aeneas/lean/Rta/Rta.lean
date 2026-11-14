@@ -1084,4 +1084,178 @@ def terms.response_of
              overflow := true
            }, own_terms)
 
+/-- [rsk_analyzer::terms::Window]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 875:0-878:1
+    Visibility: public -/
+structure terms.Window where
+  period : Std.U64
+  deadline : Std.U64
+
+/-- [rsk_analyzer::terms::analyse_all]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 943:4-966:5
+    Visibility: public -/
+@[rust_loop_body]
+def terms.analyse_all_loop0.body
+  (tasks : alloc.vec.Vec terms.TaskIn) (p : terms.Params)
+  (windows : alloc.vec.Vec terms.Window)
+  (derived : alloc.vec.Vec terms.Derived) (n : Std.Usize)
+  (its : alloc.vec.Vec terms.Interferer) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec terms.Interferer) × Std.Usize)
+    (alloc.vec.Vec terms.Interferer))
+  := do
+  if j < n
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TaskIn)
+        tasks j
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Derived)
+        derived j
+    let w ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Window)
+        windows j
+    if w.period = 0#u64
+    then
+      if t.periodic
+      then
+        let its1 ←
+          alloc.vec.Vec.push its
+            ({
+               priority := t.priority,
+               jitter := d.j,
+               period := 1#u64,
+               bound := d.e,
+               intake := 0#u64
+             } : terms.Interferer)
+        let j1 ← j + 1#usize
+        ok (cont (its1, j1))
+      else
+        let its1 ←
+          alloc.vec.Vec.push its
+            ({
+               priority := t.priority,
+               jitter := d.j,
+               period := 1#u64,
+               bound := d.e,
+               intake := p.irq
+             } : terms.Interferer)
+        let j1 ← j + 1#usize
+        ok (cont (its1, j1))
+    else
+      if t.periodic
+      then
+        let its1 ←
+          alloc.vec.Vec.push its
+            ({
+               priority := t.priority,
+               jitter := d.j,
+               period := w.period,
+               bound := d.e,
+               intake := 0#u64
+             } : terms.Interferer)
+        let j1 ← j + 1#usize
+        ok (cont (its1, j1))
+      else
+        let its1 ←
+          alloc.vec.Vec.push its
+            ({
+               priority := t.priority,
+               jitter := d.j,
+               period := w.period,
+               bound := d.e,
+               intake := p.irq
+             } : terms.Interferer)
+        let j1 ← j + 1#usize
+        ok (cont (its1, j1))
+  else ok (done its)
+
+/-- [rsk_analyzer::terms::analyse_all]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 943:4-966:5
+    Visibility: public -/
+@[rust_loop]
+def terms.analyse_all_loop0
+  (tasks : alloc.vec.Vec terms.TaskIn) (p : terms.Params)
+  (windows : alloc.vec.Vec terms.Window)
+  (derived : alloc.vec.Vec terms.Derived) (n : Std.Usize)
+  (its : alloc.vec.Vec terms.Interferer) (j : Std.Usize) :
+  Result (alloc.vec.Vec terms.Interferer)
+  := do
+  loop
+    (fun (its1, j1) => terms.analyse_all_loop0.body tasks p windows derived n
+      its1 j1)
+    (its, j)
+
+/-- [rsk_analyzer::terms::analyse_all]: loop body 1:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 976:4-997:5
+    Visibility: public -/
+@[rust_loop_body]
+def terms.analyse_all_loop1.body
+  (tasks : alloc.vec.Vec terms.TaskIn) (windows : alloc.vec.Vec terms.Window)
+  (derived : alloc.vec.Vec terms.Derived) (n : Std.Usize)
+  (its : alloc.vec.Vec terms.Interferer)
+  (verdicts : alloc.vec.Vec terms.Verdict)
+  (all_terms : alloc.vec.Vec (alloc.vec.Vec terms.TermOf)) (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec terms.Verdict) × (alloc.vec.Vec
+    (alloc.vec.Vec terms.TermOf)) × Std.Usize) ((alloc.vec.Vec terms.Verdict)
+    × (alloc.vec.Vec (alloc.vec.Vec terms.TermOf))))
+  := do
+  if i < n
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TaskIn)
+        tasks i
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Derived)
+        derived i
+    let w ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Window)
+        windows i
+    let (verdict, own_terms) ←
+      terms.response_of its i t.budget d.b d.o w.deadline
+    let verdicts1 ← alloc.vec.Vec.push verdicts verdict
+    let all_terms1 ← alloc.vec.Vec.push all_terms own_terms
+    let i1 ← i + 1#usize
+    ok (cont (verdicts1, all_terms1, i1))
+  else ok (done (verdicts, all_terms))
+
+/-- [rsk_analyzer::terms::analyse_all]: loop 1:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 976:4-997:5
+    Visibility: public -/
+@[rust_loop]
+def terms.analyse_all_loop1
+  (tasks : alloc.vec.Vec terms.TaskIn) (windows : alloc.vec.Vec terms.Window)
+  (derived : alloc.vec.Vec terms.Derived) (n : Std.Usize)
+  (its : alloc.vec.Vec terms.Interferer)
+  (verdicts : alloc.vec.Vec terms.Verdict)
+  (all_terms : alloc.vec.Vec (alloc.vec.Vec terms.TermOf)) (i : Std.Usize) :
+  Result ((alloc.vec.Vec terms.Verdict) × (alloc.vec.Vec (alloc.vec.Vec
+    terms.TermOf)))
+  := do
+  loop
+    (fun (verdicts1, all_terms1, i1) => terms.analyse_all_loop1.body tasks
+      windows derived n its verdicts1 all_terms1 i1)
+    (verdicts, all_terms, i)
+
+/-- [rsk_analyzer::terms::analyse_all]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 925:0-999:1
+    Visibility: public -/
+def terms.analyse_all
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (p : terms.Params) (any_fpu : Bool) (windows : alloc.vec.Vec terms.Window) :
+  Result (Option ((alloc.vec.Vec terms.Derived) × (alloc.vec.Vec
+    terms.Verdict) × (alloc.vec.Vec (alloc.vec.Vec terms.TermOf))))
+  := do
+  let o ← terms.derive_all tasks sites p any_fpu
+  match o with
+  | none => ok none
+  | some d =>
+    let n := alloc.vec.Vec.len tasks
+    let its ←
+      terms.analyse_all_loop0 tasks p windows d n (alloc.vec.Vec.new
+        terms.Interferer) 0#usize
+    let (verdicts, all_terms) ←
+      terms.analyse_all_loop1 tasks windows d n its (alloc.vec.Vec.new
+        terms.Verdict) (alloc.vec.Vec.new (alloc.vec.Vec terms.TermOf)) 0#usize
+    ok (some (d, verdicts, all_terms))
+
 end rsk_analyzer

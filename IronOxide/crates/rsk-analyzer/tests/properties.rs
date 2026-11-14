@@ -186,6 +186,11 @@ fn r32_3_lower_priority_tasks_without_a_relevant_resource_do_not_change_wcrts() 
     let manifest = manifest(&m);
     let (w, t) = placeholders::make(&m, "sha256:demo", "off");
     let full = response_times(&inputs::prepare(&m, &w, &t, &manifest, &dev()).unwrap().tasks);
+    // The verdicts the analysis reports (`terms::analyse_all`, computed inside
+    // `prepare` from the Task set) are those of `response_times` on the
+    // prepared Tasks: the two paths through the verified functions agree.
+    let prepared_demo = inputs::prepare(&m, &w, &t, &manifest, &dev()).unwrap();
+    assert_eq!(rsk_analyzer::prepared_response_times(&prepared_demo), full);
     let mut without = m.clone();
     without.tasks.retain(|x| x.id != "part1.log");
     // The chain through `part1.log` goes with it (the Analyzer rejects a
