@@ -146,4 +146,942 @@ def rta.fixpoint
     then ok (rta.Outcome.NotSchedulable base)
     else rta.fixpoint_loop base base terms jitter deadline
 
+/-- [rsk_analyzer::terms::TaskIn]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 58:0-75:1
+    Visibility: public -/
+structure terms.TaskIn where
+  priority : Std.U8
+  partition : Std.U32
+  budget : Std.U64
+  stops_overruns : Bool
+  periodic : Bool
+  defer : Bool
+  endpoint_cost : Std.U64
+
+/-- [rsk_analyzer::terms::Site]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 80:0-89:1
+    Visibility: public -/
+structure terms.Site where
+  task : Std.Usize
+  ceiling : Std.U8
+  wcet : Std.U64
+  endpoint : Bool
+
+/-- [rsk_analyzer::terms::Params]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 93:0-116:1
+    Visibility: public -/
+structure terms.Params where
+  release : Std.U64
+  dispatch : Std.U64
+  complete : Std.U64
+  wake : Std.U64
+  timer : Std.U64
+  fp_save : Std.U64
+  fp_restore : Std.U64
+  lock_in : Std.U64
+  lock_out : Std.U64
+  detect : Std.U64
+  enforce : Std.U64
+  hm : Std.U64
+  irq : Std.U64
+  stamp : Std.U64
+  entry : Std.U64
+  l_kernel : Std.U64
+  j_rel : Std.U64
+  restart : Std.U64
+  stop : Std.U64
+  send : Std.U64
+  recv : Std.U64
+
+/-- [rsk_analyzer::terms::Derived]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 120:0-135:1
+    Visibility: public -/
+structure terms.Derived where
+  sites : Std.U64
+  longest_cs : Std.U64
+  o : Std.U64
+  e : Std.U64
+  b : Std.U64
+  b_site : Option Std.Usize
+  j : Std.U64
+
+/-- [rsk_analyzer::terms::add]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 307:0-313:1 -/
+def terms.add (a : Std.U64) (b : Std.U64) : Result (Option Std.U64) := do
+  let i ← core.num.U64.MAX - b
+  if a > i
+  then ok none
+  else let i1 ← a + b
+       ok (some i1)
+
+/-- [rsk_analyzer::terms::mul]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 316:0-326:1 -/
+def terms.mul (a : Std.U64) (b : Std.U64) : Result (Option Std.U64) := do
+  let i ← lift (UScalar.cast .U128 a)
+  let i1 ← lift (UScalar.cast .U128 b)
+  let product ← i * i1
+  let i2 ← lift (UScalar.cast .U128 core.num.U64.MAX)
+  if product > i2
+  then ok none
+  else let i3 ← lift (UScalar.cast .U64 product)
+       ok (some i3)
+
+/-- [rsk_analyzer::terms::SiteStats]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 330:0-333:1
+    Visibility: public -/
+structure terms.SiteStats where
+  count : Std.U64
+  longest : Std.U64
+
+/-- [rsk_analyzer::terms::site_stats]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 343:4-361:5
+    Visibility: public -/
+@[rust_loop_body]
+def terms.site_stats_loop.body
+  (sites : alloc.vec.Vec terms.Site) (t : Std.Usize) (count : Std.U64)
+  (longest : Std.U64) (k : Std.Usize) :
+  Result (ControlFlow (Std.U64 × Std.U64 × Std.Usize) (Std.U64 × Std.U64))
+  := do
+  let i := alloc.vec.Vec.len sites
+  if k < i
+  then
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Site)
+        sites k
+    let (count1, longest1) ←
+      if s.task = t
+      then
+        do
+        let count2 ← if s.endpoint
+                       then ok count
+                       else count + 1#u64
+        let i1 ← if s.wcet > longest
+                   then ok s.wcet
+                   else ok longest
+        ok (count2, i1)
+      else ok (count, longest)
+    let k1 ← k + 1#usize
+    ok (cont (count1, longest1, k1))
+  else ok (done (count, longest))
+
+/-- [rsk_analyzer::terms::site_stats]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 343:4-361:5
+    Visibility: public -/
+@[rust_loop]
+def terms.site_stats_loop
+  (sites : alloc.vec.Vec terms.Site) (t : Std.Usize) (count : Std.U64)
+  (longest : Std.U64) (k : Std.Usize) :
+  Result (Std.U64 × Std.U64)
+  := do
+  loop
+    (fun (count1, longest1, k1) => terms.site_stats_loop.body sites t count1
+      longest1 k1)
+    (count, longest, k)
+
+/-- [rsk_analyzer::terms::site_stats]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 335:0-363:1
+    Visibility: public -/
+def terms.site_stats
+  (sites : alloc.vec.Vec terms.Site) (t : Std.Usize) :
+  Result terms.SiteStats
+  := do
+  let (count, longest) ← terms.site_stats_loop sites t 0#u64 0#u64 0#usize
+  ok { count, longest }
+
+/-- [rsk_analyzer::terms::overhead]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 367:0-413:1
+    Visibility: public -/
+def terms.overhead
+  (t : terms.TaskIn) (p : terms.Params) (sites : Std.U64) (any_fpu : Bool) :
+  Result (Option Std.U64)
+  := do
+  let events ←
+    if t.periodic
+    then ok 3#u64
+    else if t.defer
+         then ok 3#u64
+         else ok 2#u64
+  let o ← terms.mul p.timer events
+  match o with
+  | none => ok none
+  | some v =>
+    if sites = 0#u64
+    then
+      if any_fpu
+      then
+        let o1 ← terms.add p.fp_save p.fp_restore
+        match o1 with
+        | none => ok none
+        | some v1 =>
+          if t.periodic
+          then
+            let o2 ← terms.add p.release p.dispatch
+            match o2 with
+            | none => ok none
+            | some v2 =>
+              let o3 ← terms.add v2 p.complete
+              match o3 with
+              | none => ok none
+              | some v3 =>
+                let o4 ← terms.add v3 p.wake
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 v
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 0#u64
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 p.hm
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 p.entry
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 v1
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 0#u64
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 t.endpoint_cost
+                              match o11 with
+                              | none => ok none
+                              | some _ => ok o11
+          else
+            let o2 ← terms.add p.irq p.stamp
+            match o2 with
+            | none => ok none
+            | some v2 =>
+              let o3 ← terms.add p.release p.dispatch
+              match o3 with
+              | none => ok none
+              | some v3 =>
+                let o4 ← terms.add v3 p.complete
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 p.wake
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 v
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 0#u64
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 p.hm
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 p.entry
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 v1
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 v2
+                              match o11 with
+                              | none => ok none
+                              | some v11 =>
+                                let o12 ← terms.add v11 t.endpoint_cost
+                                match o12 with
+                                | none => ok none
+                                | some _ => ok o12
+      else
+        if t.periodic
+        then
+          let o1 ← terms.add p.release p.dispatch
+          match o1 with
+          | none => ok none
+          | some v1 =>
+            let o2 ← terms.add v1 p.complete
+            match o2 with
+            | none => ok none
+            | some v2 =>
+              let o3 ← terms.add v2 p.wake
+              match o3 with
+              | none => ok none
+              | some v3 =>
+                let o4 ← terms.add v3 v
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 0#u64
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 p.hm
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 p.entry
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 0#u64
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 0#u64
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 t.endpoint_cost
+                            match o10 with
+                            | none => ok none
+                            | some _ => ok o10
+        else
+          let o1 ← terms.add p.irq p.stamp
+          match o1 with
+          | none => ok none
+          | some v1 =>
+            let o2 ← terms.add p.release p.dispatch
+            match o2 with
+            | none => ok none
+            | some v2 =>
+              let o3 ← terms.add v2 p.complete
+              match o3 with
+              | none => ok none
+              | some v3 =>
+                let o4 ← terms.add v3 p.wake
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 v
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 0#u64
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 p.hm
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 p.entry
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 0#u64
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 v1
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 t.endpoint_cost
+                              match o11 with
+                              | none => ok none
+                              | some _ => ok o11
+    else
+      let o1 ← terms.add p.lock_in p.lock_out
+      match o1 with
+      | none => ok none
+      | some v1 =>
+        let o2 ← terms.mul v1 sites
+        match o2 with
+        | none => ok none
+        | some v2 =>
+          if any_fpu
+          then
+            let o3 ← terms.add p.fp_save p.fp_restore
+            match o3 with
+            | none => ok none
+            | some v3 =>
+              if t.periodic
+              then
+                let o4 ← terms.add p.release p.dispatch
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 p.complete
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 p.wake
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 v
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 v2
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 p.hm
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 p.entry
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 v3
+                              match o11 with
+                              | none => ok none
+                              | some v11 =>
+                                let o12 ← terms.add v11 0#u64
+                                match o12 with
+                                | none => ok none
+                                | some v12 =>
+                                  let o13 ← terms.add v12 t.endpoint_cost
+                                  match o13 with
+                                  | none => ok none
+                                  | some _ => ok o13
+              else
+                let o4 ← terms.add p.irq p.stamp
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add p.release p.dispatch
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 p.complete
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 p.wake
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 v
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 v2
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 p.hm
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 p.entry
+                              match o11 with
+                              | none => ok none
+                              | some v11 =>
+                                let o12 ← terms.add v11 v3
+                                match o12 with
+                                | none => ok none
+                                | some v12 =>
+                                  let o13 ← terms.add v12 v4
+                                  match o13 with
+                                  | none => ok none
+                                  | some v13 =>
+                                    let o14 ← terms.add v13 t.endpoint_cost
+                                    match o14 with
+                                    | none => ok none
+                                    | some _ => ok o14
+          else
+            if t.periodic
+            then
+              let o3 ← terms.add p.release p.dispatch
+              match o3 with
+              | none => ok none
+              | some v3 =>
+                let o4 ← terms.add v3 p.complete
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 p.wake
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 v
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 v2
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 p.hm
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 p.entry
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 0#u64
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 0#u64
+                              match o11 with
+                              | none => ok none
+                              | some v11 =>
+                                let o12 ← terms.add v11 t.endpoint_cost
+                                match o12 with
+                                | none => ok none
+                                | some _ => ok o12
+            else
+              let o3 ← terms.add p.irq p.stamp
+              match o3 with
+              | none => ok none
+              | some v3 =>
+                let o4 ← terms.add p.release p.dispatch
+                match o4 with
+                | none => ok none
+                | some v4 =>
+                  let o5 ← terms.add v4 p.complete
+                  match o5 with
+                  | none => ok none
+                  | some v5 =>
+                    let o6 ← terms.add v5 p.wake
+                    match o6 with
+                    | none => ok none
+                    | some v6 =>
+                      let o7 ← terms.add v6 v
+                      match o7 with
+                      | none => ok none
+                      | some v7 =>
+                        let o8 ← terms.add v7 v2
+                        match o8 with
+                        | none => ok none
+                        | some v8 =>
+                          let o9 ← terms.add v8 p.hm
+                          match o9 with
+                          | none => ok none
+                          | some v9 =>
+                            let o10 ← terms.add v9 p.entry
+                            match o10 with
+                            | none => ok none
+                            | some v10 =>
+                              let o11 ← terms.add v10 0#u64
+                              match o11 with
+                              | none => ok none
+                              | some v11 =>
+                                let o12 ← terms.add v11 v3
+                                match o12 with
+                                | none => ok none
+                                | some v12 =>
+                                  let o13 ← terms.add v12 t.endpoint_cost
+                                  match o13 with
+                                  | none => ok none
+                                  | some _ => ok o13
+
+/-- [rsk_analyzer::terms::interference_bound]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 461:0-474:1
+    Visibility: public -/
+def terms.interference_bound
+  (t : terms.TaskIn) (p : terms.Params) (longest_cs : Std.U64) (o : Std.U64) :
+  Result (Option Std.U64)
+  := do
+  if t.stops_overruns
+  then
+    let o1 ← terms.add t.budget p.detect
+    match o1 with
+    | none => ok none
+    | some v =>
+      let o2 ← terms.add v p.enforce
+      match o2 with
+      | none => ok none
+      | some v1 =>
+        let o3 ← terms.add v1 longest_cs
+        match o3 with
+        | none => ok none
+        | some v2 => terms.add v2 o
+  else terms.add t.budget o
+
+/-- [rsk_analyzer::terms::Blocking]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 478:0-481:1
+    Visibility: public -/
+structure terms.Blocking where
+  b : Std.U64
+  site : Option Std.Usize
+
+/-- [rsk_analyzer::terms::blocking]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 500:4-545:1
+    Visibility: public -/
+@[rust_loop_body]
+def terms.blocking_loop.body
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (i : Std.U64) (i1 : Std.U64) (ti : terms.TaskIn) (b : Std.U64)
+  (site : Option Std.Usize) (k : Std.Usize) :
+  Result (ControlFlow (Std.U64 × (Option Std.Usize) × Std.Usize) (Option
+    terms.Blocking))
+  := do
+  let i2 := alloc.vec.Vec.len sites
+  if k < i2
+  then
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.Site)
+        sites k
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TaskIn)
+        tasks s.task
+    if l.priority < ti.priority
+    then
+      if s.ceiling >= ti.priority
+      then
+        if s.endpoint
+        then
+          let (b1, site1) ←
+            if s.wcet > b
+            then ok (s.wcet, some k)
+            else ok (b, site)
+          let k1 ← k + 1#usize
+          ok (cont (b1, site1, k1))
+        else
+          if l.partition != ti.partition
+          then
+            if l.stops_overruns
+            then
+              let o ← terms.add l.budget i
+              match o with
+              | none => ok (done none)
+              | some v =>
+                let o1 ← terms.add v i1
+                match o1 with
+                | none => ok (done none)
+                | some v1 =>
+                  let (b1, site1) ←
+                    if v1 > b
+                    then ok (v1, some k)
+                    else ok (b, site)
+                  let k1 ← k + 1#usize
+                  ok (cont (b1, site1, k1))
+            else
+              let (b1, site1) ←
+                if s.wcet > b
+                then ok (s.wcet, some k)
+                else ok (b, site)
+              let k1 ← k + 1#usize
+              ok (cont (b1, site1, k1))
+          else
+            let (b1, site1) ←
+              if s.wcet > b
+              then ok (s.wcet, some k)
+              else ok (b, site)
+            let k1 ← k + 1#usize
+            ok (cont (b1, site1, k1))
+      else let k1 ← k + 1#usize
+           ok (cont (b, site, k1))
+    else let k1 ← k + 1#usize
+         ok (cont (b, site, k1))
+  else ok (done (some { b, site }))
+
+/-- [rsk_analyzer::terms::blocking]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 500:4-545:1
+    Visibility: public -/
+@[rust_loop]
+def terms.blocking_loop
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (i : Std.U64) (i1 : Std.U64) (ti : terms.TaskIn) (b : Std.U64)
+  (site : Option Std.Usize) (k : Std.Usize) :
+  Result (Option terms.Blocking)
+  := do
+  loop
+    (fun (b1, site1, k1) => terms.blocking_loop.body tasks sites i i1 ti b1
+      site1 k1)
+    (b, site, k)
+
+/-- [rsk_analyzer::terms::blocking]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 483:0-545:1
+    Visibility: public -/
+def terms.blocking
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (i : Std.Usize) (p : terms.Params) :
+  Result (Option terms.Blocking)
+  := do
+  let ti ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TaskIn)
+      tasks i
+  let work ← if p.restart >= p.stop
+               then ok p.restart
+               else ok p.stop
+  let b ← if p.l_kernel >= work
+            then ok p.l_kernel
+            else ok work
+  terms.blocking_loop tasks sites p.detect p.enforce ti b none 0#usize
+
+/-- [rsk_analyzer::terms::derive_all]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 558:4-595:1
+    Visibility: public -/
+@[rust_loop_body]
+def terms.derive_all_loop.body
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (p : terms.Params) (any_fpu : Bool) (out : alloc.vec.Vec terms.Derived)
+  (i : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec terms.Derived) × Std.Usize) (Option
+    (alloc.vec.Vec terms.Derived)))
+  := do
+  let i1 := alloc.vec.Vec.len tasks
+  if i < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TaskIn)
+        tasks i
+    let stats ← terms.site_stats sites i
+    let o ← terms.overhead t p stats.count any_fpu
+    match o with
+    | none => ok (done none)
+    | some v =>
+      let o1 ← terms.interference_bound t p stats.longest v
+      match o1 with
+      | none => ok (done none)
+      | some v1 =>
+        let o2 ← terms.blocking tasks sites i p
+        match o2 with
+        | none => ok (done none)
+        | some v2 =>
+          let out1 ←
+            alloc.vec.Vec.push out
+              ({
+                 sites := stats.count,
+                 longest_cs := stats.longest,
+                 o := v,
+                 e := v1,
+                 b := v2.b,
+                 b_site := v2.site,
+                 j := p.j_rel
+               } : terms.Derived)
+          let i2 ← i + 1#usize
+          ok (cont (out1, i2))
+  else ok (done (some out))
+
+/-- [rsk_analyzer::terms::derive_all]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 558:4-595:1
+    Visibility: public -/
+@[rust_loop]
+def terms.derive_all_loop
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (p : terms.Params) (any_fpu : Bool) (out : alloc.vec.Vec terms.Derived)
+  (i : Std.Usize) :
+  Result (Option (alloc.vec.Vec terms.Derived))
+  := do
+  loop
+    (fun (out1, i1) => terms.derive_all_loop.body tasks sites p any_fpu out1
+      i1)
+    (out, i)
+
+/-- [rsk_analyzer::terms::derive_all]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 549:0-595:1
+    Visibility: public -/
+@[reducible]
+def terms.derive_all
+  (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.vec.Vec terms.Site)
+  (p : terms.Params) (any_fpu : Bool) :
+  Result (Option (alloc.vec.Vec terms.Derived))
+  := do
+  terms.derive_all_loop tasks sites p any_fpu (alloc.vec.Vec.new terms.Derived)
+    0#usize
+
+/-- [rsk_analyzer::terms::Interferer]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 690:0-696:1
+    Visibility: public -/
+structure terms.Interferer where
+  priority : Std.U8
+  jitter : Std.U64
+  period : Std.U64
+  bound : Std.U64
+  intake : Std.U64
+
+/-- [rsk_analyzer::terms::TermOf]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 701:0-705:1
+    Visibility: public -/
+structure terms.TermOf where
+  task : Std.Usize
+  intake : Bool
+  term : rta.Term
+
+/-- [rsk_analyzer::terms::terms_for]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 758:4-778:5
+    Visibility: public -/
+@[rust_loop_body]
+def terms.terms_for_loop.body
+  (tasks : alloc.vec.Vec terms.Interferer) (i : Std.Usize)
+  (out : alloc.vec.Vec terms.TermOf) (ti : terms.Interferer) (j : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec terms.TermOf) × terms.Interferer ×
+    Std.Usize) (alloc.vec.Vec terms.TermOf))
+  := do
+  let i1 := alloc.vec.Vec.len tasks
+  if j < i1
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        terms.Interferer) tasks j
+    let (out1, ti1) ←
+      if j != i
+      then
+        do
+        let v ←
+          if t.priority >= ti.priority
+          then
+            alloc.vec.Vec.push out
+              ({
+                 task := j,
+                 intake := false,
+                 term :=
+                   { jitter := t.jitter, period := t.period, bound := t.bound }
+               } : terms.TermOf)
+          else
+            if t.intake > 0#u64
+            then
+              alloc.vec.Vec.push out
+                ({
+                   task := j,
+                   intake := true,
+                   term :=
+                     { jitter := 0#u64, period := t.period, bound := t.intake }
+                 } : terms.TermOf)
+            else ok out
+        ok (v, ti)
+      else ok (out, ti)
+    let j1 ← j + 1#usize
+    ok (cont (out1, ti1, j1))
+  else ok (done out)
+
+/-- [rsk_analyzer::terms::terms_for]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 758:4-778:5
+    Visibility: public -/
+@[rust_loop]
+def terms.terms_for_loop
+  (tasks : alloc.vec.Vec terms.Interferer) (i : Std.Usize)
+  (out : alloc.vec.Vec terms.TermOf) (ti : terms.Interferer) (j : Std.Usize) :
+  Result (alloc.vec.Vec terms.TermOf)
+  := do
+  loop
+    (fun (out1, ti1, j1) => terms.terms_for_loop.body tasks i out1 ti1 j1)
+    (out, ti, j)
+
+/-- [rsk_analyzer::terms::terms_for]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 747:0-780:1
+    Visibility: public -/
+def terms.terms_for
+  (tasks : alloc.vec.Vec terms.Interferer) (i : Std.Usize) :
+  Result (alloc.vec.Vec terms.TermOf)
+  := do
+  let ti ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      terms.Interferer) tasks i
+  terms.terms_for_loop tasks i (alloc.vec.Vec.new terms.TermOf) ti 0#usize
+
+/-- [rsk_analyzer::terms::Verdict]
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 791:0-796:1
+    Visibility: public -/
+structure terms.Verdict where
+  w : Std.U64
+  r : Std.U64
+  schedulable : Bool
+  overflow : Bool
+
+/-- [rsk_analyzer::terms::response_of]: loop body 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 832:4-842:5
+    Visibility: public -/
+@[rust_loop_body]
+def terms.response_of_loop.body
+  (own_terms : alloc.vec.Vec terms.TermOf)
+  (plain_terms : alloc.vec.Vec rta.Term) (k : Std.Usize) :
+  Result (ControlFlow ((alloc.vec.Vec rta.Term) × Std.Usize) (alloc.vec.Vec
+    rta.Term))
+  := do
+  let i := alloc.vec.Vec.len own_terms
+  if k < i
+  then
+    let «to» ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice terms.TermOf)
+        own_terms k
+    let plain_terms1 ← alloc.vec.Vec.push plain_terms «to».term
+    let k1 ← k + 1#usize
+    ok (cont (plain_terms1, k1))
+  else ok (done plain_terms)
+
+/-- [rsk_analyzer::terms::response_of]: loop 0:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 832:4-842:5
+    Visibility: public -/
+@[rust_loop]
+def terms.response_of_loop
+  (own_terms : alloc.vec.Vec terms.TermOf)
+  (plain_terms : alloc.vec.Vec rta.Term) (k : Std.Usize) :
+  Result (alloc.vec.Vec rta.Term)
+  := do
+  loop
+    (fun (plain_terms1, k1) => terms.response_of_loop.body own_terms
+      plain_terms1 k1)
+    (plain_terms, k)
+
+/-- [rsk_analyzer::terms::response_of]:
+    Source: 'crates/rsk-analyzer/src/terms.rs', lines 813:0-871:1
+    Visibility: public -/
+def terms.response_of
+  (tasks : alloc.vec.Vec terms.Interferer) (i : Std.Usize) (c : Std.U64)
+  (b : Std.U64) (o : Std.U64) (deadline : Std.U64) :
+  Result (terms.Verdict × (alloc.vec.Vec terms.TermOf))
+  := do
+  let own_terms ← terms.terms_for tasks i
+  let i1 ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+      terms.Interferer) tasks i
+  let plain_terms ←
+    terms.response_of_loop own_terms (alloc.vec.Vec.new rta.Term) 0#usize
+  let o1 ← terms.add c b
+  match o1 with
+  | none =>
+    ok
+      ({
+         w := core.num.U64.MAX,
+         r := core.num.U64.MAX,
+         schedulable := false,
+         overflow := true
+       }, own_terms)
+  | some x =>
+    let o2 ← terms.add x o
+    match o2 with
+    | none =>
+      ok
+        ({
+           w := core.num.U64.MAX,
+           r := core.num.U64.MAX,
+           schedulable := false,
+           overflow := true
+         }, own_terms)
+    | some x1 =>
+      let o3 ← rta.fixpoint x1 plain_terms i1.jitter deadline
+      match o3 with
+      | rta.Outcome.Fixpoint w =>
+        let i2 ← w + i1.jitter
+        ok ({ w, r := i2, schedulable := true, overflow := false }, own_terms)
+      | rta.Outcome.NotSchedulable w =>
+        let i2 ← core.num.U64.MAX - i1.jitter
+        if w > i2
+        then
+          ok
+            ({
+               w,
+               r := core.num.U64.MAX,
+               schedulable := false,
+               overflow := false
+             }, own_terms)
+        else
+          let r ← w + i1.jitter
+          ok ({ w, r, schedulable := false, overflow := false }, own_terms)
+      | rta.Outcome.Overflow =>
+        ok
+          ({
+             w := core.num.U64.MAX,
+             r := core.num.U64.MAX,
+             schedulable := false,
+             overflow := true
+           }, own_terms)
+
 end rsk_analyzer

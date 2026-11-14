@@ -825,38 +825,38 @@ pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, de
         !v.0.schedulable && !v.0.overflow
             ==> !meets_deadline(c + b + o, plain(v.1@), tasks@[i as int].jitter as int, deadline as int),
 {
-    let terms = terms_for(tasks, i);
+    let own_terms = terms_for(tasks, i);
     let jitter = tasks[i].jitter;
     let mut plain_terms: Vec<Term> = Vec::new();
     let mut k: usize = 0;
-    while k < terms.len()
+    while k < own_terms.len()
         invariant
-            k <= terms.len(),
+            k <= own_terms.len(),
             plain_terms.len() == k,
-            forall|m: int| 0 <= m < k ==> (#[trigger] plain_terms@[m]) == terms@[m].term,
-            forall|m: int| 0 <= m < terms.len() ==> (#[trigger] terms@[m]).term.period > 0,
-        decreases terms.len() - k,
+            forall|m: int| 0 <= m < k ==> (#[trigger] plain_terms@[m]) == own_terms@[m].term,
+            forall|m: int| 0 <= m < own_terms.len() ==> (#[trigger] own_terms@[m]).term.period > 0,
+        decreases own_terms.len() - k,
     {
-        plain_terms.push(terms[k].term);
+        plain_terms.push(own_terms[k].term);
         k = k + 1;
     }
-    assert(plain_terms@ =~= plain(terms@));
+    assert(plain_terms@ =~= plain(own_terms@));
     assert(crate::rta::terms_ok(plain_terms@)) by {
         assert forall|m: int| 0 <= m < plain_terms@.len() implies (#[trigger] plain_terms@[m]).period > 0 by {
-            assert(terms@[m].term.period > 0);
+            assert(own_terms@[m].term.period > 0);
         }
     }
     let saturated = Verdict { w: u64::MAX, r: u64::MAX, schedulable: false, overflow: true };
     let cb = match add(c, b) {
         Some(x) => x,
-        None => return (saturated, terms),
+        None => return (saturated, own_terms),
     };
     let base = match add(cb, o) {
         Some(x) => x,
-        None => return (saturated, terms),
+        None => return (saturated, own_terms),
     };
     match crate::rta::fixpoint(base, &plain_terms, jitter, deadline) {
-        Outcome::Fixpoint(w) => (Verdict { w, r: w + jitter, schedulable: true, overflow: false }, terms),
+        Outcome::Fixpoint(w) => (Verdict { w, r: w + jitter, schedulable: true, overflow: false }, own_terms),
         Outcome::NotSchedulable(w) => {
             let r = if w > u64::MAX - jitter { u64::MAX } else { w + jitter };
             proof {
@@ -864,9 +864,9 @@ pub fn response_of(tasks: &Vec<Interferer>, i: usize, c: u64, b: u64, o: u64, de
                 assert forall|x: int| x >= 0 && #[trigger] crate::rta::is_fixpoint(base as int, plain_terms@, x)
                     implies !(jitter as int + x <= deadline as int) by {}
             }
-            (Verdict { w, r, schedulable: false, overflow: false }, terms)
+            (Verdict { w, r, schedulable: false, overflow: false }, own_terms)
         }
-        Outcome::Overflow => (saturated, terms),
+        Outcome::Overflow => (saturated, own_terms),
     }
 }
 
