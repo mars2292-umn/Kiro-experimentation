@@ -41,8 +41,11 @@ namespace rsk_analyzer
     subst hv
     rw [h6, hprod, h3, h4]
 
-/-- The timed events of R9.4 a Job of the Task costs. -/
-def timedEvents (t : terms.TaskIn) : Nat := if t.periodic || t.defer then 3 else 2
+/-- The timed events of R9.4 a Job of the Task costs (2026-11-14, counted
+from the Kernel's slots): release, deadline, Budget and a blocking Job's
+Budget event for a Periodic_Task; deadline, Budget, unmask and a blocking
+Job's Budget event for a Sporadic_Task, and its deferral under `defer`. -/
+def timedEvents (t : terms.TaskIn) : Nat := if t.periodic then 4 else if t.defer then 5 else 4
 
 /-- `O_i` of R29.3 for a Task with `sites` Resource sites. -/
 def specO (t : terms.TaskIn) (p : terms.Params) (sites : Nat) (any_fpu : Bool) : Nat :=

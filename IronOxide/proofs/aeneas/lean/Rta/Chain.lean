@@ -20,9 +20,20 @@ def termJobs (t : terms.Interferer) : rta.Term :=
 def termIntake (t : terms.Interferer) : rta.Term :=
   { jitter := 0#u64, period := t.period, bound := t.intake }
 
+/-- The other timed events of a lower Task's Jobs: `⌈w / T_j⌉ · events`
+(R19.2, 2026-11-14). -/
+def termEvents (t : terms.Interferer) : rta.Term :=
+  { jitter := 0#u64, period := t.period, bound := t.events }
+
+/-- The terms a lower-Priority Task adds: its arrivals' and its other timed
+events', each when it has a cost. -/
+def pushLower (prev : List rta.Term) (t : terms.Interferer) : List rta.Term :=
+  let a := if t.intake.val > 0 then prev ++ [termIntake t] else prev
+  if t.events.val > 0 then a ++ [termEvents t] else a
+
 /-- The terms of the recurrence of the Task `ti` at index `i`, over the
 first `n` Tasks: every other Task of equal or higher Priority by its Jobs,
-every lower one with an intake cost by its intake. -/
+every lower one by its Kernel-level work. -/
 def specTerms (tasks : List terms.Interferer) (ti : terms.Interferer) (i : Nat) :
     Nat → List rta.Term
   | 0 => []
@@ -33,21 +44,28 @@ def specTerms (tasks : List terms.Interferer) (ti : terms.Interferer) (i : Nat) 
     | some t =>
       if n = i then prev
       else if t.priority.val ≥ ti.priority.val then prev ++ [termJobs t]
-      else if t.intake.val > 0 then prev ++ [termIntake t]
-      else prev
+      else pushLower prev t
+
+/-- All the terms of Task `i`'s recurrence: those of the other Tasks, then
+the housekeeping event's. -/
+def specAll (tasks : List terms.Interferer) (ti : terms.Interferer) (i : Nat) (hk : rta.Term) :
+    List rta.Term :=
+  specTerms tasks ti i tasks.length ++ [hk]
 
 theorem terms_for_body_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
     (out : alloc.vec.Vec terms.TermOf) (ti : terms.Interferer) (j : Usize)
-    (hj : j.val ≤ tasks.length) (hlen : out.length ≤ j.val)
+    (hsz : 2 * tasks.val.length + 1 ≤ Usize.max)
+    (hj : j.val ≤ tasks.length) (hlen : out.length ≤ 2 * j.val)
     (hout : out.val.map (·.term) = specTerms tasks.val ti i.val j.val)
     (hper : ∀ t ∈ tasks.val, 0 < t.period.val)
     (hop : ∀ t ∈ out.val, 0 < t.term.period.val) :
     terms.terms_for_loop.body tasks i out ti j ⦃ r =>
       match r with
-      | .done o => o.val.map (·.term) = specTerms tasks.val ti i.val tasks.length
+      | .done o => o.length ≤ 2 * tasks.length
+          ∧ o.val.map (·.term) = specTerms tasks.val ti i.val tasks.length
           ∧ ∀ t ∈ o.val, 0 < t.term.period.val
       | .cont (o, ti', j') => ti' = ti ∧ j'.val = j.val + 1 ∧ j'.val ≤ tasks.length
-          ∧ o.length ≤ j'.val
+          ∧ o.length ≤ 2 * j'.val
           ∧ o.val.map (·.term) = specTerms tasks.val ti i.val j'.val
           ∧ (∀ t ∈ o.val, 0 < t.term.period.val) ⦄ := by
   unfold terms.terms_for_loop.body
@@ -63,8 +81,7 @@ theorem terms_for_body_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
     have hnext : specTerms tasks.val ti i.val (j.val + 1) =
         (if j.val = i.val then specTerms tasks.val ti i.val j.val
          else if t.priority.val ≥ ti.priority.val then specTerms tasks.val ti i.val j.val ++ [termJobs t]
-         else if t.intake.val > 0 then specTerms tasks.val ti i.val j.val ++ [termIntake t]
-         else specTerms tasks.val ti i.val j.val) := by
+         else pushLower (specTerms tasks.val ti i.val j.val) t) := by
       simp [specTerms, hget]
     by_cases hji : j = i
     · have hji' : j.val = i.val := by rw [hji]
@@ -89,35 +106,64 @@ theorem terms_for_body_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
           · exact hop x h
           · subst h; simpa using htper
       · simp [hp]
-        by_cases hin : 0 < t.intake.val
-        · simp [hin]
+        by_cases hin : 0 < t.intake.val <;> by_cases hev : 0 < t.events.val
+        · simp [hin, hev]
+          step as ⟨ o1, ho1 ⟩
+          step as ⟨ o2, ho2 ⟩
+          · simp [ho1]; scalar_tac
+          step as ⟨ j1, hj1 ⟩
+          refine ⟨hj1, by scalar_tac, by simp [ho2, ho1]; scalar_tac, ?_, ?_⟩
+          · rw [hj1, hnext, ho2, ho1]; simp [hji', hp, hin, hev, hout, termIntake, termEvents, pushLower]
+          · intro x hx
+            rw [ho2, ho1] at hx
+            simp at hx
+            rcases hx with h | h | h
+            · exact hop x h
+            · subst h; simpa using htper
+            · subst h; simpa using htper
+        · simp [hin, hev]
           step as ⟨ o1, ho1 ⟩
           step as ⟨ j1, hj1 ⟩
           refine ⟨hj1, by scalar_tac, by simp [ho1]; scalar_tac, ?_, ?_⟩
-          · rw [hj1, hnext, ho1]; simp [hji', hp, hin, hout, termIntake]
+          · rw [hj1, hnext, ho1]; simp [hji', hp, hin, hev, hout, termIntake, pushLower]
           · intro x hx
             rw [ho1] at hx
             simp at hx
             rcases hx with h | h
             · exact hop x h
             · subst h; simpa using htper
-        · simp [hin]
+        · simp [hin, hev]
+          step as ⟨ o1, ho1 ⟩
+          step as ⟨ j1, hj1 ⟩
+          refine ⟨hj1, by scalar_tac, by simp [ho1]; scalar_tac, ?_, ?_⟩
+          · rw [hj1, hnext, ho1]; simp [hji', hp, hin, hev, hout, termEvents, pushLower]
+          · intro x hx
+            rw [ho1] at hx
+            simp at hx
+            rcases hx with h | h
+            · exact hop x h
+            · subst h; simpa using htper
+        · simp [hin, hev]
           step as ⟨ j1, hj1 ⟩
           refine ⟨hj1, by scalar_tac, by scalar_tac, ?_, hop⟩
-          rw [hj1, hnext]; simp [hji', hp, hin, hout]
+          rw [hj1, hnext]; simp [hji', hp, hin, hev, hout, pushLower]
   · rename_i hge
     have heq : j.val = tasks.val.length := by scalar_tac
     simp
     rw [← heq]
-    exact ⟨hout, hop⟩
+    exact ⟨by scalar_tac, hout, hop⟩
 
 /-- `terms_for`, on the code as compiled: the plain terms it returns are the
-terms of Task `i`'s recurrence, and every period is positive. -/
+terms of Task `i`'s recurrence, the housekeeping term last, and every
+period is positive. (`hsz`: twice the Task count fits a `usize`, which the
+list the function builds needs in Aeneas's model of `Vec::push`.) -/
 theorem terms_for_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
     (ti : terms.Interferer) (hti : tasks.val[i.val]? = some ti)
+    (hk : rta.Term) (hkp : 0 < hk.period.val)
+    (hsz : 2 * tasks.val.length + 1 ≤ Usize.max)
     (hper : ∀ t ∈ tasks.val, 0 < t.period.val) :
-    terms.terms_for tasks i ⦃ out =>
-      out.val.map (·.term) = specTerms tasks.val ti i.val tasks.val.length
+    terms.terms_for tasks i hk ⦃ out =>
+      out.val.map (·.term) = specAll tasks.val ti i.val hk
         ∧ ∀ t ∈ out.val, 0 < t.term.period.val ⦄ := by
   have hi : i.val < tasks.val.length := by
     rcases List.getElem?_eq_some_iff.mp hti with ⟨h, _⟩; exact h
@@ -127,28 +173,42 @@ theorem terms_for_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
     have := List.getElem?_eq_getElem hi
     rw [this] at hti; simp at hti; rw [hti0]; exact hti
   subst hti1
-  unfold terms.terms_for_loop
-  apply loop.spec_decr_nat
-    (fun (s : alloc.vec.Vec terms.TermOf × terms.Interferer × Usize) => tasks.val.length - s.2.2.val)
-    (fun s => s.2.1 = ti0 ∧ s.2.2.val ≤ tasks.val.length ∧ s.1.val.length ≤ s.2.2.val
-      ∧ s.1.val.map (·.term) = specTerms tasks.val ti0 i.val s.2.2.val
-      ∧ ∀ t ∈ s.1.val, 0 < t.term.period.val)
-  · intro s hs
-    obtain ⟨out, ti', j⟩ := s
-    obtain ⟨h1, h2, h3, h4, h5⟩ := hs
-    simp only [] at h1 h2 h3 h4 h5
-    subst h1
-    apply WP.spec_mono (terms_for_body_spec tasks i out ti' j (by scalar_tac) (by scalar_tac) h4 hper h5)
-    intro r hr
-    cases r with
-    | done o => simpa using hr
-    | cont s' =>
-      obtain ⟨o, ti'', j'⟩ := s'
-      simp only [] at hr ⊢
-      obtain ⟨e1, e2, e3, e4, e5, e6⟩ := hr
-      refine ⟨⟨e1, by scalar_tac, by scalar_tac, e5, e6⟩, ?_⟩
-      scalar_tac
-  · simp [specTerms]
+  have hloop : terms.terms_for_loop tasks i (alloc.vec.Vec.new terms.TermOf) ti0 0#usize ⦃ o =>
+      o.length ≤ 2 * tasks.length
+      ∧ o.val.map (·.term) = specTerms tasks.val ti0 i.val tasks.val.length
+      ∧ ∀ t ∈ o.val, 0 < t.term.period.val ⦄ := by
+    unfold terms.terms_for_loop
+    apply loop.spec_decr_nat
+      (fun (s : alloc.vec.Vec terms.TermOf × terms.Interferer × Usize) => tasks.val.length - s.2.2.val)
+      (fun s => s.2.1 = ti0 ∧ s.2.2.val ≤ tasks.val.length ∧ s.1.val.length ≤ 2 * s.2.2.val
+        ∧ s.1.val.map (·.term) = specTerms tasks.val ti0 i.val s.2.2.val
+        ∧ ∀ t ∈ s.1.val, 0 < t.term.period.val)
+    · intro s hs
+      obtain ⟨out, ti', j⟩ := s
+      obtain ⟨h1, h2, h3, h4, h5⟩ := hs
+      simp only [] at h1 h2 h3 h4 h5
+      subst h1
+      apply WP.spec_mono (terms_for_body_spec tasks i out ti' j hsz (by scalar_tac) (by scalar_tac) h4 hper h5)
+      intro r hr
+      cases r with
+      | done o => simpa using hr
+      | cont s' =>
+        obtain ⟨o, ti'', j'⟩ := s'
+        simp only [] at hr ⊢
+        obtain ⟨e1, e2, e3, e4, e5, e6⟩ := hr
+        refine ⟨⟨e1, by scalar_tac, by scalar_tac, e5, e6⟩, ?_⟩
+        scalar_tac
+    · simp [specTerms]
+  step with hloop as ⟨ o, ho1, ho2, ho3 ⟩
+  step as ⟨ o2, ho2' ⟩
+  constructor
+  · rw [ho2']; simp [specAll, ho2]
+  · intro x hx
+    rw [ho2'] at hx
+    simp at hx
+    rcases hx with h | h
+    · exact ho3 x h
+    · subst h; simpa using hkp
 
 theorem add_spec (a b : U64) :
     terms.add a b ⦃ r => ∀ v, r = some v → v.val = a.val + b.val ⦄ := by
@@ -194,7 +254,7 @@ theorem plain_body_spec (ts : alloc.vec.Vec terms.TermOf) (pl : alloc.vec.Vec rt
 verdict). For every Task set with positive periods and every Task `i` of
 it the function returns, and:
 
-- the terms it used are the terms of Task `i`'s recurrence (`specTerms`);
+- the terms it used are the terms of Task `i`'s recurrence (`specAll`);
 - a Task reported schedulable has `R = J + w` for the least fixed point `w`
   of `w = (C + B + O) + Σ ⌈(w + J_j) / T_j⌉ · E_j`, and `R ≤ D`;
 - a Task reported not schedulable without an overflow has no fixed point
@@ -202,22 +262,24 @@ it the function returns, and:
 - an overflow is never reported schedulable. -/
 theorem response_of_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
     (ti : terms.Interferer) (hti : tasks.val[i.val]? = some ti)
-    (c b o deadline : U64) (hper : ∀ t ∈ tasks.val, 0 < t.period.val) :
-    terms.response_of tasks i c b o deadline ⦃ r =>
-      r.2.val.map (·.term) = specTerms tasks.val ti i.val tasks.val.length
+    (c b o deadline : U64) (hk : rta.Term) (hkp : 0 < hk.period.val)
+    (hsz : 2 * tasks.val.length + 1 ≤ Usize.max)
+    (hper : ∀ t ∈ tasks.val, 0 < t.period.val) :
+    terms.response_of tasks i c b o deadline hk ⦃ r =>
+      r.2.val.map (·.term) = specAll tasks.val ti i.val hk
       ∧ (r.1.overflow = true → r.1.schedulable = false)
       ∧ (r.1.schedulable = true →
-          stepF (c.val + b.val + o.val) (specTerms tasks.val ti i.val tasks.val.length) r.1.w.val = r.1.w.val
-          ∧ (∀ x, stepF (c.val + b.val + o.val) (specTerms tasks.val ti i.val tasks.val.length) x = x → r.1.w.val ≤ x)
+          stepF (c.val + b.val + o.val) (specAll tasks.val ti i.val hk) r.1.w.val = r.1.w.val
+          ∧ (∀ x, stepF (c.val + b.val + o.val) (specAll tasks.val ti i.val hk) x = x → r.1.w.val ≤ x)
           ∧ r.1.r.val = ti.jitter.val + r.1.w.val
           ∧ r.1.r.val ≤ deadline.val)
       ∧ (r.1.schedulable = false → r.1.overflow = false →
-          ∀ x, stepF (c.val + b.val + o.val) (specTerms tasks.val ti i.val tasks.val.length) x = x →
+          ∀ x, stepF (c.val + b.val + o.val) (specAll tasks.val ti i.val hk) x = x →
             deadline.val < ti.jitter.val + x) ⦄ := by
   have hi : i.val < tasks.val.length := by
     rcases List.getElem?_eq_some_iff.mp hti with ⟨h, _⟩; exact h
   unfold terms.response_of
-  step with terms_for_spec tasks i ti hti hper as ⟨ own, hown, hownp ⟩
+  step with terms_for_spec tasks i ti hti hk hkp hsz hper as ⟨ own, hown, hownp ⟩
   step as ⟨ i1, hi1 ⟩
   have hi1' : i1 = ti := by
     have := List.getElem?_eq_getElem hi
@@ -250,7 +312,7 @@ theorem response_of_spec (tasks : alloc.vec.Vec terms.Interferer) (i : Usize)
     simp at ht
     obtain ⟨x, hx, rfl⟩ := ht
     exact hownp x hx
-  have hts : pl.val = specTerms tasks.val i1 i.val tasks.val.length := by rw [hpl, hown]
+  have hts : pl.val = specAll tasks.val i1 i.val hk := by rw [hpl, hown]
   step with add_spec as ⟨ o1, ho1 ⟩
   cases o1 with
   | none => simp [hown]

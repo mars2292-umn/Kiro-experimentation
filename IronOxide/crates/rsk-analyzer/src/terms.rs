@@ -997,6 +997,14 @@ pub open spec fn verdict_ok(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any
     &&& !v.schedulable && !v.overflow ==> !meets_deadline(base, plain(ts), p.j_rel as int, windows[i].deadline as int)
 }
 
+/// `lower_events` of a Task, its deadline event left out when `quiet`.
+fn lower_event_count(t: TaskIn, quiet: bool) -> (k: u64)
+    ensures k as int == lower_events(t, !quiet), k <= 3,
+{
+    let base: u64 = if t.periodic { 0 } else if t.defer { 2 } else { 1 };
+    if quiet { base } else { base + 1 }
+}
+
 /// One pass of the analysis: every Task's terms and verdict, with the
 /// deadline event of each Task marked `quiet` left out of the recurrences
 /// of the Tasks above it.
@@ -1028,24 +1036,17 @@ fn analyse_pass(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: bool
         proof {
             assert(derived_ok(tasks@, sites@, p, any_fpu, j as int, derived@[j as int]));
         }
-        its.push(Interferer {
-            priority: t.priority,
-            jitter: d.j,
-            period: if w.period == 0 { 1 } else { w.period },
-            bound: d.e,
-            intake: if t.periodic { p.timer } else { p.irq },
-            events: {
-                let base: u64 = if t.periodic { 0 } else if t.defer { 2 } else { 1 };
-                let k: u64 = if q { base } else { base + 1 };
-                proof {
-                    // Δ_timer · lower_events is within O_j, which fits.
-                    assert(p.timer as int * k as int <= spec_o(t, p, d.sites as int, any_fpu)) by (nonlinear_arith)
-                        requires k as int == lower_events(t, !q), lower_events(t, !q) <= timed_events(t), timed_events(t) >= 0,
-                            spec_o(t, p, d.sites as int, any_fpu) >= p.timer as int * timed_events(t);
-                }
-                p.timer * k
-            },
-        });
+        let period: u64 = if w.period == 0 { 1 } else { w.period };
+        let intake: u64 = if t.periodic { p.timer } else { p.irq };
+        let k: u64 = lower_event_count(t, q);
+        proof {
+            // Δ_timer · lower_events is within O_j, which fits.
+            assert(p.timer as int * k as int <= spec_o(t, p, d.sites as int, any_fpu)) by (nonlinear_arith)
+                requires k as int == lower_events(t, !q), lower_events(t, !q) <= timed_events(t), timed_events(t) >= 0,
+                    spec_o(t, p, d.sites as int, any_fpu) >= p.timer as int * timed_events(t);
+        }
+        let events: u64 = p.timer * k;
+        its.push(Interferer { priority: t.priority, jitter: d.j, period, bound: d.e, intake, events });
         j = j + 1;
     }
     assert(its@ =~= spec_its);
