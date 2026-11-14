@@ -9,9 +9,9 @@
 //! - `spec_o` is O_i of R29.3: Δ_release + Δ_dispatch + Δ_complete + Δ_wake
 //!   per Job; Δ_timer per timed event of a Job (`timed_events`: the release
 //!   of a Periodic_Task, the deadline, the Budget, the MIT unmask of a
-//!   Sporadic_Task and its deferral under the `defer` policy, and the stale
-//!   Budget event of the Job it preempts, whose Budget slot stays armed and
-//!   fires once while the preempting Job executes; 2026-11-14);
+//!   Sporadic_Task and its deferral under the `defer` policy, and the
+//!   Budget event of a lower Job that blocks it, the one Budget event of
+//!   another Job that can fire while it waits; 2026-11-14);
 //!   Δ_lock_in + Δ_lock_out per Critical_Section site;
 //!   Δ_hm; Δ_entry (R13.6); Δ_fp_save + Δ_fp_restore when the set has an
 //!   FPU-using Task; Δ_irq + Δ_stamp for a Sporadic_Task (R19.2);
@@ -35,10 +35,14 @@
 //!   handler runs at the Kernel level and preempts every Task, where the
 //!   Task's own Jobs preempt only those at or below its Priority; for a
 //!   Task of hep(i) the cost is in O_j already), and by its other timed
-//!   events, (⌈w / T_j⌉ + 1) · `carried_events` · Δ_timer (the deadline,
-//!   Budget, unmask and deferral events of a Job released before the busy
-//!   period can fire inside it, hence the one Job more; 2026-11-14); and
-//!   the Kernel's housekeeping event, ⌈w / T_hk⌉ · Δ_timer, on every Task;
+//!   events, ⌈w / T_j⌉ · `lower_events` · Δ_timer (the unmask and deferral
+//!   events of a Sporadic_Task, and the deadline event unless the same
+//!   analysis shows the Task schedulable: the slot is disarmed when the Job
+//!   ends, so it fires only on a miss; each kind of event comes at a fixed
+//!   distance from the arrival, so at most ⌈w / T_j⌉ of each fall in a
+//!   window of length w; a lower Task's Budget event cannot fire while its
+//!   Job is preempted, the Kernel disarms it; 2026-11-14); and the
+//!   Kernel's housekeeping event, ⌈w / T_hk⌉ · Δ_timer, on every Task;
 //! - `ticks_to_cycles_down` and `ticks_to_cycles_up` are the rounding of
 //!   R29.8 (periods, MITs, and deadlines down; execution times and jitter
 //!   up);
@@ -153,22 +157,26 @@ pub open spec fn u64_max() -> int {
 
 /// The timed events of R9.4 a Job of the Task costs, each a timer entry at
 /// the Kernel level (2026-11-14, counted from the Kernel's slots): for a
-/// Periodic_Task its release, its deadline, its Budget, and the stale
-/// Budget event of the Job it preempts (a preempted Job's Budget slot stays
-/// armed and fires once while the preempting Job executes); for a
-/// Sporadic_Task its deadline, its Budget, its MIT unmask and that stale
-/// event, plus its MIT deferral under the `defer` policy. Until then the
-/// count was 3 (periodic or `defer`) or 2.
+/// Periodic_Task its release, its deadline, its Budget, and the Budget
+/// event of a lower Job that blocks it (the Kernel disarms a preempted
+/// Job's Budget event, so the only Budget event of another Job that can
+/// fire while this one waits or executes is that of the Job holding the
+/// blocking Critical_Section); for a Sporadic_Task its deadline, its
+/// Budget, its MIT unmask and that blocking Job's event, plus its MIT
+/// deferral under the `defer` policy. Until then the count was 3 (periodic
+/// or `defer`) or 2.
 pub open spec fn timed_events(t: TaskIn) -> int {
     if t.periodic { 4 } else if t.defer { 5 } else { 4 }
 }
 
-/// The timed events of a Job that can fire in a busy period the Job was
-/// released before (so that one Job more than ⌈w / T⌉ counts): all of the
-/// Task's own but the release of a Periodic_Task (deadline and Budget; for
-/// a Sporadic_Task also the unmask, and the deferral under `defer`).
-pub open spec fn carried_events(t: TaskIn) -> int {
-    if t.periodic { 2 } else if t.defer { 4 } else { 3 }
+/// The timed events of a lower-Priority Task's Job, beside its arrival,
+/// that take a timer entry from a higher Job: the MIT unmask of a
+/// Sporadic_Task and its deferral under `defer`, and the deadline event
+/// when it can fire (`deadline_fires`: the Task is not shown schedulable).
+/// The Budget event is not among them: the Kernel disarms it while the Job
+/// is preempted.
+pub open spec fn lower_events(t: TaskIn, deadline_fires: bool) -> int {
+    (if t.periodic { 0int } else if t.defer { 2int } else { 1int }) + (if deadline_fires { 1int } else { 0int })
 }
 
 /// O_i of R29.3 for a Task with `sites` Critical_Section sites.
@@ -711,7 +719,7 @@ pub fn utilization_exceeds_one(loads: &Vec<Load>) -> (r: bool)
 /// T_j (period or MIT), E_j, the Kernel-level cost of one arrival (`intake`:
 /// Δ_irq for a Sporadic_Task's Release_Source, Δ_timer for a
 /// Periodic_Task's release event; R19.2) and the Kernel-level cost of a
-/// Job's other timed events (`events`: `carried_events` · Δ_timer).
+/// Job's other timed events (`events`: `lower_events` · Δ_timer).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Interferer {
     pub priority: u8,
@@ -755,11 +763,10 @@ pub open spec fn term_of_intake(j: int, t: Interferer) -> TermOf {
     TermOf { task: j as usize, kind: TERM_INTAKE, term: Term { jitter: 0, period: t.period, bound: t.intake } }
 }
 
-/// The other timed events of Task `j`'s Jobs: ⌈(w + T_j) / T_j⌉ · `events`,
-/// one Job more than the arrivals in `w` (the events of a Job released
-/// before the busy period can fire inside it).
+/// The other timed events of Task `j`'s Jobs: ⌈w / T_j⌉ · `events` (each
+/// kind of event comes at a fixed distance from the arrival).
 pub open spec fn term_of_events(j: int, t: Interferer) -> TermOf {
-    TermOf { task: j as usize, kind: TERM_EVENTS, term: Term { jitter: t.period, period: t.period, bound: t.events } }
+    TermOf { task: j as usize, kind: TERM_EVENTS, term: Term { jitter: 0, period: t.period, bound: t.events } }
 }
 
 /// The housekeeping event's term, for a set of `n` Tasks.
@@ -834,7 +841,7 @@ pub fn terms_for(tasks: &Vec<Interferer>, i: usize, hk: Term) -> (r: Vec<TermOf>
                     out.push(TermOf { task: j, kind: TERM_INTAKE, term: Term { jitter: 0, period: t.period, bound: t.intake } });
                 }
                 if t.events > 0 {
-                    out.push(TermOf { task: j, kind: TERM_EVENTS, term: Term { jitter: t.period, period: t.period, bound: t.events } });
+                    out.push(TermOf { task: j, kind: TERM_EVENTS, term: Term { jitter: 0, period: t.period, bound: t.events } });
                 }
             }
         }
@@ -948,7 +955,10 @@ pub struct Window {
 /// Task `j` as an interferer of the others' recurrences, from the Task set
 /// and its sites: its Priority, `J_rel`, its period (at least 1), `E_j`
 /// (R29.4) and the intake cost of its Release_Source (R19.2).
-pub open spec fn spec_interferer(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, j: int) -> Interferer {
+///
+/// `quiet`: the analysis shows Task `j` schedulable, so its deadline event
+/// does not fire and is not charged to the Tasks above it.
+pub open spec fn spec_interferer(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, quiet: Seq<bool>, j: int) -> Interferer {
     let n = sites.len() as int;
     let o = spec_o(tasks[j], p, site_count(sites, j, n), any_fpu);
     Interferer {
@@ -957,7 +967,7 @@ pub open spec fn spec_interferer(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params
         period: if windows[j].period == 0 { 1 } else { windows[j].period },
         bound: spec_e(tasks[j], p, longest_cs(sites, j, n), o) as u64,
         intake: if tasks[j].periodic { p.timer } else { p.irq },
-        events: (p.timer as int * carried_events(tasks[j])) as u64,
+        events: (p.timer as int * lower_events(tasks[j], !quiet[j])) as u64,
     }
 }
 
@@ -966,16 +976,16 @@ pub open spec fn spec_hk(p: Params) -> Term {
     Term { jitter: 0, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer }
 }
 
-pub open spec fn spec_interferers(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>) -> Seq<Interferer> {
-    Seq::new(tasks.len(), |j: int| spec_interferer(tasks, sites, p, any_fpu, windows, j))
+pub open spec fn spec_interferers(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, quiet: Seq<bool>) -> Seq<Interferer> {
+    Seq::new(tasks.len(), |j: int| spec_interferer(tasks, sites, p, any_fpu, windows, quiet, j))
 }
 
 /// The verdict `v` and the terms `ts` are those of Task `i` of the Task
 /// set (R29.1 to R29.7, with R19.2): the recurrence is the one from
 /// `C_i + B_i + O_i` over the terms of the Tasks' `E_j`, each term derived
 /// from the Task set and its sites.
-pub open spec fn verdict_ok(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, i: int, v: Verdict, ts: Seq<TermOf>) -> bool {
-    let its = spec_interferers(tasks, sites, p, any_fpu, windows);
+pub open spec fn verdict_ok(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, quiet: Seq<bool>, i: int, v: Verdict, ts: Seq<TermOf>) -> bool {
+    let its = spec_interferers(tasks, sites, p, any_fpu, windows, quiet);
     let base = tasks[i].budget as int + spec_b(tasks, sites, i, p)
         + spec_o(tasks[i], p, site_count(sites, i, sites.len() as int), any_fpu);
     &&& ts == spec_all_terms(its, i, spec_hk(p))
@@ -987,38 +997,26 @@ pub open spec fn verdict_ok(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any
     &&& !v.schedulable && !v.overflow ==> !meets_deadline(base, plain(ts), p.j_rel as int, windows[i].deadline as int)
 }
 
-/// The whole numeric analysis (R29.1 to R29.7 with R19.2), from the Task
-/// set, its Critical_Section sites, the Kernel_Timing_Parameters and each
-/// Task's period and deadline to every Task's terms and verdict: the term
-/// derivation (`derive_all`), the Tasks as each other's interferers, and
-/// each Task's recurrence and verdict (`response_of`). Until 2026-11-14
-/// the derived terms reached the recurrences through plain Rust in
-/// `inputs::prepare` and `response_times`.
-///
-/// `None`: a term of some Task does not fit 64 bits (R29.6).
-pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: bool, windows: &Vec<Window>) -> (r: Option<(Vec<Derived>, Vec<Verdict>, Vec<Vec<TermOf>>)>)
+/// One pass of the analysis: every Task's terms and verdict, with the
+/// deadline event of each Task marked `quiet` left out of the recurrences
+/// of the Tasks above it.
+fn analyse_pass(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: bool, windows: &Vec<Window>, derived: &Vec<Derived>, quiet: &Vec<bool>) -> (r: (Vec<Verdict>, Vec<Vec<TermOf>>))
     requires
-        sites_ok(tasks@, sites@),
-        windows.len() == tasks.len(),
+        windows.len() == tasks.len(), derived.len() == tasks.len(), quiet.len() == tasks.len(),
+        forall|i: int| 0 <= i < tasks.len() ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] derived@[i]),
     ensures
-        r matches Some(out) ==> out.0.len() == tasks.len() && out.1.len() == tasks.len() && out.2.len() == tasks.len()
-            && (forall|i: int| 0 <= i < tasks.len() ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] out.0@[i]))
-            && (forall|i: int| 0 <= i < tasks.len() ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, i, #[trigger] out.1@[i], out.2@[i]@)),
-        r.is_none() ==> exists|i: int| 0 <= i < tasks.len() && !terms_fit(tasks@, sites@, p, any_fpu, i),
+        r.0.len() == tasks.len(), r.1.len() == tasks.len(),
+        forall|i: int| 0 <= i < tasks.len() ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, quiet@, i, #[trigger] r.0@[i], r.1@[i]@),
 {
-    let derived = match derive_all(tasks, sites, p, any_fpu) {
-        Some(d) => d,
-        None => return None,
-    };
     let n = tasks.len();
-    let ghost spec_its = spec_interferers(tasks@, sites@, p, any_fpu, windows@);
+    let ghost spec_its = spec_interferers(tasks@, sites@, p, any_fpu, windows@, quiet@);
     let mut its: Vec<Interferer> = Vec::new();
     let mut j: usize = 0;
     while j < n
         invariant
-            j <= n, n == tasks.len(), n == windows.len(), n == derived.len(),
+            j <= n, n == tasks.len(), n == windows.len(), n == derived.len(), n == quiet.len(),
             its.len() == j,
-            spec_its == spec_interferers(tasks@, sites@, p, any_fpu, windows@),
+            spec_its == spec_interferers(tasks@, sites@, p, any_fpu, windows@, quiet@),
             forall|i: int| 0 <= i < n ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] derived@[i]),
             forall|m: int| 0 <= m < j ==> (#[trigger] its@[m]) == spec_its[m],
         decreases n - j,
@@ -1026,6 +1024,7 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
         let t = tasks[j];
         let d = derived[j];
         let w = windows[j];
+        let q = quiet[j];
         proof {
             assert(derived_ok(tasks@, sites@, p, any_fpu, j as int, derived@[j as int]));
         }
@@ -1036,11 +1035,12 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
             bound: d.e,
             intake: if t.periodic { p.timer } else { p.irq },
             events: {
-                let k: u64 = if t.periodic { 2 } else if t.defer { 4 } else { 3 };
+                let base: u64 = if t.periodic { 0 } else if t.defer { 2 } else { 1 };
+                let k: u64 = if q { base } else { base + 1 };
                 proof {
-                    // Δ_timer · carried_events is part of O_j, which fits.
+                    // Δ_timer · lower_events is within O_j, which fits.
                     assert(p.timer as int * k as int <= spec_o(t, p, d.sites as int, any_fpu)) by (nonlinear_arith)
-                        requires k as int == carried_events(t), carried_events(t) <= timed_events(t), timed_events(t) >= 0,
+                        requires k as int == lower_events(t, !q), lower_events(t, !q) <= timed_events(t), timed_events(t) >= 0,
                             spec_o(t, p, d.sites as int, any_fpu) >= p.timer as int * timed_events(t);
                 }
                 p.timer * k
@@ -1059,12 +1059,12 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
     let mut i: usize = 0;
     while i < n
         invariant
-            i <= n, n == tasks.len(), n == windows.len(), n == derived.len(), n == its.len(),
+            i <= n, n == tasks.len(), n == windows.len(), n == derived.len(), n == its.len(), n == quiet.len(),
             verdicts.len() == i, all_terms.len() == i,
-            its@ == spec_interferers(tasks@, sites@, p, any_fpu, windows@),
+            its@ == spec_interferers(tasks@, sites@, p, any_fpu, windows@, quiet@),
             periods_ok(its@),
             forall|k: int| 0 <= k < n ==> derived_ok(tasks@, sites@, p, any_fpu, k, #[trigger] derived@[k]),
-            forall|k: int| 0 <= k < i ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, k, #[trigger] verdicts@[k], all_terms@[k]@),
+            forall|k: int| 0 <= k < i ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, quiet@, k, #[trigger] verdicts@[k], all_terms@[k]@),
         decreases n - i,
     {
         let t = tasks[i];
@@ -1072,7 +1072,7 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
         let w = windows[i];
         proof {
             assert(derived_ok(tasks@, sites@, p, any_fpu, i as int, derived@[i as int]));
-            assert(its@[i as int] == spec_interferer(tasks@, sites@, p, any_fpu, windows@, i as int));
+            assert(its@[i as int] == spec_interferer(tasks@, sites@, p, any_fpu, windows@, quiet@, i as int));
         }
         let hk = Term { jitter: 0, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer };
         let (verdict, own_terms) = response_of(&its, i, t.budget, d.b, d.o, w.deadline, hk);
@@ -1080,7 +1080,105 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
         all_terms.push(own_terms);
         i = i + 1;
     }
-    Some((derived, verdicts, all_terms))
+    (verdicts, all_terms)
+}
+
+/// The whole numeric analysis (R29.1 to R29.7 with R19.2), from the Task
+/// set, its Critical_Section sites, the Kernel_Timing_Parameters and each
+/// Task's period and deadline to every Task's terms and verdict: the term
+/// derivation (`derive_all`), the Tasks as each other's interferers, and
+/// each Task's recurrence and verdict (`response_of`).
+///
+/// The result's `quiet` marks the Tasks whose deadline event is left out of
+/// the recurrences of the Tasks above them, and every Task so marked is
+/// schedulable in this same result. That is sound by induction on the
+/// Priority, lowest first: a Task's recurrence takes only lower Tasks'
+/// events, a lower Task marked quiet meets its deadline, and the Kernel
+/// disarms a Job's deadline event when the Job ends. The first pass marks
+/// no Task; each further pass marks the Tasks the pass before found
+/// schedulable, and is kept only if every marked Task is still schedulable
+/// in it.
+///
+/// `None`: a term of some Task does not fit 64 bits (R29.6).
+pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: bool, windows: &Vec<Window>) -> (r: Option<(Vec<Derived>, Vec<Verdict>, Vec<Vec<TermOf>>, Vec<bool>)>)
+    requires
+        sites_ok(tasks@, sites@),
+        windows.len() == tasks.len(),
+    ensures
+        r matches Some(out) ==> out.0.len() == tasks.len() && out.1.len() == tasks.len() && out.2.len() == tasks.len()
+            && out.3.len() == tasks.len()
+            && (forall|i: int| 0 <= i < tasks.len() ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] out.0@[i]))
+            && (forall|i: int| 0 <= i < tasks.len() ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, out.3@, i, #[trigger] out.1@[i], out.2@[i]@))
+            && (forall|i: int| 0 <= i < tasks.len() && #[trigger] out.3@[i] ==> out.1@[i].schedulable),
+        r.is_none() ==> exists|i: int| 0 <= i < tasks.len() && !terms_fit(tasks@, sites@, p, any_fpu, i),
+{
+    let derived = match derive_all(tasks, sites, p, any_fpu) {
+        Some(d) => d,
+        None => return None,
+    };
+    let n = tasks.len();
+    let mut quiet: Vec<bool> = Vec::new();
+    let mut j: usize = 0;
+    while j < n
+        invariant j <= n, quiet.len() == j, forall|m: int| 0 <= m < j ==> !(#[trigger] quiet@[m]),
+        decreases n - j,
+    {
+        quiet.push(false);
+        j = j + 1;
+    }
+    let (mut verdicts, mut all_terms) = analyse_pass(tasks, sites, p, any_fpu, windows, &derived, &quiet);
+    let mut pass: usize = 0;
+    while pass < n
+        invariant
+            n == tasks.len(), n == windows.len(), n == derived.len(),
+            quiet.len() == n, verdicts.len() == n, all_terms.len() == n,
+            forall|i: int| 0 <= i < n ==> derived_ok(tasks@, sites@, p, any_fpu, i, #[trigger] derived@[i]),
+            forall|i: int| 0 <= i < n ==> verdict_ok(tasks@, sites@, p, any_fpu, windows@, quiet@, i, #[trigger] verdicts@[i], all_terms@[i]@),
+            forall|i: int| 0 <= i < n && #[trigger] quiet@[i] ==> verdicts@[i].schedulable,
+        decreases n - pass,
+    {
+        // The Tasks this pass found schedulable; nothing to refine when
+        // they are the ones already marked.
+        let mut next: Vec<bool> = Vec::new();
+        let mut same = true;
+        let mut k: usize = 0;
+        while k < n
+            invariant k <= n, n == verdicts.len(), n == quiet.len(), next.len() == k,
+            decreases n - k,
+        {
+            let s = verdicts[k].schedulable;
+            if s != quiet[k] {
+                same = false;
+            }
+            next.push(s);
+            k = k + 1;
+        }
+        if same {
+            break;
+        }
+        let (v2, t2) = analyse_pass(tasks, sites, p, any_fpu, windows, &derived, &next);
+        // Kept only if every Task it marks is schedulable in it.
+        let mut ok = true;
+        let mut m: usize = 0;
+        while m < n
+            invariant m <= n, n == next.len(), n == v2.len(),
+                ok ==> forall|i: int| 0 <= i < m && #[trigger] next@[i] ==> v2@[i].schedulable,
+            decreases n - m,
+        {
+            if next[m] && !v2[m].schedulable {
+                ok = false;
+            }
+            m = m + 1;
+        }
+        if !ok {
+            break;
+        }
+        quiet = next;
+        verdicts = v2;
+        all_terms = t2;
+        pass = pass + 1;
+    }
+    Some((derived, verdicts, all_terms, quiet))
 }
 
 } // verus!

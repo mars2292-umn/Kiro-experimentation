@@ -257,11 +257,11 @@ fn reference_rta(tasks: &[AnalysedTask]) -> Vec<(String, u128, bool)> {
             }
             // R19.2: the Kernel-level work of a lower Task: its arrivals
             // (once per period or MIT, no jitter) and its other timed
-            // events (one Job more than the arrivals).
+            // events (as often).
             for u in order.iter().copied().filter(|u| u.priority < t.priority) {
                 let p = u.period_cycles.max(1) as u128;
                 next += ((w + p - 1) / p) * u.intake as u128;
-                next += ((w + p - 1) / p + 1) * u.events as u128;
+                next += ((w + p - 1) / p) * u.events as u128;
             }
             // The Kernel's housekeeping event, on every Task.
             let hk = t.hk_period.max(1) as u128;

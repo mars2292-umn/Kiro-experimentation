@@ -438,15 +438,20 @@ fn r19_2_the_kernel_level_work_of_a_lower_task_interferes_with_every_task() {
     assert_eq!(echo_terms[0].kind, rsk_analyzer::terms::TERM_INTAKE);
     assert_eq!((echo_terms[0].term.jitter, echo_terms[0].term.period, echo_terms[0].term.bound), (0, 500_000, 300));
     assert_eq!(echo_terms[1].kind, rsk_analyzer::terms::TERM_EVENTS);
-    assert_eq!((echo_terms[1].term.jitter, echo_terms[1].term.period), (500_000, 500_000));
-    assert!(echo_terms[1].term.bound == 3 * timer || echo_terms[1].term.bound == 4 * timer);
+    assert_eq!((echo_terms[1].term.jitter, echo_terms[1].term.period), (0, 500_000));
+    // Its unmask event, its deferral under `defer`, and its deadline event
+    // unless the analysis shows it schedulable.
+    let echo = &p.tasks[by("part0.echo")];
+    assert!((1..=3).contains(&(echo_terms[1].term.bound / timer)) && echo_terms[1].term.bound % timer == 0);
+    assert_eq!(echo_terms[1].term.bound, echo.events);
     // sensor (periodic, P5) is below control: its release event once per
-    // period, its deadline and Budget events for one Job more (2026-11-14;
-    // a lower Periodic_Task had no term before).
+    // period (2026-11-14; a lower Periodic_Task had no term before), and
+    // its deadline event only if the analysis does not show it schedulable.
     let sensor_terms: Vec<_> = control.iter().filter(|x| x.task == by("part0.sensor")).collect();
-    assert_eq!(sensor_terms.len(), 2);
     assert_eq!((sensor_terms[0].kind, sensor_terms[0].term.jitter, sensor_terms[0].term.bound), (rsk_analyzer::terms::TERM_INTAKE, 0, timer));
-    assert_eq!((sensor_terms[1].kind, sensor_terms[1].term.jitter, sensor_terms[1].term.bound), (rsk_analyzer::terms::TERM_EVENTS, sensor_terms[1].term.period, 2 * timer));
+    let sensor_events = p.tasks[by("part0.sensor")].events;
+    assert!(sensor_events == 0 || sensor_events == timer);
+    assert_eq!(sensor_terms.len(), if sensor_events == 0 { 1 } else { 2 });
     // The housekeeping event is the last term of every Task.
     let hk = control.last().unwrap();
     assert_eq!((hk.kind, hk.task, hk.term.jitter, hk.term.period, hk.term.bound), (rsk_analyzer::terms::TERM_HOUSEKEEPING, p.tasks.len(), 0, inputs::HOUSEKEEPING_PERIOD_CYCLES, timer));
@@ -460,7 +465,7 @@ fn r19_2_the_kernel_level_work_of_a_lower_task_interferes_with_every_task() {
     let r = response_times(&p.tasks);
     let control_r = r.iter().find(|x| x.id == "part0.control").unwrap();
     assert!(control_r.interference.iter().any(|i| i.task == "part0.echo (intake, R19.2)" && i.e_cycles == 300 && i.jobs == 1));
-    assert!(control_r.interference.iter().any(|i| i.task == "part0.sensor (timed events, R19.2)" && i.jobs == 2));
+    assert!(control_r.interference.iter().any(|i| i.task == "part0.sensor (intake, R19.2)" && i.e_cycles == timer && i.jobs == 1));
     assert!(control_r.interference.iter().any(|i| i.task == "Kernel housekeeping (R19.2)" && i.jobs == 1));
 }
 

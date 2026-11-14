@@ -70,8 +70,10 @@ pub struct AnalysedTask {
     /// (R19.2).
     pub intake: u64,
     /// The Kernel-level cost of a Job's other timed events
-    /// (`terms::carried_events` · Δ_timer), charged to every Task its Jobs
-    /// cannot preempt for one Job more than the arrivals (R19.2).
+    /// (`terms::lower_events` · Δ_timer: unmask and deferral of a
+    /// Sporadic_Task, and the deadline event unless the analysis shows the
+    /// Task schedulable), charged to every Task its Jobs cannot preempt
+    /// (R19.2).
     pub events: u64,
     /// The Kernel's housekeeping event, charged to every Task: its period
     /// in cycles and its cost (Δ_timer). The same for every Task of a set.
@@ -404,7 +406,7 @@ pub fn prepare(
     // through this function's own arithmetic between the terms and the
     // verdicts.
     let windows: Vec<terms::Window> = per_task.iter().map(|x| terms::Window { period: x.0, deadline: x.1 }).collect();
-    let (derived, verdicts, own_terms) = terms::analyse_all(&task_in, &sites_in, params, any_fpu, &windows)
+    let (derived, verdicts, own_terms, quiet) = terms::analyse_all(&task_in, &sites_in, params, any_fpu, &windows)
         .ok_or_else(|| vec![reject("R29.6", "a term of the response-time analysis exceeds u64 (overflow)")])?;
     let restart_work = params.restart.max(params.stop);
     let floor_source = if restart_work > params.l_kernel { "Partition stop/restart work (R14.10)" } else { "L_kernel" };
@@ -429,7 +431,7 @@ pub fn prepare(
             j: d.j,
             e: d.e,
             intake: if t.is_periodic() { params.timer } else { params.irq },
-            events: params.timer.saturating_mul(if task_in[i].periodic { 2 } else if task_in[i].defer { 4 } else { 3 }),
+            events: params.timer.saturating_mul((if task_in[i].periodic { 0 } else if task_in[i].defer { 2 } else { 1 }) + u64::from(!quiet[i])),
             hk_period: params.hk_period,
             hk_cost: params.timer,
             stops_overruns: task_in[i].stops_overruns,
