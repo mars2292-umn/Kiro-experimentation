@@ -26,3 +26,26 @@ cd proofs/aeneas/controllaw
 ```
 
 The `.llbc` file is not committed (`.gitignore`); the Lean translation is.
+
+## The Analyzer's response-time fixed point (Verification_Plan 7.2)
+
+`lean/Rta/Rta.lean` is the Aeneas translation of `rta::fixpoint` and the two
+functions it calls, taken from `crates/rsk-analyzer` itself as rustc
+compiles it without Verus (the `verus!` macro erases the ghost code);
+`lean/Rta/Proofs.lean` holds the handwritten proofs. `lake build` in `lean/`
+checks both libraries.
+
+Regenerating the translation:
+
+```sh
+cd crates/rsk-analyzer
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from 'crate::rta::fixpoint' --dest-file /tmp/rta.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Rta /tmp/rta.llbc
+```
+
+`--lib` keeps Charon to the library target (the binary has no `rta` module
+of its own). Charon builds the crate's dependencies with its pinned nightly,
+`vstd` and the Verus macros among them; set `CARGO_TARGET_DIR` to keep that
+build out of the workspace's target directory.
+

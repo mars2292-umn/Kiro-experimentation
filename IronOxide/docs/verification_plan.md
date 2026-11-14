@@ -580,6 +580,26 @@ Designation: Creusot (ORQ-10, design.md). It is the only active candidate that c
 
 **Conclusion.** Aeneas fits the role the design gives it: small pure computations (control laws, validation functions of R42.4) for which a Lean-level functional proof, possibly against Mathlib, is wanted, as substitute evidence under R46.5 where the App_Prover cannot express a construct. It does not replace Creusot for Task bodies: Creusot proves the demo's bodies against the `rsk` API's contracts with no manual proof text, where Aeneas needs the proof written by hand and its translation needs the code shaped for it. The designation of section 7 stands.
 
+### 7.2 The Analyzer's fixed point on the code as compiled: Aeneas over the Verus-erased build (2026-11-14)
+
+**Question.** The Verus proof of `rta::fixpoint` (P-19, Property 16) is a proof about the source under Verus's reading of it; what runs is the same source compiled by rustc with the ghost code erased by the `verus!` macro. Can the erased build be given to Aeneas, and the result proven there, so that the response-time analysis is also proven sound against an independent model of its execution?
+
+**What was done.** Charon was run on `crates/rsk-analyzer` itself, not on a copy: `charon cargo --preset=aeneas --start-from 'crate::rta::fixpoint' -- --lib` compiles the crate and its dependencies (`vstd` and the Verus macro crates among them) with Charon's pinned nightly and no `cfg(verus_keep_ghost)`, so the macro emits the erased code, and extracts `fixpoint`, `interference_exec` and `ceil_div_exec` from the compiler's MIR. Aeneas renders them as three Lean functions (`proofs/aeneas/lean/Rta/Rta.lean`, generated, committed, 120 lines): the recursion as a `partial_fixpoint` definition, the loop as the library's `loop` over a body function, every arithmetic operation and the vector index as a fallible step. No source change was needed and nothing of Verus appears in the translation.
+
+**What is proven** (`proofs/aeneas/lean/Rta/Proofs.lean`, handwritten, about 200 lines; `lake build` checks it; no `sorry`; the axioms are Lean's `propext`, `Classical.choice`, `Quot.sound`):
+
+| Theorem | Statement |
+|---|---|
+| `ceil_div_exec_spec` | For `t > 0` the function returns, and a returned value is `⌈a / t⌉` |
+| `interference_exec_spec` | For positive periods and `from ≤ len` the function returns (the recursion ends, the index is in bounds, no operation overflows, the 128-bit product included), and a returned value is the interference sum of the terms from `from` |
+| `fixpoint_spec` | For positive periods `fixpoint` returns for every `base`, `jitter` and `deadline` (termination by `deadline - w`), and: `Fixpoint w` is a fixed point of `w = base + Σ ⌈(w + J_j) / T_j⌉ · E_j`, at most every fixed point, with `jitter + w ≤ deadline`; `NotSchedulable w` has `jitter + w > deadline` and `w` at most every fixed point; `Overflow` claims nothing |
+
+These are the clauses of the Verus contract, with termination and the absence of panics stated outright (in Verus they are side conditions of the function's verification). Two changes to the generated file were tried and both fail the build, as they must: the division's dividend replaced, and the returned fixed point replaced by `base`.
+
+**What it adds, and what it does not.** The two proofs share the Rust source and nothing else: Verus reasons about its own encoding of the source to an SMT solver; this proof reasons about rustc's MIR as Charon reads it and Aeneas's functional model of it, checked by Lean's kernel. An error in Verus's erasure, in its treatment of the `u64` and `u128` operations, or in its loop and recursion reasoning for this function would have to be matched by an error on this path to go unseen. It does not reach the machine code (rustc's back end and LLVM stay trusted, 9.3), it covers the three functions only (`terms::derive_all`, which builds their inputs, and `response_times`, which composes them, are not translated), and the recurrence is stated twice, in `rta.rs` and in `Proofs.lean` (`ceilDiv`, `interf`, `stepF`), their agreement by reading them. Aeneas and Charon are unreleased commits (7.1); no credit is claimed beyond that of a cross-check.
+
+**Findings.** (1) The erased build goes through Charon unchanged; the one obstacle was the crate's binary target, which has no `rta` module (`-- --lib`). (2) The proof effort was an afternoon's, most of it the shapes of the library's facts: `u64::MAX` appears in three spellings (`core.num.U64.MAX`, `U64.rMax`, `U64.max`) that `scalar_tac` does not connect by itself, and a specification stated with a `match` over the loop's control flow needs `WP.spec_mono` to meet `loop.spec_decr_nat`'s own `match`. (3) The mathematics is short over the naturals (monotonicity of the ceiling division and of the sum; an iterate below a fixed point stays below it), shorter than the Verus lemmas over the integers. (4) The step is not in the verification job beyond `lake build` of the committed translation: regenerating it needs Charon and its nightly, as for 7.1.
+
 ## 8. Tool qualification (R51)
 
 ### 8.1 Classification (R51.1, R51.2)
@@ -1082,6 +1102,7 @@ Review record: this plan (task 8.1) and its section 6 (task 6.3, Kani's limitati
 Open items for v2 (restated 2026-11-05; the items closed since the first draft are struck from the list, not kept):
 
 - proofs still partial at the logic level (9.5): the composition of the Analyzer (`response_times`: the fixed point per Task and the verdict of R29.5, plain Rust checked against the reference implementation) and the rational statement of R29.9; (the Analyzer's term derivation, R29.2 to R29.4 and R29.8, closed 2026-11-06: `terms::derive_all` proven, with the intake terms of R19.2 in `terms::terms_for`; the Kernel-owned peripherals of the layout proof, R16.2, closed 2026-11-05: the layout carries the PPB and the Kernel-owned peripherals as intervals outside every view)
+- (closed 2026-11-14, 7.2: the Verus-erased build of `rta::fixpoint` translated by Aeneas and proven in Lean against the recurrence, termination and absence of panics included); what would extend it: the same for `terms::derive_all`, and for `response_times` once it is inside `verus!`;
 - the proof mutation register: the three manual checks of 2026-10-14 never reproduced (9.2), and a full run of the 31 mutations before the next revision;
 - (closed 2026-11-06: the Kani flight-path restructuring and the harness bounds at the demo's size, 6.1 and 6.3; section 6 changed after the review record of 2026-11-05 and is to be re-read at the next sign-off);
 - (closed 2026-11-06: cross-solver confirmation for the App_Prover, two disjoint solver sets per configuration, 9.1);
