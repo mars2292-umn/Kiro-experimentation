@@ -3,10 +3,10 @@
   "records": [
     {
       "item": "part0.control",
-      "wcet_cycles": 28920,
+      "wcet_cycles": 28704,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -17,7 +17,7 @@
       ],
       "measured": {
         "runs": 366000,
-        "max_observed": 23136,
+        "max_observed": 22963,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -30,10 +30,10 @@
     },
     {
       "item": "part0.echo",
-      "wcet_cycles": 8790,
+      "wcet_cycles": 13259,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -44,7 +44,7 @@
       ],
       "measured": {
         "runs": 121999,
-        "max_observed": 7032,
+        "max_observed": 10607,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -57,10 +57,10 @@
     },
     {
       "item": "part0.sensor",
-      "wcet_cycles": 3693147,
+      "wcet_cycles": 3688165,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -71,7 +71,7 @@
       ],
       "measured": {
         "runs": 182822,
-        "max_observed": 2954517,
+        "max_observed": 2950532,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -84,10 +84,10 @@
     },
     {
       "item": "part1.log",
-      "wcet_cycles": 251672,
+      "wcet_cycles": 256768,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -98,7 +98,7 @@
       ],
       "measured": {
         "runs": 91500,
-        "max_observed": 201337,
+        "max_observed": 205414,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -111,10 +111,10 @@
     },
     {
       "item": "part1.pulse",
-      "wcet_cycles": 17673,
+      "wcet_cycles": 17923,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -124,8 +124,8 @@
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 203333,
-        "max_observed": 14138,
+        "runs": 203332,
+        "max_observed": 14338,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -138,10 +138,10 @@
     },
     {
       "item": "part2.filter",
-      "wcet_cycles": 23282,
+      "wcet_cycles": 19123,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -152,7 +152,7 @@
       ],
       "measured": {
         "runs": 146400,
-        "max_observed": 18625,
+        "max_observed": 15298,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -165,10 +165,10 @@
     },
     {
       "item": "part2.sampler",
-      "wcet_cycles": 39347,
+      "wcet_cycles": 28325,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -179,7 +179,7 @@
       ],
       "measured": {
         "runs": 36600,
-        "max_observed": 31477,
+        "max_observed": 22660,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -192,10 +192,10 @@
     },
     {
       "item": "part0.control#cs:state",
-      "wcet_cycles": 9760,
+      "wcet_cycles": 9865,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -206,7 +206,7 @@
       ],
       "measured": {
         "runs": 366000,
-        "max_observed": 7808,
+        "max_observed": 7892,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -219,10 +219,10 @@
     },
     {
       "item": "part0.control#cs:in_cs",
-      "wcet_cycles": 9922,
+      "wcet_cycles": 9632,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -233,7 +233,7 @@
       ],
       "measured": {
         "runs": 366000,
-        "max_observed": 7937,
+        "max_observed": 7705,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -246,10 +246,10 @@
     },
     {
       "item": "part0.sensor#cs:state",
-      "wcet_cycles": 970369,
+      "wcet_cycles": 967152,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -260,7 +260,7 @@
       ],
       "measured": {
         "runs": 182822,
-        "max_observed": 776295,
+        "max_observed": 773721,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -273,10 +273,10 @@
     },
     {
       "item": "part0.sensor#cs:in_cs",
-      "wcet_cycles": 9360,
+      "wcet_cycles": 8183,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -287,7 +287,7 @@
       ],
       "measured": {
         "runs": 365644,
-        "max_observed": 7488,
+        "max_observed": 6546,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -300,10 +300,10 @@
     },
     {
       "item": "part2.filter#cs:stats",
-      "wcet_cycles": 15822,
+      "wcet_cycles": 6959,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -314,7 +314,7 @@
       ],
       "measured": {
         "runs": 146400,
-        "max_observed": 12657,
+        "max_observed": 5567,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -327,10 +327,10 @@
     },
     {
       "item": "part2.sampler#cs:stats",
-      "wcet_cycles": 18669,
+      "wcet_cycles": 9800,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:30afa2ca0f4d636e1a4079c9d3da4800462688e3e9c654a0036e758e29ce56bf",
+      "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -341,7 +341,7 @@
       ],
       "measured": {
         "runs": 36600,
-        "max_observed": 14935,
+        "max_observed": 7840,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

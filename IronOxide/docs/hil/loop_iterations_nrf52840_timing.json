@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_timing",
-  "binary_hash": "sha256:a1487e9ef45399e31c4543046291d68867e538a4d805e1621a7ffa0de57a3159",
+  "binary_hash": "sha256:98e79676a9dc40eb2ccc6117380d1d105fc881753d90a63779bb672b52454c1e",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -18,31 +18,31 @@
     {
       "key": "loop:part0:sensor:hold",
       "file": "apps/p1-demo/part0/src/lib.rs",
-      "line": 310,
+      "line": 385,
       "function": "sensor",
       "label": "hold",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 1097,
+      "observed": 994,
       "verdict": "unreachable",
       "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
     {
       "key": "loop:part0:sensor:late",
       "file": "apps/p1-demo/part0/src/lib.rs",
-      "line": 348,
+      "line": 423,
       "function": "sensor",
       "label": "late",
       "bound": "50_000_000",
       "bound_value": 50000000,
-      "observed": 2992,
+      "observed": 2715,
       "verdict": "unreachable",
       "justification": "the injected late Job's 38 ms by the time base; the 50,000,000-iteration guard is the PR-16 backstop"
     },
     {
       "key": "loop:part1:spin_ms:spin",
       "file": "apps/p1-demo/part1/src/lib.rs",
-      "line": 30,
+      "line": 33,
       "function": "spin_ms",
       "label": "spin",
       "bound": "100_000_000",
@@ -54,7 +54,7 @@
     {
       "key": "loop:part1:log:drain",
       "file": "apps/p1-demo/part1/src/lib.rs",
-      "line": 179,
+      "line": 216,
       "function": "log",
       "label": "drain",
       "bound": "4",
@@ -66,12 +66,12 @@
     {
       "key": "loop:part1:log:busy",
       "file": "apps/p1-demo/part1/src/lib.rs",
-      "line": 280,
+      "line": 418,
       "function": "log",
       "label": "busy",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 275,
+      "observed": 250,
       "verdict": "unreachable",
       "justification": "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
@@ -90,7 +90,7 @@
     {
       "key": "loop:part2:filter:hold",
       "file": "apps/p1-demo/part2/src/lib.rs",
-      "line": 325,
+      "line": 335,
       "function": "filter",
       "label": "hold",
       "bound": "10_000_000",
