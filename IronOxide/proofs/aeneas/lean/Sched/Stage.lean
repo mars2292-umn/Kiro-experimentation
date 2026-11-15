@@ -2,7 +2,7 @@ import Sched.Window
 open Aeneas Aeneas.Std Result
 
 namespace P18
-open rsk_logic
+open rsk_kernel rsk_kernel.rsk_logic
 open rsk_analyzer (ceilDiv)
 
 variable {NT NR NL NP NS NE : Usize}
@@ -307,8 +307,7 @@ entry blocks the level, and every blocking entry is held by the Job on
 top. -/
 theorem busy_block {cfg : logic.Config NT NR NP} {P : Params} {st : St NT NR NL} (w : Wf cfg P st)
     (hNT : NT.val ≤ 256) (hprio : ∀ k, k < NT.val → 0 < prio cfg k)
-    {b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE}
-    (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+    (hne : ∀ u, ¬ Elig cfg st.s u)
     {i k : Nat} (hk : k ∈ lvl cfg i) (hpos : 0 < st.pend k + st.run k)
     (hnot : st.s.depth.val = 0 ∨ prio cfg (stk st.s (st.s.depth.val - 1)) < prio cfg i) :
     0 < st.s.depth.val ∧ (∃ p, blocking cfg i st.s p) ∧
@@ -333,10 +332,7 @@ theorem busy_block {cfg : logic.Config NT NR NP} {P : Params} {st : St NT NR NL}
   have hrel := (w.pend_iff k hkn).mp (by omega)
   let t : U8 := UScalar.ofNatCore k (by simp [UScalarTy.numBits]; omega)
   have htv : t.val = k := UScalar.ofNatCore_val_eq _
-  have hnot' : ¬ Elig cfg st.s t.val := by
-    intro he
-    have := (eligible_ok hm (hne t)).mpr he
-    cases this
+  have hnot' : ¬ Elig cfg st.s t.val := hne t.val
   rw [htv, elig_views] at hnot'
   have hceil : prio cfg k ≤ st.s.ceiling.val := by
     by_contra hc
@@ -771,8 +767,8 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         · intro p0 _ _
           rw [hκ', hκ]; unfold bv; dsimp only; omega
         · rw [hκ']; omega
-  | dispatch b t c s' hk0 hm he hmax hc hs =>
-    have helig := (eligible_ok hm he).mp rfl
+  | dispatch t c s' hk0 he hmax hc hs =>
+    have helig := he
     obtain ⟨htn, hr1, hj0, _, _⟩ := elig_views.mp helig
     obtain ⟨_, _, hrl, hjob, hstk, hdep, hlr, hld, hll, hlc⟩ := start_views hs
     have hrun : st.run t.val = 0 := by
@@ -857,7 +853,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         rw [hld, hstk' p0 hp0.1, Function.update_of_ne (hnt p0 hp0.1)]
         omega
       · rw [hκ']; omega
-  | lock b hm hne hk0 r a c s' hrun hrl hc ha hal hs =>
+  | lock hne hk0 r a c s' hrun hrl hc ha hal hs =>
     obtain ⟨⟨hrel, hjob, hstk, hdep⟩, hd1, hl, hll, hlr, hld, hlc⟩ := lock_views hs
     have htopn : stk st.s (st.s.depth.val - 1) < NT.val := w.stk_lt _ (by omega)
     have hjt : job st.s (stk st.s (st.s.depth.val - 1)) = 1 := (w.run_iff _ htopn).mp hrun
@@ -931,7 +927,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         intro hQ; apply hq'
         exact ⟨hQ.1, Or.inr ⟨htopn, hlow⟩⟩
       obtain ⟨k, hk, hpos⟩ := level_of_not_quiet hnq hk0
-      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hm hne hk hpos (Or.inr hlow)
+      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hne hk hpos (Or.inr hlow)
       obtain ⟨p0, hbp0, hmin, hle0⟩ := hblk.2 pb hpb
       have hc0 := hal p0 ⟨hbp0.1, hall p0 hbp0⟩
       have hκ' : ksLow cfg i { st with
@@ -982,7 +978,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
           simp only [ht1, ↓reduceIte]
           omega
         · rw [hκ']; unfold bv at hle0; omega
-  | unlock b hm hne hk0 r c s' hrun hru hc hal hs =>
+  | unlock hne hk0 r c s' hrun hru hc hal hs =>
     obtain ⟨⟨hrel, hjob, hstk, hdep⟩, hl1, hd1, _, _, hll, hlr, hld, hcl⟩ := unlock_views hs
     have htopn : stk st.s (st.s.depth.val - 1) < NT.val := w.stk_lt _ (by omega)
     have hjt : job st.s (stk st.s (st.s.depth.val - 1)) = 1 := (w.run_iff _ htopn).mp hrun
@@ -1042,7 +1038,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         intro hQ; apply hq'
         exact ⟨hQ.1, Or.inr ⟨htopn, hlow⟩⟩
       obtain ⟨k, hk, hpos⟩ := level_of_not_quiet hnq hk0
-      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hm hne hk hpos (Or.inr hlow)
+      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hne hk hpos (Or.inr hlow)
       obtain ⟨p0, hbp0, hmin, hle0⟩ := hblk.2 pb hpb
       have hc0 := hal p0 ⟨hbp0.1, hall p0 hbp0⟩
       have hκ' : ksLow cfg i { st with
@@ -1084,7 +1080,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
           simp only [ht1, ↓reduceIte]
           omega
         · rw [hκ']; unfold bv at hle0; omega
-  | svc b hm hne hk0 c hd hrun hre hal =>
+  | svc hne hk0 c hd hrun hre hal =>
     have htopn : stk st.s (st.s.depth.val - 1) < NT.val := w.stk_lt _ (by omega)
     have hjt : job st.s (stk st.s (st.s.depth.val - 1)) = 1 := (w.run_iff _ htopn).mp hrun
     obtain ⟨s0, β, hs0, hlt, hphi, hthird, hblk⟩ := hex (Or.inl hk0)
@@ -1132,7 +1128,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         intro hQ; apply hq'
         exact ⟨hQ.1, Or.inr ⟨htopn, hlow⟩⟩
       obtain ⟨k, hk, hpos⟩ := level_of_not_quiet hnq hk0
-      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hm hne hk hpos (Or.inr hlow)
+      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hne hk hpos (Or.inr hlow)
       obtain ⟨p0, hbp0, hmin, hle0⟩ := hblk.2 pb hpb
       have hc0 := hal p0 ⟨hbp0.1, hall p0 hbp0⟩
       have hκ' : ksLow cfg i { st with
@@ -1171,7 +1167,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
           simp only [ht1, ↓reduceIte]
           omega
         · rw [hκ']; unfold bv at hle0; omega
-  | bevent b hm hne hk0 c hd hrun hrb hc =>
+  | bevent hne hk0 c hd hrun hrb hc =>
     have htopn : stk st.s (st.s.depth.val - 1) < NT.val := w.stk_lt _ (by omega)
     have hjt : job st.s (stk st.s (st.s.depth.val - 1)) = 1 := (w.run_iff _ htopn).mp hrun
     obtain ⟨s0, β, hs0, hlt, hphi, hthird, hblk⟩ := hex (Or.inl hk0)
@@ -1217,7 +1213,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         intro hQ; apply hq'
         exact ⟨hQ.1, Or.inr ⟨htopn, hlow⟩⟩
       obtain ⟨k, hk, hpos⟩ := level_of_not_quiet hnq hk0
-      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hm hne hk hpos (Or.inr hlow)
+      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hne hk hpos (Or.inr hlow)
       obtain ⟨p0, hbp0, hmin, hle0⟩ := hblk.2 pb hpb
       have hκ' : ksLow cfg i { st with
           ks := c, kp := stk st.s (st.s.depth.val - 1),
@@ -1254,12 +1250,12 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
           omega
         · have h1 := hall p0 hbp0
           rw [hκ']; unfold bv at hle0; rw [h1] at hle0; omega
-  | idle b hm hne hk0 hj hd =>
+  | idle hne hk0 hj hd =>
     exfalso
     obtain ⟨k, hk, hpos⟩ := level_of_not_quiet hq' hk0
-    have := (busy_block w hNT hprio hm hne hk hpos (Or.inl hd)).1
+    have := (busy_block w hNT hprio hne hk hpos (Or.inl hd)).1
     omega
-  | exec b hm hne hk0 hj hd hr hal =>
+  | exec hne hk0 hj hd hr hal =>
     have htopn : stk st.s (st.s.depth.val - 1) < NT.val := w.stk_lt _ (by omega)
     have hle : ∀ k, st.pend k + (Function.update st.run (stk st.s (st.s.depth.val - 1)) (st.run (stk st.s (st.s.depth.val - 1)) - 1)) k
         ≤ st.pend k + st.run k := by
@@ -1314,7 +1310,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
     · have hlow : prio cfg (stk st.s (st.s.depth.val - 1)) < prio cfg i := by omega
       obtain ⟨k, hk, hpos'⟩ := level_of_not_quiet hq' hk0
       have hpos : 0 < st.pend k + st.run k := Nat.lt_of_lt_of_le hpos' (hle k)
-      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hm hne hk hpos (Or.inr hlow)
+      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hne hk hpos (Or.inr hlow)
       obtain ⟨p0, hbp0, hmin, hle0⟩ := hblk.2 pb hpb
       have hpos0 : 0 < st.allow p0 := hal p0 ⟨hbp0.1, hall p0 hbp0⟩
       refine Or.inr ⟨s0, β - 1, by dsimp only; omega, ?_, ?_, ?_⟩
@@ -1345,7 +1341,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
           simp only [ht1, ↓reduceIte]
           omega
         · rw [hκ']; unfold bv at hle0; omega
-  | finish b hm hne hk0 hj ov c r s' hd hr0 hr hov hc hal hs =>
+  | finish hne hk0 hj ov c r s' hd hr0 hr hov hc hal hs =>
     obtain ⟨h1, h2, h3, hrel, hjob, hstk, hdep, hlr, hld, hn, hpop, hkeep, hcl⟩ :=
       finish_top_views hs
     have hjt : job st.s (stk st.s (st.s.depth.val - 1)) = 1 := (w.run_iff _ h3).mp hr0
@@ -1441,7 +1437,7 @@ theorem level_step {cfg : logic.Config NT NR NP} {P : Params} {i R B : Nat} {dea
         dsimp only
         omega
       obtain ⟨k, hk, hpos⟩ := level_of_not_quiet hnq hk0
-      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hm hne hk hpos (Or.inr hlow)
+      obtain ⟨_, ⟨pb, hpb⟩, hall⟩ := busy_block w hNT hprio hne hk hpos (Or.inr hlow)
       obtain ⟨p0, hbp0, hmin, hle0⟩ := hblk.2 pb hpb
       have hc0 := hal p0 ⟨hbp0.1, hall p0 hbp0⟩
       have hκ' : ksLow cfg i { st with
@@ -1669,39 +1665,39 @@ theorem ND.step {cfg : logic.Config NT NR NP} {P : Params} {dead : Nat → Bool}
   | ktick hk0 hj =>
     intro hx q hq
     exact hnd hk0 q hq
-  | dispatch b t c s' hk0 hm he hmax hc hs =>
+  | dispatch t c s' hk0 he hmax hc hs =>
     intro _ q hq
     exfalso
     have := (start_views hs).1
     dsimp only at hq
     omega
-  | lock b hm hne hk0 r a c s' hrun hrl hc ha hal hs =>
+  | lock hne hk0 r a c s' hrun hrl hc ha hal hs =>
     intro _ q hq
     exfalso
     have := w.stk_lt (st.s.depth.val - 1) (by have := (lock_views hs).2.1; omega)
     dsimp only at hq
     omega
-  | unlock b hm hne hk0 r c s' hrun hru hc hal hs =>
+  | unlock hne hk0 r c s' hrun hru hc hal hs =>
     intro _ q hq
     exfalso
     have := w.stk_lt (st.s.depth.val - 1) (by have := (unlock_views hs).2.2.1; omega)
     dsimp only at hq
     omega
-  | svc b hm hne hk0 c hd hrun hre hal =>
+  | svc hne hk0 c hd hrun hre hal =>
     intro _ q hq
     exfalso
     have := w.stk_lt (st.s.depth.val - 1) (by omega)
     dsimp only at hq
     omega
-  | bevent b hm hne hk0 c hd hrun hrb hc =>
+  | bevent hne hk0 c hd hrun hrb hc =>
     intro _ q hq
     exfalso
     have := w.stk_lt (st.s.depth.val - 1) (by omega)
     dsimp only at hq
     omega
-  | idle b hm hne hk0 hj hd => exact hnd
-  | exec b hm hne hk0 hj hd hr hal => exact hnd
-  | finish b hm hne hk0 hj ov c r s' hd hr0 hr hov hc hal hs =>
+  | idle hne hk0 hj hd => exact hnd
+  | exec hne hk0 hj hd hr hal => exact hnd
+  | finish hne hk0 hj ov c r s' hd hr0 hr hov hc hal hs =>
     intro _ q hq
     exfalso
     have := w.stk_lt (st.s.depth.val - 1) (by omega)

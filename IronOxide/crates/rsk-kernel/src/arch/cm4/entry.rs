@@ -735,6 +735,8 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         forall|i: int| 0 <= i < old(k).spec_depth() ==> final(k).spec_stack(i) == old(k).spec_stack(i),
         final(k).spec_prio() == old(k).spec_prio(), final(k).spec_part() == old(k).spec_part(),
         super::plan::arch_frame(*final(state), *old(state)),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     hw.apply(Action::SetBasepri(k.basepri_now()));
     match k.next_compare() {
@@ -763,6 +765,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let mut t: usize = 0;
     while t < n
         invariant
+            state.last_switch == old(state).last_switch,
             k.inv(), *k == k1, n <= 255, t <= n, n as int == k1.task_count_spec(),
             tables_wf(tables, k1.task_count_spec()),
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
@@ -810,6 +813,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let mut p: usize = 0;
     while p < np
         invariant
+            state.last_switch == old(state).last_switch,
             k.inv(), np <= 255,
             k.top_level() == k1.top_level(), k.ceiling_level() == k1.ceiling_level(),
             k.spec_depth() == k1.spec_depth(),
@@ -1435,6 +1439,8 @@ fn clear_channels(state: &mut ArchState, e: usize)
         forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * 16 <= i < e as int * 16 + 16)
             ==> (#[trigger] final(state).fifos[i]) == old(state).fifos[i] && final(state).delivered[i] == old(state).delivered[i],
         final(state).peer_changed == old(state).peer_changed,
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let ghost before = *state;
     assert(MAX_ROLES * MAX_ROLES == 16) by (compute);
@@ -1532,12 +1538,15 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
         // other Endpoint's channel changes.
         forall|e: int| 0 <= e < MAX_ENDPOINTS && e < spec_endpoint_count_of(tables)
             ==> #[trigger] reinit_done(tables, *final(state), *old(state), e, p as int),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let ghost before = *state;
     let n = tables.endpoint_count();
     let mut e: usize = 0;
     while e < n && e < MAX_ENDPOINTS
         invariant e <= MAX_ENDPOINTS, n as int == spec_endpoint_count_of(tables),
+            state.last_switch == old(state).last_switch,
             super::plan::arch_frame(*state, *old(state)),
             forall|f: int| 0 <= f < e ==> #[trigger] reinit_done(tables, *state, before, f, p as int),
             forall|i: int| e as int * 16 <= i < MAX_CHANNELS
@@ -1561,6 +1570,7 @@ fn endpoint_reinit<T: Tables>(tables: &T, state: &mut ArchState, p: u8)
             let mut r: usize = 0;
             while r < MAX_ROLES
                 invariant r <= MAX_ROLES, e < MAX_ENDPOINTS,
+            state.last_switch == old(state).last_switch,
                     super::plan::arch_frame(*state, *old(state)),
                     state.fifos == s_c.fifos, state.delivered == s_c.delivered,
                     forall|i: int| 0 <= i < MAX_ROLE_SLOTS && s_c.peer_changed[i] ==> #[trigger] state.peer_changed[i],
@@ -1619,6 +1629,8 @@ fn channel_push(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
         forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
         final(state).peer_changed == old(state).peer_changed,
         super::plan::arch_frame(*final(state), *old(state)),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     if !state.fifos[ch].is_wf(cap) {
         state.fifos[ch].clear();
@@ -1644,6 +1656,8 @@ fn channel_pop(state: &mut ArchState, ch: usize, cap: u8) -> (slot: Option<u8>)
         forall|c: int| 0 <= c < MAX_CHANNELS && c != ch ==> final(state).fifos[c] == old(state).fifos[c],
         final(state).peer_changed == old(state).peer_changed,
         super::plan::arch_frame(*final(state), *old(state)),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     if !state.fifos[ch].is_wf(cap) {
         state.fifos[ch].clear();
@@ -1681,6 +1695,8 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
         forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
         forall|i: int| 0 <= i < MAX_CHANNELS && !(e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int) ==> #[trigger] final(state).delivered[i] == old(state).delivered[i],
         super::plan::arch_frame(*final(state), *old(state)),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let ghost before = *state;
     assert(e * (MAX_ROLES * MAX_ROLES) <= (MAX_ENDPOINTS - 1) * (MAX_ROLES * MAX_ROLES)) by (nonlinear_arith)
@@ -1736,6 +1752,8 @@ fn endpoint_reinit_one(state: &mut ArchState, e: usize)
 fn violation_core<K: KernelOps, T: Tables>(k: &mut K, tables: &T, state: &mut ArchState, arg: u32)
     requires old(k).inv(),
     ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let t = match k.top() {
         Some(t) => t,
@@ -1804,6 +1822,8 @@ fn rejection_core<K: KernelOps>(k: &mut K, state: &mut ArchState, cfg: &Endpoint
         !spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==> *final(state) == *old(state),
         spec_rejection_permitted(*cfg, *old(state), e as int, role as int, from as int) ==>
             forall|i: int| e as int * (MAX_ROLES * MAX_ROLES) as int <= i < (e as int + 1) * (MAX_ROLES * MAX_ROLES) as int ==> !(#[trigger] final(state).delivered[i]),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let ch = channel_index(e, from, role);
     if !(cfg.validates[role][from] && state.delivered[ch]) {
@@ -2061,6 +2081,8 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         // A-P2 (2026-11-09): an accepted send appends the message's first
         // word, its label, to the channel's label sequence.
         code == ENDPOINT_OK ==> send_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let (e, role, peer, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
@@ -2140,6 +2162,8 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         // A-P2 (2026-11-09): an accepted receive takes the oldest label of
         // the channel's label sequence and delivers that word first.
         r.0 == ENDPOINT_OK ==> recv_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, r.1@),
+        // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
+        final(state).last_switch == old(state).last_switch,
 {
     let (e, role, from, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
@@ -3376,6 +3400,8 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         super::plan::arch_frame(*final(state), *old(state)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
         final(hw).hw().view == old(hw).hw().view,
+        // HW-13 (2026-11-15): only the Job-end service takes a charge point.
+        number != SVC_JOB_END ==> final(state).last_switch == old(state).last_switch,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3491,6 +3517,12 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        // HW-13 (2026-11-15; Verification_Plan 7.3): the executing Job's cycle
+        // segment runs through its own lock, unlock, time-base, Endpoint,
+        // Release_Signal and EasyDMA calls: no charge point is taken and the
+        // segment's start is not moved, so the Kernel's time in the call is
+        // charged to the Job's Budget at its next charge point.
+        number != SVC_JOB_END ==> final(state).last_switch == old(state).last_switch,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);

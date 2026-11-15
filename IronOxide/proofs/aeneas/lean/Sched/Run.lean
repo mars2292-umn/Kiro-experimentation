@@ -2,7 +2,7 @@ import Sched.Views
 open Aeneas Aeneas.Std Result
 
 namespace P18
-open rsk_logic
+open rsk_kernel rsk_kernel.rsk_logic
 
 variable {NT NR NL NP NS NE : Usize}
 
@@ -83,9 +83,6 @@ jitter one unit on. -/
 def JitterOk (P : Params) (st : St NT NR NL) : Prop :=
   (∀ k a, st.jwait k = true → st.jl k = some a → st.now + 1 ≤ a + P.J k) ∧
   (∀ q a, st.ewait q = true → st.el q = some a → st.now + 1 ≤ a + P.EJ q)
-
-abbrev eligibleFn {NT NR NP NL NS NE : Usize} :=
-  @_root_.rsk_kernel.arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible NT NR NP NL NS NE
 
 /-- The lock entries of the Job on top of the stack. -/
 def topEntry (s : logic.sched.Sched NT NR NL) (p : Nat) : Prop :=
@@ -195,11 +192,10 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         s := s', ewait := Function.update st.ewait q false, ks := c, kp := NT.val + q }
   | ktick (st : St NT NR NL) (hk : 0 < st.ks) (hj : JitterOk P st) :
       Step cfg P st { st with now := st.now + 1, ks := st.ks - 1 }
-  | dispatch (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE) (t : U8) (c : Nat)
+  | dispatch (st : St NT NR NL) (t : U8) (c : Nat)
       (s' : logic.sched.Sched NT NR NL)
       (hk : st.ks = 0)
-      (hm : Matches b cfg st.s) (he : eligibleFn b t = ok true)
+      (he : Elig cfg st.s t.val)
       (hmax : ∀ u, Elig cfg st.s u → prio cfg u ≤ prio cfg t.val)
       (hc : c ≤ P.Kd)
       (hs : logic.sched.Sched.start st.s cfg t = ok s') :
@@ -211,9 +207,8 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         ru := Function.update st.ru t.val (P.S t.val),
         re := Function.update st.re t.val (P.EP t.val),
         rb := Function.update st.rb t.val 1 }
-  | lock (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | lock (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0)
       (r : U8) (a c : Nat) (s' : logic.sched.Sched NT NR NL)
       (hrun : 0 < st.run (stk st.s (st.s.depth.val - 1)))
@@ -228,9 +223,8 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         ks := c, kp := stk st.s (st.s.depth.val - 1),
         rl := Function.update st.rl (stk st.s (st.s.depth.val - 1))
           (st.rl (stk st.s (st.s.depth.val - 1)) - 1) }
-  | unlock (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | unlock (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0)
       (r : U8) (c : Nat) (s' : logic.sched.Sched NT NR NL)
       (hrun : 0 < st.run (stk st.s (st.s.depth.val - 1)))
@@ -243,9 +237,8 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         ks := c, kp := stk st.s (st.s.depth.val - 1),
         ru := Function.update st.ru (stk st.s (st.s.depth.val - 1))
           (st.ru (stk st.s (st.s.depth.val - 1)) - 1) }
-  | svc (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | svc (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0) (c : Nat)
       (hd : 0 < st.s.depth.val)
       (hrun : 0 < st.run (stk st.s (st.s.depth.val - 1)))
@@ -256,9 +249,8 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         ks := c, kp := stk st.s (st.s.depth.val - 1),
         re := Function.update st.re (stk st.s (st.s.depth.val - 1))
           (st.re (stk st.s (st.s.depth.val - 1)) - c) }
-  | bevent (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | bevent (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0) (c : Nat)
       (hd : 0 < st.s.depth.val)
       (hrun : 0 < st.run (stk st.s (st.s.depth.val - 1)))
@@ -267,15 +259,13 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         ks := c, kp := stk st.s (st.s.depth.val - 1),
         rb := Function.update st.rb (stk st.s (st.s.depth.val - 1))
           (st.rb (stk st.s (st.s.depth.val - 1)) - 1) }
-  | idle (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | idle (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0) (hj : JitterOk P st)
       (hd : st.s.depth.val = 0) :
       Step cfg P st { st with now := st.now + 1 }
-  | exec (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | exec (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0) (hj : JitterOk P st)
       (hd : 0 < st.s.depth.val) (hr : 1 < st.run (stk st.s (st.s.depth.val - 1)))
       (hal : ∀ p, topEntry st.s p → 0 < st.allow p) :
@@ -284,9 +274,8 @@ inductive Step (cfg : logic.Config NT NR NP) (P : Params) : St NT NR NL → St N
         run := Function.update st.run (stk st.s (st.s.depth.val - 1))
           (st.run (stk st.s (st.s.depth.val - 1)) - 1),
         allow := deduct st.s st.allow 1 }
-  | finish (st : St NT NR NL) {NS NE : Usize}
-      (b : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE)
-      (hm : Matches b cfg st.s) (hne : ∀ t : U8, eligibleFn b t = ok false)
+  | finish (st : St NT NR NL)
+      (hne : ∀ u, ¬ Elig cfg st.s u)
       (hk : st.ks = 0) (hj : JitterOk P st)
       (ov : Bool) (c : Nat) (r : Usize) (s' : logic.sched.Sched NT NR NL)
       (hd : 0 < st.s.depth.val)
@@ -514,8 +503,8 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       obtain ⟨a, ha, _⟩ := w.ewait_inv k hk
       exact ⟨a, ha, hj.2 k a hk ha⟩
     · intro hx; exact w.kp_lt (by omega)
-  | dispatch b t c s' hk0 hm he hmax hc hs =>
-    obtain ⟨_, hr1, hj0, hcl, htop⟩ := elig_views.mp ((eligible_ok hm he).mp rfl)
+  | dispatch t c s' hk0 he hmax hc hs =>
+    obtain ⟨_, hr1, hj0, hcl, htop⟩ := elig_views.mp he
     obtain ⟨ht, hdl, hrl, hjob, hstk, hdep, hlr, hld, hll, hlc⟩ := start_views hs
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, w.jwait_inv, w.ewait_inv, ?_, ?_⟩ <;>
       dsimp only
@@ -581,7 +570,7 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       · subst h; simp
       · rw [Function.update_of_ne h]; exact w.rb_le k
     · intro _; omega
-  | lock b hm hne hk0 r a c s' hrun hrl hc ha hal hs =>
+  | lock hne hk0 r a c s' hrun hrl hc ha hal hs =>
     obtain ⟨⟨hrel, hjob, hstk, hdep⟩, hd1, hl, hll, hlr, hld, hlc⟩ := lock_views hs
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, w.jwait_inv, w.ewait_inv, w.rb_le,
       ?_⟩ <;> dsimp only
@@ -635,7 +624,7 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       · simp only [h, ite_false]; rw [Function.update_of_ne h]
         exact Nat.le_trans (deduct_le _ _ _ _) (w.allow_le p (by omega))
     · intro _; have := w.stk_lt (st.s.depth.val - 1) (by omega); omega
-  | unlock b hm hne hk0 r c s' hrun hru hc hal hs =>
+  | unlock hne hk0 r c s' hrun hru hc hal hs =>
     obtain ⟨⟨hrel, hjob, hstk, hdep⟩, hl1, hd1, _, _, hll, hlr, hld, hcl⟩ := unlock_views hs
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, w.jwait_inv, w.ewait_inv, w.rb_le,
       ?_⟩ <;> dsimp only
@@ -653,12 +642,12 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
     · intro p hp; rw [hll] at hp; rw [hld, hlr, hstk]
       exact Nat.le_trans (deduct_le _ _ _ _) (w.allow_le p (by omega))
     · intro _; have := w.stk_lt (st.s.depth.val - 1) (by omega); omega
-  | svc b hm hne hk0 c hd hrun hre hal =>
+  | svc hne hk0 c hd hrun hre hal =>
     refine ⟨w.depth_le, w.stk_lt, w.sorted, w.on_stack, w.run_iff, w.pend_iff, w.ceil_is,
       w.ldep_lt, w.ldep_mono, w.srp, ?_, w.jwait_inv, w.ewait_inv, w.rb_le, ?_⟩ <;> dsimp only
     · intro p hp; exact Nat.le_trans (deduct_le _ _ _ _) (w.allow_le p hp)
     · intro _; have := w.stk_lt (st.s.depth.val - 1) (by omega); omega
-  | bevent b hm hne hk0 c hd hrun hrb hc =>
+  | bevent hne hk0 c hd hrun hrb hc =>
     refine ⟨w.depth_le, w.stk_lt, w.sorted, w.on_stack, w.run_iff, w.pend_iff, w.ceil_is,
       w.ldep_lt, w.ldep_mono, w.srp, w.allow_le, w.jwait_inv, w.ewait_inv, ?_, ?_⟩ <;>
       dsimp only
@@ -667,7 +656,7 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
       · subst h; simp only [Function.update_self]; have := w.rb_le (stk st.s (st.s.depth.val - 1)); omega
       · rw [Function.update_of_ne h]; exact w.rb_le k
     · intro _; have := w.stk_lt (st.s.depth.val - 1) (by omega); omega
-  | idle b hm hne hk0 hj hd =>
+  | idle hne hk0 hj hd =>
     refine ⟨w.depth_le, w.stk_lt, w.sorted, w.on_stack, w.run_iff, w.pend_iff, w.ceil_is,
       w.ldep_lt, w.ldep_mono, w.srp, w.allow_le, ?_, ?_, w.rb_le, w.kp_lt⟩ <;> dsimp only
     · intro k hk
@@ -676,7 +665,7 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
     · intro k hk
       obtain ⟨a, ha, _⟩ := w.ewait_inv k hk
       exact ⟨a, ha, hj.2 k a hk ha⟩
-  | exec b hm hne hk0 hj hd hr hal =>
+  | exec hne hk0 hj hd hr hal =>
     refine ⟨w.depth_le, w.stk_lt, w.sorted, w.on_stack, ?_, w.pend_iff, w.ceil_is,
       w.ldep_lt, w.ldep_mono, w.srp, ?_, ?_, ?_, w.rb_le, w.kp_lt⟩ <;> dsimp only
     · intro k hk
@@ -692,7 +681,7 @@ theorem Wf.step {cfg : logic.Config NT NR NP} {P : Params} {st st' : St NT NR NL
     · intro k hk
       obtain ⟨a, ha, _⟩ := w.ewait_inv k hk
       exact ⟨a, ha, hj.2 k a hk ha⟩
-  | finish b hm hne hk0 hj ov c r s' hd hr0 hr hov hc hal hs =>
+  | finish hne hk0 hj ov c r s' hd hr0 hr hov hc hal hs =>
     have w1 := w.kend hs
     obtain ⟨h1, h2, h3, _⟩ := finish_top_views hs
     refine ⟨w1.depth_le, w1.stk_lt, w1.sorted, w1.on_stack, w1.run_iff, w1.pend_iff, w1.ceil_is,

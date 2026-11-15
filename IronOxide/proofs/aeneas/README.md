@@ -61,61 +61,83 @@ target directory. A local variable of the Rust source named like a module
 (`terms`, `rta`) shadows the module in the generated Lean and breaks it:
 `response_of` names its terms `own_terms` for that reason.
 
-## Property 18 over the Kernel's scheduler (Verification_Plan 7.3)
+## Property 18 over the Kernel's own functions (Verification_Plan 7.3)
 
-`lean/Sched/Sched.lean` is the Aeneas translation of the Kernel's scheduler
-state functions (`crates/rsk-logic/src/logic/sched.rs`: `new`,
-`make_pending`, `defer`, `clear_release`, `start`, `finish_top`, `lock`,
-`unlock`, `kill` and what they call), and `lean/Sched/Eligible.lean` that
-of the eligibility test as executed (`Bound::eligible`,
-`crates/rsk-kernel/src/arch/bound.rs`), both from the Verus-erased build.
+`lean/Sched/Kernel.lean` is the Aeneas translation of the Kernel's entry
+points as `rsk-kernel` gives them to Kernel_Arch (`KernelOps` for `Bound`,
+`crates/rsk-kernel/src/arch/bound.rs`: `init`, `start`, `eligible`,
+`select`, `dispatch`, `job_return`, `svc_lock`, `svc_unlock`, `intake`,
+`timer_event`) and of everything in `rsk_logic::logic` they call: the
+scheduler state functions and `select` (`logic/sched.rs`), the Kernel's
+transitions (`logic/kernel.rs`: `dispatch`, `job_return`, `svc_lock`,
+`svc_unlock`, `intake_release`, `periodic_release`, `deferred_release`,
+`deadline_miss`, `budget_event`, `apply_response`, ...), `Timing`, `Slots`,
+`Budget` and `Log`. One translation, from the Verus-erased build.
+
 The handwritten files:
 
 - `lean/Sched/Model.lean`, `lean/Sched/Locks.lean`: what each extracted
-  function returns (`make_pending_ok`, `defer_ok`, `clear_release_ok`,
-  `kill_ok`, `start_ok`, `eligible_ok`, `lock_ok`, `unlock_ok`,
-  `finish_top_ok`), and the correspondence between the two translations'
-  copies of the Kernel's types;
+  `Sched` function returns (`make_pending_ok`, `defer_ok`,
+  `clear_release_ok`, `kill_ok`, `start_ok`, `lock_ok`, `unlock_ok`,
+  `finish_top_ok`) and what the eligibility test returns (`eligible_ok`);
 - `lean/Sched/Views.lean`: the scheduler state as functions over the
   naturals;
-- `lean/Sched/Run.lean`: the run (`Step`, `Reach`): the Kernel's
-  transitions as the scheduler sees them, each Kernel section at the
-  transition where the Kernel executes it, and the structure of the
-  scheduler state in a run, the Stack Resource Policy included
-  (`Wf.step`);
+- `lean/Sched/Run.lean`: the specification-level run (`Step`, `Reach`):
+  the scheduler state's transitions, each Kernel section at its
+  transition, and the structure of the scheduler state in a run, the
+  Stack Resource Policy included (`Wf.step`);
 - `lean/Sched/Window.lean`: the busy-window argument over the naturals;
 - `lean/Sched/Stage.lean`: the bound over the run (`stage4`);
 - `lean/Sched/Link.lean`: the run's parameters from the Analyzer's inputs
   (`runParams`) and the bound with the response time `analyse_all` reports
-  (`property18`).
+  (`property18`);
+- `lean/Sched/Entry.lean`, `lean/Sched/Calls.lean`, `lean/Sched/Select.lean`:
+  what the Kernel's own functions do to the scheduler state whenever they
+  return (`dispatch_eff`, `job_return_eff`, `svc_lock_eff`,
+  `svc_unlock_eff`, `periodic_release_eff`, `deferred_release_eff`,
+  `deadline_miss_eff`, `intake_release_eff`, `apply_response_r`,
+  `select_some`, `select_none`), and two facts on the code alone
+  (`intake_decision_accept`, `budget_event_reported`);
+- `lean/Sched/KRun.lean`: the run over the Kernel's functions (`KStep`,
+  `KReach`), the proof that each such run is a specification-level run
+  (`ksim`), and `property18_kernel`.
 
-The Kernel's own transition functions (`Kernel::timer_event`, `intake`,
-`budget_event`, `dispatch`, `job_return`, the SVC services) do not
-translate (the plan says why); the run composes the extracted scheduler
-functions as those functions do, by hand, and the plan lists each such
-composition and every hypothesis of the run.
+The plan lists the transitions that are still modelled by hand and every
+condition of the run.
 
-Regenerating the translations:
+Regenerating the translation:
 
 ```sh
-cd crates/rsk-logic
+cd crates/rsk-kernel
+I='{impl crate::arch::bound::KernelOps for _}'
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from 'crate::logic::sched::_::new,crate::logic::sched::_::make_pending,crate::logic::sched::_::start,crate::logic::sched::_::finish_top,crate::logic::sched::_::lock,crate::logic::sched::_::unlock,crate::logic::sched::_::defer,crate::logic::sched::_::clear_release,crate::logic::sched::_::kill' \
-    --dest-file /tmp/sched.llbc -- --lib
-../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Sched /tmp/sched.llbc
-
-cd ../rsk-kernel
-../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from '{impl crate::arch::bound::KernelOps for _}::eligible' \
-    --include 'rsk_logic::logic::sched::REL_PENDING' --include 'rsk_logic::logic::sched::JOB_NONE' \
+    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event" \
+    --include 'rsk_logic::logic::kernel' --include 'rsk_logic::logic::sched' \
+    --include 'rsk_logic::logic::time' --include 'rsk_logic::logic::budget' \
+    --include 'rsk_logic::logic::log' --include 'rsk_logic::logic::mpu' \
+    --include 'rsk_logic::logic::_' \
+    --opaque 'rsk_logic::logic::kernel::_::no_history' \
     --include 'vstd::seq::Seq' --include 'verus_builtin::Ghost' --include 'verus_builtin::Tracked' \
-    --dest-file /tmp/eligible.llbc -- --lib
-../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Sched /tmp/eligible.llbc
+    --dest-file /tmp/kernel.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Sched /tmp/kernel.llbc
 ```
 
-The `--include` options make Charon translate the two constants and the
-erased ghost types; without them Aeneas declares them as axioms. An
-inherent method is named `crate::module::_::name`, a trait method
-`{impl Trait for _}::name`. `Sched::select` is left out: Aeneas does not
-translate its loop (the run states its choice, the eligible Task of
-highest Priority, as a condition of the dispatch).
+The name of the `.llbc` file gives the Lean file's name (`Kernel.lean`).
+The `--include` options make Charon translate the bodies of the
+dependency's items and the erased ghost types (without them Aeneas
+declares axioms); an inherent method is named `crate::module::_::name`, a
+trait method `{impl Trait for _}::name`, and a `--start-from` must name an
+item of the crate being compiled (Charon panics on a dependency's). Aeneas
+reports errors for `Config::validate`, `Layout::validate` and their
+helpers, which the include pattern names and nothing extracted calls
+(breaks and continues to outer loops); they are not in the output.
+`no_history` (the empty ghost history of `Kernel::new`) is kept opaque: its
+body constructs a `Ghost` value, which the erased build turns into a
+closure that Aeneas does not translate. It is the one `axiom` of the file;
+`property18_kernel` does not depend on it (`#print axioms`).
+
+What Aeneas needs of the source, found on this code: no `Ghost(..)`
+expression in a function to translate (ghost state is assigned in `proof`
+blocks); no `Option` carried across loop iterations (`Sched::select`
+carries an index); an `if` whose branches are a literal and a comparison
+gets the type of a proposition (each branch a literal).

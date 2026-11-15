@@ -578,6 +578,113 @@ fn one_timer_event_ends_two_jobs_when_the_resumed_job_crossed_its_budget_at_a_pr
     assert!(k.sched.job[l] == JOB_NONE && k.sched.job[s] == JOB_NONE);
 }
 
+/// Verification_Plan 7.3 (2026-11-15), the Critical_Section bound of a
+/// Partition that stops overrunning Jobs (Budget + Δ_detect + Δ_enforce,
+/// R29.2): the Kernel calls a Job makes inside a Critical_Section do not
+/// move its Budget event, and that event ends the Job and the section.
+/// `sampler` (part2, END_JOB, Budget 12,500 cycles) takes `stats`; its
+/// Budget event is armed at its dispatch for instant 3,125 (12,500 cycles
+/// at 4 per tick); any two lock or unlock calls it makes inside the
+/// section but the unlock that ends it (each refused: PR-07, R8.10) leave
+/// the section open and the event armed for the same instant; at that
+/// event, with the account above the Budget (the Job's cycle segment runs
+/// through its own Kernel calls, HW-13: `svc_core` moves no charge point,
+/// proven in rsk-kernel), the Job is ended and `stats` released within the
+/// entry.
+#[kani::proof]
+#[kani::unwind(25)]
+fn a_critical_section_ends_at_the_budget_event_whatever_kernel_calls_the_job_makes() {
+    let mut cfg = config();
+    cfg.tasks[CONTROL as usize].offset = 200_000;
+    cfg.tasks[LOG as usize].offset = 300_000;
+    cfg.tasks[FILTER as usize].offset = 400_000;
+    assert!(cfg.validate());
+    let s = SAMPLER as usize;
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(SAMPLER));
+    k.dispatch(&cfg, SAMPLER, 0);
+    let slot = cfg.slot_budget[s] as usize;
+    assert!(k.slots.slots[slot].armed && k.slots.slots[slot].at == 3_125);
+    assert!(k.svc_lock(&cfg, STATS));
+    assert!(k.sched.lock_len == 1 && k.sched.ceiling == cfg.resources[STATS as usize].ceiling);
+    let mut n = 0;
+    while n < 2 {
+        let r: u8 = kani::any();
+        kani::assume((r as usize) < NR);
+        if kani::any() {
+            let _ = k.svc_lock(&cfg, r);
+        } else {
+            kani::assume(r != STATS);
+            let _ = k.svc_unlock(&cfg, r);
+        }
+        n += 1;
+    }
+    assert!(k.sched.lock_len == 1 && k.sched.lock_res[0] == STATS && k.sched.job[s] == JOB_RUNNING);
+    assert!(k.slots.slots[slot].armed && k.slots.slots[slot].at == 3_125);
+    let c: u32 = kani::any();
+    kani::assume(c > cfg.tasks[s].budget);
+    k.timer_event(&cfg, 3_125, c);
+    assert!(k.sched.job[s] == JOB_NONE && k.sched.depth == 0);
+    assert!(k.sched.lock_len == 0 && k.sched.ceiling == 0);
+}
+
+/// The demo's Kernel with `sampler` dispatched at instant 0 and `log`'s
+/// first Release at `log_offset`.
+fn sampler_dispatched(log_offset: u64) -> (Config<NT, NR, NP>, super::kernel::Kernel<NT, NR, NP, NL, NS, NE>) {
+    let mut cfg = config();
+    cfg.tasks[CONTROL as usize].offset = 200_000;
+    cfg.tasks[FILTER as usize].offset = 400_000;
+    cfg.tasks[LOG as usize].offset = log_offset;
+    assert!(cfg.validate());
+    let mut k = super::kernel::Kernel::<NT, NR, NP, NL, NS, NE>::new(&cfg);
+    k.start(&cfg);
+    k.timer_event(&cfg, 0, 0);
+    assert!(k.select(&cfg) == Some(SAMPLER));
+    k.dispatch(&cfg, SAMPLER, 0);
+    (cfg, k)
+}
+
+/// Verification_Plan 7.3 (2026-11-15), finding: a Budget event IS taken
+/// with a dispatch pending, and what holds instead. `log` (Priority 2)
+/// becomes due at `sampler`'s Budget instant (3,125): the one timer entry
+/// serves `log`'s release slot (9) before `sampler`'s Budget slot (20),
+/// so `sampler`'s Budget event is handled while `log`'s dispatch is
+/// pending. The Kernel is then left as it is when the Budget event is
+/// served alone and the Release one tick later (the order the run of
+/// Property 18 takes: the Budget event, then the Release): the same
+/// scheduler state, Budget accounts and selection, whether the event finds
+/// an Overrun (`c` above the Budget: END_JOB ends `sampler`) or not.
+#[kani::proof]
+#[kani::unwind(25)]
+fn a_budget_event_served_with_a_dispatch_pending_leaves_the_state_of_the_event_served_first() {
+    let c: u32 = kani::any();
+    // One entry: the Release, then the Budget event with `log`'s dispatch pending.
+    let (cfg_a, mut a) = sampler_dispatched(3_125);
+    a.timer_event(&cfg_a, 3_125, c);
+    // Two entries: the Budget event alone, then the Release.
+    let (cfg_b, mut b) = sampler_dispatched(3_126);
+    b.timer_event(&cfg_b, 3_125, c);
+    b.timer_event(&cfg_b, 3_126, 0);
+    assert!(a.select(&cfg_a) == Some(LOG) && b.select(&cfg_b) == Some(LOG));
+    assert!(a.sched.depth == b.sched.depth);
+    assert!(a.sched.ceiling == b.sched.ceiling && a.sched.lock_len == b.sched.lock_len);
+    assert!(a.safe_state == b.safe_state);
+    let mut t = 0;
+    while t < NT {
+        assert!(a.sched.release[t] == b.sched.release[t] && a.sched.job[t] == b.sched.job[t]);
+        assert!(a.sched.stack[t] == b.sched.stack[t]);
+        assert!(a.budget.used[t] == b.budget.used[t] && a.budget.reported[t] == b.budget.reported[t]);
+        t += 1;
+    }
+    let mut p = 0;
+    while p < NP {
+        assert!(a.stopped[p] == b.stopped[p]);
+        p += 1;
+    }
+}
+
 /// The demo's `CONFIG` for the Kernel_Arch harness of rsk-kernel
 /// (`arch_records_match_the_stack_over_kernel_entries`): the same literal,
 /// so that the R45.8 rule covers both.

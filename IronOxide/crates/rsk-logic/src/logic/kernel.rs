@@ -662,7 +662,21 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             ==> (cfg.slot_release[u] as int) < cfg.slot_count - 2
                 && cfg.slot_release[u] != cfg.slot_deadline[t] && cfg.slot_release[u] != cfg.slot_budget[t]
                 && (u != t ==> cfg.slot_release[u] != cfg.slot_release[t]),
+            // 2026-11-15: no Task's Budget slot is `t`'s deadline slot, its
+            // release or deferral slot, or a reserved slot.
+            forall|u: int| 0 <= u < NT ==> (#[trigger] cfg.slot_budget[u] as int) < cfg.slot_count - 2
+                && cfg.slot_budget[u] != cfg.slot_deadline[t]
+                && ((cfg.tasks[t].kind == KIND_PERIODIC || cfg.tasks[t].mit_policy == MIT_DEFER) ==> cfg.slot_budget[u] != cfg.slot_release[t]),
     {
+        assert forall|u: int| 0 <= u < NT implies (#[trigger] cfg.slot_budget[u] as int) < cfg.slot_count - 2
+                && cfg.slot_budget[u] != cfg.slot_deadline[t]
+                && ((cfg.tasks[t].kind == KIND_PERIODIC || cfg.tasks[t].mit_policy == MIT_DEFER) ==> cfg.slot_budget[u] != cfg.slot_release[t]) by {
+            assert(cfg.slot_ok(u));
+            assert(cfg.slot_ok(t));
+            if u != t {
+                assert(cfg.slots_distinct(t, u));
+            }
+        }
         assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
             implies (cfg.slot_release[u] as int) < cfg.slot_count - 2
                 && cfg.slot_release[u] != cfg.slot_deadline[t] && cfg.slot_release[u] != cfg.slot_budget[t]
@@ -694,8 +708,33 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             forall|j: int| 0 <= j < NS && j != i ==> after.slots.slots[j] == before.slots.slots[j],
             !after.slots.slots[i].armed, after.timing.nominal == before.timing.nominal,
         ensures after.release_slots_consistent(cfg),
+            // 2026-11-15, `budget_slots_owned`: kept with the same stack; and
+            // with the executing Job's Budget slot disarmed, none is armed.
+            before.budget_slots_owned(cfg) && after.sched.depth == before.sched.depth && after.sched.stack == before.sched.stack
+                ==> after.budget_slots_owned(cfg),
+            before.budget_slots_owned(cfg) && (before.sched.depth == 0 || i == cfg.slot_budget[before.sched.top()] as int)
+                ==> after.no_budget_slot_armed(cfg),
+            before.no_budget_slot_armed(cfg) ==> after.no_budget_slot_armed(cfg),
     {
         Self::lemma_consistent_from(before, after, cfg, i);
+        if before.budget_slots_owned(cfg) && (before.sched.depth == 0 || i == cfg.slot_budget[before.sched.top()] as int) {
+            assert forall|u: int| 0 <= u < NT implies !#[trigger] after.slots.slots[cfg.slot_budget[u] as int].armed by {
+                assert(cfg.slot_ok(u));
+            }
+        }
+        if before.no_budget_slot_armed(cfg) {
+            assert forall|u: int| 0 <= u < NT implies !#[trigger] after.slots.slots[cfg.slot_budget[u] as int].armed by {
+                assert(cfg.slot_ok(u));
+                assert(!before.slots.slots[cfg.slot_budget[u] as int].armed);
+            }
+        }
+        if before.budget_slots_owned(cfg) && after.sched.depth == before.sched.depth && after.sched.stack == before.sched.stack {
+            assert forall|u: int| 0 <= u < NT && #[trigger] after.slots.slots[cfg.slot_budget[u] as int].armed
+                implies after.sched.depth > 0 && after.sched.top() == u by {
+                assert(cfg.slot_ok(u));
+                assert(before.slots.slots[cfg.slot_budget[u] as int].armed);
+            }
+        }
     }
 
     /// `release_slots_consistent` after a slot that is no Periodic_Task's
@@ -706,8 +745,74 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             after.slots.slots[i].kind != SLOT_RELEASE, after.timing.nominal == before.timing.nominal,
             forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC ==> (cfg.slot_release[u] as int) != i,
         ensures after.release_slots_consistent(cfg),
+            // 2026-11-15, `budget_slots_owned`: kept when slot `i` is no
+            // Task's Budget slot.
+            before.budget_slots_owned(cfg) && after.sched.depth == before.sched.depth && after.sched.stack == before.sched.stack
+                && (forall|u: int| 0 <= u < NT ==> (#[trigger] cfg.slot_budget[u] as int) != i)
+                ==> after.budget_slots_owned(cfg),
+            before.no_budget_slot_armed(cfg) && (forall|u: int| 0 <= u < NT ==> (#[trigger] cfg.slot_budget[u] as int) != i)
+                ==> after.no_budget_slot_armed(cfg),
     {
         Self::lemma_consistent_from(before, after, cfg, i);
+        Self::lemma_owned_other(before, after, cfg, i);
+    }
+
+    /// `budget_slots_owned` after an armed slot is armed again, or after
+    /// the executing Job's Budget slot is armed.
+    pub proof fn lemma_owned_rearm(before: &Self, after: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS, 0 <= i < NS, before.budget_slots_owned(cfg),
+            forall|j: int| 0 <= j < NS && j != i ==> after.slots.slots[j] == before.slots.slots[j],
+            after.sched.depth == before.sched.depth, after.sched.stack == before.sched.stack,
+            before.slots.slots[i].armed
+                || (before.sched.depth > 0 && 0 <= before.sched.top() < NT && i == cfg.slot_budget[before.sched.top()] as int),
+        ensures after.budget_slots_owned(cfg),
+    {
+        assert forall|u: int| 0 <= u < NT && #[trigger] after.slots.slots[cfg.slot_budget[u] as int].armed
+            implies after.sched.depth > 0 && after.sched.top() == u by {
+            assert(cfg.slot_ok(u));
+            if (cfg.slot_budget[u] as int) != i {
+                assert(before.slots.slots[cfg.slot_budget[u] as int].armed);
+            } else if before.slots.slots[i].armed {
+                assert(before.slots.slots[cfg.slot_budget[u] as int].armed);
+            } else {
+                let tp = before.sched.top();
+                if u != tp {
+                    assert(0 <= tp < NT);
+                    assert(cfg.slots_distinct(u, tp));
+                }
+            }
+        }
+    }
+
+    /// `budget_slots_owned` and `no_budget_slot_armed` after a change to a
+    /// slot that is no Task's Budget slot.
+    pub proof fn lemma_owned_other(before: &Self, after: &Self, cfg: &Config<NT, NR, NP>, i: int)
+        requires cfg.wf(), (cfg.slot_count as int) == NS, 0 <= i < NS,
+            forall|j: int| 0 <= j < NS && j != i ==> after.slots.slots[j] == before.slots.slots[j],
+        ensures
+            before.budget_slots_owned(cfg) && after.sched.depth == before.sched.depth && after.sched.stack == before.sched.stack
+                && (forall|u: int| 0 <= u < NT ==> (#[trigger] cfg.slot_budget[u] as int) != i)
+                ==> after.budget_slots_owned(cfg),
+            before.no_budget_slot_armed(cfg) && (forall|u: int| 0 <= u < NT ==> (#[trigger] cfg.slot_budget[u] as int) != i)
+                ==> after.no_budget_slot_armed(cfg),
+    {
+        if forall|u: int| 0 <= u < NT ==> (#[trigger] cfg.slot_budget[u] as int) != i {
+            if before.budget_slots_owned(cfg) && after.sched.depth == before.sched.depth && after.sched.stack == before.sched.stack {
+                assert forall|u: int| 0 <= u < NT && #[trigger] after.slots.slots[cfg.slot_budget[u] as int].armed
+                    implies after.sched.depth > 0 && after.sched.top() == u by {
+                    assert(cfg.slot_ok(u));
+                    assert((cfg.slot_budget[u] as int) != i);
+                    assert(before.slots.slots[cfg.slot_budget[u] as int].armed);
+                }
+            }
+            if before.no_budget_slot_armed(cfg) {
+                assert forall|u: int| 0 <= u < NT implies !#[trigger] after.slots.slots[cfg.slot_budget[u] as int].armed by {
+                    assert(cfg.slot_ok(u));
+                    assert((cfg.slot_budget[u] as int) != i);
+                    assert(!before.slots.slots[cfg.slot_budget[u] as int].armed);
+                }
+            }
+        }
     }
 
     /// The two lemmas above: slot `i` is not armed as a release slot after.
@@ -1206,6 +1311,24 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         &&& self.intakes_linked(cfg)
         // R18.2 (2026-11-05): a reported Overrun is one the account shows.
         &&& self.budget.inv(cfg)
+        // 2026-11-15: an armed Budget slot is the executing Job's.
+        &&& self.budget_slots_owned(cfg)
+    }
+
+    /// The Budget slot of a Task is armed only while its Job executes (is
+    /// on top of the stack): `dispatch` disarms the preempted Job's and
+    /// arms the new one's, a Job's end disarms its own and arms the resumed
+    /// Job's, and a served slot is disarmed. So a Budget event's timer
+    /// entry is always the executing Job's (Verification_Plan 7.3).
+    pub open spec fn budget_slots_owned(&self, cfg: &Config<NT, NR, NP>) -> bool {
+        forall|u: int| 0 <= u < NT && #[trigger] self.slots.slots[cfg.slot_budget[u] as int].armed
+            ==> self.sched.depth > 0 && self.sched.top() == u
+    }
+
+    /// No Task's Budget slot is armed: the state between the disarm of the
+    /// executing Job's slot and the arming of the next one's.
+    pub open spec fn no_budget_slot_armed(&self, cfg: &Config<NT, NR, NP>) -> bool {
+        forall|u: int| 0 <= u < NT ==> !#[trigger] self.slots.slots[cfg.slot_budget[u] as int].armed
     }
 
     /// Property 9's link from the history to the mask (R19.1, DD-06): for
@@ -1346,125 +1469,132 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         assert(self.locks_recorded().last() == before.sched.lock_res[before.sched.lock_len - 1] as int);
     }
 
-    /// Appends one step, performed now, to the ghost history (task 4.11).
-    /// Erased from the Flight_Build; the `Ghost` assignment has no
-    /// executable effect.
-    fn record(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, task: Ghost<int>, arg: Ghost<int>)
-        requires old(self).inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_RESTART, 0 <= task@ < NT, 0 <= arg@,
-            (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg@ < NR,
-            (kind == ST_VIOLATION || kind == ST_RESTART) ==> arg@ < NP,
+    /// One step, performed now, appended to the ghost history (task 4.11):
+    /// `post` is `pre` with the step pushed and nothing else changed. The
+    /// entry points extend the history in a `proof` block and call this
+    /// lemma (2026-11-15: until then an executable `record` took the step's
+    /// Task and argument as `Ghost` arguments, which the erased build turns
+    /// into closures; Verification_Plan 7.3).
+    proof fn lemma_record(pre: &Self, post: &Self, cfg: &Config<NT, NR, NP>, kind: u8, task: int, arg: int)
+        requires pre.inv_unrecorded(cfg), ST_DISPATCH <= kind <= ST_RESTART, 0 <= task < NT, 0 <= arg,
+            (kind == ST_LOCK || kind == ST_UNLOCK) ==> arg < NR,
+            (kind == ST_VIOLATION || kind == ST_RESTART) ==> arg < NP,
             // R10.4: every Partition's count is linked to the history this
             // step extends: a violation step was counted, a restart step
             // reset the count, any other step changed no count.
-            forall|p: int| 0 <= p < NP ==> #[trigger] old(self).mit_violations[p] as int
-                == Self::saturated(if kind == ST_RESTART && p == arg@ { 0 }
-                    else if kind == ST_VIOLATION && p == arg@ { super::history::violations_since_restart(old(self).history@, p) + 1 }
-                    else { super::history::violations_since_restart(old(self).history@, p) }),
+            forall|p: int| 0 <= p < NP ==> #[trigger] pre.mit_violations[p] as int
+                == Self::saturated(if kind == ST_RESTART && p == arg { 0 }
+                    else if kind == ST_VIOLATION && p == arg { super::history::violations_since_restart(pre.history@, p) + 1 }
+                    else { super::history::violations_since_restart(pre.history@, p) }),
             // Property 9 (R19.1): an effective intake is recorded with its
             // source masked for one MIT from now, one MIT after every
             // earlier effective intake of the Task.
-            kind == ST_INTAKE && arg@ < 8
-                ==> old(self).timing.masked[task@]
-                    && old(self).timing.mask_until[task@] as int >= old(self).now as int + cfg.tasks[task@].period as int
-                    && forall|k: int| 0 <= k < old(self).history@.len() && #[trigger] old(self).history@[k].kind == ST_INTAKE
-                        && old(self).history@[k].task == task@ && old(self).history@[k].arg < 8
-                        ==> old(self).history@[k].at + cfg.tasks[task@].period as int <= old(self).now as int,
+            kind == ST_INTAKE && arg < 8
+                ==> pre.timing.masked[task]
+                    && pre.timing.mask_until[task] as int >= pre.now as int + cfg.tasks[task].period as int
+                    && forall|k: int| 0 <= k < pre.history@.len() && #[trigger] pre.history@[k].kind == ST_INTAKE
+                        && pre.history@[k].task == task && pre.history@[k].arg < 8
+                        ==> pre.history@[k].at + cfg.tasks[task].period as int <= pre.now as int,
             // The lock change since the last step is the one this kind reports.
-            super::history::step_rel(old(self).locks_recorded(), old(self).step_now(kind, task@, arg@)),
+            super::history::step_rel(pre.locks_recorded(), pre.step_now(kind, task, arg)),
             // The top follows from the last recorded one by this kind (task 4.12).
-            super::history::top_rel(super::history::before(old(self).history@, old(self).history@.len() as int), old(self).step_now(kind, task@, arg@), cfg),
+            super::history::top_rel(super::history::before(pre.history@, pre.history@.len() as int), pre.step_now(kind, task, arg), cfg),
             // The MIT state of every Task this step does not release is linked
             // to the history (task 4.14) ...
-            forall|u: int| 0 <= u < NT && !(kind == ST_RELEASE && u == task@) ==> #[trigger] old(self).release_match(cfg, u),
+            forall|u: int| 0 <= u < NT && !(kind == ST_RELEASE && u == task) ==> #[trigger] pre.release_match(cfg, u),
             // ... and a Release of a Sporadic_Task is the one `last_due` now
             // records, one MIT after every Release of that Task so far.
-            kind == ST_RELEASE && cfg.tasks[task@].kind == KIND_SPORADIC
-                ==> old(self).timing.has_last[task@] && old(self).timing.last_due[task@] as int == arg@
-                    && forall|k: int| 0 <= k < old(self).history@.len() && #[trigger] old(self).history@[k].kind == ST_RELEASE
-                        && old(self).history@[k].task == task@
-                        ==> old(self).history@[k].arg + cfg.tasks[task@].period as int <= arg@,
-        ensures final(self).stack_prefix_of(old(self)),
-            final(self).inv(cfg), final(self).history_extends(old(self)),
-            final(self).history@ == old(self).history@.push(old(self).step_now(kind, task@, arg@)),
-            final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
-            final(self).budget == old(self).budget, final(self).log == old(self).log, final(self).stopped == old(self).stopped,
-            final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
-            final(self).started == old(self).started, final(self).now == old(self).now,
-            final(self).reinit_partition == old(self).reinit_partition, final(self).stop_dma == old(self).stop_dma,
+            kind == ST_RELEASE && cfg.tasks[task].kind == KIND_SPORADIC
+                ==> pre.timing.has_last[task] && pre.timing.last_due[task] as int == arg
+                    && forall|k: int| 0 <= k < pre.history@.len() && #[trigger] pre.history@[k].kind == ST_RELEASE
+                        && pre.history@[k].task == task
+                        ==> pre.history@[k].arg + cfg.tasks[task].period as int <= arg,
+            post.history@ == pre.history@.push(pre.step_now(kind, task, arg)),
+            post.sched == pre.sched, post.timing == pre.timing, post.slots == pre.slots,
+            post.budget == pre.budget, post.log == pre.log, post.stopped == pre.stopped,
+            post.mit_violations == pre.mit_violations, post.safe_state == pre.safe_state,
+            post.started == pre.started, post.now == pre.now,
+            post.reinit_partition == pre.reinit_partition, post.stop_dma == pre.stop_dma,
+        ensures post.stack_prefix_of(pre),
+            post.inv(cfg), post.history_extends(pre),
     {
-        let ghost s = self.step_now(kind, task@, arg@);
-        proof {
-            // The snapshot's Resources are the scheduler's (invariant 3) and
-            // its ceiling the scheduler's mirror (invariant 2).
-            super::history::lemma_ceiling_of_array(cfg, self.sched.lock_res, self.sched.lock_len as int);
-            assert(super::history::step_wf(s, cfg));
-            let p = self.history@.push(s);
-            assert(super::history::locks_before(p, self.history@.len() as int) == self.locks_recorded());
-            assert(super::history::intake_spaced_after(self.history@, s, cfg));
-            super::history::lemma_history_push(self.history@, s, cfg, self.now as int);
+        let s = pre.step_now(kind, task, arg);
+        // The snapshot's Resources are the scheduler's (invariant 3) and
+        // its ceiling the scheduler's mirror (invariant 2).
+        super::history::lemma_ceiling_of_array(cfg, pre.sched.lock_res, pre.sched.lock_len as int);
+        assert(super::history::step_wf(s, cfg));
+        let p = pre.history@.push(s);
+        assert(super::history::locks_before(p, pre.history@.len() as int) == pre.locks_recorded());
+        assert(super::history::intake_spaced_after(pre.history@, s, cfg));
+        super::history::lemma_history_push(pre.history@, s, cfg, pre.now as int);
+        let h = pre.history@;
+        let p = post.history@;
+        // R10.4's link holds of the extended history (the count moved
+        // as this step's kind says).
+        assert forall|q: int| 0 <= q < NP implies #[trigger] post.mit_violations[q] as int
+            == Self::saturated(super::history::violations_since_restart(p, q)) by {
+            super::history::lemma_violations_push(h, s, q);
         }
-        let ghost before = *self;
-        self.history = Ghost(self.history@.push(s));
-        proof {
-            let h = before.history@;
-            let p = self.history@;
-            // R10.4's link holds of the extended history (the count moved
-            // as this step's kind says).
-            assert forall|q: int| 0 <= q < NP implies #[trigger] self.mit_violations[q] as int
-                == Self::saturated(super::history::violations_since_restart(p, q)) by {
-                super::history::lemma_violations_push(h, s, q);
+        // Property 9's link holds of the extended history: the old
+        // intakes by the old link (nothing else changed), the new step
+        // by this record's requires when it is an effective intake.
+        assert forall|u: int, k: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(p, k, u)
+            implies post.now as int >= p[k].at + cfg.tasks[u].period as int
+                || (post.timing.masked[u] && post.timing.mask_until[u] as int >= p[k].at + cfg.tasks[u].period as int) by {
+            if k < h.len() {
+                assert(p[k] == h[k]);
+                assert(super::history::intake_step_in(h, k, u));
+            } else {
+                assert(p[k] == s);
             }
-            // Property 9's link holds of the extended history: the old
-            // intakes by the old link (nothing else changed), the new step
-            // by this record's requires when it is an effective intake.
-            assert forall|u: int, k: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(p, k, u)
-                implies self.now as int >= p[k].at + cfg.tasks[u].period as int
-                    || (self.timing.masked[u] && self.timing.mask_until[u] as int >= p[k].at + cfg.tasks[u].period as int) by {
-                if k < h.len() {
-                    assert(p[k] == h[k]);
-                    assert(super::history::intake_step_in(h, k, u));
-                } else {
-                    assert(p[k] == s);
-                }
-            }
-            let has_last = self.timing.has_last;
-            let last_due = self.timing.last_due;
-            assert forall|u: int| 0 <= u < NT implies #[trigger] Self::release_match_in(p, has_last, last_due, cfg, u) by {
-                if cfg.tasks[u].kind == KIND_SPORADIC {
-                    if kind == ST_RELEASE && u == task@ {
-                        assert forall|k: int| #[trigger] Self::release_step_in(p, k, u)
-                            implies has_last[u] && p[k].arg <= last_due[u] as int by {
-                            if k < h.len() {
-                                assert(p[k] == h[k]);
-                                assert(h[k].kind == ST_RELEASE && h[k].task == task@);
-                            } else {
-                                assert(p[k] == s);
-                            }
-                        }
-                        assert(p[h.len() as int] == s);
-                        assert(Self::release_step_in(p, h.len() as int, u) && p[h.len() as int].arg == last_due[u] as int);
-                    } else {
-                        assert(before.release_match(cfg, u));
-                        assert(Self::release_match_in(h, has_last, last_due, cfg, u));
-                        assert forall|k: int| #[trigger] Self::release_step_in(p, k, u)
-                            implies has_last[u] && p[k].arg <= last_due[u] as int by {
-                            if k < h.len() {
-                                assert(p[k] == h[k]);
-                                assert(Self::release_step_in(h, k, u));
-                            } else {
-                                assert(p[k] == s);
-                            }
-                        }
-                        if has_last[u] {
-                            let k = choose|k: int| #[trigger] Self::release_step_in(h, k, u) && h[k].arg == last_due[u] as int;
+        }
+        let has_last = post.timing.has_last;
+        let last_due = post.timing.last_due;
+        assert forall|u: int| 0 <= u < NT implies #[trigger] Self::release_match_in(p, has_last, last_due, cfg, u) by {
+            if cfg.tasks[u].kind == KIND_SPORADIC {
+                if kind == ST_RELEASE && u == task {
+                    assert forall|k: int| #[trigger] Self::release_step_in(p, k, u)
+                        implies has_last[u] && p[k].arg <= last_due[u] as int by {
+                        if k < h.len() {
                             assert(p[k] == h[k]);
-                            assert(Self::release_step_in(p, k, u) && p[k].arg == last_due[u] as int);
+                            assert(h[k].kind == ST_RELEASE && h[k].task == task);
+                        } else {
+                            assert(p[k] == s);
                         }
+                    }
+                    assert(p[h.len() as int] == s);
+                    assert(Self::release_step_in(p, h.len() as int, u) && p[h.len() as int].arg == last_due[u] as int);
+                } else {
+                    assert(pre.release_match(cfg, u));
+                    assert(Self::release_match_in(h, has_last, last_due, cfg, u));
+                    assert forall|k: int| #[trigger] Self::release_step_in(p, k, u)
+                        implies has_last[u] && p[k].arg <= last_due[u] as int by {
+                        if k < h.len() {
+                            assert(p[k] == h[k]);
+                            assert(Self::release_step_in(h, k, u));
+                        } else {
+                            assert(p[k] == s);
+                        }
+                    }
+                    if has_last[u] {
+                        let k = choose|k: int| #[trigger] Self::release_step_in(h, k, u) && h[k].arg == last_due[u] as int;
+                        assert(p[k] == h[k]);
+                        assert(Self::release_step_in(p, k, u) && p[k].arg == last_due[u] as int);
                     }
                 }
             }
-            reveal(Kernel::releases_linked);
         }
+        reveal(Kernel::releases_linked);
+    }
+
+    /// The empty ghost history. Its own function (2026-11-15) so that `new`
+    /// constructs no `Ghost` value itself: the erased build turns the
+    /// construction into a closure, which Aeneas does not translate
+    /// (Verification_Plan 7.3).
+    fn no_history() -> (h: Ghost<Seq<Step>>)
+        ensures h@ == Seq::<Step>::empty(),
+    {
+        Ghost(Seq::<Step>::empty())
     }
 
     /// Init: everything idle, no Release before `start` (PR-34, R12.4).
@@ -1488,7 +1618,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             safe_state: false,
             started: false,
             now: 0,
-            history: Ghost(Seq::<Step>::empty()),
+            history: Self::no_history(),
         };
         proof {
             // Nothing recorded, nothing accepted: the link holds vacuously.
@@ -1506,6 +1636,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 assert(cfg.slot_ok(u));
             }
             assert(k.release_slots_consistent(cfg));
+            assert forall|u: int| 0 <= u < NT implies !#[trigger] k.slots.slots[cfg.slot_budget[u] as int].armed by {
+                assert(cfg.slot_ok(u));
+                assert(!k.slots.armed(cfg.slot_budget[u] as int));
+            }
             assert forall|u: int, j: int| 0 <= u < NT && #[trigger] super::history::intake_step_in(k.history@, j, u) implies false by {}
             assert forall|p: int| 0 <= p < NP implies #[trigger] k.mit_violations[p] as int
                 == Self::saturated(super::history::violations_since_restart(k.history@, p)) by {
@@ -1620,6 +1754,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.slots.arm(slot, at, SLOT_RELEASE, t as u8);
                 proof {
                     Self::lemma_consistent_arm_release(&before, self, cfg, t as int);
+                    Self::lemma_release_slot_apart(cfg, t as int);
+                    Self::lemma_owned_other(&before, self, cfg, slot as int);
                 }
             }
             t = t + 1;
@@ -1639,6 +1775,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 implies (cfg.slot_release[u] as int) != end as int by {
                 assert(cfg.slot_ok(u));
             }
+            assert forall|u: int| 0 <= u < NT implies (#[trigger] cfg.slot_budget[u] as int) != end as int by {
+                assert(cfg.slot_ok(u));
+            }
             Self::lemma_consistent_arm_other(&b1, self, cfg, end as int);
         }
         let hk = (cfg.slot_count - 1) as usize;
@@ -1648,6 +1787,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC
                 implies (cfg.slot_release[u] as int) != hk as int by {
+                assert(cfg.slot_ok(u));
+            }
+            assert forall|u: int| 0 <= u < NT implies (#[trigger] cfg.slot_budget[u] as int) != hk as int by {
                 assert(cfg.slot_ok(u));
             }
             Self::lemma_consistent_arm_other(&b2, self, cfg, hk as int);
@@ -1731,7 +1873,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
         // Recorded before the Budget event is armed: `arm_budget` requires
         // the full invariant, which the step re-establishes.
-        self.record(cfg, ST_DISPATCH, Ghost(t as int), Ghost(0));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_DISPATCH, t as int, 0));
+            Self::lemma_record(&pre, self, cfg, ST_DISPATCH, t as int, 0);
+        }
         let ghost before_arm = *self;
         self.arm_budget(cfg, t);
         proof {
@@ -1749,6 +1895,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// Arms the Budget event of the executing Job of `t` for its remaining Budget.
     fn arm_budget(&mut self, cfg: &Config<NT, NR, NP>, t: u8)
         requires old(self).inv(cfg), (t as int) < NT,
+            // 2026-11-15: only the executing Job's Budget event is armed.
+            old(self).sched.depth > 0, old(self).sched.top() == t as int,
         ensures final(self).stack_prefix_of(old(self)),
             final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing,
@@ -1768,6 +1916,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         proof {
             Self::lemma_release_slot_apart(cfg, t as int);
             Self::lemma_consistent_arm_other(&before, self, cfg, cfg.slot_budget[t as int] as int);
+            Self::lemma_owned_rearm(&before, self, cfg, cfg.slot_budget[t as int] as int);
         }
     }
 
@@ -1820,6 +1969,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(cfg.slot_ok(t as int));
         }
         self.budget.charge(t, elapsed_cycles);
+        // The ended Job's Budget event is disarmed before the Job leaves the
+        // stack (2026-11-15: an armed Budget slot is the executing Job's at
+        // every recorded step, `budget_slots_owned`).
+        let ghost b1 = *self;
+        self.slots.disarm(cfg.slot_budget[t as usize] as usize);
+        proof {
+            Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
+        }
         // Resources are released in both cases (R8.9), but the two causes are
         // logged apart: a killed Job's Resources are released by force
         // (EV_RESOURCE_RELEASED); a Job that returned to its Release_Point
@@ -1831,16 +1988,15 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.lemma_rel_shrink(old(self), ST_END, t as int, if killed { 1int } else { 0int });
             self.lemma_release_match_kept(old(self), cfg, -1);
         }
-        self.record(cfg, ST_END, Ghost(t as int), Ghost(if killed { 1int } else { 0int }));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_END, t as int, if killed { 1int } else { 0int }));
+            Self::lemma_record(&pre, self, cfg, ST_END, t as int, if killed { 1int } else { 0int });
+        }
         if released > 0 {
             let partition = cfg.tasks[t as usize].partition;
             let kind = if killed { EV_RESOURCE_RELEASED } else { EV_API_MISUSE };
             self.push_event(cfg, kind, t, partition, 1u64 << 7, released as u32);
-        }
-        let ghost b1 = *self;
-        self.slots.disarm(cfg.slot_budget[t as usize] as usize);
-        proof {
-            Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
         }
         // R9.6 (audit finding 5): the slot is the ended Job's deadline event
         // unless a Release of the Task is held, whose deadline it then holds.
@@ -1983,7 +2139,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.lemma_release_match_kept(old(self), cfg, -1);
                 self.lemma_top_kept(old(self), cfg);
             }
-            self.record(cfg, ST_LOCK, Ghost(self.sched.top()), Ghost(r as int));
+            proof {
+                let pre = *self;
+                self.history@ = self.history@.push(pre.step_now(ST_LOCK, self.sched.top(), r as int));
+                Self::lemma_record(&pre, self, cfg, ST_LOCK, self.sched.top(), r as int);
+            }
         }
         if !ok {
             let t = self.sched.stack[self.sched.depth - 1];
@@ -2018,7 +2178,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.lemma_release_match_kept(old(self), cfg, -1);
                 self.lemma_top_kept(old(self), cfg);
             }
-            self.record(cfg, ST_UNLOCK, Ghost(self.sched.top()), Ghost(r as int));
+            proof {
+                let pre = *self;
+                self.history@ = self.history@.push(pre.step_now(ST_UNLOCK, self.sched.top(), r as int));
+                Self::lemma_record(&pre, self, cfg, ST_UNLOCK, self.sched.top(), r as int);
+            }
         }
         if !ok {
             let t = self.sched.stack[self.sched.depth - 1];
@@ -2099,32 +2263,30 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// the source of `t` was masked for one MIT from now: `m0` is the state
     /// at entry (after the observation), whose history this state extends
     /// by at most the Release step; `outcome` is the step's `arg`.
-    fn record_intake(&mut self, cfg: &Config<NT, NR, NP>, t: u8, m0: Ghost<&Self>, outcome: Ghost<int>)
-        requires old(self).inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
-            m0@.inv(cfg), old(self).now == m0@.now, 0 <= outcome@ < 16,
-            old(self).history_extends(m0@), old(self).history@.len() <= m0@.history@.len() + 1,
-            old(self).history@.len() > m0@.history@.len() ==> old(self).history@[m0@.history@.len() as int].kind != ST_INTAKE,
-            outcome@ < 8 ==> !m0@.timing.masked[t as int],
-            old(self).timing.masked[t as int],
-            old(self).timing.mask_until[t as int] as int >= old(self).now as int + cfg.tasks[t as int].period as int,
-        ensures final(self).stack_prefix_of(old(self)),
-            final(self).inv(cfg), final(self).history_extends(old(self)),
-            final(self).history@ == old(self).history@.push(old(self).step_now(ST_INTAKE, t as int, outcome@)),
-            final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
-            final(self).budget == old(self).budget, final(self).log == old(self).log, final(self).stopped == old(self).stopped,
-            final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
-            final(self).started == old(self).started, final(self).now == old(self).now,
-            final(self).reinit_partition == old(self).reinit_partition, final(self).stop_dma == old(self).stop_dma,
+    proof fn lemma_record_intake(pre: &Self, post: &Self, cfg: &Config<NT, NR, NP>, t: u8, m0: &Self, outcome: int)
+        requires pre.inv(cfg), (t as int) < NT, cfg.tasks[t as int].kind == KIND_SPORADIC,
+            m0.inv(cfg), pre.now == m0.now, 0 <= outcome < 16,
+            pre.history_extends(m0), pre.history@.len() <= m0.history@.len() + 1,
+            pre.history@.len() > m0.history@.len() ==> pre.history@[m0.history@.len() as int].kind != ST_INTAKE,
+            outcome < 8 ==> !m0.timing.masked[t as int],
+            pre.timing.masked[t as int],
+            pre.timing.mask_until[t as int] as int >= pre.now as int + cfg.tasks[t as int].period as int,
+            post.history@ == pre.history@.push(pre.step_now(ST_INTAKE, t as int, outcome)),
+            post.sched == pre.sched, post.timing == pre.timing, post.slots == pre.slots,
+            post.budget == pre.budget, post.log == pre.log, post.stopped == pre.stopped,
+            post.mit_violations == pre.mit_violations, post.safe_state == pre.safe_state,
+            post.started == pre.started, post.now == pre.now,
+            post.reinit_partition == pre.reinit_partition, post.stop_dma == pre.stop_dma,
+        ensures post.stack_prefix_of(pre),
+            post.inv(cfg), post.history_extends(pre),
     {
-        proof {
-            assert(cfg.task_ok(t as int));
-            self.lemma_release_match_kept(old(self), cfg, -1);
-            self.lemma_top_kept(old(self), cfg);
-            if outcome@ < 8 {
-                Self::lemma_intake_entry_spaced(m0@, old(self), cfg, t as int);
-            }
+        assert(cfg.task_ok(t as int));
+        pre.lemma_release_match_kept(pre, cfg, -1);
+        pre.lemma_top_kept(pre, cfg);
+        if outcome < 8 {
+            Self::lemma_intake_entry_spaced(m0, pre, cfg, t as int);
         }
-        self.record(cfg, ST_INTAKE, Ghost(t as int), outcome);
+        Self::lemma_record(pre, post, cfg, ST_INTAKE, t as int, outcome);
     }
 
     /// The Release_Source event of Sporadic_Task `t` taken in from the
@@ -2195,7 +2357,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             proof {
                 Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
             }
-            self.record_intake(cfg, t, Ghost(&m0), Ghost(3 + was_masked));
+            proof {
+                let pre = *self;
+                self.history@ = self.history@.push(pre.step_now(ST_INTAKE, t as int, 3 + was_masked));
+                Self::lemma_record_intake(&pre, self, cfg, t, &m0, 3 + was_masked);
+            }
             return;
         }
         let release_none = self.sched.release[t as usize] == REL_NONE;
@@ -2214,8 +2380,16 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 self.lemma_top_kept(old(self), cfg);
                 Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
             }
-            self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(now as int));
-            self.record_intake(cfg, t, Ghost(&m0), Ghost(0 + was_masked));
+            proof {
+                let pre = *self;
+                self.history@ = self.history@.push(pre.step_now(ST_RELEASE, t as int, now as int));
+                Self::lemma_record(&pre, self, cfg, ST_RELEASE, t as int, now as int);
+            }
+            proof {
+                let pre = *self;
+                self.history@ = self.history@.push(pre.step_now(ST_INTAKE, t as int, 0 + was_masked));
+                Self::lemma_record_intake(&pre, self, cfg, t, &m0, 0 + was_masked);
+            }
         } else {
             if d == INTAKE_DEFER && release_none {
                 proof {
@@ -2243,7 +2417,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 proof {
                     Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
                 }
-                self.record_intake(cfg, t, Ghost(&m0), Ghost(1 + was_masked));
+                proof {
+                    let pre = *self;
+                    self.history@ = self.history@.push(pre.step_now(ST_INTAKE, t as int, 1 + was_masked));
+                    Self::lemma_record_intake(&pre, self, cfg, t, &m0, 1 + was_masked);
+                }
             } else {
                 // R10.2 (discard policy) and R10.3: the event is discarded.
                 // Property 9 (R19.1): the source is masked for one MIT all the
@@ -2254,7 +2432,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 proof {
                     Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);
                 }
-                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));
+                proof {
+                    let pre = *self;
+                    self.history@ = self.history@.push(pre.step_now(ST_INTAKE, t as int, 2 + was_masked));
+                    Self::lemma_record_intake(&pre, self, cfg, t, &m0, 2 + was_masked);
+                }
             }
             // The violation may trip the threshold and stop or restart the
             // Partition, which then suppresses the Release just deferred.
@@ -2306,7 +2488,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.lemma_release_match_kept(&pe, cfg, -1);
             self.lemma_top_kept(&pe, cfg);
         }
-        self.record(cfg, ST_VIOLATION, Ghost(t as int), Ghost(partition as int));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_VIOLATION, t as int, partition as int));
+            Self::lemma_record(&pre, self, cfg, ST_VIOLATION, t as int, partition as int);
+        }
         let ghost mid = *self;
         proof {
             assert(count == Self::incremented(old(self).mit_violations[partition as int]));
@@ -2344,6 +2530,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// the Config_Checker bounding every deadline by the period or MIT, the
     /// running Job's deadline is at or before the next Release's instant,
     /// so serving the due deadlines first reports every miss.
+    // 2026-11-15: its own prover instance; with `record` a lemma the shared
+    // context left this function at the resource limit.
+    #[verifier::spinoff_prover]
     pub fn timer_event(&mut self, cfg: &Config<NT, NR, NP>, now: u64, running_cycles: u32)
         requires old(self).inv(cfg), now <= cfg.operating_duration,
         ensures final(self).stack_prefix_of(old(self)),
@@ -2592,6 +2781,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.slots.arm(i, next, SLOT_HOUSEKEEPING, 0xFF);
             proof {
                 Self::lemma_consistent_arm_other(old(self), self, cfg, i as int);
+                Self::lemma_owned_rearm(old(self), self, cfg, i as int);
                 Self::lemma_env_slots(old(self), self, cfg, i as int, i as int);
             }
         } else if (t as usize) < NT {
@@ -2643,6 +2833,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// arrived. The Release becomes pending unless one is already pending
     /// (discard with MIT_Violation), and the next nominal instant is armed.
     #[verifier::rlimit(40)]
+    #[verifier::spinoff_prover]
     fn periodic_release(&mut self, cfg: &Config<NT, NR, NP>, t: u8, i: usize)
         requires old(self).inv(cfg), (t as int) < NT, i < NS,
             old(self).slots.slots[i as int].armed, old(self).slots.slots[i as int].kind == SLOT_RELEASE,
@@ -2702,7 +2893,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     self.lemma_release_match_kept(old(self), cfg, -1);
                     self.lemma_top_kept(old(self), cfg);
                 }
-                self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nominal as int));
+                proof {
+                    let pre = *self;
+                    self.history@ = self.history@.push(pre.step_now(ST_RELEASE, t as int, nominal as int));
+                    Self::lemma_record(&pre, self, cfg, ST_RELEASE, t as int, nominal as int);
+                }
                 proof {
                     // The Release step is the last of the history, at the nominal instant.
                     let k = old(self).history@.len() as int;
@@ -2833,7 +3028,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.lemma_release_spaced(old(self), cfg, t as int, at as int);
             self.lemma_top_kept(old(self), cfg);
         }
-        self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(at as int));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_RELEASE, t as int, at as int));
+            Self::lemma_record(&pre, self, cfg, ST_RELEASE, t as int, at as int);
+        }
         proof {
             assert forall|u: int| 0 <= u < NT && #[trigger] cfg.tasks[u].kind == KIND_PERIODIC && (cfg.slot_release[u] as int) != i as int
                 implies self.periodic_kept(old(self), cfg, u) by {
@@ -3135,19 +3334,24 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             assert(cfg.slot_ok(t as int));
             assert(cfg.task_ok(t as int));
         }
+        // As in `job_return`: the Budget event first (`budget_slots_owned`).
+        let ghost b1 = *self;
+        self.slots.disarm(cfg.slot_budget[t as usize] as usize);
+        proof {
+            Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
+        }
         let released = self.sched.end_job(cfg);
         proof {
             self.lemma_rel_shrink(old(self), ST_KILL, t as int, 1);
             self.lemma_release_match_kept(old(self), cfg, -1);
         }
-        self.record(cfg, ST_KILL, Ghost(t as int), Ghost(1));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_KILL, t as int, 1));
+            Self::lemma_record(&pre, self, cfg, ST_KILL, t as int, 1);
+        }
         if released > 0 {
             self.push_event(cfg, EV_RESOURCE_RELEASED, t, cfg.tasks[t as usize].partition, 1u64 << 7, released as u32);
-        }
-        let ghost b1 = *self;
-        self.slots.disarm(cfg.slot_budget[t as usize] as usize);
-        proof {
-            Self::lemma_consistent_disarm(&b1, self, cfg, cfg.slot_budget[t as int] as int);
         }
         if self.sched.release[t as usize] == REL_NONE {
             let ghost b2 = *self;
@@ -3267,7 +3471,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.lemma_release_match_kept(old(self), cfg, -1);
             self.lemma_top_kept(old(self), cfg);
         }
-        self.record(cfg, ST_KILL, Ghost(u as int), Ghost(0));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_KILL, u as int, 0));
+            Self::lemma_record(&pre, self, cfg, ST_KILL, u as int, 0);
+        }
     }
 
     /// `others_unchanged` composes across two steps when the second keeps
@@ -3507,7 +3715,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             self.lemma_release_match_kept(&m2, cfg, -1);
             self.lemma_top_kept(&m2, cfg);
         }
-        self.record(cfg, ST_RESTART, Ghost(0), Ghost(partition as int));
+        proof {
+            let pre = *self;
+            self.history@ = self.history@.push(pre.step_now(ST_RESTART, 0, partition as int));
+            Self::lemma_record(&pre, self, cfg, ST_RESTART, 0, partition as int);
+        }
         proof {
             self.lemma_others_same_but_log(&mid, old(self), cfg, partition as int);
             // The count reset is covered by the re-initialization requested.

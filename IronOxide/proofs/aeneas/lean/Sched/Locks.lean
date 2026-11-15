@@ -7,7 +7,7 @@ return, with their loops (stage 2 of Verification_Plan 7.3).
 -/
 
 namespace P18
-open rsk_logic
+open rsk_kernel rsk_kernel.rsk_logic
 
 variable {NT NR NL NP NS NE : Usize}
 

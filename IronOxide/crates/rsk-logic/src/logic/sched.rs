@@ -590,37 +590,40 @@ impl<const NT: usize, const NR: usize, const NL: usize> Sched<NT, NR, NL> {
             sel.is_some() ==> forall|t: int| 0 <= t < NT && self.release[t] == REL_PENDING && cfg.priority(t) == cfg.priority(sel.unwrap() as int) ==> sel.unwrap() as int <= t,
             sel.is_none() ==> forall|t: int| 0 <= t < NT ==> !self.eligible(cfg, t),
     {
-        let mut best: Option<u8> = None;
+        // The best so far as an index, `NT` while there is none (2026-11-15:
+        // with an `Option` carried across the iterations Aeneas finds no
+        // loop fixed point; Verification_Plan 7.3). The contract is unchanged.
+        let mut bt: usize = NT;
         let mut t: usize = 0;
         while t < NT
             invariant
-                self.inv(cfg), t <= NT,
-                best.is_some() ==> (best.unwrap() as int) < t && self.release[best.unwrap() as int] == REL_PENDING,
-                best.is_some() ==> forall|u: int| 0 <= u < t && self.release[u] == REL_PENDING ==> cfg.priority(u) <= cfg.priority(best.unwrap() as int),
-                best.is_some() ==> forall|u: int| 0 <= u < t && self.release[u] == REL_PENDING && cfg.priority(u) == cfg.priority(best.unwrap() as int) ==> best.unwrap() as int <= u,
-                best.is_none() ==> forall|u: int| 0 <= u < t ==> self.release[u] != REL_PENDING,
+                self.inv(cfg), t <= NT, bt <= NT,
+                bt < NT ==> bt < t && self.release[bt as int] == REL_PENDING,
+                bt < NT ==> forall|u: int| 0 <= u < t && self.release[u] == REL_PENDING ==> cfg.priority(u) <= cfg.priority(bt as int),
+                bt < NT ==> forall|u: int| 0 <= u < t && self.release[u] == REL_PENDING && cfg.priority(u) == cfg.priority(bt as int) ==> bt as int <= u,
+                bt == NT ==> forall|u: int| 0 <= u < t ==> self.release[u] != REL_PENDING,
             decreases NT - t,
         {
             if self.release[t] == REL_PENDING {
-                match best {
-                    None => { best = Some(t as u8); }
-                    Some(b) => {
-                        if cfg.tasks[t].priority > cfg.tasks[b as usize].priority {
-                            best = Some(t as u8);
-                        }
-                    }
+                if bt == NT || cfg.tasks[t].priority > cfg.tasks[bt].priority {
+                    bt = t;
                 }
             }
             t = t + 1;
         }
+        let best: Option<u8> = if bt < NT { Some(bt as u8) } else { None };
         match best {
             None => None,
             Some(b) => {
                 let p = cfg.tasks[b as usize].priority;
+                // Each branch a literal (2026-11-15): Aeneas gives a branch that
+                // is a comparison the type of a proposition.
                 let above_top = if self.depth == 0 {
                     true
+                } else if p > cfg.tasks[self.stack[self.depth - 1] as usize].priority {
+                    true
                 } else {
-                    p > cfg.tasks[self.stack[self.depth - 1] as usize].priority
+                    false
                 };
                 let free = self.job[b as usize] == JOB_NONE;
                 proof {

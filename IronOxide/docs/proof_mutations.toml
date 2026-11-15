@@ -140,19 +140,19 @@ expect = ["entry.rs", "CONTROL_JOB"]
 id = "history-step-after-now"
 kills = "record: lemma_history_push requires s.at == now (no step beyond the observed instant; task 4.11)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "        let ghost s = self.step_now(kind, task@, arg@);\n"
-replace = "        let ghost s0 = self.step_now(kind, task@, arg@);\n        let ghost s = Step { kind: s0.kind, task: s0.task, at: s0.at + 1, arg: s0.arg, locks: s0.locks, ceiling: s0.ceiling, top: s0.top };\n"
+find = "        let s = pre.step_now(kind, task, arg);\n"
+replace = "        let s0 = pre.step_now(kind, task, arg);\n        let s = Step { kind: s0.kind, task: s0.task, at: s0.at + 1, arg: s0.arg, locks: s0.locks, ceiling: s0.ceiling, top: s0.top };\n"
 expect = ["kernel.rs", "s.at == now"]
 package = "rsk-logic"
 
 [[mutation]]
 id = "history-step-dropped"
-kills = "record: the history left is the one found with the step appended (task 4.11)"
+kills = "lemma_record: the history left is the one found with the step appended (task 4.11; since 2026-11-15 the entry points append the step in a proof block and the lemma requires it)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "        self.history = Ghost(self.history@.push(s));\n"
-replace = "        self.history = Ghost(self.history@);\n"
-# The dropped step is caught inside `record`: the new Release step it promises is not there.
-expect = ["kernel.rs", "release_step_in(p, h.len() as int, u)"]
+find = "                    self.history@ = self.history@.push(pre.step_now(ST_RELEASE, t as int, nominal as int));\n"
+replace = "                    // (mutant) the step is not appended\n"
+# The dropped step is caught at the lemma's call: the history is not the one with the step appended.
+expect = ["kernel.rs", "precondition not satisfied"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -222,7 +222,7 @@ package = "rsk-logic"
 id = "periodic-release-not-recorded"
 kills = "periodic_release_served (Property 7's link, R9.1): a nominal instant that is due with no Release pending must put a Release step at that instant into the history; 2026-11-05"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "                self.record(cfg, ST_RELEASE, Ghost(t as int), Ghost(nominal as int));\n"
+find = "                proof {\n                    let pre = *self;\n                    self.history@ = self.history@.push(pre.step_now(ST_RELEASE, t as int, nominal as int));\n                    Self::lemma_record(&pre, self, cfg, ST_RELEASE, t as int, nominal as int);\n                }\n"
 replace = "                // (mutant) the Release step is not recorded\n"
 expect = ["kernel.rs", "release_step(k, t as int)"]
 package = "rsk-logic"
@@ -231,9 +231,9 @@ package = "rsk-logic"
 id = "discard-leaves-source-unmasked"
 kills = "intakes_linked and the intake record of Property 9 (R19.1): a discarded event must mask its source for one MIT like every other outcome; 2026-11-05"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "                self.timing.mask(cfg, t, now);\n                proof {\n                    Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);\n                }\n                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));\n"
-replace = "                // (mutant) the discarded event leaves the source unmasked\n                self.record_intake(cfg, t, Ghost(&m0), Ghost(2 + was_masked));\n"
-expect = ["kernel.rs", "record_intake"]
+find = "                self.timing.mask(cfg, t, now);\n                proof {\n                    Self::lemma_intakes_linked_after_mask(&m0, self, cfg, t as int);\n                }\n                proof {\n                    let pre = *self;\n                    self.history@ = self.history@.push(pre.step_now(ST_INTAKE, t as int, 2 + was_masked));\n"
+replace = "                // (mutant) the discarded event leaves the source unmasked\n                proof {\n                    let pre = *self;\n                    self.history@ = self.history@.push(pre.step_now(ST_INTAKE, t as int, 2 + was_masked));\n"
+expect = ["kernel.rs", "lemma_record_intake"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -876,7 +876,7 @@ expect = ["entry.rs", "postcondition not satisfied"]
 [[mutation]]
 id = "lean-eligibility-top-test-dropped"
 kills = "eligible_ok (the extracted Bound::eligible is the R7.1 condition), on which every dispatch of a run and Property 18 rest"
-file = "proofs/aeneas/lean/Sched/Eligible.lean"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
 find = "            ok (tc.priority > tc1.priority)\n"
 replace = "            ok true\n"
 expect = ["Sched/Model.lean"]
@@ -885,7 +885,7 @@ prover = "lean"
 [[mutation]]
 id = "lean-eligibility-ceiling-test-dropped"
 kills = "eligible_ok (R7.1: a Task starts only with a Priority above the System_Ceiling, the SRP rule the blocking bound rests on)"
-file = "proofs/aeneas/lean/Sched/Eligible.lean"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
 find = "        if tc.priority > self.kernel.sched.ceiling\n"
 replace = "        if true\n"
 expect = ["Sched/Model.lean"]
@@ -1048,8 +1048,8 @@ prover = "lean"
 id = "lean-dispatch-inside-kernel-section"
 kills = "level_step (a dispatch begins only when no Kernel section is in progress)"
 file = "proofs/aeneas/lean/Sched/Run.lean"
-find = "      (hk : st.ks = 0)\n      (hm : Matches b cfg st.s) (he : eligibleFn b t = ok true)\n"
-replace = "      (hk : True)\n      (hm : Matches b cfg st.s) (he : eligibleFn b t = ok true)\n"
+find = "      (hk : st.ks = 0)\n      (he : Elig cfg st.s t.val)\n"
+replace = "      (hk : True)\n      (he : Elig cfg st.s t.val)\n"
 expect = ["Sched/Stage.lean"]
 prover = "lean"
 
@@ -1370,3 +1370,211 @@ find = "    let s11 = match add(s10, extra) { Some(v) => v, None => return None 
 replace = "    Some(s10)\n"
 expect = ["terms.rs", "postcondition not satisfied"]
 package = "rsk-analyzer"
+
+
+# --- 2026-11-15: the run over the Kernel's own functions (Verification_Plan 7.3).
+# Verus: the Budget-slot invariant and the charge point of the SVC services.
+
+[[mutation]]
+id = "budget-event-armed-for-an-ended-job"
+kills = "budget_slots_owned (Kernel::inv, 2026-11-15): an armed Budget slot is the executing Job's; job_return arms the resumed Job's event, not the ended Job's"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "                assert(cfg.slots_distinct(t as int, resumed as int));\n            }\n            self.arm_budget(cfg, resumed);\n"
+replace = "                assert(cfg.slots_distinct(t as int, resumed as int));\n            }\n            self.arm_budget(cfg, t);\n"
+expect = ["kernel.rs", "precondition not satisfied"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "svc-lock-takes-a-charge-point"
+kills = "svc_core (HW-13, 2026-11-15): a Job's own lock call moves no charge point, so the Kernel's time in it is charged to the Job's Budget (the Critical_Section bound of R29.2 for a Partition that stops overrunning Jobs)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        let ok = k.svc_lock(frame[0] as u8);\n"
+replace = "        let _ = charge_point(hw, state);\n        let ok = k.svc_lock(frame[0] as u8);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+# Lean: the specification run's two conditions that changed form.
+
+[[mutation]]
+id = "lean-dispatch-not-admitted"
+kills = "Wf.step and level_step (a dispatch is of a Task R7.1 admits)"
+file = "proofs/aeneas/lean/Sched/Run.lean"
+find = "      (he : Elig cfg st.s t.val)\n"
+replace = "      (he : True)\n"
+expect = ["Sched/Run.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-idle-with-admitted-task"
+kills = "busy_block (no unit of time passes idle while R7.1 admits a Task)"
+file = "proofs/aeneas/lean/Sched/Run.lean"
+find = "  | idle (st : St NT NR NL)\n      (hne : ∀ u, ¬ Elig cfg st.s u)\n"
+replace = "  | idle (st : St NT NR NL)\n      (hne : True)\n"
+expect = ["Sched/Stage.lean"]
+prover = "lean"
+
+# Lean: the conditions of the run over the Kernel's functions (`KStep`) that are not those of `Step` verbatim.
+
+[[mutation]]
+id = "lean-kernel-dispatch-not-selected"
+kills = "ksim (the Task dispatched is the one Sched::select returns: R7.1 admits it and none of higher Priority)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hk : x.ks = 0)\n      (hsel : logic.sched.Sched.select x.k.sched cfg = ok (some t))\n"
+replace = "      (hk : x.ks = 0)\n      (hsel : True)\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-job-executes-with-task-selected"
+kills = "ksim (a Job executes only when Sched::select returns no Task)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hsel : logic.sched.Sched.select x.k.sched cfg = ok none)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n      (hd : 0 < x.k.sched.depth.val) (hr : 1 < x.run x.top)\n"
+replace = "      (hsel : True)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n      (hd : 0 < x.k.sched.depth.val) (hr : 1 < x.run x.top)\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-periodic-release-not-awaited"
+kills = "ksim (a Release periodic_release makes is one that awaited its entry, for a Job within its Budget)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hs : logic.kernel.Kernel.periodic_release x.k cfg t i = ok k')\n      (hmade : rel x.k.sched t.val = 0 → rel k'.sched t.val = 1 →\n        x.jwait t.val = true ∧ 1 ≤ d ∧ d ≤ P.C t.val) :\n"
+replace = "      (hs : logic.kernel.Kernel.periodic_release x.k cfg t i = ok k')\n      (hmade : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-intake-release-not-awaited"
+kills = "ksim (a Release intake_release makes is one that awaited its entry, for a Job within its Budget)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hs : logic.kernel.Kernel.intake_release x.k cfg t sp now off = ok k')\n      (hmade : rel x.k.sched t.val = 0 → rel k'.sched t.val = 1 →\n        x.jwait t.val = true ∧ 1 ≤ d ∧ d ≤ P.C t.val) :\n"
+replace = "      (hs : logic.kernel.Kernel.intake_release x.k cfg t sp now off = ok k')\n      (hmade : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-deferred-release-not-awaited"
+kills = "ksim (a Release deferred_release makes is one that awaited its entry, for a Job within its Budget)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hmade : rel x.k.sched t.val = 2 → rel k'.sched t.val = 1 →\n        x.jwait t.val = true ∧ 1 ≤ d ∧ d ≤ P.C t.val) :\n"
+replace = "      (hmade : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-release-entry-of-a-deadline-source"
+kills = "ksim (a release event's source is no deadline source: its entry without a Release is an entry that needs no miss)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hrel : P.relOf q = some t.val) (hnd : P.dlOf q = none) (hc : c ≤ P.EC q)\n      (hs : logic.kernel.Kernel.periodic_release x.k cfg t i = ok k')\n"
+replace = "      (hrel : P.relOf q = some t.val) (hnd : True) (hc : c ≤ P.EC q)\n      (hs : logic.kernel.Kernel.periodic_release x.k cfg t i = ok k')\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-release-entry-of-another-source"
+kills = "ksim (the Release an entry makes is of the Task its source releases)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hrel : P.relOf q = some t.val) (hnd : P.dlOf q = none) (hc : c ≤ P.EC q)\n      (hs : logic.kernel.Kernel.intake_release x.k cfg t sp now off = ok k')\n"
+replace = "      (hrel : True) (hnd : P.dlOf q = none) (hc : c ≤ P.EC q)\n      (hs : logic.kernel.Kernel.intake_release x.k cfg t sp now off = ok k')\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-deadline-entry-without-miss"
+kills = "ksim (deadline_miss has an entry only when the Job is not complete at its deadline)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hdl : ∀ t', P.dlOf q = some t' → ∃ a, x.jl t' = some a ∧ a + P.D t' ≤ x.now ∧\n        (0 < x.pend t' + x.run t' ∨ x.jwait t' = true))\n"
+replace = "      (hdl : True)\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-plain-entry-of-a-deadline-source"
+kills = "ksim (an entry modelled by hand that leaves the scheduler state is no deadline event's)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hnd : P.dlOf q = none)\n      (hs : k'.sched = x.k.sched) :\n"
+replace = "      (hnd : True)\n      (hs : k'.sched = x.k.sched) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-hand-entry-changes-scheduler"
+kills = "ksim (a transition modelled by hand leaves the scheduler state as the run states)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)\n      (hs : k'.sched = x.k.sched) :\n"
+replace = "      (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)\n      (hs : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-select-none-without-stack-order"
+kills = "select_none (with a pending Task in progress, none is admitted only because a Job in progress has at most the Priority of the Job on top)"
+file = "proofs/aeneas/lean/Sched/Select.lean"
+find = "    (hst : ∀ k, k < NT.val → job s k ≠ 0 →\n      0 < s.depth.val ∧ prio cfg k ≤ prio cfg (stk s (s.depth.val - 1))) :\n"
+replace = "    (hst : True) :\n"
+expect = ["Sched/Select.lean"]
+prover = "lean"
+
+# Lean: the generated translation of the Kernel's functions (the lemmas read the code).
+
+[[mutation]]
+id = "lean-code-select-prefers-lower-priority"
+kills = "select_loop_ok (Sched::select as extracted keeps the pending Task of the highest Priority)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          let i1 ← if tc.priority > tc1.priority\n"
+replace = "          let i1 ← if tc.priority < tc1.priority\n"
+expect = ["Sched/Select.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-dispatch-skips-start"
+kills = "dispatch_eff (Kernel::dispatch as extracted starts the Job through Sched::start)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  let s1 ← rsk_logic.logic.sched.Sched.start self.sched cfg1 t\n"
+replace = "  let s1 ← ok self.sched\n"
+expect = ["Sched/Calls.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-job-return-keeps-job"
+kills = "job_return_eff (Kernel::job_return as extracted ends the Job through Sched::finish_top)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  let (released, s1) ← rsk_logic.logic.sched.Sched.finish_top self.sched cfg\n"
+replace = "  let (released, s1) ← ok (0#usize, self.sched)\n"
+expect = ["Sched/Calls.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-periodic-release-over-held"
+kills = "periodic_release_eff (a periodic Release is made only with no Release of the Task held)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          if i8 = rsk_logic.logic.sched.REL_NONE\n"
+replace = "          if i8 = i8\n"
+expect = ["Sched/Calls.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-intake-accepts-over-held-release"
+kills = "intake_decision_accept (an event is accepted only with no Release of the Task held: R10.1, the MIT spacing on the code as extracted)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  if release_none\n  then\n"
+replace = "  if release_none = release_none\n  then\n"
+expect = ["Sched/Entry.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-intake-accepts-inside-mit"
+kills = "intake_decision_accept (an event is accepted only one MIT after the last accepted Release became due: Property 8 on the code as extracted)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "      if now >= i4\n      then ok rsk_logic.logic.time.INTAKE_ACCEPT\n"
+replace = "      if now >= now\n      then ok rsk_logic.logic.time.INTAKE_ACCEPT\n"
+expect = ["Sched/Entry.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-kill-leaves-the-job"
+kills = "kill_at_r (Kernel::kill_at as extracted kills the Job through Sched::kill: a response step)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  let s ← rsk_logic.logic.sched.Sched.kill self.sched cfg i\n"
+replace = "  let s ← ok self.sched\n"
+expect = ["Sched/Entry.lean"]
+prover = "lean"

@@ -1,10 +1,9 @@
 import Aeneas
-import Sched.Sched
-import Sched.Eligible
+import Sched.Kernel
 open Aeneas Aeneas.Std Result
 
 namespace P18
-open rsk_logic
+open rsk_kernel rsk_kernel.rsk_logic
 
 theorem bind_eq_ok {α β} (x : Result α) (f : α → Result β) (y : β) :
     Std.bind x f = ok y ↔ ∃ a, x = ok a ∧ f a = ok y := by
@@ -150,8 +149,10 @@ theorem index_ok' {α} {n : Usize} {v : Array α n} {i : Usize} {x : α}
     subst h
     exact ⟨by omega, hy⟩
 
-/-- The eligibility translation has its own copy of the Kernel's types
-(it is extracted from another crate); these read one as the other. -/
+/-- The scheduler state and a Task's configuration, field by field. Until
+2026-11-15 the eligibility test was a translation of its own with its own
+copy of the Kernel's types, and these read one copy as the other; with one
+translation (`Sched/Kernel.lean`) both are the identity. -/
 def schedOf (ks : _root_.rsk_kernel.rsk_logic.logic.sched.Sched NT NR NL) :
     logic.sched.Sched NT NR NL :=
   { release := ks.release, job := ks.job, stack := ks.stack, depth := ks.depth,

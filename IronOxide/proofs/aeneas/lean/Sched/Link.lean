@@ -9,7 +9,7 @@ those of the Analyzer's inputs, and the bound is the response time
 -/
 
 namespace P18
-open rsk_logic
+open rsk_kernel rsk_kernel.rsk_logic
 open rsk_analyzer (ceilDiv interf stepF specTerms specAll pushLower termJobs termIntake
   termEvents hkTerm specO specE siteCount longestCs maxCandidate candidateOf lowerEvents
   timedEvents bFloor)

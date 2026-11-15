@@ -7,7 +7,7 @@ extracted transition as a change of those functions.
 -/
 
 namespace P18
-open rsk_logic
+open rsk_kernel rsk_kernel.rsk_logic
 
 variable {NT NR NL NP NS NE : Usize}
 
