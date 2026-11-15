@@ -80,6 +80,11 @@ structure logic.Config (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize) where
     Visibility: public -/
 @[global_simps, irreducible] def logic.sched.REL_PENDING : Std.U8 := 1#u8
 
+/-- [rsk_logic::logic::sched::REL_DEFERRED]
+    Source: 'crates/rsk-logic/src/logic/sched.rs', lines 55:0-55:31
+    Visibility: public -/
+@[global_simps, irreducible] def logic.sched.REL_DEFERRED : Std.U8 := 2#u8
+
 /-- [rsk_logic::logic::sched::JOB_NONE]
     Source: 'crates/rsk-logic/src/logic/sched.rs', lines 58:0-58:27
     Visibility: public -/
@@ -89,6 +94,11 @@ structure logic.Config (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize) where
     Source: 'crates/rsk-logic/src/logic/sched.rs', lines 60:0-60:30
     Visibility: public -/
 @[global_simps, irreducible] def logic.sched.JOB_RUNNING : Std.U8 := 1#u8
+
+/-- [rsk_logic::logic::sched::JOB_KILLED]
+    Source: 'crates/rsk-logic/src/logic/sched.rs', lines 63:0-63:29
+    Visibility: public -/
+@[global_simps, irreducible] def logic.sched.JOB_KILLED : Std.U8 := 2#u8
 
 /-- [rsk_logic::logic::sched::Sched]
     Source: 'crates/rsk-logic/src/logic/sched.rs', lines 68:0-82:1
@@ -143,6 +153,32 @@ def logic.sched.Sched.make_pending
   := do
   let i ← lift (UScalar.cast .Usize t)
   let a ← Array.update self.release i logic.sched.REL_PENDING
+  ok { self with release := a }
+
+/-- [rsk_logic::logic::sched::{rsk_logic::logic::sched::Sched<NT, NR, NL>}::defer]:
+    Source: 'crates/rsk-logic/src/logic/sched.rs', lines 547:4-561:5
+    Visibility: public -/
+def logic.sched.Sched.defer
+  {NT : Std.Usize} {NR : Std.Usize} {NL : Std.Usize} {NP : Std.Usize}
+  (self : logic.sched.Sched NT NR NL) (cfg : logic.Config NT NR NP)
+  (t : Std.U8) :
+  Result (logic.sched.Sched NT NR NL)
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  let a ← Array.update self.release i logic.sched.REL_DEFERRED
+  ok { self with release := a }
+
+/-- [rsk_logic::logic::sched::{rsk_logic::logic::sched::Sched<NT, NR, NL>}::clear_release]:
+    Source: 'crates/rsk-logic/src/logic/sched.rs', lines 564:4-578:5
+    Visibility: public -/
+def logic.sched.Sched.clear_release
+  {NT : Std.Usize} {NR : Std.Usize} {NL : Std.Usize} {NP : Std.Usize}
+  (self : logic.sched.Sched NT NR NL) (cfg : logic.Config NT NR NP)
+  (t : Std.U8) :
+  Result (logic.sched.Sched NT NR NL)
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  let a ← Array.update self.release i logic.sched.REL_NONE
   ok { self with release := a }
 
 /-- [rsk_logic::logic::sched::{rsk_logic::logic::sched::Sched<NT, NR, NL>}::start]:
@@ -387,6 +423,20 @@ def logic.sched.Sched.end_job
   let self1 ←
     logic.sched.Sched.complete { self with ceiling := i, lock_len := n } cfg
   ok (released, self1)
+
+/-- [rsk_logic::logic::sched::{rsk_logic::logic::sched::Sched<NT, NR, NL>}::kill]:
+    Source: 'crates/rsk-logic/src/logic/sched.rs', lines 940:4-966:5
+    Visibility: public -/
+def logic.sched.Sched.kill
+  {NT : Std.Usize} {NR : Std.Usize} {NL : Std.Usize} {NP : Std.Usize}
+  (self : logic.sched.Sched NT NR NL) (cfg : logic.Config NT NR NP)
+  (i : Std.Usize) :
+  Result (logic.sched.Sched NT NR NL)
+  := do
+  let t ← Array.index_usize self.stack i
+  let i1 ← lift (UScalar.cast .Usize t)
+  let a ← Array.update self.job i1 logic.sched.JOB_KILLED
+  ok { self with job := a }
 
 /-- [rsk_logic::logic::sched::{rsk_logic::logic::sched::Sched<NT, NR, NL>}::finish_top]:
     Source: 'crates/rsk-logic/src/logic/sched.rs', lines 975:4-1004:5

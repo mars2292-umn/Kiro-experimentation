@@ -141,9 +141,9 @@ def verdictOk (base : Nat) (ts : List rta.Term) (J D : Nat) (v : terms.Verdict) 
       ∧ v.r.val ≤ D)
   ∧ (v.schedulable = false → v.overflow = false → ∀ x, stepF base ts x = x → D < J + x)
 
-/-- The housekeeping event's term: `⌈w / T_hk⌉ · Δ_timer`. -/
+/-- The housekeeping event's term: `⌈(w + J_rel) / T_hk⌉ · Δ_timer`. -/
 def hkTerm (p : terms.Params) : rta.Term :=
-  { jitter := 0#u64, period := if p.hk_period = 0#u64 then 1#u64 else p.hk_period, bound := p.timer }
+  { jitter := p.j_rel, period := if p.hk_period = 0#u64 then 1#u64 else p.hk_period, bound := p.timer }
 
 /-- Every Task's verdict and terms are those of its recurrence: from
 `C_i + B_i + O_i`, over the terms of the interferers `its` and the
@@ -211,7 +211,7 @@ theorem verdicts_body_spec (tasks : alloc.vec.Vec terms.TaskIn) (sites : alloc.v
     rw [hite]
     simp only [Std.bind_ok]
     have hlit : ∀ (x : U64), x = (hkTerm p).period →
-        ({ jitter := 0#u64, period := x, bound := p.timer } : rta.Term) = hkTerm p := by
+        ({ jitter := p.j_rel, period := x, bound := p.timer } : rta.Term) = hkTerm p := by
       intro x hx; subst hx; rfl
     rw [hlit _ rfl]
     all_goals step with response_of_spec its i _ hgi t.budget d.b d.o w.deadline (hkTerm p) hkp hsz' hper as ⟨ verdict, own, e1, e2, e3, e4 ⟩

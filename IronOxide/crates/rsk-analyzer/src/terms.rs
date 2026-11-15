@@ -14,7 +14,10 @@
 //!   another Job that can fire while it waits; 2026-11-14);
 //!   Δ_lock_in + Δ_lock_out per Critical_Section site;
 //!   Δ_hm; Δ_entry (R13.6); Δ_fp_save + Δ_fp_restore when the set has an
-//!   FPU-using Task; Δ_irq + Δ_stamp for a Sporadic_Task (R19.2);
+//!   FPU-using Task; Δ_irq + Δ_stamp for a Sporadic_Task (R19.2); and,
+//!   in a Partition that stops overrunning Jobs, what the entry that ends
+//!   the Task's own overrunning Job (Δ_detect + Δ_enforce) takes beyond
+//!   Δ_timer + Δ_hm + Δ_complete (`overrun_extra`, 2026-11-14);
 //! - `spec_e` is E_j of R29.4: Budget_j + Δ_detect + Δ_enforce + L_j + O_j
 //!   for a Task of a Partition that stops overrunning Jobs, Budget_j + O_j
 //!   otherwise, with L_j the longest Critical_Section of the Task
@@ -30,19 +33,25 @@
 //! - `terms_for` lists the terms of a Task's recurrence (`spec_terms`):
 //!   every other Task of hep(i) by its Jobs, ⌈(w + J_j) / T_j⌉ · E_j
 //!   (R29.1); every lower-Priority Task by the Kernel-level work of its
-//!   arrivals, ⌈w / T_j⌉ · Δ_irq for a Sporadic_Task's Release_Source and
-//!   ⌈w / T_j⌉ · Δ_timer for a Periodic_Task's release event (R19.2: the
-//!   handler runs at the Kernel level and preempts every Task, where the
-//!   Task's own Jobs preempt only those at or below its Priority; for a
-//!   Task of hep(i) the cost is in O_j already), and by its other timed
-//!   events, ⌈w / T_j⌉ · `lower_events` · Δ_timer (the unmask and deferral
-//!   events of a Sporadic_Task, and the deadline event unless the same
-//!   analysis shows the Task schedulable: the slot is disarmed when the Job
-//!   ends, so it fires only on a miss; each kind of event comes at a fixed
-//!   distance from the arrival, so at most ⌈w / T_j⌉ of each fall in a
-//!   window of length w; a lower Task's Budget event cannot fire while its
-//!   Job is preempted, the Kernel disarms it; 2026-11-14); and the
-//!   Kernel's housekeeping event, ⌈w / T_hk⌉ · Δ_timer, on every Task;
+//!   arrivals, ⌈(w + J_j) / T_j⌉ · Δ_irq for a Sporadic_Task's
+//!   Release_Source and ⌈(w + J_j) / T_j⌉ · Δ_timer for a Periodic_Task's
+//!   release event (R19.2: the handler runs at the Kernel level and
+//!   preempts every Task, where the Task's own Jobs preempt only those at
+//!   or below its Priority; for a Task of hep(i) the cost is in O_j
+//!   already), and by its other timed events, ⌈(w + J_j) / T_j⌉ ·
+//!   `lower_events` · Δ_timer (the unmask and deferral events of a
+//!   Sporadic_Task, and the deadline event unless the same analysis shows
+//!   the Task schedulable: the slot is disarmed when the Job ends, so it
+//!   fires only on a miss; the events of one kind are at least T_j apart;
+//!   a lower Task's Budget event cannot fire while its Job is preempted,
+//!   the Kernel disarms it; 2026-11-14); and the Kernel's housekeeping
+//!   event, ⌈(w + J_rel) / T_hk⌉ · Δ_timer, on every Task. Each of these
+//!   terms carries the release jitter (2026-11-14, found by the proof of
+//!   Property 18 in Lean): an event's Kernel entry comes up to J_rel after
+//!   its instant when a Kernel section is in progress then, so an event
+//!   from before a window of length w can have its entry inside it, and
+//!   the entries in the window number up to ⌈(w + J_rel) / T⌉, not
+//!   ⌈w / T⌉;
 //! - `ticks_to_cycles_down` and `ticks_to_cycles_up` are the rounding of
 //!   R29.8 (periods, MITs, and deadlines down; execution times and jitter
 //!   up);
@@ -179,6 +188,22 @@ pub open spec fn lower_events(t: TaskIn, deadline_fires: bool) -> int {
     (if t.periodic { 0int } else if t.defer { 2int } else { 1int }) + (if deadline_fires { 1int } else { 0int })
 }
 
+/// What the entry that ends the Task's own overrunning Job may take beyond
+/// the terms of O_i it takes the place of (2026-11-14, found by the proof
+/// of Property 18 in Lean). In a Partition whose Overrun_Response stops
+/// overrunning Jobs, a Job that overruns has no Job end of its own: the
+/// entry of its Budget event ends it, in up to Δ_detect + Δ_enforce
+/// (R29.4), where O_i counts Δ_timer for the Budget event, Δ_hm for the
+/// response and Δ_complete for the Job end. The excess, if any, is charged.
+pub open spec fn overrun_extra(t: TaskIn, p: Params) -> int {
+    let counted = p.timer as int + p.complete as int + p.hm as int;
+    if t.stops_overruns && p.detect as int + p.enforce as int > counted {
+        p.detect as int + p.enforce as int - counted
+    } else {
+        0
+    }
+}
+
 /// O_i of R29.3 for a Task with `sites` Critical_Section sites.
 pub open spec fn spec_o(t: TaskIn, p: Params, sites: int, any_fpu: bool) -> int {
     p.release as int + p.dispatch as int + p.complete as int + p.wake as int
@@ -188,6 +213,7 @@ pub open spec fn spec_o(t: TaskIn, p: Params, sites: int, any_fpu: bool) -> int 
         + (if any_fpu { p.fp_save as int + p.fp_restore as int } else { 0 })
         + (if t.periodic { 0 } else { p.irq as int + p.stamp as int })
         + t.endpoint_cost as int
+        + overrun_extra(t, p)
 }
 
 /// E_j of R29.4.
@@ -394,6 +420,27 @@ pub fn site_stats(sites: &Vec<Site>, t: usize) -> (r: SiteStats)
     SiteStats { count, longest }
 }
 
+/// `overrun_extra`, given `counted` = Δ_timer + Δ_complete + Δ_hm; `None`
+/// when it exceeds `u64`.
+fn overrun_extra_of(t: TaskIn, p: Params, counted: u64) -> (r: Option<u64>)
+    requires
+        counted as int == p.timer as int + p.complete as int + p.hm as int,
+    ensures
+        r.is_some() <==> overrun_extra(t, p) <= u64_max(),
+        r matches Some(v) ==> v as int == overrun_extra(t, p),
+{
+    if !t.stops_overruns {
+        return Some(0);
+    }
+    if p.detect >= counted {
+        add(p.detect - counted, p.enforce)
+    } else if p.enforce > counted - p.detect {
+        Some(p.enforce - (counted - p.detect))
+    } else {
+        Some(0)
+    }
+}
+
 /// O_i (R29.3) for a Task with `sites` Critical_Section sites; `None` when
 /// it exceeds `u64` (R29.6).
 pub fn overhead(t: TaskIn, p: Params, sites: u64, any_fpu: bool) -> (r: Option<u64>)
@@ -441,7 +488,15 @@ pub fn overhead(t: TaskIn, p: Params, sites: u64, any_fpu: bool) -> (r: Option<u
     let s8 = match add(s7, fp_cost) { Some(v) => v, None => return None };
     let s9 = match add(s8, irq_cost) { Some(v) => v, None => return None };
     let s10 = match add(s9, t.endpoint_cost) { Some(v) => v, None => return None };
-    Some(s10)
+    // The entry that ends the Task's own overrunning Job (`overrun_extra`).
+    // Δ_timer + Δ_complete + Δ_hm is within the sums above when they fit.
+    assert(timed as int >= p.timer as int) by (nonlinear_arith)
+        requires timed as int == p.timer as int * events as int, events >= 4;
+    let tc = match add(p.timer, p.complete) { Some(v) => v, None => return None };
+    let counted = match add(tc, p.hm) { Some(v) => v, None => return None };
+    let extra = match overrun_extra_of(t, p, counted) { Some(v) => v, None => return None };
+    let s11 = match add(s10, extra) { Some(v) => v, None => return None };
+    Some(s11)
 }
 
 /// The sum of a sequence of terms (task 21.5, R41.4: an end-to-end bound).
@@ -757,16 +812,20 @@ pub open spec fn term_of_jobs(j: int, t: Interferer) -> TermOf {
     TermOf { task: j as usize, kind: TERM_JOBS, term: Term { jitter: t.jitter, period: t.period, bound: t.bound } }
 }
 
-/// The Kernel-level work of Task `j`'s arrivals: ⌈w / T_j⌉ · `intake`
-/// (R19.2), on a Task its Jobs cannot preempt.
+/// The Kernel-level work of Task `j`'s arrivals: ⌈(w + J_j) / T_j⌉ ·
+/// `intake` (R19.2), on a Task its Jobs cannot preempt. The jitter (since
+/// 2026-11-14): the Kernel entry of an arrival comes up to J_rel after its
+/// instant, when a Kernel section is in progress at that instant, so an
+/// arrival from before the analysed interval can have its entry inside it.
 pub open spec fn term_of_intake(j: int, t: Interferer) -> TermOf {
-    TermOf { task: j as usize, kind: TERM_INTAKE, term: Term { jitter: 0, period: t.period, bound: t.intake } }
+    TermOf { task: j as usize, kind: TERM_INTAKE, term: Term { jitter: t.jitter, period: t.period, bound: t.intake } }
 }
 
-/// The other timed events of Task `j`'s Jobs: ⌈w / T_j⌉ · `events` (each
-/// kind of event comes at a fixed distance from the arrival).
+/// The other timed events of Task `j`'s Jobs: ⌈(w + J_j) / T_j⌉ · `events`
+/// (the events of one kind are at least T_j apart, and each entry comes up
+/// to J_rel after its instant).
 pub open spec fn term_of_events(j: int, t: Interferer) -> TermOf {
-    TermOf { task: j as usize, kind: TERM_EVENTS, term: Term { jitter: 0, period: t.period, bound: t.events } }
+    TermOf { task: j as usize, kind: TERM_EVENTS, term: Term { jitter: t.jitter, period: t.period, bound: t.events } }
 }
 
 /// The housekeeping event's term, for a set of `n` Tasks.
@@ -838,10 +897,10 @@ pub fn terms_for(tasks: &Vec<Interferer>, i: usize, hk: Term) -> (r: Vec<TermOf>
                 out.push(TermOf { task: j, kind: TERM_JOBS, term: Term { jitter: t.jitter, period: t.period, bound: t.bound } });
             } else {
                 if t.intake > 0 {
-                    out.push(TermOf { task: j, kind: TERM_INTAKE, term: Term { jitter: 0, period: t.period, bound: t.intake } });
+                    out.push(TermOf { task: j, kind: TERM_INTAKE, term: Term { jitter: t.jitter, period: t.period, bound: t.intake } });
                 }
                 if t.events > 0 {
-                    out.push(TermOf { task: j, kind: TERM_EVENTS, term: Term { jitter: 0, period: t.period, bound: t.events } });
+                    out.push(TermOf { task: j, kind: TERM_EVENTS, term: Term { jitter: t.jitter, period: t.period, bound: t.events } });
                 }
             }
         }
@@ -971,9 +1030,10 @@ pub open spec fn spec_interferer(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params
     }
 }
 
-/// The housekeeping event's term: ⌈w / T_hk⌉ · Δ_timer.
+/// The housekeeping event's term: ⌈(w + J_rel) / T_hk⌉ · Δ_timer (its entry
+/// comes up to J_rel after its instant, as every timed event's).
 pub open spec fn spec_hk(p: Params) -> Term {
-    Term { jitter: 0, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer }
+    Term { jitter: p.j_rel, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer }
 }
 
 pub open spec fn spec_interferers(tasks: Seq<TaskIn>, sites: Seq<Site>, p: Params, any_fpu: bool, windows: Seq<Window>, quiet: Seq<bool>) -> Seq<Interferer> {
@@ -1075,7 +1135,7 @@ fn analyse_pass(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: bool
             assert(derived_ok(tasks@, sites@, p, any_fpu, i as int, derived@[i as int]));
             assert(its@[i as int] == spec_interferer(tasks@, sites@, p, any_fpu, windows@, quiet@, i as int));
         }
-        let hk = Term { jitter: 0, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer };
+        let hk = Term { jitter: p.j_rel, period: if p.hk_period == 0 { 1 } else { p.hk_period }, bound: p.timer };
         let (verdict, own_terms) = response_of(&its, i, t.budget, d.b, d.o, w.deadline, hk);
         verdicts.push(verdict);
         all_terms.push(own_terms);

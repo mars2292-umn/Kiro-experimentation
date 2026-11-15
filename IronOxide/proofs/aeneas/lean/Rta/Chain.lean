@@ -16,14 +16,15 @@ namespace rsk_analyzer
 def termJobs (t : terms.Interferer) : rta.Term :=
   { jitter := t.jitter, period := t.period, bound := t.bound }
 
-/-- The interference of a Task's Release_Source: `⌈w / MIT_j⌉ · Δ_irq` (R19.2). -/
+/-- The Kernel-level work of a lower Task's arrivals:
+`⌈(w + J_j) / T_j⌉ · intake` (R19.2; the jitter since 2026-11-14). -/
 def termIntake (t : terms.Interferer) : rta.Term :=
-  { jitter := 0#u64, period := t.period, bound := t.intake }
+  { jitter := t.jitter, period := t.period, bound := t.intake }
 
-/-- The other timed events of a lower Task's Jobs: `⌈w / T_j⌉ · events`
-(R19.2, 2026-11-14). -/
+/-- The other timed events of a lower Task's Jobs:
+`⌈(w + J_j) / T_j⌉ · events` (R19.2, 2026-11-14). -/
 def termEvents (t : terms.Interferer) : rta.Term :=
-  { jitter := 0#u64, period := t.period, bound := t.events }
+  { jitter := t.jitter, period := t.period, bound := t.events }
 
 /-- The terms a lower-Priority Task adds: its arrivals' and its other timed
 events', each when it has a cost. -/

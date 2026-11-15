@@ -551,7 +551,7 @@ Each property names the evidence that establishes it. "Proof" means Verus, which
 
 ### Property 18: RTA is sound against execution
 *For any* generated Task_Model reported PASS, no simulated SRP execution exceeds a computed WCRT. This includes simulated Overruns by Tasks of stop-on-overrun Partitions.
-**Validates: Requirements 18.7, 29.5, 32.5** · Evidence: PBT with the discrete-event simulator; UPPAAL corpus (R32.6)
+**Validates: Requirements 18.7, 29.5, 32.5** · Evidence: PBT with the discrete-event simulator; UPPAAL corpus (R32.6); Lean (proven 2026-11-15, Verification_Plan 7.3: for every Task `analyse_all` reports schedulable, every Job executes its last unit within the reported R_i in every run of the Kernel's scheduler as Aeneas extracts it, with each Kernel section at the transition where the Kernel executes it; the Kernel's transitions around the scheduler are modelled by hand and the run's conditions are listed there)
 
 ### Property 19: The Config_Checker detects every altered value
 *For any* value class of R26.2 and any single alteration of that value in the binary or the Task_Model, the Config_Checker reports the altered item.

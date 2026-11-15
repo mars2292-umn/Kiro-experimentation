@@ -153,4 +153,29 @@ theorem Phi.arrive {t : Nat} (ht : t ∈ A) (hT : 0 < T t)
   unfold Phi
   omega
 
+/-- At a window that starts now, a Task or event source that owes nothing,
+or owes at most one arrival's cost for an arrival that still awaits its
+entry within its jitter `Jx`, is within its share of the inequality. -/
+theorem term_anchor {R now : Nat} {last : Nat → Option Nat} {wk : Nat → Nat} {x Jx : Nat}
+    (hT : 0 < T x) (hR : 0 < R)
+    (h : wk x = 0 ∨ (wk x ≤ cost x ∧ ∃ a, last x = some a ∧ now ≤ a + Jx)) :
+    term T cost R now now last wk x ≤ cost x * ceilDiv (R + Jx) (T x) := by
+  have hmax := Nat.le_max_left now (nxt T last x)
+  unfold term
+  rcases h with h0 | ⟨hle, a, ha, hja⟩
+  · rw [h0, Nat.zero_add]
+    apply Nat.mul_le_mul_left
+    apply ceilDiv_mono
+    omega
+  · have hnx : nxt T last x = a + T x := by simp [nxt, ha]
+    have hmax2 := Nat.le_max_right now (nxt T last x)
+    have hstep := ceilDiv_step (R + Jx) (T x) hT (by omega)
+    have hle2 : ceilDiv (now + R - max now (nxt T last x)) (T x)
+        ≤ ceilDiv (R + Jx - T x) (T x) := by
+      apply ceilDiv_mono
+      omega
+    have := Nat.mul_le_mul_left (cost x) hle2
+    rw [← hstep, Nat.mul_add, Nat.mul_one]
+    omega
+
 end P18

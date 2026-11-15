@@ -120,4 +120,42 @@ theorem finish_top_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config
   · simp only [hk, ite_true]; rfl
   · simp only [hk, ite_false]
 
+theorem defer_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP}
+    {t : U8} (h : logic.sched.Sched.defer s cfg t = ok s') :
+    t.val < NT.val ∧ (∀ k, rel s' k = if k = t.val then 2 else rel s k) ∧
+    (∀ k, job s' k = job s k) ∧ (∀ p, stk s' p = stk s p) ∧ s'.depth = s.depth ∧
+    LockSame s' s := by
+  obtain ⟨ht, rfl⟩ := defer_ok h
+  refine ⟨ht, ?_, fun _ => rfl, fun _ => rfl, rfl, fun _ => rfl, fun _ => rfl, rfl, rfl⟩
+  intro k
+  simp only [rel]
+  rw [get_set _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact ht), U8.cast_Usize_val_eq, rel_deferred]
+  split <;> rfl
+
+theorem clear_release_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP}
+    {t : U8} (h : logic.sched.Sched.clear_release s cfg t = ok s') :
+    t.val < NT.val ∧ (∀ k, rel s' k = if k = t.val then 0 else rel s k) ∧
+    (∀ k, job s' k = job s k) ∧ (∀ p, stk s' p = stk s p) ∧ s'.depth = s.depth ∧
+    LockSame s' s := by
+  obtain ⟨ht, rfl⟩ := clear_release_ok h
+  refine ⟨ht, ?_, fun _ => rfl, fun _ => rfl, rfl, fun _ => rfl, fun _ => rfl, rfl, rfl⟩
+  intro k
+  simp only [rel]
+  rw [get_set _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact ht), U8.cast_Usize_val_eq, rel_none]
+  split <;> rfl
+
+theorem kill_views {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP}
+    {i : Usize} (h : logic.sched.Sched.kill s cfg i = ok s') :
+    stk s i.val < NT.val ∧ (∀ k, rel s' k = rel s k) ∧
+    (∀ k, job s' k = if k = stk s i.val then 2 else job s k) ∧
+    (∀ p, stk s' p = stk s p) ∧ s'.depth = s.depth ∧ LockSame s' s := by
+  obtain ⟨_, ht, rfl⟩ := kill_ok h
+  refine ⟨ht, fun _ => rfl, ?_, fun _ => rfl, rfl, fun _ => rfl, fun _ => rfl, rfl, rfl⟩
+  intro k
+  simp only [job, stk]
+  rw [get_set _ _ _ _ (by rw [U8.cast_Usize_val_eq]; exact ht), U8.cast_Usize_val_eq, job_killed]
+  by_cases hk : k = (s.stack.val[i.val]!).val
+  · simp only [hk, ite_true]; rfl
+  · simp only [hk, ite_false]
+
 end P18

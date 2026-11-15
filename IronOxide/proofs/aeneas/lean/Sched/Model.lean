@@ -286,4 +286,47 @@ theorem job_running : logic.sched.JOB_RUNNING = 1#u8 := by
 theorem idle_ceiling : logic.IDLE_CEILING = 0#u8 := by
   unfold logic.IDLE_CEILING; rfl
 
+theorem rel_deferred : logic.sched.REL_DEFERRED = 2#u8 := by
+  unfold logic.sched.REL_DEFERRED; rfl
+theorem job_killed : logic.sched.JOB_KILLED = 2#u8 := by
+  unfold logic.sched.JOB_KILLED; rfl
+
+/-- `Sched::defer` (an intake held to the end of the MIT, R10.3). -/
+theorem defer_ok {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP} {t : U8}
+    (h : logic.sched.Sched.defer s cfg t = ok s') :
+    t.val < NT.val ∧
+    s' = { s with release := s.release.set (UScalar.cast .Usize t) logic.sched.REL_DEFERRED } := by
+  simp only [logic.sched.Sched.defer, lift, bind_ok, bind_eq_ok] at h
+  obtain ⟨a, ha, h⟩ := h
+  obtain ⟨hb, rfl⟩ := update_ok ha
+  simp at h
+  simp at hb
+  exact ⟨hb, h.symm⟩
+
+/-- `Sched::clear_release` (a Release dropped by a Partition stop or restart). -/
+theorem clear_release_ok {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP} {t : U8}
+    (h : logic.sched.Sched.clear_release s cfg t = ok s') :
+    t.val < NT.val ∧
+    s' = { s with release := s.release.set (UScalar.cast .Usize t) logic.sched.REL_NONE } := by
+  simp only [logic.sched.Sched.clear_release, lift, bind_ok, bind_eq_ok] at h
+  obtain ⟨a, ha, h⟩ := h
+  obtain ⟨hb, rfl⟩ := update_ok ha
+  simp at h
+  simp at hb
+  exact ⟨hb, h.symm⟩
+
+/-- `Sched::kill` (a preempted Job of a stopped or restarted Partition). -/
+theorem kill_ok {s s' : logic.sched.Sched NT NR NL} {cfg : logic.Config NT NR NP} {i : Usize}
+    (h : logic.sched.Sched.kill s cfg i = ok s') :
+    i.val < NT.val ∧ (s.stack.val[i.val]!).val < NT.val ∧
+    s' = { s with
+      job := s.job.set (UScalar.cast .Usize (s.stack.val[i.val]!)) logic.sched.JOB_KILLED } := by
+  simp only [logic.sched.Sched.kill, lift, bind_ok, bind_eq_ok] at h
+  obtain ⟨t, ht, a, ha, h⟩ := h
+  obtain ⟨hb, rfl⟩ := index_ok ht
+  obtain ⟨hb1, rfl⟩ := update_ok ha
+  rw [U8.cast_Usize_val_eq] at hb1
+  have h := ok_inj h
+  exact ⟨hb, hb1, h.symm⟩
+
 end P18

@@ -65,36 +65,42 @@ target directory. A local variable of the Rust source named like a module
 
 `lean/Sched/Sched.lean` is the Aeneas translation of the Kernel's scheduler
 state functions (`crates/rsk-logic/src/logic/sched.rs`: `new`,
-`make_pending`, `start`, `finish_top`, `lock`, `unlock` and what they
-call), and `lean/Sched/Eligible.lean` that of the eligibility test as
-executed (`Bound::eligible`, `crates/rsk-kernel/src/arch/bound.rs`), both
-from the Verus-erased build. The handwritten files:
+`make_pending`, `defer`, `clear_release`, `start`, `finish_top`, `lock`,
+`unlock`, `kill` and what they call), and `lean/Sched/Eligible.lean` that
+of the eligibility test as executed (`Bound::eligible`,
+`crates/rsk-kernel/src/arch/bound.rs`), both from the Verus-erased build.
+The handwritten files:
 
 - `lean/Sched/Model.lean`, `lean/Sched/Locks.lean`: what each extracted
-  function returns (`make_pending_ok`, `start_ok`, `eligible_ok`,
-  `lock_ok`, `unlock_ok`, `finish_top_ok`), and the correspondence between
-  the two translations' copies of the Kernel's types;
+  function returns (`make_pending_ok`, `defer_ok`, `clear_release_ok`,
+  `kill_ok`, `start_ok`, `eligible_ok`, `lock_ok`, `unlock_ok`,
+  `finish_top_ok`), and the correspondence between the two translations'
+  copies of the Kernel's types;
 - `lean/Sched/Views.lean`: the scheduler state as functions over the
   naturals;
-- `lean/Sched/Run.lean`: the run (`Step`, `Reach`) and the structure of the
-  scheduler state in it, the Stack Resource Policy included (`Wf.step`);
+- `lean/Sched/Run.lean`: the run (`Step`, `Reach`): the Kernel's
+  transitions as the scheduler sees them, each Kernel section at the
+  transition where the Kernel executes it, and the structure of the
+  scheduler state in a run, the Stack Resource Policy included
+  (`Wf.step`);
 - `lean/Sched/Window.lean`: the busy-window argument over the naturals;
-- `lean/Sched/Stage.lean`: the bound over the run (`stage3`);
-- `lean/Sched/Link.lean`: the bound with the response time `response_of`
-  returns (`property18`, and its instances `property18_stage2`,
-  `property18_stage1`).
+- `lean/Sched/Stage.lean`: the bound over the run (`stage4`);
+- `lean/Sched/Link.lean`: the run's parameters from the Analyzer's inputs
+  (`runParams`) and the bound with the response time `analyse_all` reports
+  (`property18`).
 
-The run has interference, SRP blocking, release jitter and one amount of
-Kernel work per arrival; the plan states what it assumes and what it
-leaves out (the Kernel transitions around `Sched`, and the Kernel's
-overhead at dispatch, lock, unlock and Job end).
+The Kernel's own transition functions (`Kernel::timer_event`, `intake`,
+`budget_event`, `dispatch`, `job_return`, the SVC services) do not
+translate (the plan says why); the run composes the extracted scheduler
+functions as those functions do, by hand, and the plan lists each such
+composition and every hypothesis of the run.
 
 Regenerating the translations:
 
 ```sh
 cd crates/rsk-logic
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from 'crate::logic::sched::_::new,crate::logic::sched::_::make_pending,crate::logic::sched::_::start,crate::logic::sched::_::finish_top,crate::logic::sched::_::lock,crate::logic::sched::_::unlock' \
+    --start-from 'crate::logic::sched::_::new,crate::logic::sched::_::make_pending,crate::logic::sched::_::start,crate::logic::sched::_::finish_top,crate::logic::sched::_::lock,crate::logic::sched::_::unlock,crate::logic::sched::_::defer,crate::logic::sched::_::clear_release,crate::logic::sched::_::kill' \
     --dest-file /tmp/sched.llbc -- --lib
 ../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Sched /tmp/sched.llbc
 
@@ -111,5 +117,5 @@ The `--include` options make Charon translate the two constants and the
 erased ghost types; without them Aeneas declares them as axioms. An
 inherent method is named `crate::module::_::name`, a trait method
 `{impl Trait for _}::name`. `Sched::select` is left out: Aeneas does not
-translate its loop.
-
+translate its loop (the run states its choice, the eligible Task of
+highest Priority, as a condition of the dispatch).

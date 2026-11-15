@@ -520,8 +520,8 @@ pub fn terms_for(tasks: &[AnalysedTask], i: usize) -> Vec<terms::TermOf> {
 
 /// The housekeeping event's term of a prepared set (`terms::spec_hk`).
 pub fn housekeeping(tasks: &[AnalysedTask]) -> crate::rta::Term {
-    let (period, cost) = tasks.first().map(|t| (t.hk_period, t.hk_cost)).unwrap_or((1, 0));
-    crate::rta::Term { jitter: 0, period: period.max(1), bound: cost }
+    let (jitter, period, cost) = tasks.first().map(|t| (t.j, t.hk_period, t.hk_cost)).unwrap_or((0, 1, 0));
+    crate::rta::Term { jitter, period: period.max(1), bound: cost }
 }
 
 /// Every Task as an interferer of the others' recurrences: its Priority,

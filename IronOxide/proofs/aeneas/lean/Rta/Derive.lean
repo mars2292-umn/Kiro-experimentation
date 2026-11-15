@@ -47,6 +47,43 @@ Budget event for a Periodic_Task; deadline, Budget, unmask and a blocking
 Job's Budget event for a Sporadic_Task, and its deferral under `defer`. -/
 def timedEvents (t : terms.TaskIn) : Nat := if t.periodic then 4 else if t.defer then 5 else 4
 
+/-- What the entry that ends the Task's own overrunning Job (`Δ_detect +
+Δ_enforce`, where its Partition stops overrunning Jobs) takes beyond the
+`Δ_timer + Δ_complete + Δ_hm` that `O_i` counts in its place (2026-11-14). -/
+def overrunExtra (t : terms.TaskIn) (p : terms.Params) : Nat :=
+  if t.stops_overruns
+  then (p.detect.val + p.enforce.val) - (p.timer.val + p.complete.val + p.hm.val)
+  else 0
+
+@[step] theorem overrun_extra_of_step (t : terms.TaskIn) (p : terms.Params) (counted : U64) :
+    terms.overrun_extra_of t p counted ⦃ r => ∀ v, r = some v →
+      v.val = if t.stops_overruns then (p.detect.val + p.enforce.val) - counted.val else 0 ⦄ := by
+  unfold terms.overrun_extra_of
+  cases hs : t.stops_overruns
+  · simp
+  · simp only [ite_true]
+    split
+    · rename_i hge
+      step as ⟨ i, hi ⟩
+      apply WP.spec_mono (add_step i p.enforce)
+      intro r hr v hv
+      have := hr v hv
+      scalar_tac
+    · rename_i hlt
+      step as ⟨ i, hi ⟩
+      split
+      · step as ⟨ i1, hi1 ⟩
+        intro v hv
+        simp at hv
+        subst hv
+        scalar_tac
+      · rename_i hle
+        simp only [WP.spec_ok]
+        intro v hv
+        simp at hv
+        subst hv
+        scalar_tac
+
 /-- `O_i` of R29.3 for a Task with `sites` Resource sites. -/
 def specO (t : terms.TaskIn) (p : terms.Params) (sites : Nat) (any_fpu : Bool) : Nat :=
   p.release.val + p.dispatch.val + p.complete.val + p.wake.val
@@ -56,6 +93,7 @@ def specO (t : terms.TaskIn) (p : terms.Params) (sites : Nat) (any_fpu : Bool) :
     + (if any_fpu then p.fp_save.val + p.fp_restore.val else 0)
     + (if t.periodic then 0 else p.irq.val + p.stamp.val)
     + t.endpoint_cost.val
+    + overrunExtra t p
 
 set_option maxHeartbeats 8000000 in
 theorem overhead_spec (t : terms.TaskIn) (p : terms.Params) (sites : U64) (any_fpu : Bool) :
@@ -65,7 +103,7 @@ theorem overhead_spec (t : terms.TaskIn) (p : terms.Params) (sites : U64) (any_f
   cases hp : t.periodic <;> cases hd : t.defer <;> cases any_fpu <;> by_cases hs : sites = 0#u64
   all_goals simp [hs]
   all_goals step*
-  all_goals (simp_all [specO, timedEvents])
+  all_goals (simp_all [specO, timedEvents, overrunExtra])
 
 /-- `E_j` of R29.4. -/
 def specE (t : terms.TaskIn) (p : terms.Params) (longest o : Nat) : Nat :=

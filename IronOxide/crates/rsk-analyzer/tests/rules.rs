@@ -440,9 +440,12 @@ fn r19_2_the_kernel_level_work_of_a_lower_task_interferes_with_every_task() {
     let echo_terms: Vec<_> = control.iter().filter(|x| x.task == by("part0.echo")).collect();
     assert_eq!(echo_terms.len(), 2);
     assert_eq!(echo_terms[0].kind, rsk_analyzer::terms::TERM_INTAKE);
-    assert_eq!((echo_terms[0].term.jitter, echo_terms[0].term.period, echo_terms[0].term.bound), (0, 500_000, 300));
+    // Each lower term and the housekeeping term carry J_rel (2026-11-14:
+    // an entry comes up to J_rel after its event's instant).
+    let j_rel = p.tasks[0].j;
+    assert_eq!((echo_terms[0].term.jitter, echo_terms[0].term.period, echo_terms[0].term.bound), (j_rel, 500_000, 300));
     assert_eq!(echo_terms[1].kind, rsk_analyzer::terms::TERM_EVENTS);
-    assert_eq!((echo_terms[1].term.jitter, echo_terms[1].term.period), (0, 500_000));
+    assert_eq!((echo_terms[1].term.jitter, echo_terms[1].term.period), (j_rel, 500_000));
     // Its unmask event, its deferral under `defer`, and its deadline event
     // unless the analysis shows it schedulable.
     let echo = &p.tasks[by("part0.echo")];
@@ -452,13 +455,13 @@ fn r19_2_the_kernel_level_work_of_a_lower_task_interferes_with_every_task() {
     // period (2026-11-14; a lower Periodic_Task had no term before), and
     // its deadline event only if the analysis does not show it schedulable.
     let sensor_terms: Vec<_> = control.iter().filter(|x| x.task == by("part0.sensor")).collect();
-    assert_eq!((sensor_terms[0].kind, sensor_terms[0].term.jitter, sensor_terms[0].term.bound), (rsk_analyzer::terms::TERM_INTAKE, 0, timer));
+    assert_eq!((sensor_terms[0].kind, sensor_terms[0].term.jitter, sensor_terms[0].term.bound), (rsk_analyzer::terms::TERM_INTAKE, j_rel, timer));
     let sensor_events = p.tasks[by("part0.sensor")].events;
     assert!(sensor_events == 0 || sensor_events == timer);
     assert_eq!(sensor_terms.len(), if sensor_events == 0 { 1 } else { 2 });
     // The housekeeping event is the last term of every Task.
     let hk = control.last().unwrap();
-    assert_eq!((hk.kind, hk.task, hk.term.jitter, hk.term.period, hk.term.bound), (rsk_analyzer::terms::TERM_HOUSEKEEPING, p.tasks.len(), 0, inputs::HOUSEKEEPING_PERIOD_CYCLES, timer));
+    assert_eq!((hk.kind, hk.task, hk.term.jitter, hk.term.period, hk.term.bound), (rsk_analyzer::terms::TERM_HOUSEKEEPING, p.tasks.len(), j_rel, inputs::HOUSEKEEPING_PERIOD_CYCLES, timer));
     // sensor (P5) is below echo: echo is in hep(sensor) and interferes by
     // its Jobs (E = Budget + O, the intake in O), not by a separate term.
     let sensor = inputs::terms_for(&p.tasks, by("part0.sensor"));
