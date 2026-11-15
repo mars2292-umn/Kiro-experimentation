@@ -1,6 +1,6 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:fe6647a6a14b3c67a6ea0f51e9ce74d999ec52f54b746722b8eacdc4e6a5e098",
+  "binary_hash": "sha256:c9966efb6aeb79cc4e8024d3024a395c9044b6e7eefe7186fa28b2950b022aa3",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
@@ -15,7 +15,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 44429,
+        "runs": 52777,
         "max_observed": 3311,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -34,7 +34,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 526,
+        "runs": 527,
         "max_observed": 3060,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -53,7 +53,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 533,
+        "runs": 634,
         "max_observed": 3311,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -72,7 +72,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 533,
+        "runs": 634,
         "max_observed": 3311,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -129,7 +129,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 526,
+        "runs": 527,
         "max_observed": 3192,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -148,7 +148,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 40859,
+        "runs": 49091,
         "max_observed": 229,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -186,7 +186,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 695,
+        "runs": 706,
         "max_observed": 329,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -197,16 +197,16 @@
     },
     {
       "symbol": "delta_fp_save",
-      "cycles": 437,
+      "cycles": 63,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
-        "the extended frame's stacking at an exception entry with the context active: half of the floating-point context stacking per interrupting entry (698 cycles: filter's excess over control per entry, 2773, less Δ_entry of the plain cycle configuration, 2075, is 698; the FPU Task's 49 Jobs, 119 interrupting entries; task 19.3)",
+        "the extended frame's stacking at an exception entry with the context active: half of the floating-point context stacking per interrupting entry (100 cycles: filter's excess over control per entry, 2123, less Δ_entry of the plain cycle configuration, 2075, is 48, below the method's resolution of 100 cycles, which is recorded instead; the FPU Task's 49 Jobs, 125 interrupting entries; task 19.3)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 119,
-        "max_observed": 349,
+        "runs": 125,
+        "max_observed": 50,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -216,16 +216,16 @@
     },
     {
       "symbol": "delta_fp_restore",
-      "cycles": 437,
+      "cycles": 63,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
-        "the extended frame's unstacking at the return: half of the floating-point context stacking per interrupting entry (698 cycles: filter's excess over control per entry, 2773, less Δ_entry of the plain cycle configuration, 2075, is 698; the FPU Task's 49 Jobs, 119 interrupting entries; task 19.3)",
+        "the extended frame's unstacking at the return: half of the floating-point context stacking per interrupting entry (100 cycles: filter's excess over control per entry, 2123, less Δ_entry of the plain cycle configuration, 2075, is 48, below the method's resolution of 100 cycles, which is recorded instead; the FPU Task's 49 Jobs, 125 interrupting entries; task 19.3)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 119,
-        "max_observed": 349,
+        "runs": 125,
+        "max_observed": 50,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
