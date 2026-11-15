@@ -60,7 +60,7 @@ rsk::app! {
         // 17,109 cycles (267 us) and `sampler` 1,306,517 cycles of slack, and
         // the Budget stays above the measured Job with the margin (7.9 ms,
         // the floor R28.4 allows).
-        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8000.us(),
+        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 7000.us(),
                      priority = 5, resources = [state, in_cs]);
     }
 

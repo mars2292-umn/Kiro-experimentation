@@ -3,10 +3,10 @@
   "records": [
     {
       "item": "part0.control",
-      "wcet_cycles": 36807,
+      "wcet_cycles": 34687,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -16,8 +16,8 @@
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 18000,
-        "max_observed": 29445,
+        "runs": 36000,
+        "max_observed": 27749,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -30,22 +30,21 @@
     },
     {
       "item": "part0.echo",
-      "wcet_cycles": 8839,
+      "wcet_cycles": 8844,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "5999 executions, below PAR-02's 10000"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 5999,
-        "max_observed": 7071,
+        "runs": 11998,
+        "max_observed": 7075,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -58,22 +57,21 @@
     },
     {
       "item": "part0.sensor",
-      "wcet_cycles": 512058,
+      "wcet_cycles": 430988,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "8999 executions, below PAR-02's 10000"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 8999,
-        "max_observed": 409646,
+        "runs": 17998,
+        "max_observed": 344790,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -86,10 +84,10 @@
     },
     {
       "item": "part1.log",
-      "wcet_cycles": 273662,
+      "wcet_cycles": 273472,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -100,8 +98,8 @@
         "4500 executions, below PAR-02's 10000"
       ],
       "measured": {
-        "runs": 4500,
-        "max_observed": 218929,
+        "runs": 9000,
+        "max_observed": 218777,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -114,22 +112,21 @@
     },
     {
       "item": "part1.pulse",
-      "wcet_cycles": 18607,
+      "wcet_cycles": 18697,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "9999 executions, below PAR-02's 10000"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 9999,
-        "max_observed": 14885,
+        "runs": 19999,
+        "max_observed": 14957,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -142,22 +139,21 @@
     },
     {
       "item": "part2.filter",
-      "wcet_cycles": 32672,
+      "wcet_cycles": 31537,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "7200 executions, below PAR-02's 10000"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 7200,
-        "max_observed": 26137,
+        "runs": 14400,
+        "max_observed": 25229,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -173,7 +169,7 @@
       "wcet_cycles": 24967,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -184,7 +180,7 @@
         "1800 executions, below PAR-02's 10000"
       ],
       "measured": {
-        "runs": 1800,
+        "runs": 3600,
         "max_observed": 19973,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
@@ -198,10 +194,10 @@
     },
     {
       "item": "part0.control#cs:state",
-      "wcet_cycles": 5207,
+      "wcet_cycles": 9307,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -211,8 +207,8 @@
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 18000,
-        "max_observed": 4165,
+        "runs": 36000,
+        "max_observed": 7445,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -225,10 +221,10 @@
     },
     {
       "item": "part0.control#cs:in_cs",
-      "wcet_cycles": 5134,
+      "wcet_cycles": 5314,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -238,8 +234,8 @@
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 18000,
-        "max_observed": 4107,
+        "runs": 36000,
+        "max_observed": 4251,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -252,22 +248,21 @@
     },
     {
       "item": "part0.sensor#cs:state",
-      "wcet_cycles": 486789,
+      "wcet_cycles": 407009,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "8999 executions, below PAR-02's 10000"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 8999,
-        "max_observed": 389431,
+        "runs": 17998,
+        "max_observed": 325607,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -280,10 +275,10 @@
     },
     {
       "item": "part0.sensor#cs:in_cs",
-      "wcet_cycles": 5118,
+      "wcet_cycles": 5160,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -293,8 +288,8 @@
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 17998,
-        "max_observed": 4094,
+        "runs": 35996,
+        "max_observed": 4128,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -307,22 +302,21 @@
     },
     {
       "item": "part2.filter#cs:stats",
-      "wcet_cycles": 6835,
+      "wcet_cycles": 9677,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "7200 executions, below PAR-02's 10000"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
       ],
       "measured": {
-        "runs": 7200,
-        "max_observed": 5468,
+        "runs": 14400,
+        "max_observed": 7741,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -335,10 +329,10 @@
     },
     {
       "item": "part2.sampler#cs:stats",
-      "wcet_cycles": 5242,
+      "wcet_cycles": 11327,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:ba89247e2af6d3834da275b1d91c38e553781aa5fd348598c5fb8bf90e6908b0",
+      "binary_hash": "sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -349,8 +343,8 @@
         "1800 executions, below PAR-02's 10000"
       ],
       "measured": {
-        "runs": 1800,
-        "max_observed": 4193,
+        "runs": 3600,
+        "max_observed": 9061,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

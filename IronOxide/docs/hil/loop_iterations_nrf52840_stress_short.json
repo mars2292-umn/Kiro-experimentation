@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:d7a45fdeb25a82ee7b08a7a26f46a6826ce40e7ecc60c7fd86d53c9eac38dcba",
+  "binary_hash": "sha256:0989c73d45598f443a1409acd53657cb6f5546789c5ee7337240de62bfb4a2d4",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -18,19 +18,19 @@
     {
       "key": "loop:part0:sensor:hold",
       "file": "apps/p1-demo/part0/src/lib.rs",
-      "line": 373,
+      "line": 385,
       "function": "sensor",
       "label": "hold",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 497,
+      "observed": 413,
       "verdict": "unreachable",
       "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
     {
       "key": "loop:part0:sensor:late",
       "file": "apps/p1-demo/part0/src/lib.rs",
-      "line": 411,
+      "line": 423,
       "function": "sensor",
       "label": "late",
       "bound": "50_000_000",

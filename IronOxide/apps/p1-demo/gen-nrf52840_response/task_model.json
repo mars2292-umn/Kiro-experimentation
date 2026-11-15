@@ -12,7 +12,7 @@
     "cpu_hz": 64000000,
     "tick_hz": 16000000
   },
-  "config_checksum": "0xe9ba1c83",
+  "config_checksum": "0x3cdf8f64",
   "layout_checksum": "0xf92e25f6",
   "operating_duration_ticks": 32000000,
   "safe_state": "crate::report_and_exit",
@@ -369,7 +369,7 @@
       "period_ticks": 320000,
       "source": null,
       "deadline_ticks": 320000,
-      "budget_cycles": 563200,
+      "budget_cycles": 499200,
       "fpu": false,
       "resources": [
         "part0.state",

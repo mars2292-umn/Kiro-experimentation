@@ -42,7 +42,7 @@ rsk::app! {
                       priority = 7, resources = [state, in_cs], raises = [tick]);
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
                    budget = 350.us(), priority = 6);
-        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 8800.us(),
+        task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 7800.us(),
                      priority = 5, resources = [state, in_cs]);
     }
 
