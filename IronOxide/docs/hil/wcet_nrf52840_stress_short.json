@@ -3,21 +3,22 @@
   "records": [
     {
       "item": "part0.control",
-      "wcet_cycles": 26194,
+      "wcet_cycles": 26164,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (timer, intake), 8312 cycles"
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 20955,
+        "max_observed": 20931,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -30,10 +31,10 @@
     },
     {
       "item": "part0.echo",
-      "wcet_cycles": 12578,
+      "wcet_cycles": 13034,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -41,11 +42,12 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "5999 executions, below PAR-02's 10000"
+        "5999 executions, below PAR-02's 10000",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 2 (timer, intake), 5213 cycles"
       ],
       "measured": {
         "runs": 5999,
-        "max_observed": 10062,
+        "max_observed": 10427,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -58,10 +60,10 @@
     },
     {
       "item": "part0.sensor",
-      "wcet_cycles": 433540,
+      "wcet_cycles": 433562,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -69,11 +71,12 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "8999 executions, below PAR-02's 10000"
+        "8999 executions, below PAR-02's 10000",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 5 (dispatch, timer, intake), 14348 cycles"
       ],
       "measured": {
         "runs": 8999,
-        "max_observed": 346832,
+        "max_observed": 346849,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -86,10 +89,10 @@
     },
     {
       "item": "part1.log",
-      "wcet_cycles": 258252,
+      "wcet_cycles": 258352,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -97,11 +100,12 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "3375 executions, below PAR-02's 10000"
+        "3375 executions, below PAR-02's 10000",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (dispatch, timer, intake), 8482 cycles"
       ],
       "measured": {
         "runs": 3375,
-        "max_observed": 206601,
+        "max_observed": 206681,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -114,21 +118,22 @@
     },
     {
       "item": "part1.pulse",
-      "wcet_cycles": 16659,
+      "wcet_cycles": 17844,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (dispatch, timer), 9727 cycles"
       ],
       "measured": {
         "runs": 11947,
-        "max_observed": 13327,
+        "max_observed": 14275,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -141,10 +146,10 @@
     },
     {
       "item": "part2.filter",
-      "wcet_cycles": 49299,
+      "wcet_cycles": 49209,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -152,11 +157,12 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "6300 executions, below PAR-02's 10000"
+        "6300 executions, below PAR-02's 10000",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 4 (dispatch, timer, intake), 11145 cycles"
       ],
       "measured": {
         "runs": 6300,
-        "max_observed": 39439,
+        "max_observed": 39367,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -169,10 +175,10 @@
     },
     {
       "item": "part2.sampler",
-      "wcet_cycles": 47057,
+      "wcet_cycles": 47269,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -180,11 +186,12 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "900 executions, below PAR-02's 10000"
+        "900 executions, below PAR-02's 10000",
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 4 (dispatch, timer, intake), 11273 cycles"
       ],
       "measured": {
         "runs": 900,
-        "max_observed": 37645,
+        "max_observed": 37815,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -197,10 +204,10 @@
     },
     {
       "item": "part0.control#cs:state",
-      "wcet_cycles": 13400,
+      "wcet_cycles": 13542,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -211,7 +218,7 @@
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 10720,
+        "max_observed": 10833,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -224,10 +231,10 @@
     },
     {
       "item": "part0.control#cs:in_cs",
-      "wcet_cycles": 13397,
+      "wcet_cycles": 13393,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -238,7 +245,7 @@
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 10717,
+        "max_observed": 10714,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -251,10 +258,10 @@
     },
     {
       "item": "part0.sensor#cs:state",
-      "wcet_cycles": 410338,
+      "wcet_cycles": 410425,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -266,7 +273,7 @@
       ],
       "measured": {
         "runs": 8999,
-        "max_observed": 328270,
+        "max_observed": 328340,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -279,10 +286,10 @@
     },
     {
       "item": "part0.sensor#cs:in_cs",
-      "wcet_cycles": 8853,
+      "wcet_cycles": 8942,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -293,7 +300,7 @@
       ],
       "measured": {
         "runs": 17998,
-        "max_observed": 7082,
+        "max_observed": 7153,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -306,10 +313,10 @@
     },
     {
       "item": "part2.filter#cs:stats",
-      "wcet_cycles": 32990,
+      "wcet_cycles": 32992,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -320,7 +327,7 @@
       ],
       "measured": {
         "runs": 12600,
-        "max_observed": 26392,
+        "max_observed": 26393,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -333,10 +340,10 @@
     },
     {
       "item": "part2.sampler#cs:stats",
-      "wcet_cycles": 11255,
+      "wcet_cycles": 11304,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b",
+      "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -348,7 +355,7 @@
       ],
       "measured": {
         "runs": 900,
-        "max_observed": 9004,
+        "max_observed": 9043,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

@@ -1781,3 +1781,42 @@ find = "  i.val < NS.val ∧ (slotOf k i).armed = true ∧ (slotOf k i).at.val �
 replace = "  i.val < NS.val ∧ (slotOf k i).armed = true ∧ (slotOf k i).at.val < k.now.val\n"
 expect = ["Sched/Timer.lean"]
 prover = "lean"
+
+# The end of the operating duration and the Budget event's own entry on
+# the code (Verification_Plan 7.3, Sched/Timer.lean, 2026-11-16).
+
+[[mutation]]
+id = "lean-kernel-end-slot-is-any-change"
+kills = "ksim (the slot of the end of the operating duration served leaves the Kernel state Kernel::enter_safe_state returns)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hs : logic.kernel.Kernel.enter_safe_state k1 cfg = ok k') :\n"
+replace = "      (hs : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-end-slot-skips-the-safe-state"
+kills = "serve_slot_cases, serve_slot_end (Kernel::serve_slot as extracted gives the slot of the end of the operating duration the safe state)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "        rsk_logic.logic.log.EV_OPERATING_END 255#u8 255#u8 0#u64 0#u32\n    rsk_logic.logic.kernel.Kernel.enter_safe_state self1 cfg\n"
+replace = "        rsk_logic.logic.log.EV_OPERATING_END 255#u8 255#u8 0#u64 0#u32\n    ok self1\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-budget-event-responds-without-overrun"
+kills = "budget_event_no_overrun (Kernel::budget_event as extracted applies the Overrun_Response only when the account shows an Overrun)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "        if b1\n        then\n          let b2 ← rsk_logic.logic.budget.Budget.report self.budget cfg t\n"
+replace = "        if !b1\n        then\n          let b2 ← rsk_logic.logic.budget.Budget.report self.budget cfg t\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-end-job-response-restarts-the-partition"
+kills = "apply_response_end_job (Kernel::apply_response as extracted ends the Job on top through end_top when it holds no Resource)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "            if holds_nothing\n            then\n"
+replace = "            if !holds_nothing\n            then\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"

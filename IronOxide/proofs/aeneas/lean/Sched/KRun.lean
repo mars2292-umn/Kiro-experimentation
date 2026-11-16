@@ -232,6 +232,12 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hs : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :
       KStep cfg P x { x with
         k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
+  | opend (x : KSt NT NR NP NL NS NE)
+      (k1 k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (h1 : k1.sched = x.k.sched)
+      (hs : logic.kernel.Kernel.enter_safe_state k1 cfg = ok k') :
+      KStep cfg P x { x with
+        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
   | settle (x : KSt NT NR NP NL NS NE) (r : Option U8 × Bool)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hs : logic.kernel.Kernel.settle x.k cfg = ok (r, k')) :
@@ -543,6 +549,10 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       exact rsteps_norm ih (apply_response_r hs)
     | bserved t i k' hs =>
       exact rsteps_norm ih (budget_event_eff hs)
+    | opend k1 k' h1 hs =>
+      have hr := enter_safe_state_r hs
+      rw [h1] at hr
+      exact rsteps_norm ih hr
     | settle r k' hs =>
       have := ih
       dsimp only [KSt.st] at this ⊢

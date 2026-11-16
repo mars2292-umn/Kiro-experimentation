@@ -487,7 +487,9 @@ fn hil_command(args: &[String]) -> ExitCode {
     };
     let kind = if stress { "stress" } else if plain { "measure" } else if kernel && coverage { "coverage-kernel" } else { "release-timing" };
     if stack {
-        return stack_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
+        // The stress configuration unless another is named.
+        let stack_kind = if release_timing { "release-timing" } else if plain { "measure" } else { "stress" };
+        return stack_command(&ws, &rig, &bin, &stimulus_bin, stack_kind, &target_dir, report);
     }
     if coverage && response {
         return response_command(&ws, &rig, &bin, &stimulus_bin, true, &target_dir, report);
@@ -1332,21 +1334,29 @@ fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Ri
 /// Stack painting (Verification_Plan 8.5, R37): the short stress
 /// configuration's HIL build (the lower-criticality Partitions overrun and
 /// the stimulus board storms the source, so the fault, response and
-/// restart paths run on the Kernel's stack), its stack regions painted by
+/// restart paths run on the Kernel's stack), or with `--release-timing` or
+/// `--plain` the short release-timing or the measurement configuration's
+/// under the stimulus it is measured with; its stack regions painted by
 /// the rig before the reset and read back within the operating duration,
 /// each judged against the Link_Checker's bound for this very binary.
-fn stack_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == "stress" && m.duration_secs < 10 * 60) else {
-        report.error(xtask::diag::Rule::Step, None, "no short stress configuration".to_string());
+fn stack_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, kind: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == kind && m.duration_secs < 10 * 60) else {
+        report.error(xtask::diag::Rule::Step, None, format!("no short `{kind}` configuration"));
         return print_report(&report, "hil");
     };
     let features = format!("{},{}", xtask::hil::FEATURES, measurement.feature);
     let variant = measurement.variant;
-    let dir = target_dir.join("stress").join(variant);
+    let dir = target_dir.join(kind).join(variant);
     let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
         return print_report(&report, "hil");
     };
-    let Some(stimulus) = xtask::hil::build_with(ws, stimulus_bin, &format!("{},storm", xtask::hil::FEATURES), &target_dir.join("stimulus-storm"), None, &mut report) else {
+    // The stimulus each configuration is measured under (`measurement_command`).
+    let stimulus = if measurement.stress {
+        xtask::hil::build_with(ws, stimulus_bin, &format!("{},storm", xtask::hil::FEATURES), &target_dir.join("stimulus-storm"), None, &mut report)
+    } else {
+        xtask::hil::build(ws, stimulus_bin, target_dir, None, &mut report)
+    };
+    let Some(stimulus) = stimulus else {
         return print_report(&report, "hil");
     };
     let regions = match xtask::hil::stack_regions(ws, bin, variant, &target.elf) {

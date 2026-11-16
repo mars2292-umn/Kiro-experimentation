@@ -6,7 +6,7 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 52;
+const PER_TASK: usize = 58;
 /// Kernel-entry kinds of the entry table (the Kernel's `ENTRY_*`).
 pub const ENTRY_KINDS: usize = 18;
 pub const ENTRY_NAMES: [&str; 18] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "view", "send", "recv"];
@@ -44,6 +44,13 @@ pub struct TaskStats {
     pub exec_sum_cycles: u64,
     /// Kernel entries that interrupted the Task's executing Job (task 19.3).
     pub interrupted: u32,
+    /// The Kernel entries that interrupted the Task's longest Job (the one
+    /// `exec_max_cycles` is of): how many, their Rust halves' summed cycles,
+    /// and their kinds (bit k: `ENTRY_NAMES[k]`). The Budget accounting
+    /// charges them to the Job (2026-11-16).
+    pub exec_max_entries: u32,
+    pub exec_max_entry_cycles: u32,
+    pub exec_max_entry_kinds: u32,
     /// Δ_stamp (Table 13-1): latched stimulus edges and the largest lag, in
     /// ticks, from the edge to the intake handler's timestamp.
     pub stamp_count: u32,
@@ -109,6 +116,17 @@ pub struct Stats {
     pub releases_recorded: u32,
 }
 
+impl TaskStats {
+    /// The entries that interrupted the Task's longest Job, in words.
+    pub fn exec_max_interruptions(&self) -> String {
+        if self.exec_max_entries == 0 {
+            return "none".to_string();
+        }
+        let kinds: Vec<&str> = ENTRY_NAMES.iter().enumerate().filter(|(k, _)| (self.exec_max_entry_kinds >> k) & 1 == 1).map(|(_, n)| *n).collect();
+        format!("{} ({}), {} cycles", self.exec_max_entries, kinds.join(", "), self.exec_max_entry_cycles)
+    }
+}
+
 impl Stats {
     pub fn decode(words: &[u32]) -> Result<Stats, String> {
         if words.len() < HEADER || words[0] != MAGIC {
@@ -147,6 +165,9 @@ impl Stats {
                 interrupted: words[b + 48],
                 stamp_count: words[b + 49],
                 stamp_max_ticks: words[b + 50],
+                exec_max_entries: words[b + 55],
+                exec_max_entry_cycles: words[b + 56],
+                exec_max_entry_kinds: words[b + 57],
             });
         }
         let cs_at = HEADER + n * PER_TASK;
@@ -270,6 +291,10 @@ impl Stats {
                 let interrupted: Vec<String> = self.tasks.iter().enumerate().filter(|(_, t)| t.interrupted > 0).map(|(t, st)| format!("Task {t}: {}", st.interrupted)).collect();
                 if !interrupted.is_empty() {
                     s.push_str(&format!("\nEntries that interrupted an executing Job: {}\n", interrupted.join(", ")));
+                }
+                let longest: Vec<String> = self.tasks.iter().enumerate().filter(|(_, t)| t.exec_count > 0).map(|(t, st)| format!("Task {t}: {}", st.exec_max_interruptions())).collect();
+                if !longest.is_empty() {
+                    s.push_str(&format!("\nEntries that interrupted each Task's longest Job (their Rust halves' cycles are in that Job's execution, charged in full when the entry switched nothing): {}\n", longest.join("; ")));
                 }
             }
         }

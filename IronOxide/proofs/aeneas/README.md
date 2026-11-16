@@ -105,8 +105,13 @@ The handwritten files:
   slot the handler of its kind for the slot's own Task (`serve_slot_cases`),
   a returning `timer_event` is a chain of served slots each armed and due
   when served (`timer_event_served`), and a served slot of each kind is the
-  run's transition of that kind (`KStep.served_*`). The end of the operating
-  duration, a Budget event's own entry and the time base are not covered.
+  run's transition of that kind (`KStep.served_*`). The slot of the end of
+  the operating duration is the run's `opend` transition (`served_end`), and
+  a Budget event as an entry of its own is read from `budget_event`: kept
+  scheduler state without an Overrun or under a recording response
+  (`served_bevent`, `served_bevent_recorded`), `Sched::finish_top` under the
+  response that ends the Job (`served_overrun`). The time base is not
+  covered.
 
 The plan lists the transitions that are still modelled by hand and every
 condition of the run.

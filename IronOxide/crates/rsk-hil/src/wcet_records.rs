@@ -52,7 +52,12 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, model: &TaskModel, binding: &B
     for (i, ts) in st.tasks.iter().enumerate() {
         let Some(task) = model.tasks.get(i) else { continue };
         if ts.exec_count > 0 {
-            records.push(make(task.id.clone(), ts.exec_max_cycles, ts.exec_count as u64, "the Task entry: one Job's execution from the Budget accounting (R18.1)"));
+            let mut r = make(task.id.clone(), ts.exec_max_cycles, ts.exec_count as u64, "the Task entry: one Job's execution from the Budget accounting (R18.1)");
+            // The accounting charges a Job the Kernel entries that interrupt it
+            // without a switch, so the maximum moves by a whole entry between
+            // binaries; the record says what the longest Job contained.
+            r.conditions.push(format!("Kernel entries that interrupted the longest Job, their Rust halves inside its execution: {}", ts.exec_max_interruptions()));
+            records.push(r);
         }
     }
     for c in &st.cs {

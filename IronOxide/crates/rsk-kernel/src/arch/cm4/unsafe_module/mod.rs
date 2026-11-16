@@ -233,7 +233,7 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 52;
+const STATS_PER_TASK: usize = 58;
 #[cfg(feature = "trace-ram")]
 const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
 #[cfg(feature = "trace-ram")]
@@ -445,9 +445,19 @@ pub fn stats_exec(t: u8, cycles: u32, over: bool) {
     }
     let v = STATS_HEADER + t as usize * STATS_PER_TASK + 26;
     s[v] = s[v].saturating_add(1);
+    // The Kernel entries that interrupted this Job (words 52 to 54 of the
+    // Task's record), kept beside the maximum when this Job is the longest
+    // (words 55 to 57), and cleared for the Task's next Job.
+    let b = STATS_HEADER + t as usize * STATS_PER_TASK;
     if cycles > s[v + 1] {
         s[v + 1] = cycles;
+        s[b + 55] = s[b + 52];
+        s[b + 56] = s[b + 53];
+        s[b + 57] = s[b + 54];
     }
+    s[b + 52] = 0;
+    s[b + 53] = 0;
+    s[b + 54] = 0;
     if over {
         s[v + 2] = s[v + 2].saturating_add(1);
     }
@@ -538,15 +548,42 @@ pub fn stats_entry(kind: u8, cycles: u32) {
     s[v + 3] = (sum >> 32) as u32;
 }
 
-/// Counts one Kernel entry that interrupted the executing Job of `t`.
+/// Counts one Kernel entry of `kind` that interrupted the executing Job
+/// of `t`, its Rust half having taken `cycles`: in the Task's total (word
+/// 48) and in the interrupted Job's own account (2026-11-16: the count,
+/// the cycles and the kinds, words 52 to 54), which `stats_exec` keeps
+/// for the Task's longest Job. The Budget accounting charges a Job the
+/// wall-clock cycles between switch points, so an entry that switches
+/// nothing is charged to the Job it interrupted in full, and one that
+/// switches up to its charge point.
 #[cfg(feature = "trace-ram")]
-pub fn stats_interrupted(t: u8) {
+pub fn stats_interrupted(t: u8, kind: u8, cycles: u32) {
     if t as usize >= STATS_TASKS {
         return;
     }
     let s = stats();
-    let v = STATS_HEADER + t as usize * STATS_PER_TASK + 48;
-    s[v] = s[v].saturating_add(1);
+    let b = STATS_HEADER + t as usize * STATS_PER_TASK;
+    s[b + 48] = s[b + 48].saturating_add(1);
+    s[b + 52] = s[b + 52].saturating_add(1);
+    s[b + 53] = s[b + 53].saturating_add(cycles);
+    if kind < 32 {
+        s[b + 54] |= 1 << kind;
+    }
+}
+
+/// A Job of `t` begins (a dispatch selected it): its account of
+/// interrupting entries starts empty, whatever a Job of the Task ended
+/// without completing left there.
+#[cfg(feature = "trace-ram")]
+pub fn stats_job_start(t: u8) {
+    if t as usize >= STATS_TASKS {
+        return;
+    }
+    let s = stats();
+    let b = STATS_HEADER + t as usize * STATS_PER_TASK;
+    s[b + 52] = 0;
+    s[b + 53] = 0;
+    s[b + 54] = 0;
 }
 
 /// Appends one trace entry, unless the trace is frozen (`events_push`).

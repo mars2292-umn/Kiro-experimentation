@@ -506,9 +506,16 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
             crate::arch::Binding::Intake { .. } => unsafe_module::ENTRY_INTAKE,
             _ => unsafe_module::ENTRY_TIMER,
         };
+        let interrupting_cycles = hw::dwt_cyccnt().wrapping_sub(entry_cycles);
         entry_record(k, kind, entry_cycles, seq_before);
         if let Some(t) = top_before {
-            unsafe_module::stats_interrupted(t);
+            unsafe_module::stats_interrupted(t, kind, interrupting_cycles);
+        }
+        // A dispatch begins a Job of the Task now on top.
+        if plan.psp != 0 {
+            if let Some(t) = k.top() {
+                unsafe_module::stats_job_start(t);
+            }
         }
     }
     #[cfg(feature = "trace-ram")]
@@ -591,9 +598,10 @@ pub fn timer<S: System>() -> ReturnPlan {
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     #[cfg(feature = "trace-ram")]
     {
+        let interrupting_cycles = hw::dwt_cyccnt().wrapping_sub(start);
         entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
         if let Some(t) = top_before {
-            unsafe_module::stats_interrupted(t);
+            unsafe_module::stats_interrupted(t, unsafe_module::ENTRY_TIMER, interrupting_cycles);
         }
     }
     mirror_events(k);

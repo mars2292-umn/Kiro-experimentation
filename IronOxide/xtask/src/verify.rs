@@ -677,6 +677,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let cy_cmds = hil_cycles(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-cycles-step", "HIL cycle-attribution step", &["R18.1"], cy_cmds);
 
+    // ------------------------------------------- 10b-stack. HIL stack painting
+    job.heading("HIL: stack painting, every stack region's high-water mark against the Link_Checker's bound (Verification_Plan 11.15, hil-stack)");
+    let st_cmds = hil_stack(&ws, rig.as_ref(), &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "hil-stack-step", "HIL stack-painting step", &["R37.2"], st_cmds);
+
     // ------------------------------------ 10b-cov. Structural coverage (R53)
     job.heading("Structural coverage: the Kernel's host tests instrumented, the Partitions' on-target reports (task 19.5, R53.3)");
     let cov_cmds = structural_coverage(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
@@ -1336,6 +1341,100 @@ fn hil_response(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, builds: &[cr
     )
     .covers(&["R14.11", "R14.5", "R14.9", "R18.4"]);
     let mut commands = vec![target.command.clone()];
+    commands.extend(out.commands.iter().cloned());
+    item.command_lines = commands.clone();
+    item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = artifacts;
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    commands
+}
+
+/// Stack painting (Verification_Plan 11.15, R37.2): the short stress
+/// configuration (the storm, the overruns and the restarts run on the
+/// Kernel's stack) on the rig, its stack regions painted before the reset
+/// and read back, each high-water mark judged against the Link_Checker's
+/// bound for the same binary by `rsk_hil::stack`. Evidence_Item
+/// `hil-stack`. Skipped with a warning without a rig or its probes.
+fn hil_stack(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let Some(rig) = rig else { return vec![] };
+    let probes = match rsk_hil::probes::list() {
+        Ok(p) => p,
+        Err(e) => {
+            report.warn(format!("HIL stack painting: {e}; not run"));
+            return vec![];
+        }
+    };
+    if !probes.iter().any(|p| p.id == rig.target.serial) || !probes.iter().any(|p| p.id == rig.stimulus.serial) {
+        report.warn("HIL stack painting: the target or the stimulus board is not attached; not run".to_string());
+        return vec![];
+    }
+    let Some(bin) = ws.policy.qemu_spikes().next() else {
+        report.error(Rule::Step, None, "HIL stack painting: no QEMU spike Application to build the stress configuration of");
+        return vec![];
+    };
+    let Some(stimulus_bin) = rig.stimulus.bin.clone() else {
+        report.error(Rule::Step, None, "HIL stack painting: the rig names no stimulus binary");
+        return vec![];
+    };
+    let Some(measurement) = crate::hil::MEASUREMENTS.iter().find(|m| m.kind == "stress" && m.duration_secs < 10 * 60) else {
+        report.error(Rule::Step, None, "HIL stack painting: no short stress configuration");
+        return vec![];
+    };
+    let variant = measurement.variant;
+    let features = format!("{},{}", crate::hil::FEATURES, measurement.feature);
+    let dir = target_dir.join("hil").join("stack");
+    let Some(target) = crate::hil::build_with(ws, &bin, &features, &dir.join("target"), Some(sandbox), report) else {
+        return vec![];
+    };
+    let Some(stimulus) = crate::hil::build_with(ws, &stimulus_bin, &format!("{},storm", crate::hil::FEATURES), &dir.join("stimulus"), Some(sandbox), report) else {
+        return vec![];
+    };
+    let regions = match crate::hil::stack_regions(ws, &bin, variant, &target.elf) {
+        Ok(r) => r,
+        Err(e) => {
+            report.error(Rule::Step, None, format!("HIL stack painting: stack regions of `{variant}`: {e}"));
+            return vec![];
+        }
+    };
+    let work = dir.join("run");
+    let inputs = rsk_hil::stack::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        work_dir: &work,
+        run_secs: measurement.duration_secs.saturating_sub(15).max(10),
+        regions: &regions,
+        flash_stimulus: true,
+        configuration: variant,
+        binary_hash: &target.binary.hash,
+        // The run's nonce: the low half of the wall clock's seconds.
+        pattern: rsk_hil::stack::pattern(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as u16).unwrap_or(0x3C96)),
+    };
+    let out = rsk_hil::stack::run(&inputs);
+    let text = rsk_hil::stack::render(&inputs, &out);
+    let mut artifacts = Vec::new();
+    if let Ok(name) = store.write_artifact("hil-stack.md", &text) {
+        artifacts.push(name);
+    }
+    for st in &out.steps {
+        if st.ok {
+            report.note(format!("HIL stack painting: {}: {}", st.name, st.detail));
+        } else {
+            report.error(Rule::Step, None, format!("HIL stack painting: {}: {}", st.name, st.detail));
+        }
+    }
+    let mut item = Item::new(
+        "hil-stack",
+        Kind::Test,
+        &format!("HIL stack painting: every stack region's high-water mark within the Link_Checker's bound on the configuration {} of {} ({}; target {}, stimulus {})", variant, bin, target.binary.hash, rig.target.serial, rig.stimulus.serial),
+        Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+        Verdict::from_bool(out.ok()),
+    )
+    .covers(&["R37.2"]);
+    let mut commands = vec![target.command.clone(), stimulus.command.clone()];
     commands.extend(out.commands.iter().cloned());
     item.command_lines = commands.clone();
     item.notes = out.steps.iter().map(|s| format!("{}: {}: {}", s.name, if s.ok { "pass" } else { "fail" }, s.detail)).collect();
@@ -2017,7 +2116,7 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
                 unschedulable.join(" | ")
             )),
             _ if budget_rejection => report.note(format!(
-                "task 19.1 FINDING: `{variant}`: the Analyzer rejected the measured inputs under R28.4 (a measured WCET above its Task's Budget: the configuration's injected overruns); not a violation: {}",
+                "task 19.1 FINDING: `{variant}`: the Analyzer rejected the measured inputs under R28.4 (a measured WCET above its Task's Budget: expected of a Task whose overruns the configuration injects, a finding to examine for any other Task, since the cause is not checked here); not a violation: {}",
                 text.lines().find(|l| l.contains("[R28.4]")).map(|l| l.trim()).unwrap_or("")
             )),
             _ => report.error(Rule::Step, None, format!("Analyzer: `{variant}` with measured Kernel_Timing_Parameters: exit {status} (see {log_name})")),
@@ -2043,7 +2142,7 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
                 0 => "schedulable".to_string(),
                 1 if protected_schedulable => format!("the protected Partition's Tasks schedulable, the lower-criticality Tasks not, the fault-injection configuration's documented property (R18.7, 11.14): {}", unschedulable.join(" | ")),
                 1 => format!("NOT schedulable under these inputs, a finding of task 19.3 pending measured WCET_Records: {}", unschedulable.join(" | ")),
-                _ if budget_rejection => "REJECTED under R28.4: a measured WCET above its Task's Budget, the configuration's injected overruns (task 19.1)".to_string(),
+                _ if budget_rejection => "REJECTED under R28.4: a measured WCET above its Task's Budget (task 19.1): expected of a Task whose overruns the configuration injects, a finding to examine for any other Task".to_string(),
                 _ => format!("the Analyzer did not run to a verdict (exit {status})"),
             }
         )];
