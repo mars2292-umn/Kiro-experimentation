@@ -89,12 +89,15 @@ rsk::app! {
         state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
-        // Budget 800 µs here (500 in the plain demo): the first Job of each
+        // Budget 900 µs here (500 in the plain demo): the first Job of each
         // incarnation starts the EasyDMA traffic scenario (task 19.2), which
         // the restarts of this configuration repeat every 200 ms, and its
         // measured record with the margin must stay within the Budget for
-        // the measured analysis to have a verdict (R28.4; task 19.4).
-        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 800.us(),
+        // the measured analysis to have a verdict (R28.4; task 19.4). 800 µs
+        // until 2026-11-16: the hour-long run on the Kernel with `settle`
+        // recorded one Job of 41,133 cycles (37,506 the run before, the mean
+        // unchanged), 51,417 with the margin against 51,200.
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 900.us(),
                       priority = 1, resources = [stats]);
     }
 }

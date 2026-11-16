@@ -54,7 +54,7 @@ commands:
       target/xtask-nightly/<date>/. Needs the boards attached and the
       machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
       schedules it at 02:00.
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] [--defer-probe | --defer-nofix] | --stress [--short] | --response | --isolation | --boot-checks | --cycles | --coverage [--stress | --plain | --kernel | --response | --isolation]] [--lean]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] [--defer-probe | --defer-nofix] | --stress [--short] | --response | --isolation | --boot-checks | --stack | --cycles | --coverage [--stress | --plain | --kernel | --response | --isolation]] [--lean]
       --lean: the HIL build without the trace ring and the trace pins
       (feature record-only; task 19.2, R34.7), its records written as
       `<variant>_lean` beside the instrumented ones, never used by the job.
@@ -400,6 +400,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut response = false;
     let mut isolation = false;
     let mut boot_checks = false;
+    let mut stack = false;
     let mut cycles = false;
     let mut coverage = false;
     let mut lean = false;
@@ -426,6 +427,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--response" => response = true,
             "--isolation" => isolation = true,
             "--boot-checks" => boot_checks = true,
+            "--stack" => stack = true,
             "--cycles" => cycles = true,
             "--coverage" => coverage = true,
             "--lean" => lean = true,
@@ -484,6 +486,9 @@ fn hil_command(args: &[String]) -> ExitCode {
         return print_report(&report, "hil");
     };
     let kind = if stress { "stress" } else if plain { "measure" } else if kernel && coverage { "coverage-kernel" } else { "release-timing" };
+    if stack {
+        return stack_command(&ws, &rig, &bin, &stimulus_bin, &target_dir, report);
+    }
     if coverage && response {
         return response_command(&ws, &rig, &bin, &stimulus_bin, true, &target_dir, report);
     }
@@ -1324,6 +1329,64 @@ fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Ri
 /// over the HIL build with the `boot-mutation` feature: one run per
 /// mutated check. The report goes under target/xtask-hil/boot-checks and
 /// docs/hil/.
+/// Stack painting (Verification_Plan 8.5, R37): the short stress
+/// configuration's HIL build (the lower-criticality Partitions overrun and
+/// the stimulus board storms the source, so the fault, response and
+/// restart paths run on the Kernel's stack), its stack regions painted by
+/// the rig before the reset and read back within the operating duration,
+/// each judged against the Link_Checker's bound for this very binary.
+fn stack_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
+    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == "stress" && m.duration_secs < 10 * 60) else {
+        report.error(xtask::diag::Rule::Step, None, "no short stress configuration".to_string());
+        return print_report(&report, "hil");
+    };
+    let features = format!("{},{}", xtask::hil::FEATURES, measurement.feature);
+    let variant = measurement.variant;
+    let dir = target_dir.join("stress").join(variant);
+    let Some(target) = xtask::hil::build_with(ws, bin, &features, &dir, None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let Some(stimulus) = xtask::hil::build_with(ws, stimulus_bin, &format!("{},storm", xtask::hil::FEATURES), &target_dir.join("stimulus-storm"), None, &mut report) else {
+        return print_report(&report, "hil");
+    };
+    let regions = match xtask::hil::stack_regions(ws, bin, variant, &target.elf) {
+        Ok(r) => r,
+        Err(e) => {
+            report.error(xtask::diag::Rule::Step, None, format!("stack regions of `{variant}`: {e}"));
+            return print_report(&report, "hil");
+        }
+    };
+    report.note(format!("stack painting on `{variant}` ({features}): {} over {} loadable bytes; {} regions", target.binary.hash, target.binary.loadable_bytes, regions.len()));
+    let work = target_dir.join("stack").join(variant);
+    let inputs = rsk_hil::stack::Inputs {
+        rig,
+        target_elf: &target.elf,
+        stimulus_elf: &stimulus.elf,
+        work_dir: &work,
+        run_secs: measurement.duration_secs.saturating_sub(15).max(10),
+        regions: &regions,
+        flash_stimulus: true,
+        configuration: variant,
+        binary_hash: &target.binary.hash,
+        // The run's nonce: the low half of the wall clock's seconds.
+        pattern: rsk_hil::stack::pattern(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as u16).unwrap_or(0x3C96)),
+    };
+    let out = rsk_hil::stack::run(&inputs);
+    let text = rsk_hil::stack::render(&inputs, &out);
+    print!("{text}");
+    let _ = std::fs::create_dir_all(&work);
+    let _ = std::fs::write(work.join("report.md"), &text);
+    let record = ws.root.join("docs").join("hil");
+    let _ = std::fs::create_dir_all(&record);
+    let name = format!("stack_{variant}.md");
+    let _ = std::fs::write(record.join(&name), &text);
+    report.note(format!("report written to {} and docs/hil/{name}", ws.rel(&work)));
+    if !out.ok() {
+        report.error(xtask::diag::Rule::Step, None, "the stack-painting run failed (report above)");
+    }
+    print_report(&report, "stack-painting run passed")
+}
+
 fn boot_checks_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
     let features = format!("{},boot-mutation", xtask::hil::FEATURES);
     let dir = target_dir.join("boot-checks");
@@ -1452,7 +1515,7 @@ fn nightly_command(args: &[String]) -> ExitCode {
     // campaigns, the coverage runs (task 19.2, 19.4, 19.5; the two
     // fault-injection suites' since 2026-11-07), and the job again on the
     // refreshed records.
-    let steps: [(&str, &[&str]); 15] = [
+    let steps: [(&str, &[&str]); 16] = [
         ("verify", &["verify"]),
         ("cycles", &["hil", "--cycles"]),
         ("cycles-fpu", &["hil", "--cycles", "--fpu"]),
@@ -1467,6 +1530,9 @@ fn nightly_command(args: &[String]) -> ExitCode {
         ("coverage-kernel", &["hil", "--coverage", "--kernel"]),
         ("coverage-response", &["hil", "--coverage", "--response"]),
         ("coverage-isolation", &["hil", "--coverage", "--isolation"]),
+        // Stack painting against the Link_Checker's bounds (8.5; since
+        // 2026-11-16): the short stress configuration, 3 minutes.
+        ("stack", &["hil", "--stack"]),
         ("verify-final", &["verify"]),
     ];
     let mut summary = format!("# Nightly HIL campaign {stamp}\n\n| Step | Verdict | Log | Minutes |\n|---|---|---|---|\n");

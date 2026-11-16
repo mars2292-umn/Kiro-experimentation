@@ -1279,11 +1279,11 @@ expect = ["bound.rs", "postcondition not satisfied"]
 
 [[mutation]]
 id = "preempted-budget-slot-left-armed"
-kills = "Kernel::dispatch's postcondition (2026-11-14): the preempted Job's Budget event is disarmed, so no stale timer entry fires while the preempting Job executes (the response-time analysis charges none)"
+kills = "Kernel::dispatch's step record (lemma_record's inv_unrecorded; since 2026-11-15 its clause budget_slots_owned refuses the state ahead of the postcondition's assertion of 2026-11-14): the preempted Job's Budget event is disarmed, so no stale timer entry fires while the preempting Job executes (the response-time analysis charges none)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
 find = "            self.slots.disarm(cfg.slot_budget[prev as usize] as usize);\n            proof {\n                Self::lemma_consistent_disarm(&b0, self, cfg, cfg.slot_budget[prev as int] as int);\n            }\n"
 replace = ""
-expect = ["kernel.rs", "assertion failed", "before_arm.slots.armed"]
+expect = ["kernel.rs", "precondition not satisfied", "inv_unrecorded"]
 package = "rsk-logic"
 
 [[mutation]]
@@ -1733,4 +1733,51 @@ file = "proofs/aeneas/lean/Proto/Spec.lean"
 find = "∀ r, r < n → (projn g r).isSome"
 replace = "∀ r, r < n → r = 0 → (projn g r).isSome"
 expect = ["Proto/"]
+prover = "lean"
+
+# The timer entry on the code (Verification_Plan 7.3, Sched/Timer.lean).
+
+[[mutation]]
+id = "lean-code-timer-serves-a-slot-not-due"
+kills = "timer_loop1_served (Kernel::timer_event as extracted serves a slot only when its instant is at or before the reading of the time base)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "      if slot.armed\n      then\n        if slot.at <= self.now\n        then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i\n        else ok self\n      else ok self\n"
+replace = "      if slot.armed\n      then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i\n      else ok self\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-timer-serves-a-disarmed-deadline-slot"
+kills = "timer_loop0_served (Kernel::timer_event as extracted serves a deadline slot ahead of the others only when it is armed)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "      if slot.armed\n      then\n        if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE\n        then\n          if slot.at <= self.now\n          then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i\n          else ok self\n        else ok self\n      else ok self\n"
+replace = "      if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE\n      then\n        if slot.at <= self.now\n        then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i\n        else ok self\n      else ok self\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-release-slot-served-as-a-deferral"
+kills = "serve_slot_cases (Kernel::serve_slot as extracted gives a release slot periodic_release)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          rsk_logic.logic.kernel.Kernel.periodic_release self cfg slot.task i\n"
+replace = "          rsk_logic.logic.kernel.Kernel.deferred_release self cfg slot.task i\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-slot-served-for-another-task"
+kills = "serve_slot_cases (Kernel::serve_slot as extracted serves a deadline slot for the slot's own Task)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "              rsk_logic.logic.kernel.Kernel.deadline_miss self cfg slot.task i\n"
+replace = "              rsk_logic.logic.kernel.Kernel.deadline_miss self cfg 0#u8 i\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-timer-served-slot-need-not-be-due"
+kills = "timer_loop0_served, timer_loop1_served (a slot of the chain is armed and due in the state it is served in)"
+file = "proofs/aeneas/lean/Sched/Timer.lean"
+find = "  i.val < NS.val ∧ (slotOf k i).armed = true ∧ (slotOf k i).at.val ≤ k.now.val\n"
+replace = "  i.val < NS.val ∧ (slotOf k i).armed = true ∧ (slotOf k i).at.val < k.now.val\n"
+expect = ["Sched/Timer.lean"]
 prover = "lean"

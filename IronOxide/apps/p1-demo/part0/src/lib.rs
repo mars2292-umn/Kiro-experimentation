@@ -177,7 +177,12 @@ pub fn control(mut cx: rsk_ctx::Control) {
         };
         #[cfg(feature = "qemu-inject")]
         let keep = cx.count.get() != 19 || matches!(next, State::S0(_));
-        #[cfg(not(feature = "qemu-inject"))]
+        // The response configuration (task 21.3 on the board, R41.2): a
+        // Job from 1,870 ms to 1,890 ms (the safe state is at 1,900 ms)
+        // drops its state in S1.
+        #[cfg(all(feature = "response", not(feature = "qemu-inject")))]
+        let keep = !inject::window(1870, 20) || matches!(next, State::S0(_));
+        #[cfg(not(any(feature = "qemu-inject", feature = "response")))]
         let keep = true;
         if keep {
             cx.pingpong.store(next);

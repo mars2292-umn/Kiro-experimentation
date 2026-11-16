@@ -1,20 +1,20 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_isolation",
-  "binary_hash": "sha256:0c608fb3a913eb8525c6370b5476b8cfa9d582dd084808a9a3d54f848c4435a0",
+  "binary_hash": "sha256:89a6b0ce8481dc2cadcf4210a6b79cc011a471db4e4c20702e7402acc48101cc",
   "threshold_percent": 50,
   "items": [
     {
       "item": "part0.control",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part07control17hc9c3baf8881ffabcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1be5f6be8e03159aE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8dc403661ac8f049E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17haacdb9bf979f21caE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part07control17h135b506e876f08cdE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2f85b719479ef958E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he07691605fd2dca9E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he72a7695c268db91E",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 8,
       "covered": 7,
@@ -26,14 +26,14 @@
     {
       "item": "part0.control#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part07control17hc9c3baf8881ffabcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1be5f6be8e03159aE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8dc403661ac8f049E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17haacdb9bf979f21caE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part07control17h135b506e876f08cdE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2f85b719479ef958E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he07691605fd2dca9E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he72a7695c268db91E",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 8,
       "covered": 7,
@@ -45,14 +45,14 @@
     {
       "item": "part0.control#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part07control17hc9c3baf8881ffabcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1be5f6be8e03159aE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8dc403661ac8f049E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17haacdb9bf979f21caE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part07control17h135b506e876f08cdE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2f85b719479ef958E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he07691605fd2dca9E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he72a7695c268db91E",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 8,
       "covered": 7,
@@ -64,12 +64,12 @@
     {
       "item": "part0.echo",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part04echo17hd820bc8b59485193E",
-        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h648ae60317b863faE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part04echo17h0a312c11d4829a44E",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h23ab4745e220047eE",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 4,
       "covered": 3,
@@ -81,77 +81,77 @@
     {
       "item": "part0.sensor",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part06sensor17h5fe3e90f15d3be46E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h84a9573fad3f73c4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h98c1a1bf15723e91E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hab11d05936122750E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbc52db9d197c460aE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part06sensor17hc26f152ae07bcebbE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h5990f97bc8475dd5E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h767e1f4a97aa8c58E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h92b5bdf3f3e36fceE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hf42c39f9d93c5583E",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 8,
       "covered": 6,
       "percent": 75,
       "uncovered": [
         "p1_demo_part0::matrix_step: 67:8 true",
-        "p1_demo_part0::sensor::{closure}: 310:80 false"
+        "p1_demo_part0::sensor::{closure}: 385:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part06sensor17h5fe3e90f15d3be46E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h84a9573fad3f73c4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h98c1a1bf15723e91E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hab11d05936122750E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbc52db9d197c460aE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part06sensor17hc26f152ae07bcebbE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h5990f97bc8475dd5E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h767e1f4a97aa8c58E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h92b5bdf3f3e36fceE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hf42c39f9d93c5583E",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 8,
       "covered": 6,
       "percent": 75,
       "uncovered": [
         "p1_demo_part0::matrix_step: 67:8 true",
-        "p1_demo_part0::sensor::{closure}: 310:80 false"
+        "p1_demo_part0::sensor::{closure}: 385:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17hc0568c56fb813b26E",
-        "_ZN13p1_demo_part011matrix_step17h55a6435e13f32b4cE",
-        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h9b5744de4c37b080E",
-        "_ZN13p1_demo_part06sensor17h5fe3e90f15d3be46E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h84a9573fad3f73c4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h98c1a1bf15723e91E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hab11d05936122750E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbc52db9d197c460aE",
-        "_ZN13p1_demo_part012validate_rep17h49cbd286d485137aE"
+        "_ZN13p1_demo_part010rsk_target2ms17h4e9cdbd2f050800eE",
+        "_ZN13p1_demo_part011matrix_step17h00b1c2cb325c1863E",
+        "_ZN13p1_demo_part011matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h1ee34a9547618d95E",
+        "_ZN13p1_demo_part06sensor17hc26f152ae07bcebbE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h5990f97bc8475dd5E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h767e1f4a97aa8c58E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h92b5bdf3f3e36fceE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hf42c39f9d93c5583E",
+        "_ZN13p1_demo_part012validate_rep17hd3d96ebb86d0510fE"
       ],
       "branches": 8,
       "covered": 6,
       "percent": 75,
       "uncovered": [
         "p1_demo_part0::matrix_step: 67:8 true",
-        "p1_demo_part0::sensor::{closure}: 310:80 false"
+        "p1_demo_part0::sensor::{closure}: 385:80 false"
       ]
     },
     {
       "item": "part1.log",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h5eaaf916fa907047E",
-        "_ZN13p1_demo_part111matrix_step17h30fd245dad576ac5E",
-        "_ZN13p1_demo_part111matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17hd5d6f9eb6b4575b6E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17hbd7b6ee1f5fdcba1E",
-        "_ZN13p1_demo_part112pulse_source5start17h6e74e0d930acfc18E",
-        "_ZN13p1_demo_part112pulse_source7respond17hf121e386cd6f2fa4E",
-        "_ZN13p1_demo_part13log17hbbbb2fb32865cf90E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hecc4feae3145e161E"
+        "_ZN13p1_demo_part110rsk_target2ms17h87bbb10ee818c2ccE",
+        "_ZN13p1_demo_part111matrix_step17hdfe010ab2ac82c90E",
+        "_ZN13p1_demo_part111matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h82a4a42a236abd92E",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h5a2e4755bfb2f54fE",
+        "_ZN13p1_demo_part112pulse_source5start17h9bae7dc01e51d118E",
+        "_ZN13p1_demo_part112pulse_source7respond17h5d09fbdba20ed972E",
+        "_ZN13p1_demo_part13log17hf54ed1d33c76d523E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hd44a823564a11fd6E"
       ],
       "branches": 14,
       "covered": 14,
@@ -161,14 +161,14 @@
     {
       "item": "part1.pulse",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h5eaaf916fa907047E",
-        "_ZN13p1_demo_part111matrix_step17h30fd245dad576ac5E",
-        "_ZN13p1_demo_part111matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17hd5d6f9eb6b4575b6E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17hbd7b6ee1f5fdcba1E",
-        "_ZN13p1_demo_part112pulse_source5start17h6e74e0d930acfc18E",
-        "_ZN13p1_demo_part112pulse_source7respond17hf121e386cd6f2fa4E",
-        "_ZN13p1_demo_part15pulse17h67aee0e6c5c0f3afE",
-        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17hd65c97479e894e4dE"
+        "_ZN13p1_demo_part110rsk_target2ms17h87bbb10ee818c2ccE",
+        "_ZN13p1_demo_part111matrix_step17hdfe010ab2ac82c90E",
+        "_ZN13p1_demo_part111matrix_step28_$u7b$$u7b$closure$u7d$$u7d$17h82a4a42a236abd92E",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h5a2e4755bfb2f54fE",
+        "_ZN13p1_demo_part112pulse_source5start17h9bae7dc01e51d118E",
+        "_ZN13p1_demo_part112pulse_source7respond17h5d09fbdba20ed972E",
+        "_ZN13p1_demo_part15pulse17h505dd32c550c442bE",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h7944521c8af6e3a9E"
       ],
       "branches": 8,
       "covered": 8,
@@ -178,25 +178,26 @@
     {
       "item": "part2.filter",
       "functions": [
-        "_ZN13p1_demo_part210address_of17h46cffee8d1c32df5E",
-        "_ZN13p1_demo_part210rsk_target2ms17h416f900518447427E",
-        "_ZN13p1_demo_part214isolation_step17h0eaf766e9aecdba8E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h092ee713cc4a9458E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h159e0f8376d7ecf7E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h45321c28f996505eE",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h4b90767d89f3f2f4E",
-        "_ZN13p1_demo_part25Stats6record17hdb002505dd20405dE",
-        "_ZN13p1_demo_part26filter17h70b2912acf526756E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h1b3844cd13cd6281E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hb3c2e2507f45cfecE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hcf4b8bb846be9c15E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd1bd1d0a33640ccbE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd88184d675bdd803E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf4b29f54a830564dE",
-        "_ZN13p1_demo_part26inject6window17hb48deb615361d25aE",
-        "_ZN13p1_demo_part26inject7spin_ms17h55368a6ec69d5fa8E",
-        "_ZN13p1_demo_part27lowpass17hf447b34633a7885bE",
-        "_ZN13p1_demo_part25Stats3new17hebd7d17615d9cb25E"
+        "_ZN13p1_demo_part210address_of17hd16cf1fd1e632f2aE",
+        "_ZN13p1_demo_part210rsk_target2ms17h9644d75366b5e37fE",
+        "_ZN13p1_demo_part214isolation_step17h4d7cc6aebb636625E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h94313750cdd13b95E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17ha39ed1e1eebaa7dfE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17hc4b32f40dce0936bE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17he7e29808f02a78dfE",
+        "_ZN13p1_demo_part25Stats6record17h958267b0a961eea6E",
+        "_ZN13p1_demo_part26filter17h241f71d2908230f5E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h22e65bcae4ee205eE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h2a4fb6100a7dcf38E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h2ec73b41ef068e27E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h452945f33bcd86c8E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h92aaa99f00978c0bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf937635415298f4aE",
+        "_ZN13p1_demo_part26inject6window17h62d012a8e14d0f05E",
+        "_ZN13p1_demo_part26inject7spin_ms17hb73890552ccdd6fbE",
+        "_ZN13p1_demo_part27lowpass17hd8fd1a45ec030f14E",
+        "_ZN13p1_demo_part212validate_req17h06dd224df52244d4E",
+        "_ZN13p1_demo_part25Stats3new17h08f21f7861e77b70E"
       ],
       "branches": 22,
       "covered": 16,
@@ -206,32 +207,33 @@
         "p1_demo_part2::isolation_step: 194:16 false",
         "p1_demo_part2::isolation_step: 223:16 false",
         "p1_demo_part2::Stats::record: 253:12 true",
-        "p1_demo_part2::filter: 290:12 true",
+        "p1_demo_part2::filter: 300:12 true",
         "p1_demo_part2::inject::spin_ms: 38:84 false"
       ]
     },
     {
       "item": "part2.filter#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part210address_of17h46cffee8d1c32df5E",
-        "_ZN13p1_demo_part210rsk_target2ms17h416f900518447427E",
-        "_ZN13p1_demo_part214isolation_step17h0eaf766e9aecdba8E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h092ee713cc4a9458E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h159e0f8376d7ecf7E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h45321c28f996505eE",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h4b90767d89f3f2f4E",
-        "_ZN13p1_demo_part25Stats6record17hdb002505dd20405dE",
-        "_ZN13p1_demo_part26filter17h70b2912acf526756E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h1b3844cd13cd6281E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hb3c2e2507f45cfecE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hcf4b8bb846be9c15E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd1bd1d0a33640ccbE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd88184d675bdd803E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf4b29f54a830564dE",
-        "_ZN13p1_demo_part26inject6window17hb48deb615361d25aE",
-        "_ZN13p1_demo_part26inject7spin_ms17h55368a6ec69d5fa8E",
-        "_ZN13p1_demo_part27lowpass17hf447b34633a7885bE",
-        "_ZN13p1_demo_part25Stats3new17hebd7d17615d9cb25E"
+        "_ZN13p1_demo_part210address_of17hd16cf1fd1e632f2aE",
+        "_ZN13p1_demo_part210rsk_target2ms17h9644d75366b5e37fE",
+        "_ZN13p1_demo_part214isolation_step17h4d7cc6aebb636625E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h94313750cdd13b95E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17ha39ed1e1eebaa7dfE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17hc4b32f40dce0936bE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17he7e29808f02a78dfE",
+        "_ZN13p1_demo_part25Stats6record17h958267b0a961eea6E",
+        "_ZN13p1_demo_part26filter17h241f71d2908230f5E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h22e65bcae4ee205eE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h2a4fb6100a7dcf38E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h2ec73b41ef068e27E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h452945f33bcd86c8E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h92aaa99f00978c0bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf937635415298f4aE",
+        "_ZN13p1_demo_part26inject6window17h62d012a8e14d0f05E",
+        "_ZN13p1_demo_part26inject7spin_ms17hb73890552ccdd6fbE",
+        "_ZN13p1_demo_part27lowpass17hd8fd1a45ec030f14E",
+        "_ZN13p1_demo_part212validate_req17h06dd224df52244d4E",
+        "_ZN13p1_demo_part25Stats3new17h08f21f7861e77b70E"
       ],
       "branches": 22,
       "covered": 16,
@@ -241,30 +243,31 @@
         "p1_demo_part2::isolation_step: 194:16 false",
         "p1_demo_part2::isolation_step: 223:16 false",
         "p1_demo_part2::Stats::record: 253:12 true",
-        "p1_demo_part2::filter: 290:12 true",
+        "p1_demo_part2::filter: 300:12 true",
         "p1_demo_part2::inject::spin_ms: 38:84 false"
       ]
     },
     {
       "item": "part2.sampler",
       "functions": [
-        "_ZN13p1_demo_part210address_of17h46cffee8d1c32df5E",
-        "_ZN13p1_demo_part210rsk_target2ms17h416f900518447427E",
-        "_ZN13p1_demo_part214isolation_step17h0eaf766e9aecdba8E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h092ee713cc4a9458E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h159e0f8376d7ecf7E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h45321c28f996505eE",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h4b90767d89f3f2f4E",
-        "_ZN13p1_demo_part25Stats6record17hdb002505dd20405dE",
-        "_ZN13p1_demo_part26inject6window17hb48deb615361d25aE",
-        "_ZN13p1_demo_part26inject7spin_ms17h55368a6ec69d5fa8E",
-        "_ZN13p1_demo_part27lowpass17hf447b34633a7885bE",
-        "_ZN13p1_demo_part27sampler17h2535bd520e689d5bE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h17437e6435dff746E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h67a949a202c6b814E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hd69b0adeeeb75c91E",
-        "_ZN13p1_demo_part25Stats3new17hebd7d17615d9cb25E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hf0e820ac98931728E"
+        "_ZN13p1_demo_part210address_of17hd16cf1fd1e632f2aE",
+        "_ZN13p1_demo_part210rsk_target2ms17h9644d75366b5e37fE",
+        "_ZN13p1_demo_part214isolation_step17h4d7cc6aebb636625E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h94313750cdd13b95E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17ha39ed1e1eebaa7dfE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17hc4b32f40dce0936bE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17he7e29808f02a78dfE",
+        "_ZN13p1_demo_part25Stats6record17h958267b0a961eea6E",
+        "_ZN13p1_demo_part26inject6window17h62d012a8e14d0f05E",
+        "_ZN13p1_demo_part26inject7spin_ms17hb73890552ccdd6fbE",
+        "_ZN13p1_demo_part27lowpass17hd8fd1a45ec030f14E",
+        "_ZN13p1_demo_part27sampler17he5d0d7bda045d478E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h32653754bbabd6ecE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h3774e91b94f49220E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hbfd7cb3c94915d7bE",
+        "_ZN13p1_demo_part212validate_req17h06dd224df52244d4E",
+        "_ZN13p1_demo_part25Stats3new17h08f21f7861e77b70E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h492b3614a40b017eE"
       ],
       "branches": 18,
       "covered": 12,
@@ -275,29 +278,30 @@
         "p1_demo_part2::isolation_step: 223:16 false",
         "p1_demo_part2::Stats::record: 253:12 true",
         "p1_demo_part2::inject::spin_ms: 38:84 false",
-        "p1_demo_part2::sampler: 407:8 true"
+        "p1_demo_part2::sampler: 518:8 true"
       ]
     },
     {
       "item": "part2.sampler#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part210address_of17h46cffee8d1c32df5E",
-        "_ZN13p1_demo_part210rsk_target2ms17h416f900518447427E",
-        "_ZN13p1_demo_part214isolation_step17h0eaf766e9aecdba8E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h092ee713cc4a9458E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h159e0f8376d7ecf7E",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h45321c28f996505eE",
-        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h4b90767d89f3f2f4E",
-        "_ZN13p1_demo_part25Stats6record17hdb002505dd20405dE",
-        "_ZN13p1_demo_part26inject6window17hb48deb615361d25aE",
-        "_ZN13p1_demo_part26inject7spin_ms17h55368a6ec69d5fa8E",
-        "_ZN13p1_demo_part27lowpass17hf447b34633a7885bE",
-        "_ZN13p1_demo_part27sampler17h2535bd520e689d5bE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h17437e6435dff746E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h67a949a202c6b814E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hd69b0adeeeb75c91E",
-        "_ZN13p1_demo_part25Stats3new17hebd7d17615d9cb25E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hf0e820ac98931728E"
+        "_ZN13p1_demo_part210address_of17hd16cf1fd1e632f2aE",
+        "_ZN13p1_demo_part210rsk_target2ms17h9644d75366b5e37fE",
+        "_ZN13p1_demo_part214isolation_step17h4d7cc6aebb636625E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17h94313750cdd13b95E",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17ha39ed1e1eebaa7dfE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17hc4b32f40dce0936bE",
+        "_ZN13p1_demo_part214isolation_step28_$u7b$$u7b$closure$u7d$$u7d$17he7e29808f02a78dfE",
+        "_ZN13p1_demo_part25Stats6record17h958267b0a961eea6E",
+        "_ZN13p1_demo_part26inject6window17h62d012a8e14d0f05E",
+        "_ZN13p1_demo_part26inject7spin_ms17hb73890552ccdd6fbE",
+        "_ZN13p1_demo_part27lowpass17hd8fd1a45ec030f14E",
+        "_ZN13p1_demo_part27sampler17he5d0d7bda045d478E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h32653754bbabd6ecE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h3774e91b94f49220E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hbfd7cb3c94915d7bE",
+        "_ZN13p1_demo_part212validate_req17h06dd224df52244d4E",
+        "_ZN13p1_demo_part25Stats3new17h08f21f7861e77b70E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h492b3614a40b017eE"
       ],
       "branches": 18,
       "covered": 12,
@@ -308,7 +312,7 @@
         "p1_demo_part2::isolation_step: 223:16 false",
         "p1_demo_part2::Stats::record: 253:12 true",
         "p1_demo_part2::inject::spin_ms: 38:84 false",
-        "p1_demo_part2::sampler: 407:8 true"
+        "p1_demo_part2::sampler: 518:8 true"
       ]
     }
   ],
@@ -381,7 +385,7 @@
       "branches": 6,
       "covered": 5,
       "uncovered": [
-        "290:12 true"
+        "300:12 true"
       ]
     },
     {
@@ -455,7 +459,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "407:8 true"
+        "518:8 true"
       ]
     },
     {
@@ -489,6 +493,13 @@
     {
       "name": "p1_demo_part2::rsk_jobs::sampler",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_isolation.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::validate_req",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 0,
       "covered": 0,
       "uncovered": []
@@ -638,32 +649,32 @@
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::sensor::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "310:80 false"
+        "385:80 false"
       ]
-    },
-    {
-      "name": "p1_demo_part0::sensor::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
-    },
-    {
-      "name": "p1_demo_part0::sensor::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
-    },
-    {
-      "name": "p1_demo_part0::sensor::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
     },
     {
       "name": "p1_demo_part0::control",

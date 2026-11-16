@@ -278,6 +278,32 @@ impl Target<'_> {
         Ok(command)
     }
 
+    /// Writes an Intel HEX image of RAM contents and resets the board in
+    /// the same probe session (`probe-rs download --reset`; RAM is written
+    /// directly, no flash algorithm runs). One session because the core
+    /// runs between probe commands. The stack-painting suite's paint.
+    pub fn download_ram_and_reset(&self, image: &Path) -> Result<String, String> {
+        let out = self
+            .command("download")
+            .args(["--disable-progressbars", "--binary-format", "hex", "--reset"])
+            .arg(image)
+            .output()
+            .map_err(|e| format!("cannot run probe-rs: {e}"))?;
+        let command = self.display("download", &format!("--disable-progressbars --binary-format hex --reset {}", image.display()));
+        if !out.status.success() {
+            return Err(format!("{command} failed: {}", strip_ansi(&format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr))).trim()));
+        }
+        Ok(command)
+    }
+
+    /// The value of a symbol of `elf` of any kind (a linker-script symbol
+    /// such as `_stack_start` is absolute, not an object).
+    pub fn symbol_value(elf: &Path, symbol: &str) -> Result<Option<u32>, String> {
+        let image = rsk_elf::Elf::read(elf).map_err(|e| format!("{}: {e}", elf.display()))?;
+        let symbols = image.symbols().map_err(|e| e.to_string())?;
+        Ok(symbols.iter().find(|s| s.name == symbol).map(|s| s.value))
+    }
+
     /// The address of an object symbol of `elf`.
     pub fn symbol_address(elf: &Path, symbol: &str) -> Result<Option<u32>, String> {
         let image = rsk_elf::Elf::read(elf).map_err(|e| format!("{}: {e}", elf.display()))?;

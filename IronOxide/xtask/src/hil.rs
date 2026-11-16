@@ -433,6 +433,48 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
     }
 }
 
+/// The stack regions of the HIL build `elf` of `bin` in the declaration
+/// variant `variant`, each with the Link_Checker's bound for that binary
+/// (`rsk_link::check`): the Partitions' stacks below `_p<N>_stack_top` in
+/// the Task_Model's Partition order, and the Kernel's main stack below
+/// `_stack_start`, each as long as the Link_Checker counts available.
+pub fn stack_regions(ws: &Workspace, bin: &str, variant: &str, elf: &Path) -> Result<Vec<rsk_hil::stack::Region>, String> {
+    let app_dir = ws.packages.values().find(|p| p.name == bin).and_then(|p| p.dir.parent().map(Path::to_path_buf)).ok_or_else(|| format!("no package `{bin}`"))?;
+    let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
+    let model_text = std::fs::read_to_string(&model).map_err(|e| format!("cannot read {}: {e}", model.display()))?;
+    let bytes = std::fs::read(elf).map_err(|e| format!("cannot read {}: {e}", elf.display()))?;
+    let result = rsk_link::check(&bytes, &model_text)?;
+    // A Partition's stack is the first `stack` bytes of its RAM region (the
+    // generated link.x: `_p<N>_stack_top = ORIGIN(P<N>RAM) + stack`; the
+    // symbol is provided and not kept in the binary, so the origin is read
+    // from the generated memory map the binary was linked with).
+    let memory = app_dir.join(format!("gen-{variant}")).join("memory.x");
+    let memory_text = std::fs::read_to_string(&memory).map_err(|e| format!("cannot read {}: {e}", memory.display()))?;
+    let origin = |region: &str| -> Option<u32> {
+        let line = memory_text.lines().find(|l| l.split_whitespace().next() == Some(region))?;
+        let value = line.split("ORIGIN =").nth(1)?.split(',').next()?.trim();
+        u32::from_str_radix(value.strip_prefix("0x")?, 16).ok()
+    };
+    let mut out = Vec::new();
+    let mut partition = 0usize;
+    for r in &result.regions {
+        let available = u32::try_from(r.available).map_err(|_| format!("region `{}`: {} bytes available", r.name, r.available))?;
+        let top = if r.kind == "msp" {
+            rsk_hil::board::Target::symbol_value(elf, "_stack_start")?.ok_or_else(|| format!("the binary has no symbol `_stack_start` for the stack region `{}`", r.name))?
+        } else {
+            partition += 1;
+            let region = format!("P{}RAM", partition - 1);
+            origin(&region).ok_or_else(|| format!("{}: no region `{region}` for the stack region `{}`", memory.display(), r.name))? + available
+        };
+        let bound = u32::try_from(r.bound).map_err(|_| format!("region `{}`: a bound of {} bytes", r.name, r.bound))?;
+        // The Kernel's region begins where its data and bss end, not on a
+        // word boundary by necessity: the paint starts at the next word.
+        let base = (top.checked_sub(available).ok_or_else(|| format!("region `{}`: {available} bytes below {top:#x}", r.name))? + 3) & !3;
+        out.push(rsk_hil::stack::Region { name: r.name.clone(), base, top, bound });
+    }
+    Ok(out)
+}
+
 /// The Task_Model of a declaration variant of `bin`'s Application
 /// (`gen-<variant>/task_model.json`), when generated.
 pub fn task_model(ws: &Workspace, bin: &str, variant: &str) -> Option<rsk_model::task_model::TaskModel> {

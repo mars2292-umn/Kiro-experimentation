@@ -73,7 +73,9 @@ const DEADLINE_MISS: u8 = 7;
 const RELEASE_OVERLAP: u8 = 8;
 const MIT_VIOLATION: u8 = 9;
 const RESOURCE_RELEASED: u8 = 11;
+const PROTOCOL_VIOLATION: u8 = 12;
 const PARTITION_RESTART: u8 = 16;
+const MESSAGE_REJECTED: u8 = 26;
 const PARTITION_STOP: u8 = 17;
 const SAFE_STATE: u8 = 18;
 const END_JOB: u8 = 19;
@@ -105,6 +107,11 @@ pub const REQUIRED: &[Expected] = &[
     ev(OVERRUN, 5, 2, 500, 526, "filter's Budget overrun inside its Critical_Section"),
     ev(PARTITION_RESTART, ANY, 2, 500, 526, "END_JOB escalated to RESTART_PARTITION (R18.4)"),
     ev(RESOURCE_RELEASED, 5, 2, 500, 526, "the Resource released by force (R8.9)"),
+    // Task 21.4 on the board (R42.4): `log`'s reply of 600 ms is invalid,
+    // `control`'s validation function rejects it at its next Job, and the
+    // rejection is a fault of the sending Partition.
+    ev(MESSAGE_REJECTED, 3, 1, 600, 660, "log's invalid reply rejected by control's validation function (R42.4)"),
+    ev(PARTITION_RESTART, ANY, 1, 600, 660, "RESTART_PARTITION as part1's fault response to the rejected message"),
     ev(MEMMANAGE, 3, 1, 800, 845, "log's fault"),
     ev(PARTITION_RESTART, ANY, 1, 800, 845, "RESTART_PARTITION as part1's fault response"),
     // KD-R9.6 (found 2026-11-02, fixed): the running Job's own deadline
@@ -118,6 +125,10 @@ pub const REQUIRED: &[Expected] = &[
     ev(DEADLINE_MISS, 2, 0, 1340, 1350, "the deadline miss of sensor's held Release (R9.7), RECORD_ONLY"),
     ev(DEADLINE_MISS, 5, 2, 1345, 1360, "filter's deadline missed while pending (its Release of 1,325 ms)"),
     ev(PARTITION_STOP, ANY, 2, 1345, 1360, "STOP_PARTITION as part2's deadline-miss response"),
+    // Task 21.3 on the board (R41.2): `control` drops its role state in
+    // S1; the Endpoint_Library reports the Protocol violation, recorded
+    // with no response.
+    ev(PROTOCOL_VIOLATION, 0, 0, 1870, 1899, "control's dropped role state reported as a Protocol violation (R41.2), no response"),
     ev(MEMMANAGE, 0, 0, 1900, 1915, "control's fault"),
     ev(SAFE_STATE, ANY, ANY, 1900, 1915, "SAFE_STATE as part0's fault response"),
 ];
@@ -149,6 +160,9 @@ fn tolerated(e: &EventRecMs) -> bool {
         // full from the fifth send on; each is the reported bound
         // violation of the sending Partition, by design.
         25 => hog && e.task == 0,
+        // The dropped state is reported, and so is the slot each later Job
+        // of `control` finds empty (the role stays silent until a restart).
+        PROTOCOL_VIOLATION => (1870..=1900).contains(&ms) && e.task == 0,
         23 => true, // debugger
         _ => false,
     }
@@ -307,12 +321,14 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     // re-initializes its Endpoint roles, and `control`'s next operation on
     // each of its two Endpoints to part1 reports the peer-state change,
     // once; the PingPong rounds go on after it (one per `log` Job before
-    // and after the restart); no reply was rejected (R42.4).
-    let peer_ok = within(telemetry_peer, 1, 1) && within(pingpong_peer, 1, 1) && within(pingpong_rejected, 0, 0) && within(pingpong_reps, 30, 47);
+    // and after the restart). Since 2026-11-15 part1 restarts twice: at
+    // about 610 ms for its rejected reply (R42.4), which `control` counts,
+    // and at 800 ms for its fault.
+    let peer_ok = within(telemetry_peer, 2, 2) && within(pingpong_peer, 2, 2) && within(pingpong_rejected, 1, 1) && within(pingpong_reps, 28, 46);
     out.step(
         "peer-state errors after part1's restart (R42.3, task 21.4)",
         peer_ok,
-        format!("telemetry_peer {} (1 expected), pingpong_peer {} (1 expected), pingpong_rejected {} (0 expected), pingpong_reps {} (about 45: one round per log Job but the restart's)", fmt(telemetry_peer), fmt(pingpong_peer), fmt(pingpong_rejected), fmt(pingpong_reps)),
+        format!("telemetry_peer {} (2 expected: the restarts of 600 and 800 ms), pingpong_peer {} (2 expected), pingpong_rejected {} (1 expected: the invalid reply of 600 ms), pingpong_reps {} (about 43: one round per log Job but the restarts')", fmt(telemetry_peer), fmt(pingpong_peer), fmt(pingpong_rejected), fmt(pingpong_reps)),
     );
     // part2 restarted at 500 ms and stopped at 1,325 ms: filter 33 Jobs
     // between (less the one that faulted at... none after 500), sampler 8.
@@ -358,14 +374,14 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                 .or(a.window_s.map(|(f, _)| f))
                 .unwrap_or(0.0);
             let count_in = |from_s: f64, to_s: f64| a.latencies_us.iter().filter(|(r, _)| { let t = *r as f64 / inputs.samplerate_hz as f64 - run0; t >= from_s && t < to_s }).count();
-            let before_restart = count_in(0.0, 0.78);
+            let before_restart = count_in(0.0, 0.58) + count_in(0.68, 0.78);
             let between = count_in(0.86, 1.28);
             let after_stop = count_in(1.45, 1.88);
-            let ok = before_restart >= 38 && between >= 20 && after_stop >= 20;
+            let ok = before_restart >= 32 && between >= 20 && after_stop >= 20;
             out.step(
                 "pulse answered throughout (the source restarted with its Partition; R14.9 after part2's stop)",
                 ok,
-                format!("{} answered pulses before part1's restart (of 43), {} between the restart and sensor's 120 ms Job (of 23), {} after part2's stop (of 23); {} matched in all, latency {} to {} µs", before_restart, between, after_stop, a.matched(), a.latency_min_us().map(|v| format!("{v:.0}")).unwrap_or("-".into()), a.latency_max_us().map(|v| format!("{v:.0}")).unwrap_or("-".into())),
+                format!("{} answered pulses before part1's restart of 800 ms, outside the 100 ms around its restart for the rejected reply (at least 32 required), {} between the restart and sensor's 120 ms Job (of 23), {} after part2's stop (of 23); {} matched in all, latency {} to {} µs", before_restart, between, after_stop, a.matched(), a.latency_min_us().map(|v| format!("{v:.0}")).unwrap_or("-".into()), a.latency_max_us().map(|v| format!("{v:.0}")).unwrap_or("-".into())),
             );
             out.analysis = Some(a);
         }
@@ -426,8 +442,8 @@ mod tests {
         let script: &[(u8, u8, u8, u64)] = &[
             (OVERRUN, 0, 0, 201), (MEMMANAGE, 5, 2, 250), (END_JOB, 5, 2, 250), (OVERRUN, 3, 1, 406), (END_JOB, 3, 1, 406),
             (OVERRUN, 5, 2, 500), (PARTITION_RESTART, 0xFF, 2, 500), (RESOURCE_RELEASED, 5, 2, 500),
-            (MEMMANAGE, 3, 1, 800), (PARTITION_RESTART, 0xFF, 1, 800),
-            (OVERRUN, 2, 0, 1313), (DEADLINE_MISS, 2, 0, 1325), (DEADLINE_MISS, 2, 0, 1345), (DEADLINE_MISS, 3, 1, 1320), (DEADLINE_MISS, 5, 2, 1350), (PARTITION_STOP, 0xFF, 2, 1350), (RELEASE_OVERLAP, 3, 1, 1360), (MEMMANAGE, 0, 0, 1900), (SAFE_STATE, 0xFF, 0xFF, 1900),
+            (MESSAGE_REJECTED, 3, 1, 611), (PARTITION_RESTART, 0xFF, 1, 611), (MEMMANAGE, 3, 1, 800), (PARTITION_RESTART, 0xFF, 1, 800),
+            (OVERRUN, 2, 0, 1313), (DEADLINE_MISS, 2, 0, 1325), (DEADLINE_MISS, 2, 0, 1345), (DEADLINE_MISS, 3, 1, 1320), (DEADLINE_MISS, 5, 2, 1350), (PARTITION_STOP, 0xFF, 2, 1350), (RELEASE_OVERLAP, 3, 1, 1360), (PROTOCOL_VIOLATION, 0, 0, 1880), (PROTOCOL_VIOLATION, 0, 0, 1880), (PROTOCOL_VIOLATION, 0, 0, 1890), (MEMMANAGE, 0, 0, 1900), (SAFE_STATE, 0xFF, 0xFF, 1900),
         ];
         for (i, (k, t, p, ms)) in script.iter().enumerate() {
             events.push(e(i as u32 + 1, *k, *t, *p, *ms));

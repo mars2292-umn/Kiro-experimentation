@@ -1,141 +1,255 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_measure",
-  "binary_hash": "sha256:3235be5e796599526cde40e71f57c7252eb9355704306d4eecbc94c390b20965",
+  "binary_hash": "sha256:43507a1b6893c58d2ed07f59e92508f8867a1f1dffdf0258b4734f70ba50f578",
   "threshold_percent": 50,
   "items": [
     {
       "item": "part0.control",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part07control17h5c7474b912704526E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0945548123ee562dE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1a039aea3f1b68dcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2caec269dbc6fd8fE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4270bcaf7885552fE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h704269c54ae47544E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h7dbe4904b28a2ff1E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc127ab0c2da86ccaE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcd1b8854a4e6f9ebE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hef35c7715d7cf857E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part07control17h995649b49638d77aE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h14ba597da11336a1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h29ac4aa0dcd0b3d4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h35a91827c301b6aeE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h37f6dd963ec92420E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h5208cb68ef036140E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h5a17e2408fa3eb8cE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17ha65668413cc025bfE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hb88a75e4f1a25679E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd39a78f5e7746d01E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he23c26afdb11d2a3E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he316511547adeb27E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::control: 181:12 false"
+        "p1_demo_part0::control: 182:12 false"
       ]
     },
     {
       "item": "part0.control#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part07control17h5c7474b912704526E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0945548123ee562dE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1a039aea3f1b68dcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2caec269dbc6fd8fE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4270bcaf7885552fE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h704269c54ae47544E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h7dbe4904b28a2ff1E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc127ab0c2da86ccaE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcd1b8854a4e6f9ebE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hef35c7715d7cf857E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part07control17h995649b49638d77aE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h14ba597da11336a1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h29ac4aa0dcd0b3d4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h35a91827c301b6aeE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h37f6dd963ec92420E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h5208cb68ef036140E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h5a17e2408fa3eb8cE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17ha65668413cc025bfE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hb88a75e4f1a25679E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd39a78f5e7746d01E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he23c26afdb11d2a3E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he316511547adeb27E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::control: 181:12 false"
+        "p1_demo_part0::control: 182:12 false"
       ]
     },
     {
       "item": "part0.control#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part07control17h5c7474b912704526E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h0945548123ee562dE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1a039aea3f1b68dcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h2caec269dbc6fd8fE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4270bcaf7885552fE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h704269c54ae47544E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h7dbe4904b28a2ff1E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc127ab0c2da86ccaE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hcd1b8854a4e6f9ebE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hef35c7715d7cf857E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part07control17h995649b49638d77aE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h14ba597da11336a1E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h29ac4aa0dcd0b3d4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h35a91827c301b6aeE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h37f6dd963ec92420E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h5208cb68ef036140E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h5a17e2408fa3eb8cE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17ha65668413cc025bfE",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hb88a75e4f1a25679E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd39a78f5e7746d01E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he23c26afdb11d2a3E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17he316511547adeb27E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::control: 181:12 false"
+        "p1_demo_part0::control: 182:12 false"
       ]
     },
     {
       "item": "part0.echo",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part04echo17h1467637e99c5ba2cE",
-        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h32bd46b8de67bfdfE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part04echo17h90444f63116190f0E",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h84e944db367e901fE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 0,
       "covered": 0,
@@ -145,157 +259,303 @@
     {
       "item": "part0.sensor",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part06sensor17h2d56319d6e487a61E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc10c66b4048f24f9E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hce53f775c544e9e5E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdb6a99d04036ef70E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17heb3f71644272f31fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h2b9bcf39380fb130E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part06sensor17h5c97375794b889b8E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h649f747db2094516E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h8d0b6b9e8c9ade8aE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha2dee3db704a8abdE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbc61ec5cfc13fd51E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h09f4bbb12e740593E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 310:80 false"
+        "p1_demo_part0::sensor::{closure}: 385:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part06sensor17h2d56319d6e487a61E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc10c66b4048f24f9E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hce53f775c544e9e5E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdb6a99d04036ef70E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17heb3f71644272f31fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h2b9bcf39380fb130E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part06sensor17h5c97375794b889b8E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h649f747db2094516E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h8d0b6b9e8c9ade8aE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha2dee3db704a8abdE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbc61ec5cfc13fd51E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h09f4bbb12e740593E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 310:80 false"
+        "p1_demo_part0::sensor::{closure}: 385:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h9e8403c9ed5ca033E",
-        "_ZN13p1_demo_part012validate_rep17hb708e960f3e04507E",
-        "_ZN13p1_demo_part06sensor17h2d56319d6e487a61E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc10c66b4048f24f9E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hce53f775c544e9e5E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hdb6a99d04036ef70E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17heb3f71644272f31fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h2b9bcf39380fb130E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h22827e71d1051820E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5428e3137b6d7b52E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17ha403c4a03c1778c6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h0b09684892490ac0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h6339ede53b49b2f4E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h957be3209b1a24faE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17ha19bf4b96773f0ccE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17ha9227ebc449464fdE",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h26acecdeca6033f5E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17hbd9c1a9ac2079173E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17h01781ee3acb437b6E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h563d06d2c5e564c0E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h803e8483471c5837E",
-        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17hedaec507ba943956E"
+        "_ZN13p1_demo_part010rsk_target2ms17hd888351f8477e8cfE",
+        "_ZN13p1_demo_part012validate_rep17h3186d79b9c48f5faE",
+        "_ZN13p1_demo_part06sensor17h5c97375794b889b8E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h649f747db2094516E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h8d0b6b9e8c9ade8aE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha2dee3db704a8abdE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hbc61ec5cfc13fd51E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h09f4bbb12e740593E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h30dcea0765392b15E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17h66964dc178dac29cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$5fresh17hdc5edc0732ad63e7E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h07d1db434a5004e5E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h09e2472466f2081dE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h271f0d1d9c81dbc0E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink13Sink$LT$S$GT$7advance17h3232bdaaf7f61080E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink3raw17hecafd2156bd98e8bE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S0$GT$8try_recv17h268b8053d877f6a3E",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S1$GT$8send_rep17hfa099b1bffff329cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink53Sink$LT$p1_demo_part0..rsk_roles..report_sink..S2$GT$6finish17ha0d60ae1861a578cE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State8is_empty17hcacea101d6efe954E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h27b06a72ac6ee714E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h5ad637e9bc86d9d0E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$5fresh17h82394e9c915001c8E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h7274602d1877f4a5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17h80f327b9904aae8bE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17haca6b1e7902d6c37E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl12Ctl$LT$S$GT$7advance17hf050cc00db344e6aE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl3raw17had040e89a29cc7ddE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$8send_req17h6573590d6800e61cE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S0$GT$9send_stop17ha3bd47367d843eacE",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S1$GT$8try_recv17haf50b0a9577b7f35E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State8is_empty17h59666f3433e2656fE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4ac0202f0d7d4ba8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h4bb9daa182f1466eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$5fresh17h8502eb2659dd90a6E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h3228696b5f5b9e8eE",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h63713009d7d5c457E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17h659e42ea6a10a9f9E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl12Ctl$LT$S$GT$7advance17hac1f5cb11e8ba999E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl3raw17h7898cce768180bc5E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$8send_req17h1581c280c1c9b784E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S0$GT$9send_stop17h60d7167bf731a0b8E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S1$GT$8try_recv17h86089de7b7ea8a66E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State8is_empty17h63f678562bc02c5eE",
+        "_ZN13p1_demo_part09rsk_roles11report_sink5State7initial17h1808534b2f42a9e5E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl53Ctl$LT$p1_demo_part0..rsk_roles..pingpong_ctl..S2$GT$6finish17h0c59d689d940cd81E",
+        "_ZN13p1_demo_part09rsk_roles12pingpong_ctl5State7initial17ha08c479e11839462E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl53Ctl$LT$p1_demo_part0..rsk_roles..triangle_ctl..S2$GT$6finish17hc296bdf1cb588157E",
+        "_ZN13p1_demo_part09rsk_roles12triangle_ctl5State7initial17h13631e64ae0fe819E"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 310:80 false"
+        "p1_demo_part0::sensor::{closure}: 385:80 false"
       ]
     },
     {
       "item": "part1.log",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17ha590c8e12fd4b1eeE",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17h7c89eddeeff51036E",
-        "_ZN13p1_demo_part112pulse_source5start17h6cd708dea500bb1fE",
-        "_ZN13p1_demo_part112pulse_source7respond17h023add4d6399ec86E",
-        "_ZN13p1_demo_part13log17h98bea8c5a848ea5aE",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h00fc6b41348bc64dE",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h3815d18c647d7b50E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h62b7d42b74e567c4E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hc46fad14a92e0087E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h3bf69f26e6858a39E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h704242200e6e1f81E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hdfcb84f4b2411d93E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h0830c7fb56d63878E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h3b15a33173bae7bdE",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h8686d9ff6873aa34E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h9e982e3044a8a90eE",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink3raw17hfaf1912bfc7447d8E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S0$GT$8try_recv17hdb69c6ddc18cd190E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S1$GT$8send_rep17hdd86bdac149f4883E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S2$GT$6finish17ha44a8bb6ba18489cE",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State8is_empty17hc4f7ef8906973381E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State7initial17h3fe8623207af5f1bE"
+        "_ZN13p1_demo_part110rsk_target2ms17h7cbba1bd23bdd1bdE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h0d097cd88f0fa61fE",
+        "_ZN13p1_demo_part112pulse_source5start17h7145b0cb4fac481fE",
+        "_ZN13p1_demo_part112pulse_source7respond17h953c26e116d1bec5E",
+        "_ZN13p1_demo_part13log17h0a66d7c2e74e6af7E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h6bd2fcf56862fa99E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h7d903d195df639c7E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h80748558e41f983fE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hc36c05c1eacf1c93E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hd5b52d3bb6cd1d4fE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hdef0bf0b08e57868E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h047fea574ef5a445E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h19bd951f29bc04dfE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h1e23221b16ba0a5bE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h37dcd1dc05906516E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h217f18efbe6f605aE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h471a841c05ac26e8E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h4a72a676906515cfE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h6c89957c65d6dc03E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17ha400ddbaeaf30b76E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17hbcb9cee9058718f0E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid3raw17h9c0d45fa42573824E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S0$GT$8try_recv17h59b0005f0a9e252cE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S1$GT$8send_fwd17h1487465d9ba92a8eE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S2$GT$9send_done17h20bc30140a937decE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S3$GT$6finish17he79a57bdf5dae80aE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid5State8is_empty17hcca55c7a6ceeb44eE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17ha96eb6b85c1dc1a0E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hbe4647f2896b5665E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hf5dd08ab89635350E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h0f08876da5beb956E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h67ba5aaf7bda60b9E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17haf1deda5fa5ac021E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17hdc59a6992d46bf48E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink3raw17hceefb6a218728858E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S0$GT$8try_recv17hef1163e744bf6f90E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S1$GT$8send_rep17h2f2a1cdf38a857f7E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S2$GT$6finish17hdf43dc7f2f972e79E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State8is_empty17h8bf96c34609a8fe6E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$5fresh17h1c2bec34fa29ba25E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$5fresh17h5d3dc9bb8399b760E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$5fresh17hfe52ff83f04203e0E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h2c282b0f465a5ce5E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h382f262738d57499E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h6f39b1032e4f4badE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h99d09870d014234aE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl3raw17h6a90b11e53c74c1cE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S0$GT$8send_req17h72ec222ef08bf61aE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S0$GT$9send_stop17h2c59499e498168adE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S1$GT$8try_recv17ha38617b78017f49eE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl5State8is_empty17h18cafbc9cf219487E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid5State7initial17h294dda0409abde5eE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State7initial17h12939b7b58fd0707E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S2$GT$6finish17h864f73f72f7ef631E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl5State7initial17hf835b1fef9cba703E"
       ],
-      "branches": 16,
-      "covered": 15,
-      "percent": 93,
+      "branches": 18,
+      "covered": 16,
+      "percent": 88,
       "uncovered": [
-        "p1_demo_part1::log: 280:72 false"
+        "p1_demo_part1::log: 296:23 true",
+        "p1_demo_part1::log: 418:72 false"
       ]
     },
     {
       "item": "part1.pulse",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17ha590c8e12fd4b1eeE",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17h7c89eddeeff51036E",
-        "_ZN13p1_demo_part112pulse_source5start17h6cd708dea500bb1fE",
-        "_ZN13p1_demo_part112pulse_source7respond17h023add4d6399ec86E",
-        "_ZN13p1_demo_part15pulse17h05131cc3989f6b96E",
-        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h04f1d861f3883337E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h3bf69f26e6858a39E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17h704242200e6e1f81E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hdfcb84f4b2411d93E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h0830c7fb56d63878E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h3b15a33173bae7bdE",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h8686d9ff6873aa34E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h9e982e3044a8a90eE",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink3raw17hfaf1912bfc7447d8E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S0$GT$8try_recv17hdb69c6ddc18cd190E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S1$GT$8send_rep17hdd86bdac149f4883E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S2$GT$6finish17ha44a8bb6ba18489cE",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State8is_empty17hc4f7ef8906973381E",
-        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State7initial17h3fe8623207af5f1bE"
+        "_ZN13p1_demo_part110rsk_target2ms17h7cbba1bd23bdd1bdE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h0d097cd88f0fa61fE",
+        "_ZN13p1_demo_part112pulse_source5start17h7145b0cb4fac481fE",
+        "_ZN13p1_demo_part112pulse_source7respond17h953c26e116d1bec5E",
+        "_ZN13p1_demo_part15pulse17h637b78253bd7b976E",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h25876b0a87a0f796E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h047fea574ef5a445E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h19bd951f29bc04dfE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h1e23221b16ba0a5bE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$5fresh17h37dcd1dc05906516E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h217f18efbe6f605aE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h471a841c05ac26e8E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h4a72a676906515cfE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17h6c89957c65d6dc03E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17ha400ddbaeaf30b76E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid12Mid$LT$S$GT$7advance17hbcb9cee9058718f0E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid3raw17h9c0d45fa42573824E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S0$GT$8try_recv17h59b0005f0a9e252cE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S1$GT$8send_fwd17h1487465d9ba92a8eE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S2$GT$9send_done17h20bc30140a937decE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid53Mid$LT$p1_demo_part1..rsk_roles..triangle_mid..S3$GT$6finish17he79a57bdf5dae80aE",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid5State8is_empty17hcca55c7a6ceeb44eE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17ha96eb6b85c1dc1a0E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hbe4647f2896b5665E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$5fresh17hf5dd08ab89635350E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h0f08876da5beb956E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17h67ba5aaf7bda60b9E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17haf1deda5fa5ac021E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink13Sink$LT$S$GT$7advance17hdc59a6992d46bf48E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink3raw17hceefb6a218728858E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S0$GT$8try_recv17hef1163e744bf6f90E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S1$GT$8send_rep17h2f2a1cdf38a857f7E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink55Sink$LT$p1_demo_part1..rsk_roles..pingpong_sink..S2$GT$6finish17hdf43dc7f2f972e79E",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State8is_empty17h8bf96c34609a8fe6E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$5fresh17h1c2bec34fa29ba25E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$5fresh17h5d3dc9bb8399b760E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$5fresh17hfe52ff83f04203e0E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h2c282b0f465a5ce5E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h382f262738d57499E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h6f39b1032e4f4badE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl12Ctl$LT$S$GT$7advance17h99d09870d014234aE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl3raw17h6a90b11e53c74c1cE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S0$GT$8send_req17h72ec222ef08bf61aE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S0$GT$9send_stop17h2c59499e498168adE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S1$GT$8try_recv17ha38617b78017f49eE",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl5State8is_empty17h18cafbc9cf219487E",
+        "_ZN13p1_demo_part19rsk_roles12triangle_mid5State7initial17h294dda0409abde5eE",
+        "_ZN13p1_demo_part19rsk_roles13pingpong_sink5State7initial17h12939b7b58fd0707E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl50Ctl$LT$p1_demo_part1..rsk_roles..relay_ctl..S2$GT$6finish17h864f73f72f7ef631E",
+        "_ZN13p1_demo_part19rsk_roles9relay_ctl5State7initial17hf835b1fef9cba703E"
       ],
       "branches": 6,
       "covered": 6,
@@ -305,23 +565,67 @@
     {
       "item": "part2.filter",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
-        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
-        "_ZN13p1_demo_part26filter17h704fcfc7b36e01bdE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h481d70887604176bE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd34ee82c7049fffeE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he4ac49cef72da050E",
-        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
-        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
-        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
+        "_ZN13p1_demo_part212traffic_step17h059a22ae1246380fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4133335e72f8e67eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h73ecf326641bc029E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h82c55e8042ed9ec8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe400af03e3901f0E",
+        "_ZN13p1_demo_part212validate_req17h79eee17161aa683dE",
+        "_ZN13p1_demo_part25Stats6record17hc019719b0c4178a8E",
+        "_ZN13p1_demo_part26filter17hab4e17d3e1252751E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h377568e7d7ebc27dE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17had0dcb95840f386fE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hced6205b2e66acbeE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he467980fe4e29b91E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf27caa2fe38eb1ceE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf645e3e71c09f0a7E",
+        "_ZN13p1_demo_part27lowpass17h2861079061f4bd85E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17h437f6656243834f0E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17he9a793459e52acaeE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17hf04757ff8f81d304E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h01554bd69826ee27E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h397f91a783c1b0dbE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hab9a44eb35cd5f75E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hdebfba2a00265516E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink3raw17hf019a600cc64a932E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S0$GT$8try_recv17haee23b7cecc9b377E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S1$GT$8send_rep17h335bd741cb4ce68cE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S2$GT$6finish17hbc2ede65a5bf2484E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State8is_empty17h31c0c6bac773fddcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17h077612a212a319bcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf4f3ecff2e6ced48E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf68abd99eec74f52E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h3956983259354378E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h43e213290ce4ce32E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hab9928492873b5f8E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hfab73c3d8ab4518aE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl3raw17h86ed2f3e851c9aadE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$8send_req17hed87dc296e4fdefaE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$9send_stop17h07d26ce17eac40d0E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S1$GT$8try_recv17h3d9b4b48fc9f0ee9E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State8is_empty17h0cd1958ab4e74e94E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h92adceac66677fe4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h9e88b3d86df71ca4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17hd6d0e5282459e655E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h439df21c1c0f395eE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h9338ee83e6e45c9dE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hbfdcb641ffe67959E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hf070869d44ed1e38E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink3raw17h983a76e422492b16E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S0$GT$8try_recv17h379e9a55d8d0ac06E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S1$GT$8send_ack17h95d79810589d9b4cE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S2$GT$6finish17h23257c20795ccd08E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State8is_empty17h2097f3b4d1a573fcE",
+        "_ZN13p1_demo_part210rsk_target2ms17h939e871de4ea0b1dE",
+        "_ZN13p1_demo_part25Stats3new17hfc14d6b79509b0fcE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State7initial17h60e076f8da81d891E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S2$GT$6finish17h273c62a7a4f4bf46E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State7initial17hb200fc0221f57071E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State7initial17hb4e2455cff2ef87fE"
       ],
-      "branches": 12,
-      "covered": 6,
-      "percent": 50,
+      "branches": 14,
+      "covered": 8,
+      "percent": 57,
       "uncovered": [
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 123:8 true",
@@ -334,23 +638,67 @@
     {
       "item": "part2.filter#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
-        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
-        "_ZN13p1_demo_part26filter17h704fcfc7b36e01bdE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h481d70887604176bE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hd34ee82c7049fffeE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he4ac49cef72da050E",
-        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
-        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
-        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
+        "_ZN13p1_demo_part212traffic_step17h059a22ae1246380fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4133335e72f8e67eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h73ecf326641bc029E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h82c55e8042ed9ec8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe400af03e3901f0E",
+        "_ZN13p1_demo_part212validate_req17h79eee17161aa683dE",
+        "_ZN13p1_demo_part25Stats6record17hc019719b0c4178a8E",
+        "_ZN13p1_demo_part26filter17hab4e17d3e1252751E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h377568e7d7ebc27dE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17had0dcb95840f386fE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hced6205b2e66acbeE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he467980fe4e29b91E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf27caa2fe38eb1ceE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hf645e3e71c09f0a7E",
+        "_ZN13p1_demo_part27lowpass17h2861079061f4bd85E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17h437f6656243834f0E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17he9a793459e52acaeE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17hf04757ff8f81d304E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h01554bd69826ee27E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h397f91a783c1b0dbE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hab9a44eb35cd5f75E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hdebfba2a00265516E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink3raw17hf019a600cc64a932E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S0$GT$8try_recv17haee23b7cecc9b377E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S1$GT$8send_rep17h335bd741cb4ce68cE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S2$GT$6finish17hbc2ede65a5bf2484E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State8is_empty17h31c0c6bac773fddcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17h077612a212a319bcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf4f3ecff2e6ced48E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf68abd99eec74f52E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h3956983259354378E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h43e213290ce4ce32E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hab9928492873b5f8E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hfab73c3d8ab4518aE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl3raw17h86ed2f3e851c9aadE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$8send_req17hed87dc296e4fdefaE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$9send_stop17h07d26ce17eac40d0E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S1$GT$8try_recv17h3d9b4b48fc9f0ee9E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State8is_empty17h0cd1958ab4e74e94E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h92adceac66677fe4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h9e88b3d86df71ca4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17hd6d0e5282459e655E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h439df21c1c0f395eE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h9338ee83e6e45c9dE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hbfdcb641ffe67959E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hf070869d44ed1e38E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink3raw17h983a76e422492b16E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S0$GT$8try_recv17h379e9a55d8d0ac06E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S1$GT$8send_ack17h95d79810589d9b4cE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S2$GT$6finish17h23257c20795ccd08E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State8is_empty17h2097f3b4d1a573fcE",
+        "_ZN13p1_demo_part210rsk_target2ms17h939e871de4ea0b1dE",
+        "_ZN13p1_demo_part25Stats3new17hfc14d6b79509b0fcE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State7initial17h60e076f8da81d891E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S2$GT$6finish17h273c62a7a4f4bf46E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State7initial17hb200fc0221f57071E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State7initial17hb4e2455cff2ef87fE"
       ],
-      "branches": 12,
-      "covered": 6,
-      "percent": 50,
+      "branches": 14,
+      "covered": 8,
+      "percent": 57,
       "uncovered": [
         "p1_demo_part2::traffic_step: 117:12 false",
         "p1_demo_part2::traffic_step: 123:8 true",
@@ -363,19 +711,60 @@
     {
       "item": "part2.sampler",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
-        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
-        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
-        "_ZN13p1_demo_part27sampler17h31b6e9c474e11c44E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h02bbd435407433beE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hdc6a08ba69d3a0acE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hee4b44806b5eae8dE",
-        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
-        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
+        "_ZN13p1_demo_part212traffic_step17h059a22ae1246380fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4133335e72f8e67eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h73ecf326641bc029E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h82c55e8042ed9ec8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe400af03e3901f0E",
+        "_ZN13p1_demo_part212validate_req17h79eee17161aa683dE",
+        "_ZN13p1_demo_part25Stats6record17hc019719b0c4178a8E",
+        "_ZN13p1_demo_part27lowpass17h2861079061f4bd85E",
+        "_ZN13p1_demo_part27sampler17h7c242cbc926dc193E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h419252355af5128aE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h84a697917e7f09d9E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hc375db319415a5a3E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17h437f6656243834f0E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17he9a793459e52acaeE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17hf04757ff8f81d304E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h01554bd69826ee27E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h397f91a783c1b0dbE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hab9a44eb35cd5f75E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hdebfba2a00265516E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink3raw17hf019a600cc64a932E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S0$GT$8try_recv17haee23b7cecc9b377E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S1$GT$8send_rep17h335bd741cb4ce68cE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S2$GT$6finish17hbc2ede65a5bf2484E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State8is_empty17h31c0c6bac773fddcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17h077612a212a319bcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf4f3ecff2e6ced48E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf68abd99eec74f52E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h3956983259354378E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h43e213290ce4ce32E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hab9928492873b5f8E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hfab73c3d8ab4518aE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl3raw17h86ed2f3e851c9aadE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$8send_req17hed87dc296e4fdefaE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$9send_stop17h07d26ce17eac40d0E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S1$GT$8try_recv17h3d9b4b48fc9f0ee9E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State8is_empty17h0cd1958ab4e74e94E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h92adceac66677fe4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h9e88b3d86df71ca4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17hd6d0e5282459e655E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h439df21c1c0f395eE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h9338ee83e6e45c9dE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hbfdcb641ffe67959E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hf070869d44ed1e38E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink3raw17h983a76e422492b16E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S0$GT$8try_recv17h379e9a55d8d0ac06E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S1$GT$8send_ack17h95d79810589d9b4cE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S2$GT$6finish17h23257c20795ccd08E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State8is_empty17h2097f3b4d1a573fcE",
+        "_ZN13p1_demo_part210rsk_target2ms17h939e871de4ea0b1dE",
+        "_ZN13p1_demo_part25Stats3new17hfc14d6b79509b0fcE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State7initial17h60e076f8da81d891E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S2$GT$6finish17h273c62a7a4f4bf46E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State7initial17hb200fc0221f57071E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State7initial17hb4e2455cff2ef87fE"
       ],
       "branches": 14,
       "covered": 7,
@@ -387,25 +776,66 @@
         "p1_demo_part2::traffic_step: 127:12 false",
         "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler: 407:8 false"
+        "p1_demo_part2::sampler: 518:8 false"
       ]
     },
     {
       "item": "part2.sampler#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h64b4b9d4c81d42d9E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h09e931db757653f5E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1a1dc739d881b6c4E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h6f0be27988fa1366E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdd510f1884a4aabaE",
-        "_ZN13p1_demo_part25Stats6record17hae2636743baedb86E",
-        "_ZN13p1_demo_part27lowpass17h36269165147d4ec7E",
-        "_ZN13p1_demo_part27sampler17h31b6e9c474e11c44E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h02bbd435407433beE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hdc6a08ba69d3a0acE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hee4b44806b5eae8dE",
-        "_ZN13p1_demo_part210rsk_target2ms17hcf7d6cc9d4adab73E",
-        "_ZN13p1_demo_part25Stats3new17hf890715a1d50d455E"
+        "_ZN13p1_demo_part212traffic_step17h059a22ae1246380fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h4133335e72f8e67eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h73ecf326641bc029E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h82c55e8042ed9ec8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe400af03e3901f0E",
+        "_ZN13p1_demo_part212validate_req17h79eee17161aa683dE",
+        "_ZN13p1_demo_part25Stats6record17hc019719b0c4178a8E",
+        "_ZN13p1_demo_part27lowpass17h2861079061f4bd85E",
+        "_ZN13p1_demo_part27sampler17h7c242cbc926dc193E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h419252355af5128aE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h84a697917e7f09d9E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hc375db319415a5a3E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17h437f6656243834f0E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17he9a793459e52acaeE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$5fresh17hf04757ff8f81d304E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h01554bd69826ee27E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17h397f91a783c1b0dbE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hab9a44eb35cd5f75E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink13Sink$LT$S$GT$7advance17hdebfba2a00265516E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink3raw17hf019a600cc64a932E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S0$GT$8try_recv17haee23b7cecc9b377E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S1$GT$8send_rep17h335bd741cb4ce68cE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink52Sink$LT$p1_demo_part2..rsk_roles..relay_sink..S2$GT$6finish17hbc2ede65a5bf2484E",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State8is_empty17h31c0c6bac773fddcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17h077612a212a319bcE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf4f3ecff2e6ced48E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$5fresh17hf68abd99eec74f52E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h3956983259354378E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17h43e213290ce4ce32E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hab9928492873b5f8E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl12Ctl$LT$S$GT$7advance17hfab73c3d8ab4518aE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl3raw17h86ed2f3e851c9aadE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$8send_req17hed87dc296e4fdefaE",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S0$GT$9send_stop17h07d26ce17eac40d0E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S1$GT$8try_recv17h3d9b4b48fc9f0ee9E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State8is_empty17h0cd1958ab4e74e94E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h92adceac66677fe4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17h9e88b3d86df71ca4E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$5fresh17hd6d0e5282459e655E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h439df21c1c0f395eE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17h9338ee83e6e45c9dE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hbfdcb641ffe67959E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink13Sink$LT$S$GT$7advance17hf070869d44ed1e38E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink3raw17h983a76e422492b16E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S0$GT$8try_recv17h379e9a55d8d0ac06E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S1$GT$8send_ack17h95d79810589d9b4cE",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink55Sink$LT$p1_demo_part2..rsk_roles..triangle_sink..S2$GT$6finish17h23257c20795ccd08E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State8is_empty17h2097f3b4d1a573fcE",
+        "_ZN13p1_demo_part210rsk_target2ms17h939e871de4ea0b1dE",
+        "_ZN13p1_demo_part25Stats3new17hfc14d6b79509b0fcE",
+        "_ZN13p1_demo_part29rsk_roles10relay_sink5State7initial17h60e076f8da81d891E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl51Ctl$LT$p1_demo_part2..rsk_roles..report_ctl..S2$GT$6finish17h273c62a7a4f4bf46E",
+        "_ZN13p1_demo_part29rsk_roles10report_ctl5State7initial17hb200fc0221f57071E",
+        "_ZN13p1_demo_part29rsk_roles13triangle_sink5State7initial17hb4e2455cff2ef87fE"
       ],
       "branches": 14,
       "covered": 7,
@@ -417,7 +847,7 @@
         "p1_demo_part2::traffic_step: 127:12 false",
         "p1_demo_part2::traffic_step: 147:5 false",
         "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler: 407:8 false"
+        "p1_demo_part2::sampler: 518:8 false"
       ]
     }
   ],
@@ -464,6 +894,13 @@
       "uncovered": []
     },
     {
+      "name": "p1_demo_part2::validate_req",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "p1_demo_part2::Stats::record",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 2,
@@ -474,6 +911,27 @@
     },
     {
       "name": "p1_demo_part2::filter",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 0,
       "covered": 0,
@@ -513,7 +971,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "407:8 false"
+        "518:8 false"
       ]
     },
     {
@@ -545,7 +1003,343 @@
       "uncovered": []
     },
     {
+      "name": "p1_demo_part2::rsk_jobs::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_jobs::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_jobs::filter::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "p1_demo_part2::rsk_jobs::sampler",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<p1_demo_part2::rsk_roles::relay_sink::S0>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<p1_demo_part2::rsk_roles::relay_sink::S1>::send_rep",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::Sink<p1_demo_part2::rsk_roles::relay_sink::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S0>::send_req",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S0>::send_stop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S1>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<p1_demo_part2::rsk_roles::triangle_sink::S0>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<p1_demo_part2::rsk_roles::triangle_sink::S1>::send_ack",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::Sink<p1_demo_part2::rsk_roles::triangle_sink::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::report_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::report_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::report_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::relay_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::relay_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::relay_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::triangle_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::triangle_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::triangle_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -561,6 +1355,97 @@
     {
       "name": "p1_demo_part2::Stats::new",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::relay_sink::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::report_ctl::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::rsk_roles::triangle_sink::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::report_ctl::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::report_ctl::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::report_ctl::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::report_ctl::Ctl<p1_demo_part2::rsk_roles::report_ctl::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::relay_sink::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::relay_sink::Sink<p1_demo_part2::rsk_roles::relay_sink::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::relay_sink::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::relay_sink::Sink<p1_demo_part2::rsk_roles::relay_sink::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::relay_sink::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::relay_sink::Sink<p1_demo_part2::rsk_roles::relay_sink::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::triangle_sink::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::triangle_sink::Sink<p1_demo_part2::rsk_roles::triangle_sink::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::triangle_sink::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::triangle_sink::Sink<p1_demo_part2::rsk_roles::triangle_sink::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part2::rsk_roles::triangle_sink::State$u20$as$u20$core::convert::From<p1_demo_part2::rsk_roles::triangle_sink::Sink<p1_demo_part2::rsk_roles::triangle_sink::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
       "uncovered": []
@@ -596,11 +1481,19 @@
     {
       "name": "p1_demo_part1::log",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
-      "branches": 8,
-      "covered": 7,
+      "branches": 10,
+      "covered": 8,
       "uncovered": [
-        "280:72 false"
+        "296:23 true",
+        "418:72 false"
       ]
+    },
+    {
+      "name": "p1_demo_part1::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part1::log::{closure}",
@@ -628,6 +1521,13 @@
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
       "branches": 2,
       "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
       "uncovered": []
     },
     {
@@ -659,7 +1559,133 @@
       "uncovered": []
     },
     {
+      "name": "p1_demo_part1::rsk_jobs::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_jobs::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "p1_demo_part1::rsk_jobs::pulse",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S0>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S1>::send_fwd",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S2>::send_done",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S3>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::State::is_empty",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -750,7 +1776,133 @@
       "uncovered": []
     },
     {
-      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S0>::send_req",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S0>::send_stop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S1>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::relay_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::Mid<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::Mid<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::Mid<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::Mid<S>$u20$as$u20$core::ops::drop::Drop>::drop",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -765,6 +1917,20 @@
     },
     {
       "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::pingpong_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::triangle_mid::State::initial",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -772,6 +1938,69 @@
     },
     {
       "name": "p1_demo_part1::rsk_roles::pingpong_sink::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::rsk_roles::relay_ctl::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::relay_ctl::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::relay_ctl::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::relay_ctl::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::relay_ctl::Ctl<p1_demo_part1::rsk_roles::relay_ctl::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part1::rsk_roles::triangle_mid::State$u20$as$u20$core::convert::From<p1_demo_part1::rsk_roles::triangle_mid::Mid<p1_demo_part1::rsk_roles::triangle_mid::S3>>>::from",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -853,7 +2082,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "310:80 false"
+        "385:80 false"
       ]
     },
     {
@@ -876,8 +2105,22 @@
       "branches": 6,
       "covered": 5,
       "uncovered": [
-        "181:12 false"
+        "182:12 false"
       ]
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part0::control::{closure}",
@@ -971,6 +2214,104 @@
       "uncovered": []
     },
     {
+      "name": "p1_demo_part0::rsk_jobs::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_jobs::control::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<p1_demo_part0::rsk_roles::report_sink::S0>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<p1_demo_part0::rsk_roles::report_sink::S1>::send_rep",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::Sink<p1_demo_part0::rsk_roles::report_sink::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::State::is_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>::fresh",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
@@ -1055,7 +2396,84 @@
       "uncovered": []
     },
     {
-      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::fresh",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>::advance",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::raw",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S0>::send_req",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S0>::send_stop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S1>::try_recv",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::State::is_empty",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -1070,6 +2488,62 @@
     },
     {
       "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::report_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::report_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::report_sink::Sink<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::triangle_ctl::Ctl<S>$u20$as$u20$core::ops::drop::Drop>::drop",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::report_sink::State::initial",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -1084,6 +2558,41 @@
     },
     {
       "name": "p1_demo_part0::rsk_roles::pingpong_ctl::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S2>::finish",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part0::rsk_roles::triangle_ctl::State::initial",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::report_sink::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::report_sink::Sink<p1_demo_part0::rsk_roles::report_sink::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::report_sink::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::report_sink::Sink<p1_demo_part0::rsk_roles::report_sink::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::report_sink::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::report_sink::Sink<p1_demo_part0::rsk_roles::report_sink::S2>>>::from",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,
@@ -1105,6 +2614,27 @@
     },
     {
       "name": "_<p1_demo_part0::rsk_roles::pingpong_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::pingpong_ctl::Ctl<p1_demo_part0::rsk_roles::pingpong_ctl::S2>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::triangle_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S0>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::triangle_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S1>>>::from",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<p1_demo_part0::rsk_roles::triangle_ctl::State$u20$as$u20$core::convert::From<p1_demo_part0::rsk_roles::triangle_ctl::Ctl<p1_demo_part0::rsk_roles::triangle_ctl::S2>>>::from",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_measure.rs",
       "branches": 0,
       "covered": 0,

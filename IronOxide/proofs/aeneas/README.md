@@ -100,7 +100,13 @@ The handwritten files:
   code alone (`intake_decision_accept`, `budget_event_reported`);
 - `lean/Sched/KRun.lean`: the run over the Kernel's functions (`KStep`,
   `KReach`), the proof that each such run is a specification-level run
-  (`ksim`), and `property18_kernel`.
+  (`ksim`), and `property18_kernel`;
+- `lean/Sched/Timer.lean`: the timer entry on the code. `serve_slot` gives a
+  slot the handler of its kind for the slot's own Task (`serve_slot_cases`),
+  a returning `timer_event` is a chain of served slots each armed and due
+  when served (`timer_event_served`), and a served slot of each kind is the
+  run's transition of that kind (`KStep.served_*`). The end of the operating
+  duration, a Budget event's own entry and the time base are not covered.
 
 The plan lists the transitions that are still modelled by hand and every
 condition of the run.

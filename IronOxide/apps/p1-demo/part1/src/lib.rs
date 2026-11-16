@@ -253,6 +253,12 @@ pub fn log(mut cx: rsk_ctx::Log) {
                         RecvS0::Req(v, s1) => {
                             #[cfg(feature = "qemu-inject")]
                             let v = if cx.pingpong_reqs.get() == 4 { 0xFFFF_FFFF } else { v };
+                            // The response configuration (task 21.4 on the board,
+                            // R42.4): the reply of the Job of 600 ms is invalid;
+                            // `control`'s validation rejects it and the Kernel
+                            // answers with part1's fault response.
+                            #[cfg(feature = "response")]
+                            let v = if inject::window(600, 40) { 0xFFFF_FFFF } else { v };
                             // The flood configuration (task 21.6, A-P7): every
                             // reply invalid, every one rejected by `control`.
                             #[cfg(feature = "qemu-flood")]
