@@ -3,10 +3,10 @@
   "records": [
     {
       "item": "part0.control",
-      "wcet_cycles": 24715,
+      "wcet_cycles": 29174,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -14,11 +14,11 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 19772,
+        "max_observed": 23339,
         "margin_percent": 25,
         "coverage_branch_percent": 100,
         "scenarios": [
@@ -31,10 +31,10 @@
     },
     {
       "item": "part0.echo",
-      "wcet_cycles": 8609,
+      "wcet_cycles": 9177,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -43,11 +43,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "5999 executions, below PAR-02's 10000",
-        "branch coverage 100 % of the inputs (0 of 0 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 100 % of the inputs (0 of 0 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 5999,
-        "max_observed": 6887,
+        "max_observed": 7341,
         "margin_percent": 25,
         "coverage_branch_percent": 100,
         "scenarios": [
@@ -60,10 +60,10 @@
     },
     {
       "item": "part0.sensor",
-      "wcet_cycles": 3680975,
+      "wcet_cycles": 3681335,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -72,11 +72,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "8992 executions, below PAR-02's 10000",
-        "branch coverage 85 % of the inputs (12 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 85 % of the inputs (12 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 8992,
-        "max_observed": 2944780,
+        "max_observed": 2945068,
         "margin_percent": 25,
         "coverage_branch_percent": 85,
         "scenarios": [
@@ -89,10 +89,10 @@
     },
     {
       "item": "part1.log",
-      "wcet_cycles": 251477,
+      "wcet_cycles": 250178,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -101,11 +101,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "4500 executions, below PAR-02's 10000",
-        "branch coverage 92 % of the inputs (13 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 92 % of the inputs (13 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 4500,
-        "max_observed": 201181,
+        "max_observed": 200142,
         "margin_percent": 25,
         "coverage_branch_percent": 92,
         "scenarios": [
@@ -118,10 +118,10 @@
     },
     {
       "item": "part1.pulse",
-      "wcet_cycles": 17532,
+      "wcet_cycles": 17193,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -130,11 +130,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "9999 executions, below PAR-02's 10000",
-        "branch coverage 100 % of the inputs (6 of 6 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 100 % of the inputs (6 of 6 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 9999,
-        "max_observed": 14025,
+        "max_observed": 13754,
         "margin_percent": 25,
         "coverage_branch_percent": 100,
         "scenarios": [
@@ -147,10 +147,10 @@
     },
     {
       "item": "part2.filter",
-      "wcet_cycles": 18975,
+      "wcet_cycles": 17670,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -159,11 +159,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "7200 executions, below PAR-02's 10000",
-        "branch coverage 50 % of the inputs (6 of 12 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 50 % of the inputs (6 of 12 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 7200,
-        "max_observed": 15180,
+        "max_observed": 14136,
         "margin_percent": 25,
         "coverage_branch_percent": 50,
         "scenarios": [
@@ -176,10 +176,10 @@
     },
     {
       "item": "part2.sampler",
-      "wcet_cycles": 24707,
+      "wcet_cycles": 24908,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -188,11 +188,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "1800 executions, below PAR-02's 10000",
-        "branch coverage 50 % of the inputs (7 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 50 % of the inputs (7 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 1800,
-        "max_observed": 19765,
+        "max_observed": 19926,
         "margin_percent": 25,
         "coverage_branch_percent": 50,
         "scenarios": [
@@ -205,10 +205,10 @@
     },
     {
       "item": "part0.control#cs:state",
-      "wcet_cycles": 9982,
+      "wcet_cycles": 5385,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -216,11 +216,11 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 7985,
+        "max_observed": 4308,
         "margin_percent": 25,
         "coverage_branch_percent": 100,
         "scenarios": [
@@ -233,10 +233,10 @@
     },
     {
       "item": "part0.control#cs:in_cs",
-      "wcet_cycles": 5158,
+      "wcet_cycles": 5332,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -244,11 +244,11 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 4126,
+        "max_observed": 4265,
         "margin_percent": 25,
         "coverage_branch_percent": 100,
         "scenarios": [
@@ -261,10 +261,10 @@
     },
     {
       "item": "part0.sensor#cs:state",
-      "wcet_cycles": 967023,
+      "wcet_cycles": 967123,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -273,11 +273,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "8992 executions, below PAR-02's 10000",
-        "branch coverage 85 % of the inputs (12 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 85 % of the inputs (12 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 8992,
-        "max_observed": 773618,
+        "max_observed": 773698,
         "margin_percent": 25,
         "coverage_branch_percent": 85,
         "scenarios": [
@@ -290,10 +290,10 @@
     },
     {
       "item": "part0.sensor#cs:in_cs",
-      "wcet_cycles": 5157,
+      "wcet_cycles": 7935,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -301,11 +301,11 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "branch coverage 85 % of the inputs (12 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 85 % of the inputs (12 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 17984,
-        "max_observed": 4125,
+        "max_observed": 6348,
         "margin_percent": 25,
         "coverage_branch_percent": 85,
         "scenarios": [
@@ -318,10 +318,10 @@
     },
     {
       "item": "part2.filter#cs:stats",
-      "wcet_cycles": 6729,
+      "wcet_cycles": 9710,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -330,11 +330,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "7200 executions, below PAR-02's 10000",
-        "branch coverage 50 % of the inputs (6 of 12 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 50 % of the inputs (6 of 12 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 7200,
-        "max_observed": 5383,
+        "max_observed": 7768,
         "margin_percent": 25,
         "coverage_branch_percent": 50,
         "scenarios": [
@@ -347,10 +347,10 @@
     },
     {
       "item": "part2.sampler#cs:stats",
-      "wcet_cycles": 6585,
+      "wcet_cycles": 8858,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+      "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -359,11 +359,11 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "1800 executions, below PAR-02's 10000",
-        "branch coverage 50 % of the inputs (7 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:124589839a812b4ec403c2c620d172e956db61706ea5cd425967146f6f71650b of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
+        "branch coverage 50 % of the inputs (7 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:2cf20947a2d39fc22e9b047e3ad30f503642e81def3c55a33f7be2a6de5e4e03 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 1800,
-        "max_observed": 5268,
+        "max_observed": 7086,
         "margin_percent": 25,
         "coverage_branch_percent": 50,
         "scenarios": [

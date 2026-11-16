@@ -186,4 +186,155 @@ theorem budget_event_eff {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
           dsimp only at ha
           rw [ha]
 
+/-! ## The last step of every Kernel entry (`Kernel::settle`, 2026-11-15) -/
+
+deriving instance Inhabited for rsk_kernel.rsk_logic.logic.time.Slot
+
+/-- The Budget slot of the Job on top of the stack is armed. -/
+def topBudgetArmed (k : logic.kernel.Kernel NT NR NP NL NS NE) (cfg : logic.Config NT NR NP) :
+    Prop :=
+  0 < k.sched.depth.val ∧
+  (k.slots.slots.val[(cfg.slot_budget.val[(k.sched.stack.val[k.sched.depth.val - 1]!).val]!).val]!).armed
+    = true
+
+/-- `settle` leaves the scheduler state as it is. -/
+theorem settle_sched {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {r : Option U8 × Bool}
+    (h : logic.kernel.Kernel.settle k cfg = ok (r, k')) : k'.sched = k.sched := by
+  unfold logic.kernel.Kernel.settle at h
+  simp only [bind_eq_ok, lift, bind_ok] at h
+  obtain ⟨adm, _, sel, _, h⟩ := h
+  split at h
+  · have h := ok_inj h; cases h; rfl
+  · simp only [bind_eq_ok] at h
+    obtain ⟨i, _, t, _, i2, _, h⟩ := h
+    cases adm with
+    | none =>
+      dsimp only at h
+      split at h
+      · split at h
+        · have h := ok_inj h; cases h; rfl
+        · simp only [bind_eq_ok] at h
+          obtain ⟨s, _, h⟩ := h
+          split at h
+          · have h := ok_inj h; cases h; rfl
+          · simp only [bind_eq_ok] at h
+            obtain ⟨i5, _, h⟩ := h
+            split at h
+            · simp only [bind_eq_ok] at h
+              obtain ⟨b, _, h⟩ := h
+              split at h
+              · have h := ok_inj h; cases h; rfl
+              · simp only [bind_eq_ok] at h
+                obtain ⟨k1, hk1, h⟩ := h
+                have h := ok_inj h; cases h
+                exact arm_budget_sched hk1
+            · have h := ok_inj h; cases h; rfl
+      · have h := ok_inj h; cases h; rfl
+    | some u =>
+      dsimp only at h
+      simp only [bind_eq_ok] at h
+      obtain ⟨s, _, h⟩ := h
+      split at h
+      · simp only [bind_eq_ok] at h
+        obtain ⟨s1, _, h⟩ := h
+        have h := ok_inj h; cases h; rfl
+      · have h := ok_inj h; cases h; rfl
+
+/-- When R7.1 admits a Task (`Sched::select` returns one), `settle` leaves
+the Budget slot of the Job on top disarmed: the entry that pends a dispatch
+leaves no Budget event of the executing Job armed. -/
+theorem settle_admitted_quiet {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {r : Option U8 × Bool} {u : U8}
+    (h : logic.kernel.Kernel.settle k cfg = ok (r, k'))
+    (hadm : logic.sched.Sched.select k.sched cfg = ok (some u)) : ¬ topBudgetArmed k' cfg := by
+  rintro ⟨hd, ha⟩
+  have hs := settle_sched h
+  rw [hs] at hd ha
+  unfold logic.kernel.Kernel.settle at h
+  simp only [bind_eq_ok, lift, bind_ok] at h
+  obtain ⟨adm, hadm', sel, _, h⟩ := h
+  rw [hadm] at hadm'
+  have hadm' := ok_inj hadm'
+  subst hadm'
+  split at h
+  · rename_i h0
+    rw [h0] at hd
+    simp at hd
+  · simp only [bind_eq_ok] at h
+    obtain ⟨i, hi, t, ht, i2, hi2, h⟩ := h
+    obtain ⟨s, hsl, h⟩ := h
+    obtain ⟨_, hiv⟩ := usize_sub_ok hi
+    obtain ⟨_, rfl⟩ := index_ok ht
+    obtain ⟨_, rfl⟩ := index_ok hi2
+    obtain ⟨hlt, rfl⟩ := index_ok hsl
+    simp only [U8.cast_Usize_val_eq, hiv] at ha hlt hsl h ⊢
+    have h1 : (1#usize).val = 1 := rfl
+    simp only [h1] at hlt hsl h
+    split at h
+    · simp only [bind_eq_ok] at h
+      obtain ⟨s1, hs1, h⟩ := h
+      have h := ok_inj h; cases h
+      unfold logic.time.Slots.disarm at hs1
+      simp only [bind_eq_ok] at hs1
+      obtain ⟨a, ha', hs1⟩ := hs1
+      have hs1 := ok_inj hs1
+      subst hs1
+      obtain ⟨_, rfl⟩ := update_ok ha'
+      dsimp only at ha
+      rw [get_set _ _ _ _ (by simpa [U8.cast_Usize_val_eq] using hlt)] at ha
+      simp [U8.cast_Usize_val_eq] at ha
+    · rename_i hna
+      have h := ok_inj h; cases h
+      exact hna ha
+
+/-- A Kernel state that `settle` left with the Budget slot of the Job on
+top armed is one in which R7.1 admits no Task. This is what the run's
+condition on a Budget event's own timer entry was (no dispatch pending):
+a consequence of the Kernel's code since 2026-11-15. -/
+theorem settled_armed_none {k0 k : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {r : Option U8 × Bool}
+    (h : logic.kernel.Kernel.settle k0 cfg = ok (r, k)) (ha : topBudgetArmed k cfg) :
+    logic.sched.Sched.select k.sched cfg = ok none := by
+  have hs := settle_sched h
+  have hsel : ∃ adm, logic.sched.Sched.select k0.sched cfg = ok adm := by
+    unfold logic.kernel.Kernel.settle at h
+    simp only [bind_eq_ok, lift, bind_ok] at h
+    obtain ⟨adm, hadm, _⟩ := h
+    exact ⟨adm, hadm⟩
+  obtain ⟨adm, hadm⟩ := hsel
+  rw [hs]
+  cases adm with
+  | none => exact hadm
+  | some u => exact absurd ha (settle_admitted_quiet h hadm)
+
+/-- The two cases that the Analyzer's `B_i` did not cover before the
+Kernel change (Verification_Plan 7.3) do not arise. After the unlock that
+ends a blocking Critical_Section, when it makes a dispatch pending, -/
+theorem unlock_entry_leaves_no_budget_event {k k1 k2 : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {res u : U8} {b : Bool} {r : Option U8 × Bool}
+    (_hu : logic.kernel.Kernel.svc_unlock k cfg res = ok (b, k1))
+    (hs : logic.kernel.Kernel.settle k1 cfg = ok (r, k2))
+    (hadm : logic.sched.Sched.select k1.sched cfg = ok (some u)) : ¬ topBudgetArmed k2 cfg :=
+  settle_admitted_quiet hs hadm
+
+/-- and after an entry that ends the Job on top (its return, or a response
+of a Budget event), when a dispatch is pending: the Job resumed underneath
+has no Budget event armed, whatever `end_top` or `job_return` armed for
+it. -/
+theorem job_end_entry_leaves_no_budget_event {k k1 k2 : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {ec : U32} {u : U8} {r : Option U8 × Bool}
+    (_hj : logic.kernel.Kernel.job_return k cfg ec = ok k1)
+    (hs : logic.kernel.Kernel.settle k1 cfg = ok (r, k2))
+    (hadm : logic.sched.Sched.select k1.sched cfg = ok (some u)) : ¬ topBudgetArmed k2 cfg :=
+  settle_admitted_quiet hs hadm
+
+theorem budget_event_entry_leaves_no_budget_event
+    {k k1 k2 : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {t u : U8} {i : Usize} {r : Option U8 × Bool}
+    (_hb : logic.kernel.Kernel.budget_event k cfg t i = ok k1)
+    (hs : logic.kernel.Kernel.settle k1 cfg = ok (r, k2))
+    (hadm : logic.sched.Sched.select k1.sched cfg = ok (some u)) : ¬ topBudgetArmed k2 cfg :=
+  settle_admitted_quiet hs hadm
+
 end P18

@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:0478909ad6d22858397e49ae9a32076943f4c0aaf63a8a4b4e762dda71ace847",
+  "binary_hash": "sha256:a4d71868fb1247541050a23de69667ca56d6f9698d2acafd8608837331ad4e2e",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 9624,
+      "cycles": 10683,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -16,7 +16,7 @@
       ],
       "measured": {
         "runs": 40487,
-        "max_observed": 7699,
+        "max_observed": 8546,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -29,16 +29,16 @@
     },
     {
       "symbol": "delta_stamp",
-      "cycles": 7535,
+      "cycles": 7590,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
-        "from the Release_Source edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3]), to the intake handler's timestamp of the event: the masking of any Kernel entry in progress, the exception entry, and the handler's own read (1507 ticks at 16000000 per cycle group of 4; the Kernel's record, task 19.3)",
+        "from the Release_Source edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3]), to the intake handler's timestamp of the event: the masking of any Kernel entry in progress, the exception entry, and the handler's own read (1518 ticks at 16000000 per cycle group of 4; the Kernel's record, task 19.3)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
         "runs": 10000,
-        "max_observed": 6028,
+        "max_observed": 6072,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -51,16 +51,16 @@
     },
     {
       "symbol": "l_kernel",
-      "cycles": 22008,
+      "cycles": 22248,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
-        "the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; 17606 cycles, closed by a dispatch entry; the spans by closing entry: dispatch 49004 (longest 17606), timer 44953 (longest 14534), job_end 10071128 (longest 4175), epilogue 21734 (longest 3850); the longest single Rust half 4413) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
+        "the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; 17798 cycles, closed by a dispatch entry; the spans by closing entry: dispatch 48043 (longest 17798), timer 45641 (longest 15093), job_end 10385382 (longest 5122), epilogue 21824 (longest 4057); the longest single Rust half 4460) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 10186819,
-        "max_observed": 17606,
+        "runs": 10500890,
+        "max_observed": 17798,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -73,7 +73,7 @@
     },
     {
       "symbol": "delta_dispatch",
-      "cycles": 3853,
+      "cycles": 4042,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -82,7 +82,7 @@
       ],
       "measured": {
         "runs": 56490,
-        "max_observed": 3082,
+        "max_observed": 3233,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -95,7 +95,7 @@
     },
     {
       "symbol": "delta_timer",
-      "cycles": 5517,
+      "cycles": 5575,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -103,8 +103,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 50772,
-        "max_observed": 4413,
+        "runs": 51599,
+        "max_observed": 4460,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -117,7 +117,7 @@
     },
     {
       "symbol": "delta_detect",
-      "cycles": 5517,
+      "cycles": 5575,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -125,8 +125,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 50772,
-        "max_observed": 4413,
+        "runs": 51599,
+        "max_observed": 4460,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -139,7 +139,7 @@
     },
     {
       "symbol": "delta_lock_in",
-      "cycles": 572,
+      "cycles": 592,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -148,7 +148,7 @@
       ],
       "measured": {
         "runs": 71976,
-        "max_observed": 457,
+        "max_observed": 473,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -161,7 +161,7 @@
     },
     {
       "symbol": "delta_lock_out",
-      "cycles": 2227,
+      "cycles": 2380,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -170,7 +170,7 @@
       ],
       "measured": {
         "runs": 71976,
-        "max_observed": 1781,
+        "max_observed": 1904,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -183,7 +183,7 @@
     },
     {
       "symbol": "delta_complete",
-      "cycles": 4072,
+      "cycles": 4247,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -192,7 +192,7 @@
       ],
       "measured": {
         "runs": 56490,
-        "max_observed": 3257,
+        "max_observed": 3397,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -205,7 +205,7 @@
     },
     {
       "symbol": "delta_svc",
-      "cycles": 287,
+      "cycles": 277,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -213,8 +213,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 9953523,
-        "max_observed": 229,
+        "runs": 10267086,
+        "max_observed": 221,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -227,7 +227,7 @@
     },
     {
       "symbol": "delta_dma_write",
-      "cycles": 888,
+      "cycles": 894,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -236,7 +236,7 @@
       ],
       "measured": {
         "runs": 1808,
-        "max_observed": 710,
+        "max_observed": 715,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -249,7 +249,7 @@
     },
     {
       "symbol": "delta_enforce",
-      "cycles": 3682,
+      "cycles": 3825,
       "method": "measured",
       "tool": "rsk-hil release-timing record",
       "conditions": [
@@ -258,7 +258,7 @@
       ],
       "measured": {
         "runs": 8,
-        "max_observed": 2945,
+        "max_observed": 3060,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -279,7 +279,7 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 79935,
+        "runs": 80298,
         "max_observed": 329,
         "margin_percent": 25,
         "coverage_branch_percent": 0,

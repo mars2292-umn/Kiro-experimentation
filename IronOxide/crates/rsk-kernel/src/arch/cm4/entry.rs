@@ -203,6 +203,14 @@ pub enum Action {
     SetPriority(u16, u8),
     /// TIMER compare for an instant (HW-12).
     ArmCompare(u64),
+    /// 2026-11-15: cancels the compare that is armed or already pended
+    /// (its event and the time base's pending interrupt are cleared) and
+    /// arms the compare for an instant; an instant already reached pends
+    /// the time base at once, so that no due event is lost.
+    RearmCompare(u64),
+    /// 2026-11-15: cancels the compare that is armed or already pended,
+    /// with no timed event left to arm one for.
+    CancelCompare,
     TimebaseAck,
     TimebaseInit,
     DwtEnable,
@@ -300,6 +308,8 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::Disable(n) => HwModel { enabled: h.enabled.remove(n as int), ..h },
         Action::SetPriority(n, p) => HwModel { priority: h.priority.insert(n as int, p as int), ..h },
         Action::ArmCompare(at) => HwModel { compare: Some(at as int), ..h },
+        Action::RearmCompare(at) => HwModel { compare: Some(at as int), ..h },
+        Action::CancelCompare => HwModel { compare: None, ..h },
         Action::TimebaseAck => h,
         Action::TimebaseInit => HwModel { timebase_running: true, ..h },
         Action::DwtEnable => HwModel { dwt_enabled: true, ..h },
@@ -520,6 +530,8 @@ impl KernelArch for Cm4Hw {
             Action::Disable(n) => hw::nvic_disable(n),
             Action::SetPriority(n, p) => hw::nvic_set_priority(n, p),
             Action::ArmCompare(at) => hw::timebase_arm(at),
+            Action::RearmCompare(at) => hw::timebase_rearm(at),
+            Action::CancelCompare => hw::timebase_cancel(),
             Action::TimebaseAck => hw::timebase_ack(),
             Action::TimebaseInit => hw::timebase_init(),
             Action::DwtEnable => hw::dwt_enable(),
@@ -706,6 +718,22 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
     hw.apply(Action::ArmCompare(target));
 }
 
+/// Cancels the compare armed or pended and arms it for `at` (2026-11-15,
+/// after `KernelOps::settle` disarmed a Budget event). An instant already
+/// reached is passed as it is, and the driver pends the time base at once;
+/// a later one is kept `MIN_COMPARE_DISTANCE` ticks away as in `arm_compare`.
+fn rearm_compare<A: KernelArch>(hw: &mut A, at: u64)
+    ensures final(hw).hw().basepri == old(hw).hw().basepri,
+        final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
+        final(hw).hw().compare.is_some(),
+{
+    let now = hw.now();
+    let target = if at <= now || now > MAX_INSTANT { at } else { compare_target(now, at) };
+    hw.apply(Action::RearmCompare(target));
+}
+
 /// Applies the Kernel's hardware-facing state after a transition: BASEPRI
 /// from the executing Job's level and the System_Ceiling (A1), the compare
 /// of the next timed event, the pending bit of the selected Job's vector
@@ -737,14 +765,31 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         super::plan::arch_frame(*final(state), *old(state)),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
 {
+    // 2026-11-15 (Verification_Plan 7.3): the selection, with the
+    // executing Job's Budget event disarmed when a dispatch is pended.
+    let (sel, quieted) = k.settle();
     hw.apply(Action::SetBasepri(k.basepri_now()));
-    match k.next_compare() {
-        Some(at) => arm_compare(hw, at),
-        None => {}
+    if quieted {
+        // A compare for the disarmed Budget event may be armed or already
+        // pended: it is cancelled, and the compare armed for the earliest
+        // event that is left. An event already due pends the time base at
+        // once (it is served before the dispatch, in an entry of its own
+        // source).
+        match k.next_compare() {
+            Some(at) => rearm_compare(hw, at),
+            None => hw.apply(Action::CancelCompare),
+        }
+    } else {
+        match k.next_compare() {
+            Some(at) => arm_compare(hw, at),
+            None => {}
+        }
     }
     let ghost h0 = hw.hw();
-    match k.select() {
+    match sel {
         Some(t) => {
             hw.apply(Action::Pend(tables.dispatch_vector(t)));
             proof {
@@ -757,7 +802,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let ghost h1 = hw.hw();
     let ghost k1 = *k;
     proof {
-        assert(k1 == *old(k));
+        // `k1` is the Kernel state `settle` left: `old(k)` but for a Budget slot.
         assert forall|v: int| #[trigger] h1.pending.contains(v) && !old(hw).hw().pending.contains(v)
             implies eligible_vector(&k1, tables, v) by {}
     }
@@ -820,6 +865,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             forall|i: int| 0 <= i < k1.spec_depth() ==> k.spec_stack(i) == k1.spec_stack(i),
             k.spec_prio() == k1.spec_prio(), k.spec_part() == k1.spec_part(),
             k.task_count_spec() == k1.task_count_spec(),
+            k.spec_dispatch_guard(),
             super::plan::arch_frame(*state, *old(state)),
             hw.hw().pending == h2.pending, hw.hw().enabled == h2.enabled,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
@@ -853,9 +899,17 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             assert(intake_done(&k1, tables, h2, u));
         }
         assert forall|v: int| #[trigger] hw.hw().pending.contains(v) && !old(hw).hw().pending.contains(v)
-            implies eligible_vector(&k1, tables, v) by {
+            implies eligible_vector(old(k), tables, v) by {
             assert(h2.pending.contains(v));
             assert(h1.pending.contains(v));
+            assert(eligible_vector(&k1, tables, v));
+            let u = choose|u: int| 0 <= u < k1.task_count_spec() && k1.task_eligible(u) && v == #[trigger] spec_dispatch_vector_of(tables, u);
+            assert(k1.task_eligible(u) == old(k).task_eligible(u));
+        }
+        assert forall|u: int| 0 <= u < old(k).task_count_spec() implies #[trigger] intake_done(old(k), tables, hw.hw(), u) by {
+            assert(intake_done(&k1, tables, hw.hw(), u));
+            assert(k1.spec_source_masked(u) == old(k).spec_source_masked(u));
+            assert(k1.spec_partition_stopped(k1.spec_part()[u]) == old(k).spec_partition_stopped(k1.spec_part()[u]));
         }
         reveal(vectors_applied);
     }
@@ -2157,6 +2211,8 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         // A receive that is not refused leaves the Kernel's stack as it was.
         r.0 != ENDPOINT_REFUSED ==> final(k).spec_depth() == old(k).spec_depth(),
+        // 2026-11-15: and the Kernel's state with it.
+        r.0 != ENDPOINT_REFUSED ==> *final(k) == *old(k),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
         // A-P2 (2026-11-09): an accepted receive takes the oldest label of
@@ -2218,6 +2274,8 @@ pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         !safe ==> basepri_matches(final(k), final(hw)) && !final(hw).hw().primask,
         arch_inv(final(k), *final(state), 0),
         records_same(*final(state), *old(state)),
@@ -2344,6 +2402,8 @@ pub fn fault_frame_readable<T: Tables>(tables: &T, state: &ArchState, cfsr: u32,
 pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
@@ -2869,6 +2929,8 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
         n != 0, n <= 0x1FF, (t as int) < old(k).task_count_spec(),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         r.0.psp != 0 ==> r.0.control == CONTROL_JOB && r.0.exc_return == EXC_RETURN_THREAD_PSP
             && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
             && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw))
@@ -3022,6 +3084,8 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)), n <= 0x1FF,
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
         !r.1 ==> view_matches(*final(state), final(hw)),
         !r.1 ==> arch_inv(final(k), *final(state), r.0.hop as int),
@@ -3150,6 +3214,8 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         final(state).pending_unwind == old(state).pending_unwind,
@@ -3188,6 +3254,8 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         final(state).pending_unwind == old(state).pending_unwind,
@@ -3222,6 +3290,8 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         // The MPU view loaded is the view of the Partition of the last Job
         // dispatched and not yet unwound (A6).
         !r.1 ==> view_matches(*final(state), final(hw)),
@@ -3353,6 +3423,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         // Every time-base event feeds the watchdog (ORQ-31).
@@ -3395,6 +3467,8 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
         crate::arch::bound::stack_prefix(final(k), old(k)),
         super::plan::arch_frame(*final(state), *old(state)),
@@ -3512,6 +3586,8 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
@@ -3582,6 +3658,8 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
+        old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         // The MPU view loaded is the resumed Job's Partition's (A6).
         !r.1 ==> view_matches(*final(state), final(hw)),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -3768,6 +3846,8 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // 2026-11-15: no Budget event is left armed with a dispatch pending.
+        final(k).spec_dispatch_guard(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),

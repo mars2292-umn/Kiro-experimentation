@@ -141,3 +141,50 @@ expression in a function to translate (ghost state is assigned in `proof`
 blocks); no `Option` carried across loop iterations (`Sched::select`
 carries an index); an `if` whose branches are a literal and a comparison
 gets the type of a proposition (each branch a literal).
+
+## The multiparty progress theorem on the checker as compiled (Verification_Plan 5.20)
+
+`lean/Proto/Proto.lean` is the Aeneas translation of `rsk-protocol`'s
+`multiparty::accept_multiparty` and everything it calls (`acceptn_exec`,
+`wfn_exec`, `projn_exec`, `merge_exec`, `close_rec_exec`, ...), from the
+Verus-erased build. No axiom, no `sorry`.
+
+The handwritten files, in import order:
+
+- `lean/Proto/Spec.lean`: the statement. Global and local types, `wfn`,
+  the full merge, the projection, `acceptn`, the asynchronous semantics
+  (`NStep`, `NReach`) and the waiting set (`NDeadlocked`);
+- `Refine`, `Merge`, `Runtime`, `RProj`, `Distinct`, `Binders`,
+  `ProjNormal`, `MHead`, `Rel`, `Queue`, `Steps`, `Effects`, `Exists`,
+  `Across`, `Node`, `Invariant`: the metatheory, a port of the sections of
+  `crates/rsk-protocol/src/multiparty.rs` (refinement, the merge's
+  properties, runtime types with messages in transit and their
+  projection, the coinductive relation between a role's type and the
+  runtime type, its preservation across a send and a receive, the
+  invariant of a reachable configuration);
+- `lean/Proto/Progress.lean`: `multiparty_progress` and (in
+  `Invariant.lean`) `multiparty_reception`, over the syntax;
+- `lean/Proto/Exec.lean`: what the extracted functions return
+  (`merge_exec_ok`, `projn_exec_ok`, `wfn_exec_ok`, `acceptn_exec_ok`)
+  and the two theorems on the checker: `accept_multiparty_progress`,
+  `accept_multiparty_reception`.
+
+Regenerating the translation:
+
+```sh
+cd crates/rsk-protocol
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from 'crate::multiparty::accept_multiparty' \
+    --include 'vstd::seq::Seq' --include 'verus_builtin::Ghost' --include 'verus_builtin::Tracked' \
+    --dest-file /tmp/proto.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Proto /tmp/proto.llbc
+```
+
+What Aeneas needed of this source: no `Vec::pop` (no model in its library;
+`wfn_exec` reads its guard environment and copies it at a recursion), no
+`let ... else`, no `match` on a borrowed `Option<&T>` carried past another
+call (`merge_ls_exec` takes a copy through `lse_lookup_copy`), and no
+short-circuit condition mixing calls and comparisons (`wfn_exec` computes
+its three conditions first). The mutually recursive types have no
+`induction` tactic in Lean: the structural theorems are written as
+mutually recursive functions or by strong induction on a size.

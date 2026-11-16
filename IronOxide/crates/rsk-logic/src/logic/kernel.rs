@@ -1901,7 +1901,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).inv(cfg), final(self).history_extends(old(self)), final(self).history@ == old(self).history@,
             final(self).sched == old(self).sched, final(self).timing == old(self).timing,
             final(self).started == old(self).started,
-            final(self).budget == old(self).budget, final(self).flags_eq(old(self)),
+            final(self).budget == old(self).budget, final(self).flags_eq(old(self)), final(self).log == old(self).log,
             final(self).slots.armed(cfg.slot_budget[t as int] as int),
             forall|j: int| 0 <= j < NS && j != cfg.slot_budget[t as int] ==> final(self).slots.slots[j] == old(self).slots.slots[j],
     {
@@ -3837,6 +3837,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).inv(cfg), final(self).history_extends(old(self)), !final(self).reinit_partition[partition as int],
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
             final(self).sched == old(self).sched,
+            final(self).slots == old(self).slots, final(self).started == old(self).started, final(self).safe_state == old(self).safe_state,
     {
         self.reinit_partition[partition as usize] = false;
     }
@@ -3848,6 +3849,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).inv(cfg), final(self).history_extends(old(self)), !final(self).stop_dma[partition as int],
             final(self).timing == old(self).timing, final(self).mit_spaced(old(self), cfg),
             final(self).sched == old(self).sched,
+            final(self).slots == old(self).slots, final(self).started == old(self).started, final(self).safe_state == old(self).safe_state,
     {
         self.stop_dma[partition as usize] = false;
     }
@@ -3870,6 +3872,109 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             return None;
         }
         self.sched.select(cfg)
+    }
+
+    /// No Budget event is armed while a dispatch is pending (2026-11-15,
+    /// Verification_Plan 7.3): the state every Kernel entry leaves
+    /// (`settle`). A Budget event's timer entry is then never taken ahead
+    /// of a pending dispatch, which the response-time analysis has no term
+    /// for.
+    pub open spec fn dispatch_guard(&self, cfg: &Config<NT, NR, NP>) -> bool {
+        (exists|t: int| 0 <= t < NT && self.sched.eligible(cfg, t)) ==> self.no_budget_slot_armed(cfg)
+    }
+
+    /// The last step of every Kernel entry (2026-11-15): the selection of
+    /// `select`, with the executing Job's Budget event settled for it.
+    ///
+    /// When R7.1 admits a Task (`Sched::select`), its dispatch is pended
+    /// (or, before instant 0 and in the safe state, nothing is dispatched
+    /// and nothing executes on) and the executing Job
+    /// is about to be preempted: its Budget event is disarmed here, in the
+    /// same entry (the second component is true when a slot was disarmed,
+    /// so that Kernel_Arch cancels a compare already pended for it).
+    /// `dispatch` disarmed it only at the dispatch's own entry, and a
+    /// compare that fired in between gave the Budget event a timer entry
+    /// of its own ahead of the dispatch. The event is armed again when the
+    /// Job resumes (`job_return`, `end_top`).
+    ///
+    /// When no Job is selected and the executing Job is in progress with
+    /// no Overrun reported and no Budget event armed, the event is armed
+    /// for the remaining Budget: a dispatch pended by an earlier entry was
+    /// withdrawn (its Task's Release dropped by a response before the
+    /// vector was taken, section 5.8), and the Job goes on executing.
+    pub fn settle(&mut self, cfg: &Config<NT, NR, NP>) -> (r: (Option<u8>, bool))
+        requires old(self).inv(cfg),
+        ensures final(self).inv(cfg), final(self).history@ == old(self).history@,
+            final(self).stack_prefix_of(old(self)),
+            final(self).sched == old(self).sched, final(self).timing == old(self).timing,
+            final(self).budget == old(self).budget, final(self).log == old(self).log,
+            final(self).flags_eq(old(self)),
+            // The selection is `select`'s.
+            r.0.is_some() ==> old(self).sched.eligible(cfg, r.0.unwrap() as int),
+            r.0.is_some() ==> crate::hw_model::srp_selection(&old(self).sched, cfg, r.0.unwrap() as int),
+            r.0.is_some() ==> old(self).started && !old(self).safe_state,
+            r.0.is_none() ==> old(self).safe_state || !old(self).started
+                || forall|t: int| 0 <= t < NT ==> !old(self).sched.eligible(cfg, t),
+            // No Budget event stays armed with a dispatch pending.
+            r.0.is_some() ==> final(self).no_budget_slot_armed(cfg),
+            final(self).dispatch_guard(cfg),
+            // The slot is disarmed exactly when R7.1 admits a Task.
+            (exists|t: int| 0 <= t < NT && old(self).sched.eligible(cfg, t)) ==> final(self).no_budget_slot_armed(cfg),
+            // Only the executing Job's Budget slot changes.
+            old(self).sched.depth == 0 ==> final(self).slots == old(self).slots,
+            old(self).sched.depth > 0 ==> forall|j: int| 0 <= j < NS && j != cfg.slot_budget[old(self).sched.top()]
+                ==> final(self).slots.slots[j] == old(self).slots.slots[j],
+            r.1 ==> old(self).sched.depth > 0
+                && old(self).slots.armed(cfg.slot_budget[old(self).sched.top()] as int),
+            !r.1 && r.0.is_some() ==> final(self).slots == old(self).slots,
+    {
+        // R7.1's selection whatever the system's state, for the Budget
+        // event; what Kernel_Arch pends is `select`'s.
+        let admitted = self.sched.select(cfg);
+        let sel = if self.safe_state || !self.started { None } else { admitted };
+        if self.sched.depth == 0 {
+            proof {
+                // With no Job in progress no Budget slot is armed (`budget_slots_owned`).
+                assert(self.no_budget_slot_armed(cfg));
+            }
+            return (sel, false);
+        }
+        let t = self.sched.stack[self.sched.depth - 1];
+        proof {
+            assert(cfg.task_ok(t as int));
+            assert(cfg.slot_ok(t as int));
+        }
+        let i = cfg.slot_budget[t as usize] as usize;
+        match admitted {
+            Some(_) => {
+                if self.slots.slots[i].armed {
+                    let ghost b0 = *self;
+                    self.slots.disarm(i);
+                    proof {
+                        Self::lemma_consistent_disarm(&b0, self, cfg, i as int);
+                    }
+                    (sel, true)
+                } else {
+                    proof {
+                        assert forall|u: int| 0 <= u < NT implies !#[trigger] self.slots.slots[cfg.slot_budget[u] as int].armed by {
+                            assert(cfg.slot_ok(u));
+                            if self.slots.slots[cfg.slot_budget[u] as int].armed {
+                                assert(self.sched.top() == u);
+                            }
+                        }
+                    }
+                    (sel, false)
+                }
+            }
+            None => {
+                if self.started && !self.safe_state && !self.slots.slots[i].armed
+                    && self.sched.job[t as usize] == JOB_RUNNING && !self.budget.reported[t as usize]
+                {
+                    self.arm_budget(cfg, t);
+                }
+                (sel, false)
+            }
+        }
     }
 }
 

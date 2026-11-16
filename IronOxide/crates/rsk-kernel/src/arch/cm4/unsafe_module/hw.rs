@@ -1262,6 +1262,25 @@ mod timebase {
         mmio_write(addr::CMSDK_TIMER1 + INTCLEAR, 1);
         mmio_write(addr::CMSDK_TIMER1 + CTRL, 0);
     }
+
+    /// TIMER1's interrupt line (mps2-an386 IRQ 9).
+    const TIMER1_VECTOR: u16 = 16 + 9;
+
+    /// Cancels the one-shot that is running or has fired (2026-11-15: the
+    /// Budget event it was armed for is disarmed, Verification_Plan 7.3):
+    /// the timer is stopped, its interrupt cleared at the timer and in the
+    /// NVIC.
+    pub fn cancel() {
+        ack();
+        super::nvic_clear_pending(TIMER1_VECTOR);
+    }
+
+    /// `cancel`, then the one-shot for `at`; an instant already reached
+    /// fires after the least distance.
+    pub fn rearm(at: u64) {
+        cancel();
+        arm(at);
+    }
 }
 
 #[cfg(not(feature = "board-qemu-mps2"))]
@@ -1322,6 +1341,39 @@ mod timebase {
     pub fn ack() {
         let t = addr::NRF_TIMER0;
         mmio_write(t + EVENTS_COMPARE0, 0);
+    }
+
+    /// Cancels the compare that is armed or has matched (2026-11-15: the
+    /// Budget event it was armed for is disarmed, Verification_Plan 7.3):
+    /// the compare interrupt is disabled, its event cleared, and the
+    /// pending state of TIMER0's line cleared in the NVIC. The event is
+    /// read back before the NVIC write so that the line is low by then
+    /// (the event register drives it).
+    pub fn cancel() {
+        let t = addr::NRF_TIMER0;
+        mmio_write(t + INTENCLR, 1 << 16);
+        mmio_write(t + EVENTS_COMPARE0, 0);
+        let _ = mmio_read(t + EVENTS_COMPARE0);
+        super::nvic_clear_pending(TIMER0_VECTOR);
+    }
+
+    /// Cancels the compare that is armed or has matched and arms it for
+    /// `at`. The new compare value is written before the old event is
+    /// cleared, so no match of the old value survives; a match of the new
+    /// one that the clearing erased is caught by the last test, which
+    /// pends the time base at once for an instant already reached (as
+    /// `arm` does): no due event is lost.
+    pub fn rearm(at: u64) {
+        let t = addr::NRF_TIMER0;
+        mmio_write(t + INTENCLR, 1 << 16);
+        mmio_write(t + CC0, at as u32);
+        mmio_write(t + EVENTS_COMPARE0, 0);
+        let _ = mmio_read(t + EVENTS_COMPARE0);
+        super::nvic_clear_pending(TIMER0_VECTOR);
+        mmio_write(t + INTENSET, 1 << 16);
+        if now() >= at {
+            super::nvic_set_pending(TIMER0_VECTOR);
+        }
     }
 }
 
@@ -1406,6 +1458,14 @@ pub fn timebase_arm(at: u64) {
 
 pub fn timebase_ack() {
     timebase::ack();
+}
+
+pub fn timebase_rearm(at: u64) {
+    timebase::rearm(at);
+}
+
+pub fn timebase_cancel() {
+    timebase::cancel();
 }
 
 // ---------------------------------------------------------- semihosting

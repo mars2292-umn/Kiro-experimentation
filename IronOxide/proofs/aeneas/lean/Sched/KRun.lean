@@ -7,9 +7,9 @@ open Aeneas Aeneas.Std Result
 `KStep` is the run of `Sched/Run.lean` with the Kernel's state in it: the
 transitions the Kernel makes through `Kernel::dispatch`, `job_return`,
 `svc_lock`, `svc_unlock`, `periodic_release`, `deferred_release`,
-`deadline_miss`, `intake_release`, `apply_response` and `budget_event`
-(served inside another entry) are those functions as extracted
-(`Sched/Kernel.lean`),
+`deadline_miss`, `intake_release`, `apply_response`, `budget_event`
+(served inside another entry) and `settle` (the last step of every entry)
+are those functions as extracted (`Sched/Kernel.lean`),
 and the Task dispatched is the one `Sched::select` returns. `ksim` shows
 that every such run is a run of `Sched/Run.lean`; `property18_kernel` is
 `property18` over it. -/
@@ -91,6 +91,12 @@ function returns):
   the Release (`periodic`, `deferred`) and then serves the Budget event
   with the dispatch pending. No condition on `Sched::select`.
 
+- `settle`: the last step of every Kernel entry, `Kernel::settle`: when
+  R7.1 admits a Task the Budget event of the Job on top is disarmed, so
+  that no Budget event has a timer entry of its own ahead of the dispatch
+  (2026-11-15). It leaves the scheduler state as it is and has no Kernel
+  section of its own.
+
 - `deferred`: the entry of a deferral event, `Kernel::deferred_release`:
   the held Release made, or dropped; the accounts as for `periodic`.
 - `deadline`: the entry of a deadline event, `Kernel::deadline_miss`, with
@@ -105,9 +111,12 @@ or recorded only), `overrun_h` (the Budget event that ends the overrunning
 Job on top, `finish_top`).
 
 **Instants and time** as in `Step`: `jarrive`, `earrive`, `ktick`, `idle`,
-`exec`. A Job executes, locks, unlocks, calls an Endpoint operation and
-takes a Budget event in a timer entry of its own (`bevent_h`, `overrun_h`)
-only when `Sched::select` returns no Task. -/
+`exec`. A Job executes, locks, unlocks and calls an Endpoint operation only when
+`Sched::select` returns no Task. A Budget event has a timer entry of its
+own (`bevent_h`, `overrun_h`) in a Kernel state that the last step of an
+entry left (`settle`) and in which the Budget slot of the Job on top is
+armed; that `Sched::select` returns no Task there is then a consequence of
+the Kernel's code (`settled_armed_none`), not a condition. -/
 inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
     KSt NT NR NP NL NS NE → KSt NT NR NP NL NS NE → Prop
   | jarrive (x : KSt NT NR NP NL NS NE) (t : Nat) (ht : t < NT.val)
@@ -223,6 +232,10 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hs : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :
       KStep cfg P x { x with
         k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
+  | settle (x : KSt NT NR NP NL NS NE) (r : Option U8 × Bool)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.settle x.k cfg = ok (r, k')) :
+      KStep cfg P x { x with k := k' }
   | deferred (x : KSt NT NR NP NL NS NE) (q : Nat) (t : U8) (i : Usize) (d c : Nat)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hq : q < P.NQ) (hk : x.ks = 0) (hw : x.ewait q = true)
@@ -271,7 +284,9 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         ks := c, kp := x.top,
         re := Function.update x.re x.top (x.re x.top - c) }
   | bevent_h (x : KSt NT NR NP NL NS NE)
-      (hsel : logic.sched.Sched.select x.k.sched cfg = ok none)
+      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
+      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (harmed : topBudgetArmed x.k cfg)
       (hk : x.ks = 0) (c : Nat) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hd : 0 < x.k.sched.depth.val)
       (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)
@@ -280,7 +295,9 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         k := k', ks := c, kp := x.top,
         rb := Function.update x.rb x.top (x.rb x.top - 1) }
   | overrun_h (x : KSt NT NR NP NL NS NE)
-      (hsel : logic.sched.Sched.select x.k.sched cfg = ok none)
+      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
+      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (harmed : topBudgetArmed x.k cfg)
       (hk : x.ks = 0) (hj : JitterOk P x.st)
       (c : Nat) (r : Usize) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hd : 0 < x.k.sched.depth.val)
@@ -526,6 +543,11 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       exact rsteps_norm ih (apply_response_r hs)
     | bserved t i k' hs =>
       exact rsteps_norm ih (budget_event_eff hs)
+    | settle r k' hs =>
+      have := ih
+      dsimp only [KSt.st] at this ⊢
+      rw [settle_sched hs]
+      exact this
     | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
       rcases deferred_release_eff hs with ⟨hr0, hmp⟩ | hrs
       · have hr1 : rel k'.sched t.val = 1 := by
@@ -555,12 +577,14 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | bevent_h hsel hk c k' hd hrun hrb hc hs =>
+    | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc hs =>
+      have hsel := settled_armed_none hset harmed
       have := Reach.step _ _ ih (Step.bevent x.st (none_elig hNT w hsel) hk c hd hrun hrb hc)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | overrun_h hsel hk hj c r k' hd hr0 hr hstop hrb hc hal hs =>
+    | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal hs =>
+      have hsel := settled_armed_none hset harmed
       exact Reach.step _ _ ih (Step.finish x.st (none_elig hNT w hsel) hk hj true c r k'.sched
         hd hr0 hr (fun _ => ⟨hstop, hrb⟩) hc hal hs)
     | ktick hk hj => exact Reach.step _ _ ih (Step.ktick x.st hk hj)

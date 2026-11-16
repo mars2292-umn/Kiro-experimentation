@@ -321,7 +321,20 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NS: usize> Machine
     /// `apply_core`'s scheduling half: the selected Task's dispatch vector is
     /// pended; the selection is checked against `srp_selection` (R7.1 to R7.3).
     fn apply(&mut self) {
-        if let Some(t) = self.kernel.select(&self.cfg) {
+        // 2026-11-15: the entry's last step is `Kernel::settle`, which
+        // disarms the executing Job's Budget event when a dispatch is pended
+        // (Verification_Plan 7.3).
+        let (sel, _) = self.kernel.settle(&self.cfg);
+        if sel.is_some() {
+            for u in 0..NT {
+                assert!(
+                    !self.kernel.slots.slots[self.cfg.slot_budget[u] as usize].armed,
+                    "a Budget event is armed with a dispatch pending\n{}",
+                    self.describe()
+                );
+            }
+        }
+        if let Some(t) = sel {
             let s = &self.kernel.sched;
             assert!(self.eligible(t), "select chose an ineligible Task\n{}", self.describe());
             for u in 0..NT {

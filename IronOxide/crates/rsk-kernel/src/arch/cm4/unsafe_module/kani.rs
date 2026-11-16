@@ -265,7 +265,7 @@ fn uj_058_059_message_words_round_trip() {
 fn apply_every_action_is_total() {
     sim::reset();
     let which: u8 = kani::any();
-    kani::assume(which < 33);
+    kani::assume(which < 35);
     let n: u16 = kani::any();
     let p: u8 = kani::any();
     let on: bool = kani::any();
@@ -314,6 +314,8 @@ fn apply_every_action_is_total() {
             kani::assume(x >= 0x2000_0000 && x < 0x2000_0100);
             Action::Copy(w, x, l & 0x1C)
         }
+        32 => Action::RearmCompare(at),
+        33 => Action::CancelCompare,
         _ => Action::Trace(p, w),
     };
     let before = sim::write_count();
@@ -357,6 +359,25 @@ fn apply_every_action_is_total() {
             assert!((sim::read(word) & bit != 0) == (at == 0));
         }
         6 => assert!(sim::read(addr::NRF_TIMER0 + 0x140) == 0 && writes == 1),
+        32 => {
+            // 2026-11-15: the compare is rewritten, its event and the line's
+            // pending state cleared; a due instant pends the line again
+            // (the counter reads 0 here).
+            assert!(sim::read(addr::NRF_TIMER0 + 0x540) == at as u32);
+            assert!(sim::read(addr::NRF_TIMER0 + 0x140) == 0);
+            assert!(sim::read(addr::NRF_TIMER0 + 0x304) == 1 << 16);
+            let (word, bit) = line(addr::NVIC_ICPR, 8);
+            assert!(sim::read(word) & bit != 0);
+            let (word, bit) = line(addr::NVIC_ISPR, 8);
+            assert!((sim::read(word) & bit != 0) == (at == 0));
+        }
+        33 => {
+            assert!(sim::read(addr::NRF_TIMER0 + 0x140) == 0);
+            assert!(sim::read(addr::NRF_TIMER0 + 0x308) == 1 << 16);
+            let (word, bit) = line(addr::NVIC_ICPR, 8);
+            assert!(sim::read(word) & bit != 0);
+            assert!(writes == 3);
+        }
         7 => assert!(sim::read(addr::NRF_TIMER0 + 0x000) == 1 && sim::read(addr::NRF_TIMER0 + 0x508) == 3),
         8 => {
             assert!(sim::read(addr::DEMCR) & (1 << 24) != 0);
@@ -780,6 +801,215 @@ fn arch_records_match_the_stack_over_kernel_entries() {
     assert!(!safe && hop != 0 && k.depth() == 0);
     seq_unwind(&mut k, &mut hw, &mut state, hop);
     seq_records_match(&k, &state);
+}
+
+/// The hardware of the compare harness: `SeqHw` with the time base's
+/// compare and the pending state of its interrupt as the driver leaves
+/// them (`hw::timebase_arm`, `timebase_rearm`, `timebase_cancel`,
+/// `timebase_ack`; the register writes themselves are
+/// `timebase_rearm_cancels_the_compare_and_pends_a_due_instant`'s subject).
+struct CompareHw {
+    now: u64,
+    cycles: u32,
+    compare: Option<u64>,
+    timer_pended: bool,
+    dispatch_pended: Option<u16>,
+}
+
+impl KernelArch for CompareHw {
+    fn apply(&mut self, a: Action) {
+        match a {
+            Action::ArmCompare(at) => {
+                self.compare = Some(at);
+                if self.now >= at {
+                    self.timer_pended = true;
+                }
+            }
+            Action::RearmCompare(at) => {
+                self.compare = Some(at);
+                self.timer_pended = self.now >= at;
+            }
+            Action::CancelCompare => {
+                self.compare = None;
+                self.timer_pended = false;
+            }
+            Action::TimebaseAck => self.timer_pended = false,
+            Action::Pend(n) => {
+                if n >= 36 && n <= 42 {
+                    self.dispatch_pended = Some(n);
+                }
+            }
+            _ => {}
+        }
+    }
+    fn svc_clear_pending(&mut self) {}
+    fn stacking_fault_discard(&mut self) {}
+    fn copy_in(&mut self, _dst: u32, _src: u32, _len: u32) -> u32 {
+        0
+    }
+    fn copy_out(&mut self, _dst: u32, _src: u32, _len: u32) -> u32 {
+        0
+    }
+    fn now(&self) -> u64 {
+        self.now
+    }
+    fn cycles(&self) -> u32 {
+        self.cycles
+    }
+    fn boot_checks(&self, _expect: &BootExpect) -> u32 {
+        0
+    }
+    fn boot_info(&self) -> u32 {
+        0
+    }
+}
+
+/// Verification_Plan 7.3 (2026-11-15), R45.2: the entry that pends a
+/// dispatch disarms the executing Job's Budget event and cancels the
+/// compare pended for it, and no other event due at the same instant is
+/// lost. On the demo's configuration `sampler` (the lowest Priority)
+/// executes; at its Budget instant the compare has matched and
+/// the time base is pended. An event of `pulse`'s Release_Source is taken
+/// first (`irq_entry_core` on vector 26) and makes `pulse`'s dispatch
+/// pending. Two cases:
+///
+/// - no other timed event is due: the entry leaves `sampler`'s Budget slot
+///   disarmed, the time base not pended, and the compare armed for a later
+///   instant, so no timer entry precedes the dispatch;
+/// - `log`'s release event is due at the same instant (its offset is
+///   that instant): the entry leaves the Budget slot disarmed and the time base
+///   pended again, and the timer entry that follows makes `log`'s Release
+///   and ends no Job and reports no Overrun: `sampler` is on top, in
+///   progress, with its Budget slot still disarmed.
+#[kani::proof]
+#[kani::unwind(25)]
+fn a_pended_dispatch_cancels_the_budget_compare_and_keeps_another_due_event() {
+    use crate::arch::cm4::entry::{irq_entry_core, start_core, timer_core};
+    use crate::arch::KernelOps;
+    let (log, pulse, sampler): (u8, u8, u8) = (3, 4, 6);
+    let both_due: bool = kani::any();
+    let mut cfg = crate::logic::kani_harness::demo_config();
+    cfg.tasks[0].offset = 200_000;
+    cfg.tasks[2].offset = 400_000;
+    cfg.tasks[5].offset = 300_000;
+    // `sampler`, dispatched at instant 0, has its Budget event at its Budget in ticks.
+    let budget_at: u64 = (cfg.tasks[sampler as usize].budget as u64 + crate::logic::kernel::CYCLES_PER_TICK - 1) / crate::logic::kernel::CYCLES_PER_TICK;
+    assert!(budget_at > 0 && budget_at < 100_000);
+    cfg.tasks[log as usize].offset = if both_due { budget_at } else { 100_000 };
+    let no_window = Interval { base: 0, size_log2: 5 };
+    let part = |code: u32, ram: u32| crate::logic::mpu::PartitionLayout {
+        code: Interval { base: code, size_log2: 15 },
+        code_srd: 0,
+        ram: Interval { base: ram, size_log2: 15 },
+        ram_srd: 0,
+        stack_size: SEQ_STACK,
+        windows: [no_window; 5],
+        window_count: 0,
+        windows_ro: [false; 5],
+    };
+    let layout = crate::logic::mpu::Layout {
+        kernel_flash: Interval { base: 0x0000_0000, size_log2: 16 },
+        shared_code: Interval { base: 0x0001_0000, size_log2: 16 },
+        kernel_ram: Interval { base: 0x2000_0000, size_log2: 15 },
+        kernel_windows: [Interval { base: 0xE000_0000, size_log2: 20 }, no_window, no_window, no_window, no_window, no_window, no_window, no_window],
+        kernel_window_count: 1,
+        partitions: [part(0x0002_0000, SEQ_RAM[0]), part(0x0002_8000, SEQ_RAM[1]), part(0x0003_0000, SEQ_RAM[2])],
+    };
+    let mut k: SeqKernel = crate::arch::Bound { cfg, kernel: crate::arch::placeholder_kernel(), layout, views: [crate::arch::placeholder_view(), crate::arch::placeholder_view(), crate::arch::placeholder_view()] };
+    assert!(k.validate());
+    k.init();
+    let mut hw = CompareHw { now: 0, cycles: 0, compare: None, timer_pended: false, dispatch_pended: None };
+    let mut state = crate::arch::cm4::plan::ArchState::new();
+    state.floor[0] = SEQ_RAM[0] + SEQ_STACK;
+    state.floor[1] = SEQ_RAM[1] + SEQ_STACK;
+    state.floor[2] = SEQ_RAM[2] + SEQ_STACK;
+    state.booted = true;
+    assert!(!start_core(&mut k, &mut hw, &SeqTables, &mut state));
+    // The time base at instant 0 releases `sampler`; its dispatch from the idle activity.
+    let (hop, safe) = timer_core(&mut k, &mut hw, &SeqTables, &mut state);
+    assert!(hop == 0 && !safe);
+    assert!(hw.dispatch_pended == Some(36 + sampler as u16));
+    let (plan_s, safe) = irq_entry_core(&mut k, &mut hw, &SeqTables, &mut state, 36 + sampler as u32, 0, 0, 0xFFFF_FFF9);
+    assert!(!safe && plan_s.psp != 0 && k.top() == Some(sampler));
+    let budget_slot = k.cfg.slot_budget[sampler as usize] as usize;
+    assert!(k.kernel.slots.slots[budget_slot].armed && k.kernel.slots.slots[budget_slot].at == budget_at);
+    // `sampler`'s Budget instant: the compare matches and pends the time base.
+    hw.now = budget_at;
+    hw.cycles = 50_000;
+    hw.timer_pended = true;
+    hw.dispatch_pended = None;
+    // The event of `pulse`'s Release_Source is taken first.
+    let (_, safe) = irq_entry_core(&mut k, &mut hw, &SeqTables, &mut state, 26, plan_s.psp, 1, 0xFFFF_FFFD);
+    assert!(!safe);
+    assert!(hw.dispatch_pended == Some(36 + pulse as u16));
+    assert!(!k.kernel.slots.slots[budget_slot].armed);
+    assert!(k.top() == Some(sampler) && k.depth() == 1);
+    if !both_due {
+        // No timer entry ahead of the dispatch: the pended compare is
+        // cancelled and the next one is for a later instant.
+        assert!(!hw.timer_pended);
+        match hw.compare {
+            Some(at) => assert!(at > budget_at),
+            None => assert!(false),
+        }
+    } else {
+        // `log`'s release event is due: the time base is pended again, and
+        // its entry serves that event and no Budget event.
+        assert!(hw.timer_pended);
+        let events_before = k.log_len();
+        let (hop, safe) = timer_core(&mut k, &mut hw, &SeqTables, &mut state);
+        assert!(hop == 0 && !safe);
+        assert!(k.kernel.sched.release[log as usize] == crate::logic::sched::REL_PENDING);
+        assert!(k.top() == Some(sampler) && k.depth() == 1);
+        assert!(!k.kernel.budget.reported[sampler as usize]);
+        assert!(k.log_len() == events_before);
+        assert!(!k.kernel.slots.slots[budget_slot].armed);
+        assert!(hw.dispatch_pended.is_some());
+    }
+}
+
+/// Verification_Plan 7.3 (2026-11-15), R45.2: `hw::timebase_rearm` on the
+/// simulated registers of TIMER0 (the nRF52840 driver). For any instant
+/// and any counter reading it leaves the compare register at the instant,
+/// the compare event clear, the compare interrupt enabled, and TIMER0's
+/// pending bit written clear in the NVIC; and it writes the set-pending
+/// register exactly when the counter has reached the instant.
+/// `timebase_cancel` leaves the event clear and the interrupt disabled
+/// and writes no set-pending.
+#[cfg(not(feature = "board-qemu-mps2"))]
+#[kani::proof]
+#[kani::unwind(48)]
+fn timebase_rearm_cancels_the_compare_and_pends_a_due_instant() {
+    const TIMER0: u32 = addr::NRF_TIMER0;
+    const EVENTS_COMPARE0: u32 = 0x140;
+    const INTENSET: u32 = 0x304;
+    const INTENCLR: u32 = 0x308;
+    const CC0: u32 = 0x540;
+    const CC1: u32 = 0x544;
+    sim::reset();
+    let at: u32 = kani::any();
+    let counter: u32 = kani::any();
+    let cancel_only: bool = kani::any();
+    // The compare has matched: its event is set (the line is asserted).
+    sim::write(TIMER0 + EVENTS_COMPARE0, 1);
+    // The counter's reading, as the capture task leaves it in CC[1].
+    sim::write(TIMER0 + CC1, counter);
+    if cancel_only {
+        hw::timebase_cancel();
+        assert!(sim::read(TIMER0 + EVENTS_COMPARE0) == 0);
+        assert!(sim::read(TIMER0 + INTENCLR) == 1 << 16);
+        assert!(sim::read(addr::NVIC_ICPR) == 1 << 8);
+        assert!(sim::read(addr::NVIC_ISPR) == 0);
+    } else {
+        hw::timebase_rearm(at as u64);
+        assert!(sim::read(TIMER0 + CC0) == at);
+        assert!(sim::read(TIMER0 + EVENTS_COMPARE0) == 0);
+        assert!(sim::read(TIMER0 + INTENSET) == 1 << 16);
+        assert!(sim::read(addr::NVIC_ICPR) == 1 << 8);
+        // The harness starts from a fresh time base: no wrap counted, so
+        // the extended reading is the counter's.
+        assert!((sim::read(addr::NVIC_ISPR) == 1 << 8) == (counter >= at));
+    }
 }
 
 /// Audit finding 4 (2026-11-13), R45.2: `svc_clear_pending` clears

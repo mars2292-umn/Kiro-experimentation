@@ -116,8 +116,8 @@ expect = ["plan.rs", "compare_for"]
 id = "apply-skips-basepri"
 kills = "apply_core: basepri_matches (A1: BASEPRI is written from the Kernel state after every transition)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    hw.apply(Action::SetBasepri(k.basepri_now()));\n    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    let ghost h0 = hw.hw();\n"
-replace = "    match k.next_compare() {\n        Some(at) => arm_compare(hw, at),\n        None => {}\n    }\n    let ghost h0 = hw.hw();\n"
+find = "    let (sel, quieted) = k.settle();\n    hw.apply(Action::SetBasepri(k.basepri_now()));\n"
+replace = "    let (sel, quieted) = k.settle();\n"
 expect = ["entry.rs", "basepri_matches"]
 
 [[mutation]]
@@ -1261,6 +1261,23 @@ expect = ["Rta/Derive.lean"]
 prover = "lean"
 
 [[mutation]]
+id = "settle-skips-the-early-disarm"
+kills = "Kernel::settle's postcondition (2026-11-15, Verification_Plan 7.3): the entry that pends a dispatch disarms the executing Job's Budget event, so no Budget event has a timer entry of its own ahead of the dispatch"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            Some(_) => {\n                if self.slots.slots[i].armed {\n"
+replace = "            Some(_) => {\n                if false {\n"
+expect = ["kernel.rs", "assertion failed"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "entry-selects-without-settling"
+kills = "Bound::settle against KernelOps::settle's postcondition spec_dispatch_guard (2026-11-15): every Kernel entry ends with no Budget event armed while a dispatch is pending"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "    fn settle(&mut self) -> (r: (Option<u8>, bool)) {\n        self.kernel.settle(&self.cfg)\n    }\n"
+replace = "    fn settle(&mut self) -> (r: (Option<u8>, bool)) {\n        (self.kernel.select(&self.cfg), false)\n    }\n"
+expect = ["bound.rs", "postcondition not satisfied"]
+
+[[mutation]]
 id = "preempted-budget-slot-left-armed"
 kills = "Kernel::dispatch's postcondition (2026-11-14): the preempted Job's Budget event is disarmed, so no stale timer entry fires while the preempting Job executes (the response-time analysis charges none)"
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -1595,4 +1612,125 @@ file = "proofs/aeneas/lean/Sched/Kernel.lean"
 find = "          rsk_logic.logic.kernel.Kernel.arm_budget { self with slots := s } cfg\n            t\n"
 replace = "          let sc ← rsk_logic.logic.sched.Sched.make_pending self.sched cfg t\n          rsk_logic.logic.kernel.Kernel.arm_budget\n            { self with slots := s, sched := sc } cfg t\n"
 expect = ["Sched/Calls.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-budget-entry-in-an-unsettled-state"
+kills = "ksim (a Budget event's own timer entry finds a Kernel state that the last step of an entry, Kernel::settle, left: with the slot armed, no dispatch is pending)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "  | bevent_h (x : KSt NT NR NP NL NS NE)\n      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)\n      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))\n"
+replace = "  | bevent_h (x : KSt NT NR NP NL NS NE)\n      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)\n      (hset : True)\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-budget-entry-of-an-unarmed-slot"
+kills = "ksim (the timer entry that ends an overrunning Job is of the armed Budget slot of the Job on top: with it armed after Kernel::settle, no dispatch is pending)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (harmed : topBudgetArmed x.k cfg)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n"
+replace = "      (harmed : True)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-settle-leaves-the-budget-event-armed"
+kills = "settle_admitted_quiet (Kernel::settle as extracted disarms the Budget slot of the Job on top when R7.1 admits a Task)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "        let s1 ← rsk_logic.logic.time.Slots.disarm self.slots i3\n        ok ((sel, true), { self with slots := s1 })\n"
+replace = "        ok ((sel, true), self)\n"
+expect = ["Sched/Calls.lean"]
+prover = "lean"
+
+# The multiparty progress theorem in Lean (Verification_Plan 5.20): the
+# checker as extracted (Proto/Proto.lean, generated) and the statement
+# (Proto/Spec.lean).
+
+[[mutation]]
+id = "lean-proto-code-accepts-a-role-without-projection"
+kills = "acceptn_exec_ok (accept_multiparty as extracted returns true only when every role below n has a projection)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "    then ok (done false)\n    else let i1 ← i + 1#usize\n"
+replace = "    then ok (done true)\n    else let i1 ← i + 1#usize\n"
+expect = ["Proto/Exec.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-code-recursion-starts-guarded"
+kills = "wfn_exec_ok (wfn_exec as extracted enters a recursion with its variable unguarded)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "    let inner1 ← alloc.vec.Vec.push inner false\n"
+replace = "    let inner1 ← alloc.vec.Vec.push inner true\n"
+expect = ["Proto/Exec.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-code-uninvolved-role-takes-the-first-branch"
+kills = "projn_exec_ok (projn_merge_exec as extracted merges the projections of every branch)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "        | some m => multiparty.merge_exec l m\npartial_fixpoint\n"
+replace = "        | some m => ok o\npartial_fixpoint\n"
+expect = ["Proto/Exec.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-code-merge-takes-the-other-branch"
+kills = "merge_exec_ok (merge_ls_exec as extracted merges two branches of the same label)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "      | some lb => multiparty.merge_exec l lb\n"
+replace = "      | some lb => ok (some lb)\n"
+expect = ["Proto/Exec.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-code-close-rec-keeps-the-binder"
+kills = "close_rec_exec_ok (close_rec_exec as extracted removes the binder of a recursion whose variable does not occur)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "    else multiparty.lshift_exec l 0#usize\n"
+replace = "    else ok (some l)\n"
+expect = ["Proto/Exec.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-code-accepts-one-role"
+kills = "acceptn_exec_ok (accept_multiparty as extracted refuses fewer than two roles)"
+file = "proofs/aeneas/lean/Proto/Proto.lean"
+find = "  if n < 2#usize\n  then ok false\n"
+replace = "  if n < 1#usize\n  then ok false\n"
+expect = ["Proto/Exec.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-merge-of-anything"
+kills = "the full merge's refinement lemmas (a merge of two unlike types is refused)"
+file = "proofs/aeneas/lean/Proto/Spec.lean"
+find = "    | _, _ => none\n/-- The branches of `a`"
+replace = "    | _, _ => some a\n/-- The branches of `a`"
+expect = ["Proto/"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-waiting-set-without-closure"
+kills = "multiparty_progress (the waiting set is closed under the awaited sender)"
+file = "proofs/aeneas/lean/Proto/Spec.lean"
+find = "NBlocked c n r →\n    set frm = true)"
+replace = "NBlocked c n r →\n    True)"
+expect = ["Proto/"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-recursion-starts-guarded"
+kills = "the guardedness lemmas (a recursion's variable is unguarded until a message)"
+file = "proofs/aeneas/lean/Proto/Spec.lean"
+find = "  | .mu body, n, env => body.wfnAt n (false :: env)\n"
+replace = "  | .mu body, n, env => body.wfnAt n (true :: env)\n"
+expect = ["Proto/"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-proto-accept-projects-one-role"
+kills = "minv_init (every role below n has a projection)"
+file = "proofs/aeneas/lean/Proto/Spec.lean"
+find = "∀ r, r < n → (projn g r).isSome"
+replace = "∀ r, r < n → r = 0 → (projn g r).isSome"
+expect = ["Proto/"]
 prover = "lean"

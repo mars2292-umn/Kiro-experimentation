@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:d69224dd0f9ea8ba98fccc71c41e4b353c4ef0a9f8ef86904f7915446684561e",
+  "binary_hash": "sha256:48c496a4723bfb8244970260d83d36c6ccbff4719b929499b565f7f39ce9fee8",
   "threshold_percent": 50,
   "items": [
     {
@@ -638,7 +638,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "1380:28 false"
+        "1432:28 false"
       ]
     },
     {
@@ -841,10 +841,12 @@
       "name": "rsk_kernel::arch::cm4::svc",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 24,
-      "covered": 19,
+      "covered": 17,
       "uncovered": [
         "710:12 false",
+        "723:12 true",
         "723:20 true",
+        "723:20 false",
         "729:12 false",
         "740:8 true",
         "744:27 true"
@@ -909,12 +911,12 @@
     {
       "name": "rsk_kernel::arch::cm4::entry::apply_core",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "branches": 14,
-      "covered": 11,
+      "branches": 16,
+      "covered": 13,
       "uncovered": [
-        "788:48 true",
-        "833:12 true",
-        "841:12 true"
+        "833:48 true",
+        "879:12 true",
+        "887:12 true"
       ]
     },
     {
@@ -923,10 +925,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "3785:18 true",
-        "3785:18 false",
-        "3785:31 true",
-        "3785:31 false"
+        "3865:18 true",
+        "3865:18 false",
+        "3865:31 true",
+        "3865:31 false"
       ]
     },
     {
@@ -935,9 +937,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "1323:23 false",
-        "1328:17 false",
-        "1335:8 false"
+        "1377:23 false",
+        "1382:17 false",
+        "1389:8 false"
       ]
     },
     {
@@ -946,7 +948,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2237:8 false"
+        "2295:8 false"
       ]
     },
     {
@@ -962,8 +964,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "880:20 true",
-        "891:24 true"
+        "934:20 true",
+        "945:24 true"
       ]
     },
     {
@@ -972,7 +974,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "705:21 false"
+        "717:21 false"
       ]
     },
     {
@@ -981,8 +983,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1662:8 true",
-        "1662:8 false"
+        "1716:8 true",
+        "1716:8 false"
       ]
     },
     {
@@ -991,8 +993,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "3170:43 false",
-        "3170:72 true"
+        "3236:43 false",
+        "3236:72 true"
       ]
     },
     {
@@ -1001,8 +1003,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "961:11 true",
-        "961:11 false"
+        "1015:11 true",
+        "1015:11 false"
       ]
     },
     {
@@ -1011,8 +1013,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1635:8 true",
-        "1635:8 false"
+        "1689:8 true",
+        "1689:8 false"
       ]
     },
     {
@@ -1028,12 +1030,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "1419:11 true",
-        "1419:11 false",
-        "1424:12 true",
-        "1424:12 false",
-        "1424:37 true",
-        "1424:37 false"
+        "1473:11 true",
+        "1473:11 false",
+        "1478:12 true",
+        "1478:12 false",
+        "1478:37 true",
+        "1478:37 false"
       ]
     },
     {
@@ -1042,7 +1044,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2261:8 true"
+        "2319:8 true"
       ]
     },
     {
@@ -1072,38 +1074,38 @@
       "branches": 32,
       "covered": 0,
       "uncovered": [
-        "1863:8 true",
-        "1863:8 false",
-        "1863:28 true",
-        "1863:28 false",
-        "1863:60 true",
-        "1863:60 false",
-        "1863:82 true",
-        "1863:82 false",
-        "1863:103 true",
-        "1863:103 false",
-        "1863:124 true",
-        "1863:124 false",
-        "1867:8 true",
-        "1867:8 false",
-        "1867:44 true",
-        "1867:44 false",
-        "1867:73 true",
-        "1867:73 false",
-        "1872:13 true",
-        "1872:13 false",
-        "1873:20 true",
-        "1873:20 false",
-        "1874:20 true",
-        "1874:20 false",
-        "1875:20 true",
-        "1875:20 false",
-        "1876:20 true",
-        "1876:20 false",
-        "1877:20 true",
-        "1877:20 false",
-        "1882:8 true",
-        "1882:8 false"
+        "1917:8 true",
+        "1917:8 false",
+        "1917:28 true",
+        "1917:28 false",
+        "1917:60 true",
+        "1917:60 false",
+        "1917:82 true",
+        "1917:82 false",
+        "1917:103 true",
+        "1917:103 false",
+        "1917:124 true",
+        "1917:124 false",
+        "1921:8 true",
+        "1921:8 false",
+        "1921:44 true",
+        "1921:44 false",
+        "1921:73 true",
+        "1921:73 false",
+        "1926:13 true",
+        "1926:13 false",
+        "1927:20 true",
+        "1927:20 false",
+        "1928:20 true",
+        "1928:20 false",
+        "1929:20 true",
+        "1929:20 false",
+        "1930:20 true",
+        "1930:20 false",
+        "1931:20 true",
+        "1931:20 false",
+        "1936:8 true",
+        "1936:8 false"
       ]
     },
     {
@@ -1112,10 +1114,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1982:8 true",
-        "1982:8 false",
-        "1982:41 true",
-        "1982:41 false"
+        "2036:8 true",
+        "2036:8 false",
+        "2036:41 true",
+        "2036:41 false"
       ]
     },
     {
@@ -1124,17 +1126,26 @@
       "branches": 24,
       "covered": 13,
       "uncovered": [
-        "3627:8 true",
-        "3627:22 true",
-        "3644:8 false",
-        "3653:22 true",
-        "3678:8 true",
-        "3690:12 true",
-        "3690:12 false",
-        "3716:37 true",
-        "3727:16 true",
-        "3738:20 true",
-        "3738:20 false"
+        "3705:8 true",
+        "3705:22 true",
+        "3722:8 false",
+        "3731:22 true",
+        "3756:8 true",
+        "3768:12 true",
+        "3768:12 false",
+        "3794:37 true",
+        "3805:16 true",
+        "3816:20 true",
+        "3816:20 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::rearm_compare",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "733:34 true"
       ]
     },
     {
@@ -1143,8 +1154,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1452:11 true",
-        "1452:11 false"
+        "1506:11 true",
+        "1506:11 false"
       ]
     },
     {
@@ -1153,9 +1164,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "1185:12 true",
-        "1188:12 false",
-        "1188:29 true"
+        "1239:12 true",
+        "1242:12 false",
+        "1242:29 true"
       ]
     },
     {
@@ -1164,17 +1175,17 @@
       "branches": 24,
       "covered": 13,
       "uncovered": [
-        "1277:8 false",
-        "1277:17 false",
-        "1277:36 false",
-        "1295:16 false",
-        "1296:20 true",
-        "1296:36 true",
-        "1296:55 true",
-        "1296:76 true",
-        "1302:20 false",
-        "1302:29 false",
-        "1304:8 false"
+        "1331:8 false",
+        "1331:17 false",
+        "1331:36 false",
+        "1349:16 false",
+        "1350:20 true",
+        "1350:36 true",
+        "1350:55 true",
+        "1350:76 true",
+        "1356:20 false",
+        "1356:29 false",
+        "1358:8 false"
       ]
     },
     {
@@ -1183,18 +1194,18 @@
       "branches": 22,
       "covered": 10,
       "uncovered": [
-        "3262:8 false",
-        "3262:24 false",
-        "3273:16 true",
-        "3297:16 false",
-        "3327:8 false",
-        "3327:40 true",
-        "3327:56 true",
-        "3327:56 false",
-        "3327:81 true",
-        "3327:81 false",
-        "3339:12 true",
-        "3339:12 false"
+        "3332:8 false",
+        "3332:24 false",
+        "3343:16 true",
+        "3367:16 false",
+        "3397:8 false",
+        "3397:40 true",
+        "3397:56 true",
+        "3397:56 false",
+        "3397:81 true",
+        "3397:81 false",
+        "3409:12 true",
+        "3409:12 false"
       ]
     },
     {
@@ -1203,10 +1214,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1829:10 true",
-        "1829:10 false",
-        "1829:39 true",
-        "1829:39 false"
+        "1883:10 true",
+        "1883:10 false",
+        "1883:39 true",
+        "1883:39 false"
       ]
     },
     {
@@ -1215,9 +1226,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "2311:8 true",
-        "2311:31 true",
-        "2311:66 false"
+        "2369:8 true",
+        "2369:31 true",
+        "2369:66 false"
       ]
     },
     {
@@ -1226,40 +1237,40 @@
       "branches": 34,
       "covered": 0,
       "uncovered": [
-        "1768:8 true",
-        "1768:8 false",
-        "1771:12 true",
-        "1771:12 false",
-        "1771:32 true",
-        "1771:32 false",
-        "1771:64 true",
-        "1771:64 false",
-        "1771:86 true",
-        "1771:86 false",
-        "1776:12 true",
-        "1776:12 false",
-        "1776:41 true",
-        "1776:41 false",
-        "1789:8 true",
-        "1789:8 false",
-        "1789:27 true",
-        "1789:27 false",
-        "1789:47 true",
-        "1789:47 false",
-        "1789:79 true",
-        "1789:79 false",
-        "1789:101 true",
-        "1789:101 false",
-        "1789:122 true",
-        "1789:122 false",
-        "1794:8 true",
-        "1794:8 false",
-        "1794:37 true",
-        "1794:37 false",
-        "1794:66 true",
-        "1794:66 false",
-        "1794:82 true",
-        "1794:82 false"
+        "1822:8 true",
+        "1822:8 false",
+        "1825:12 true",
+        "1825:12 false",
+        "1825:32 true",
+        "1825:32 false",
+        "1825:64 true",
+        "1825:64 false",
+        "1825:86 true",
+        "1825:86 false",
+        "1830:12 true",
+        "1830:12 false",
+        "1830:41 true",
+        "1830:41 false",
+        "1843:8 true",
+        "1843:8 false",
+        "1843:27 true",
+        "1843:27 false",
+        "1843:47 true",
+        "1843:47 false",
+        "1843:79 true",
+        "1843:79 false",
+        "1843:101 true",
+        "1843:101 false",
+        "1843:122 true",
+        "1843:122 false",
+        "1848:8 true",
+        "1848:8 false",
+        "1848:37 true",
+        "1848:37 false",
+        "1848:66 true",
+        "1848:66 false",
+        "1848:82 true",
+        "1848:82 false"
       ]
     },
     {
@@ -1275,18 +1286,18 @@
       "branches": 12,
       "covered": 0,
       "uncovered": [
-        "1547:11 true",
-        "1547:11 false",
-        "1547:20 true",
-        "1547:20 false",
-        "1565:12 true",
-        "1565:12 false",
-        "1571:19 true",
-        "1571:19 false",
-        "1581:20 true",
-        "1581:20 false",
-        "1581:45 true",
-        "1581:45 false"
+        "1601:11 true",
+        "1601:11 false",
+        "1601:20 true",
+        "1601:20 false",
+        "1619:12 true",
+        "1619:12 false",
+        "1625:19 true",
+        "1625:19 false",
+        "1635:20 true",
+        "1635:20 false",
+        "1635:45 true",
+        "1635:45 false"
       ]
     },
     {
@@ -1314,9 +1325,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "1233:23 false",
-        "1238:17 false",
-        "1245:8 false"
+        "1287:23 false",
+        "1292:17 false",
+        "1299:8 false"
       ]
     },
     {
@@ -1325,19 +1336,19 @@
       "branches": 26,
       "covered": 13,
       "uncovered": [
-        "3425:23 false",
-        "3426:12 false",
-        "3440:23 false",
-        "3446:15 true",
-        "3460:15 true",
-        "3460:37 true",
-        "3466:23 true",
-        "3466:23 false",
-        "3472:12 true",
-        "3472:12 false",
-        "3472:34 true",
-        "3472:34 false",
-        "3479:15 false"
+        "3499:23 false",
+        "3500:12 false",
+        "3514:23 false",
+        "3520:15 true",
+        "3534:15 true",
+        "3534:37 true",
+        "3540:23 true",
+        "3540:23 false",
+        "3546:12 true",
+        "3546:12 false",
+        "3546:34 true",
+        "3546:34 false",
+        "3553:15 false"
       ]
     },
     {
@@ -1346,11 +1357,11 @@
       "branches": 12,
       "covered": 7,
       "uncovered": [
-        "2894:38 false",
-        "2894:84 false",
-        "2913:8 true",
-        "2937:8 true",
-        "2947:8 true"
+        "2956:38 false",
+        "2956:84 false",
+        "2975:8 true",
+        "2999:8 true",
+        "3009:8 true"
       ]
     },
     {
@@ -1359,16 +1370,16 @@
       "branches": 10,
       "covered": 0,
       "uncovered": [
-        "1147:11 true",
-        "1147:11 false",
-        "1153:12 true",
-        "1153:12 false",
-        "1154:16 true",
-        "1154:16 false",
-        "1157:16 true",
-        "1157:16 false",
-        "1160:16 true",
-        "1160:16 false"
+        "1201:11 true",
+        "1201:11 false",
+        "1207:12 true",
+        "1207:12 false",
+        "1208:16 true",
+        "1208:16 false",
+        "1211:16 true",
+        "1211:16 false",
+        "1214:16 true",
+        "1214:16 false"
       ]
     },
     {
@@ -1377,10 +1388,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2176:8 true",
-        "2176:8 false",
-        "2196:16 true",
-        "2196:16 false"
+        "2232:8 true",
+        "2232:8 false",
+        "2252:16 true",
+        "2252:16 false"
       ]
     },
     {
@@ -1389,10 +1400,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2095:8 true",
-        "2095:8 false",
-        "2140:8 true",
-        "2140:8 false"
+        "2149:8 true",
+        "2149:8 false",
+        "2194:8 true",
+        "2194:8 false"
       ]
     },
     {
@@ -1401,10 +1412,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1708:11 true",
-        "1708:11 false",
-        "1725:11 true",
-        "1725:11 false"
+        "1762:11 true",
+        "1762:11 false",
+        "1779:11 true",
+        "1779:11 false"
       ]
     },
     {
@@ -1413,25 +1424,25 @@
       "branches": 30,
       "covered": 11,
       "uncovered": [
-        "3052:8 false",
-        "3052:24 false",
-        "3052:49 true",
-        "3078:8 false",
-        "3078:24 true",
-        "3083:15 true",
-        "3083:15 false",
-        "3087:16 true",
-        "3087:16 false",
-        "3087:30 true",
-        "3087:30 false",
-        "3087:56 true",
-        "3087:56 false",
-        "3092:12 true",
-        "3092:12 false",
-        "3106:8 true",
-        "3106:18 true",
-        "3122:43 false",
-        "3122:72 true"
+        "3116:8 false",
+        "3116:24 false",
+        "3116:49 true",
+        "3142:8 false",
+        "3142:24 true",
+        "3147:15 true",
+        "3147:15 false",
+        "3151:16 true",
+        "3151:16 false",
+        "3151:30 true",
+        "3151:30 false",
+        "3151:56 true",
+        "3151:56 false",
+        "3156:12 true",
+        "3156:12 false",
+        "3170:8 true",
+        "3170:18 true",
+        "3186:43 false",
+        "3186:72 true"
       ]
     },
     {
@@ -1440,10 +1451,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2330:8 true",
-        "2330:8 false",
-        "2333:8 true",
-        "2333:8 false"
+        "2388:8 true",
+        "2388:8 false",
+        "2391:8 true",
+        "2391:8 false"
       ]
     },
     {
@@ -1459,7 +1470,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2280:8 true"
+        "2338:8 true"
       ]
     },
     {
@@ -1475,12 +1486,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "1203:11 true",
-        "1203:11 false",
-        "1207:12 true",
-        "1207:12 false",
-        "1210:12 true",
-        "1210:12 false"
+        "1257:11 true",
+        "1257:11 false",
+        "1261:12 true",
+        "1261:12 false",
+        "1264:12 true",
+        "1264:12 false"
       ]
     },
     {
@@ -1489,9 +1500,9 @@
       "branches": 12,
       "covered": 9,
       "uncovered": [
-        "3534:36 true",
-        "3538:23 false",
-        "3543:23 false"
+        "3610:36 true",
+        "3614:23 false",
+        "3619:23 false"
       ]
     },
     {
@@ -1500,18 +1511,18 @@
       "branches": 22,
       "covered": 10,
       "uncovered": [
-        "1028:8 true",
-        "1059:8 true",
-        "1062:8 true",
-        "1065:8 false",
-        "1068:8 true",
-        "1072:8 true",
-        "1080:8 true",
-        "1088:8 false",
-        "1106:11 true",
-        "1106:11 false",
-        "1106:21 true",
-        "1106:21 false"
+        "1082:8 true",
+        "1113:8 true",
+        "1116:8 true",
+        "1119:8 false",
+        "1122:8 true",
+        "1126:8 true",
+        "1134:8 true",
+        "1142:8 false",
+        "1160:11 true",
+        "1160:11 false",
+        "1160:21 true",
+        "1160:21 false"
       ]
     },
     {
@@ -1673,7 +1684,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "767:12 false"
+        "799:12 false"
       ]
     },
     {
@@ -1682,7 +1693,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "878:12 false"
+        "930:12 false"
       ]
     },
     {
@@ -1698,7 +1709,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "780:12 true"
+        "824:12 true"
       ]
     },
     {
@@ -1728,7 +1739,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "701:12 false"
+        "728:12 false"
       ]
     },
     {
@@ -1737,7 +1748,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "886:12 false"
+        "938:12 false"
       ]
     },
     {
@@ -1746,8 +1757,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "848:12 true",
-        "852:12 true"
+        "900:12 true",
+        "904:12 true"
       ]
     },
     {
@@ -1763,7 +1774,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "924:12 true"
+        "976:12 true"
       ]
     },
     {
@@ -1779,8 +1790,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "709:12 true",
-        "709:12 false"
+        "736:12 true",
+        "736:12 false"
       ]
     },
     {
@@ -1789,8 +1800,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "944:12 true",
-        "944:12 false"
+        "996:12 true",
+        "996:12 false"
       ]
     },
     {
@@ -1799,7 +1810,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "688:12 false"
+        "715:12 false"
       ]
     },
     {
@@ -1815,7 +1826,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "914:12 true"
+        "966:12 true"
       ]
     },
     {
@@ -1824,7 +1835,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "894:12 false"
+        "946:12 false"
       ]
     },
     {
@@ -1833,7 +1844,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "839:12 false"
+        "891:12 false"
       ]
     },
     {
@@ -1842,8 +1853,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "859:12 true",
-        "863:12 true"
+        "911:12 true",
+        "915:12 true"
       ]
     },
     {
@@ -1852,7 +1863,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "843:20 false"
+        "895:20 false"
       ]
     },
     {
@@ -1882,18 +1893,20 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "934:12 true",
-        "934:12 false"
+        "986:12 true",
+        "986:12 false"
       ]
     },
     {
       "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::overrun_continues",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 4,
-      "covered": 2,
+      "covered": 0,
       "uncovered": [
-        "713:12 false",
-        "715:13 false"
+        "740:12 true",
+        "740:12 false",
+        "742:13 true",
+        "742:13 false"
       ]
     },
     {
@@ -1902,7 +1915,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "910:12 false"
+        "962:12 false"
       ]
     },
     {
@@ -1939,7 +1952,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "658:12 false"
+        "685:12 false"
       ]
     },
     {
@@ -1948,15 +1961,15 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "804:12 false",
-        "805:16 false",
-        "806:16 false",
-        "807:16 false",
-        "809:31 false"
+        "856:12 false",
+        "857:16 false",
+        "858:16 false",
+        "859:16 false",
+        "861:31 false"
       ]
     },
     {
-      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::select",
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::settle",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 0,
       "covered": 0,
@@ -1975,7 +1988,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "697:12 false"
+        "724:12 false"
       ]
     },
     {
@@ -1998,8 +2011,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "761:12 false",
-        "761:35 false"
+        "788:12 false",
+        "788:35 false"
       ]
     },
     {
@@ -2008,10 +2021,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "747:12 true",
-        "752:9 false",
-        "753:16 false",
-        "754:16 false"
+        "774:12 true",
+        "779:9 false",
+        "780:16 false",
+        "781:16 false"
       ]
     },
     {
@@ -2020,8 +2033,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "950:12 true",
-        "950:12 false"
+        "1002:12 true",
+        "1002:12 false"
       ]
     },
     {
@@ -2030,7 +2043,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "672:12 false"
+        "699:12 false"
       ]
     },
     {
@@ -2039,7 +2052,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "874:12 false"
+        "926:12 false"
       ]
     },
     {
@@ -2048,7 +2061,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "882:12 false"
+        "934:12 false"
       ]
     },
     {
@@ -2057,7 +2070,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "739:12 false"
+        "766:12 false"
       ]
     },
     {
@@ -2066,8 +2079,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "773:12 true",
-        "773:44 true"
+        "805:12 true",
+        "805:44 true"
       ]
     },
     {
@@ -2076,11 +2089,11 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "632:9 false",
-        "633:16 false",
-        "634:16 false",
-        "635:16 false",
-        "636:16 false"
+        "659:9 false",
+        "660:16 false",
+        "661:16 false",
+        "662:16 false",
+        "663:16 false"
       ]
     },
     {
@@ -2096,7 +2109,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "705:12 false"
+        "732:12 false"
       ]
     },
     {
@@ -2105,7 +2118,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "743:12 false"
+        "770:12 false"
       ]
     },
     {
@@ -3264,12 +3277,19 @@
       ]
     },
     {
-      "name": "rsk_logic::logic::kernel::Kernel<_$C$_$C$_$C$_$C$_$C$_>::select",
+      "name": "rsk_logic::logic::kernel::Kernel<_$C$_$C$_$C$_$C$_$C$_>::settle",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/kernel.rs",
-      "branches": 4,
-      "covered": 3,
+      "branches": 18,
+      "covered": 10,
       "uncovered": [
-        "3869:31 true"
+        "3934:41 true",
+        "3970:20 false",
+        "3970:36 false",
+        "3970:56 true",
+        "3971:24 true",
+        "3971:24 false",
+        "3971:69 true",
+        "3971:69 false"
       ]
     },
     {
@@ -3566,7 +3586,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "878:12 false"
+        "930:12 false"
       ]
     },
     {
@@ -3575,7 +3595,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "886:12 false"
+        "938:12 false"
       ]
     },
     {
@@ -3591,7 +3611,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "890:12 false"
+        "942:12 false"
       ]
     },
     {
@@ -3600,7 +3620,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "874:12 false"
+        "926:12 false"
       ]
     },
     {
@@ -3609,7 +3629,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "882:12 false"
+        "934:12 false"
       ]
     },
     {
@@ -4024,9 +4044,10 @@
       "name": "rsk_kernel::arch::cm4::unsafe_module::stats_exec",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
       "branches": 10,
-      "covered": 9,
+      "covered": 8,
       "uncovered": [
-        "443:8 true"
+        "443:8 true",
+        "451:8 true"
       ]
     },
     {
@@ -4098,8 +4119,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1360:19 true",
-        "1360:19 false"
+        "1412:19 true",
+        "1412:19 false"
       ]
     },
     {
@@ -4246,6 +4267,13 @@
       ]
     },
     {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::timebase_rearm",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::unsafe_module::hw::watchdog_start",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
       "branches": 0,
@@ -4254,6 +4282,13 @@
     },
     {
       "name": "rsk_kernel::arch::cm4::unsafe_module::hw::ppi_disable_all",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::timebase_cancel",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
       "branches": 0,
       "covered": 0,
@@ -4470,6 +4505,20 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::timebase::rearm",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 2,
+      "covered": 2,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::hw::timebase::cancel",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::unsafe_module::hw::dma_write",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
       "branches": 2,
@@ -4512,7 +4561,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "594:20 true"
+        "606:20 true"
       ]
     },
     {
@@ -4874,6 +4923,13 @@
     },
     {
       "name": "rsk_kernel::arch::cm4::entry::epilogue_core",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::entry::rearm_compare",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
       "branches": 0,
       "covered": 0,
@@ -5343,6 +5399,13 @@
     },
     {
       "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::select",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "_<rsk_kernel::arch::bound::Bound<_$C$_$C$_$C$_$C$_$C$_>$u20$as$u20$rsk_kernel::arch::bound::KernelOps>::settle",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/bound.rs",
       "branches": 0,
       "covered": 0,

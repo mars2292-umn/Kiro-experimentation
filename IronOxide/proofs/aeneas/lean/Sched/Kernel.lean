@@ -3143,7 +3143,7 @@ def rsk_logic.logic.sched.Sched.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3859:4-3859:70
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3861:4-3861:70
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::select]
     Visibility: public -/
 @[rust_fun
@@ -3161,6 +3161,68 @@ def rsk_logic.logic.kernel.Kernel.select
     if self.started
     then rsk_logic.logic.sched.Sched.select self.sched cfg
     else ok none
+
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::settle]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3905:4-3905:80
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::settle]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::settle"]
+def rsk_logic.logic.kernel.Kernel.settle
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) :
+  Result (((Option Std.U8) × Bool) × (rsk_logic.logic.kernel.Kernel NT NR NP
+    NL NS NE))
+  := do
+  let admitted ← rsk_logic.logic.sched.Sched.select self.sched cfg
+  let sel ←
+    if self.safe_state
+    then ok none
+    else if self.started
+         then ok admitted
+         else ok none
+  if self.sched.depth = 0#usize
+  then ok ((sel, false), self)
+  else
+    let i ← self.sched.depth - 1#usize
+    let t ← Array.index_usize self.sched.stack i
+    let i1 ← lift (UScalar.cast .Usize t)
+    let i2 ← Array.index_usize cfg.slot_budget i1
+    let i3 ← lift (UScalar.cast .Usize i2)
+    match admitted with
+    | none =>
+      if self.started
+      then
+        if self.safe_state
+        then ok ((sel, false), self)
+        else
+          let s ← Array.index_usize self.slots.slots i3
+          if s.armed
+          then ok ((sel, false), self)
+          else
+            let i4 ← lift (UScalar.cast .Usize t)
+            let i5 ← Array.index_usize self.sched.job i4
+            if i5 = rsk_logic.logic.sched.JOB_RUNNING
+            then
+              let i6 ← lift (UScalar.cast .Usize t)
+              let b ← Array.index_usize self.budget.reported i6
+              if b
+              then ok ((sel, false), self)
+              else
+                let self1 ←
+                  rsk_logic.logic.kernel.Kernel.arm_budget self cfg t
+                ok ((sel, false), self1)
+            else ok ((sel, false), self)
+      else ok ((sel, false), self)
+    | some _ =>
+      let s ← Array.index_usize self.slots.slots i3
+      if s.armed
+      then
+        let s1 ← rsk_logic.logic.time.Slots.disarm self.slots i3
+        ok ((sel, true), { self with slots := s1 })
+      else ok ((sel, false), self)
 
 /-- [rsk_logic::logic::mpu::Interval]
     Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 105:0-105:19
@@ -3365,7 +3427,7 @@ structure arch.bound.Bound (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize)
   views : Array rsk_logic.logic.mpu.View NP
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 643:8-654:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 670:8-681:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop.body
@@ -3383,7 +3445,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop.body
   else ok (done a)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 643:8-654:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 670:8-681:9
     Visibility: public -/
 @[rust_loop]
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop
@@ -3398,7 +3460,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop
     (a, p)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 640:4-655:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 667:4-682:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3412,7 +3474,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init
   ok { self with kernel := k, views := a }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::start]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 657:4-661:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 684:4-688:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.start
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3426,7 +3488,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.start
     ok { self with kernel := k }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::eligible]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 746:4-756:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 773:4-783:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3463,7 +3525,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible
     else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::dispatch]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 758:4-764:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 785:4-796:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dispatch
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3471,21 +3533,23 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dispatch
   (t : Std.U8) (preempted_cycles : Std.U32) :
   Result (arch.bound.Bound NT NR NP NL NS NE)
   := do
-  if self.kernel.started
-  then
-    let b ←
-      arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible self t
-    if b
+  let k ←
+    if self.kernel.started
     then
-      let k ←
+      do
+      let b ←
+        arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible self t
+      if b
+      then
         rsk_logic.logic.kernel.Kernel.dispatch self.kernel self.cfg t
           preempted_cycles
-      ok { self with kernel := k }
-    else ok self
-  else ok self
+      else ok self.kernel
+    else ok self.kernel
+  let (_, k1) ← rsk_logic.logic.kernel.Kernel.settle k self.cfg
+  ok { self with kernel := k1 }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::job_return]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 766:4-770:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 798:4-802:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_return
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3502,7 +3566,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_return
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::svc_lock]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 772:4-777:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 804:4-821:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_lock
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3517,12 +3581,12 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_lock
     if i >= NR
     then ok (false, self)
     else
-      let (b, k) ←
+      let (ok1, k) ←
         rsk_logic.logic.kernel.Kernel.svc_lock self.kernel self.cfg r
-      ok (b, { self with kernel := k })
+      ok (ok1, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::svc_unlock]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 779:4-784:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 823:4-828:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_unlock
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3538,7 +3602,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_unlock
     ok (b, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 799:4-801:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 843:4-845:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.select
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3547,8 +3611,19 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.select
   := do
   rsk_logic.logic.kernel.Kernel.select self.kernel self.cfg
 
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::settle]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 851:4-853:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.settle
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result (((Option Std.U8) × Bool) × (arch.bound.Bound NT NR NP NL NS NE))
+  := do
+  let (p, k) ← rsk_logic.logic.kernel.Kernel.settle self.kernel self.cfg
+  ok (p, { self with kernel := k })
+
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::intake]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 803:4-812:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 855:4-864:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3583,7 +3658,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::timer_event]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 814:4-817:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 866:4-869:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.timer_event
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :

@@ -1,7 +1,10 @@
 //! Task 15.4: the Analyzer's correctness evidence beyond the Verus proof
-//! (R32.2 to R32.5, R32.7). No property-testing crate is vendored, so the
-//! generators run on a fixed-seed linear congruential generator: every run
-//! sees the same sets, and a failing set prints in full.
+//! (R32.2 to R32.5, R32.7). Each property's case is one function of a source
+//! of draws, run twice: on a fixed-seed linear congruential generator (every
+//! run sees the same sets, and the counts that show the cases are not
+//! vacuous are asserted there), and under proptest (Properties 16 to 18,
+//! at the end of the file), where the draws are the generated value, so a
+//! failing case shrinks toward smaller draws and prints in full.
 //!
 //! - Property 17 (R32.2, R32.3): monotonicity and locality.
 //! - R32.4: agreement with a reference implementation of the R29 equations
@@ -21,12 +24,30 @@ use rsk_model::task_model::TaskModel;
 
 const DEMO: &str = include_str!("../../../apps/p1-demo/gen/task_model.json");
 
-struct Rng(u64);
+/// The generators' source of draws: the fixed-seed generator, or a list of
+/// draws given by proptest and, past its end, the same generator seeded
+/// from the list (a case is a function of the list alone).
+struct Rng {
+    state: u64,
+    draws: Vec<u64>,
+    at: usize,
+}
 
 impl Rng {
+    fn seeded(seed: u64) -> Rng {
+        Rng { state: seed, draws: Vec::new(), at: 0 }
+    }
+    fn drawn(draws: Vec<u64>) -> Rng {
+        let state = draws.iter().fold(0x9e37_79b9_7f4a_7c15u64, |h, d| (h ^ d).wrapping_mul(0x0000_0100_0000_01b3));
+        Rng { state, draws, at: 0 }
+    }
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        self.0 >> 33
+        if self.at < self.draws.len() {
+            self.at += 1;
+            return self.draws[self.at - 1];
+        }
+        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.state >> 33
     }
     fn range(&mut self, lo: u64, hi: u64) -> u64 {
         lo + self.next() % (hi - lo + 1)
@@ -97,10 +118,20 @@ fn by_id<'a>(w: &'a [Wcrt], id: &str) -> &'a Wcrt {
 /// points and on verdicts; verification_plan.md 5.10.)
 #[test]
 fn r32_2_wcrts_are_monotone_in_every_term() {
-    let mut rng = Rng(7);
+    let mut rng = Rng::seeded(7);
     let mut compared = 0;
     for _ in 0..300 {
-        let base = random_set(&mut rng);
+        compared += monotone_case(&mut rng);
+    }
+    assert!(compared > 300, "{compared} fixed-point pairs compared");
+}
+
+/// One case of the monotonicity property; returns the fixed-point pairs
+/// compared.
+fn monotone_case(rng: &mut Rng) -> usize {
+    let mut compared = 0;
+    {
+        let base = random_set(rng);
         let before = response_times(&base);
         let mut after_set = base.clone();
         let k = rng.range(0, after_set.len() as u64 - 1) as usize;
@@ -135,7 +166,7 @@ fn r32_2_wcrts_are_monotone_in_every_term() {
             assert!(!(a.schedulable && !b.schedulable), "{} became schedulable after a worsening change {which} on t{k}:\n{base:#?}", b.id);
         }
     }
-    assert!(compared > 300, "{compared} fixed-point pairs compared");
+    compared
 }
 
 // ------------------------------------------------------------- R32.3
@@ -151,9 +182,17 @@ fn r32_2_wcrts_are_monotone_in_every_term() {
 /// first FPU-using Task adds to every O_i (R29.3).
 #[test]
 fn r32_3_lower_priority_tasks_without_a_relevant_resource_change_wcrts_only_by_their_kernel_level_terms() {
-    let mut rng = Rng(11);
+    let mut rng = Rng::seeded(11);
     for _ in 0..300 {
-        let base = random_set(&mut rng);
+        locality_case(&mut rng);
+    }
+    locality_on_the_demo();
+}
+
+/// One case of the locality property on a generated set.
+fn locality_case(rng: &mut Rng) {
+    {
+        let base = random_set(rng);
         let before = response_times(&base);
         let lowest = base.iter().map(|t| t.priority).min().unwrap();
         // Add a new lowest-Priority Task.
@@ -182,6 +221,9 @@ fn r32_3_lower_priority_tasks_without_a_relevant_resource_change_wcrts_only_by_t
             assert_eq!(by_id(&before, &t.id).r, by_id(&after_remove, &t.id).r, "removing the lowest Task altered {}", t.id);
         }
     }
+}
+
+fn locality_on_the_demo() {
     // On the P1 demo through `prepare`: without `part1.log` (Priority 2, no
     // Resource) no higher Task's WCRT grows, and what it loses is at most
     // the Kernel-level terms `part1.log` had in its recurrence (R19.2).
@@ -284,16 +326,9 @@ fn reference_rta(tasks: &[AnalysedTask]) -> Vec<(String, u128, bool)> {
 
 #[test]
 fn r32_4_the_analyzer_agrees_with_the_reference_implementation() {
-    let mut rng = Rng(23);
+    let mut rng = Rng::seeded(23);
     for _ in 0..500 {
-        let set = random_set(&mut rng);
-        let ours = response_times(&set);
-        let reference = reference_rta(&set);
-        for (id, r_ref, ok_ref) in &reference {
-            let w = by_id(&ours, id);
-            assert!(!w.overflow);
-            assert_eq!((w.r as u128, w.schedulable), (*r_ref, *ok_ref), "{id} in\n{set:#?}");
-        }
+        reference_case(&mut rng);
     }
     let m: TaskModel = rsk_model::read_task_model(DEMO).unwrap();
     let (w, t) = placeholders::make(&m, "sha256:demo", "off");
@@ -302,6 +337,20 @@ fn r32_4_the_analyzer_agrees_with_the_reference_implementation() {
     for (id, r_ref, ok_ref) in reference_rta(&prepared) {
         let w = by_id(&ours, &id);
         assert_eq!((w.r as u128, w.schedulable), (r_ref, ok_ref), "{id}");
+    }
+}
+
+/// One case of the agreement with the reference implementation: the
+/// Analyzer's result is the recurrence's least fixed point (Property 16),
+/// which the reference reaches by direct iteration from below.
+fn reference_case(rng: &mut Rng) {
+    let set = random_set(rng);
+    let ours = response_times(&set);
+    let reference = reference_rta(&set);
+    for (id, r_ref, ok_ref) in &reference {
+        let w = by_id(&ours, id);
+        assert!(!w.overflow);
+        assert_eq!((w.r as u128, w.schedulable), (*r_ref, *ok_ref), "{id} in\n{set:#?}");
     }
 }
 
@@ -508,7 +557,7 @@ fn simulate_trace(set: &SimSet, horizon: u64, rng: &mut Rng, inject_overruns: bo
 /// at least some pair (not vacuous).
 #[test]
 fn r41_4_simulated_chain_latency_never_exceeds_the_bound() {
-    let mut rng = Rng(7);
+    let mut rng = Rng::seeded(7);
     let mut pairs = 0;
     let mut tight = 0;
     for _ in 0..300 {
@@ -564,39 +613,51 @@ fn lcm(a: u64, b: u64) -> u64 {
 /// from its own Overruns).
 #[test]
 fn r32_5_simulated_srp_execution_never_exceeds_the_computed_wcrt() {
-    let mut rng = Rng(42);
+    let mut rng = Rng::seeded(42);
     let mut passing = 0;
     let mut blocked_cases = 0;
     for _ in 0..400 {
-        let set = random_sim_set(&mut rng);
+        if let Some(blocked) = simulation_case(&mut rng) {
+            passing += 1;
+            if blocked {
+                blocked_cases += 1;
+            }
+        }
+    }
+    assert!(passing >= 100 && blocked_cases >= 20, "{passing} passing sets, {blocked_cases} with blocking");
+}
+
+/// One case of Property 18: `None` when the generated set is not reported
+/// PASS (nothing is claimed of it), otherwise whether a Task of the set
+/// has a blocking term.
+fn simulation_case(rng: &mut Rng) -> Option<bool> {
+    {
+        let set = random_sim_set(rng);
         let a = analysed(&set);
         if inputs::utilization_exceeds_one(&a) {
-            continue;
+            return None;
         }
         let w = response_times(&a);
         if !w.iter().all(|x| x.schedulable) {
-            continue;
+            return None;
         }
-        passing += 1;
-        if a.iter().any(|t| t.b > 0) {
-            blocked_cases += 1;
-        }
+        let blocked = a.iter().any(|t| t.b > 0);
         let hyper = set.tasks.iter().map(|t| t.period).fold(1, lcm).min(20_000);
         let horizon = 2 * hyper + set.tasks.iter().map(|t| t.period).max().unwrap();
-        let (observed, overran) = simulate(&set, horizon, &mut rng, false);
+        let (observed, overran) = simulate(&set, horizon, rng, false);
         assert!(overran.is_empty());
         for (i, t) in set.tasks.iter().enumerate() {
             assert!(observed[i] <= by_id(&w, &t.id).r, "{}: observed {} > WCRT {} in\n{set:#?}\n{a:#?}", t.id, observed[i], by_id(&w, &t.id).r);
         }
-        let (observed, overran) = simulate(&set, horizon, &mut rng, true);
+        let (observed, overran) = simulate(&set, horizon, rng, true);
         for (i, t) in set.tasks.iter().enumerate() {
             if overran.contains(&t.partition) {
                 continue;
             }
             assert!(observed[i] <= by_id(&w, &t.id).r, "{} with Overruns in Partitions {overran:?}: observed {} > WCRT {} in\n{set:#?}\n{a:#?}", t.id, observed[i], by_id(&w, &t.id).r);
         }
+        Some(blocked)
     }
-    assert!(passing >= 100 && blocked_cases >= 20, "{passing} passing sets, {blocked_cases} with blocking");
 }
 
 /// The simulator is not vacuous: a set whose analysis says FAIL does miss
@@ -614,7 +675,7 @@ fn r32_5_the_simulator_observes_a_deadline_miss_the_analysis_predicts() {
     let a = analysed(&set);
     let w = response_times(&a);
     assert!(!by_id(&w, "lo").schedulable);
-    let mut rng = Rng(1);
+    let mut rng = Rng::seeded(1);
     let (observed, _) = simulate(&set, 48, &mut rng, false);
     assert!(observed[1] > 6, "{observed:?}");
 }
@@ -647,4 +708,50 @@ fn r32_7_published_task_sets_are_reproduced() {
     let r: Vec<(u64, bool)> = response_times(&harmonic).iter().map(|w| (w.r, w.schedulable)).collect();
     assert_eq!(r, vec![(1, true), (3, true), (10, true)]);
     let _ = BTreeMap::<u8, u8>::new();
+}
+
+// ------------------------------------------- Properties 16 to 18, proptest
+
+mod generated {
+    use super::{locality_case, monotone_case, reference_case, simulation_case, Rng};
+    use proptest::prelude::{prop, proptest, ProptestConfig, Strategy};
+
+    /// The draws of one case: what the fixed-seed generator would have
+    /// produced, chosen by proptest (31-bit values, as that generator's).
+    fn draws() -> impl Strategy<Value = Vec<u64>> {
+        prop::collection::vec(0u64..(1u64 << 31), 0..=96)
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 256, failure_persistence: None, ..ProptestConfig::default() })]
+
+        /// Property 16 (R32.4): the Analyzer's response time is the least
+        /// fixed point of the R29.1 recurrence, as the separately written
+        /// reference computes it, and the verdicts agree.
+        #[test]
+        fn r32_4_property_16_the_analyzer_computes_the_least_fixed_point(d in draws()) {
+            reference_case(&mut Rng::drawn(d));
+        }
+
+        /// Property 17 (R32.2): no worsening change decreases a WCRT or
+        /// turns an unschedulable set schedulable.
+        #[test]
+        fn r32_2_property_17_wcrts_are_monotone(d in draws()) {
+            monotone_case(&mut Rng::drawn(d));
+        }
+
+        /// Property 17 (R32.3): a lowest-Priority Task without a relevant
+        /// Resource changes no other Task's WCRT.
+        #[test]
+        fn r32_3_property_17_wcrts_are_local(d in draws()) {
+            locality_case(&mut Rng::drawn(d));
+        }
+
+        /// Property 18 (R32.5): no simulated response time of a set
+        /// reported PASS exceeds its computed WCRT.
+        #[test]
+        fn r32_5_property_18_simulation_stays_within_the_wcrt(d in draws()) {
+            simulation_case(&mut Rng::drawn(d));
+        }
+    }
 }

@@ -246,7 +246,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R18.1 | P-17 | Property 10 | ✓4.7 | apps/p1-demo/decl/src/nrf52840_cycles.rs; apps/p1-demo/part0/Cargo.toml; apps/p1-demo/part0/src/lib.rs; +14 | hil-cycles; hil-cycles-fpu; hil-cycles-step; proof-kernel-kani; proof-kernel-verus |
+| R18.1 | P-17 | Property 10 | ✓4.7 | apps/p1-demo/decl/src/nrf52840_coverage.rs; apps/p1-demo/decl/src/nrf52840_cycles.rs; apps/p1-demo/part0/Cargo.toml; +15 | hil-cycles; hil-cycles-fpu; hil-cycles-step; proof-kernel-kani; proof-kernel-verus |
 | R18.2 | P-17 | Design decisions; Overview; Priority and privilege model (DD-01, DD-02); +2 | ✓4.7 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-logic/src/hw_model.rs; +2 | proof-kernel-kani; proof-kernel-verus |
 | R18.3 | P-17 | — | ✓4.7 | crates/rsk-logic/src/logic/kernel.rs | — |
 | R18.4 | P-18 | Closed response sets (DD-10, R14.5) | ✓4.4 | apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +5 | hil-response |

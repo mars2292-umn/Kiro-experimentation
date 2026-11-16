@@ -395,7 +395,9 @@ pub trait KernelOps: Sized {
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(),
             forall|i: int| 0 <= i < old(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i),
             final(self).spec_depth() == old(self).spec_depth()
-                || (final(self).spec_depth() == old(self).spec_depth() + 1 && final(self).spec_stack(old(self).spec_depth()) == t as int);
+                || (final(self).spec_depth() == old(self).spec_depth() + 1 && final(self).spec_stack(old(self).spec_depth()) == t as int),
+            // 2026-11-15: the dispatch's entry leaves no Budget event armed with a dispatch pending.
+            final(self).spec_dispatch_guard();
     fn job_return(&mut self, elapsed_cycles: u32)
         requires old(self).inv(),
         ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
@@ -403,7 +405,9 @@ pub trait KernelOps: Sized {
             old(self).spec_depth() > 0 ==> final(self).spec_depth() == old(self).spec_depth() - 1;
     fn svc_lock(&mut self, r: u8) -> bool
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(),
+            // 2026-11-15: a lock admits no Task that was not admitted and arms no Budget event.
+            old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
     fn svc_unlock(&mut self, r: u8) -> bool
@@ -423,6 +427,27 @@ pub trait KernelOps: Sized {
     fn select(&self) -> (sel: Option<u8>)
         requires self.inv(),
         ensures sel.is_some() ==> (sel.unwrap() as int) < self.task_count_spec() && self.task_eligible(sel.unwrap() as int);
+    /// 2026-11-15 (Verification_Plan 7.3): no Budget event is armed while
+    /// a dispatch is pending. Every Kernel entry leaves this state
+    /// (`settle`, called by `entry::apply_core`), so a Budget event has no
+    /// timer entry of its own ahead of a pending dispatch.
+    spec fn spec_dispatch_guard(&self) -> bool;
+    /// The selection of `select`, with the executing Job's Budget event
+    /// settled for it (`Kernel::settle`): disarmed when a Job is selected
+    /// (the second component: a slot was disarmed, and a compare pended
+    /// for it is to be cancelled).
+    fn settle(&mut self) -> (r: (Option<u8>, bool))
+        requires old(self).inv(),
+        ensures final(self).inv(),
+            final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(),
+            final(self).spec_depth() == old(self).spec_depth(),
+            forall|i: int| 0 <= i < old(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i),
+            final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
+            forall|t: int| #[trigger] final(self).task_eligible(t) == old(self).task_eligible(t),
+            forall|t: int| #[trigger] final(self).spec_source_masked(t) == old(self).spec_source_masked(t),
+            forall|p: int| #[trigger] final(self).spec_partition_stopped(p) == old(self).spec_partition_stopped(p),
+            r.0.is_some() ==> (r.0.unwrap() as int) < final(self).task_count_spec() && final(self).task_eligible(r.0.unwrap() as int),
+            final(self).spec_dispatch_guard();
     /// `offender`: the Task a threshold response is for (DD-10; audit finding
     /// 11): `t` for an interrupt source, the executing sender for a signal
     /// raise or an Endpoint send.
@@ -451,11 +476,13 @@ pub trait KernelOps: Sized {
     fn take_reinit(&mut self, p: u8) -> bool
         requires old(self).inv(),
         ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
+            old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn take_stop_dma(&mut self, p: u8) -> bool
         requires old(self).inv(),
         ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
+            old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn log_len(&self) -> usize
@@ -761,6 +788,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.kernel.started && self.eligible(t) {
             self.kernel.dispatch(&self.cfg, t, preempted_cycles);
         }
+        // 2026-11-15: the entry's last step, as in `entry::apply_core`. The
+        // vector the NVIC took is the selection (Hardware_Model,
+        // `lemma_dispatch_selects_srp_choice`), so no Job is selected here
+        // and the dispatched Job's Budget event stays armed.
+        let _ = self.kernel.settle(&self.cfg);
     }
 
     fn job_return(&mut self, elapsed_cycles: u32) {
@@ -773,7 +805,19 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         if self.kernel.sched.depth == 0 || (r as usize) >= NR {
             return false;
         }
-        self.kernel.svc_lock(&self.cfg, r)
+        let ghost k0 = self.kernel;
+        let ok = self.kernel.svc_lock(&self.cfg, r);
+        proof {
+            // The System_Ceiling does not fall and nothing else of the
+            // eligibility test changes: a Task admitted after was admitted before.
+            assert forall|t: int| 0 <= t < NT && self.kernel.sched.eligible(&self.cfg, t) implies k0.sched.eligible(&self.cfg, t) by {}
+            if k0.dispatch_guard(&self.cfg) && exists|t: int| 0 <= t < NT && self.kernel.sched.eligible(&self.cfg, t) {
+                let t = choose|t: int| 0 <= t < NT && self.kernel.sched.eligible(&self.cfg, t);
+                assert(k0.sched.eligible(&self.cfg, t));
+                assert(k0.no_budget_slot_armed(&self.cfg));
+            }
+        }
+        ok
     }
 
     fn svc_unlock(&mut self, r: u8) -> bool {
@@ -798,6 +842,14 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn select(&self) -> (sel: Option<u8>) {
         self.kernel.select(&self.cfg)
+    }
+
+    open spec fn spec_dispatch_guard(&self) -> bool {
+        self.kernel.dispatch_guard(&self.cfg)
+    }
+
+    fn settle(&mut self) -> (r: (Option<u8>, bool)) {
+        self.kernel.settle(&self.cfg)
     }
 
     fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8) {

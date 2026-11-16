@@ -4761,43 +4761,60 @@ pub proof fn theorem_multiparty_progress(g: G, n: int)
 
 /// `wfn_at` decided on the executable global type under the guard
 /// environment `env` (as `theory::wf2_exec`, with the role bound `n`).
-pub fn wfn_exec(g: &GE, n: usize, env: &mut Vec<bool>) -> (r: bool)
-    ensures r == wfn_at(g@, n as int, old(env)@), final(env)@ == old(env)@,
+///
+/// 2026-11-15: the environment is read, never written (it was pushed and
+/// popped in place): a recursion checks its body under a copy with one more
+/// flag. `Vec::pop` has no model in the Aeneas translation of this function
+/// (Verification_Plan 5.15, the Lean proof of the multiparty theorem on the
+/// checker as compiled); the contract is the same, `r == wfn_at`.
+pub fn wfn_exec(g: &GE, n: usize, env: &Vec<bool>) -> (r: bool)
+    ensures r == wfn_at(g@, n as int, env@),
     decreases g,
 {
     match g {
         GE::End => true,
         GE::Var { n: v } => *v < env.len() && env[env.len() - 1 - *v],
         GE::Rec { body } => {
-            env.push(false);
-            let r = wfn_exec(body, n, env);
-            env.pop();
-            assert(env@ =~= old(env)@);
-            r
-        }
-        GE::Comm { from, to, bs } => {
-            let ok = *from < n && *to < n && *from != *to && be_len_ge_one(bs) && be_distinct_exec(bs);
-            if !ok {
-                return false;
-            }
-            let mut guarded: Vec<bool> = Vec::new();
+            let mut inner: Vec<bool> = Vec::new();
             let mut i = 0;
             while i < env.len()
-                invariant i <= env.len(), guarded@ == Seq::new(i as nat, |j: int| true),
+                invariant i <= env.len(), inner@ == env@.subrange(0, i as int),
                 decreases env.len() - i,
             {
-                guarded.push(true);
+                inner.push(env[i]);
                 i += 1;
-                assert(guarded@ =~= Seq::new(i as nat, |j: int| true));
+                assert(inner@ =~= env@.subrange(0, i as int));
             }
-            assert(guarded@ =~= all_true(env@));
-            wfn_bs_exec(bs, n, &mut guarded)
+            inner.push(false);
+            assert(inner@ =~= env@.push(false));
+            wfn_exec(body, n, &inner)
+        }
+        GE::Comm { from, to, bs } => {
+            let roles = *from < n && *to < n && *from != *to;
+            let some = be_len_ge_one(bs);
+            let distinct = be_distinct_exec(bs);
+            if roles && some && distinct {
+                let mut guarded: Vec<bool> = Vec::new();
+                let mut i = 0;
+                while i < env.len()
+                    invariant i <= env.len(), guarded@ == Seq::new(i as nat, |j: int| true),
+                    decreases env.len() - i,
+                {
+                    guarded.push(true);
+                    i += 1;
+                    assert(guarded@ =~= Seq::new(i as nat, |j: int| true));
+                }
+                assert(guarded@ =~= all_true(env@));
+                wfn_bs_exec(bs, n, &guarded)
+            } else {
+                false
+            }
         }
     }
 }
 
-fn wfn_bs_exec(bs: &BE, n: usize, env: &mut Vec<bool>) -> (r: bool)
-    ensures r == wfn_bs(bs@, n as int, old(env)@), final(env)@ == old(env)@,
+fn wfn_bs_exec(bs: &BE, n: usize, env: &Vec<bool>) -> (r: bool)
+    ensures r == wfn_bs(bs@, n as int, env@),
     decreases bs,
 {
     match bs {
@@ -4849,6 +4866,21 @@ fn lse_lookup<'a>(ls: &'a LsE, label: u32) -> (r: Option<&'a LE>)
     match ls {
         LsE::Nil => None,
         LsE::Cons { label: l, l: cont, rest } => if *l == label { Some(cont) } else { lse_lookup(rest, label) },
+    }
+}
+
+/// `ls_lookup` on executable branch lists, the branch returned as a copy
+/// (2026-11-15: `merge_ls_exec` matched on the borrowed branch of
+/// `lse_lookup`, which the Aeneas translation does not take).
+fn lse_lookup_copy(ls: &LsE, label: u32) -> (r: Option<LE>)
+    ensures
+        r is Some ==> ls_lookup(ls@, label as int) == Some(r.unwrap()@),
+        r is None ==> ls_lookup(ls@, label as int) is None,
+    decreases ls,
+{
+    match ls {
+        LsE::Nil => None,
+        LsE::Cons { label: l, l: cont, rest } => if *l == label { Some(le_copy(cont)) } else { lse_lookup_copy(rest, label) },
     }
 }
 
@@ -4908,14 +4940,22 @@ fn merge_ls_exec(a: &LsE, b: &LsE) -> (r: Option<LsE>)
     match a {
         LsE::Nil => Some(lse_copy_pub(b)),
         LsE::Cons { label, l, rest } => {
-            let merged = match lse_lookup(b, *label) {
-                Some(lb) => merge_exec(l, lb),
+            let merged = match lse_lookup_copy(b, *label) {
+                Some(lb) => merge_exec(l, &lb),
                 None => Some(le_copy(l)),
             };
-            let Some(m) = merged else { return None; };
-            let b2 = lse_remove(b, *label);
-            let Some(r2) = merge_ls_exec(rest, &b2) else { return None; };
-            Some(LsE::Cons { label: *label, l: m, rest: Box::new(r2) })
+            // 2026-11-15: `match` in place of `let ... else` (which the Aeneas
+            // translation of this function does not take); the same function.
+            match merged {
+                None => None,
+                Some(m) => {
+                    let b2 = lse_remove(b, *label);
+                    match merge_ls_exec(rest, &b2) {
+                        None => None,
+                        Some(r2) => Some(LsE::Cons { label: *label, l: m, rest: Box::new(r2) }),
+                    }
+                }
+            }
         }
     }
 }
@@ -5015,8 +5055,8 @@ pub fn acceptn_exec(g: &GE, n: usize) -> (r: bool)
     if n < 2 {
         return false;
     }
-    let mut env: Vec<bool> = Vec::new();
-    let wf = wfn_exec(g, n, &mut env);
+    let env: Vec<bool> = Vec::new();
+    let wf = wfn_exec(g, n, &env);
     proof {
         assert(env@ =~= Seq::<bool>::empty());
     }

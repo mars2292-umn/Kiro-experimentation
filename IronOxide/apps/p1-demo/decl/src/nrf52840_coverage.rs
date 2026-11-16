@@ -30,8 +30,14 @@ rsk::app! {
         state sensor.loop_late: u32 = 0;
         task control (periodic, period = 10.ms(), offset = 0.ms(), deadline = 10.ms(), budget = 3.ms(),
                       priority = 7, resources = [state, in_cs], raises = [tick]);
+        // (pulse 2 ms, filter and sampler 3 ms since the same day: sampler
+        // overran its 2 ms at 2.23 ms in the next run.)
+        // echo's Budget is 1.5 ms since 2026-11-15: with 1 ms a Job that three
+        // of the instrumented Kernel's entries interrupted (each about 250 µs,
+        // charged to the interrupted Job, R18.1) overran at 1.06 and 1.08 ms
+        // in two of three runs that day (Verification_Plan 7.3).
         task echo (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(),
-                   budget = 1.ms(), priority = 6);
+                   budget = 1500.us(), priority = 6);
         task sensor (periodic, period = 20.ms(), offset = 5.ms(), deadline = 20.ms(), budget = 12.ms(),
                      priority = 5, resources = [state, in_cs]);
     }
@@ -46,7 +52,7 @@ rsk::app! {
         state log.loop_busy: u32 = 0;
         task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);
         task pulse (sporadic, binds = GPIOTE, mit = 15.ms(), mit_policy = defer, deadline = 15.ms(),
-                    budget = 1500.us(), priority = 4);
+                    budget = 2.ms(), priority = 4);
     }
 
     partition part2 (level = B, crate = p1_demo_part2, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
@@ -72,7 +78,7 @@ rsk::app! {
         state sampler.rx: [u8; 64] = [0; 64];
         state sampler.dma_end: u32 = 0;
         state sampler.dma_after_stop: u32 = 0;
-        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 2.ms(), priority = 3, fpu,
+        task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 3.ms(), priority = 3, fpu,
                      resources = [stats]);
         // Budget 600 µs here (500 in the plain demo): the first Job of the
         // run starts the EasyDMA traffic scenario (task 19.2; eight Kernel
@@ -80,12 +86,12 @@ rsk::app! {
         // with the 25 % margin passes the plain Budget by 0.7 % and would
         // have the measured analysis rejected under R28.4.
         // Every Budget is two to three times the plain demo's (control 3 ms,
-        // echo 1 ms, sensor 12 ms, pulse 1.5 ms, filter 2 ms, sampler 2 ms):
+        // echo 1.5 ms, sensor 12 ms, pulse 2 ms, filter 3 ms, sampler 3 ms):
         // the instrumented Kernel's services, charged to the calling Job, are
         // about three times slower (control's 1 ms Budget overran at 1.24 ms,
         // sampler's 600 µs at the traffic start, 2026-11-06). Not a timing
         // configuration.
-        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 2.ms(),
+        task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 3.ms(),
                       priority = 1, resources = [stats]);
     }
 }

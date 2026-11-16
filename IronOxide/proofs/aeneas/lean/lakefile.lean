@@ -34,3 +34,16 @@ handwritten (Verification_Plan 7.3). -/
 @[default_target] lean_lib «Sched» {
   globs := #[.submodules `Sched]
 }
+
+/-- `Proto/Proto.lean`: the Aeneas translation of `rsk-protocol`'s
+`multiparty::accept_multiparty` and what it calls (the well-formedness
+check, the full merge, the projection), from the crate as rustc compiles it
+without Verus, generated and committed. The other files are handwritten:
+`Proto/Spec.lean` states the Protocol's syntax, the acceptance condition and
+the asynchronous semantics, `Proto/Progress.lean` proves that an accepted
+Protocol has no reachable waiting set (R41.3), and `Proto/Exec.lean` that
+the extracted checker returns `true` only for an accepted Protocol
+(Verification_Plan 5.20). -/
+@[default_target] lean_lib «Proto» {
+  globs := #[.submodules `Proto]
+}

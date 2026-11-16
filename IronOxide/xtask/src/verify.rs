@@ -102,6 +102,16 @@ struct Job {
     steps: usize,
     total_steps: usize,
     outcomes: Vec<StepOutcome>,
+    /// The step in progress and when it began; the wall time of each
+    /// finished step. Printed to the job's log only: wall times are not
+    /// evidence and are in no Evidence_Item or manifest.
+    current: Option<(usize, String, std::time::Instant)>,
+    timings: Vec<(usize, String, std::time::Duration)>,
+}
+
+fn minutes(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    format!("{}m{:02}s", s / 60, s % 60)
 }
 
 struct StepOutcome {
@@ -115,8 +125,19 @@ struct StepOutcome {
 
 impl Job {
     fn heading(&mut self, title: &str) {
+        self.close_step();
         self.steps += 1;
         println!("\n== [{}/{}] {title}", self.steps, self.total_steps);
+        self.current = Some((self.steps, title.to_string(), std::time::Instant::now()));
+    }
+
+    /// Ends the timing of the step in progress and prints its wall time.
+    fn close_step(&mut self) {
+        if let Some((n, title, begun)) = self.current.take() {
+            let took = begun.elapsed();
+            println!("   wall time of step {n}: {}", minutes(took));
+            self.timings.push((n, title, took));
+        }
     }
 
     /// Prints the contents of `report` and records its diagnostics in the
@@ -151,7 +172,16 @@ impl Job {
         });
     }
 
-    fn finish(self) -> bool {
+    fn finish(mut self) -> bool {
+        self.close_step();
+        println!("\n== wall time by step, longest first");
+        let total: std::time::Duration = self.timings.iter().map(|t| t.2).sum();
+        let mut by_time = self.timings.clone();
+        by_time.sort_by(|a, b| b.2.cmp(&a.2));
+        for (n, title, took) in &by_time {
+            println!("   {:>7}  [{n}] {title}", minutes(*took));
+        }
+        println!("   {:>7}  all steps", minutes(total));
         println!("\n== summary");
         if self.all.is_empty() {
             println!("   verification passed: 0 violations");
@@ -269,6 +299,8 @@ pub fn run(root: &Path, options: Options) -> bool {
         all: Vec::new(),
         steps: 0,
         total_steps: 24,
+        current: None,
+        timings: Vec::new(),
         outcomes: Vec::new(),
     };
     let mut report = Report::default();
@@ -1697,7 +1729,7 @@ fn aeneas_evaluation(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manif
     let sorries = text.matches("declaration uses 'sorry'").count() + text.matches("declaration uses `sorry`").count();
     let ok = ok && sorries == 0;
     if ok {
-        report.note(format!("R46.1: Aeneas evaluation: the Lean proofs over the control law's translation and over the Analyzer's response-time fixed point (the Verus-erased build, verification_plan.md 7.2) and the response-time bound over a run of the Kernel's scheduler as extracted (7.3) check ({lean_version}; {lake_version})"));
+        report.note(format!("R46.1: Aeneas evaluation: the Lean proofs over the control law's translation and over the Analyzer's response-time fixed point (the Verus-erased build, verification_plan.md 7.2) and the response-time bound over a run of the Kernel's scheduler as extracted (7.3) and the multiparty progress theorem on rsk-protocol's acceptance check as extracted (5.20) check ({lean_version}; {lake_version})"));
     } else {
         report.error(Rule::Step, None, format!("Aeneas evaluation: lake build failed or left {sorries} sorry (see aeneas.log)"));
     }
