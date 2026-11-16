@@ -1578,3 +1578,21 @@ find = "  let s ← rsk_logic.logic.sched.Sched.kill self.sched cfg i\n"
 replace = "  let s ← ok self.sched\n"
 expect = ["Sched/Entry.lean"]
 prover = "lean"
+
+[[mutation]]
+id = "lean-kernel-budget-event-served-is-any-change"
+kills = "ksim (a Budget event served inside an entry, with a dispatch pending or not, leaves the Kernel state Kernel::budget_event returns)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hs : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :\n"
+replace = "      (hs : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-budget-event-makes-a-release"
+kills = "budget_event_eff (Kernel::budget_event as extracted changes the scheduler state only through its Overrun_Response)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          rsk_logic.logic.kernel.Kernel.arm_budget { self with slots := s } cfg\n            t\n"
+replace = "          let sc ← rsk_logic.logic.sched.Sched.make_pending self.sched cfg t\n          rsk_logic.logic.kernel.Kernel.arm_budget\n            { self with slots := s, sched := sc } cfg t\n"
+expect = ["Sched/Calls.lean"]
+prover = "lean"

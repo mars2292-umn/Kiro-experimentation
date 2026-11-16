@@ -1,15 +1,15 @@
 {
   "schema": "rsk-kernel-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:8493521ff0117827c3733b6a297ec34f9a4816c08db2f865195e6ec5f53b21f3",
+  "binary_hash": "sha256:d69224dd0f9ea8ba98fccc71c41e4b353c4ef0a9f8ef86904f7915446684561e",
   "totals": {
     "file": "total",
-    "lines_covered": 3092,
-    "lines": 4814,
-    "branches_covered": 754,
-    "branches": 1456,
-    "functions_covered": 285,
-    "functions": 406
+    "lines_covered": 3387,
+    "lines": 5525,
+    "branches_covered": 825,
+    "branches": 1626,
+    "functions_covered": 302,
+    "functions": 443
   },
   "files": [
     {
@@ -33,11 +33,11 @@
     {
       "file": "apps/p1-demo/part2/src/lib.rs",
       "lines_covered": 62,
-      "lines": 74,
+      "lines": 77,
       "branches_covered": 7,
       "branches": 14,
       "functions_covered": 14,
-      "functions": 16
+      "functions": 17
     },
     {
       "file": "apps/p1-demo/system/src/lib.rs",
@@ -50,66 +50,66 @@
     },
     {
       "file": "crates/rsk-entry/src/lib.rs",
-      "lines_covered": 44,
-      "lines": 76,
-      "branches_covered": 15,
-      "branches": 24,
+      "lines_covered": 46,
+      "lines": 79,
+      "branches_covered": 16,
+      "branches": 26,
       "functions_covered": 5,
       "functions": 14
     },
     {
       "file": "crates/rsk-kernel/src/arch/bound.rs",
-      "lines_covered": 297,
-      "lines": 343,
-      "branches_covered": 86,
-      "branches": 140,
-      "functions_covered": 56,
-      "functions": 62
+      "lines_covered": 311,
+      "lines": 353,
+      "branches_covered": 92,
+      "branches": 146,
+      "functions_covered": 58,
+      "functions": 63
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "lines_covered": 324,
-      "lines": 649,
-      "branches_covered": 88,
-      "branches": 258,
-      "functions_covered": 19,
-      "functions": 29
+      "lines_covered": 573,
+      "lines": 1213,
+      "branches_covered": 126,
+      "branches": 372,
+      "functions_covered": 28,
+      "functions": 56
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/mod.rs",
-      "lines_covered": 263,
-      "lines": 415,
-      "branches_covered": 59,
-      "branches": 96,
-      "functions_covered": 32,
-      "functions": 47
+      "lines_covered": 274,
+      "lines": 437,
+      "branches_covered": 62,
+      "branches": 102,
+      "functions_covered": 35,
+      "functions": 50
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/plan.rs",
-      "lines_covered": 24,
-      "lines": 51,
-      "branches_covered": 8,
-      "branches": 10,
-      "functions_covered": 3,
-      "functions": 4
+      "lines_covered": 29,
+      "lines": 58,
+      "branches_covered": 11,
+      "branches": 16,
+      "functions_covered": 4,
+      "functions": 5
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs",
-      "lines_covered": 208,
-      "lines": 409,
-      "branches_covered": 57,
-      "branches": 144,
-      "functions_covered": 35,
-      "functions": 69
+      "lines_covered": 219,
+      "lines": 432,
+      "branches_covered": 62,
+      "branches": 154,
+      "functions_covered": 37,
+      "functions": 72
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
-      "lines_covered": 251,
-      "lines": 390,
-      "branches_covered": 63,
+      "lines_covered": 252,
+      "lines": 393,
+      "branches_covered": 64,
       "branches": 118,
       "functions_covered": 27,
-      "functions": 41
+      "functions": 42
     },
     {
       "file": "crates/rsk-kernel/src/arch/mod.rs",
@@ -140,12 +140,12 @@
     },
     {
       "file": "crates/rsk-logic/src/logic/kernel.rs",
-      "lines_covered": 677,
-      "lines": 1211,
-      "branches_covered": 85,
-      "branches": 190,
-      "functions_covered": 25,
-      "functions": 42
+      "lines_covered": 662,
+      "lines": 1265,
+      "branches_covered": 86,
+      "branches": 198,
+      "functions_covered": 24,
+      "functions": 41
     },
     {
       "file": "crates/rsk-logic/src/logic/log.rs",
@@ -167,19 +167,19 @@
     },
     {
       "file": "crates/rsk-logic/src/logic/mpu.rs",
-      "lines_covered": 233,
-      "lines": 275,
-      "branches_covered": 90,
-      "branches": 156,
-      "functions_covered": 11,
-      "functions": 12
+      "lines_covered": 249,
+      "lines": 296,
+      "branches_covered": 97,
+      "branches": 168,
+      "functions_covered": 12,
+      "functions": 13
     },
     {
       "file": "crates/rsk-logic/src/logic/sched.rs",
-      "lines_covered": 224,
-      "lines": 259,
-      "branches_covered": 27,
-      "branches": 40,
+      "lines_covered": 225,
+      "lines": 260,
+      "branches_covered": 33,
+      "branches": 46,
       "functions_covered": 11,
       "functions": 13
     },

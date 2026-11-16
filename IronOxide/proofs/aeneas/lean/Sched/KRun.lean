@@ -7,8 +7,9 @@ open Aeneas Aeneas.Std Result
 `KStep` is the run of `Sched/Run.lean` with the Kernel's state in it: the
 transitions the Kernel makes through `Kernel::dispatch`, `job_return`,
 `svc_lock`, `svc_unlock`, `periodic_release`, `deferred_release`,
-`deadline_miss`, `intake_release` and `apply_response` are those functions
-as extracted (`Sched/Kernel.lean`),
+`deadline_miss`, `intake_release`, `apply_response` and `budget_event`
+(served inside another entry) are those functions as extracted
+(`Sched/Kernel.lean`),
 and the Task dispatched is the one `Sched::select` returns. `ksim` shows
 that every such run is a run of `Sched/Run.lean`; `property18_kernel` is
 `property18` over it. -/
@@ -82,6 +83,14 @@ function returns):
   instant and with no Kernel section of its own (its time is that of the
   entry that applies it).
 
+- `bserved`: a Budget event served inside a timer entry that is in
+  progress, `Kernel::budget_event`, with its Overrun_Response, at any
+  instant and with no Kernel section of its own (its time is that of the
+  entry that serves it). This is the order the Kernel takes when a Release
+  and the executing Job's Budget event are due together: the entry makes
+  the Release (`periodic`, `deferred`) and then serves the Budget event
+  with the dispatch pending. No condition on `Sched::select`.
+
 - `deferred`: the entry of a deferral event, `Kernel::deferred_release`:
   the held Release made, or dropped; the accounts as for `periodic`.
 - `deadline`: the entry of a deadline event, `Kernel::deadline_miss`, with
@@ -97,7 +106,8 @@ Job on top, `finish_top`).
 
 **Instants and time** as in `Step`: `jarrive`, `earrive`, `ktick`, `idle`,
 `exec`. A Job executes, locks, unlocks, calls an Endpoint operation and
-takes its Budget event only when `Sched::select` returns no Task. -/
+takes a Budget event in a timer entry of its own (`bevent_h`, `overrun_h`)
+only when `Sched::select` returns no Task. -/
 inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
     KSt NT NR NP NL NS NE → KSt NT NR NP NL NS NE → Prop
   | jarrive (x : KSt NT NR NP NL NS NE) (t : Nat) (ht : t < NT.val)
@@ -206,6 +216,11 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
   | resp (x : KSt NT NR NP NL NS NE) (partition response cause t : U8)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hs : logic.kernel.Kernel.apply_response x.k cfg partition response cause t = ok k') :
+      KStep cfg P x { x with
+        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
+  | bserved (x : KSt NT NR NP NL NS NE) (t : U8) (i : Usize)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :
       KStep cfg P x { x with
         k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
   | deferred (x : KSt NT NR NP NL NS NE) (q : Nat) (t : U8) (i : Usize) (d c : Nat)
@@ -509,6 +524,8 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       exact Reach.step _ _ ih (Step.kend x.st r k'.sched hf)
     | resp partition response cause t k' hs =>
       exact rsteps_norm ih (apply_response_r hs)
+    | bserved t i k' hs =>
+      exact rsteps_norm ih (budget_event_eff hs)
     | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
       rcases deferred_release_eff hs with ⟨hr0, hmp⟩ | hrs
       · have hr1 : rel k'.sched t.val = 1 := by

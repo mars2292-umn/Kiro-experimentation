@@ -12,26 +12,26 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 | EasyDMA traffic (R17.4) | pass | SPIM0 of part2 chaining 64-byte transfers on both channels at 8 Mbps: a transfer ended before 1799 of 1800 sampler Jobs; transfers still running after the Kernel's stop at a restart: 0; ENABLE 7, SHORTS 0x20000, RXD.MAXCNT 64, TXD.MAXCNT 64, END 1, STOPPED 0 at the end |
 | loop iterations (R34.9, R35.4) | pass | 8 Application loops in the export, 7 observed: 0 reached the bound, 0 exceeded, 2 below the bound with the justification recorded, 0 below without one, 5 never completed in this configuration, 1 not observed |
 | target run | pass | RSK-OK after 194 s (operating duration 180 s) |
-| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 7458 cycles (116.5 µs) against J_rel 12500 cycles |
+| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 7034 cycles (109.9 µs) against J_rel 12500 cycles |
 | Kernel events | pass | 3 events mirrored (3 held, 0 of them the post-detach reboot's): operating_end of Task none: 1, safe_state of Task none: 1, debugger of Task none: 1; the trace never froze during the run |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
 | dispatch deferrals (5.8a) | pass | 0 entry-window occurrence(s) handled (a dispatch vector deferred, or an unwind owed to the stub, 0x1xxxx); 0 actions recorded (0 held, 0 of them deferrals) |
-| masked span (L_kernel) | pass | the longest stretch without a Kernel-level interrupt taken: 15519 cycles (242.5 µs) over 5297788 spans, closed by a dispatch entry; against the record's L_kernel 35000 cycles |
-| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10755 rises and 10001 response edges in the capture); latency 90 to 5430 µs, median 100 µs, 0 later than 15 ms; Δ_stamp observed 3292 cycles (51.4 µs) against the exported bound 8000 cycles; 0 unanswered inside the run |
-| dispatch timeline | pass | Tasks executing 39.0 % of the run, the Kernel 33.6 % over 1022879 entries; runs per Task [18035, 6000, 20997, 5278, 10118, 7200, 1801] |
-| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 27557 cycles (0.431 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 26880 cycles (0.420 ms at 100000 samples/s; 18035 runs for 18000 Jobs) |
+| masked span (L_kernel) | pass | the longest stretch without a Kernel-level interrupt taken: 17082 cycles (266.9 µs) over 5265783 spans, closed by a dispatch entry; against the record's L_kernel 35000 cycles |
+| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10755 rises and 10001 response edges in the capture); latency 90 to 5900 µs, median 100 µs, 0 later than 15 ms; Δ_stamp observed 4584 cycles (71.6 µs) against the exported bound 8000 cycles; 0 unanswered inside the run |
+| dispatch timeline | pass | Tasks executing 39.0 % of the run, the Kernel 33.5 % over 1052200 entries; runs per Task [18034, 6001, 20996, 5498, 10114, 7416, 1826] |
+| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 27514 cycles (0.430 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 26880 cycles (0.420 ms at 100000 samples/s; 18034 runs for 18000 Jobs) |
 
 ## Loop iterations (R34.9, R35.4)
 
 | Loop | File:line | Bound | Observed | Verdict |
 |---|---|---|---|---|
 | `loop:part0:spin_ms:spin` | apps/p1-demo/part0/src/lib.rs:38 | 100_000_000 | 0 | not run |
-| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:385 | 10_000_000 | 420 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:385 | 10_000_000 | 418 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:423 | 50_000_000 | 0 | not run |
 | `loop:part1:spin_ms:spin` | apps/p1-demo/part1/src/lib.rs:33 | 100_000_000 | 0 | not run |
 | `loop:part1:log:drain` | apps/p1-demo/part1/src/lib.rs:216 | 4 | - | not observed |
-| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:418 | 10_000_000 | 255 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:418 | 10_000_000 | 253 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part2:spin_ms:spin` | apps/p1-demo/part2/src/lib.rs:38 | 100_000_000 | 0 | not run |
 | `loop:part2:filter:hold` | apps/p1-demo/part2/src/lib.rs:335 | 10_000_000 | 0 | not run |
 
@@ -39,96 +39,97 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 17999 | 7458 / 116.5 | 3528 | 2^12:17604 2^13:395 |
-| 2 | 8999 | 5253 / 82.1 | 3262 | 2^12:8970 2^13:29 |
-| 3 | 4499 | 7458 / 116.5 | 3626 | 2^12:4401 2^13:98 |
-| 5 | 7199 | 7458 / 116.5 | 3590 | 2^12:6933 2^13:266 |
-| 6 | 1799 | 7458 / 116.5 | 3924 | 2^12:1754 2^13:45 |
+| 0 | 17999 | 6505 / 101.6 | 3504 | 2^12:17451 2^13:548 |
+| 2 | 8999 | 7034 / 109.9 | 3254 | 2^12:8780 2^13:219 |
+| 3 | 4499 | 6505 / 101.6 | 3548 | 2^12:4463 2^13:36 |
+| 5 | 7199 | 7034 / 109.9 | 3583 | 2^12:6667 2^13:532 |
+| 6 | 1799 | 6505 / 101.6 | 3842 | 2^12:1782 2^13:17 |
 
 Releases recorded: 40495; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 18000 | 0.695 | 0 | 0 | 0 |
-| 1 | 5999 | 0.247 | 0 | 0 | 0 |
-| 2 | 8999 | 5.909 | 0 | 0 | 0 |
-| 3 | 4500 | 4.245 | 0 | 0 | 0 |
-| 4 | 9999 | 5.440 | 10000 | 2227 | 2060 |
-| 5 | 7200 | 6.307 | 0 | 0 | 0 |
-| 6 | 1800 | 4.608 | 0 | 0 | 0 |
+| 0 | 18000 | 0.721 | 0 | 0 | 0 |
+| 1 | 5999 | 0.250 | 0 | 0 | 0 |
+| 2 | 8999 | 5.923 | 0 | 0 | 0 |
+| 3 | 4500 | 4.230 | 0 | 0 | 0 |
+| 4 | 9999 | 5.916 | 10000 | 2176 | 2012 |
+| 5 | 7200 | 6.299 | 0 | 0 | 0 |
+| 6 | 1800 | 4.592 | 0 | 0 | 0 |
 
 Execution from the Budget accounting (task 19.1; cycle-counter read cost 1 cycles, R34.3):
 
 | Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |
 |---|---|---|---|
-| Task 0 entry | 18000 | 27557 / 0.431 (min 16661, mean 19008) | 0 above the Budget; 2^15:18000 |
-| Task 1 entry | 5999 | 7011 / 0.110 (min 3291, mean 3387) | 0 above the Budget; 2^12:5996 2^13:3 |
-| Task 2 entry | 8999 | 342960 / 5.359 (min 336120, mean 337882) | 0 above the Budget; 2^15:8999 |
-| Task 3 entry | 4500 | 218709 / 3.417 (min 202325, mean 211541) | 0 above the Budget; 2^15:4500 |
-| Task 4 entry | 9999 | 14957 / 0.234 (min 3377, mean 3858) | 0 above the Budget; 2^12:8878 2^13:1000 2^14:121 |
-| Task 5 entry | 7200 | 25229 / 0.394 (min 9345, mean 12840) | 0 above the Budget; 2^14:5218 2^15:1982 |
-| Task 6 entry | 1800 | 19973 / 0.312 (min 7733, mean 10238) | 0 above the Budget; 2^13:579 2^14:1220 2^15:1 |
-| Task 0 on Resource 0 | 18000 | 4226 / 0.066 | |
-| Task 0 on Resource 1 | 18000 | 4063 / 0.063 | |
-| Task 2 on Resource 0 | 8999 | 325395 / 5.084 | |
-| Task 2 on Resource 1 | 17998 | 4128 / 0.065 | |
-| Task 5 on Resource 2 | 7200 | 7741 / 0.121 | |
-| Task 6 on Resource 2 | 1800 | 4081 / 0.064 | |
+| Task 0 entry | 18000 | 27514 / 0.430 (min 16582, mean 18964) | 0 above the Budget; 2^15:18000 |
+| Task 1 entry | 5999 | 6950 / 0.109 (min 3342, mean 3435) | 0 above the Budget; 2^12:5997 2^13:2 |
+| Task 2 entry | 8999 | 343234 / 5.363 (min 336046, mean 337680) | 0 above the Budget; 2^15:8999 |
+| Task 3 entry | 4500 | 219993 / 3.437 (min 201281, mean 211070) | 0 above the Budget; 2^15:4500 |
+| Task 4 entry | 9999 | 12728 / 0.199 (min 3426, mean 3895) | 0 above the Budget; 2^12:8855 2^13:1027 2^14:117 |
+| Task 5 entry | 7200 | 24556 / 0.384 (min 9360, mean 12919) | 0 above the Budget; 2^14:5225 2^15:1975 |
+| Task 6 entry | 1800 | 19958 / 0.312 (min 7734, mean 10360) | 0 above the Budget; 2^13:502 2^14:1297 2^15:1 |
+| Task 0 on Resource 0 | 18000 | 4172 / 0.065 | |
+| Task 0 on Resource 1 | 18000 | 4033 / 0.063 | |
+| Task 2 on Resource 0 | 8999 | 325472 / 5.085 | |
+| Task 2 on Resource 1 | 17998 | 3930 / 0.061 | |
+| Task 5 on Resource 2 | 7200 | 5456 / 0.085 | |
+| Task 6 on Resource 2 | 1800 | 5287 / 0.083 | |
 
 Kernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):
 
 | Entry | Runs | Max (cycles / µs) | Mean (cycles) |
 |---|---|---|---|
-| dispatch | 56497 | 3056 / 47.75 | 2861 |
-| timer | 49036 | 3907 / 61.05 | 2976 |
-| intake | 10000 | 2338 / 36.53 | 2170 |
-| lock | 71997 | 472 / 7.38 | 470 |
-| unlock | 71997 | 1816 / 28.38 | 1638 |
-| job_end | 56497 | 2061 / 32.20 | 1802 |
-| now | 4913578 | 226 / 3.53 | 223 |
-| raise | 6000 | 2123 / 33.17 | 2008 |
-| dma | 1808 | 721 / 11.27 | 507 |
-| epilogue | 56497 | 1261 / 19.70 | 615 |
-| view | 69389 | 329 / 5.14 | 294 |
-| send | 44552 | 2307 / 36.05 | 2156 |
-| recv | 90671 | 901 / 14.08 | 805 |
+| dispatch | 56533 | 3104 / 48.50 | 2912 |
+| timer | 49207 | 3863 / 60.36 | 2929 |
+| intake | 10000 | 2288 / 35.75 | 2124 |
+| lock | 71997 | 473 / 7.39 | 472 |
+| unlock | 71997 | 1789 / 27.95 | 1595 |
+| job_end | 56497 | 2012 / 31.44 | 1747 |
+| now | 4882576 | 229 / 3.58 | 226 |
+| raise | 6000 | 2068 / 32.31 | 1957 |
+| dma | 1808 | 723 / 11.30 | 509 |
+| epilogue | 56497 | 1246 / 19.47 | 620 |
+| view | 69848 | 329 / 5.14 | 294 |
+| send | 44552 | 2282 / 35.66 | 2121 |
+| recv | 90671 | 899 / 14.05 | 807 |
 
-Entries that interrupted an executing Job: Task 0: 2716, Task 1: 3, Task 2: 28193, Task 3: 2800, Task 4: 1271, Task 5: 860, Task 6: 1248
+Entries that interrupted an executing Job: Task 0: 3023, Task 1: 2, Task 2: 27872, Task 3: 3007, Task 4: 1262, Task 5: 1246, Task 6: 1343
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 179930.000 ms, 3914 cycles
-- Task 0 at 179940.000 ms, 3197 cycles
-- Task 2 at 179945.000 ms, 3201 cycles
-- Task 0 at 179950.000 ms, 3626 cycles
-- Task 5 at 179950.000 ms, 3626 cycles
-- Task 0 at 179960.000 ms, 3441 cycles
-- Task 3 at 179960.000 ms, 3441 cycles
-- Task 2 at 179965.000 ms, 3201 cycles
-- Task 0 at 179970.000 ms, 3354 cycles
-- Task 5 at 179975.000 ms, 3197 cycles
-- Task 0 at 179980.000 ms, 3197 cycles
-- Task 0 at 179990.000 ms, 3181 cycles
+- Task 0 at 179930.000 ms, 3862 cycles
+- Task 0 at 179940.000 ms, 3149 cycles
+- Task 2 at 179945.000 ms, 3149 cycles
+- Task 0 at 179950.000 ms, 3658 cycles
+- Task 5 at 179950.000 ms, 3658 cycles
+- Task 0 at 179960.000 ms, 3449 cycles
+- Task 3 at 179960.000 ms, 3449 cycles
+- Task 2 at 179965.000 ms, 3149 cycles
+- Task 0 at 179970.000 ms, 3378 cycles
+- Task 5 at 179975.000 ms, 3153 cycles
+- Task 0 at 179980.000 ms, 3209 cycles
+- Task 0 at 179990.000 ms, 3077 cycles
 
 ## The Kernel's masked spans (11.13)
 
-Every stretch without a Kernel-level interrupt taken, 5297788 of them, the longest 15519 cycles (242.5 µs), closed by a dispatch entry:
+Every stretch without a Kernel-level interrupt taken, 5265783 of them, the longest 17082 cycles (266.9 µs), closed by a dispatch entry:
 
 | Span (cycles) | Spans |
 |---|---|
-| 256 to 511 (4.0 to 8.0 µs) | 4904685 |
-| 512 to 1023 (8.0 to 16.0 µs) | 119453 |
-| 1024 to 2047 (16.0 to 32.0 µs) | 102033 |
-| 2048 to 4095 (32.0 to 64.0 µs) | 104792 |
-| 4096 to 8191 (64.0 to 128.0 µs) | 61370 |
-| 8192 to 16383 (128.0 to 256.0 µs) | 5455 |
+| 256 to 511 (4.0 to 8.0 µs) | 4838488 |
+| 512 to 1023 (8.0 to 16.0 µs) | 153906 |
+| 1024 to 2047 (16.0 to 32.0 µs) | 105218 |
+| 2048 to 4095 (32.0 to 64.0 µs) | 101378 |
+| 4096 to 8191 (64.0 to 128.0 µs) | 60414 |
+| 8192 to 16383 (128.0 to 256.0 µs) | 6378 |
+| 16384 to 32767 (256.0 to 512.0 µs) | 1 |
 
 | Closing entry | Spans | Longest (cycles / µs) |
 |---|---|---|
-| dispatch | 54117 | 15519 / 242.5 |
-| timer | 30962 | 13534 / 211.5 |
-| job_end | 5179498 | 4617 / 72.1 |
-| epilogue | 33211 | 7472 / 116.8 |
+| dispatch | 53695 | 17082 / 266.9 |
+| timer | 30067 | 15269 / 238.6 |
+| job_end | 5147921 | 5345 / 83.5 |
+| epilogue | 34100 | 7284 / 113.8 |
 
 ## The Kernel's events
 
@@ -138,14 +139,14 @@ Every stretch without a Kernel-level interrupt taken, 5297788 of them, the longe
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 510368 | 18035 | 0.420 |
-| 1 | 24144 | 6000 | 0.100 |
-| 2 | 4800607 | 20997 | 5.250 |
-| 3 | 1484223 | 5278 | 3.400 |
-| 4 | 46392 | 10118 | 0.150 |
-| 5 | 133723 | 7200 | 0.380 |
-| 6 | 26026 | 1801 | 0.220 |
-| none | 10970803 | 43597 | 9.480 |
+| 0 | 506599 | 18034 | 0.420 |
+| 1 | 23682 | 6001 | 0.100 |
+| 2 | 4796951 | 20996 | 5.240 |
+| 3 | 1481429 | 5498 | 3.400 |
+| 4 | 45411 | 10114 | 0.170 |
+| 5 | 134631 | 7416 | 0.370 |
+| 6 | 26241 | 1826 | 0.230 |
+| none | 10981357 | 43140 | 9.480 |
 
 ## Commands
 
@@ -187,10 +188,10 @@ triangle_fwd=3600
 triangle_acks=3600
 triangle_rounds=3600
 loop:part0:spin_ms:spin=0
-loop:part0:sensor:hold=420
+loop:part0:sensor:hold=418
 loop:part0:sensor:late=0
 loop:part1:spin_ms:spin=0
-loop:part1:log:busy=255
+loop:part1:log:busy=253
 loop:part2:filter:hold=0
 loop:part2:spin_ms:spin=0
 dma_end=1799
@@ -224,21 +225,21 @@ event=18
   prs_hi=0
 RSK-OK
 Firmware exited successfully
-     Finished in 8.45s
+     Finished in 8.44s
 ```
 
 ## Observed response times against the measured WCRTs (task 19.4, R18.7, R29.5)
 
-The Analyzer on this run's records (docs/hil/kernel_timing_nrf52840_measure.json, with docs/hil/kernel_timing_nrf52840_cycles.json): exit 0. Statement: MEASURED Kernel_Timing_Parameters (task 19.3; measurement-based with a margin, not a guaranteed bound, R34.6): measured WCET_Records of the HIL build `p1-demo (nrf52840, nrf52840,debug-port,quiet,trace-ram,trace-pins,plain-measure)` (sha256:12c8512c2f775c51b7bcc27e169a27a96f09c013a883dfe9640bc9df0067cac3) of the Build_Manifest, not the analysed Flight_Build; the Kernel_Timing_Parameters' binary sha256:e1faf204ae173e8765f2f5c1ee1724400a4644cd28482c4dc9f98838e5420e93 is the HIL build `p1-demo (nrf52840, nrf52840,debug-port,quiet,trace-ram,trace-pins,cycles)` of the Build_Manifest, not the analysed Flight_Build; delta_lock_in: 590 cycles (measured, rsk-hil release-timing record, 143994 runs, max 472 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one lock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_lock_out: 2292 cycles (measured, rsk-hil release-timing record, 397 runs, max 1833 +25%, scenarios: nrf52840_cycles (2 s), conditions: one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_dispatch: 3825 cycles (measured, rsk-hil release-timing record, 558 runs, max 3060 +25%, scenarios: nrf52840_cycles (2 s), conditions: one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_complete: 4153 cycles (measured, rsk-hil release-timing record, 112995 runs, max 3322 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_timer: 4949 cycles (measured, rsk-hil release-timing record, 98078 runs, max 3959 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_stamp: 5605 cycles (measured, rsk-hil release-timing record, 20000 runs, max 4484 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: from the Release_Source edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3]), to the intake handler's timestamp of the event: the masking of any Kernel entry in progress, the exception entry, and the handler's own read (1121 ticks at 16000000 per cycle group of 4; the Kernel's record, task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); l_kernel: 21114 cycles (measured, rsk-hil release-timing record, 10589322 runs, max 16891 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; 16891 cycles, closed by a dispatch entry; the spans by closing entry: dispatch 53698 (longest 16891), timer 30160 (longest 14890), job_end 5174319 (longest 3999), epilogue 33357 (longest 3952); the longest single Rust half 3959) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_detect: 4949 cycles (measured, rsk-hil release-timing record, 98078 runs, max 3959 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); j_rel: 9323 cycles (measured, rsk-hil release-timing record, 80990 runs, max 7458 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_svc: 287 cycles (measured, rsk-hil release-timing record, 49082 runs, max 229 +25%, scenarios: nrf52840_cycles (2 s), conditions: the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_dma_write: 902 cycles (measured, rsk-hil release-timing record, 3616 runs, max 721 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one EasyDMA request SVC, validation and the register writes (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_view: 412 cycles (measured, rsk-hil release-timing record, 753 runs, max 329 +25%, scenarios: nrf52840_cycles (2 s), conditions: one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_entry: 2594 cycles (measured, rsk-hil release-timing record, 152 runs, max 2075 +25%, scenarios: nrf52840_cycles (2 s), conditions: the cycles a Kernel entry charges the Job it interrupts outside the charge points: log's excess over control (49 Jobs) spread over the 152 entries that interrupted log's Jobs (the cycle test, R18.1)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_send: 2900 cycles (measured, rsk-hil release-timing record, 89104 runs, max 2320 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one Endpoint send SVC: the checks, the slot, the word copy into the channel, and the arrival release when declared (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_recv: 1127 cycles (measured, rsk-hil release-timing record, 181342 runs, max 901 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one Endpoint receive SVC: the checks, the oldest slot, and the word copy into the Partition (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included).
+The Analyzer on this run's records (docs/hil/kernel_timing_nrf52840_measure.json, with docs/hil/kernel_timing_nrf52840_cycles.json, docs/hil/kernel_timing_nrf52840_cycles_fpu.json): exit 0. Statement: MEASURED Kernel_Timing_Parameters (task 19.3; measurement-based with a margin, not a guaranteed bound, R34.6): measured WCET_Records of the HIL build `p1-demo (nrf52840, nrf52840,debug-port,quiet,trace-ram,trace-pins,plain-measure)` (sha256:f9500dc167da40e9a984b5d08ef7a3c29e3073d3cdcf6afb5e23a384a445db03) of the Build_Manifest, not the analysed Flight_Build; the Kernel_Timing_Parameters' binary sha256:95476a3e75d1025f107b5332e8908b4263fb251c92f55318c40566c2d78f0b02 is the HIL build `p1-demo (nrf52840, nrf52840,debug-port,quiet,trace-ram,trace-pins,cycles-fpu)` of the Build_Manifest, not the analysed Flight_Build; delta_lock_in: 592 cycles (measured, rsk-hil release-timing record, 71997 runs, max 473 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one lock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_lock_out: 2237 cycles (measured, rsk-hil release-timing record, 71997 runs, max 1789 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_dispatch: 3880 cycles (measured, rsk-hil release-timing record, 56533 runs, max 3104 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_complete: 4073 cycles (measured, rsk-hil release-timing record, 56497 runs, max 3258 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_timer: 4829 cycles (measured, rsk-hil release-timing record, 49207 runs, max 3863 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_stamp: 5730 cycles (measured, rsk-hil release-timing record, 10000 runs, max 4584 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: from the Release_Source edge, latched by the time base through PPI (GPIOTE IN[0] to TIMER0 CAPTURE[3]), to the intake handler's timestamp of the event: the masking of any Kernel entry in progress, the exception entry, and the handler's own read (1146 ticks at 16000000 per cycle group of 4; the Kernel's record, task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); l_kernel: 21353 cycles (measured, rsk-hil release-timing record, 5265783 runs, max 17082 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the longest masked span of the run measured end to end, from the first Rust half of a Kernel entry to the last one returning to a context in which a Kernel-level interrupt is taken (tail-chained entries and unwinds inside one span; 17082 cycles, closed by a dispatch entry; the spans by closing entry: dispatch 53695 (longest 17082), timer 30067 (longest 15269), job_end 5147921 (longest 5345), epilogue 34100 (longest 7284); the longest single Rust half 3863) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_fp_save: 63 cycles (measured, rsk-hil release-timing record, 98 runs, max 50 +25%, scenarios: nrf52840_cycles_fpu (2 s), conditions: the extended frame's stacking at an exception entry with the context active: half of the floating-point context stacking per interrupting entry (100 cycles: filter's excess over control per entry, 2175, less Δ_entry of the plain cycle configuration, 2121, is 54, below the method's resolution of 100 cycles, which is recorded instead; the FPU Task's 49 Jobs, 98 interrupting entries; task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_fp_restore: 63 cycles (measured, rsk-hil release-timing record, 98 runs, max 50 +25%, scenarios: nrf52840_cycles_fpu (2 s), conditions: the extended frame's unstacking at the return: half of the floating-point context stacking per interrupting entry (100 cycles: filter's excess over control per entry, 2175, less Δ_entry of the plain cycle configuration, 2121, is 54, below the method's resolution of 100 cycles, which is recorded instead; the FPU Task's 49 Jobs, 98 interrupting entries; task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_detect: 4829 cycles (measured, rsk-hil release-timing record, 49207 runs, max 3863 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); j_rel: 8793 cycles (measured, rsk-hil release-timing record, 40495 runs, max 7034 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the lag from a periodic nominal instant to the Release becoming effective, the Kernel's own record (R9.10)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_svc: 287 cycles (measured, rsk-hil release-timing record, 4882576 runs, max 229 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_dma_write: 904 cycles (measured, rsk-hil release-timing record, 1808 runs, max 723 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one EasyDMA request SVC, validation and the register writes (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_view: 412 cycles (measured, rsk-hil release-timing record, 565 runs, max 329 +25%, scenarios: nrf52840_cycles_fpu (2 s), conditions: one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_entry: 2652 cycles (measured, rsk-hil release-timing record, 118 runs, max 2121 +25%, scenarios: nrf52840_cycles (2 s), conditions: the cycles a Kernel entry charges the Job it interrupts outside the charge points: log's excess over control (49 Jobs) spread over the 118 entries that interrupted log's Jobs (the cycle test, R18.1)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_send: 2853 cycles (measured, rsk-hil release-timing record, 44552 runs, max 2282 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one Endpoint send SVC: the checks, the slot, the word copy into the channel, and the arrival release when declared (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included); delta_recv: 1124 cycles (measured, rsk-hil release-timing record, 90671 runs, max 899 +25%, scenarios: nrf52840_measure (180 s)/worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)/floating-point context preservation (R34.5): triggered by every Job of `filter` (an FPU Task, its context saved and restored around every preemption) and not triggered by the other Tasks' Jobs/preemption at the maximum rate the Task_Model permits (R34.5): every periodic Task released at its period and offset, every sporadic Task at its MIT, conditions: one Endpoint receive SVC: the checks, the oldest slot, and the word copy into the Partition (the Rust half), the Kernel's entry record (task 19.3)/HIL build (trace-ram, trace-pins): the instrumentation's cost is included).
 
-Result **PASS** (utilization 96 %). | Task | Level | WCRT (ms) | Deadline (ms) | Observed max (ms) | Jobs | Verdict |
+Result **PASS** (utilization 95 %). | Task | Level | WCRT (ms) | Deadline (ms) | Observed max (ms) | Jobs | Verdict |
 |---|---|---|---|---|---|---|
-| `part0.control` | A | 9.025 | 10.000 | 0.695 | 18000 | within |
-| `part0.echo` | A | 9.833 | 20.000 | 0.247 | 5999 | within |
-| `part0.sensor` | A | 13.129 | 20.000 | 5.909 | 8999 | within |
-| `part1.log` | C | 39.612 | 40.000 | 4.245 | 4500 | within |
-| `part1.pulse` | C | 14.137 | 15.000 | 5.440 | 9999 | within |
-| `part2.filter` | B | 16.961 | 25.000 | 6.307 | 7200 | within |
-| `part2.sampler` | B | 79.209 | 100.000 | 4.608 | 1800 | within |
+| `part0.control` | A | 8.978 | 10.000 | 0.721 | 18000 | within |
+| `part0.echo` | A | 9.775 | 20.000 | 0.250 | 5999 | within |
+| `part0.sensor` | A | 13.043 | 20.000 | 5.923 | 8999 | within |
+| `part1.log` | C | 39.258 | 40.000 | 4.230 | 4500 | within |
+| `part1.pulse` | C | 14.041 | 15.000 | 5.916 | 9999 | within |
+| `part2.filter` | B | 16.830 | 25.000 | 6.299 | 7200 | within |
+| `part2.sampler` | B | 78.502 | 100.000 | 4.592 | 1800 | within |
 
 Verdict: **pass**

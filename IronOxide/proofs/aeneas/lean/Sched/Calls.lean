@@ -151,4 +151,39 @@ theorem budget_event_reported {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
       simp only [hr, ite_true] at h
       have h := ok_inj h; subst h; exact ⟨rfl, rfl, rfl⟩
 
+/-- A Budget event, whatever it finds, changes the scheduler state only
+through its Overrun_Response (`apply_response`): not at all when the Task's
+Job is not on top, when the Overrun is already reported, or when there is
+no Overrun (the slot is armed again). -/
+theorem budget_event_eff {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {t : U8} {i : Usize}
+    (h : logic.kernel.Kernel.budget_event k cfg t i = ok k') :
+    RSteps cfg k.sched k'.sched := by
+  unfold logic.kernel.Kernel.budget_event at h
+  simp only [bind_eq_ok, lift, bind_ok] at h
+  obtain ⟨s, hs, h⟩ := h
+  split at h
+  · have h := ok_inj h; subst h; exact Relation.ReflTransGen.refl
+  · simp only [bind_eq_ok] at h
+    obtain ⟨i1, hi1, i2, hi2, h⟩ := h
+    split at h
+    · have h := ok_inj h; subst h; exact Relation.ReflTransGen.refl
+    · simp only [bind_eq_ok] at h
+      obtain ⟨b, hb, h⟩ := h
+      split at h
+      · have h := ok_inj h; subst h; exact Relation.ReflTransGen.refl
+      · simp only [bind_eq_ok] at h
+        obtain ⟨b1, hb1, h⟩ := h
+        split at h
+        · simp only [bind_eq_ok] at h
+          obtain ⟨b2, hb2, tc, htc, i6, hi6, i7, hi7, self1, hpe, pc, hpc, h⟩ := h
+          have hr := apply_response_r h
+          have hp := push_event_sched hpe
+          dsimp only at hp
+          rw [hp] at hr
+          exact hr
+        · have ha := arm_budget_sched h
+          dsimp only at ha
+          rw [ha]
+
 end P18

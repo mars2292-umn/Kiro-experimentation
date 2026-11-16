@@ -95,9 +95,9 @@ The handwritten files:
   what the Kernel's own functions do to the scheduler state whenever they
   return (`dispatch_eff`, `job_return_eff`, `svc_lock_eff`,
   `svc_unlock_eff`, `periodic_release_eff`, `deferred_release_eff`,
-  `deadline_miss_eff`, `intake_release_eff`, `apply_response_r`,
-  `select_some`, `select_none`), and two facts on the code alone
-  (`intake_decision_accept`, `budget_event_reported`);
+  `deadline_miss_eff`, `intake_release_eff`, `budget_event_eff`,
+  `apply_response_r`, `select_some`, `select_none`), and two facts on the
+  code alone (`intake_decision_accept`, `budget_event_reported`);
 - `lean/Sched/KRun.lean`: the run over the Kernel's functions (`KStep`,
   `KReach`), the proof that each such run is a specification-level run
   (`ksim`), and `property18_kernel`.
