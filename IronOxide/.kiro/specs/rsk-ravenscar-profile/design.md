@@ -518,7 +518,7 @@ Each property names the evidence that establishes it. "Proof" means Verus, which
 **Validates: Requirements 19.1, 19.2** · Evidence: Verus over the intake masking logic; HIL storm test (R19.3)
 
 ### Property 10: Overrun detection whatever the ceiling
-*For any* Job whose consumed cycles exceed its Budget, the Overrun is reported within Δ_detect even while the System_Ceiling is at its maximum. Time spent in other Jobs and in Kernel work for other Tasks is never charged to the Job.
+*For any* Job whose consumed cycles exceed its Budget, the Overrun is reported within Δ_detect, counted while the Job is the executing Job (a Job preempted at its Budget instant is reported within Δ_detect of its resumption, R18.2), even while the System_Ceiling is at its maximum. Time spent in other Jobs and in Kernel work for other Tasks is never charged to the Job.
 **Validates: Requirements 18.1, 18.2, 44.3** · Evidence: Verus over the Budget logic and the level map of DD-02; HIL fault injection (R18.8)
 
 ### Property 11: Timed-event slots and Endpoint buffers refine their models

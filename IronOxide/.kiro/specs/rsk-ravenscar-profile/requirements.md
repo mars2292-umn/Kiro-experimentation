@@ -468,7 +468,7 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 | Δ_stamp | From a Release_Source interrupt event to the Kernel's timestamp of that event |
 | L_kernel | Longest Kernel-internal section that masks preemption by any Job |
 | Δ_fp_save, Δ_fp_restore | Floating-point state save and restore under the policy of R11.2, including saves that the policy defers (R11.3) |
-| Δ_detect, Δ_enforce | Δ_detect: from the instant a Job's consumed execution time exceeds its Budget, or the time base reaches the Job's absolute deadline (R9.6), to the Health_Monitor's receipt of the report; Δ_enforce: from that receipt to the completion of the Overrun_Response |
+| Δ_detect, Δ_enforce | Δ_detect: from the instant a Job's consumed execution time exceeds its Budget (or, for a Job preempted at that instant, from its next resumption: R18.2), or the time base reaches the Job's absolute deadline (R9.6), to the Health_Monitor's receipt of the report; Δ_enforce: from that receipt to the completion of the Overrun_Response |
 | Δ_hm | Any Health_Monitor response other than an Overrun_Response |
 | Δ_wake | Wake-up from the idle activity (R7.8) |
 | J_rel | Release jitter: from the instant a Release becomes due (the nominal instant of a periodic Release, or the accepted event instant or deferred instant of a sporadic Release) to the instant it becomes effective (R9.2, R10.6) |
@@ -549,7 +549,7 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 #### Acceptance Criteria
 
 1. THE Kernel SHALL measure the execution time consumed by each Job against the Job's Budget, excluding intervals during which the Job is preempted by another Job or interrupted by Kernel execution performed for another Task, so that no other Partition's activity consumes the Job's Budget.
-2. WHEN a Job's consumed execution time exceeds its Budget, THE Kernel SHALL detect the Overrun within Δ_detect, whatever the System_Ceiling at that instant and including while the Job holds Resources, and report the Overrun to the Health_Monitor.
+2. WHEN a Job's consumed execution time exceeds its Budget, THE Kernel SHALL detect the Overrun within Δ_detect, whatever the System_Ceiling at that instant and including while the Job holds Resources, and report the Overrun to the Health_Monitor, where Δ_detect is counted while the Job is the executing Job: IF the Budget is exceeded in a Kernel entry that makes another Job's dispatch pending, or while that dispatch is pending, THEN THE Kernel SHALL detect and report the Overrun within Δ_detect after the Job is next resumed, and the Job SHALL execute nothing between that entry and that resumption.
 3. WHEN an Overrun is reported, THE Health_Monitor SHALL apply the Overrun_Response declared for the Job's Partition within Δ_enforce.
 4. WHILE the Partition of an overrunning Job continues to execute after the Overrun_Response, THE Kernel SHALL ensure that every Job of that Partition observes each Resource of that Partition only in a state produced by a completed Critical_Section or by the Resource's initialization (R8.9, R14.5).
 5. THE Generator SHALL reject an App_Declaration in which a Partition whose Criticality_Level is lower than the highest Criticality_Level in the Application declares an Overrun_Response that lets an overrunning Job continue executing.
@@ -559,6 +559,8 @@ Classification as defined in R4.1; Jorvik Profile_Variant markers (Same, Relaxed
 9. WHERE more than one Partition has the highest Criticality_Level and any of them declares an Overrun_Response that lets an overrunning Job continue executing, THE Analyzer SHALL state in the analysis report (Requirement 30) that R18.7 does not protect those Partitions from one another.
 
 **Note (2026-11-13, the audit's contested finding F).** R18.1 is met within Δ_entry per interrupting Kernel entry: the Rust half of a Kernel entry that interrupts a Job is charged to that Job (Table 13-1's Δ_entry), whatever Task the entry serves.
+
+**Note (2026-11-15, R18.2's second clause).** The Kernel disarms the executing Job's Budget event in the entry that makes a dispatch pending and arms it again when the Job is resumed (`Kernel::settle`, Verification_Plan 7.3), so that no Budget event and Overrun_Response is served ahead of a pending dispatch, a delay to the waiting Job that B_i does not cover. A Job preempted at its Budget instant therefore has its Overrun reported when it resumes, later in time by what the preempting Jobs take; it consumes nothing in between (R18.1), so no other Partition is delayed by the later report, and E_j of R29.4 is unchanged.
 
 ### Requirement 19: Interrupt-source isolation (Phase P1)
 
