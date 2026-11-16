@@ -58,7 +58,8 @@
 //! - `utilization_exceeds_one` is the check of R29.9 on a fixed scale:
 //!   Σ ⌈E_j · S / T_j⌉ > S with S = 10^9, which `lemma_scaled_term_over`
 //!   shows never falls below the exact term (a set with Σ E_j / T_j > 1
-//!   is always failed; a set within 10^-9 per Task of full utilization
+//!   over the rationals, `utilization_over_one`, is always failed:
+//!   `lemma_utilization_over_one_is_failed`; a set within 10^-9 per Task of full utilization
 //!   may be failed early too, which the fixed point would have failed or
 //!   passed by at most that pessimism).
 //!
@@ -734,13 +735,94 @@ pub open spec fn scaled_sum(loads: Seq<Load>, n: int) -> int
     if n <= 0 { 0 } else { scaled_sum(loads, n - 1) + ceil_div(loads[n - 1].e as int * SCALE as int, loads[n - 1].period as int) }
 }
 
+/// The denominator of Σ E_j / T_j over the first `n` loads: Π T_j.
+pub open spec fn util_den(loads: Seq<Load>, n: int) -> int
+    decreases n,
+{
+    if n <= 0 { 1 } else { util_den(loads, n - 1) * loads[n - 1].period as int }
+}
+
+/// Its numerator over that denominator: Σ E_j · Π_{k ≠ j} T_k.
+pub open spec fn util_num(loads: Seq<Load>, n: int) -> int
+    decreases n,
+{
+    if n <= 0 { 0 } else { util_num(loads, n - 1) * loads[n - 1].period as int + loads[n - 1].e as int * util_den(loads, n - 1) }
+}
+
+/// Σ E_j / T_j > 1 over the rationals, as the inequality of the sum's
+/// numerator and denominator (the denominator is positive).
+pub open spec fn utilization_over_one(loads: Seq<Load>) -> bool {
+    util_num(loads, loads.len() as int) > util_den(loads, loads.len() as int)
+}
+
+proof fn lemma_util_den_pos(loads: Seq<Load>, n: int)
+    requires loads_ok(loads), 0 <= n <= loads.len(),
+    ensures util_den(loads, n) > 0,
+    decreases n,
+{
+    if n > 0 {
+        lemma_util_den_pos(loads, n - 1);
+        let d = util_den(loads, n - 1);
+        let t = loads[n - 1].period as int;
+        assert(d * t > 0) by (nonlinear_arith) requires d > 0, t > 0;
+    }
+}
+
+/// The scaled sum is at or above the exact one: Σ ⌈E_j · S / T_j⌉ · Π T ≥
+/// S · Σ E_j · Π_{k ≠ j} T_k.
+proof fn lemma_scaled_sum_over(loads: Seq<Load>, n: int)
+    requires loads_ok(loads), 0 <= n <= loads.len(),
+    ensures scaled_sum(loads, n) * util_den(loads, n) >= SCALE as int * util_num(loads, n),
+    decreases n,
+{
+    if n > 0 {
+        lemma_scaled_sum_over(loads, n - 1);
+        lemma_util_den_pos(loads, n - 1);
+        let ss = scaled_sum(loads, n - 1);
+        let d = util_den(loads, n - 1);
+        let m = util_num(loads, n - 1);
+        let t = loads[n - 1].period as int;
+        let e = loads[n - 1].e as int;
+        let sc = SCALE as int;
+        let c = ceil_div(e * sc, t);
+        assert(e * sc >= 0) by (nonlinear_arith) requires e >= 0, sc >= 0;
+        lemma_scaled_term_over(e * sc, t);
+        assert((ss + c) * (d * t) >= sc * (m * t + e * d)) by (nonlinear_arith)
+            requires ss * d >= sc * m, c * t >= e * sc, d > 0, t > 0;
+    }
+}
+
+/// R29.9 over the rationals: a Task set with Σ E_j / T_j > 1 is failed by
+/// the scaled check (`utilization_exceeds_one` returns `true` for it).
+pub proof fn lemma_utilization_over_one_is_failed(loads: Seq<Load>)
+    requires loads_ok(loads), utilization_over_one(loads),
+    ensures scaled_sum(loads, loads.len() as int) > SCALE as int,
+{
+    let n = loads.len() as int;
+    lemma_scaled_sum_over(loads, n);
+    lemma_util_den_pos(loads, n);
+    let ss = scaled_sum(loads, n);
+    let d = util_den(loads, n);
+    let m = util_num(loads, n);
+    let sc = SCALE as int;
+    assert(ss > sc) by (nonlinear_arith)
+        requires ss * d >= sc * m, m > d, d > 0, sc > 0;
+}
+
 /// R29.9: Σ E_j / T_j > 1 on the fixed scale, exact in `u128`.
 pub fn utilization_exceeds_one(loads: &Vec<Load>) -> (r: bool)
     requires
         loads_ok(loads@),
         loads.len() < 0x1_0000_0000,
-    ensures r == (scaled_sum(loads@, loads.len() as int) > SCALE as int),
+    ensures
+        r == (scaled_sum(loads@, loads.len() as int) > SCALE as int),
+        utilization_over_one(loads@) ==> r,
 {
+    proof {
+        if utilization_over_one(loads@) {
+            lemma_utilization_over_one_is_failed(loads@);
+        }
+    }
     // Each term is below 2^94: E < 2^64 and S < 2^30.
     let mut sum: u128 = 0;
     let mut k: usize = 0;
