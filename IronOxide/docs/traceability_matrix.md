@@ -156,13 +156,13 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R11.1 | P-11 | Property 2 | ✓3.1; ✓5.1 | xtask/src/verify.rs | hil-spike-p1-demo; hil-spike-step; test-qemu-spike-p1-demo; test-qemu-spike-step |
+| R11.1 | P-11 | Property 2 | ✓3.1; ✓5.1 | crates/rsk-kernel/src/arch/cm4/entry.rs; xtask/src/verify.rs | hil-spike-p1-demo; hil-spike-step; test-qemu-spike-p1-demo; test-qemu-spike-step |
 | R11.2 | P-11 | — | ✓5.1 | apps/p1-demo/system/src/lib.rs; crates/rsk-kernel/src/arch/cm4/plan.rs; crates/rsk-kernel/src/arch/mod.rs; +1 | — |
 | R11.3 | P-11 | — | ✓5.1 | — | — |
 | R11.4 | — | — | ✓12.2 | crates/rsk-link/src/stack.rs; xtask/src/verify.rs | analysis-stack-p1-demo |
 | R11.5 | — | Closed response sets (DD-10, R14.5) | ✓5.3 | — | — |
 | R11.6 | — | Kernel logic and Kernel_Arch (Component B) | ✓3.4 | crates/rsk-link/src/graph.rs; crates/rsk-link/src/scan.rs; crates/rsk-link/src/thumb.rs; +1 | test-workspace-tests |
-| R11.7 | — | — | ✓5.1 | — | — |
+| R11.7 | — | — | ✓5.1 | crates/rsk-kernel/src/arch/cm4/entry.rs | — |
 | R11.8 | — | Generated_Config | ✓5.1 | — | — |
 
 ### Requirement 12: Boot-time configuration validation (Phase P1)
@@ -224,7 +224,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R16.3 | P-16 | Design decisions | ✓4.9 | crates/rsk-gen/src/emit.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/dt.rs; crates/rsk-link/src/scan.rs; +4 | hil-mpu-matrix; proof-kernel-verus; test-workspace-tests |
 | R16.4 | P-16 | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; +3 | hil-mpu-matrix; hil-spike-p1-demo; hil-spike-step |
 | R16.5 | P-16; P-21 | Closed response sets (DD-10, R14.5); Memory and MPU layout (DD-07, DD-11); Property 12 | ✓4.9 | apps/hil-stimulus/gen/link.x; apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/gen-nrf52840/link.x; +72 | hil-mpu-matrix; proof-kernel-verus |
-| R16.6 | P-16 | Property 12 | ✓4.9 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +16 | proof-kernel-verus |
+| R16.6 | P-16 | Property 12 | ✓4.9 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +17 | proof-kernel-verus |
 | R16.7 | — | Trust-Base Analysis | ✓13.1 | crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; +3 | check-config-p1-demo; proof-kernel-verus |
 | R16.8 | P-16 | Profile_Conformance_Suite and HIL_Rig; Property 12 | ✓7.4 | apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; +50 | hil-isolation-step; hil-mpu-matrix |
 | R16.9 | — | — | ✓3.1 | xtask/src/verify.rs | test-qemu-spike-p1-demo; test-qemu-spike-step |

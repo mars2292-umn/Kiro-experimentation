@@ -75,6 +75,8 @@ pub struct Row {
     pub strength: String,
     pub strength_note: String,
     pub closed: String,
+    /// Why the requirement is not attempted, when that is a decision and not a gap found.
+    pub deferred: String,
     pub gaps: String,
     pub statements: Vec<Statement>,
     pub others: Vec<Other>,
@@ -119,6 +121,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, String> {
             strength: text_of(r, "strength"),
             strength_note: text_of(r, "strength_note"),
             closed: text_of(r, "closed"),
+            deferred: text_of(r, "deferred"),
             gaps: text_of(r, "gaps"),
             statements,
             others,
@@ -464,7 +467,19 @@ pub fn render(root: &Path, rows: &[Row], m: &trace::Matrix, evidence_dir_name: &
         if !matches!(row.strength.as_str(), "yes" | "weaker" | "no") {
             c.errors.push(format!("row R{}: `strength` is `{}` (yes, weaker or no)", row.requirement, row.strength));
         }
-        let mut col5 = format!("**{}.** {}", match row.strength.as_str() { "yes" => "Yes", "weaker" => "Weaker", _ => "No" }, row.strength_note);
+        if !row.deferred.is_empty() && row.strength != "no" {
+            c.errors.push(format!("row R{}: `deferred` is written on a row judged `{}`; it belongs to a requirement not attempted", row.requirement, row.strength));
+        }
+        let verdict = match row.strength.as_str() {
+            "yes" => "Yes",
+            "weaker" => "Weaker",
+            _ if !row.deferred.is_empty() => "No: not attempted, by decision",
+            _ => "No",
+        };
+        let mut col5 = format!("**{verdict}.** {}", row.strength_note);
+        if !row.deferred.is_empty() {
+            col5.push_str(&format!("<br>Why it is out of scope: {}", row.deferred));
+        }
         if row_changed {
             col5 = format!("**NOT CURRENT: a cited statement changed; the judgment below was made of the earlier text.**<br>{col5}");
         }

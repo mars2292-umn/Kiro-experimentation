@@ -493,8 +493,8 @@ package = "rsk-protocol"
 id = "kernel-recv-delivered-zero"
 kills = "endpoint_recv_core (the word delivered first must be the channel's oldest stored label; with a constant reported instead the receive core's label postcondition fails)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "            (ENDPOINT_OK, Ghost(first as int))\n"
-replace = "            (ENDPOINT_OK, Ghost(0))\n"
+find = "            (ENDPOINT_OK, ghost_int(first))\n"
+replace = "            (ENDPOINT_OK, ghost_int(0))\n"
 expect = ["entry.rs"]
 package = "rsk-kernel"
 
@@ -709,8 +709,8 @@ expect = ["entry.rs", "postcondition not satisfied"]
 id = "fault-in-kernel-not-kernel"
 kills = "fault_core's `in_kernel ==> r.0 == 0`: a fault taken from Handler mode or under PRIMASK is the Kernel's and plans no unwind (the stub would unwind over the processor's exception frame)"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    let kernel = in_kernel || kind == EV_HARDFAULT || k.depth() == 0;"
-replace = "    let kernel = kind == EV_HARDFAULT || k.depth() == 0;"
+find = "    let kernel = in_kernel || kind == EV_HARDFAULT || no_job_in_progress(k);"
+replace = "    let kernel = kind == EV_HARDFAULT || no_job_in_progress(k);"
 expect = ["entry.rs", "postcondition not satisfied"]
 
 [[mutation]]
@@ -1517,8 +1517,8 @@ prover = "lean"
 id = "lean-kernel-hand-entry-changes-scheduler"
 kills = "ksim (a transition modelled by hand leaves the scheduler state as the run states)"
 file = "proofs/aeneas/lean/Sched/KRun.lean"
-find = "      (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)\n      (hs : k'.sched = x.k.sched) :\n"
-replace = "      (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)\n      (hs : True) :\n"
+find = "      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')\n      (hs : k'.sched = x.k.sched) :\n"
+replace = "      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')\n      (hs : True) :\n"
 expect = ["Sched/KRun.lean"]
 prover = "lean"
 
@@ -1627,8 +1627,8 @@ prover = "lean"
 id = "lean-kernel-budget-entry-of-an-unarmed-slot"
 kills = "ksim (the timer entry that ends an overrunning Job is of the armed Budget slot of the Job on top: with it armed after Kernel::settle, no dispatch is pending)"
 file = "proofs/aeneas/lean/Sched/KRun.lean"
-find = "      (harmed : topBudgetArmed x.k cfg)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n"
-replace = "      (harmed : True)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n"
+find = "      (harmed : topBudgetArmed x.k cfg)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n      (c : Nat) (r : Usize) (k' : logic.kernel.Kernel NT NR NP NL NS NE)\n"
+replace = "      (harmed : True)\n      (hk : x.ks = 0) (hj : JitterOk P x.st)\n      (c : Nat) (r : Usize) (k' : logic.kernel.Kernel NT NR NP NL NS NE)\n"
 expect = ["Sched/KRun.lean"]
 prover = "lean"
 
@@ -2004,3 +2004,47 @@ find = "    while size < bytes\n"
 replace = "    while size + 1 < bytes\n"
 expect = ["derive_v.rs"]
 package = "rsk-gen"
+
+[[mutation]]
+id = "dispatch-grants-fpu-to-every-job"
+kills = "dispatch_job_core: FPU access is the dispatched Task's declaration (R11.1, R11.7: a Task not declared FPU-using cannot execute floating-point instructions, so cannot change another Job's registers)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    hw.apply(Action::FpuAccess(info.fpu));\n"
+replace = "    hw.apply(Action::FpuAccess(true));\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "lean-code-deferral-without-the-mit"
+kills = "defer_elem, intake_release_sprel (Timing::defer as extracted defers a held event to the last due instant plus the Task's MIT: the spacing of a deferred Sporadic_Task's arrivals in the run with sporadic arrivals)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  let «at» ← i1 + tc.period\n  let i3 ← lift (UScalar.cast .Usize t)\n  let a ← Array.update self.deferred_until i3 «at»\n"
+replace = "  let «at» ← i1 + 0#u64\n  let i3 ← lift (UScalar.cast .Usize t)\n  let a ← Array.update self.deferred_until i3 «at»\n"
+expect = ["Sched/SpIntake.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-sporadic-hand-step-moves-a-due-instant"
+kills = "kstep_sprel, sreach_kreach (a hand-modelled transition leaves the sporadic timing fields: without the condition the invariant of the sporadic arrivals is not preserved)"
+file = "proofs/aeneas/lean/Sched/Sporadic.lean"
+find = "      (hhs : HandShape cfg x y → SpRel cfg x.k y.k) : SStep cfg P B x y\n"
+replace = "      (hhs : HandShape cfg x y → True) : SStep cfg P B x y\n"
+expect = ["Sched/Sporadic.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-budget-entry-state-not-the-codes"
+kills = "KStep.served_bevent, kstep_nomrel, kstep_sprel (the Kernel state after a Budget event's own entry is what Kernel::budget_event returns: without it the timing fields after the entry are free)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')\n      (hs : k'.sched = x.k.sched) :\n"
+replace = "      (hcode : True)\n      (hs : k'.sched = x.k.sched) :\n"
+expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-endpoint-entry-state-not-the-codes"
+kills = "ksim, kstep_nomrel, kstep_sprel (the Kernel state after an Endpoint operation's section is the one before or what Kernel::record_event returns: without it the scheduler state and the timing fields after the section are free)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hcode : k' = x.k ∨\n        ∃ kind t, logic.kernel.Kernel.record_event x.k cfg kind t = ok k') :\n"
+replace = "      (hcode : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"

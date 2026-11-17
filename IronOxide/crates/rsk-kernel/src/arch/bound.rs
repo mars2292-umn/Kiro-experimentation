@@ -288,6 +288,8 @@ pub trait KernelOps: Sized {
     /// The Partition of each Task index 0..=255 (0 beyond the configuration's
     /// Tasks), fixed like the Priorities (the Partition of a level record).
     spec fn spec_part(&self) -> Seq<int>;
+    /// Whether Task `t` is declared FPU-using (R11), by Task index.
+    spec fn spec_fpu(&self) -> Seq<bool>;
     /// The preemption stack holds Tasks of the configuration in strictly
     /// rising Priority (`Sched::inv`): a dispatched Job's level is above the
     /// level of every Job in progress.
@@ -350,6 +352,7 @@ pub trait KernelOps: Sized {
         ensures info.task == t, info.priority <= MAX_PRIORITY,
             info.priority as int == self.spec_prio()[t as int],
             info.partition as int == self.spec_part()[t as int],
+            info.fpu == self.spec_fpu()[t as int],
             (t as int) < self.task_count_spec() ==> info.priority >= 1;
     fn depth(&self) -> (d: usize)
         ensures d as int == self.spec_depth();
@@ -590,6 +593,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn spec_part(&self) -> Seq<int> {
         Seq::new(256, |t: int| if t < NT { self.cfg.tasks[t].partition as int } else { 0 })
+    }
+
+    open spec fn spec_fpu(&self) -> Seq<bool> {
+        Seq::new(256, |t: int| t < NT && self.cfg.tasks[t].fpu)
     }
 
     proof fn lemma_stack_rising(&self) {

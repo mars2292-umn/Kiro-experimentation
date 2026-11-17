@@ -337,4 +337,42 @@ theorem budget_event_entry_leaves_no_budget_event
     (hadm : logic.sched.Sched.select k1.sched cfg = ok (some u)) : ¬ topBudgetArmed k2 cfg :=
   settle_admitted_quiet hs hadm
 
+/-! ## What an Endpoint operation and a fault do to the Kernel (2026-11-17)
+
+`Kernel::record_event` (a full Endpoint buffer) only writes the log;
+`Kernel::fault` and `Kernel::fault_of` write the log and apply a response
+(the Fault_Response of the Partition, or the safe state for a Kernel
+fault). -/
+
+theorem record_event_sched {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {kind t : U8}
+    (h : logic.kernel.Kernel.record_event k cfg kind t = ok k') : k'.sched = k.sched := by
+  unfold logic.kernel.Kernel.record_event at h
+  peel h
+  exact push_event_sched h
+
+set_option maxHeartbeats 2000000 in
+theorem fault_r {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {kind : U8} {kn : Bool}
+    (h : logic.kernel.Kernel.fault k cfg kind kn = ok k') : RSteps cfg k.sched k'.sched := by
+  unfold logic.kernel.Kernel.fault at h
+  peel h
+  all_goals first
+    | (have hr := enter_safe_state_r h
+       rw [push_event_sched (by assumption)] at hr
+       exact hr)
+    | (have hr := apply_response_r h
+       rw [push_event_sched (by assumption)] at hr
+       exact hr)
+
+set_option maxHeartbeats 2000000 in
+theorem fault_of_r {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {kind t : U8}
+    (h : logic.kernel.Kernel.fault_of k cfg kind t = ok k') : RSteps cfg k.sched k'.sched := by
+  unfold logic.kernel.Kernel.fault_of at h
+  peel h
+  have hr := apply_response_r h
+  rw [push_event_sched (by assumption)] at hr
+  exact hr
+
 end P18

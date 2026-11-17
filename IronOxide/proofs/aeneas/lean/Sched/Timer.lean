@@ -565,7 +565,8 @@ theorem KStep.served_bevent (x : KSt NT NR NP NL NS NE) (i : Usize)
     (hk : x.ks = 0) (hd : 0 < x.k.sched.depth.val)
     (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt) :
     ∃ y, KStep cfg P x y ∧ y.k = k' :=
-  ⟨_, KStep.bevent_h x k0 r0 hset harmed hk c k' hd hrun hrb hc
+  ⟨_, KStep.bevent_h x k0 r0 hset harmed hk c k' hd hrun hrb hc _ _
+      (serve_slot_budget hs hkind ht)
       (budget_event_no_overrun (serve_slot_budget hs hkind ht) hn), rfl⟩
 
 /-- A Budget slot served as an entry of its own, the Partition's
@@ -591,7 +592,8 @@ theorem KStep.served_bevent_recorded (x : KSt NT NR NP NL NS NE) (i : Usize)
     rcases budget_event_cases (serve_slot_budget hs hkind ht) with h | ⟨k1, tc, pc, _, htc, hpc, h1, ha⟩
     · exact h
     · rw [apply_response_record ha (hrec tc pc htc hpc), h1]
-  exact ⟨_, KStep.bevent_h x k0 r0 hset harmed hk c k' hd hrun hrb hc hkept, rfl⟩
+  exact ⟨_, KStep.bevent_h x k0 r0 hset harmed hk c k' hd hrun hrb hc _ _
+    (serve_slot_budget hs hkind ht) hkept, rfl⟩
 
 /-! ### The Overrun that ends the Job -/
 
@@ -745,6 +747,149 @@ theorem KStep.served_overrun (x : KSt NT NR NP NL NS NE) (i : Usize)
     (by rw [h1]; exact hd) (by rw [h1]; exact htop)
     (by rw [top_holds_nothing_congr h1]; exact hh)
   rw [h1] at hf
-  exact ⟨_, KStep.overrun_h x k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal hf, rfl⟩
+  exact ⟨_, KStep.overrun_h x k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal _ _
+    (serve_slot_budget hs hkind ht) hf, rfl⟩
+
+/-! ### The Overrun answered by stopping or restarting the Partition
+
+`Kernel::end_partition_jobs`, which both responses call, ends the Job on
+top first when it is a Job of the Partition, and then kills and drops:
+the scheduler state after it is `Sched::finish_top`'s followed by a
+response. This is the fact the run's `overrun_p` transition states. -/
+
+theorem end_partition_jobs_top {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {partition : U8}
+    (h : logic.kernel.Kernel.end_partition_jobs k cfg partition = ok k')
+    (hd : 0 < k.sched.depth.val)
+    (hp : ∀ (i : Usize) (top : U8) (tc : logic.TaskCfg),
+      k.sched.depth - 1#usize = ok i → k.sched.stack.index_usize i = ok top →
+      cfg.tasks.index_usize (UScalar.cast .Usize top) = ok tc → tc.partition = partition) :
+    ∃ r s1, logic.sched.Sched.finish_top k.sched cfg = ok (r, s1) ∧ RSteps cfg s1 k'.sched := by
+  unfold logic.kernel.Kernel.end_partition_jobs at h
+  peel h
+  all_goals
+    have hc := clear_partition_releases_r h
+    have hk := kill_partition_jobs_r (by assumption)
+  · obtain ⟨r, hf⟩ := end_top_finish (by assumption)
+    exact ⟨r, _, hf, hk.trans hc⟩
+  · exact absurd (hp _ _ _ (by assumption) (by assumption) (by assumption)) (by assumption)
+  · exfalso
+    have hn : ¬ k.sched.depth > 0#usize := by assumption
+    scalar_tac
+
+theorem stop_partition_top {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {partition cause : U8}
+    (h : logic.kernel.Kernel.stop_partition k cfg partition cause = ok k')
+    (hd : 0 < k.sched.depth.val)
+    (hp : ∀ (i : Usize) (top : U8) (tc : logic.TaskCfg),
+      k.sched.depth - 1#usize = ok i → k.sched.stack.index_usize i = ok top →
+      cfg.tasks.index_usize (UScalar.cast .Usize top) = ok tc → tc.partition = partition) :
+    ∃ r s1, logic.sched.Sched.finish_top k.sched cfg = ok (r, s1) ∧ RSteps cfg s1 k'.sched := by
+  unfold logic.kernel.Kernel.stop_partition at h
+  peel h
+  rename_i k1 hp1 k2 he a ha
+  dsimp only
+  have := end_partition_jobs_top he (by rw [push_event_sched hp1]; exact hd)
+    (by rw [push_event_sched hp1]; exact hp)
+  rw [push_event_sched hp1] at this
+  exact this
+
+theorem restart_partition_top {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {partition cause : U8}
+    (h : logic.kernel.Kernel.restart_partition k cfg partition cause = ok k')
+    (hd : 0 < k.sched.depth.val)
+    (hp : ∀ (i : Usize) (top : U8) (tc : logic.TaskCfg),
+      k.sched.depth - 1#usize = ok i → k.sched.stack.index_usize i = ok top →
+      cfg.tasks.index_usize (UScalar.cast .Usize top) = ok tc → tc.partition = partition) :
+    ∃ r s1, logic.sched.Sched.finish_top k.sched cfg = ok (r, s1) ∧ RSteps cfg s1 k'.sched := by
+  unfold logic.kernel.Kernel.restart_partition at h
+  peel h
+  rename_i k1 hp1 k2 he a ha a1 ha1
+  dsimp only
+  have := end_partition_jobs_top he (by rw [push_event_sched hp1]; exact hd)
+    (by rw [push_event_sched hp1]; exact hp)
+  rw [push_event_sched hp1] at this
+  exact this
+
+/-- The response that stops or restarts the Partition of the Job on top
+ends that Job through `Sched::finish_top` and goes on by a response. -/
+theorem apply_response_partition {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {partition response cause t : U8}
+    (h : logic.kernel.Kernel.apply_response k cfg partition response cause t = ok k')
+    (hr : response = logic.RESP_RESTART_PARTITION ∨ response = logic.RESP_STOP_PARTITION)
+    (hd : 0 < k.sched.depth.val)
+    (hp : ∀ (i : Usize) (top : U8) (tc : logic.TaskCfg),
+      k.sched.depth - 1#usize = ok i → k.sched.stack.index_usize i = ok top →
+      cfg.tasks.index_usize (UScalar.cast .Usize top) = ok tc → tc.partition = partition) :
+    ∃ r s1, logic.sched.Sched.finish_top k.sched cfg = ok (r, s1) ∧ RSteps cfg s1 k'.sched := by
+  unfold logic.kernel.Kernel.apply_response at h
+  rcases hr with hr | hr
+  · have e1 : response ≠ logic.RESP_RECORD_ONLY := by
+      rw [hr]; simp [logic.RESP_RESTART_PARTITION, logic.RESP_RECORD_ONLY]
+    have e2 : response ≠ logic.RESP_RECORD_AND_CONTINUE := by
+      rw [hr]; simp [logic.RESP_RESTART_PARTITION, logic.RESP_RECORD_AND_CONTINUE]
+    have e3 : response ≠ logic.RESP_END_JOB := by
+      rw [hr]; simp [logic.RESP_RESTART_PARTITION, logic.RESP_END_JOB]
+    rw [if_neg e1, if_neg e2, if_neg e3, if_pos hr] at h
+    exact restart_partition_top h hd hp
+  · have e1 : response ≠ logic.RESP_RECORD_ONLY := by
+      rw [hr]; simp [logic.RESP_STOP_PARTITION, logic.RESP_RECORD_ONLY]
+    have e2 : response ≠ logic.RESP_RECORD_AND_CONTINUE := by
+      rw [hr]; simp [logic.RESP_STOP_PARTITION, logic.RESP_RECORD_AND_CONTINUE]
+    have e3 : response ≠ logic.RESP_END_JOB := by
+      rw [hr]; simp [logic.RESP_STOP_PARTITION, logic.RESP_END_JOB]
+    have e4 : response ≠ logic.RESP_RESTART_PARTITION := by
+      rw [hr]; simp [logic.RESP_STOP_PARTITION, logic.RESP_RESTART_PARTITION]
+    rw [if_neg e1, if_neg e2, if_neg e3, if_neg e4, if_pos hr] at h
+    exact stop_partition_top h hd hp
+
+/-- A Budget slot served as an entry of its own, the account showing an
+Overrun of the Job on top and the Partition's Overrun_Response one that
+stops or restarts the Partition, is the run's `overrun_p` transition:
+that the Job on top is ended through `Sched::finish_top` and the rest is
+a response on the scheduler state is read from the code. -/
+theorem KStep.served_overrun_partition (x : KSt NT NR NP NL NS NE) (i : Usize)
+    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
+    (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
+    (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
+    (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
+    (ht : (slotOf x.k i).task.val < NT.val)
+    (htop : x.k.sched.stack.val[x.k.sched.depth.val - 1]! = (slotOf x.k i).task)
+    (hrep : x.k.budget.reported.val[(slotOf x.k i).task.val]! = false)
+    (hov : logic.budget.Budget.overrun x.k.budget cfg (slotOf x.k i).task = ok true)
+    (hpart : ∀ (tc : logic.TaskCfg) (pc : logic.PartitionCfg),
+      cfg.tasks.index_usize (UScalar.cast .Usize (slotOf x.k i).task) = ok tc →
+      cfg.partitions.index_usize (UScalar.cast .Usize tc.partition) = ok pc →
+      pc.overrun_response = logic.RESP_RESTART_PARTITION ∨
+        pc.overrun_response = logic.RESP_STOP_PARTITION)
+    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (harmed : topBudgetArmed x.k cfg)
+    (hk : x.ks = 0) (hj : JitterOk P x.st)
+    (hd : 0 < x.k.sched.depth.val)
+    (hr0 : 0 < x.run x.top) (hr : x.run x.top ≤ 1)
+    (hstop : P.stop x.top = true) (hrb : 0 < x.rb x.top)
+    (hc : c ≤ P.Kov)
+    (hal : ∀ p, topEntry x.k.sched p → c + 1 ≤ x.allow p) :
+    ∃ y, KStep cfg P x y ∧ y.k = k' := by
+  obtain ⟨k1, tc, pc, htc, hpc, h1, ha⟩ :=
+    budget_event_overrun (serve_slot_budget hs hkind ht) hd htop hrep hov
+  obtain ⟨r, s1, hf, hrs⟩ := apply_response_partition ha (hpart tc pc htc hpc)
+    (by rw [h1]; exact hd)
+    (by
+      intro j top tc' hj' hst htc'
+      rw [h1] at hj' hst
+      obtain ⟨_, hiv⟩ := usize_sub_ok hj'
+      obtain ⟨_, hte⟩ := index_ok hst
+      have h1' : (1#usize).val = 1 := rfl
+      rw [hiv, h1', htop] at hte
+      subst hte
+      rw [htc] at htc'
+      have e := ok_inj htc'
+      subst e
+      rfl)
+  rw [h1] at hf
+  exact ⟨_, KStep.overrun_p x k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal _ _
+    (serve_slot_budget hs hkind ht) hf hrs, rfl⟩
+
 
 end P18

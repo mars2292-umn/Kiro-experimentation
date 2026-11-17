@@ -60,6 +60,7 @@
 #![deny(unsafe_code)]
 
 pub mod entry;
+pub mod ghostv;
 pub mod plan;
 #[cfg(verus_keep_ghost)]
 pub mod stub_model;

@@ -179,11 +179,16 @@ fn check_command(args: &[String]) -> ExitCode {
             other => return usage_error(&format!("unknown option `{other}`")),
         }
     }
-    let report = if workspace_only {
+    let mut report = if workspace_only {
         xtask::check_workspace(&root)
     } else {
         xtask::check_repository(&root)
     };
+    // The Profile_Lint, on this repository only (a fixture root has no
+    // rsk-lint and no Profile).
+    if !workspace_only && root == xtask::repository_root() {
+        xtask::verify::lint_check(&root, &mut report);
+    }
     print_report(&report, "static checks passed")
 }
 

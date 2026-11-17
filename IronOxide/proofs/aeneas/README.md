@@ -105,8 +105,20 @@ The handwritten files:
   the Task's nominal instant in the Kernel's state, once per instant, with no
   spacing condition; `treach_kreach` derives the spacing `KRun.lean` asks,
   and `property18_timed` is Property 18 over it. The hand-modelled
-  transitions keep the nominal instants by condition; sporadic arrivals keep
-  their spacing condition.
+  transitions keep the nominal instants by condition.
+- `lean/Sched/SpFrame.lean`, `lean/Sched/SpIntake.lean`,
+  `lean/Sched/Sporadic.lean`: the run with sporadic arrivals. `SpFrame`
+  shows that every Kernel function of the run but `intake_release` and
+  `deferred_release` leaves `Timing`'s `has_last`, `last_due` and
+  `deferred_until` (generated from the `TimeKept` proofs of `Time.lean`
+  with the fields exchanged); `SpIntake` says what those two do to them
+  together with the scheduler state; `Sporadic` defines the run in which a
+  Sporadic_Task's Job arrives with the transition that accepts its event, at
+  the instant the Kernel records, or at the instant a deferred event was
+  deferred to, with no spacing condition, proves that each such run is a
+  run of `KRun.lean` (`sreach_kreach`), and states `property18_sporadic`.
+  The hand-modelled transitions leave the sporadic timing fields by
+  condition.
 - `lean/Sched/Time.lean`: the time base on the code. The Kernel's reading
   `now` is written by `observe` alone and never goes back; the responses and
   slot handlers leave it and the nominal instants (`TimeKept`); a timer entry
@@ -123,7 +135,10 @@ The handwritten files:
   a Budget event as an entry of its own is read from `budget_event`: kept
   scheduler state without an Overrun or under a recording response
   (`served_bevent`, `served_bevent_recorded`), `Sched::finish_top` under the
-  response that ends the Job (`served_overrun`). The time base is not
+  response that ends the Job (`served_overrun`), and `finish_top` followed
+  by a response under one that stops or restarts the Partition
+  (`served_overrun_partition`). Since 2026-11-17 the run's three Budget
+  transitions carry `budget_event`'s own Kernel state. The time base is not
   covered.
 
 The plan lists the transitions that are still modelled by hand and every
@@ -134,17 +149,38 @@ Regenerating the translation:
 ```sh
 cd crates/rsk-kernel
 I='{impl crate::arch::bound::KernelOps for _}'
+E='crate::arch::cm4::entry'
+G='crate::arch::cm4::ghostv'
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event" \
+    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core" \
     --include 'rsk_logic::logic::kernel' --include 'rsk_logic::logic::sched' \
     --include 'rsk_logic::logic::time' --include 'rsk_logic::logic::budget' \
     --include 'rsk_logic::logic::log' --include 'rsk_logic::logic::mpu' \
-    --include 'rsk_logic::logic::_' \
+    --include 'rsk_logic::logic::_' --include 'rsk_logic::hw_model::MIN_COMPARE_DISTANCE' \
     --opaque 'rsk_logic::logic::kernel::_::no_history' \
+    --opaque "$G::ghost_snap" --opaque "$G::ghost_int" --opaque "$G::ghost_partition" \
+    --opaque "$G::ghost_seq_empty" --opaque "$G::ghost_seq_push_u8" --opaque "$G::ghost_seq_push_usize" \
+    --opaque "$G::ghost_seq_drop_last" \
     --include 'vstd::seq::Seq' --include 'verus_builtin::Ghost' --include 'verus_builtin::Tracked' \
     --dest-file /tmp/kernel.llbc -- --lib
 ../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Sched /tmp/kernel.llbc
 ```
+
+Since 2026-11-17 the start set also names the entry cores of
+`arch/cm4/entry.rs` (the Endpoint operations, the SVC, timer, interrupt,
+unwind, fault, start and boot cores, and through them the dispatch,
+intake, EasyDMA and channel functions) and the rest of `KernelOps` they
+call: 315 functions, none without a body. The cores are generic over
+`KernelOps`, `KernelArch` and `Tables`, which Aeneas translates as
+structures of functions. A `Ghost(..)` value built in executable code is
+a closure in the build without Verus, which Aeneas rejects in the function
+that holds it; the cores build every ghost value through a function of
+`arch/cm4/ghostv.rs`, and those seven are kept opaque (declared `axiom` in
+the output, like `no_history`). `lean/Sched/Endpoint.lean` is the first
+proof over the entry cores: what `endpoint_send_core` and
+`endpoint_recv_core` do to the Kernel (at most one interface call:
+`fault`, `record_event` or `intake`), and that an Endpoint operation is
+the run's `svc_h` transition, followed by `faulted` for an API misuse.
 
 The name of the `.llbc` file gives the Lean file's name (`Kernel.lean`).
 The `--include` options make Charon translate the bodies of the

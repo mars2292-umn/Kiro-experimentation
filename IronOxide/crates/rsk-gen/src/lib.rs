@@ -67,6 +67,11 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
     if let Err(difference) = readback::check(&system_source, &generated) {
         return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted configuration does not match the derived values: {difference}"))]);
     }
+    // The same for the memory layout (2026-11-17): the build-time
+    // validation accepts any well-formed layout, this the derived one only.
+    if let Err(difference) = readback::check_layout(&system_source, &generated) {
+        return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted layout does not match the derived memory plan: {difference}"))]);
+    }
     Ok(Outputs {
         system_source,
         partition_sources,

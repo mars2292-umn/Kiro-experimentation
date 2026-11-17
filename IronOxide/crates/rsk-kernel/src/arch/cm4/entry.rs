@@ -51,6 +51,7 @@ use crate::logic::kernel::HOUSEKEEPING_PERIOD;
 use vstd::prelude::*;
 
 use super::plan::{compare_target, top_active, frame_in_stack, plan_frame, ArchState, LevelRecord, MAX_INSTANT, BootExpect, DmaCfg, SignalCfg, EndpointCfg, MAX_ENDPOINTS, MAX_CHANNELS, MAX_ROLES, MAX_ROLE_SLOTS};
+use super::ghostv::{no_job_in_progress, ghost_snap, ghost_int, ghost_partition, ghost_seq_empty, ghost_seq_push_u8, ghost_seq_push_usize, ghost_seq_drop_last};
 use crate::arch::bound::{encode_level, KernelOps};
 use crate::hw_model;
 use crate::logic::log::{EV_HARDFAULT, EV_PANIC, EV_UNBOUND_IRQ, EV_DMA_REJECTED, EV_API_MISUSE, EV_ENDPOINT_FULL, EV_PROTOCOL_VIOLATION, EV_MESSAGE_REJECTED, EV_STACK_VIOLATION};
@@ -1117,8 +1118,8 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
     }
     state.pending_unwind = 0;
     state.current_partition = 0xFF;
-    state.chain = Ghost(Seq::empty());
-    state.chain_levels = Ghost(Seq::empty());
+    state.chain = ghost_seq_empty();
+    state.chain_levels = ghost_seq_empty();
     let ghost sb = *state;
     k.init();
     // The debug state and the reset reason go to the log first (ORQ-30,
@@ -2284,7 +2285,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(dst) => {
-            let first = copy_in_checked(k, hw, tables, Ghost(cfg.partitions[role as int] as int), dst, ptr, len);
+            let first = copy_in_checked(k, hw, tables, ghost_partition(&cfg, role), dst, ptr, len);
             proof {
                 let base = spec_storage_base_of(tables);
                 let cap = cfg.capacity as int;
@@ -2342,19 +2343,19 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         Some(a) => a,
         None => {
             k.fault(EV_API_MISUSE, false);
-            return (ENDPOINT_REFUSED, Ghost(0));
+            return (ENDPOINT_REFUSED, ghost_int(0));
         }
     };
     let rs = role_slot(e, role);
     if state.peer_changed[rs] {
         state.peer_changed[rs] = false;
-        return (ENDPOINT_PEER, Ghost(0));
+        return (ENDPOINT_PEER, ghost_int(0));
     }
     // The channel from `from` to `role` (task 21.7).
     let ch = channel_index(e, from, role);
     let slot = match channel_pop(state, ch, cfg.capacity) {
         Some(s) => s,
-        None => return (ENDPOINT_EMPTY, Ghost(0)),
+        None => return (ENDPOINT_EMPTY, ghost_int(0)),
     };
     assert(from * (cfg.roles as usize) <= (MAX_ROLES - 1) * MAX_ROLES) by (nonlinear_arith)
         requires from < MAX_ROLES, (cfg.roles as usize) <= MAX_ROLES;
@@ -2363,7 +2364,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     let ghost before = channel_before(old(state).fifos[ch as int], cfg.capacity as int);
     match endpoint_slot(tables, &cfg, d, slot) {
         Some(src) => {
-            let first = copy_out_checked(k, hw, tables, Ghost(cfg.partitions[role as int] as int), ptr, src, len);
+            let first = copy_out_checked(k, hw, tables, ghost_partition(&cfg, role), ptr, src, len);
             // R42.4 (audit finding 2): a delivery over a validated upward
             // edge permits one rejection report of this role against `from`.
             if cfg.validates[role][from] {
@@ -2375,11 +2376,11 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
                 assert(spec_channel_index(e as int, from as int, role as int) == ch as int);
                 assert(recv_labels_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg, first as int));
             }
-            (ENDPOINT_OK, Ghost(first as int))
+            (ENDPOINT_OK, ghost_int(first))
         }
         None => {
             k.fault(EV_API_MISUSE, false);
-            (ENDPOINT_REFUSED, Ghost(0))
+            (ENDPOINT_REFUSED, ghost_int(0))
         }
     }
 }
@@ -2531,11 +2532,13 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
+    let gk0 = ghost_snap(k);
+    let gs0 = ghost_snap(state);
     hw.apply(Action::Trace(TR_INVALID, 2));
     let depth_before = k.depth();
     k.fault(EV_STACK_VIOLATION, false);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
@@ -3054,6 +3057,11 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
             && view_matches(*final(state), final(hw))
             && arch_inv(final(k), *final(state), 0)
             && dispatched(*old(state), *final(state), exc_return as int),
+        // R11.7, R11.1 (2026-11-17): the dispatched Job can execute
+        // floating-point instructions exactly when its Task is declared
+        // FPU-using, so a Task that is not cannot change the registers of
+        // one that is.
+        r.0.psp != 0 ==> final(hw).hw().fpu_access == old(k).spec_fpu()[t as int],
         r.1 ==> final(hw).hw().basepri == 0,
         r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
             && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
@@ -3152,8 +3160,8 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
     hw.apply(Action::LoadView(info.partition, view));
     state.current_partition = info.partition;
     // The ghost chain gains the dispatched Job's entry.
-    state.chain = Ghost(state.chain@.push(t as int));
-    state.chain_levels = Ghost(state.chain_levels@.push(level as int));
+    state.chain = ghost_seq_push_u8(&state.chain, t);
+    state.chain_levels = ghost_seq_push_usize(&state.chain_levels, level);
     proof {
         // Reached with no unwind owed (an owed one was consumed or
         // the vector deferred above), so the chain was the stack.
@@ -3343,6 +3351,8 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
+    let gk0 = ghost_snap(k);
+    let gs0 = ghost_snap(state);
     let now = hw.now();
     hw.apply(Action::Disable(n));
     let depth_before = k.depth();
@@ -3356,7 +3366,7 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
     }
     k.intake(task, partition, now, task);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
@@ -3382,11 +3392,13 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
+    let gk0 = ghost_snap(k);
+    let gs0 = ghost_snap(state);
     hw.apply(Action::Disable(n));
     let depth_before = k.depth();
     k.fault(EV_UNBOUND_IRQ, true);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
@@ -3556,6 +3568,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
+    let gk0 = ghost_snap(k);
+    let gs0 = ghost_snap(state);
     hw.apply(Action::TimebaseAck);
     let now = hw.now();
     hw.apply(Action::Trace(TR_TICK, now as u32));
@@ -3563,7 +3577,7 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let depth_before = k.depth();
     k.timer_event(now, running);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
@@ -3596,6 +3610,8 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
+    let gk0 = ghost_snap(k);
+    let gs0 = ghost_snap(state);
     if number == SVC_DMA {
         // The executing Job is read before the request, as for the panic
         // SVC below: a refusal applies the Partition's fault response
@@ -3618,7 +3634,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
             (0, false)
         } else {
             let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+            let hop = end_plan_core(k, state, depth_before, gk0, gs0);
             (hop, safe)
         }
     } else if number == SVC_RAISE {
@@ -3632,7 +3648,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         // The released Task is pended if eligible; a refusal applied the
         // Partition's fault response, which may have ended the Job.
         let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        let hop = end_plan_core(k, state, depth_before, gk0, gs0);
         (hop, safe)
     } else if number == SVC_VIOLATION {
         // Task 21.3 (R41.2): the Endpoint_Library's report of a Protocol
@@ -3646,7 +3662,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         violation_core(k, tables, state, frame[0]);
         frame[0] = 0;
         let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        let hop = end_plan_core(k, state, depth_before, gk0, gs0);
         (hop, safe)
     } else if number == SVC_SEND || number == SVC_RECV {
         // Task 21.2: as for the raise, the executing Job is read before the
@@ -3664,7 +3680,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
             (0, false)
         } else {
             let safe = apply_core(k, hw, tables, state);
-            let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+            let hop = end_plan_core(k, state, depth_before, gk0, gs0);
             (hop, safe)
         }
     } else if number == SVC_JOB_END {
@@ -3672,7 +3688,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         let depth_before = k.depth();
         k.job_return(elapsed);
         let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        let hop = end_plan_core(k, state, depth_before, gk0, gs0);
         (hop, safe)
     } else {
         // SVC_PANIC and anything else: a fault of the executing Job's
@@ -3684,7 +3700,7 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         let depth_before = k.depth();
         k.fault(EV_PANIC, false);
         let safe = apply_core(k, hw, tables, state);
-        let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+        let hop = end_plan_core(k, state, depth_before, gk0, gs0);
         (hop, safe)
     }
 }
@@ -3833,8 +3849,8 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     let mut ended = rec;
     ended.active = false;
     state.levels[level] = ended;
-    state.chain = Ghost(state.chain@.drop_last());
-    state.chain_levels = Ghost(state.chain_levels@.drop_last());
+    state.chain = ghost_seq_drop_last(&state.chain);
+    state.chain_levels = ghost_seq_drop_last(&state.chain_levels);
     state.pending_unwind = 0;
     if (rec.partition as usize) < MAX_FLOORS {
         state.floor[rec.partition as usize] = rec.floor_before;
@@ -3978,12 +3994,14 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
+    let gk0 = ghost_snap(k);
+    let gs0 = ghost_snap(state);
     hw.apply(Action::Trace(TR_FAULT, kind as u32));
-    let kernel = in_kernel || kind == EV_HARDFAULT || k.depth() == 0;
+    let kernel = in_kernel || kind == EV_HARDFAULT || no_job_in_progress(k);
     let depth_before = k.depth();
     k.fault(kind, kernel);
     let safe = apply_core(k, hw, tables, state);
-    let hop = end_plan_core(k, state, depth_before, Ghost(k0), Ghost(s0));
+    let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }

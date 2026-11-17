@@ -103,12 +103,31 @@ function returns):
   its response. It has an entry only when the Job is not complete at its
   deadline.
 
+**A Budget event's own timer entry** (since 2026-11-17 the Kernel state
+after it is what `Kernel::budget_event` returns; what that call did to the
+scheduler state is stated beside it, and is read from the code in
+`Sched/Timer.lean` for the first two): `bevent_h` (found without an
+overrun, or recorded only: the scheduler state kept), `overrun_h` (the
+overrunning Job on top ended, `finish_top`, as its last unit), `overrun_p`
+(the same followed by the rest of a Partition's response: the Job on top
+ended, then a response on the scheduler state; the accounts follow the
+scheduler state the Kernel left).
+
+**An Endpoint operation** (since 2026-11-17 on the code): `svc_h`, the
+SVC's Kernel section, after which the Kernel state is the one before or
+what `Kernel::record_event` returns (a full buffer recorded). This is all
+the send and receive cores do to the Kernel but for two calls that end
+them, each a transition of its own: `faulted` (`Kernel::fault`, an API
+misuse and its Fault_Response) and, for a send whose message releases
+the receiving Task, `intake` (`Sched/Endpoint.lean` reads this from
+`endpoint_send_core` and `endpoint_recv_core` as extracted).
+`faulted_of` is `Kernel::fault_of` (a rejected message's response).
+Like `resp`, `faulted` and `faulted_of` have no Kernel section of their
+own.
+
 **By hand** (the scheduler state as stated; the rest of the Kernel's state
 may change in any way): `plain_h` (an entry that leaves the scheduler
-state and is no deadline event: unmask, housekeeping), `svc_h` (an
-Endpoint operation), `bevent_h` (a Budget event found without an overrun,
-or recorded only), `overrun_h` (the Budget event that ends the overrunning
-Job on top, `finish_top`).
+state and is no deadline event: unmask, housekeeping).
 
 **Instants and time** as in `Step`: `jarrive`, `earrive`, `ktick`, `idle`,
 `exec`. A Job executes, locks, unlocks and calls an Endpoint operation only when
@@ -227,6 +246,16 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hs : logic.kernel.Kernel.apply_response x.k cfg partition response cause t = ok k') :
       KStep cfg P x { x with
         k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
+  | faulted (x : KSt NT NR NP NL NS NE) (kind : U8) (kn : Bool)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.fault x.k cfg kind kn = ok k') :
+      KStep cfg P x { x with
+        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
+  | faulted_of (x : KSt NT NR NP NL NS NE) (kind t : U8)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.fault_of x.k cfg kind t = ok k') :
+      KStep cfg P x { x with
+        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
   | bserved (x : KSt NT NR NP NL NS NE) (t : U8) (i : Usize)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hs : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :
@@ -284,7 +313,8 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hd : 0 < x.k.sched.depth.val)
       (hrun : 0 < x.run x.top) (hre : c ≤ x.re x.top)
       (hal : ∀ p, topEntry x.k.sched p → c ≤ x.allow p)
-      (hs : k'.sched = x.k.sched) :
+      (hcode : k' = x.k ∨
+        ∃ kind t, logic.kernel.Kernel.record_event x.k cfg kind t = ok k') :
       KStep cfg P x { x with
         k := k', allow := deduct x.k.sched x.allow c,
         ks := c, kp := x.top,
@@ -296,6 +326,8 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hk : x.ks = 0) (c : Nat) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hd : 0 < x.k.sched.depth.val)
       (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)
+      (t : U8) (i : Usize)
+      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')
       (hs : k'.sched = x.k.sched) :
       KStep cfg P x { x with
         k := k', ks := c, kp := x.top,
@@ -311,9 +343,32 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hstop : P.stop x.top = true) (hrb : 0 < x.rb x.top)
       (hc : c ≤ P.Kov)
       (hal : ∀ p, topEntry x.k.sched p → c + 1 ≤ x.allow p)
+      (t : U8) (i : Usize)
+      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')
       (hs : logic.sched.Sched.finish_top x.k.sched cfg = ok (r, k'.sched)) :
       KStep cfg P x { x with
         k := k', now := x.now + 1, run := Function.update x.run x.top 0,
+        ks := c, kp := x.top }
+  | overrun_p (x : KSt NT NR NP NL NS NE)
+      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
+      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (harmed : topBudgetArmed x.k cfg)
+      (hk : x.ks = 0) (hj : JitterOk P x.st)
+      (c : Nat) (r : Usize) (s1 : logic.sched.Sched NT NR NL)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hd : 0 < x.k.sched.depth.val)
+      (hr0 : 0 < x.run x.top) (hr : x.run x.top ≤ 1)
+      (hstop : P.stop x.top = true) (hrb : 0 < x.rb x.top)
+      (hc : c ≤ P.Kov)
+      (hal : ∀ p, topEntry x.k.sched p → c + 1 ≤ x.allow p)
+      (t : U8) (i : Usize)
+      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')
+      (hs : logic.sched.Sched.finish_top x.k.sched cfg = ok (r, s1))
+      (hrs : RSteps cfg s1 k'.sched) :
+      KStep cfg P x { x with
+        k := k', now := x.now + 1,
+        run := normRun k'.sched (Function.update x.run x.top 0),
+        pend := normPend k'.sched x.pend,
         ks := c, kp := x.top }
   | ktick (x : KSt NT NR NP NL NS NE) (hk : 0 < x.ks) (hj : JitterOk P x.st) :
       KStep cfg P x { x with now := x.now + 1, ks := x.ks - 1 }
@@ -547,6 +602,8 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       exact Reach.step _ _ ih (Step.kend x.st r k'.sched hf)
     | resp partition response cause t k' hs =>
       exact rsteps_norm ih (apply_response_r hs)
+    | faulted kind kn k' hs => exact rsteps_norm ih (fault_r hs)
+    | faulted_of kind t k' hs => exact rsteps_norm ih (fault_of_r hs)
     | bserved t i k' hs =>
       exact rsteps_norm ih (budget_event_eff hs)
     | opend k1 k' h1 hs =>
@@ -582,21 +639,30 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | svc_h hsel hk c k' hd hrun hre hal hs =>
+    | svc_h hsel hk c k' hd hrun hre hal hcode =>
+      have hs : k'.sched = x.k.sched := by
+        rcases hcode with e | ⟨kind, t, h⟩
+        · rw [e]
+        · exact record_event_sched h
       have := Reach.step _ _ ih (Step.svc x.st (none_elig hNT w hsel) hk c hd hrun hre hal)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc hs =>
+    | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
       have hsel := settled_armed_none hset harmed
       have := Reach.step _ _ ih (Step.bevent x.st (none_elig hNT w hsel) hk c hd hrun hrb hc)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal hs =>
+    | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
       have hsel := settled_armed_none hset harmed
       exact Reach.step _ _ ih (Step.finish x.st (none_elig hNT w hsel) hk hj true c r k'.sched
         hd hr0 hr (fun _ => ⟨hstop, hrb⟩) hc hal hs)
+    | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+      have hsel := settled_armed_none hset harmed
+      have h1 := Reach.step _ _ ih (Step.finish x.st (none_elig hNT w hsel) hk hj true c r s1
+        hd hr0 hr (fun _ => ⟨hstop, hrb⟩) hc hal hs)
+      exact rsteps_norm h1 hrs
     | ktick hk hj => exact Reach.step _ _ ih (Step.ktick x.st hk hj)
     | idle hsel hk hj hd =>
       exact Reach.step _ _ ih (Step.idle x.st (none_elig hNT w hsel) hk hj hd)

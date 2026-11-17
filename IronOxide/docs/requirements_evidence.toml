@@ -20,6 +20,9 @@
 #   Verification_Plan, the registers, the Profile or the design), note.
 #
 # strength: "yes" | "weaker" | "no".
+# deferred: on a "no" row only, why the requirement is not attempted (a
+#   decision, with its date and what it would take), as distinct from a gap
+#   found in something that was attempted.
 
 schema = 1
 
@@ -32,7 +35,7 @@ implemented = "The Kernel's intake function decides accept, defer or discard fro
 strength = "weaker"
 strength_note = "The statements cover R10.1 to R10.4 on the Kernel's state machine, with one difference in each direction. Weaker: time is the reading the Kernel takes when its handler runs, so a Release becomes due at that reading and not at 'the instant of the event' as R10.1 says; the two differ by the handler's latency, which is measured on the board and not proven. The Partition a violation is charged to is an argument of the function, so R10.7's choice of Partition is decided by the caller and the generated tables, not by these statements. Nothing cited here states R10.5 (Release_Signals), R10.6 (effective within J_rel) or R10.8 (messages kept in the Endpoint buffer). Narrower by decision: an event whose Job could not finish within the operating duration is not released; the requirement's note of 2026-11-13 says so."
 closed = "2026-11-05: a discarded event left its interrupt source unmasked, so a source could fire again inside the MIT; every outcome now masks the source, and the count of intakes in any window is proven (`lemma_intake_count_bound`)."
-gaps = "The handler's latency from the event to the reading (J_rel, Δ_stamp) is measured, not bounded statically. Attribution of a violation to the right Partition rests on the generated tables and inspection of the entry code. The hardware half of masking an interrupt source is by inspection (ASM-10). R10.5 and R10.8 have tests and no proof cited here. In the Lean run the MIT spacing is a condition of the run, not derived from the code, because the run's instants are not tied to the Kernel's readings."
+gaps = "The handler's latency from the event to the reading (J_rel, Δ_stamp) is measured, not bounded statically. Attribution of a violation to the right Partition rests on the generated tables and inspection of the entry code. The hardware half of masking an interrupt source is by inspection (ASM-10). R10.5 and R10.8 have tests and no proof cited here. Since 2026-11-17 the Lean run derives the MIT spacing from the extracted intake code (`property18_sporadic`): what stays a condition there is that the instant the Kernel records for an accepted event is the run's instant of the arrival, which is the Kernel's reading when its handler runs and not the instant of the event itself."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -109,6 +112,13 @@ note = "an hour-long interrupt storm: one intake per MIT window"
 kind = "inspected"
 ref = "ASM-10"
 note = "the interrupt source's mask in hardware"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Sporadic.lean"
+name = "sreach_kreach"
+tool = "lean"
+says = "Every state reached by the run with sporadic arrivals is a state of the run Property 18 is proven over, and two invariants hold in it. In that run a sporadic Task's Job arrives either with the transition that makes its Release pending from none held, at the instant the Kernel records as that Release's due instant, or, when the Kernel deferred the event, at the instant it deferred it to; no spacing between arrivals is assumed. So the spacing of one MIT that the other run takes as a condition is a consequence of the extracted intake and deferred-release code. A transition modelled by hand must leave the sporadic timing fields, as a condition."
+reviewed = "d5d734bea6be08e2"
 
 # ---------------------------------------------------------------- R14
 
@@ -353,7 +363,7 @@ implemented = "The Kernel charges the executing Job the processor cycles between
 strength = "weaker"
 strength_note = "R18.1: the statement is that a timer entry charges the executing Job exactly the cycles it is given and no other Task anything. The cycles it is given are wall-clock cycles since the last switch, so the Kernel's own work during an interrupting entry is charged to the interrupted Job; the requirement's note of 2026-11-13 accepts this within Δ_entry per entry, and it is why measured maxima move by a whole entry. R18.2 and R18.3: an Overrun that the Budget event finds is reported and answered, once; no statement bounds how soon (Δ_detect, Δ_enforce are measured). R18.7: the Lean theorem bounds the response of every Job of a Task the analysis calls schedulable, but in a run whose instants are its own and with four kinds of transition still written by hand; and it bounds response by the computed R, which is the requirement, only under the conditions the run lists."
 closed = "2026-11-02: timed events served for other Tasks were charged to the executing Job's account; found by measurement, closed by the contract of `timer_event`. 2026-11-05: an account that passed its Budget at a preemption was taken as already reported and the Job ran on; `Budget::reported` now records the report itself. 2026-11-15: a Budget event could be served ahead of a pending dispatch, a delay the blocking term did not cover; `settle` disarms the event when a dispatch is admitted."
-gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. Since 2026-11-16 the Lean run is joined to the Kernel's time base for periodic arrivals (Sched/Arrive.lean: an arrival is the Kernel's nominal instant and its spacing is derived); sporadic arrivals keep their spacing as a condition; four transitions are modelled by hand and must keep the nominal instants by condition; one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application."
+gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. Since 2026-11-16 the Lean run is joined to the Kernel's time base for periodic arrivals (Sched/Arrive.lean: an arrival is the Kernel's nominal instant and its spacing is derived); since 2026-11-17 for sporadic arrivals too (Sched/Sporadic.lean: an arrival is the instant the Kernel records for the accepted or deferred Release, its spacing derived from the extracted intake code); two transitions are modelled by hand (an unmask or housekeeping entry, the end of the operating duration) and must leave the nominal instants and the sporadic timing fields by condition; since 2026-11-17 a Budget event's own entry and an Endpoint operation are no longer among them, their Kernel states being the code's; one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -405,9 +415,9 @@ requirement = 29
 sentence = "The Analyzer computes for each Task a worst-case response time from Budgets, blocking, Kernel overheads and interference, as the least solution of the standard recurrence, and reports PASS only if every Task's bound is within its deadline. Property 18 says the bound is sound: no Job in an execution exceeds it."
 implemented = "The recurrence's terms are derived from the Task_Model and the measured Kernel timing parameters (crates/rsk-analyzer/src/terms.rs), and the least fixed point is found by iteration on unsigned integers (crates/rsk-analyzer/src/rta.rs). Soundness against execution is proven in Lean over the same functions as compiled and the Kernel's functions as extracted (proofs/aeneas/lean/Rta/ and Sched/)."
 strength = "weaker"
-strength_note = "The computation is proven to be what it claims: the iteration returns the least fixed point of the terms it is given, or says 'not schedulable' with a value no fixed point is below. The term list is proven equal to a specification of the list, and that specification is the project's own formalization of R29.1's formula, so their agreement is by reading, with one test per term. Soundness (Property 18) is proven for a run with its own notion of time and four hand-written transitions, under listed conditions, one of which (one Budget event per Job) is a condition and not a consequence of the code. And the inputs are measurements: R29.1 takes C_i as the Budget, which R28.4 keeps above a measured maximum with a margin, not above a static bound."
+strength_note = "The computation is proven to be what it claims: the iteration returns the least fixed point of the terms it is given, or says 'not schedulable' with a value no fixed point is below. The term list is proven equal to a specification of the list, and that specification is the project's own formalization of R29.1's formula, so their agreement is by reading, with one test per term. Soundness (Property 18) is proven for a run with its own notion of time and two hand-written transitions (a Budget event's own entry and an Endpoint operation, by hand until 2026-11-17, now take the code's Kernel state), under listed conditions, one of which (one Budget event per Job) is a condition and not a consequence of the code. And the inputs are measurements: R29.1 takes C_i as the Budget, which R28.4 keeps above a measured maximum with a margin, not above a static bound."
 closed = "2026-11-14 and 15: the Lean work found two terms the analysis lacked (timer entries of lower-Priority Tasks, and housekeeping) and one case the blocking term did not cover (a Budget event ahead of a pending dispatch); the terms were added and the Kernel changed. 2026-11-15: the utilization check of R29.9 was proven over the rationals."
-gaps = "Not cited in this row, though proven: the derivation of each term from the model (`derive_all`), the rounding of R29.8, the overflow report of R29.6 and the utilization check of R29.9. Open: sporadic arrivals' spacing and the reading's distance from real time in the run (periodic arrivals are joined to the Kernel's nominal instants since 2026-11-16, `property18_timed`), the four hand-written transitions, static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
+gaps = "Not cited in this row, though proven: the derivation of each term from the model (`derive_all`), the rounding of R29.8, the overflow report of R29.6 and the utilization check of R29.9. Open: the reading's distance from real time in the run (periodic arrivals are joined to the Kernel's nominal instants since 2026-11-16, `property18_timed`; sporadic arrivals to the instants the Kernel records for their Releases since 2026-11-17, `property18_sporadic`, with no spacing assumed for either), the two hand-written transitions (an unmask or housekeeping entry, the end of the operating duration; a Budget event's own entry and an Endpoint operation take the code's Kernel state since 2026-11-17), static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
 
 [[row.statement]]
 file = "crates/rsk-analyzer/src/rta.rs"
@@ -658,11 +668,46 @@ note = "the timer's near-counter compare rule, revised from the board's behaviou
 [[row]]
 requirement = 11
 sentence = "A Job that uses floating point finds its floating-point registers exactly as it left them after any preemption, starts each Job with the declared control settings, and the cost and stack space of saving that state are accounted for."
-implemented = "The processor stacks half of the floating-point registers itself on every exception entry (the Kernel sets eager stacking at boot) and the dispatch stubs push and pop the other half in assembly (crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs). The control settings of a new Job come from Generated_Config through the default status register."
-strength = "no"
-strength_note = "There is no formal statement of this requirement. Preservation is done by hardware stacking and assembly, which neither Verus nor Kani models; the evidence is tests: a floating-point Task whose state converges across preempted Jobs under QEMU and on the board, and the board's register-pattern probe across 141 preemptions. Since 2026-11-13 the stubs' instruction sequences are proven against a machine model, which covers the order of the pushes and pops but not the processor's own stacking."
-closed = "2026-11-16: the rig's check of the status register a new floating-point context starts with compared against a record that read zero whether or not the probe had run (a declared non-zero initial value that was never in memory); the record now carries a written flag."
-gaps = "No proof tool applies to the hardware's stacking (testing evidence only, by decision). Δ_fp_save and Δ_fp_restore are measured at the method's resolution. One erratum's workaround (flush-to-zero) is a declaration option."
+implemented = "The processor stacks half of the floating-point registers and the status register itself on every exception entry (the Kernel sets eager stacking at boot) and the dispatch stubs push and pop the other half in assembly (crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs). A Job may execute floating-point instructions only if its Task is declared FPU-using: the Kernel sets the coprocessor access at every dispatch and on every return to a preempted Job. The control settings of a new Job come from Generated_Config through the default status register."
+strength = "weaker"
+strength_note = "Three statements now bear on R11.1, R11.2 and R11.7, all on models. The stub theorem says a handler interrupted by a Kernel interrupt resumes with S16 to S31, every core register and its stack as it left them, on a model of the stub's instructions. Boot's contract includes the eager-stacking flag of the hardware model. The dispatch contract says the dispatched Job has floating-point access exactly when its Task is declared FPU-using, so a Task that is not cannot change another Job's registers. Weaker than the requirement because: S0 to S15 and the status register are saved by the processor, which the model assumes (HW-10) and does not prove; the stub model is of the instruction sequence, compared with the assembly line by line by a build check, while what each instruction does is the model's own definition; the access statement is proven for a dispatch but not for the return to a preempted Job, where the same table is read; R11.8's settings for a new Job, R11.3's costs and R11.4's stack space are tested, measured and computed, not stated formally; R11.7 as written says the FPU is enabled during Init, while the Kernel enables it per Job, which is stricter."
+closed = "2026-11-17: the dispatch contract states the floating-point access rule (before, no statement mentioned it). 2026-11-16: the rig's check of the status register a new floating-point context starts with compared against a record that read zero whether or not the probe had run; the record now carries a written flag."
+gaps = "The processor's own stacking is an assumption about hardware, supported by the board's register-pattern probe across preemptions. Floating-point access after a return to a preempted Job is by inspection and that probe. Δ_fp_save and Δ_fp_restore are measured at the method's resolution. One erratum's workaround (flush-to-zero) is a declaration option."
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+name = "theorem_nested_irq"
+tool = "verus"
+says = "For a handler with interrupts unmasked that is interrupted by an interrupt whose Kernel entry satisfies the entry relation with a handler-mode return: after the exception entry, the stub's call, restore and return, and the exception return, the plan dispatches nothing, the interrupted handler is 'resumed as left', the stack frames of the Jobs in progress are intact, and the entry invariant holds."
+reviewed = "bc35ecddcad173a9"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+name = "resumed_as_left"
+tool = "verus"
+body = true
+says = "Defines 'resumed as left': R0 to R12, the stack pointers, the link register, the control register, the sixteen modelled floating-point registers (S16 to S31) and the exception number are equal to before, both interrupt masks are clear, and memory at and above the stack pointer is unchanged."
+reviewed = "a130cfc84e56ee4e"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "dispatch_job_core"
+tool = "verus"
+says = "Among its guarantees when a Job is dispatched: the hardware model's floating-point access flag equals the declared FPU flag of the dispatched Task; the Partition's memory view is loaded; the priority mask matches the Kernel's state; the entry invariant holds."
+reviewed = "743ff1414b3b22af"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "booted"
+tool = "verus"
+body = true
+says = "The boot flags of the hardware model: all priority bits preempt, thread mode cannot be entered with exceptions active, write buffering is off, eager floating-point stacking is set, the Kernel's exceptions are at the highest level, the MPU is on, and the time base, cycle counter and watchdog are running."
+reviewed = "b12e8f38e5826ab6"
+
+[[row.other]]
+kind = "assumed"
+ref = "HW-10"
+note = "with eager stacking the processor pushes S0 to S15 and the status register on entry and restores them on return"
 
 [[row.other]]
 kind = "tested-qemu"
@@ -1046,9 +1091,10 @@ requirement = 5
 sentence = "An optional, more permissive variant (Jorvik) would allow several waiters on a signal, relative delays and richer release conditions."
 implemented = "Not implemented. The Generator and the Analyzer reject a model that asks for the variant."
 strength = "no"
-strength_note = "Phase P5 and optional; its task is open. What exists is the rejection: a Task_Model that uses a Jorvik relaxation is refused."
+strength_note = "Nothing of the variant exists to judge. What exists is the rejection (R5.6): a Task_Model that uses a Jorvik relaxation is refused."
+deferred = "The requirement is marked optional and Phase P5 in its own heading, and every criterion but R5.6 begins 'WHERE the Jorvik Profile_Variant is selected'. The product and the paper's claims are the Ravenscar profile; no other requirement depends on the variant. Attempting it means new Kernel behaviour (several waiters, relative delays), new Analyzer terms for them and their proofs: a new piece of work, not a missing proof of existing code. Left open as task 26.1."
 closed = ""
-gaps = "The whole variant."
+gaps = "The whole variant, by decision."
 
 [[row.other]]
 kind = "checked"
@@ -1208,8 +1254,8 @@ sentence = "The Kernel's configuration tables are generated from the declaration
 implemented = "crates/rsk-gen/src/emit.rs writes the tables. Since 2026-11-16 the emitted table is read back and compared with the derived values before it is handed out (crates/rsk-gen/src/readback.rs), and the generated code asserts, at compile time, that the tables pass the Kernel's own validation. A drift check compares the committed generated files with a fresh generation; the Kernel verifies the checksums at boot."
 strength = "weaker"
 strength_note = "Four mechanical checks now stand around the unproven printer. The printed table is read back by a separate reader and compared with the derivation. The generated crate will not compile unless `Config::validate` and `Layout::validate`, the Kernel's own validators, accept the tables: `Config::validate` is proven to be true exactly for a well-formed configuration, which is the premise of every Kernel proof, so a build that succeeds has tables the proofs apply to. The Config_Checker compares the tables in the linked binary with the model. And the Kernel repeats the validation and checks the checksums at boot. This is validation of each build's output, not a proof about the Generator for all declarations; for the property the requirement is after (what runs and what was analysed cannot differ) it is the stronger of the two kinds, because it checks the actual output."
-closed = "2026-11-16: well-formedness of the generated tables was established only at boot, on the board; it is now a condition of compiling. The read-back was added the same day."
-gaps = "The read-back covers the configuration table's numbers, not the layout table or the DMA and Endpoint tables (the Config_Checker covers those from the binary). The checksum is CRC-32."
+closed = "2026-11-16: well-formedness of the generated tables was established only at boot, on the board; it is now a condition of compiling. The read-back was added the same day. 2026-11-17: the read-back extended to the layout table, so a printed layout that is well-formed but not the derived one fails the generation."
+gaps = "The read-back covers the numbers of the configuration table and, since 2026-11-17, the layout table (every interval, subregion mask, stack size, window and read-only flag); it does not cover the DMA and Endpoint tables or the access matrix (the Config_Checker covers those from the binary). The checksum is CRC-32."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/mod.rs"
@@ -1344,16 +1390,22 @@ note = "each loop within its annotation"
 [[row]]
 requirement = 36
 sentence = "Static worst-case execution times computed from the binary, so that the highest assurance level does not rest on measurement."
-implemented = "Not implemented."
+implemented = "Not implemented. Every execution time and Kernel timing parameter is measured on the board with a 25 % margin."
 strength = "no"
-strength_note = "Phase P5; the task is open. All timing evidence is measured."
+strength_note = "No static analyser is selected or run, so there is no bound to judge. All timing evidence is measurement, which shows the largest value seen and not the largest possible (ASM-11)."
+deferred = "Phase P5 in the requirement's heading; the project owner decided on 2026-11-16 not to pursue it now. It needs a static WCET analyser with a timing model of the Cortex-M4 and the nRF52840's memory (ORQ-12 records the tool question), which the project does not have; the inputs such a tool would take are in place (loop bounds exported per loop, the call graph resolved by the Link_Checker). Until then the timing claims are stated as measured, never as bounds. Left open as task 24.1."
 closed = ""
-gaps = "The whole requirement. Its absence is why R13, R29 and R34 read 'weaker'."
+gaps = "The whole requirement, by decision. Its absence is why R13, R29 and R34 read 'weaker': their schedulability and budget arguments are sound only relative to measured execution times."
 
 [[row.other]]
 kind = "checked"
 ref = "task 24.1"
 note = "open"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-11"
+note = "measurement is not a bound"
 
 [[row]]
 requirement = 43
@@ -1556,16 +1608,22 @@ note = "open"
 [[row]]
 requirement = 56
 sentence = "Flight binaries built by a pinned release of the qualified compiler."
-implemented = "Not implemented."
+implemented = "Not implemented. Every build uses a pinned release of the upstream compiler (rustc 1.95.0, fixed in rust-toolchain.toml and recorded in each Build_Manifest)."
 strength = "no"
-strength_note = "Phase P5; the task is open."
+strength_note = "No build is made with the qualified compiler, so none of R56.1 to R56.5 is met. What exists is the pinning and recording discipline the requirement would apply to that compiler, exercised on the upstream one."
+deferred = "Phase P5 in the requirement's heading. The qualified compiler is a licensed product the project does not hold, so no criterion can be attempted or tested here. Its qualification reaches DAL C, short of the levels this Kernel aims at (ORQ-04, GAP-01), so the compiler argument would stay open even with it. Left open as task 23.1."
 closed = ""
-gaps = "The whole requirement."
+gaps = "The whole requirement, by decision. The binaries the evidence is about are the upstream compiler's; equality of the proven source and the compiled code rests on that compiler."
 
 [[row.other]]
 kind = "checked"
 ref = "task 23.1"
 note = "open"
+
+[[row.other]]
+kind = "inspected"
+ref = "GAP-01"
+note = "the compiler-qualification gap as registered"
 
 [[row]]
 requirement = 57
@@ -1622,16 +1680,36 @@ note = "the rebuild comparison"
 [[row]]
 requirement = 60
 sentence = "Architecture-specific code is isolated so that other processors can reuse the portable logic and its proofs."
-implemented = "The Kernel's logic (crates/rsk-logic) is separate from the Cortex-M4 code (crates/rsk-kernel/src/arch/cm4); a QEMU board and the nRF52840 share it."
-strength = "no"
-strength_note = "Phase P5; the ports are not done and the tasks are open. The separation exists and is exercised by two boards of one architecture, which is weaker than a second architecture."
+implemented = "The Kernel's logic (crates/rsk-logic: scheduling, time, budgets, the health monitor, the layout rules) touches no hardware and is proven on its own. Everything that touches the processor is under crates/rsk-kernel/src/arch/cm4: the decisions of each Kernel entry are written against a trait (`KernelArch`) whose one way to change hardware is to perform a named action, and the code that performs the actions on real registers is confined to that directory's unsafe module. A QEMU board and the nRF52840 share all of it."
+strength = "weaker"
+strength_note = "R60.1 and R60.2 hold for the one architecture there is. The interface's contract says a performed action changes a model of the hardware exactly as the model's step function says and changes nothing else, and every entry decision is proven for any implementor of that interface, so the proofs do not depend on the register-level code. Weaker in two ways. The interface's vocabulary is this processor's (a priority mask, MPU region registers, the floating-point stacking mode), and the entry decisions proven against it live in the architecture directory, so a different architecture would reuse rsk-logic and its proofs unchanged but would need its own actions, model and entry proofs; that is more than 'new proofs only for its Kernel_Arch implementation and its Hardware_Model' if Kernel_Arch is read narrowly. And R60.3 to R60.5 apply only when a target is added: none has been, so the claim that a port is cheap is untested."
 closed = ""
-gaps = "Any second architecture."
+gaps = "No second architecture exists, so reuse is argued from structure and not shown. Whether the register-level code does what the model's step says is tests on the board and inspection, not proof. The ports (Cortex-M33, RISC-V) are Phase P5 and open."
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "apply"
+after = "pub trait KernelArch"
+tool = "verus"
+says = "The interface's only general way to act on hardware. Its contract: after the call the hardware model equals the model's step function applied to the model before and the action given, and the two ghost flags about dropped requests are unchanged."
+reviewed = "35e65081982f82d7"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "boot_core"
+tool = "verus"
+says = "Stated for any Kernel binding, any implementor of the hardware interface and any tables: a successful boot leaves the Kernel's invariant, the boot flags of the model, the entry invariant, matching vector tables and every vector with its priority and enable; a failed boot has enabled or pended no interrupt, armed no compare and not started the time base."
+reviewed = "a495ca6d00050273"
+
+[[row.other]]
+kind = "checked"
+ref = "PR-20"
+note = "unsafe code, the only way to reach a register, is confined to the architecture directory's unsafe module; rsk-logic forbids it"
 
 [[row.other]]
 kind = "inspected"
 ref = "ASM-01"
-note = "one core revision is supported; the separation is by code structure"
+note = "one core revision is supported"
 
 [[row]]
 requirement = 61

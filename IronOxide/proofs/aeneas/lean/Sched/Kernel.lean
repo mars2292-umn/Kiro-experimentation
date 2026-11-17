@@ -30,6 +30,14 @@ namespace rsk_kernel
 @[reducible, rust_type "core::marker::PhantomData"]
 def core.marker.PhantomData (T : Type _) := Unit
 
+/-- [rsk_logic::hw_model::MIN_COMPARE_DISTANCE]
+    Source: 'crates/rsk-logic/src/hw_model.rs', lines 825:0-825:35
+    Name pattern: [rsk_logic::hw_model::MIN_COMPARE_DISTANCE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::hw_model::MIN_COMPARE_DISTANCE"]
+def rsk_logic.hw_model.MIN_COMPARE_DISTANCE : Std.U64 := 16#u64
+
 /-- [rsk_logic::logic::budget::Budget]
     Source: 'crates/rsk-logic/src/logic/budget.rs', lines 28:0-28:34
     Name pattern: [rsk_logic::logic::budget::Budget]
@@ -193,6 +201,84 @@ def rsk_logic.logic.budget.Budget.remaining
   then ok 0#u32
   else tc.budget - u
 
+/-- [rsk_logic::logic::endpoint::Fifo]
+    Source: 'crates/rsk-logic/src/logic/endpoint.rs', lines 26:0-26:15
+    Name pattern: [rsk_logic::logic::endpoint::Fifo]
+    Visibility: public -/
+@[rust_type "rsk_logic::logic::endpoint::Fifo"]
+structure rsk_logic.logic.endpoint.Fifo where
+  head : Std.U8
+  count : Std.U8
+
+/-- [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::is_wf]:
+    Source: 'crates/rsk-logic/src/logic/endpoint.rs', lines 51:4-51:45
+    Name pattern: [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::is_wf]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::is_wf"]
+def rsk_logic.logic.endpoint.Fifo.is_wf
+  (self : rsk_logic.logic.endpoint.Fifo) (cap : Std.U8) : Result Bool := do
+  if cap >= 1#u8
+  then if self.head < cap
+       then ok (self.count <= cap)
+       else ok false
+  else ok false
+
+/-- [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::push]:
+    Source: 'crates/rsk-logic/src/logic/endpoint.rs', lines 60:4-60:56
+    Name pattern: [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::push]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::push"]
+def rsk_logic.logic.endpoint.Fifo.push
+  (self : rsk_logic.logic.endpoint.Fifo) (cap : Std.U8) :
+  Result ((Option Std.U8) × rsk_logic.logic.endpoint.Fifo)
+  := do
+  if self.count >= cap
+  then ok (none, self)
+  else
+    let i ← lift (UScalar.cast .U32 self.head)
+    let i1 ← lift (UScalar.cast .U32 self.count)
+    let sum ← i + i1
+    let i2 ← lift (UScalar.cast .U32 cap)
+    let s32 ← sum % i2
+    let s ← lift (UScalar.cast .U8 s32)
+    let i3 ← self.count + 1#u8
+    ok (some s, { self with count := i3 })
+
+/-- [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::pop]:
+    Source: 'crates/rsk-logic/src/logic/endpoint.rs', lines 87:4-87:55
+    Name pattern: [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::pop]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::pop"]
+def rsk_logic.logic.endpoint.Fifo.pop
+  (self : rsk_logic.logic.endpoint.Fifo) (cap : Std.U8) :
+  Result ((Option Std.U8) × rsk_logic.logic.endpoint.Fifo)
+  := do
+  if self.count = 0#u8
+  then ok (none, self)
+  else
+    let i ← lift (UScalar.cast .U32 self.head)
+    let i1 ← i + 1#u32
+    let i2 ← lift (UScalar.cast .U32 cap)
+    let next ← i1 % i2
+    let i3 ← lift (UScalar.cast .U8 next)
+    let i4 ← self.count - 1#u8
+    ok (some self.head, { head := i3, count := i4 })
+
+/-- [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::clear]:
+    Source: 'crates/rsk-logic/src/logic/endpoint.rs', lines 120:4-120:27
+    Name pattern: [rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::clear]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::endpoint::{rsk_logic::logic::endpoint::Fifo}::clear"]
+def rsk_logic.logic.endpoint.Fifo.clear
+  (self : rsk_logic.logic.endpoint.Fifo) :
+  Result rsk_logic.logic.endpoint.Fifo
+  := do
+  ok { head := 0#u8, count := 0#u8 }
+
 /-- [verus_builtin::Tracked]
     Source: 'vendor/verus_builtin-0.0.0-2026-09-16-0054/src/lib.rs', lines 425:0-425:21
     Name pattern: [verus_builtin::Tracked]
@@ -255,6 +341,93 @@ def rsk_logic.logic.kernel.PRS_RELEASE : Result Std.U64 := 1#u64 <<< 12#i32
     Visibility: public -/
 @[global_simps, irreducible, rust_const "rsk_logic::logic::kernel::PRS_BUDGET"]
 def rsk_logic.logic.kernel.PRS_BUDGET : Result Std.U64 := 1#u64 <<< 27#i32
+
+/-- [rsk_logic::logic::kernel::PRS_PANIC]
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 131:0-131:24
+    Name pattern: [rsk_logic::logic::kernel::PRS_PANIC]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "rsk_logic::logic::kernel::PRS_PANIC"]
+def rsk_logic.logic.kernel.PRS_PANIC : Result Std.U64 := 1#u64 <<< 19#i32
+
+/-- [rsk_logic::logic::kernel::PRS_PRIVILEGE]
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 133:0-133:28
+    Name pattern: [rsk_logic::logic::kernel::PRS_PRIVILEGE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::kernel::PRS_PRIVILEGE"]
+def rsk_logic.logic.kernel.PRS_PRIVILEGE : Result Std.U64 := 1#u64 <<< 22#i32
+
+/-- [rsk_logic::logic::kernel::PRS_OWNERSHIP]
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 135:0-135:28
+    Name pattern: [rsk_logic::logic::kernel::PRS_OWNERSHIP]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::kernel::PRS_OWNERSHIP"]
+def rsk_logic.logic.kernel.PRS_OWNERSHIP : Result Std.U64 := do
+  let i ← 1#u64 <<< 29#i32
+  let i1 ← 1#u64 <<< 22#i32
+  ok (i ||| i1)
+
+/-- [rsk_logic::logic::log::EV_STACK_VIOLATION]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 45:0-45:32
+    Name pattern: [rsk_logic::logic::log::EV_STACK_VIOLATION]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::log::EV_STACK_VIOLATION"]
+def rsk_logic.logic.log.EV_STACK_VIOLATION : Std.U8 := 27#u8
+
+/-- [rsk_logic::logic::log::EV_USAGEFAULT]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 19:0-19:27
+    Name pattern: [rsk_logic::logic::log::EV_USAGEFAULT]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "rsk_logic::logic::log::EV_USAGEFAULT"]
+def rsk_logic.logic.log.EV_USAGEFAULT : Std.U8 := 4#u8
+
+/-- [rsk_logic::logic::log::EV_BUSFAULT]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 18:0-18:25
+    Name pattern: [rsk_logic::logic::log::EV_BUSFAULT]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "rsk_logic::logic::log::EV_BUSFAULT"]
+def rsk_logic.logic.log.EV_BUSFAULT : Std.U8 := 3#u8
+
+/-- [rsk_logic::logic::log::EV_MEMMANAGE]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 17:0-17:26
+    Name pattern: [rsk_logic::logic::log::EV_MEMMANAGE]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "rsk_logic::logic::log::EV_MEMMANAGE"]
+def rsk_logic.logic.log.EV_MEMMANAGE : Std.U8 := 2#u8
+
+/-- [rsk_logic::logic::log::EV_PANIC]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 16:0-16:22
+    Name pattern: [rsk_logic::logic::log::EV_PANIC]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "rsk_logic::logic::log::EV_PANIC"]
+def rsk_logic.logic.log.EV_PANIC : Std.U8 := 1#u8
+
+/-- [rsk_logic::logic::kernel::fault_prs]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 141:0-141:33
+    Name pattern: [rsk_logic::logic::kernel::fault_prs]
+    Visibility: public -/
+@[rust_fun "rsk_logic::logic::kernel::fault_prs"]
+def rsk_logic.logic.kernel.fault_prs (kind : Std.U8) : Result Std.U64 := do
+  if kind = rsk_logic.logic.log.EV_PANIC
+  then rsk_logic.logic.kernel.PRS_PANIC
+  else
+    if kind = rsk_logic.logic.log.EV_BUSFAULT
+    then rsk_logic.logic.kernel.PRS_PRIVILEGE
+    else
+      if kind = rsk_logic.logic.log.EV_USAGEFAULT
+      then rsk_logic.logic.kernel.PRS_PRIVILEGE
+      else
+        if kind = rsk_logic.logic.log.EV_MEMMANAGE
+        then rsk_logic.logic.kernel.PRS_OWNERSHIP
+        else
+          if kind = rsk_logic.logic.log.EV_STACK_VIOLATION
+          then rsk_logic.logic.kernel.PRS_OWNERSHIP
+          else
+            let i ← rsk_logic.logic.kernel.PRS_PANIC
+            let i1 ← rsk_logic.logic.kernel.PRS_OWNERSHIP
+            ok (i ||| i1)
 
 /-- [rsk_logic::logic::kernel::CYCLES_PER_TICK]
     Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 154:0-154:30
@@ -685,8 +858,27 @@ def rsk_logic.logic.kernel.Kernel.push_event
       { kind, task, partition, prs, instant := self.now, detail }
   ok { self with log := l }
 
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::record_event]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1676:4-1676:77
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::record_event]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::record_event"]
+def rsk_logic.logic.kernel.Kernel.record_event
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) (kind : Std.U8) (t : Std.U8) :
+  Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  let tc ← Array.index_usize cfg.tasks i
+  let i1 ← 1#u64 <<< 14#i32
+  rsk_logic.logic.kernel.Kernel.push_event self cfg kind t tc.partition i1
+    0#u32
+
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::observe]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1686:4-1686:65
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1696:4-1696:65
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::observe]
     Visibility: public -/
 @[rust_fun
@@ -747,7 +939,7 @@ def rsk_logic.logic.time.SLOT_RELEASE : Std.U8 := 1#u8
 def rsk_logic.logic.KIND_PERIODIC : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1731:8-1762:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1741:8-1772:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -781,7 +973,7 @@ def rsk_logic.logic.kernel.Kernel.start_loop.body
   else ok (done (self, cfg))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1731:8-1762:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1741:8-1772:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -800,7 +992,7 @@ def rsk_logic.logic.kernel.Kernel.start_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1716:4-1716:53
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1726:4-1726:53
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_fun
@@ -910,7 +1102,7 @@ def rsk_logic.logic.sched.Sched.start
 def rsk_logic.logic.time.SLOT_BUDGET : Std.U8 := 4#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::arm_budget]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1896:4-1896:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1906:4-1906:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::arm_budget] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::arm_budget"]
@@ -940,7 +1132,7 @@ def rsk_logic.logic.kernel.Kernel.arm_budget
   ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::dispatch]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1806:4-1806:86
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1816:4-1816:86
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::dispatch]
     Visibility: public -/
 @[rust_fun
@@ -1182,7 +1374,7 @@ def rsk_logic.logic.time.Timing.try_unmask
 def rsk_logic.logic.time.SLOT_UNMASK : Std.U8 := 7#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::unmask_instant]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2047:4-2047:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2057:4-2057:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::unmask_instant] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::unmask_instant"]
@@ -1200,7 +1392,7 @@ def rsk_logic.logic.kernel.Kernel.unmask_instant
   else ok «end»
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_mit_window]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2063:4-2063:65
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2073:4-2073:65
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_mit_window] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_mit_window"]
@@ -1233,7 +1425,7 @@ def rsk_logic.logic.kernel.Kernel.end_mit_window
     else ok { self with timing := t1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::job_return]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1933:4-1933:79
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1943:4-1943:79
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::job_return]
     Visibility: public -/
 @[rust_fun
@@ -1298,7 +1490,7 @@ def rsk_logic.logic.kernel.Kernel.job_return
   else ok self2
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2032:8-2041:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2042:8-2051:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1321,7 +1513,7 @@ def rsk_logic.logic.kernel.Kernel.top_holds_nothing_exec_loop.body
   else ok (done all)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2032:8-2041:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2042:8-2051:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1339,7 +1531,7 @@ def rsk_logic.logic.kernel.Kernel.top_holds_nothing_exec_loop
     (e, all)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2026:4-2026:48
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2036:4-2036:48
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[reducible, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1445,7 +1637,7 @@ def rsk_logic.logic.sched.Sched.lock
   else ok (false, self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::svc_lock]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2112:4-2112:76
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2122:4-2122:76
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::svc_lock]
     Visibility: public -/
 @[rust_fun
@@ -1506,7 +1698,7 @@ def rsk_logic.logic.sched.Sched.unlock
         ok (true, { self with ceiling := i3, lock_len := n })
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::svc_unlock]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2156:4-2156:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2166:4-2166:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::svc_unlock]
     Visibility: public -/
 @[rust_fun
@@ -1621,7 +1813,7 @@ def rsk_logic.logic.sched.Sched.clear_release
 def rsk_logic.logic.log.EV_SAFE_STATE : Std.U8 := 18#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3782:8-3795:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3792:8-3805:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -1642,7 +1834,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop.body
   else ok (done s)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3782:8-3795:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3792:8-3805:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -1659,7 +1851,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop
     (s, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3765:4-3765:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3775:4-3775:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_fun
@@ -1697,7 +1889,7 @@ def rsk_logic.logic.log.EV_PARTITION_STOP : Std.U8 := 17#u8
 def rsk_logic.logic.MIT_DEFER : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3575:8-3639:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3585:8-3649:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1768,7 +1960,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3575:8-3639:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3585:8-3649:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1787,7 +1979,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3560:4-3560:83
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3570:4-3570:83
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1823,7 +2015,7 @@ def rsk_logic.logic.sched.Sched.kill
   ok { self with job := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_at]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3454:4-3454:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3464:4-3464:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at"]
@@ -1839,7 +2031,7 @@ def rsk_logic.logic.kernel.Kernel.kill_at
   ok { self with sched := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3518:8-3541:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3528:8-3551:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -1883,7 +2075,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop.body
       self.safe_state, self.started, self.now, self.history))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3518:8-3541:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3528:8-3551:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -1908,7 +2100,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3506:4-3506:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3516:4-3516:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -1952,7 +2144,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs
     }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3314:4-3314:59
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3324:4-3324:59
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release"]
@@ -1994,7 +2186,7 @@ def rsk_logic.logic.kernel.Kernel.end_top_release
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3365:4-3365:51
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3375:4-3375:51
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top"]
@@ -2016,7 +2208,7 @@ def rsk_logic.logic.kernel.Kernel.end_top
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3646:4-3646:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3656:4-3656:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs"]
@@ -2046,7 +2238,7 @@ def rsk_logic.logic.kernel.Kernel.end_partition_jobs
   rsk_logic.logic.kernel.Kernel.clear_partition_releases self2 cfg1 partition
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::stop_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3734:4-3734:84
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3744:4-3744:84
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition"]
@@ -2077,7 +2269,7 @@ def rsk_logic.logic.kernel.Kernel.stop_partition
 def rsk_logic.logic.log.EV_PARTITION_RESTART : Std.U8 := 16#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::restart_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3691:4-3691:87
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3701:4-3701:87
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition"]
@@ -2102,7 +2294,7 @@ def rsk_logic.logic.kernel.Kernel.restart_partition
   ok { self2 with mit_violations := a, reinit_partition := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::apply_response]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3222:4-3222:105
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3232:4-3232:105
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response"]
@@ -2164,7 +2356,7 @@ def rsk_logic.logic.kernel.Kernel.apply_response
           else rsk_logic.logic.kernel.Kernel.enter_safe_state self cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deadline_miss]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3048:4-3048:74
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3058:4-3058:74
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss"]
@@ -2394,7 +2586,7 @@ def rsk_logic.logic.sched.Sched.make_pending
 def rsk_logic.logic.log.EV_MIT_VIOLATION : Std.U8 := 9#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::mit_violation]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2469:4-2469:93
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2479:4-2479:93
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::mit_violation] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::mit_violation"]
@@ -2429,7 +2621,7 @@ def rsk_logic.logic.kernel.Kernel.mit_violation
        ok { self1 with mit_violations := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::intake_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2298:4-2298:111
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2308:4-2308:111
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake_release"]
@@ -2524,7 +2716,7 @@ def rsk_logic.logic.kernel.Kernel.intake_release
     else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::intake]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2232:4-2232:107
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2242:4-2242:107
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake]
     Visibility: public -/
 @[rust_fun
@@ -2587,7 +2779,7 @@ def rsk_logic.logic.log.EV_OPERATING_END : Std.U8 := 10#u8
 def rsk_logic.logic.log.EV_OVERRUN : Std.U8 := 6#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::budget_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3088:4-3088:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3098:4-3098:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event"]
@@ -2654,7 +2846,7 @@ def rsk_logic.logic.time.Timing.deferred_due_clamped
   ok { self with has_last := a2, last_due := a, due := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deferred_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2958:4-2958:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2968:4-2968:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release"]
@@ -2765,7 +2957,7 @@ def rsk_logic.logic.time.Timing.advance_periodic
 def rsk_logic.logic.log.EV_RELEASE_OVERLAP : Std.U8 := 8#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::periodic_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2837:4-2837:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2847:4-2847:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release"]
@@ -2846,7 +3038,7 @@ def rsk_logic.logic.kernel.Kernel.periodic_release
       ok { self1 with timing := t1, slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::serve_slot]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2744:4-2744:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2754:4-2754:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot"]
@@ -2918,7 +3110,7 @@ def rsk_logic.logic.kernel.Kernel.serve_slot
         ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2597:8-2621:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2607:8-2631:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -2948,7 +3140,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2597:8-2621:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2607:8-2631:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -2966,7 +3158,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2623:8-2699:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2633:8-2709:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -2993,7 +3185,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2623:8-2699:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2633:8-2709:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3011,7 +3203,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2536:4-2536:90
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2546:4-2546:90
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_fun
@@ -3040,6 +3232,104 @@ def rsk_logic.logic.kernel.Kernel.timer_event
       rsk_logic.logic.kernel.Kernel.timer_event_loop0
         { self1 with budget := b } cfg 0#usize
     rsk_logic.logic.kernel.Kernel.timer_event_loop1 self2 cfg 0#usize
+
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3159:4-3159:77
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault"]
+def rsk_logic.logic.kernel.Kernel.fault
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) (kind : Std.U8) (kernel : Bool) :
+  Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  := do
+  let prs ← rsk_logic.logic.kernel.fault_prs kind
+  if kernel
+  then
+    let self1 ←
+      rsk_logic.logic.kernel.Kernel.push_event self cfg kind 255#u8 255#u8 prs
+        0#u32
+    rsk_logic.logic.kernel.Kernel.enter_safe_state self1 cfg
+  else
+    if self.sched.depth = 0#usize
+    then
+      let self1 ←
+        rsk_logic.logic.kernel.Kernel.push_event self cfg kind 255#u8 255#u8
+          prs 0#u32
+      rsk_logic.logic.kernel.Kernel.enter_safe_state self1 cfg
+    else
+      let i ← self.sched.depth - 1#usize
+      let t ← Array.index_usize self.sched.stack i
+      let i1 ← lift (UScalar.cast .Usize t)
+      let tc ← Array.index_usize cfg.tasks i1
+      let self1 ←
+        rsk_logic.logic.kernel.Kernel.push_event self cfg kind t tc.partition
+          prs 0#u32
+      let i2 ← lift (UScalar.cast .Usize tc.partition)
+      let pc ← Array.index_usize cfg.partitions i2
+      rsk_logic.logic.kernel.Kernel.apply_response self1 cfg tc.partition
+        pc.fault_response kind t
+
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault_of]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3205:4-3205:73
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault_of]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault_of"]
+def rsk_logic.logic.kernel.Kernel.fault_of
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) (kind : Std.U8) (t : Std.U8) :
+  Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  := do
+  let prs ← rsk_logic.logic.kernel.fault_prs kind
+  let i ← lift (UScalar.cast .Usize t)
+  let tc ← Array.index_usize cfg.tasks i
+  let self1 ←
+    rsk_logic.logic.kernel.Kernel.push_event self cfg kind t tc.partition prs
+      0#u32
+  let i1 ← lift (UScalar.cast .Usize tc.partition)
+  let pc ← Array.index_usize cfg.partitions i1
+  rsk_logic.logic.kernel.Kernel.apply_response self1 cfg tc.partition
+    pc.fault_response kind t
+
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_reinit]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3844:4-3844:73
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_reinit]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_reinit"]
+def rsk_logic.logic.kernel.Kernel.ack_reinit
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) (partition : Std.U8) :
+  Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  := do
+  let i ← lift (UScalar.cast .Usize partition)
+  let a ← Array.update self.reinit_partition i false
+  ok { self with reinit_partition := a }
+
+/-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_stop_dma]:
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3856:4-3856:75
+    Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_stop_dma]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_stop_dma"]
+def rsk_logic.logic.kernel.Kernel.ack_stop_dma
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize}
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) (partition : Std.U8) :
+  Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  := do
+  let i ← lift (UScalar.cast .Usize partition)
+  let a ← Array.update self.stop_dma i false
+  ok { self with stop_dma := a }
 
 /-- [rsk_logic::logic::sched::{rsk_logic::logic::sched::Sched<NT, NR, NL>}::select]: loop body 0:
     Source: 'crates/rsk-logic/src/logic/sched.rs', lines 598:8-613:9
@@ -3143,7 +3433,7 @@ def rsk_logic.logic.sched.Sched.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3861:4-3861:70
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3871:4-3871:70
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::select]
     Visibility: public -/
 @[rust_fun
@@ -3163,7 +3453,7 @@ def rsk_logic.logic.kernel.Kernel.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::settle]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3905:4-3905:80
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3915:4-3915:80
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::settle]
     Visibility: public -/
 @[rust_fun
@@ -3223,6 +3513,87 @@ def rsk_logic.logic.kernel.Kernel.settle
         let s1 ← rsk_logic.logic.time.Slots.disarm self.slots i3
         ok ((sel, true), { self with slots := s1 })
       else ok ((sel, false), self)
+
+/-- [rsk_logic::logic::log::EV_HARDFAULT]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 20:0-20:26
+    Name pattern: [rsk_logic::logic::log::EV_HARDFAULT]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const "rsk_logic::logic::log::EV_HARDFAULT"]
+def rsk_logic.logic.log.EV_HARDFAULT : Std.U8 := 5#u8
+
+/-- [rsk_logic::logic::log::EV_PROTOCOL_VIOLATION]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 27:0-27:35
+    Name pattern: [rsk_logic::logic::log::EV_PROTOCOL_VIOLATION]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::log::EV_PROTOCOL_VIOLATION"]
+def rsk_logic.logic.log.EV_PROTOCOL_VIOLATION : Std.U8 := 12#u8
+
+/-- [rsk_logic::logic::log::EV_DMA_REJECTED]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 28:0-28:29
+    Name pattern: [rsk_logic::logic::log::EV_DMA_REJECTED]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::log::EV_DMA_REJECTED"]
+def rsk_logic.logic.log.EV_DMA_REJECTED : Std.U8 := 13#u8
+
+/-- [rsk_logic::logic::log::EV_UNBOUND_IRQ]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 36:0-36:28
+    Name pattern: [rsk_logic::logic::log::EV_UNBOUND_IRQ]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::log::EV_UNBOUND_IRQ"]
+def rsk_logic.logic.log.EV_UNBOUND_IRQ : Std.U8 := 21#u8
+
+/-- [rsk_logic::logic::log::EV_ENDPOINT_FULL]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 41:0-41:30
+    Name pattern: [rsk_logic::logic::log::EV_ENDPOINT_FULL]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::log::EV_ENDPOINT_FULL"]
+def rsk_logic.logic.log.EV_ENDPOINT_FULL : Std.U8 := 25#u8
+
+/-- [rsk_logic::logic::log::EV_MESSAGE_REJECTED]
+    Source: 'crates/rsk-logic/src/logic/log.rs', lines 43:0-43:33
+    Name pattern: [rsk_logic::logic::log::EV_MESSAGE_REJECTED]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "rsk_logic::logic::log::EV_MESSAGE_REJECTED"]
+def rsk_logic.logic.log.EV_MESSAGE_REJECTED : Std.U8 := 26#u8
+
+/-- [rsk_logic::logic::mpu::pow2_u32]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 90:4-99:5
+    Name pattern: [rsk_logic::logic::mpu::pow2_u32]
+    Visibility: public -/
+@[rust_loop_body, rust_fun "rsk_logic::logic::mpu::pow2_u32"]
+def rsk_logic.logic.mpu.pow2_u32_loop.body
+  (k : Std.U8) (r : Std.U32) (i : Std.U8) :
+  Result (ControlFlow (Std.U32 × Std.U8) Std.U32)
+  := do
+  if i < k
+  then let r1 ← r * 2#u32
+       let i1 ← i + 1#u8
+       ok (cont (r1, i1))
+  else ok (done r)
+
+/-- [rsk_logic::logic::mpu::pow2_u32]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 90:4-99:5
+    Name pattern: [rsk_logic::logic::mpu::pow2_u32]
+    Visibility: public -/
+@[rust_loop, rust_fun "rsk_logic::logic::mpu::pow2_u32"]
+def rsk_logic.logic.mpu.pow2_u32_loop
+  (k : Std.U8) (r : Std.U32) (i : Std.U8) : Result Std.U32 := do
+  loop
+    (fun (r1, i1) => rsk_logic.logic.mpu.pow2_u32_loop.body k r1 i1)
+    (r, i)
+
+/-- [rsk_logic::logic::mpu::pow2_u32]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 84:0-84:39
+    Name pattern: [rsk_logic::logic::mpu::pow2_u32]
+    Visibility: public -/
+@[reducible, rust_fun "rsk_logic::logic::mpu::pow2_u32"]
+def rsk_logic.logic.mpu.pow2_u32 (k : Std.U8) : Result Std.U32 := do
+  rsk_logic.logic.mpu.pow2_u32_loop k 1#u32 0#u8
 
 /-- [rsk_logic::logic::mpu::Interval]
     Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 105:0-105:19
@@ -3305,6 +3676,31 @@ structure rsk_logic.logic.mpu.PartitionLayout where
   windows : Array rsk_logic.logic.mpu.Interval 5#usize
   window_count : Std.U8
   windows_ro : Array Bool 5#usize
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::message_permitted_exec]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 298:4-298:73
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::message_permitted_exec]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::message_permitted_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.message_permitted_exec
+  (self : rsk_logic.logic.mpu.PartitionLayout) (ptr : Std.U32) (len : Std.U32)
+  :
+  Result Bool
+  := do
+  if len = 0#u32
+  then ok false
+  else
+    let i ← rsk_logic.logic.mpu.pow2_u32 self.ram.size_log2
+    let size ← lift (UScalar.cast .U64 i)
+    let base ← lift (UScalar.cast .U64 self.ram.base)
+    let p ← lift (UScalar.cast .U64 ptr)
+    let l ← lift (UScalar.cast .U64 len)
+    if p >= base
+    then let i1 ← p + l
+         let i2 ← base + size
+         ok (i1 <= i2)
+    else ok false
 
 /-- [rsk_logic::logic::mpu::Layout]
     Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 442:0-442:34
@@ -3416,6 +3812,103 @@ def rsk_logic.logic.mpu.Layout.view
       0#usize
   ok { regions := regions3 }
 
+/-- [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<NS>}::next]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 132:8-151:9
+    Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next"]
+def rsk_logic.logic.time.Slots.next_loop.body
+  {NS : Std.Usize} (self : rsk_logic.logic.time.Slots NS)
+  (best : Option Std.Usize) (i : Std.Usize) :
+  Result (ControlFlow ((Option Std.Usize) × Std.Usize) (Option Std.Usize))
+  := do
+  if i < NS
+  then
+    let s ← Array.index_usize self.slots i
+    let best1 ←
+      if s.armed
+      then
+        do
+        let i1 ←
+          match best with
+          | none => ok i
+          | some b =>
+            do
+            let s1 ← Array.index_usize self.slots b
+            if s.at < s1.at
+            then ok i
+            else ok b
+        ok (some i1)
+      else ok best
+    let i1 ← i + 1#usize
+    ok (cont (best1, i1))
+  else ok (done best)
+
+/-- [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<NS>}::next]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 132:8-151:9
+    Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next"]
+def rsk_logic.logic.time.Slots.next_loop
+  {NS : Std.Usize} (self : rsk_logic.logic.time.Slots NS)
+  (best : Option Std.Usize) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  loop
+    (fun (best1, i1) => rsk_logic.logic.time.Slots.next_loop.body self best1
+      i1)
+    (best, i)
+
+/-- [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<NS>}::next]:
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 123:4-123:43
+    Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next]
+    Visibility: public -/
+@[reducible, rust_fun
+  "rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next"]
+def rsk_logic.logic.time.Slots.next
+  {NS : Std.Usize} (self : rsk_logic.logic.time.Slots NS) :
+  Result (Option Std.Usize)
+  := do
+  rsk_logic.logic.time.Slots.next_loop self none 0#usize
+
+/-- [rsk_kernel::arch::bound::encode_level]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 51:0-56:1
+    Visibility: public -/
+def arch.bound.encode_level (level : Std.U8) : Result Std.U8 := do
+  if level = 0#u8
+  then ok 0#u8
+  else let i ← 8#u8 - level
+       i * 32#u8
+
+/-- [rsk_kernel::arch::bound::basepri_for_ceiling]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 59:0-64:1
+    Visibility: public -/
+def arch.bound.basepri_for_ceiling (c : Std.U8) : Result Std.U8 := do
+  if c = 0#u8
+  then ok 0#u8
+  else arch.bound.encode_level c
+
+/-- [rsk_kernel::arch::bound::basepri_for]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 70:0-75:1
+    Visibility: public -/
+def arch.bound.basepri_for
+  (top : Std.U8) (ceiling : Std.U8) : Result Std.U8 := do
+  let top1 ← if top > ceiling
+               then ok top
+               else ok ceiling
+  arch.bound.basepri_for_ceiling top1
+
+/-- [rsk_kernel::arch::bound::JobInfo]
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 241:0-246:1
+    Visibility: public -/
+structure arch.bound.JobInfo where
+  task : Std.U8
+  partition : Std.U8
+  priority : Std.U8
+  fpu : Bool
+
 /-- [rsk_kernel::arch::bound::Bound]
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 249:0-254:1
     Visibility: public -/
@@ -3426,8 +3919,68 @@ structure arch.bound.Bound (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize)
   layout : rsk_logic.logic.mpu.Layout NP
   views : Array rsk_logic.logic.mpu.View NP
 
+/-- Trait declaration: [rsk_kernel::arch::bound::KernelOps]
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 279:0-563:1
+    Visibility: public -/
+structure arch.bound.KernelOps (Self : Type _) where
+  task_count : Self → Result Std.Usize
+  partition_count : Self → Result Std.Usize
+  validate : Self → Result Bool
+  config_checksum : Self → Result Std.U32
+  layout_checksum : Self → Result Std.U32
+  init : Self → Result Self
+  start : Self → Result Self
+  started : Self → Result Bool
+  safe_state : Self → Result Bool
+  job_info : Self → Std.U8 → Result arch.bound.JobInfo
+  depth : Self → Result Std.Usize
+  release_info : Self → Std.U8 → Result (Bool × Std.U64 × Std.U64 ×
+    Std.U64)
+  job_due : Self → Std.U8 → Result Std.U64
+  budget_used : Self → Std.U8 → Result Std.U32
+  budget_of : Self → Std.U8 → Result Std.U32
+  overrun_continues : Self → Std.U8 → Result Bool
+  partition_of : Self → Std.U8 → Result Std.U8
+  top : Self → Result (Option Std.U8)
+  top_priority : Self → Result Std.U8
+  stack_at : Self → Std.Usize → Result Std.U8
+  is_killed : Self → Std.U8 → Result Bool
+  eligible : Self → Std.U8 → Result Bool
+  dispatch : Self → Std.U8 → Std.U32 → Result Self
+  job_return : Self → Std.U32 → Result Self
+  svc_lock : Self → Std.U8 → Result (Bool × Self)
+  svc_unlock : Self → Std.U8 → Result (Bool × Self)
+  ceiling : Self → Result Std.U8
+  basepri_now : Self → Result Std.U8
+  select : Self → Result (Option Std.U8)
+  settle : Self → Result (((Option Std.U8) × Bool) × Self)
+  intake : Self → Std.U8 → Std.U8 → Std.U64 → Std.U8 → Result Self
+  timer_event : Self → Std.U64 → Std.U32 → Result Self
+  fault : Self → Std.U8 → Bool → Result Self
+  next_compare : Self → Result (Option Std.U64)
+  source_masked : Self → Std.U8 → Result Bool
+  partition_view : Self → Std.U8 → Result rsk_logic.logic.mpu.View
+  take_reinit : Self → Std.U8 → Result (Bool × Self)
+  take_stop_dma : Self → Std.U8 → Result (Bool × Self)
+  log_len : Self → Result Std.Usize
+  log_kind : Self → Std.Usize → Result Std.U8
+  log_detail : Self → Std.Usize → Result Std.U32
+  log_task : Self → Std.Usize → Result Std.U8
+  log_instant : Self → Std.Usize → Result Std.U64
+  log_prs : Self → Std.Usize → Result Std.U64
+  log_partition : Self → Std.Usize → Result Std.U8
+  log_seq : Self → Result Std.U32
+  boot_failed : Self → Std.U32 → Result Self
+  boot_info : Self → Bool → Bool → Result Self
+  partition_stopped : Self → Std.U8 → Result Bool
+  dma_permitted : Self → Std.U8 → Std.U32 → Std.U32 → Result Bool
+  in_ro_window : Self → Std.U8 → Std.U32 → Result Bool
+  message_permitted : Self → Std.U8 → Std.U32 → Std.U32 → Result Bool
+  record_event : Self → Std.U8 → Std.U8 → Result Self
+  fault_of : Self → Std.U8 → Std.U8 → Result Self
+
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]: loop body 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 670:8-681:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 687:8-698:9
     Visibility: public -/
 @[rust_loop_body]
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop.body
@@ -3445,7 +3998,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop.body
   else ok (done a)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]: loop 0:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 670:8-681:9
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 687:8-698:9
     Visibility: public -/
 @[rust_loop]
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop
@@ -3460,7 +4013,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init_loop
     (a, p)
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::init]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 667:4-682:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 684:4-699:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3474,7 +4027,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.init
   ok { self with kernel := k, views := a }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::start]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 684:4-688:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 701:4-705:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.start
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3487,8 +4040,58 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.start
     let k ← rsk_logic.logic.kernel.Kernel.start self.kernel self.cfg
     ok { self with kernel := k }
 
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::job_info]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 715:4-725:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_info
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (t : Std.U8) :
+  Result arch.bound.JobInfo
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  if i < NT
+  then
+    let i1 ← lift (UScalar.cast .Usize t)
+    let task ← Array.index_usize self.cfg.tasks i1
+    ok
+      {
+        task := t,
+        partition := task.partition,
+        priority := task.priority,
+        fpu := task.fpu
+      }
+  else ok { task := t, partition := 0#u8, priority := 0#u8, fpu := false }
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::depth]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 727:4-729:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.depth
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result Std.Usize
+  := do
+  ok self.kernel.sched.depth
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::top_priority]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 773:4-780:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top_priority
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result Std.U8
+  := do
+  if self.kernel.sched.depth = 0#usize
+  then ok 0#u8
+  else
+    let i ← self.kernel.sched.depth - 1#usize
+    let i1 ← Array.index_usize self.kernel.sched.stack i
+    let i2 ← lift (UScalar.cast .Usize i1)
+    let tc ← Array.index_usize self.cfg.tasks i2
+    ok tc.priority
+
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::eligible]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 773:4-783:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 790:4-800:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3525,7 +4128,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.eligible
     else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::dispatch]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 785:4-796:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 802:4-813:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dispatch
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3549,7 +4152,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dispatch
   ok { self with kernel := k1 }
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::job_return]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 798:4-802:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 815:4-819:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_return
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3566,7 +4169,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.job_return
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::svc_lock]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 804:4-821:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 821:4-838:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_lock
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3586,7 +4189,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_lock
       ok (ok1, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::svc_unlock]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 823:4-828:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 840:4-845:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_unlock
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3601,8 +4204,31 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.svc_unlock
       rsk_logic.logic.kernel.Kernel.svc_unlock self.kernel self.cfg r
     ok (b, { self with kernel := k })
 
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::ceiling]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 847:4-849:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.ceiling
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result Std.U8
+  := do
+  ok self.kernel.sched.ceiling
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::basepri_now]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 851:4-858:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.basepri_now
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result Std.U8
+  := do
+  let i ←
+    arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top_priority self
+  let i1 ← arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.ceiling self
+  arch.bound.basepri_for i i1
+
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 843:4-845:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 860:4-862:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.select
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3612,7 +4238,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.select
   rsk_logic.logic.kernel.Kernel.select self.kernel self.cfg
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::settle]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 851:4-853:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 868:4-870:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.settle
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3623,7 +4249,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.settle
   ok (p, { self with kernel := k })
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::intake]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 855:4-864:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 872:4-881:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3658,7 +4284,7 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake
   else ok self
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::timer_event]:
-    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 866:4-869:5
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 883:4-886:5
     Visibility: public -/
 def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.timer_event
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
@@ -3674,5 +4300,4128 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.timer_event
     rsk_logic.logic.kernel.Kernel.timer_event self.kernel self.cfg now1
       running_cycles
   ok { self with kernel := k }
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::fault]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 888:4-890:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.fault
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (kind : Std.U8) (kernel : Bool) :
+  Result (arch.bound.Bound NT NR NP NL NS NE)
+  := do
+  let k ←
+    rsk_logic.logic.kernel.Kernel.fault self.kernel self.cfg kind kernel
+  ok { self with kernel := k }
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::next_compare]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 892:4-897:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.next_compare
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result (Option Std.U64)
+  := do
+  let o ← rsk_logic.logic.time.Slots.next self.kernel.slots
+  match o with
+  | none => ok none
+  | some i =>
+    let s ← Array.index_usize self.kernel.slots.slots i
+    ok (some s.at)
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::take_reinit]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 916:4-925:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.take_reinit
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) :
+  Result (Bool × (arch.bound.Bound NT NR NP NL NS NE))
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  if i >= NP
+  then ok (false, self)
+  else
+    let i1 ← lift (UScalar.cast .Usize p)
+    let v ← Array.index_usize self.kernel.reinit_partition i1
+    if v
+    then
+      let k ← rsk_logic.logic.kernel.Kernel.ack_reinit self.kernel self.cfg p
+      ok (v, { self with kernel := k })
+    else ok (v, self)
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::take_stop_dma]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 927:4-936:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.take_stop_dma
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) :
+  Result (Bool × (arch.bound.Bound NT NR NP NL NS NE))
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  if i >= NP
+  then ok (false, self)
+  else
+    let i1 ← lift (UScalar.cast .Usize p)
+    let v ← Array.index_usize self.kernel.stop_dma i1
+    if v
+    then
+      let k ←
+        rsk_logic.logic.kernel.Kernel.ack_stop_dma self.kernel self.cfg p
+      ok (v, { self with kernel := k })
+    else ok (v, self)
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::partition_stopped]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 978:4-980:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_stopped
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  if i < NP
+  then
+    let i1 ← lift (UScalar.cast .Usize p)
+    Array.index_usize self.kernel.stopped i1
+  else ok true
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::message_permitted]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1002:4-1010:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.message_permitted
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) (ptr : Std.U32) (len : Std.U32) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  if i >= NP
+  then ok false
+  else
+    let i1 ← lift (UScalar.cast .Usize p)
+    let pl ← Array.index_usize self.layout.partitions i1
+    rsk_logic.logic.mpu.PartitionLayout.message_permitted_exec pl ptr len
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::record_event]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1012:4-1016:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.record_event
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (kind : Std.U8) (t : Std.U8) :
+  Result (arch.bound.Bound NT NR NP NL NS NE)
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  if i < NT
+  then
+    let k ←
+      rsk_logic.logic.kernel.Kernel.record_event self.kernel self.cfg kind t
+    ok { self with kernel := k }
+  else ok self
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::fault_of]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1018:4-1022:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.fault_of
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (kind : Std.U8) (t : Std.U8) :
+  Result (arch.bound.Bound NT NR NP NL NS NE)
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  if i < NT
+  then
+    let k ←
+      rsk_logic.logic.kernel.Kernel.fault_of self.kernel self.cfg kind t
+    ok { self with kernel := k }
+  else ok self
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_LOCK]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 65:0-65:27
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_LOCK : Std.U8 := 1#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_UNLOCK]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 66:0-66:29
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_UNLOCK : Std.U8 := 2#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_JOB_END]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 67:0-67:30
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_JOB_END : Std.U8 := 3#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_NOW]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 68:0-68:26
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_NOW : Std.U8 := 4#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_DMA]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 72:0-72:26
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_DMA : Std.U8 := 6#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_RAISE]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 74:0-74:28
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_RAISE : Std.U8 := 7#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_SEND]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 81:0-81:27
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_SEND : Std.U8 := 8#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_RECV]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 82:0-82:27
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_RECV : Std.U8 := 9#u8
+
+/-- [rsk_kernel::arch::cm4::entry::ENDPOINT_OK]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 83:0-83:31
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.ENDPOINT_OK : Std.U32 := 0#u32
+
+/-- [rsk_kernel::arch::cm4::entry::ENDPOINT_FULL]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 84:0-84:33
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.ENDPOINT_FULL : Std.U32 := 1#u32
+
+/-- [rsk_kernel::arch::cm4::entry::ENDPOINT_EMPTY]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 85:0-85:34
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.ENDPOINT_EMPTY : Std.U32 := 1#u32
+
+/-- [rsk_kernel::arch::cm4::entry::ENDPOINT_REFUSED]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 86:0-86:36
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.ENDPOINT_REFUSED : Std.U32 := 2#u32
+
+/-- [rsk_kernel::arch::cm4::entry::ENDPOINT_PEER]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 90:0-90:33
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.ENDPOINT_PEER : Std.U32 := 3#u32
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_VIOLATION]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 96:0-96:33
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_VIOLATION : Std.U8 := 10#u8
+
+/-- [rsk_kernel::arch::cm4::entry::SVC_STALE]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 100:0-100:31
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.SVC_STALE : Std.U8 := 255#u8
+
+/-- [rsk_kernel::arch::cm4::entry::EXC_RETURN_THREAD_PSP]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 105:0-105:51
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.EXC_RETURN_THREAD_PSP : Std.U32 := 4294967293#u32
+
+/-- [rsk_kernel::arch::cm4::entry::CONTROL_JOB]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 109:0-109:31
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.CONTROL_JOB : Std.U32 := 1#u32
+
+/-- [rsk_kernel::arch::cm4::entry::MAX_FLOORS]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 111:0-111:33
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.MAX_FLOORS : Std.Usize := 16#usize
+
+/-- [rsk_kernel::arch::cm4::entry::MAX_IRQS]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 113:0-113:30
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.MAX_IRQS : Std.U16 := 496#u16
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_FAIL_CHECKSUM]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 115:0-115:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_FAIL_CHECKSUM : Std.U32 := 32#u32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_FAIL_IRQ_COUNT]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 117:0-117:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_FAIL_IRQ_COUNT : Std.U32 := 64#u32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_FAIL_WATCHDOG_RESET]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 120:0-120:46
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_FAIL_WATCHDOG_RESET : Std.U32 := 128#u32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_FAIL_LAYOUT_CHECKSUM]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 122:0-122:51
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_FAIL_LAYOUT_CHECKSUM : Result Std.U32 :=
+  1#u32 <<< 13#i32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_FAIL_DMA_WINDOW]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 126:0-126:46
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_FAIL_DMA_WINDOW : Result Std.U32 := 1#u32 <<< 15#i32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_FAIL_VECTORS]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 130:0-130:44
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_FAIL_VECTORS : Std.U32 := 65536#u32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_INFO_DEBUGGER]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 132:0-132:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_INFO_DEBUGGER : Std.U32 := 1#u32
+
+/-- [rsk_kernel::arch::cm4::entry::BOOT_INFO_WATCHDOG_RESET]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 133:0-133:44
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.BOOT_INFO_WATCHDOG_RESET : Std.U32 := 2#u32
+
+/-- [rsk_kernel::arch::cm4::entry::WATCHDOG_HZ]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 135:0-135:36
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.WATCHDOG_HZ : Std.U64 := 32768#u64
+
+/-- [rsk_kernel::arch::cm4::entry::WATCHDOG_HOUSEKEEPING_PERIODS]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 139:0-139:49
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.entry.WATCHDOG_HOUSEKEEPING_PERIODS : Std.U64 := 4#u64
+
+/-- [rsk_kernel::arch::cm4::entry::watchdog_reload]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 144:0-155:1
+    Visibility: public -/
+def arch.cm4.entry.watchdog_reload (tick_hz : Std.U64) : Result Std.U32 := do
+  if tick_hz = 0#u64
+  then ok 4294967295#u32
+  else
+    let i ← rsk_logic.logic.kernel.HOUSEKEEPING_PERIOD
+    let i1 ← i * arch.cm4.entry.WATCHDOG_HOUSEKEEPING_PERIODS
+    let ticks ← i1 * arch.cm4.entry.WATCHDOG_HZ
+    let r ← ticks / tick_hz
+    if r > 4294967295#u64
+    then ok 4294967295#u32
+    else ok (UScalar.cast .U32 r)
+
+/-- [rsk_kernel::arch::cm4::entry::Binding]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 159:0-169:1
+    Visibility: public -/
+@[discriminant isize]
+inductive arch.cm4.entry.Binding where
+| Dispatch : Std.U8 → arch.cm4.entry.Binding
+| Intake : Std.U8 → Std.U8 → arch.cm4.entry.Binding
+| Kernel : arch.cm4.entry.Binding
+| Unbound : arch.cm4.entry.Binding
+
+/-- [rsk_kernel::arch::cm4::entry::DispatchPlan]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 173:0-182:1
+    Visibility: public -/
+structure arch.cm4.entry.DispatchPlan where
+  psp : Std.U32
+  control : Std.U32
+  exc_return : Std.U32
+  hop : Std.U32
+
+/-- [rsk_kernel::arch::cm4::entry::Action]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 195:0-270:1
+    Visibility: public -/
+@[discriminant isize]
+inductive arch.cm4.entry.Action where
+| SetBasepri : Std.U8 → arch.cm4.entry.Action
+| Pend : Std.U16 → arch.cm4.entry.Action
+| Enable : Std.U16 → arch.cm4.entry.Action
+| Disable : Std.U16 → arch.cm4.entry.Action
+| SetPriority : Std.U16 → Std.U8 → arch.cm4.entry.Action
+| ArmCompare : Std.U64 → arch.cm4.entry.Action
+| RearmCompare : Std.U64 → arch.cm4.entry.Action
+| CancelCompare : arch.cm4.entry.Action
+| TimebaseAck : arch.cm4.entry.Action
+| TimebaseInit : arch.cm4.entry.Action
+| DwtEnable : arch.cm4.entry.Action
+| LoadView : Std.U8 → rsk_logic.logic.mpu.View → arch.cm4.entry.Action
+| FpuAccess : Bool → arch.cm4.entry.Action
+| WriteFrame : Std.U32 → Std.U32 → arch.cm4.entry.Action
+| PrimaskSet : arch.cm4.entry.Action
+| PrimaskClear : arch.cm4.entry.Action
+| PrigroupAllPreempt : arch.cm4.entry.Action
+| Nonbasethrdena : Bool → arch.cm4.entry.Action
+| Disdefwbuf : Bool → arch.cm4.entry.Action
+| FpuEager : Bool → arch.cm4.entry.Action
+| KernelExceptionPriorities : arch.cm4.entry.Action
+| MpuEnableBackground : arch.cm4.entry.Action
+| ClearFaultStatus : arch.cm4.entry.Action
+| ClearPending : Std.U16 → arch.cm4.entry.Action
+| DmaProgram :
+  Std.U32 →
+  Std.U32 →
+  Std.U32 →
+  Std.U32 →
+  arch.cm4.entry.Action
+| DmaStop : Std.U32 → arch.cm4.entry.Action
+| DmaListOff : Std.U32 → arch.cm4.entry.Action
+| DmaShortsOff : Std.U32 → arch.cm4.entry.Action
+| DmaWrite : Std.U32 → Std.U32 → arch.cm4.entry.Action
+| PpiDisableAll : arch.cm4.entry.Action
+| ReinitPartition : Std.U8 → arch.cm4.entry.Action
+| WatchdogStart : Std.U32 → arch.cm4.entry.Action
+| WatchdogFeed : arch.cm4.entry.Action
+| Copy : Std.U32 → Std.U32 → Std.U32 → arch.cm4.entry.Action
+| Trace : Std.U8 → Std.U32 → arch.cm4.entry.Action
+
+/-- [rsk_kernel::arch::cm4::plan::BootExpect]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 72:0-81:1
+    Visibility: public -/
+structure arch.cm4.plan.BootExpect where
+  priority_bits : Std.U8
+  cpuid : Std.U32
+  hfclk_xtal : Bool
+  fpu_needed : Bool
+
+/-- Trait declaration: [rsk_kernel::arch::cm4::entry::KernelArch]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 355:0-401:1
+    Visibility: public -/
+structure arch.cm4.entry.KernelArch (Self : Type _) where
+  apply : Self → arch.cm4.entry.Action → Result Self
+  svc_clear_pending : Self → Result Self
+  stacking_fault_discard : Self → Result Self
+  copy_in : Self → Std.U32 → Std.U32 → Std.U32 → Result (Std.U32 ×
+    Self)
+  copy_out : Self → Std.U32 → Std.U32 → Std.U32 → Result (Std.U32 ×
+    Self)
+  now : Self → Result Std.U64
+  cycles : Self → Result Std.U32
+  boot_checks : Self → arch.cm4.plan.BootExpect → Result Std.U32
+  boot_info : Self → Result Std.U32
+
+/-- [rsk_kernel::arch::cm4::plan::EndpointCfg]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 123:0-140:1
+    Visibility: public -/
+structure arch.cm4.plan.EndpointCfg where
+  capacity : Std.U8
+  payload : Std.U16
+  roles : Std.U8
+  tasks : Array Std.U8 4#usize
+  partitions : Array Std.U8 4#usize
+  release : Array Bool 4#usize
+  storage : Std.U32
+  validates : Array (Array Bool 4#usize) 4#usize
+
+/-- [rsk_kernel::arch::cm4::plan::SignalCfg]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 63:0-66:1
+    Visibility: public -/
+structure arch.cm4.plan.SignalCfg where
+  partition : Std.U8
+  task : Std.U8
+
+/-- [rsk_kernel::arch::cm4::plan::DmaCfg]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 48:0-57:1
+    Visibility: public -/
+structure arch.cm4.plan.DmaCfg where
+  partition : Std.U8
+  ptr : Std.U32
+  maxcnt : Std.U32
+  stops : Array Std.U32 2#usize
+  lists : Array Std.U32 2#usize
+  shorts : Std.U32
+
+/-- Trait declaration: [rsk_kernel::arch::cm4::entry::Tables]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 448:0-490:1
+    Visibility: public -/
+structure arch.cm4.entry.Tables (Self : Type _) where
+  binding : Self → Std.U16 → Result arch.cm4.entry.Binding
+  dispatch_vector : Self → Std.U8 → Result Std.U16
+  intake_vector : Self → Std.U8 → Result (Option Std.U16)
+  stack_top : Self → Std.U8 → Result Std.U32
+  stack_bottom : Self → Std.U8 → Result Std.U32
+  task_entry_address : Self → Std.U8 → Result Std.U32
+  irq_count : Self → Result Std.U16
+  config_checksum : Self → Result Std.U32
+  layout_checksum : Self → Result Std.U32
+  timer_vector : Self → Result Std.U16
+  priority_bits : Self → Result Std.U8
+  boot_expect : Self → Result arch.cm4.plan.BootExpect
+  fp_flush_to_zero : Self → Result Bool
+  tick_hz : Self → Result Std.U64
+  dma_count : Self → Result Std.Usize
+  dma : Self → Std.Usize → Result arch.cm4.plan.DmaCfg
+  endpoint_count : Self → Result Std.Usize
+  endpoint : Self → Std.Usize → Result arch.cm4.plan.EndpointCfg
+  endpoint_storage : Self → Result (Std.U32 × Std.U32)
+  signal_count : Self → Result Std.Usize
+  signal : Self → Std.Usize → Result arch.cm4.plan.SignalCfg
+
+/-- [rsk_kernel::arch::cm4::entry::TR_BOOT]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 670:0-670:26
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_BOOT : Std.U8 := 1#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_INVALID]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 671:0-671:29
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_INVALID : Std.U8 := 2#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_BOOTFAIL]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 672:0-672:30
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_BOOTFAIL : Std.U8 := 3#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_BOOTED]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 673:0-673:28
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_BOOTED : Std.U8 := 4#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_START]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 674:0-674:27
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_START : Std.U8 := 5#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_IRQ]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 675:0-675:25
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_IRQ : Std.U8 := 6#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_DISPATCH]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 676:0-676:30
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_DISPATCH : Std.U8 := 7#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_TICK]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 677:0-677:26
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_TICK : Std.U8 := 8#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_SVC]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 678:0-678:25
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_SVC : Std.U8 := 9#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_EPILOGUE]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 679:0-679:31
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_EPILOGUE : Std.U8 := 10#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_FAULT]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 680:0-680:28
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_FAULT : Std.U8 := 11#u8
+
+/-- [rsk_kernel::arch::cm4::entry::TR_WINDOW]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 683:0-683:29
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.TR_WINDOW : Std.U8 := 17#u8
+
+/-- [rsk_kernel::arch::cm4::entry::WINDOW_DEFER]
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 687:0-687:36
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.entry.WINDOW_DEFER : Bool := true
+
+/-- [rsk_kernel::arch::cm4::plan::LevelRecord]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 92:0-113:1
+    Visibility: public -/
+structure arch.cm4.plan.LevelRecord where
+  exception_number : Std.U16
+  task : Std.U8
+  partition : Std.U8
+  psp : Std.U32
+  control : Std.U32
+  exc_return : Std.U32
+  floor_before : Std.U32
+  previous_partition : Std.U8
+  previous_task : Std.U8
+  active : Bool
+
+/-- [rsk_kernel::arch::cm4::plan::ArchState]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 156:0-208:1
+    Visibility: public -/
+structure arch.cm4.plan.ArchState where
+  levels : Array arch.cm4.plan.LevelRecord 8#usize
+  floor : Array Std.U32 16#usize
+  current_partition : Std.U8
+  last_switch : Std.U32
+  time_hi : Std.U32
+  time_last_lo : Std.U32
+  booted : Bool
+  first_fault_cfsr : Std.U32
+  deferred : Array Std.U16 8#usize
+  pending_unwind : Std.U32
+  fifos : Array rsk_logic.logic.endpoint.Fifo 128#usize
+  peer_changed : Array Bool 32#usize
+  delivered : Array Bool 128#usize
+  first_fault_addr : Std.U32
+  chain : verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)
+  chain_levels : verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)
+
+/-- [rsk_kernel::arch::cm4::entry::charge_point]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 712:0-719:1 -/
+def arch.cm4.entry.charge_point
+  {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
+  (state : arch.cm4.plan.ArchState) :
+  Result (Std.U32 × arch.cm4.plan.ArchState)
+  := do
+  let now ← KernelArchInst.cycles hw
+  let elapsed ← lift (core.num.U32.wrapping_sub now state.last_switch)
+  ok (elapsed, { state with last_switch := now })
+
+/-- [rsk_kernel::arch::cm4::plan::compare_target]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 332:0-340:1
+    Visibility: public -/
+def arch.cm4.plan.compare_target
+  (now : Std.U64) («at» : Std.U64) : Result Std.U64 := do
+  let i ← now + rsk_logic.hw_model.MIN_COMPARE_DISTANCE
+  if «at» < i
+  then ok i
+  else ok «at»
+
+/-- [rsk_kernel::arch::cm4::plan::MAX_INSTANT]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 88:0-88:51
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.plan.MAX_INSTANT : Std.U64 := 4611686018427387904#u64
+
+/-- [rsk_kernel::arch::cm4::entry::arm_compare]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 725:0-735:1 -/
+def arch.cm4.entry.arm_compare
+  {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
+  («at» : Std.U64) :
+  Result A
+  := do
+  let now ← KernelArchInst.now hw
+  let target ←
+    if now <= arch.cm4.plan.MAX_INSTANT
+    then arch.cm4.plan.compare_target now «at»
+    else ok «at»
+  KernelArchInst.apply hw (arch.cm4.entry.Action.ArmCompare target)
+
+/-- [rsk_kernel::arch::cm4::entry::rearm_compare]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 741:0-751:1 -/
+def arch.cm4.entry.rearm_compare
+  {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
+  («at» : Std.U64) :
+  Result A
+  := do
+  let now ← KernelArchInst.now hw
+  let target ←
+    if «at» <= now
+    then ok «at»
+    else
+      if now > arch.cm4.plan.MAX_INSTANT
+      then ok «at»
+      else arch.cm4.plan.compare_target now «at»
+  KernelArchInst.apply hw (arch.cm4.entry.Action.RearmCompare target)
+
+/-- [rsk_kernel::arch::cm4::plan::MAX_ENDPOINTS]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 149:0-149:35
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.plan.MAX_ENDPOINTS : Std.Usize := 8#usize
+
+/-- [rsk_kernel::arch::cm4::plan::MAX_ROLES]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 143:0-143:31
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.plan.MAX_ROLES : Std.Usize := 4#usize
+
+/-- [rsk_kernel::arch::cm4::entry::clear_channels]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1601:4-1614:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.clear_channels_loop.body
+  (i : Std.Usize) (base : Std.Usize) (state : arch.cm4.plan.ArchState)
+  (c : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize)
+    arch.cm4.plan.ArchState)
+  := do
+  if c < i
+  then
+    let i1 ← base + c
+    let (f, index_mut_back) ← Array.index_mut_usize state.fifos i1
+    let f1 ← rsk_logic.logic.endpoint.Fifo.clear f
+    let a ← Array.update state.delivered i1 false
+    let c1 ← c + 1#usize
+    let a1 := index_mut_back f1
+    ok (cont ({ state with fifos := a1, delivered := a }, c1))
+  else ok (done state)
+
+/-- [rsk_kernel::arch::cm4::entry::clear_channels]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1601:4-1614:5 -/
+@[rust_loop]
+def arch.cm4.entry.clear_channels_loop
+  (i : Std.Usize) (state : arch.cm4.plan.ArchState) (base : Std.Usize)
+  (c : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  loop
+    (fun (state1, c1) => arch.cm4.entry.clear_channels_loop.body i base state1
+      c1)
+    (state, c)
+
+/-- [rsk_kernel::arch::cm4::entry::clear_channels]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1582:0-1615:1 -/
+def arch.cm4.entry.clear_channels
+  (state : arch.cm4.plan.ArchState) (e : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  let i ← arch.cm4.plan.MAX_ROLES * arch.cm4.plan.MAX_ROLES
+  let base ← e * i
+  arch.cm4.entry.clear_channels_loop i state base 0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::partition_in]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1568:4-1577:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.partition_in_loop.body
+  (cfg : arch.cm4.plan.EndpointCfg) (p : Std.U8) (i : Std.Usize) (found : Bool)
+  :
+  Result (ControlFlow (Std.Usize × Bool) Bool)
+  := do
+  if i < arch.cm4.plan.MAX_ROLES
+  then
+    let i1 ← lift (UScalar.cast .U8 i)
+    let found1 ←
+      if i1 < cfg.roles
+      then
+        do
+        let i2 ← Array.index_usize cfg.partitions i
+        if i2 = p
+        then ok true
+        else ok found
+      else ok found
+    let i2 ← i + 1#usize
+    ok (cont (i2, found1))
+  else ok (done found)
+
+/-- [rsk_kernel::arch::cm4::entry::partition_in]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1568:4-1577:5 -/
+@[rust_loop]
+def arch.cm4.entry.partition_in_loop
+  (cfg : arch.cm4.plan.EndpointCfg) (p : Std.U8) (i : Std.Usize) (found : Bool)
+  :
+  Result Bool
+  := do
+  loop
+    (fun (i1, found1) => arch.cm4.entry.partition_in_loop.body cfg p i1 found1)
+    (i, found)
+
+/-- [rsk_kernel::arch::cm4::entry::partition_in]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1563:0-1579:1 -/
+@[reducible]
+def arch.cm4.entry.partition_in
+  (cfg : arch.cm4.plan.EndpointCfg) (p : Std.U8) : Result Bool := do
+  arch.cm4.entry.partition_in_loop cfg p 0#usize false
+
+/-- [rsk_kernel::arch::cm4::entry::role_slot]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1525:0-1532:1 -/
+def arch.cm4.entry.role_slot
+  (e : Std.Usize) (r : Std.Usize) : Result Std.Usize := do
+  let i ← e * arch.cm4.plan.MAX_ROLES
+  i + r
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1720:12-1734:13 -/
+@[rust_loop_body]
+def arch.cm4.entry.endpoint_reinit_loop0_loop0.body
+  (p : Std.U8) (e : Std.Usize) (cfg : arch.cm4.plan.EndpointCfg)
+  (state : arch.cm4.plan.ArchState) (r : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize)
+    arch.cm4.plan.ArchState)
+  := do
+  if r < arch.cm4.plan.MAX_ROLES
+  then
+    let i ← lift (UScalar.cast .U8 r)
+    let state1 ←
+      if i < cfg.roles
+      then
+        do
+        let i1 ← Array.index_usize cfg.partitions r
+        if i1 != p
+        then
+          let i2 ← arch.cm4.entry.role_slot e r
+          let a ← Array.update state.peer_changed i2 true
+          ok { state with peer_changed := a }
+        else ok state
+      else ok state
+    let r1 ← r + 1#usize
+    ok (cont (state1, r1))
+  else ok (done state)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1720:12-1734:13 -/
+@[rust_loop]
+def arch.cm4.entry.endpoint_reinit_loop0_loop0
+  (state : arch.cm4.plan.ArchState) (p : Std.U8) (e : Std.Usize)
+  (cfg : arch.cm4.plan.EndpointCfg) (r : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  loop
+    (fun (state1, r1) => arch.cm4.entry.endpoint_reinit_loop0_loop0.body p e
+      cfg state1 r1)
+    (state, r)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1696:4-1750:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.endpoint_reinit_loop0.body
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T) (p : Std.U8)
+  (n : Std.Usize) (state : arch.cm4.plan.ArchState) (e : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize)
+    arch.cm4.plan.ArchState)
+  := do
+  if e < n
+  then
+    if e < arch.cm4.plan.MAX_ENDPOINTS
+    then
+      let cfg ← TablesInst.endpoint tables e
+      let b ← arch.cm4.entry.partition_in cfg p
+      if b
+      then
+        let state1 ← arch.cm4.entry.clear_channels state e
+        let state2 ←
+          arch.cm4.entry.endpoint_reinit_loop0_loop0 state1 p e cfg 0#usize
+        let e1 ← e + 1#usize
+        ok (cont (state2, e1))
+      else let e1 ← e + 1#usize
+           ok (cont (state, e1))
+    else ok (done state)
+  else ok (done state)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1696:4-1750:5 -/
+@[rust_loop]
+def arch.cm4.entry.endpoint_reinit_loop0
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (state : arch.cm4.plan.ArchState) (p : Std.U8) (n : Std.Usize)
+  (e : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  loop
+    (fun (state1, e1) => arch.cm4.entry.endpoint_reinit_loop0.body TablesInst
+      tables p n state1 e1)
+    (state, e)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1682:0-1751:1 -/
+def arch.cm4.entry.endpoint_reinit
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (state : arch.cm4.plan.ArchState) (p : Std.U8) :
+  Result arch.cm4.plan.ArchState
+  := do
+  let n ← TablesInst.endpoint_count tables
+  arch.cm4.entry.endpoint_reinit_loop0 TablesInst tables state p n 0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::dma_stop_partition]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1227:4-1245:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.dma_stop_partition_loop.body
+  {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (tables : T) (p : Std.U8)
+  (n : Std.Usize) (hw : A) (i : Std.Usize) :
+  Result (ControlFlow (A × Std.Usize) A)
+  := do
+  if i < n
+  then
+    let d ← TablesInst.dma tables i
+    let hw1 ←
+      if d.partition = p
+      then
+        do
+        let hw2 ←
+          if d.shorts != 0#u32
+          then
+            KernelArchInst.apply hw (arch.cm4.entry.Action.DmaShortsOff
+              d.shorts)
+          else ok hw
+        let i1 ← Array.index_usize d.stops 0#usize
+        let hw3 ←
+          if i1 != 0#u32
+          then KernelArchInst.apply hw2 (arch.cm4.entry.Action.DmaStop i1)
+          else ok hw2
+        let i2 ← Array.index_usize d.stops 1#usize
+        if i2 != 0#u32
+        then KernelArchInst.apply hw3 (arch.cm4.entry.Action.DmaStop i2)
+        else ok hw3
+      else ok hw
+    let i1 ← i + 1#usize
+    ok (cont (hw1, i1))
+  else ok (done hw)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_stop_partition]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1227:4-1245:5 -/
+@[rust_loop]
+def arch.cm4.entry.dma_stop_partition_loop
+  {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (hw : A) (tables : T) (p : Std.U8)
+  (n : Std.Usize) (i : Std.Usize) :
+  Result A
+  := do
+  loop
+    (fun (hw1, i1) => arch.cm4.entry.dma_stop_partition_loop.body
+      KernelArchInst TablesInst tables p n hw1 i1)
+    (hw, i)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_stop_partition]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1218:0-1246:1 -/
+def arch.cm4.entry.dma_stop_partition
+  {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (hw : A) (tables : T) (p : Std.U8) :
+  Result A
+  := do
+  let n ← TablesInst.dma_count tables
+  arch.cm4.entry.dma_stop_partition_loop KernelArchInst TablesInst hw tables p
+    n 0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::apply_core]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 827:4-871:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.cm4.entry.apply_core_loop0.body
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) (n : Std.Usize)
+  (hw : A) (t : Std.Usize) :
+  Result (ControlFlow (A × Std.Usize) A)
+  := do
+  if t < n
+  then
+    let i ← lift (UScalar.cast .U8 t)
+    let o ← TablesInst.intake_vector tables i
+    let hw1 ←
+      match o with
+      | none => ok hw
+      | some v =>
+        do
+        let i1 ← lift (UScalar.cast .U8 t)
+        let ji ← boundKernelOpsInst.job_info k i1
+        let i2 ← lift (UScalar.cast .U8 t)
+        let b ← boundKernelOpsInst.source_masked k i2
+        if b
+        then KernelArchInst.apply hw (arch.cm4.entry.Action.Disable v)
+        else
+          let b1 ← boundKernelOpsInst.partition_stopped k ji.partition
+          if b1
+          then KernelArchInst.apply hw (arch.cm4.entry.Action.Disable v)
+          else
+            let hw2 ←
+              KernelArchInst.apply hw (arch.cm4.entry.Action.ClearPending v)
+            KernelArchInst.apply hw2 (arch.cm4.entry.Action.Enable v)
+    let t1 ← t + 1#usize
+    ok (cont (hw1, t1))
+  else ok (done hw)
+
+/-- [rsk_kernel::arch::cm4::entry::apply_core]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 827:4-871:5
+    Visibility: public -/
+@[rust_loop]
+def arch.cm4.entry.apply_core_loop0
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (n : Std.Usize) (t : Std.Usize) :
+  Result A
+  := do
+  loop
+    (fun (hw1, t1) => arch.cm4.entry.apply_core_loop0.body boundKernelOpsInst
+      KernelArchInst TablesInst k tables n hw1 t1)
+    (hw, t)
+
+/-- [rsk_kernel::arch::cm4::entry::apply_core]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 875:4-907:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.cm4.entry.apply_core_loop1.body
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (tables : T) (np : Std.Usize) 
+  (k : K) (hw : A) (state : arch.cm4.plan.ArchState) (p : Std.Usize) :
+  Result (ControlFlow (K × A × arch.cm4.plan.ArchState × Std.Usize) (K × A
+    × arch.cm4.plan.ArchState))
+  := do
+  if p < np
+  then
+    let i ← lift (UScalar.cast .U8 p)
+    let (b, k1) ← boundKernelOpsInst.take_stop_dma k i
+    let (hw1, state1) ←
+      if b
+      then
+        do
+        let i1 ← lift (UScalar.cast .U8 p)
+        let hw2 ←
+          arch.cm4.entry.dma_stop_partition KernelArchInst TablesInst hw tables
+            i1
+        let i2 ← lift (UScalar.cast .U8 p)
+        let state2 ←
+          arch.cm4.entry.endpoint_reinit TablesInst tables state i2
+        ok (hw2, state2)
+      else ok (hw, state)
+    let i1 ← lift (UScalar.cast .U8 p)
+    let (b1, k2) ← boundKernelOpsInst.take_reinit k1 i1
+    let hw2 ←
+      if b1
+      then
+        do
+        let i2 ← lift (UScalar.cast .U8 p)
+        KernelArchInst.apply hw1 (arch.cm4.entry.Action.ReinitPartition i2)
+      else ok hw1
+    let p1 ← p + 1#usize
+    ok (cont (k2, hw2, state1, p1))
+  else ok (done (k, hw, state))
+
+/-- [rsk_kernel::arch::cm4::entry::apply_core]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 875:4-907:5
+    Visibility: public -/
+@[rust_loop]
+def arch.cm4.entry.apply_core_loop1
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (np : Std.Usize) (p : Std.Usize) :
+  Result (K × A × arch.cm4.plan.ArchState)
+  := do
+  loop
+    (fun (k1, hw1, state1, p1) => arch.cm4.entry.apply_core_loop1.body
+      boundKernelOpsInst KernelArchInst TablesInst tables np k1 hw1 state1 p1)
+    (k, hw, state, p)
+
+/-- [rsk_kernel::arch::cm4::entry::apply_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 764:0-933:1
+    Visibility: public -/
+def arch.cm4.entry.apply_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) :
+  Result (Bool × K × A × arch.cm4.plan.ArchState)
+  := do
+  let ((sel, quieted), k1) ← boundKernelOpsInst.settle k
+  let i ← boundKernelOpsInst.basepri_now k1
+  let hw1 ← KernelArchInst.apply hw (arch.cm4.entry.Action.SetBasepri i)
+  let hw2 ←
+    if quieted
+    then
+      do
+      let o ← boundKernelOpsInst.next_compare k1
+      match o with
+      | none => KernelArchInst.apply hw1 arch.cm4.entry.Action.CancelCompare
+      | some «at» => arch.cm4.entry.rearm_compare KernelArchInst hw1 «at»
+    else
+      do
+      let o ← boundKernelOpsInst.next_compare k1
+      match o with
+      | none => ok hw1
+      | some «at» => arch.cm4.entry.arm_compare KernelArchInst hw1 «at»
+  let hw3 ←
+    match sel with
+    | none => ok hw2
+    | some t =>
+      do
+      let i1 ← TablesInst.dispatch_vector tables t
+      KernelArchInst.apply hw2 (arch.cm4.entry.Action.Pend i1)
+  let n ← boundKernelOpsInst.task_count k1
+  let hw4 ←
+    arch.cm4.entry.apply_core_loop0 boundKernelOpsInst KernelArchInst
+      TablesInst k1 hw3 tables n 0#usize
+  let np ← boundKernelOpsInst.partition_count k1
+  let (k2, hw5, state1) ←
+    arch.cm4.entry.apply_core_loop1 boundKernelOpsInst KernelArchInst
+      TablesInst k1 hw4 tables state np 0#usize
+  let safe ← boundKernelOpsInst.safe_state k2
+  if safe
+  then
+    let hw6 ←
+      KernelArchInst.apply hw5 (arch.cm4.entry.Action.SetBasepri 0#u8)
+    ok (safe, k2, hw6, state1)
+  else ok (safe, k2, hw5, state1)
+
+/-- [rsk_kernel::arch::cm4::entry::vectors_ok]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 942:4-974:1 -/
+@[rust_loop_body]
+def arch.cm4.entry.vectors_ok_loop.body
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (n : Std.Usize) (t : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  if t < n
+  then
+    let i ← lift (UScalar.cast .U8 t)
+    let i1 ← TablesInst.dispatch_vector tables i
+    let b ← TablesInst.binding tables i1
+    match b with
+    | arch.cm4.entry.Binding.Dispatch u =>
+      let i2 ← lift (UScalar.cast .Usize u)
+      if i2 != t
+      then ok (done false)
+      else
+        let i3 ← lift (UScalar.cast .U8 t)
+        let o ← TablesInst.intake_vector tables i3
+        match o with
+        | none => let t1 ← t + 1#usize
+                  ok (cont t1)
+        | some v =>
+          let b1 ← TablesInst.binding tables v
+          match b1 with
+          | arch.cm4.entry.Binding.Dispatch _ => ok (done false)
+          | arch.cm4.entry.Binding.Intake task _ =>
+            let i4 ← lift (UScalar.cast .Usize task)
+            if i4 != t
+            then ok (done false)
+            else let t1 ← t + 1#usize
+                 ok (cont t1)
+          | arch.cm4.entry.Binding.Kernel => ok (done false)
+          | arch.cm4.entry.Binding.Unbound => ok (done false)
+    | arch.cm4.entry.Binding.Intake _ _ => ok (done false)
+    | arch.cm4.entry.Binding.Kernel => ok (done false)
+    | arch.cm4.entry.Binding.Unbound => ok (done false)
+  else ok (done true)
+
+/-- [rsk_kernel::arch::cm4::entry::vectors_ok]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 942:4-974:1 -/
+@[rust_loop]
+def arch.cm4.entry.vectors_ok_loop
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (n : Std.Usize) (t : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun t1 => arch.cm4.entry.vectors_ok_loop.body TablesInst tables n t1)
+    t
+
+/-- [rsk_kernel::arch::cm4::entry::vectors_ok]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 936:0-974:1 -/
+def arch.cm4.entry.vectors_ok
+  {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) :
+  Result Bool
+  := do
+  let n ← boundKernelOpsInst.task_count k
+  arch.cm4.entry.vectors_ok_loop TablesInst tables n 0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::boot_vectors]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1031:4-1069:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.boot_vectors_loop.body
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T)
+  («end» : Std.U16) (hw : A) (n : Std.U16) :
+  Result (ControlFlow (A × Std.U16) A)
+  := do
+  if n < «end»
+  then
+    let hw1 ← KernelArchInst.apply hw (arch.cm4.entry.Action.Disable n)
+    let b ← TablesInst.binding tables n
+    let hw2 ←
+      match b with
+      | arch.cm4.entry.Binding.Dispatch t =>
+        do
+        let ji ← boundKernelOpsInst.job_info k t
+        let i ← arch.bound.encode_level ji.priority
+        let hw3 ←
+          KernelArchInst.apply hw1 (arch.cm4.entry.Action.SetPriority n i)
+        KernelArchInst.apply hw3 (arch.cm4.entry.Action.Enable n)
+      | arch.cm4.entry.Binding.Intake _ _ =>
+        do
+        let i ← arch.bound.encode_level 0#u8
+        let hw3 ←
+          KernelArchInst.apply hw1 (arch.cm4.entry.Action.SetPriority n i)
+        KernelArchInst.apply hw3 (arch.cm4.entry.Action.Enable n)
+      | arch.cm4.entry.Binding.Kernel =>
+        do
+        let i ← arch.bound.encode_level 0#u8
+        let hw3 ←
+          KernelArchInst.apply hw1 (arch.cm4.entry.Action.SetPriority n i)
+        KernelArchInst.apply hw3 (arch.cm4.entry.Action.Enable n)
+      | arch.cm4.entry.Binding.Unbound => ok hw1
+    let n1 ← n + 1#u16
+    ok (cont (hw2, n1))
+  else ok (done hw)
+
+/-- [rsk_kernel::arch::cm4::entry::boot_vectors]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1031:4-1069:5 -/
+@[rust_loop]
+def arch.cm4.entry.boot_vectors_loop
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  («end» : Std.U16) (n : Std.U16) :
+  Result A
+  := do
+  loop
+    (fun (hw1, n1) => arch.cm4.entry.boot_vectors_loop.body boundKernelOpsInst
+      KernelArchInst TablesInst k tables «end» hw1 n1)
+    (hw, n)
+
+/-- [rsk_kernel::arch::cm4::entry::boot_vectors]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1017:0-1070:1 -/
+def arch.cm4.entry.boot_vectors
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (irqs : Std.U16) :
+  Result A
+  := do
+  let «end» ← 16#u16 + irqs
+  arch.cm4.entry.boot_vectors_loop boundKernelOpsInst KernelArchInst TablesInst
+    k hw tables «end» 16#u16
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_empty]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 43:0-47:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_seq_empty
+  : Result (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+
+/-- [rsk_kernel::arch::cm4::entry::dma_boot]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1283:4-1294:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.dma_boot_loop.body
+  {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (tables : T) (n : Std.Usize) 
+  (hw : A) (i : Std.Usize) :
+  Result (ControlFlow (A × Std.Usize) A)
+  := do
+  if i < n
+  then
+    let d ← TablesInst.dma tables i
+    let i1 ← Array.index_usize d.lists 0#usize
+    let hw1 ←
+      if i1 != 0#u32
+      then KernelArchInst.apply hw (arch.cm4.entry.Action.DmaListOff i1)
+      else ok hw
+    let i2 ← Array.index_usize d.lists 1#usize
+    let hw2 ←
+      if i2 != 0#u32
+      then KernelArchInst.apply hw1 (arch.cm4.entry.Action.DmaListOff i2)
+      else ok hw1
+    let i3 ← i + 1#usize
+    ok (cont (hw2, i3))
+  else ok (done hw)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_boot]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1283:4-1294:5 -/
+@[rust_loop]
+def arch.cm4.entry.dma_boot_loop
+  {A : Type _} {T : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (hw : A) (tables : T) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result A
+  := do
+  loop
+    (fun (hw1, i1) => arch.cm4.entry.dma_boot_loop.body KernelArchInst
+      TablesInst tables n hw1 i1)
+    (hw, i)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_boot]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1278:0-1295:1 -/
+def arch.cm4.entry.dma_boot
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T) :
+  Result A
+  := do
+  let n ← TablesInst.dma_count tables
+  arch.cm4.entry.dma_boot_loop KernelArchInst TablesInst hw tables n 0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::dma_windows_ok]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1260:4-1274:1 -/
+@[rust_loop_body]
+def arch.cm4.entry.dma_windows_ok_loop.body
+  {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  if i < n
+  then
+    let d ← TablesInst.dma tables i
+    let b ← boundKernelOpsInst.in_ro_window k d.partition d.ptr
+    if b
+    then
+      if d.maxcnt != 0#u32
+      then
+        let b1 ← boundKernelOpsInst.in_ro_window k d.partition d.maxcnt
+        if b1
+        then let i1 ← i + 1#usize
+             ok (cont i1)
+        else ok (done false)
+      else let i1 ← i + 1#usize
+           ok (cont i1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_windows_ok]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1260:4-1274:1 -/
+@[rust_loop]
+def arch.cm4.entry.dma_windows_ok_loop
+  {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun i1 => arch.cm4.entry.dma_windows_ok_loop.body boundKernelOpsInst
+      TablesInst k tables n i1)
+    i
+
+/-- [rsk_kernel::arch::cm4::entry::dma_windows_ok]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1255:0-1274:1 -/
+def arch.cm4.entry.dma_windows_ok
+  {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) :
+  Result Bool
+  := do
+  let n ← TablesInst.dma_count tables
+  arch.cm4.entry.dma_windows_ok_loop boundKernelOpsInst TablesInst k tables n
+    0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::boot_core]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1110:4-1118:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.cm4.entry.boot_core_loop0.body
+  (state : arch.cm4.plan.ArchState) (l : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize)
+    arch.cm4.plan.ArchState)
+  := do
+  if l < 8#usize
+  then
+    let rec ← Array.index_usize state.levels l
+    let a ← Array.update state.levels l { rec with active := false }
+    let l1 ← l + 1#usize
+    ok (cont ({ state with levels := a }, l1))
+  else ok (done state)
+
+/-- [rsk_kernel::arch::cm4::entry::boot_core]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1110:4-1118:5
+    Visibility: public -/
+@[rust_loop]
+def arch.cm4.entry.boot_core_loop0
+  (state : arch.cm4.plan.ArchState) (l : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  loop
+    (fun (state1, l1) => arch.cm4.entry.boot_core_loop0.body state1 l1)
+    (state, l)
+
+/-- [rsk_kernel::arch::cm4::entry::boot_core]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1181:4-1187:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.cm4.entry.boot_core_loop1.body
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (np : Std.Usize) (a : Array Std.U32 16#usize) (p : Std.Usize) :
+  Result (ControlFlow ((Array Std.U32 16#usize) × Std.Usize) (Array Std.U32
+    16#usize))
+  := do
+  if p < np
+  then
+    if p < arch.cm4.entry.MAX_FLOORS
+    then
+      let i ← lift (UScalar.cast .U8 p)
+      let i1 ← TablesInst.stack_top tables i
+      let a1 ← Array.update a p i1
+      let p1 ← p + 1#usize
+      ok (cont (a1, p1))
+    else ok (done a)
+  else ok (done a)
+
+/-- [rsk_kernel::arch::cm4::entry::boot_core]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1181:4-1187:5
+    Visibility: public -/
+@[rust_loop]
+def arch.cm4.entry.boot_core_loop1
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (a : Array Std.U32 16#usize) (np : Std.Usize) (p : Std.Usize) :
+  Result (Array Std.U32 16#usize)
+  := do
+  loop
+    (fun (a1, p1) => arch.cm4.entry.boot_core_loop1.body TablesInst tables np
+      a1 p1)
+    (a, p)
+
+/-- [rsk_kernel::arch::cm4::entry::boot_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1083:0-1205:1
+    Visibility: public -/
+def arch.cm4.entry.boot_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) :
+  Result (Bool × K × A × arch.cm4.plan.ArchState)
+  := do
+  let hw1 ←
+    KernelArchInst.apply hw (arch.cm4.entry.Action.Trace arch.cm4.entry.TR_BOOT
+      0#u32)
+  let b ← boundKernelOpsInst.validate k
+  if b
+  then
+    let state1 ← arch.cm4.entry.boot_core_loop0 state 0#usize
+    let g ← arch.cm4.ghostv.ghost_seq_empty
+    let k1 ← boundKernelOpsInst.init k
+    let info ← KernelArchInst.boot_info hw1
+    let i ← lift (info &&& arch.cm4.entry.BOOT_INFO_DEBUGGER)
+    let i1 ← lift (info &&& arch.cm4.entry.BOOT_INFO_WATCHDOG_RESET)
+    let k2 ← boundKernelOpsInst.boot_info k1 (i != 0#u32) (i1 != 0#u32)
+    let expect ← TablesInst.boot_expect tables
+    let hw2 ← KernelArchInst.apply hw1 arch.cm4.entry.Action.PpiDisableAll
+    let failed ← KernelArchInst.boot_checks hw2 expect
+    let i2 ← boundKernelOpsInst.config_checksum k2
+    let i3 ← TablesInst.config_checksum tables
+    let failed1 ←
+      if i2 != i3
+      then ok (failed ||| arch.cm4.entry.BOOT_FAIL_CHECKSUM)
+      else ok failed
+    let i4 ← boundKernelOpsInst.layout_checksum k2
+    let i5 ← TablesInst.layout_checksum tables
+    let failed2 ←
+      if i4 != i5
+      then
+        do
+        let i6 ← arch.cm4.entry.BOOT_FAIL_LAYOUT_CHECKSUM
+        ok (failed1 ||| i6)
+      else ok failed1
+    let i6 ← lift (info &&& arch.cm4.entry.BOOT_INFO_WATCHDOG_RESET)
+    let failed3 ←
+      if i6 != 0#u32
+      then ok (failed2 ||| arch.cm4.entry.BOOT_FAIL_WATCHDOG_RESET)
+      else ok failed2
+    let b1 ←
+      arch.cm4.entry.dma_windows_ok boundKernelOpsInst TablesInst k2 tables
+    let before ←
+      if b1
+      then ok failed3
+      else
+        do
+        let i7 ← arch.cm4.entry.BOOT_FAIL_DMA_WINDOW
+        ok (failed3 ||| i7)
+    let vectors ←
+      arch.cm4.entry.vectors_ok boundKernelOpsInst TablesInst k2 tables
+    let failed4 ←
+      if vectors
+      then ok before
+      else ok (before ||| arch.cm4.entry.BOOT_FAIL_VECTORS)
+    let irqs ← TablesInst.irq_count tables
+    if irqs > arch.cm4.entry.MAX_IRQS
+    then
+      let failed5 ← lift (failed4 ||| arch.cm4.entry.BOOT_FAIL_IRQ_COUNT)
+      let hw3 ←
+        KernelArchInst.apply hw2 (arch.cm4.entry.Action.Trace
+          arch.cm4.entry.TR_BOOTFAIL failed5)
+      let k3 ← boundKernelOpsInst.boot_failed k2 failed5
+      ok (false, k3, hw3,
+        {
+          state1
+            with
+            current_partition := 255#u8,
+            pending_unwind := 0#u32,
+            chain := g,
+            chain_levels := g
+        })
+    else
+      if failed4 != 0#u32
+      then
+        let hw3 ←
+          KernelArchInst.apply hw2 (arch.cm4.entry.Action.Trace
+            arch.cm4.entry.TR_BOOTFAIL failed4)
+        let k3 ← boundKernelOpsInst.boot_failed k2 failed4
+        ok (false, k3, hw3,
+          {
+            state1
+              with
+              current_partition := 255#u8,
+              pending_unwind := 0#u32,
+              chain := g,
+              chain_levels := g
+          })
+      else
+        let hw3 ←
+          arch.cm4.entry.dma_boot boundKernelOpsInst KernelArchInst TablesInst
+            k2 hw2 tables
+        let hw4 ←
+          KernelArchInst.apply hw3 arch.cm4.entry.Action.PrigroupAllPreempt
+        let hw5 ←
+          KernelArchInst.apply hw4 (arch.cm4.entry.Action.Nonbasethrdena false)
+        let hw6 ←
+          KernelArchInst.apply hw5 (arch.cm4.entry.Action.Disdefwbuf true)
+        let b2 ← TablesInst.fp_flush_to_zero tables
+        let hw7 ←
+          KernelArchInst.apply hw6 (arch.cm4.entry.Action.FpuEager b2)
+        let hw8 ←
+          KernelArchInst.apply hw7
+            arch.cm4.entry.Action.KernelExceptionPriorities
+        let hw9 ←
+          arch.cm4.entry.boot_vectors boundKernelOpsInst KernelArchInst
+            TablesInst k2 hw8 tables irqs
+        let np ← boundKernelOpsInst.partition_count k2
+        let a ←
+          arch.cm4.entry.boot_core_loop1 TablesInst tables state1.floor np
+            0#usize
+        let hw10 ←
+          KernelArchInst.apply hw9 arch.cm4.entry.Action.MpuEnableBackground
+        let i7 ← TablesInst.tick_hz tables
+        let i8 ← arch.cm4.entry.watchdog_reload i7
+        let hw11 ←
+          KernelArchInst.apply hw10 (arch.cm4.entry.Action.WatchdogStart i8)
+        let hw12 ←
+          KernelArchInst.apply hw11 arch.cm4.entry.Action.TimebaseInit
+        let hw13 ← KernelArchInst.apply hw12 arch.cm4.entry.Action.DwtEnable
+        let hw14 ←
+          KernelArchInst.apply hw13 (arch.cm4.entry.Action.Trace
+            arch.cm4.entry.TR_BOOTED 1#u32)
+        ok (true, k2, hw14,
+          {
+            state1
+              with
+              floor := a,
+              current_partition := 255#u8,
+              booted := true,
+              pending_unwind := 0#u32,
+              chain := g,
+              chain_levels := g
+          })
+  else
+    let hw2 ←
+      KernelArchInst.apply hw1 (arch.cm4.entry.Action.Trace
+        arch.cm4.entry.TR_INVALID 0#u32)
+    ok (false, k, hw2, state)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_request_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1319:0-1360:1 -/
+def arch.cm4.entry.dma_request_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (i : Std.Usize) (ptr : Std.U32) (len : Std.U32) :
+  Result (Bool × K × A)
+  := do
+  let i1 ← TablesInst.dma_count tables
+  let accepted ←
+    if i < i1
+    then
+      do
+      let d ← TablesInst.dma tables i
+      let o ← boundKernelOpsInst.top k
+      match o with
+      | none => ok false
+      | some t =>
+        let info ← boundKernelOpsInst.job_info k t
+        if info.partition = d.partition
+        then boundKernelOpsInst.dma_permitted k d.partition ptr len
+        else ok false
+    else ok false
+  if accepted
+  then
+    let d ← TablesInst.dma tables i
+    let hw1 ←
+      KernelArchInst.apply hw (arch.cm4.entry.Action.DmaProgram d.ptr ptr
+        d.maxcnt len)
+    ok (accepted, k, hw1)
+  else
+    let k1 ←
+      boundKernelOpsInst.fault k rsk_logic.logic.log.EV_DMA_REJECTED false
+    ok (accepted, k1, hw)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_write_core]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1431:8-1447:9 -/
+@[rust_loop_body]
+def arch.cm4.entry.dma_write_core_loop.body
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (n : Std.Usize) (reg : Std.U32) (window : Std.U32) (mediated : Bool)
+  (j : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if j < n
+  then
+    let e ← TablesInst.dma tables j
+    let i ← lift (e.ptr &&& 4294963200#u32)
+    let mediated1 ←
+      if i = window
+      then
+        if reg = e.ptr
+        then ok true
+        else
+          if reg = e.maxcnt
+          then ok true
+          else
+            do
+            let i1 ← Array.index_usize e.lists 0#usize
+            if reg = i1
+            then ok true
+            else
+              let i2 ← Array.index_usize e.lists 1#usize
+              if reg = i2
+              then ok true
+              else ok mediated
+      else ok mediated
+    let j1 ← j + 1#usize
+    ok (cont (mediated1, j1))
+  else ok (done mediated)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_write_core]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1431:8-1447:9 -/
+@[rust_loop]
+def arch.cm4.entry.dma_write_core_loop
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (n : Std.Usize) (reg : Std.U32) (window : Std.U32) (mediated : Bool)
+  (j : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (mediated1, j1) => arch.cm4.entry.dma_write_core_loop.body TablesInst
+      tables n reg window mediated1 j1)
+    (mediated, j)
+
+/-- [rsk_kernel::arch::cm4::entry::dma_write_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1394:0-1459:1 -/
+def arch.cm4.entry.dma_write_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (i : Std.Usize) (offset : Std.U32) (value : Std.U32) :
+  Result (Bool × K × A)
+  := do
+  let n ← TablesInst.dma_count tables
+  if i < n
+  then
+    if offset < 4096#u32
+    then
+      let i1 ← offset % 4#u32
+      if i1 = 0#u32
+      then
+        let d ← TablesInst.dma tables i
+        let o ← boundKernelOpsInst.top k
+        let (d1, owned) ←
+          match o with
+          | none => ok (d, false)
+          | some t =>
+            do
+            let info ← boundKernelOpsInst.job_info k t
+            ok (d, info.partition = d.partition)
+        let window ← lift (d1.ptr &&& 4294963200#u32)
+        let reg ← lift (window ||| offset)
+        let mediated ←
+          arch.cm4.entry.dma_write_core_loop TablesInst tables n reg window
+            false 0#usize
+        let accepted ←
+          if owned
+          then if d1.ptr != 0#u32
+               then ok (¬ mediated)
+               else ok false
+          else ok false
+        if accepted
+        then
+          let hw1 ←
+            KernelArchInst.apply hw (arch.cm4.entry.Action.DmaWrite reg value)
+          ok (accepted, k, hw1)
+        else
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_DMA_REJECTED
+              false
+          ok (accepted, k1, hw)
+      else
+        let k1 ←
+          boundKernelOpsInst.fault k rsk_logic.logic.log.EV_DMA_REJECTED false
+        ok (false, k1, hw)
+    else
+      let k1 ←
+        boundKernelOpsInst.fault k rsk_logic.logic.log.EV_DMA_REJECTED false
+      ok (false, k1, hw)
+  else
+    let k1 ←
+      boundKernelOpsInst.fault k rsk_logic.logic.log.EV_DMA_REJECTED false
+    ok (false, k1, hw)
+
+/-- [rsk_kernel::arch::cm4::entry::raise_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1466:0-1497:1 -/
+def arch.cm4.entry.raise_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (i : Std.Usize) :
+  Result (Bool × K × A)
+  := do
+  let i1 ← TablesInst.signal_count tables
+  let accepted ←
+    if i < i1
+    then
+      do
+      let sg ← TablesInst.signal tables i
+      let o ← boundKernelOpsInst.top k
+      match o with
+      | none => ok false
+      | some t =>
+        let info ← boundKernelOpsInst.job_info k t
+        if info.partition = sg.partition
+        then
+          let i2 ← lift (UScalar.cast .Usize sg.task)
+          let i3 ← boundKernelOpsInst.task_count k
+          ok (i2 < i3)
+        else ok false
+    else ok false
+  if accepted
+  then
+    let sg ← TablesInst.signal tables i
+    let now ← KernelArchInst.now hw
+    let o ← boundKernelOpsInst.top k
+    let (sg1, offender) ←
+      match o with
+      | none => ok (sg, sg.task)
+      | some t => ok (sg, t)
+    let k1 ← boundKernelOpsInst.intake k sg1.task sg1.partition now offender
+    ok (accepted, k1, hw)
+  else
+    let k1 ←
+      boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+    ok (accepted, k1, hw)
+
+/-- [rsk_kernel::arch::cm4::entry::channel_index]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1513:0-1522:1 -/
+def arch.cm4.entry.channel_index
+  (e : Std.Usize) («from» : Std.Usize) («to» : Std.Usize) :
+  Result Std.Usize
+  := do
+  let i ← arch.cm4.plan.MAX_ROLES * arch.cm4.plan.MAX_ROLES
+  let i1 ← e * i
+  let i2 ← «from» * arch.cm4.plan.MAX_ROLES
+  let i3 ← i1 + i2
+  i3 + «to»
+
+/-- [rsk_kernel::arch::cm4::entry::channel_push]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1768:0-1788:1 -/
+def arch.cm4.entry.channel_push
+  (state : arch.cm4.plan.ArchState) (ch : Std.Usize) (cap : Std.U8) :
+  Result ((Option Std.U8) × arch.cm4.plan.ArchState)
+  := do
+  let f ← Array.index_usize state.fifos ch
+  let b ← rsk_logic.logic.endpoint.Fifo.is_wf f cap
+  if b
+  then
+    let (f1, index_mut_back) ← Array.index_mut_usize state.fifos ch
+    let (o, f2) ← rsk_logic.logic.endpoint.Fifo.push f1 cap
+    let a := index_mut_back f2
+    ok (o, { state with fifos := a })
+  else
+    let (f1, index_mut_back) ← Array.index_mut_usize state.fifos ch
+    let f2 ← rsk_logic.logic.endpoint.Fifo.clear f1
+    let a := index_mut_back f2
+    let (f3, index_mut_back1) ← Array.index_mut_usize a ch
+    let (o, f4) ← rsk_logic.logic.endpoint.Fifo.push f3 cap
+    let a1 := index_mut_back1 f4
+    ok (o, { state with fifos := a1 })
+
+/-- [rsk_kernel::arch::cm4::entry::channel_pop]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1795:0-1824:1 -/
+def arch.cm4.entry.channel_pop
+  (state : arch.cm4.plan.ArchState) (ch : Std.Usize) (cap : Std.U8) :
+  Result ((Option Std.U8) × arch.cm4.plan.ArchState)
+  := do
+  let f ← Array.index_usize state.fifos ch
+  let b ← rsk_logic.logic.endpoint.Fifo.is_wf f cap
+  if b
+  then
+    let (f1, index_mut_back) ← Array.index_mut_usize state.fifos ch
+    let (slot, f2) ← rsk_logic.logic.endpoint.Fifo.pop f1 cap
+    let a := index_mut_back f2
+    ok (slot, { state with fifos := a })
+  else
+    let (f1, index_mut_back) ← Array.index_mut_usize state.fifos ch
+    let f2 ← rsk_logic.logic.endpoint.Fifo.clear f1
+    let a := index_mut_back f2
+    let (f3, index_mut_back1) ← Array.index_mut_usize a ch
+    let (slot, f4) ← rsk_logic.logic.endpoint.Fifo.pop f3 cap
+    let a1 := index_mut_back1 f4
+    ok (slot, { state with fifos := a1 })
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1857:4-1871:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.endpoint_reinit_one_loop0.body
+  (i : Std.Usize) (base : Std.Usize) (state : arch.cm4.plan.ArchState)
+  (c : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize)
+    arch.cm4.plan.ArchState)
+  := do
+  if c < i
+  then
+    let i1 ← base + c
+    let (f, index_mut_back) ← Array.index_mut_usize state.fifos i1
+    let f1 ← rsk_logic.logic.endpoint.Fifo.clear f
+    let a ← Array.update state.delivered i1 false
+    let c1 ← c + 1#usize
+    let a1 := index_mut_back f1
+    ok (cont ({ state with fifos := a1, delivered := a }, c1))
+  else ok (done state)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1857:4-1871:5 -/
+@[rust_loop]
+def arch.cm4.entry.endpoint_reinit_one_loop0
+  (i : Std.Usize) (state : arch.cm4.plan.ArchState) (base : Std.Usize)
+  (c : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  loop
+    (fun (state1, c1) => arch.cm4.entry.endpoint_reinit_one_loop0.body i base
+      state1 c1)
+    (state, c)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1874:4-1888:5 -/
+@[rust_loop_body]
+def arch.cm4.entry.endpoint_reinit_one_loop1.body
+  (rbase : Std.Usize) (state : arch.cm4.plan.ArchState) (r : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize)
+    arch.cm4.plan.ArchState)
+  := do
+  if r < arch.cm4.plan.MAX_ROLES
+  then
+    let i ← rbase + r
+    let a ← Array.update state.peer_changed i true
+    let r1 ← r + 1#usize
+    ok (cont ({ state with peer_changed := a }, r1))
+  else ok (done state)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1874:4-1888:5 -/
+@[rust_loop]
+def arch.cm4.entry.endpoint_reinit_one_loop1
+  (state : arch.cm4.plan.ArchState) (rbase : Std.Usize) (r : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  loop
+    (fun (state1, r1) => arch.cm4.entry.endpoint_reinit_one_loop1.body rbase
+      state1 r1)
+    (state, r)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_reinit_one]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1834:0-1889:1 -/
+def arch.cm4.entry.endpoint_reinit_one
+  (state : arch.cm4.plan.ArchState) (e : Std.Usize) :
+  Result arch.cm4.plan.ArchState
+  := do
+  let i ← arch.cm4.plan.MAX_ROLES * arch.cm4.plan.MAX_ROLES
+  let base ← e * i
+  let state1 ← arch.cm4.entry.endpoint_reinit_one_loop0 i state base 0#usize
+  let rbase ← e * arch.cm4.plan.MAX_ROLES
+  arch.cm4.entry.endpoint_reinit_one_loop1 state1 rbase 0#usize
+
+/-- [rsk_kernel::arch::cm4::entry::rejection_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1968:0-1984:1 -/
+def arch.cm4.entry.rejection_core
+  {K : Type _} (boundKernelOpsInst : arch.bound.KernelOps K) (k : K)
+  (state : arch.cm4.plan.ArchState) (cfg : arch.cm4.plan.EndpointCfg)
+  (e : Std.Usize) (role : Std.Usize) («from» : Std.Usize) :
+  Result (K × arch.cm4.plan.ArchState)
+  := do
+  let ch ← arch.cm4.entry.channel_index e «from» role
+  let a ← Array.index_usize cfg.validates role
+  let b ← Array.index_usize a «from»
+  if b
+  then
+    let b1 ← Array.index_usize state.delivered ch
+    if b1
+    then
+      let i ← Array.index_usize cfg.tasks «from»
+      let k1 ←
+        boundKernelOpsInst.fault_of k rsk_logic.logic.log.EV_MESSAGE_REJECTED i
+      let state1 ← arch.cm4.entry.endpoint_reinit_one state e
+      ok (k1, state1)
+    else
+      let k1 ←
+        boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+      ok (k1, state)
+  else
+    let k1 ←
+      boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+    ok (k1, state)
+
+/-- [rsk_kernel::arch::cm4::entry::violation_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1901:0-1948:1 -/
+def arch.cm4.entry.violation_core
+  {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T)
+  (state : arch.cm4.plan.ArchState) (arg : Std.U32) :
+  Result (K × arch.cm4.plan.ArchState)
+  := do
+  let o ← boundKernelOpsInst.top k
+  match o with
+  | none => ok (k, state)
+  | some t =>
+    let i ← lift (arg &&& 255#u32)
+    if i = 2#u32
+    then
+      let i1 ← arg >>> 8#i32
+      let i2 ← lift (i1 &&& 255#u32)
+      let e ← lift (UScalar.cast .Usize i2)
+      let i3 ← arg >>> 16#i32
+      let i4 ← lift (i3 &&& 15#u32)
+      let role ← lift (UScalar.cast .Usize i4)
+      let i5 ← arg >>> 20#i32
+      if i5 != 0#u32
+      then
+        let k1 ←
+          boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+        ok (k1, state)
+      else
+        let i6 ← TablesInst.endpoint_count tables
+        if e >= i6
+        then
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+          ok (k1, state)
+        else
+          if e >= arch.cm4.plan.MAX_ENDPOINTS
+          then
+            let k1 ←
+              boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE
+                false
+            ok (k1, state)
+          else
+            if role >= arch.cm4.plan.MAX_ROLES
+            then
+              let k1 ←
+                boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE
+                  false
+              ok (k1, state)
+            else
+              let cfg ← TablesInst.endpoint tables e
+              let i7 ← lift (UScalar.cast .U8 role)
+              if i7 >= cfg.roles
+              then
+                let k1 ←
+                  boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE
+                    false
+                ok (k1, state)
+              else
+                let i8 ← Array.index_usize cfg.tasks role
+                if i8 != t
+                then
+                  let k1 ←
+                    boundKernelOpsInst.fault k
+                      rsk_logic.logic.log.EV_API_MISUSE false
+                  ok (k1, state)
+                else
+                  let k1 ←
+                    boundKernelOpsInst.record_event k
+                      rsk_logic.logic.log.EV_PROTOCOL_VIOLATION t
+                  let state1 ← arch.cm4.entry.endpoint_reinit_one state e
+                  ok (k1, state1)
+    else
+      let i1 ← arg >>> 8#i32
+      let i2 ← lift (i1 &&& 255#u32)
+      let e ← lift (UScalar.cast .Usize i2)
+      let i3 ← arg >>> 16#i32
+      let i4 ← lift (i3 &&& 15#u32)
+      let role ← lift (UScalar.cast .Usize i4)
+      let i5 ← arg >>> 20#i32
+      let i6 ← lift (i5 &&& 15#u32)
+      let «from» ← lift (UScalar.cast .Usize i6)
+      let i7 ← lift (arg &&& 255#u32)
+      if i7 != 1#u32
+      then
+        let k1 ←
+          boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+        ok (k1, state)
+      else
+        let i8 ← arg >>> 24#i32
+        if i8 != 0#u32
+        then
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+          ok (k1, state)
+        else
+          let i9 ← TablesInst.endpoint_count tables
+          if e >= i9
+          then
+            let k1 ←
+              boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE
+                false
+            ok (k1, state)
+          else
+            if e >= arch.cm4.plan.MAX_ENDPOINTS
+            then
+              let k1 ←
+                boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE
+                  false
+              ok (k1, state)
+            else
+              if role >= arch.cm4.plan.MAX_ROLES
+              then
+                let k1 ←
+                  boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE
+                    false
+                ok (k1, state)
+              else
+                if «from» >= arch.cm4.plan.MAX_ROLES
+                then
+                  let k1 ←
+                    boundKernelOpsInst.fault k
+                      rsk_logic.logic.log.EV_API_MISUSE false
+                  ok (k1, state)
+                else
+                  let cfg ← TablesInst.endpoint tables e
+                  let i10 ← lift (UScalar.cast .U8 role)
+                  if i10 >= cfg.roles
+                  then
+                    let k1 ←
+                      boundKernelOpsInst.fault k
+                        rsk_logic.logic.log.EV_API_MISUSE false
+                    ok (k1, state)
+                  else
+                    let i11 ← lift (UScalar.cast .U8 «from»)
+                    if i11 >= cfg.roles
+                    then
+                      let k1 ←
+                        boundKernelOpsInst.fault k
+                          rsk_logic.logic.log.EV_API_MISUSE false
+                      ok (k1, state)
+                    else
+                      if «from» = role
+                      then
+                        let k1 ←
+                          boundKernelOpsInst.fault k
+                            rsk_logic.logic.log.EV_API_MISUSE false
+                        ok (k1, state)
+                      else
+                        let i12 ← Array.index_usize cfg.tasks role
+                        if i12 != t
+                        then
+                          let k1 ←
+                            boundKernelOpsInst.fault k
+                              rsk_logic.logic.log.EV_API_MISUSE false
+                          ok (k1, state)
+                        else
+                          arch.cm4.entry.rejection_core boundKernelOpsInst k
+                            state cfg e role «from»
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_args]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1992:0-2032:1 -/
+def arch.cm4.entry.endpoint_args
+  {K : Type _} {T : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (tables : T) (arg : Std.U32)
+  (ptr : Std.U32) (len : Std.U32) :
+  Result (Option (Std.Usize × Std.Usize × Std.Usize ×
+    arch.cm4.plan.EndpointCfg))
+  := do
+  let i ← lift (arg &&& 255#u32)
+  let e ← lift (UScalar.cast .Usize i)
+  let i1 ← arg >>> 8#i32
+  let i2 ← lift (i1 &&& 15#u32)
+  let role ← lift (UScalar.cast .Usize i2)
+  let i3 ← arg >>> 12#i32
+  let i4 ← lift (i3 &&& 15#u32)
+  let peer ← lift (UScalar.cast .Usize i4)
+  let i5 ← arg >>> 16#i32
+  if i5 != 0#u32
+  then ok none
+  else
+    let i6 ← TablesInst.endpoint_count tables
+    if e >= i6
+    then ok none
+    else
+      if e >= arch.cm4.plan.MAX_ENDPOINTS
+      then ok none
+      else
+        if role >= arch.cm4.plan.MAX_ROLES
+        then ok none
+        else
+          if peer >= arch.cm4.plan.MAX_ROLES
+          then ok none
+          else
+            if role = peer
+            then ok none
+            else
+              let cfg ← TablesInst.endpoint tables e
+              let i7 ← lift (UScalar.cast .Usize cfg.roles)
+              if i7 > arch.cm4.plan.MAX_ROLES
+              then ok none
+              else
+                let i8 ← lift (UScalar.cast .U8 role)
+                if i8 >= cfg.roles
+                then ok none
+                else
+                  let i9 ← lift (UScalar.cast .U8 peer)
+                  if i9 >= cfg.roles
+                  then ok none
+                  else
+                    let o ← boundKernelOpsInst.top k
+                    let ok1 ←
+                      match o with
+                      | none => ok false
+                      | some t =>
+                        do
+                        let i10 ← Array.index_usize cfg.tasks role
+                        if t = i10
+                        then
+                          if cfg.capacity >= 1#u8
+                          then
+                            if cfg.payload >= 4#u16
+                            then
+                              let i11 ← cfg.payload % 4#u16
+                              if i11 = 0#u16
+                              then
+                                let i12 ←
+                                  lift (UScalar.cast .U32 cfg.payload)
+                                if len = i12
+                                then
+                                  let i13 ← ptr % 4#u32
+                                  if i13 = 0#u32
+                                  then
+                                    let i14 ←
+                                      Array.index_usize cfg.partitions role
+                                    boundKernelOpsInst.message_permitted k i14
+                                      ptr len
+                                  else ok false
+                                else ok false
+                              else ok false
+                            else ok false
+                          else ok false
+                        else ok false
+                    if ok1
+                    then ok (some (e, role, peer, cfg))
+                    else ok none
+
+/-- [rsk_kernel::arch::cm4::entry::copy_in_checked]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2046:0-2054:1 -/
+def arch.cm4.entry.copy_in_checked
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (verus_tmp_p : verus_builtin.Ghost verus_builtin.int) (dst : Std.U32)
+  (src : Std.U32) (len : Std.U32) :
+  Result (Std.U32 × A)
+  := do
+  KernelArchInst.copy_in hw dst src len
+
+/-- [rsk_kernel::arch::cm4::entry::copy_out_checked]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2059:0-2069:1 -/
+def arch.cm4.entry.copy_out_checked
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (verus_tmp_p : verus_builtin.Ghost verus_builtin.int) (dst : Std.U32)
+  (src : Std.U32) (len : Std.U32) :
+  Result (Std.U32 × A)
+  := do
+  KernelArchInst.copy_out hw dst src len
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_slot]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2106:0-2136:1 -/
+def arch.cm4.entry.endpoint_slot
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (cfg : arch.cm4.plan.EndpointCfg) (d : Std.Usize) (slot : Std.U8) :
+  Result (Option Std.U32)
+  := do
+  let (base, total) ← TablesInst.endpoint_storage tables
+  let payload ← lift (UScalar.cast .U64 cfg.payload)
+  let capacity ← lift (UScalar.cast .U64 cfg.capacity)
+  let slot64 ← lift (UScalar.cast .U64 slot)
+  let d64 ← lift (UScalar.cast .U64 d)
+  let per_channel ← capacity * payload
+  let channel_off ← d64 * per_channel
+  let i ← lift (UScalar.cast .U64 cfg.storage)
+  let i1 ← i + channel_off
+  let i2 ← slot64 * payload
+  let off ← i1 + i2
+  let i3 ← off + payload
+  let i4 ← lift (UScalar.cast .U64 total)
+  if i3 <= i4
+  then
+    let i5 ← lift (UScalar.cast .U64 base)
+    let i6 ← i5 + off
+    let i7 ← i6 + payload
+    if i7 <= 4294967295#u64
+    then
+      let i8 ← lift (UScalar.cast .U64 base)
+      let i9 ← i8 + off
+      let i10 ← lift (UScalar.cast .U32 i9)
+      ok (some i10)
+    else ok none
+  else ok none
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_partition]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 36:0-40:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_partition
+  :
+  arch.cm4.plan.EndpointCfg → Std.Usize → Result (verus_builtin.Ghost
+    verus_builtin.int)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_send_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2225:0-2322:1 -/
+def arch.cm4.entry.endpoint_send_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (arg : Std.U32) (ptr : Std.U32)
+  (len : Std.U32) :
+  Result (Std.U32 × K × A × arch.cm4.plan.ArchState)
+  := do
+  let o ←
+    arch.cm4.entry.endpoint_args boundKernelOpsInst TablesInst k tables arg ptr
+      len
+  match o with
+  | none =>
+    let k1 ←
+      boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+    ok (arch.cm4.entry.ENDPOINT_REFUSED, k1, hw, state)
+  | some a =>
+    let (e, role, peer, cfg) := a
+    let rs ← arch.cm4.entry.role_slot e role
+    let b ← Array.index_usize state.peer_changed rs
+    if b
+    then
+      let a1 ← Array.update state.peer_changed rs false
+      ok (arch.cm4.entry.ENDPOINT_PEER, k, hw,
+        { state with peer_changed := a1 })
+    else
+      let ch ← arch.cm4.entry.channel_index e role peer
+      let saved ← Array.index_usize state.fifos ch
+      let (o1, state1) ← arch.cm4.entry.channel_push state ch cfg.capacity
+      match o1 with
+      | none =>
+        let t ← Array.index_usize cfg.tasks role
+        let k1 ←
+          boundKernelOpsInst.record_event k
+            rsk_logic.logic.log.EV_ENDPOINT_FULL t
+        ok (arch.cm4.entry.ENDPOINT_FULL, k1, hw, state1)
+      | some s =>
+        let i ← lift (UScalar.cast .Usize cfg.roles)
+        let i1 ← role * i
+        let d ← i1 + peer
+        let o2 ← arch.cm4.entry.endpoint_slot TablesInst tables cfg d s
+        match o2 with
+        | none =>
+          let a1 ← Array.update state1.fifos ch saved
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+          ok (arch.cm4.entry.ENDPOINT_REFUSED, k1, hw,
+            { state1 with fifos := a1 })
+        | some dst =>
+          let g ← arch.cm4.ghostv.ghost_partition cfg role
+          let (_, hw1) ←
+            arch.cm4.entry.copy_in_checked boundKernelOpsInst KernelArchInst
+              TablesInst k hw tables g dst ptr len
+          let b1 ← Array.index_usize cfg.release peer
+          if b1
+          then
+            let now ← KernelArchInst.now hw1
+            let o3 ← boundKernelOpsInst.top k
+            let offender ←
+              match o3 with
+              | none => Array.index_usize cfg.tasks peer
+              | some t => ok t
+            let i2 ← Array.index_usize cfg.tasks peer
+            let i3 ← Array.index_usize cfg.partitions role
+            let k1 ← boundKernelOpsInst.intake k i2 i3 now offender
+            ok (arch.cm4.entry.ENDPOINT_OK, k1, hw1, state1)
+          else ok (arch.cm4.entry.ENDPOINT_OK, k, hw1, state1)
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_int]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 28:0-32:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_int
+  : Std.U32 → Result (verus_builtin.Ghost verus_builtin.int)
+
+/-- [rsk_kernel::arch::cm4::entry::endpoint_recv_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2327:0-2386:1 -/
+def arch.cm4.entry.endpoint_recv_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (arg : Std.U32) (ptr : Std.U32)
+  (len : Std.U32) :
+  Result ((Std.U32 × (verus_builtin.Ghost verus_builtin.int)) × K × A ×
+    arch.cm4.plan.ArchState)
+  := do
+  let o ←
+    arch.cm4.entry.endpoint_args boundKernelOpsInst TablesInst k tables arg ptr
+      len
+  match o with
+  | none =>
+    let k1 ←
+      boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+    let g ← arch.cm4.ghostv.ghost_int 0#u32
+    ok ((arch.cm4.entry.ENDPOINT_REFUSED, g), k1, hw, state)
+  | some a =>
+    let (e, role, «from», cfg) := a
+    let rs ← arch.cm4.entry.role_slot e role
+    let b ← Array.index_usize state.peer_changed rs
+    if b
+    then
+      let a1 ← Array.update state.peer_changed rs false
+      let g ← arch.cm4.ghostv.ghost_int 0#u32
+      ok ((arch.cm4.entry.ENDPOINT_PEER, g), k, hw,
+        { state with peer_changed := a1 })
+    else
+      let ch ← arch.cm4.entry.channel_index e «from» role
+      let (o1, state1) ← arch.cm4.entry.channel_pop state ch cfg.capacity
+      match o1 with
+      | none =>
+        let g ← arch.cm4.ghostv.ghost_int 0#u32
+        ok ((arch.cm4.entry.ENDPOINT_EMPTY, g), k, hw, state1)
+      | some s =>
+        let i ← lift (UScalar.cast .Usize cfg.roles)
+        let i1 ← «from» * i
+        let d ← i1 + role
+        let o2 ← arch.cm4.entry.endpoint_slot TablesInst tables cfg d s
+        match o2 with
+        | none =>
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_API_MISUSE false
+          let g ← arch.cm4.ghostv.ghost_int 0#u32
+          ok ((arch.cm4.entry.ENDPOINT_REFUSED, g), k1, hw, state1)
+        | some src =>
+          let g ← arch.cm4.ghostv.ghost_partition cfg role
+          let (first, hw1) ←
+            arch.cm4.entry.copy_out_checked boundKernelOpsInst KernelArchInst
+              TablesInst k hw tables g ptr src len
+          let a1 ← Array.index_usize cfg.validates role
+          let b1 ← Array.index_usize a1 «from»
+          let state2 ←
+            if b1
+            then
+              do
+              let a2 ← Array.update state1.delivered ch true
+              ok { state1 with delivered := a2 }
+            else ok state1
+          let g1 ← arch.cm4.ghostv.ghost_int first
+          ok ((arch.cm4.entry.ENDPOINT_OK, g1), k, hw1, state2)
+
+/-- [rsk_kernel::arch::cm4::entry::start_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2391:0-2417:1
+    Visibility: public -/
+def arch.cm4.entry.start_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) :
+  Result (Bool × K × A × arch.cm4.plan.ArchState)
+  := do
+  let hw1 ← KernelArchInst.apply hw arch.cm4.entry.Action.PrimaskSet
+  let i ← KernelArchInst.cycles hw1
+  let k1 ← boundKernelOpsInst.start k
+  let (safe, k2, hw2, state1) ←
+    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+      hw1 tables { state with last_switch := i }
+  let hw3 ←
+    KernelArchInst.apply hw2 (arch.cm4.entry.Action.Trace
+      arch.cm4.entry.TR_START 0#u32)
+  if safe
+  then ok (safe, k2, hw3, state1)
+  else
+    let hw4 ← KernelArchInst.apply hw3 arch.cm4.entry.Action.PrimaskClear
+    ok (safe, k2, hw4, state1)
+
+/-- [rsk_kernel::arch::cm4::plan::FRAME_BYTES]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 84:0-84:32
+    Visibility: public -/
+@[global_simps, irreducible] def arch.cm4.plan.FRAME_BYTES : Std.U32 := 32#u32
+
+/-- [rsk_kernel::arch::cm4::plan::frame_in_stack]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 291:0-295:1
+    Visibility: public -/
+def arch.cm4.plan.frame_in_stack
+  (psp : Std.U32) (bottom : Std.U32) (top : Std.U32) : Result Bool := do
+  if psp >= bottom
+  then
+    if top >= arch.cm4.plan.FRAME_BYTES
+    then let i ← top - arch.cm4.plan.FRAME_BYTES
+         ok (psp <= i)
+    else ok false
+  else ok false
+
+/-- [rsk_kernel::arch::cm4::entry::psp_in_stack]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2432:0-2441:1
+    Visibility: public -/
+def arch.cm4.entry.psp_in_stack
+  {T : Type _} (TablesInst : arch.cm4.entry.Tables T) (tables : T)
+  (state : arch.cm4.plan.ArchState) (psp : Std.U32) :
+  Result Bool
+  := do
+  if state.current_partition = 255#u8
+  then ok false
+  else
+    let i ← TablesInst.stack_bottom tables state.current_partition
+    let i1 ← TablesInst.stack_top tables state.current_partition
+    arch.cm4.plan.frame_in_stack psp i i1
+
+/-- [rsk_kernel::arch::cm4::entry::svc_of_ended_job_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2449:0-2459:1
+    Visibility: public -/
+def arch.cm4.entry.svc_of_ended_job_core
+  {K : Type _} {A : Type _} (boundKernelOpsInst : arch.bound.KernelOps K)
+  (KernelArchInst : arch.cm4.entry.KernelArch A) (k : K) (hw : A)
+  (depth_before : Std.Usize) :
+  Result A
+  := do
+  let i ← boundKernelOpsInst.depth k
+  if i < depth_before
+  then KernelArchInst.svc_clear_pending hw
+  else ok hw
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_snap]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 20:0-24:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_snap
+  {V : Type _} : V → Result (verus_builtin.Ghost V)
+
+/-- [rsk_kernel::arch::cm4::plan::top_active]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 232:4-244:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.cm4.plan.top_active_loop.body
+  (levels : Array arch.cm4.plan.LevelRecord 8#usize) (level : Std.Usize)
+  (i : Std.Usize) :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  if i < 8#usize
+  then
+    let lr ← Array.index_usize levels i
+    let level1 ← if lr.active
+                   then ok i
+                   else ok level
+    let i1 ← i + 1#usize
+    ok (cont (level1, i1))
+  else ok (done level)
+
+/-- [rsk_kernel::arch::cm4::plan::top_active]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 232:4-244:5
+    Visibility: public -/
+@[rust_loop]
+def arch.cm4.plan.top_active_loop
+  (levels : Array arch.cm4.plan.LevelRecord 8#usize) (level : Std.Usize)
+  (i : Std.Usize) :
+  Result Std.Usize
+  := do
+  loop
+    (fun (level1, i1) => arch.cm4.plan.top_active_loop.body levels level1 i1)
+    (level, i)
+
+/-- [rsk_kernel::arch::cm4::plan::top_active]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 223:0-246:1
+    Visibility: public -/
+@[reducible]
+def arch.cm4.plan.top_active
+  (levels : Array arch.cm4.plan.LevelRecord 8#usize) : Result Std.Usize := do
+  arch.cm4.plan.top_active_loop levels 0#usize 1#usize
+
+/-- [rsk_kernel::arch::cm4::entry::end_plan_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3013:0-3035:1 -/
+def arch.cm4.entry.end_plan_core
+  {K : Type _} (boundKernelOpsInst : arch.bound.KernelOps K) (k : K)
+  (state : arch.cm4.plan.ArchState) (depth_before : Std.Usize)
+  (verus_tmp_k0 : verus_builtin.Ghost K)
+  (verus_tmp_s0 : verus_builtin.Ghost arch.cm4.plan.ArchState) :
+  Result Std.U32
+  := do
+  let i ← boundKernelOpsInst.depth k
+  if i < depth_before
+  then
+    let level ← arch.cm4.plan.top_active state.levels
+    let lr ← Array.index_usize state.levels level
+    ok (UScalar.cast .U32 lr.exception_number)
+  else ok 0#u32
+
+/-- [rsk_kernel::arch::cm4::entry::stack_violation_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2520:0-2546:1
+    Visibility: public -/
+def arch.cm4.entry.stack_violation_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState)
+  := do
+  let gk0 ← arch.cm4.ghostv.ghost_snap k
+  let gs0 ← arch.cm4.ghostv.ghost_snap state
+  let hw1 ←
+    KernelArchInst.apply hw (arch.cm4.entry.Action.Trace
+      arch.cm4.entry.TR_INVALID 2#u32)
+  let depth_before ← boundKernelOpsInst.depth k
+  let k1 ←
+    boundKernelOpsInst.fault k rsk_logic.logic.log.EV_STACK_VIOLATION false
+  let (safe, k2, hw2, state1) ←
+    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+      hw1 tables state
+  let hop ←
+    arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state1 depth_before gk0
+      gs0
+  ok ((hop, safe), k2, hw2, state1)
+
+/-- [rsk_kernel::arch::cm4::plan::plan_frame]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 305:0-328:1
+    Visibility: public -/
+def arch.cm4.plan.plan_frame
+  (floor : Std.U32) (bottom : Std.U32) (top : Std.U32) :
+  Result (Option Std.U32)
+  := do
+  if floor > top
+  then ok none
+  else
+    if floor < arch.cm4.plan.FRAME_BYTES
+    then ok none
+    else
+      let top1 ← floor - arch.cm4.plan.FRAME_BYTES
+      let i ← top1 / 8#u32
+      let f ← i * 8#u32
+      if f < bottom
+      then ok none
+      else ok (some f)
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_push_usize]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 57:0-61:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_seq_push_usize
+  :
+  verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int) → Std.Usize → Result
+    (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_push_u8]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 50:0-54:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_seq_push_u8
+  :
+  verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int) → Std.U8 → Result
+    (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_job_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3043:0-3197:1 -/
+def arch.cm4.entry.dispatch_job_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (n : Std.U16) (t : Std.U8) (psp : Std.U32)
+  (control : Std.U32) (exc_return : Std.U32) :
+  Result ((arch.cm4.entry.DispatchPlan × Bool) × K × A ×
+    arch.cm4.plan.ArchState)
+  := do
+  let (preempted, state1) ←
+    arch.cm4.entry.charge_point KernelArchInst hw state
+  let a ←
+    if state1.current_partition != 255#u8
+    then
+      do
+      let i ← lift (UScalar.cast .Usize state1.current_partition)
+      if i < arch.cm4.entry.MAX_FLOORS
+      then
+        let i1 ← lift (exc_return &&& 12#u32)
+        if i1 = 12#u32
+        then
+          let i2 ← lift (UScalar.cast .Usize state1.current_partition)
+          Array.update state1.floor i2 psp
+        else ok state1.floor
+      else ok state1.floor
+    else ok state1.floor
+  let o ← boundKernelOpsInst.top k
+  let previous_task ← match o with
+                        | none => ok 255#u8
+                        | some u => ok u
+  let info ← boundKernelOpsInst.job_info k t
+  let level ← lift (UScalar.cast .Usize info.priority)
+  let i ← lift (UScalar.cast .Usize info.partition)
+  if i >= arch.cm4.entry.MAX_FLOORS
+  then
+    let k1 ← boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+    let (safe, k2, hw1, state2) ←
+      arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+        hw tables { state1 with floor := a }
+    ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, safe), k2, hw1,
+      state2)
+  else
+    let i1 ← lift (UScalar.cast .Usize info.partition)
+    let floor_before ← Array.index_usize a i1
+    let i2 ← TablesInst.stack_bottom tables info.partition
+    let i3 ← TablesInst.stack_top tables info.partition
+    let o1 ← arch.cm4.plan.plan_frame floor_before i2 i3
+    let frame ← match o1 with
+                  | none => ok 0#u32
+                  | some frame1 => ok frame1
+    if frame = 0#u32
+    then
+      let k1 ←
+        boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+      let (safe, k2, hw1, state2) ←
+        arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst
+          k1 hw tables { state1 with floor := a }
+      ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, safe), k2, hw1,
+        state2)
+    else
+      let depth_before ← boundKernelOpsInst.depth k
+      let k1 ← boundKernelOpsInst.dispatch k t preempted
+      let i4 ← boundKernelOpsInst.depth k1
+      if i4 = depth_before
+      then
+        let k2 ←
+          boundKernelOpsInst.fault k1 rsk_logic.logic.log.EV_HARDFAULT true
+        let (safe, k3, hw1, state2) ←
+          arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+            TablesInst k2 hw tables { state1 with floor := a }
+        ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, safe), k3,
+          hw1, state2)
+      else
+        let a1 ←
+          Array.update state1.levels level
+            ({
+               exception_number := n,
+               task := t,
+               partition := info.partition,
+               psp,
+               control,
+               exc_return,
+               floor_before,
+               previous_partition := state1.current_partition,
+               previous_task,
+               active := true
+             } : arch.cm4.plan.LevelRecord)
+        let i5 ← lift (UScalar.cast .Usize info.partition)
+        let a2 ← Array.update a i5 frame
+        let i6 ← TablesInst.task_entry_address tables t
+        let hw1 ←
+          KernelArchInst.apply hw (arch.cm4.entry.Action.WriteFrame frame i6)
+        let view ← boundKernelOpsInst.partition_view k1 info.partition
+        let hw2 ←
+          KernelArchInst.apply hw1 (arch.cm4.entry.Action.LoadView
+            info.partition view)
+        let g ← arch.cm4.ghostv.ghost_seq_push_u8 state1.chain t
+        let g1 ←
+          arch.cm4.ghostv.ghost_seq_push_usize state1.chain_levels level
+        let i7 ← boundKernelOpsInst.basepri_now k1
+        let hw3 ←
+          KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri i7)
+        let o2 ← boundKernelOpsInst.next_compare k1
+        let hw4 ←
+          match o2 with
+          | none => ok hw3
+          | some «at» => arch.cm4.entry.arm_compare KernelArchInst hw3 «at»
+        let hw5 ←
+          KernelArchInst.apply hw4 (arch.cm4.entry.Action.FpuAccess info.fpu)
+        let i8 ← lift (UScalar.cast .U32 t)
+        let i9 ← lift (i8 &&& 7#u32)
+        let i10 ← lift (frame ||| i9)
+        let hw6 ←
+          KernelArchInst.apply hw5 (arch.cm4.entry.Action.Trace
+            arch.cm4.entry.TR_DISPATCH i10)
+        ok
+          (({
+              psp := frame,
+              control := arch.cm4.entry.CONTROL_JOB,
+              exc_return := arch.cm4.entry.EXC_RETURN_THREAD_PSP,
+              hop := 0#u32
+            }, false), k1, hw6,
+          {
+            state1
+              with
+              levels := a1,
+              floor := a2,
+              current_partition := info.partition,
+              chain := g,
+              chain_levels := g1
+          })
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3272:8-3280:9 -/
+@[rust_loop_body]
+def arch.cm4.entry.dispatch_vector_core_loop0.body
+  (a : Array Std.U16 8#usize) (n : Std.U16) (slot : Std.Usize) (i : Std.Usize)
+  :
+  Result (ControlFlow (Std.Usize × Std.Usize) Std.Usize)
+  := do
+  if i < 8#usize
+  then
+    let slot1 ←
+      if slot = 8#usize
+      then
+        do
+        let i1 ← Array.index_usize a i
+        if i1 = 0#u16
+        then ok i
+        else if i1 = n
+             then ok i
+             else ok slot
+      else ok slot
+    let i1 ← i + 1#usize
+    ok (cont (slot1, i1))
+  else ok (done slot)
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3272:8-3280:9 -/
+@[rust_loop]
+def arch.cm4.entry.dispatch_vector_core_loop0
+  (a : Array Std.U16 8#usize) (n : Std.U16) (slot : Std.Usize) (i : Std.Usize)
+  :
+  Result Std.Usize
+  := do
+  loop
+    (fun (slot1, i1) => arch.cm4.entry.dispatch_vector_core_loop0.body a n
+      slot1 i1)
+    (slot, i)
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3272:8-3280:9 -/
+@[rust_loop_body]
+def arch.cm4.entry.dispatch_vector_core_loop1.body
+  (n : Std.U16) (state : arch.cm4.plan.ArchState) (slot : Std.Usize)
+  (i : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize × Std.Usize)
+    (arch.cm4.plan.ArchState × Std.Usize))
+  := do
+  if i < 8#usize
+  then
+    let (state1, slot1) ←
+      if slot = 8#usize
+      then
+        do
+        let i1 ← Array.index_usize state.deferred i
+        let i2 ←
+          if i1 = 0#u16
+          then ok i
+          else if i1 = n
+               then ok i
+               else ok slot
+        ok (state, i2)
+      else ok (state, slot)
+    let i1 ← i + 1#usize
+    ok (cont (state1, slot1, i1))
+  else ok (done (state, slot))
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3272:8-3280:9 -/
+@[rust_loop]
+def arch.cm4.entry.dispatch_vector_core_loop1
+  (state : arch.cm4.plan.ArchState) (n : Std.U16) (slot : Std.Usize)
+  (i : Std.Usize) :
+  Result (arch.cm4.plan.ArchState × Std.Usize)
+  := do
+  loop
+    (fun (state1, slot1, i1) => arch.cm4.entry.dispatch_vector_core_loop1.body
+      n state1 slot1 i1)
+    (state, slot, i)
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop body 2:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3272:8-3280:9 -/
+@[rust_loop_body]
+def arch.cm4.entry.dispatch_vector_core_loop2.body
+  (n : Std.U16) (state : arch.cm4.plan.ArchState) (slot : Std.Usize)
+  (i : Std.Usize) :
+  Result (ControlFlow (arch.cm4.plan.ArchState × Std.Usize × Std.Usize)
+    (arch.cm4.plan.ArchState × Std.Usize))
+  := do
+  if i < 8#usize
+  then
+    let (state1, slot1) ←
+      if slot = 8#usize
+      then
+        do
+        let i1 ← Array.index_usize state.deferred i
+        let i2 ←
+          if i1 = 0#u16
+          then ok i
+          else if i1 = n
+               then ok i
+               else ok slot
+        ok (state, i2)
+      else ok (state, slot)
+    let i1 ← i + 1#usize
+    ok (cont (state1, slot1, i1))
+  else ok (done (state, slot))
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]: loop 2:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3272:8-3280:9 -/
+@[rust_loop]
+def arch.cm4.entry.dispatch_vector_core_loop2
+  (state : arch.cm4.plan.ArchState) (n : Std.U16) (slot : Std.Usize)
+  (i : Std.Usize) :
+  Result (arch.cm4.plan.ArchState × Std.Usize)
+  := do
+  loop
+    (fun (state1, slot1, i1) => arch.cm4.entry.dispatch_vector_core_loop2.body
+      n state1 slot1 i1)
+    (state, slot, i)
+
+/-- [rsk_kernel::arch::cm4::entry::dispatch_vector_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3205:0-3328:1 -/
+def arch.cm4.entry.dispatch_vector_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (n : Std.U16) (t : Std.U8) (psp : Std.U32)
+  (control : Std.U32) (exc_return : Std.U32) :
+  Result ((arch.cm4.entry.DispatchPlan × Bool) × K × A ×
+    arch.cm4.plan.ArchState)
+  := do
+  if arch.cm4.entry.WINDOW_DEFER
+  then
+    let i ← lift (exc_return &&& 8#u32)
+    if i != 0#u32
+    then
+      if state.pending_unwind != 0#u32
+      then
+        let hw1 ← KernelArchInst.apply hw (arch.cm4.entry.Action.Pend n)
+        ok
+          (({ psp := 0#u32, control, exc_return, hop := state.pending_unwind },
+          false), k, hw1, { state with pending_unwind := 0#u32 })
+      else
+        if arch.cm4.entry.WINDOW_DEFER
+        then
+          let i1 ← lift (exc_return &&& 8#u32)
+          if i1 = 0#u32
+          then
+            let i2 ← lift (UScalar.cast .U32 n)
+            let hw1 ←
+              KernelArchInst.apply hw (arch.cm4.entry.Action.Trace
+                arch.cm4.entry.TR_WINDOW i2)
+            let hw2 ←
+              KernelArchInst.apply hw1 (arch.cm4.entry.Action.Disable n)
+            let slot ←
+              arch.cm4.entry.dispatch_vector_core_loop0 state.deferred n
+                8#usize 0#usize
+            if slot < 8#usize
+            then
+              let a ← Array.update state.deferred slot n
+              ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+                k, hw2, { state with deferred := a })
+            else
+              let k1 ←
+                boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT
+                  true
+              let (safe, k2, hw3, state1) ←
+                arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                  TablesInst k1 hw2 tables state
+              ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, safe),
+                k2, hw3, state1)
+          else
+            if n = 0#u16
+            then
+              ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+                k, hw, state)
+            else
+              let b ← boundKernelOpsInst.eligible k t
+              if b
+              then
+                if state.current_partition != 255#u8
+                then
+                  let i2 ← lift (exc_return &&& 12#u32)
+                  if i2 = 12#u32
+                  then
+                    let b1 ←
+                      arch.cm4.entry.psp_in_stack TablesInst tables state psp
+                    if b1
+                    then
+                      arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                        KernelArchInst TablesInst k hw tables state n t psp
+                        control exc_return
+                    else
+                      let depth_before ← boundKernelOpsInst.depth k
+                      let ((hop, safe), k1, hw1, state1) ←
+                        arch.cm4.entry.stack_violation_core boundKernelOpsInst
+                          KernelArchInst TablesInst k hw tables state
+                      let hw2 ←
+                        KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend n)
+                      let hw3 ←
+                        arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst
+                          KernelArchInst k1 hw2 depth_before
+                      ok (({ psp := 0#u32, control, exc_return, hop }, safe),
+                        k1, hw3, state1)
+                  else
+                    arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                      KernelArchInst TablesInst k hw tables state n t psp
+                      control exc_return
+                else
+                  arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state n t psp control
+                    exc_return
+              else
+                ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                  false), k, hw, state)
+        else
+          if n = 0#u16
+          then
+            ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+              k, hw, state)
+          else
+            let b ← boundKernelOpsInst.eligible k t
+            if b
+            then
+              if state.current_partition != 255#u8
+              then
+                let i1 ← lift (exc_return &&& 12#u32)
+                if i1 = 12#u32
+                then
+                  let b1 ←
+                    arch.cm4.entry.psp_in_stack TablesInst tables state psp
+                  if b1
+                  then
+                    arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                      KernelArchInst TablesInst k hw tables state n t psp
+                      control exc_return
+                  else
+                    let depth_before ← boundKernelOpsInst.depth k
+                    let ((hop, safe), k1, hw1, state1) ←
+                      arch.cm4.entry.stack_violation_core boundKernelOpsInst
+                        KernelArchInst TablesInst k hw tables state
+                    let hw2 ←
+                      KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend n)
+                    let hw3 ←
+                      arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst
+                        KernelArchInst k1 hw2 depth_before
+                    ok (({ psp := 0#u32, control, exc_return, hop }, safe), k1,
+                      hw3, state1)
+                else
+                  arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state n t psp control
+                    exc_return
+              else
+                arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state n t psp control
+                  exc_return
+            else
+              ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+                k, hw, state)
+    else
+      if arch.cm4.entry.WINDOW_DEFER
+      then
+        let i1 ← lift (exc_return &&& 8#u32)
+        if i1 = 0#u32
+        then
+          let i2 ← lift (UScalar.cast .U32 n)
+          let hw1 ←
+            KernelArchInst.apply hw (arch.cm4.entry.Action.Trace
+              arch.cm4.entry.TR_WINDOW i2)
+          let hw2 ←
+            KernelArchInst.apply hw1 (arch.cm4.entry.Action.Disable n)
+          let (state1, slot) ←
+            arch.cm4.entry.dispatch_vector_core_loop1 state n 8#usize 0#usize
+          if slot < 8#usize
+          then
+            let a ← Array.update state1.deferred slot n
+            ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+              k, hw2, { state1 with deferred := a })
+          else
+            let k1 ←
+              boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+            let (safe, k2, hw3, state2) ←
+              arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                TablesInst k1 hw2 tables state1
+            ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, safe),
+              k2, hw3, state2)
+        else
+          if n = 0#u16
+          then
+            ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+              k, hw, state)
+          else
+            let b ← boundKernelOpsInst.eligible k t
+            if b
+            then
+              if state.current_partition != 255#u8
+              then
+                let i2 ← lift (exc_return &&& 12#u32)
+                if i2 = 12#u32
+                then
+                  let b1 ←
+                    arch.cm4.entry.psp_in_stack TablesInst tables state psp
+                  if b1
+                  then
+                    arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                      KernelArchInst TablesInst k hw tables state n t psp
+                      control exc_return
+                  else
+                    let depth_before ← boundKernelOpsInst.depth k
+                    let ((hop, safe), k1, hw1, state1) ←
+                      arch.cm4.entry.stack_violation_core boundKernelOpsInst
+                        KernelArchInst TablesInst k hw tables state
+                    let hw2 ←
+                      KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend n)
+                    let hw3 ←
+                      arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst
+                        KernelArchInst k1 hw2 depth_before
+                    ok (({ psp := 0#u32, control, exc_return, hop }, safe), k1,
+                      hw3, state1)
+                else
+                  arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state n t psp control
+                    exc_return
+              else
+                arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state n t psp control
+                  exc_return
+            else
+              ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+                k, hw, state)
+      else
+        if n = 0#u16
+        then
+          ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false), k,
+            hw, state)
+        else
+          let b ← boundKernelOpsInst.eligible k t
+          if b
+          then
+            if state.current_partition != 255#u8
+            then
+              let i1 ← lift (exc_return &&& 12#u32)
+              if i1 = 12#u32
+              then
+                let b1 ←
+                  arch.cm4.entry.psp_in_stack TablesInst tables state psp
+                if b1
+                then
+                  arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state n t psp control
+                    exc_return
+                else
+                  let depth_before ← boundKernelOpsInst.depth k
+                  let ((hop, safe), k1, hw1, state1) ←
+                    arch.cm4.entry.stack_violation_core boundKernelOpsInst
+                      KernelArchInst TablesInst k hw tables state
+                  let hw2 ←
+                    KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend n)
+                  let hw3 ←
+                    arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst
+                      KernelArchInst k1 hw2 depth_before
+                  ok (({ psp := 0#u32, control, exc_return, hop }, safe), k1,
+                    hw3, state1)
+              else
+                arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state n t psp control
+                  exc_return
+            else
+              arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                KernelArchInst TablesInst k hw tables state n t psp control
+                exc_return
+          else
+            ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+              k, hw, state)
+  else
+    if arch.cm4.entry.WINDOW_DEFER
+    then
+      let i ← lift (exc_return &&& 8#u32)
+      if i = 0#u32
+      then
+        let i1 ← lift (UScalar.cast .U32 n)
+        let hw1 ←
+          KernelArchInst.apply hw (arch.cm4.entry.Action.Trace
+            arch.cm4.entry.TR_WINDOW i1)
+        let hw2 ← KernelArchInst.apply hw1 (arch.cm4.entry.Action.Disable n)
+        let (state1, slot) ←
+          arch.cm4.entry.dispatch_vector_core_loop2 state n 8#usize 0#usize
+        if slot < 8#usize
+        then
+          let a ← Array.update state1.deferred slot n
+          ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false), k,
+            hw2, { state1 with deferred := a })
+        else
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+          let (safe, k2, hw3, state2) ←
+            arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+              TablesInst k1 hw2 tables state1
+          ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, safe), k2,
+            hw3, state2)
+      else
+        if n = 0#u16
+        then
+          ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false), k,
+            hw, state)
+        else
+          let b ← boundKernelOpsInst.eligible k t
+          if b
+          then
+            if state.current_partition != 255#u8
+            then
+              let i1 ← lift (exc_return &&& 12#u32)
+              if i1 = 12#u32
+              then
+                let b1 ←
+                  arch.cm4.entry.psp_in_stack TablesInst tables state psp
+                if b1
+                then
+                  arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state n t psp control
+                    exc_return
+                else
+                  let depth_before ← boundKernelOpsInst.depth k
+                  let ((hop, safe), k1, hw1, state1) ←
+                    arch.cm4.entry.stack_violation_core boundKernelOpsInst
+                      KernelArchInst TablesInst k hw tables state
+                  let hw2 ←
+                    KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend n)
+                  let hw3 ←
+                    arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst
+                      KernelArchInst k1 hw2 depth_before
+                  ok (({ psp := 0#u32, control, exc_return, hop }, safe), k1,
+                    hw3, state1)
+              else
+                arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state n t psp control
+                  exc_return
+            else
+              arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                KernelArchInst TablesInst k hw tables state n t psp control
+                exc_return
+          else
+            ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false),
+              k, hw, state)
+    else
+      if n = 0#u16
+      then
+        ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false), k,
+          hw, state)
+      else
+        let b ← boundKernelOpsInst.eligible k t
+        if b
+        then
+          if state.current_partition != 255#u8
+          then
+            let i ← lift (exc_return &&& 12#u32)
+            if i = 12#u32
+            then
+              let b1 ←
+                arch.cm4.entry.psp_in_stack TablesInst tables state psp
+              if b1
+              then
+                arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state n t psp control
+                  exc_return
+              else
+                let depth_before ← boundKernelOpsInst.depth k
+                let ((hop, safe), k1, hw1, state1) ←
+                  arch.cm4.entry.stack_violation_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state
+                let hw2 ←
+                  KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend n)
+                let hw3 ←
+                  arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst
+                    KernelArchInst k1 hw2 depth_before
+                ok (({ psp := 0#u32, control, exc_return, hop }, safe), k1,
+                  hw3, state1)
+            else
+              arch.cm4.entry.dispatch_job_core boundKernelOpsInst
+                KernelArchInst TablesInst k hw tables state n t psp control
+                exc_return
+          else
+            arch.cm4.entry.dispatch_job_core boundKernelOpsInst KernelArchInst
+              TablesInst k hw tables state n t psp control exc_return
+        else
+          ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 }, false), k,
+            hw, state)
+
+/-- [rsk_kernel::arch::cm4::entry::intake_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3335:0-3375:1 -/
+def arch.cm4.entry.intake_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (n : Std.U16) (task : Std.U8)
+  (partition : Std.U8) (psp : Std.U32) (exc_return : Std.U32) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState)
+  := do
+  let gk0 ← arch.cm4.ghostv.ghost_snap k
+  let gs0 ← arch.cm4.ghostv.ghost_snap state
+  let now ← KernelArchInst.now hw
+  let hw1 ← KernelArchInst.apply hw (arch.cm4.entry.Action.Disable n)
+  let depth_before ← boundKernelOpsInst.depth k
+  let (k1, hw2) ←
+    if state.current_partition != 255#u8
+    then
+      do
+      let i ← lift (exc_return &&& 12#u32)
+      if i = 12#u32
+      then
+        let b ← arch.cm4.entry.psp_in_stack TablesInst tables state psp
+        if b
+        then ok (k, hw1)
+        else
+          let hw3 ←
+            KernelArchInst.apply hw1 (arch.cm4.entry.Action.Trace
+              arch.cm4.entry.TR_INVALID 2#u32)
+          let k2 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_STACK_VIOLATION
+              false
+          ok (k2, hw3)
+      else ok (k, hw1)
+    else ok (k, hw1)
+  let k2 ← boundKernelOpsInst.intake k1 task partition now task
+  let (safe, k3, hw3, state1) ←
+    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k2
+      hw2 tables state
+  let hop ←
+    arch.cm4.entry.end_plan_core boundKernelOpsInst k3 state1 depth_before gk0
+      gs0
+  let hw4 ←
+    arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst KernelArchInst k3
+      hw3 depth_before
+  ok ((hop, safe), k3, hw4, state1)
+
+/-- [rsk_kernel::arch::cm4::entry::unbound_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3380:0-3407:1 -/
+def arch.cm4.entry.unbound_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (n : Std.U16) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState)
+  := do
+  let gk0 ← arch.cm4.ghostv.ghost_snap k
+  let gs0 ← arch.cm4.ghostv.ghost_snap state
+  let hw1 ← KernelArchInst.apply hw (arch.cm4.entry.Action.Disable n)
+  let depth_before ← boundKernelOpsInst.depth k
+  let k1 ← boundKernelOpsInst.fault k rsk_logic.logic.log.EV_UNBOUND_IRQ true
+  let (safe, k2, hw2, state1) ←
+    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+      hw1 tables state
+  let hop ←
+    arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state1 depth_before gk0
+      gs0
+  let hw3 ←
+    arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst KernelArchInst k2
+      hw2 depth_before
+  ok ((hop, safe), k2, hw3, state1)
+
+/-- [rsk_kernel::arch::cm4::entry::timer_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3551:0-3588:1
+    Visibility: public -/
+def arch.cm4.entry.timer_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState)
+  := do
+  let gk0 ← arch.cm4.ghostv.ghost_snap k
+  let gs0 ← arch.cm4.ghostv.ghost_snap state
+  let hw1 ← KernelArchInst.apply hw arch.cm4.entry.Action.TimebaseAck
+  let now ← KernelArchInst.now hw1
+  let i ← lift (UScalar.cast .U32 now)
+  let hw2 ←
+    KernelArchInst.apply hw1 (arch.cm4.entry.Action.Trace
+      arch.cm4.entry.TR_TICK i)
+  let (running, state1) ←
+    arch.cm4.entry.charge_point KernelArchInst hw2 state
+  let depth_before ← boundKernelOpsInst.depth k
+  let k1 ← boundKernelOpsInst.timer_event k now running
+  let (safe, k2, hw3, state2) ←
+    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+      hw2 tables state1
+  let hop ←
+    arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2 depth_before gk0
+      gs0
+  let hw4 ← KernelArchInst.apply hw3 arch.cm4.entry.Action.WatchdogFeed
+  let hw5 ←
+    arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst KernelArchInst k2
+      hw4 depth_before
+  ok ((hop, safe), k2, hw5, state2)
+
+/-- [rsk_kernel::arch::cm4::entry::irq_entry_core]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3464:8-3478:9
+    Visibility: public -/
+@[rust_loop_body]
+def arch.cm4.entry.irq_entry_core_loop.body
+  {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
+  (state : arch.cm4.plan.ArchState) (i : Std.Usize) :
+  Result (ControlFlow (A × arch.cm4.plan.ArchState × Std.Usize) (A ×
+    arch.cm4.plan.ArchState))
+  := do
+  if i < 8#usize
+  then
+    let v ← Array.index_usize state.deferred i
+    if v != 0#u16
+    then
+      let hw1 ← KernelArchInst.apply hw (arch.cm4.entry.Action.Enable v)
+      let hw2 ← KernelArchInst.apply hw1 (arch.cm4.entry.Action.Pend v)
+      let a ← Array.update state.deferred i 0#u16
+      let i1 ← i + 1#usize
+      ok (cont (hw2, { state with deferred := a }, i1))
+    else let i1 ← i + 1#usize
+         ok (cont (hw, state, i1))
+  else ok (done (hw, state))
+
+/-- [rsk_kernel::arch::cm4::entry::irq_entry_core]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3464:8-3478:9
+    Visibility: public -/
+@[rust_loop]
+def arch.cm4.entry.irq_entry_core_loop
+  {A : Type _} (KernelArchInst : arch.cm4.entry.KernelArch A) (hw : A)
+  (state : arch.cm4.plan.ArchState) (i : Std.Usize) :
+  Result (A × arch.cm4.plan.ArchState)
+  := do
+  loop
+    (fun (hw1, state1, i1) => arch.cm4.entry.irq_entry_core_loop.body
+      KernelArchInst hw1 state1 i1)
+    (hw, state, i)
+
+/-- [rsk_kernel::arch::cm4::entry::irq_entry_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3415:0-3547:1
+    Visibility: public -/
+def arch.cm4.entry.irq_entry_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (ipsr : Std.U32) (psp : Std.U32)
+  (control : Std.U32) (exc_return : Std.U32) :
+  Result ((arch.cm4.entry.DispatchPlan × Bool) × K × A ×
+    arch.cm4.plan.ArchState)
+  := do
+  let i ← lift (ipsr &&& 511#u32)
+  let n ← lift (UScalar.cast .U16 i)
+  let i1 ← lift (UScalar.cast .U32 n)
+  let hw1 ←
+    KernelArchInst.apply hw (arch.cm4.entry.Action.Trace arch.cm4.entry.TR_IRQ
+      i1)
+  if arch.cm4.entry.WINDOW_DEFER
+  then
+    let i2 ← lift (exc_return &&& 8#u32)
+    if i2 != 0#u32
+    then
+      let (hw2, state1) ←
+        arch.cm4.entry.irq_entry_core_loop KernelArchInst hw1 state 0#usize
+      let b ← TablesInst.binding tables n
+      let (k1, hw3, state2, r) ←
+        match b with
+        | arch.cm4.entry.Binding.Dispatch t =>
+          do
+          let (r1, k2, hw4, state3) ←
+            arch.cm4.entry.dispatch_vector_core boundKernelOpsInst
+              KernelArchInst TablesInst k hw2 tables state1 n t psp control
+              exc_return
+          ok (k2, hw4, state3, r1)
+        | arch.cm4.entry.Binding.Intake task partition =>
+          do
+          let ((hop, safe), k2, hw4, state3) ←
+            arch.cm4.entry.intake_core boundKernelOpsInst KernelArchInst
+              TablesInst k hw2 tables state1 n task partition psp exc_return
+          ok (k2, hw4, state3, (({ psp := 0#u32, control, exc_return, hop } :
+            arch.cm4.entry.DispatchPlan), safe))
+        | arch.cm4.entry.Binding.Kernel =>
+          do
+          let i3 ← TablesInst.timer_vector tables
+          let (t, t1, «as», i4, i5, i6, b1) ←
+            if n = i3
+            then
+              do
+              let ((hop, safe), k2, hw4, state3) ←
+                arch.cm4.entry.timer_core boundKernelOpsInst KernelArchInst
+                  TablesInst k hw2 tables state1
+              ok (k2, hw4, state3, control, exc_return, hop, safe)
+            else ok (k, hw2, state1, control, exc_return, 0#u32, false)
+          ok (t, t1, «as»,
+            (({ psp := 0#u32, control := i4, exc_return := i5, hop := i6 } :
+            arch.cm4.entry.DispatchPlan), b1))
+        | arch.cm4.entry.Binding.Unbound =>
+          do
+          let ((hop, safe), k2, hw4, state3) ←
+            arch.cm4.entry.unbound_core boundKernelOpsInst KernelArchInst
+              TablesInst k hw2 tables state1 n
+          ok (k2, hw4, state3, (({ psp := 0#u32, control, exc_return, hop } :
+            arch.cm4.entry.DispatchPlan), safe))
+      if arch.cm4.entry.WINDOW_DEFER
+      then
+        let (dp, b1) := r
+        if dp.psp = 0#u32
+        then
+          if dp.hop != 0#u32
+          then
+            let i3 ← lift (exc_return &&& 8#u32)
+            if i3 = 0#u32
+            then
+              if b1
+              then ok (r, k1, hw3, state2)
+              else
+                let i4 ← lift (65536#u32 ||| dp.hop)
+                let hw4 ←
+                  KernelArchInst.apply hw3 (arch.cm4.entry.Action.Trace
+                    arch.cm4.entry.TR_WINDOW i4)
+                if state2.pending_unwind = 0#u32
+                then
+                  ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                    false), k1, hw4, { state2 with pending_unwind := dp.hop })
+                else
+                  ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                    false), k1, hw4, state2)
+            else ok (r, k1, hw3, state2)
+          else ok (r, k1, hw3, state2)
+        else ok (r, k1, hw3, state2)
+      else ok (r, k1, hw3, state2)
+    else
+      let b ← TablesInst.binding tables n
+      let (k1, hw2, state1, r) ←
+        match b with
+        | arch.cm4.entry.Binding.Dispatch t =>
+          do
+          let (r1, k2, hw3, state2) ←
+            arch.cm4.entry.dispatch_vector_core boundKernelOpsInst
+              KernelArchInst TablesInst k hw1 tables state n t psp control
+              exc_return
+          ok (k2, hw3, state2, r1)
+        | arch.cm4.entry.Binding.Intake task partition =>
+          do
+          let ((hop, safe), k2, hw3, state2) ←
+            arch.cm4.entry.intake_core boundKernelOpsInst KernelArchInst
+              TablesInst k hw1 tables state n task partition psp exc_return
+          ok (k2, hw3, state2, (({ psp := 0#u32, control, exc_return, hop } :
+            arch.cm4.entry.DispatchPlan), safe))
+        | arch.cm4.entry.Binding.Kernel =>
+          do
+          let i3 ← TablesInst.timer_vector tables
+          let (t, t1, «as», i4, b1) ←
+            if n = i3
+            then
+              do
+              let ((hop, safe), k2, hw3, state2) ←
+                arch.cm4.entry.timer_core boundKernelOpsInst KernelArchInst
+                  TablesInst k hw1 tables state
+              ok (k2, hw3, state2, hop, safe)
+            else ok (k, hw1, state, 0#u32, false)
+          ok (t, t1, «as», (({ psp := 0#u32, control, exc_return, hop := i4 }
+            : arch.cm4.entry.DispatchPlan), b1))
+        | arch.cm4.entry.Binding.Unbound =>
+          do
+          let ((hop, safe), k2, hw3, state2) ←
+            arch.cm4.entry.unbound_core boundKernelOpsInst KernelArchInst
+              TablesInst k hw1 tables state n
+          ok (k2, hw3, state2, (({ psp := 0#u32, control, exc_return, hop } :
+            arch.cm4.entry.DispatchPlan), safe))
+      if arch.cm4.entry.WINDOW_DEFER
+      then
+        let (dp, b1) := r
+        if dp.psp = 0#u32
+        then
+          if dp.hop != 0#u32
+          then
+            let i3 ← lift (exc_return &&& 8#u32)
+            if i3 = 0#u32
+            then
+              if b1
+              then ok (r, k1, hw2, state1)
+              else
+                let i4 ← lift (65536#u32 ||| dp.hop)
+                let hw3 ←
+                  KernelArchInst.apply hw2 (arch.cm4.entry.Action.Trace
+                    arch.cm4.entry.TR_WINDOW i4)
+                if state1.pending_unwind = 0#u32
+                then
+                  ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                    false), k1, hw3, { state1 with pending_unwind := dp.hop })
+                else
+                  ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                    false), k1, hw3, state1)
+            else ok (r, k1, hw2, state1)
+          else ok (r, k1, hw2, state1)
+        else ok (r, k1, hw2, state1)
+      else ok (r, k1, hw2, state1)
+  else
+    let b ← TablesInst.binding tables n
+    let (k1, hw2, state1, r) ←
+      match b with
+      | arch.cm4.entry.Binding.Dispatch t =>
+        do
+        let (r1, k2, hw3, state2) ←
+          arch.cm4.entry.dispatch_vector_core boundKernelOpsInst KernelArchInst
+            TablesInst k hw1 tables state n t psp control exc_return
+        ok (k2, hw3, state2, r1)
+      | arch.cm4.entry.Binding.Intake task partition =>
+        do
+        let ((hop, safe), k2, hw3, state2) ←
+          arch.cm4.entry.intake_core boundKernelOpsInst KernelArchInst
+            TablesInst k hw1 tables state n task partition psp exc_return
+        ok (k2, hw3, state2, (({ psp := 0#u32, control, exc_return, hop } :
+          arch.cm4.entry.DispatchPlan), safe))
+      | arch.cm4.entry.Binding.Kernel =>
+        do
+        let i2 ← TablesInst.timer_vector tables
+        let (t, t1, «as», i3, b1) ←
+          if n = i2
+          then
+            do
+            let ((hop, safe), k2, hw3, state2) ←
+              arch.cm4.entry.timer_core boundKernelOpsInst KernelArchInst
+                TablesInst k hw1 tables state
+            ok (k2, hw3, state2, hop, safe)
+          else ok (k, hw1, state, 0#u32, false)
+        ok (t, t1, «as», (({ psp := 0#u32, control, exc_return, hop := i3 } :
+          arch.cm4.entry.DispatchPlan), b1))
+      | arch.cm4.entry.Binding.Unbound =>
+        do
+        let ((hop, safe), k2, hw3, state2) ←
+          arch.cm4.entry.unbound_core boundKernelOpsInst KernelArchInst
+            TablesInst k hw1 tables state n
+        ok (k2, hw3, state2, (({ psp := 0#u32, control, exc_return, hop } :
+          arch.cm4.entry.DispatchPlan), safe))
+    if arch.cm4.entry.WINDOW_DEFER
+    then
+      let (dp, b1) := r
+      if dp.psp = 0#u32
+      then
+        if dp.hop != 0#u32
+        then
+          let i2 ← lift (exc_return &&& 8#u32)
+          if i2 = 0#u32
+          then
+            if b1
+            then ok (r, k1, hw2, state1)
+            else
+              let i3 ← lift (65536#u32 ||| dp.hop)
+              let hw3 ←
+                KernelArchInst.apply hw2 (arch.cm4.entry.Action.Trace
+                  arch.cm4.entry.TR_WINDOW i3)
+              if state1.pending_unwind = 0#u32
+              then
+                ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                  false), k1, hw3, { state1 with pending_unwind := dp.hop })
+              else
+                ok (({ psp := 0#u32, control, exc_return, hop := 0#u32 },
+                  false), k1, hw3, state1)
+          else ok (r, k1, hw2, state1)
+        else ok (r, k1, hw2, state1)
+      else ok (r, k1, hw2, state1)
+    else ok (r, k1, hw2, state1)
+
+/-- [rsk_kernel::arch::cm4::entry::svc_service_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3595:0-3706:1 -/
+def arch.cm4.entry.svc_service_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (frame : Array Std.U32 8#usize)
+  (number : Std.U8) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState × (Array
+    Std.U32 8#usize))
+  := do
+  let gk0 ← arch.cm4.ghostv.ghost_snap k
+  let gs0 ← arch.cm4.ghostv.ghost_snap state
+  if number = arch.cm4.entry.SVC_DMA
+  then
+    let depth_before ← boundKernelOpsInst.depth k
+    let i ← Array.index_usize frame 0#usize
+    let i1 ← lift (i &&& 2147483648#u32)
+    let (k1, hw1, ok1) ←
+      if i1 != 0#u32
+      then
+        do
+        let i2 ← lift (i &&& 255#u32)
+        let i3 ← lift (UScalar.cast .Usize i2)
+        let i4 ← Array.index_usize frame 1#usize
+        let i5 ← Array.index_usize frame 2#usize
+        let (ok2, k2, hw2) ←
+          arch.cm4.entry.dma_write_core boundKernelOpsInst KernelArchInst
+            TablesInst k hw tables i3 i4 i5
+        ok (k2, hw2, ok2)
+      else
+        do
+        let i2 ← lift (UScalar.cast .Usize i)
+        let i3 ← Array.index_usize frame 1#usize
+        let i4 ← Array.index_usize frame 2#usize
+        let (ok2, k2, hw2) ←
+          arch.cm4.entry.dma_request_core boundKernelOpsInst KernelArchInst
+            TablesInst k hw tables i2 i3 i4
+        ok (k2, hw2, ok2)
+    let i2 ← if ok1
+               then ok 0#u32
+               else ok 1#u32
+    let (_, index_mut_back) ← Array.index_mut_usize frame 0#usize
+    if ok1
+    then
+      let frame1 := index_mut_back i2
+      ok ((0#u32, false), k1, hw1, state, frame1)
+    else
+      let (safe, k2, hw2, state1) ←
+        arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst
+          k1 hw1 tables state
+      let hop ←
+        arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state1 depth_before
+          gk0 gs0
+      let frame1 := index_mut_back i2
+      ok ((hop, safe), k2, hw2, state1, frame1)
+  else
+    if number = arch.cm4.entry.SVC_RAISE
+    then
+      let depth_before ← boundKernelOpsInst.depth k
+      let i ← Array.index_usize frame 0#usize
+      let i1 ← lift (UScalar.cast .Usize i)
+      let (ok1, k1, hw1) ←
+        arch.cm4.entry.raise_core boundKernelOpsInst KernelArchInst TablesInst
+          k hw tables i1
+      let i2 ← if ok1
+                 then ok 0#u32
+                 else ok 1#u32
+      let frame1 ← Array.update frame 0#usize i2
+      let (safe, k2, hw2, state1) ←
+        arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst
+          k1 hw1 tables state
+      let hop ←
+        arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state1 depth_before
+          gk0 gs0
+      ok ((hop, safe), k2, hw2, state1, frame1)
+    else
+      if number = arch.cm4.entry.SVC_VIOLATION
+      then
+        let depth_before ← boundKernelOpsInst.depth k
+        let i ← Array.index_usize frame 0#usize
+        let (k1, state1) ←
+          arch.cm4.entry.violation_core boundKernelOpsInst TablesInst k tables
+            state i
+        let frame1 ← Array.update frame 0#usize 0#u32
+        let (safe, k2, hw1, state2) ←
+          arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+            TablesInst k1 hw tables state1
+        let hop ←
+          arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2
+            depth_before gk0 gs0
+        ok ((hop, safe), k2, hw1, state2, frame1)
+      else
+        if number = arch.cm4.entry.SVC_SEND
+        then
+          let depth_before ← boundKernelOpsInst.depth k
+          let (k1, hw1, state1, code) ←
+            if number = arch.cm4.entry.SVC_SEND
+            then
+              do
+              let i ← Array.index_usize frame 0#usize
+              let i1 ← Array.index_usize frame 1#usize
+              let i2 ← Array.index_usize frame 2#usize
+              let (code1, k2, hw2, state2) ←
+                arch.cm4.entry.endpoint_send_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state i i1 i2
+              ok (k2, hw2, state2, code1)
+            else
+              do
+              let i ← Array.index_usize frame 0#usize
+              let i1 ← Array.index_usize frame 1#usize
+              let i2 ← Array.index_usize frame 2#usize
+              let ((code1, _), k2, hw2, state2) ←
+                arch.cm4.entry.endpoint_recv_core boundKernelOpsInst
+                  KernelArchInst TablesInst k hw tables state i i1 i2
+              ok (k2, hw2, state2, code1)
+          let (_, index_mut_back) ← Array.index_mut_usize frame 0#usize
+          if number = arch.cm4.entry.SVC_RECV
+          then
+            if code != arch.cm4.entry.ENDPOINT_REFUSED
+            then
+              let frame1 := index_mut_back code
+              ok ((0#u32, false), k1, hw1, state1, frame1)
+            else
+              let (safe, k2, hw2, state2) ←
+                arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                  TablesInst k1 hw1 tables state1
+              let hop ←
+                arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2
+                  depth_before gk0 gs0
+              let frame1 := index_mut_back code
+              ok ((hop, safe), k2, hw2, state2, frame1)
+          else
+            let (safe, k2, hw2, state2) ←
+              arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                TablesInst k1 hw1 tables state1
+            let hop ←
+              arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2
+                depth_before gk0 gs0
+            let frame1 := index_mut_back code
+            ok ((hop, safe), k2, hw2, state2, frame1)
+        else
+          if number = arch.cm4.entry.SVC_RECV
+          then
+            let depth_before ← boundKernelOpsInst.depth k
+            let (k1, hw1, state1, code) ←
+              if number = arch.cm4.entry.SVC_SEND
+              then
+                do
+                let i ← Array.index_usize frame 0#usize
+                let i1 ← Array.index_usize frame 1#usize
+                let i2 ← Array.index_usize frame 2#usize
+                let (code1, k2, hw2, state2) ←
+                  arch.cm4.entry.endpoint_send_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state i i1 i2
+                ok (k2, hw2, state2, code1)
+              else
+                do
+                let i ← Array.index_usize frame 0#usize
+                let i1 ← Array.index_usize frame 1#usize
+                let i2 ← Array.index_usize frame 2#usize
+                let ((code1, _), k2, hw2, state2) ←
+                  arch.cm4.entry.endpoint_recv_core boundKernelOpsInst
+                    KernelArchInst TablesInst k hw tables state i i1 i2
+                ok (k2, hw2, state2, code1)
+            let (_, index_mut_back) ← Array.index_mut_usize frame 0#usize
+            if number = arch.cm4.entry.SVC_RECV
+            then
+              if code != arch.cm4.entry.ENDPOINT_REFUSED
+              then
+                let frame1 := index_mut_back code
+                ok ((0#u32, false), k1, hw1, state1, frame1)
+              else
+                let (safe, k2, hw2, state2) ←
+                  arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                    TablesInst k1 hw1 tables state1
+                let hop ←
+                  arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2
+                    depth_before gk0 gs0
+                let frame1 := index_mut_back code
+                ok ((hop, safe), k2, hw2, state2, frame1)
+            else
+              let (safe, k2, hw2, state2) ←
+                arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                  TablesInst k1 hw1 tables state1
+              let hop ←
+                arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2
+                  depth_before gk0 gs0
+              let frame1 := index_mut_back code
+              ok ((hop, safe), k2, hw2, state2, frame1)
+          else
+            if number = arch.cm4.entry.SVC_JOB_END
+            then
+              let (elapsed, state1) ←
+                arch.cm4.entry.charge_point KernelArchInst hw state
+              let depth_before ← boundKernelOpsInst.depth k
+              let k1 ← boundKernelOpsInst.job_return k elapsed
+              let (safe, k2, hw1, state2) ←
+                arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                  TablesInst k1 hw tables state1
+              let hop ←
+                arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state2
+                  depth_before gk0 gs0
+              ok ((hop, safe), k2, hw1, state2, frame)
+            else
+              let depth_before ← boundKernelOpsInst.depth k
+              let k1 ←
+                boundKernelOpsInst.fault k rsk_logic.logic.log.EV_PANIC false
+              let (safe, k2, hw1, state1) ←
+                arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                  TablesInst k1 hw tables state
+              let hop ←
+                arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state1
+                  depth_before gk0 gs0
+              ok ((hop, safe), k2, hw1, state1, frame)
+
+/-- [rsk_kernel::arch::cm4::entry::svc_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3716:0-3767:1
+    Visibility: public -/
+def arch.cm4.entry.svc_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (frame : Array Std.U32 8#usize)
+  (number : Std.U8) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState × (Array
+    Std.U32 8#usize))
+  := do
+  let i ← lift (UScalar.cast .U32 number)
+  let hw1 ←
+    KernelArchInst.apply hw (arch.cm4.entry.Action.Trace arch.cm4.entry.TR_SVC
+      i)
+  if number = arch.cm4.entry.SVC_STALE
+  then ok ((0#u32, false), k, hw1, state, frame)
+  else
+    if number = arch.cm4.entry.SVC_LOCK
+    then
+      let i1 ← Array.index_usize frame 0#usize
+      let i2 ← lift (UScalar.cast .U8 i1)
+      let (ok1, k1) ← boundKernelOpsInst.svc_lock k i2
+      let i3 ← if ok1
+                 then ok 1#u32
+                 else ok 0#u32
+      let frame1 ← Array.update frame 0#usize i3
+      let i4 ← boundKernelOpsInst.basepri_now k1
+      let hw2 ←
+        KernelArchInst.apply hw1 (arch.cm4.entry.Action.SetBasepri i4)
+      ok ((0#u32, false), k1, hw2, state, frame1)
+    else
+      if number = arch.cm4.entry.SVC_UNLOCK
+      then
+        let i1 ← Array.index_usize frame 0#usize
+        let i2 ← lift (UScalar.cast .U8 i1)
+        let (ok1, k1) ← boundKernelOpsInst.svc_unlock k i2
+        let i3 ← if ok1
+                   then ok 1#u32
+                   else ok 0#u32
+        let frame1 ← Array.update frame 0#usize i3
+        let (safe, k2, hw2, state1) ←
+          arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+            TablesInst k1 hw1 tables state
+        ok ((0#u32, safe), k2, hw2, state1, frame1)
+      else
+        if number = arch.cm4.entry.SVC_NOW
+        then
+          let now ← KernelArchInst.now hw1
+          let i1 ← lift (UScalar.cast .U32 now)
+          let frame1 ← Array.update frame 0#usize i1
+          let i2 ← now >>> 32#i32
+          let i3 ← lift (UScalar.cast .U32 i2)
+          let frame2 ← Array.update frame1 1#usize i3
+          ok ((0#u32, false), k, hw1, state, frame2)
+        else
+          arch.cm4.entry.svc_service_core boundKernelOpsInst KernelArchInst
+            TablesInst k hw1 tables state frame number
+
+/-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_drop_last]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 64:0-68:1
+    Visibility: public -/
+axiom arch.cm4.ghostv.ghost_seq_drop_last
+  :
+  verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int) → Result
+    (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+
+/-- [rsk_kernel::arch::cm4::entry::epilogue_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3783:0-3971:1
+    Visibility: public -/
+def arch.cm4.entry.epilogue_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (n : Std.U32) :
+  Result (((Std.U32 × Std.U32 × Std.U32 × Std.U32) × Bool) × K × A ×
+    arch.cm4.plan.ArchState)
+  := do
+  let i ← lift (n &&& 511#u32)
+  let n1 ← lift (UScalar.cast .U16 i)
+  let i1 ← lift (UScalar.cast .U32 n1)
+  let hw1 ←
+    KernelArchInst.apply hw (arch.cm4.entry.Action.Trace
+      arch.cm4.entry.TR_EPILOGUE i1)
+  let level ← arch.cm4.plan.top_active state.levels
+  let rec ← Array.index_usize state.levels level
+  if level = 0#usize
+  then
+    let k1 ← boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+    let (_, k2, hw2, state1) ←
+      arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+        hw1 tables state
+    let hw3 ←
+      KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri 0#u8)
+    ok (((rec.psp, rec.control, rec.exc_return, 0#u32), true), k2, hw3, state1)
+  else
+    if rec.exception_number != n1
+    then
+      let k1 ←
+        boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+      let (_, k2, hw2, state1) ←
+        arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst
+          k1 hw1 tables state
+      let hw3 ←
+        KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri 0#u8)
+      ok (((rec.psp, rec.control, rec.exc_return, 0#u32), true), k2, hw3,
+        state1)
+    else
+      let (_, index_mut_back) ← Array.index_mut_usize state.levels level
+      let g ← arch.cm4.ghostv.ghost_seq_drop_last state.chain
+      let g1 ← arch.cm4.ghostv.ghost_seq_drop_last state.chain_levels
+      let i2 ← lift (UScalar.cast .Usize rec.partition)
+      let a ←
+        if i2 < arch.cm4.entry.MAX_FLOORS
+        then
+          do
+          let i3 ← lift (UScalar.cast .Usize rec.partition)
+          Array.update state.floor i3 rec.floor_before
+        else ok state.floor
+      let i3 ← KernelArchInst.cycles hw1
+      let hw2 ←
+        if rec.previous_partition != 255#u8
+        then
+          do
+          let view ←
+            boundKernelOpsInst.partition_view k rec.previous_partition
+          let hw3 ←
+            KernelArchInst.apply hw1 (arch.cm4.entry.Action.LoadView
+              rec.previous_partition view)
+          let d ← boundKernelOpsInst.depth k
+          let idx ← if d = 0#usize
+                      then ok 0#usize
+                      else d - 1#usize
+          let i4 ← boundKernelOpsInst.stack_at k idx
+          let ji ← boundKernelOpsInst.job_info k i4
+          KernelArchInst.apply hw3 (arch.cm4.entry.Action.FpuAccess ji.fpu)
+        else ok hw1
+      let resumed_ended ←
+        if rec.previous_task != 255#u8
+        then
+          do
+          let o ← boundKernelOpsInst.top k
+          match o with
+          | none => ok true
+          | some t => ok (t != rec.previous_task)
+        else ok false
+      if resumed_ended
+      then
+        let ji ← boundKernelOpsInst.job_info k rec.previous_task
+        let l ← lift (UScalar.cast .Usize ji.priority)
+        let a1 := index_mut_back { rec with active := false }
+        let lr ← Array.index_usize a1 l
+        let next ← lift (UScalar.cast .U32 lr.exception_number)
+        if next = 0#u32
+        then
+          let k1 ←
+            boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+          let (_, k2, hw3, state1) ←
+            arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+              TablesInst k1 hw2 tables
+              {
+                state
+                  with
+                  levels := a1,
+                  floor := a,
+                  current_partition := rec.previous_partition,
+                  last_switch := i3,
+                  pending_unwind := 0#u32,
+                  chain := g,
+                  chain_levels := g1
+              }
+          let hw4 ←
+            KernelArchInst.apply hw3 (arch.cm4.entry.Action.SetBasepri 0#u8)
+          ok (((rec.psp, rec.control, rec.exc_return, 0#u32), true), k2, hw4,
+            state1)
+        else
+          let i4 ← boundKernelOpsInst.basepri_now k
+          let hw3 ←
+            KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri i4)
+          ok (((rec.psp, rec.control, rec.exc_return, next), false), k, hw3,
+            {
+              state
+                with
+                levels := a1,
+                floor := a,
+                current_partition := rec.previous_partition,
+                last_switch := i3,
+                pending_unwind := 0#u32,
+                chain := g,
+                chain_levels := g1
+            })
+      else
+        if rec.previous_task = 255#u8
+        then
+          let i4 ← boundKernelOpsInst.depth k
+          if i4 != 0#usize
+          then
+            let k1 ←
+              boundKernelOpsInst.fault k rsk_logic.logic.log.EV_HARDFAULT true
+            let a1 := index_mut_back { rec with active := false }
+            let (_, k2, hw3, state1) ←
+              arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                TablesInst k1 hw2 tables
+                {
+                  state
+                    with
+                    levels := a1,
+                    floor := a,
+                    current_partition := rec.previous_partition,
+                    last_switch := i3,
+                    pending_unwind := 0#u32,
+                    chain := g,
+                    chain_levels := g1
+                }
+            let hw4 ←
+              KernelArchInst.apply hw3 (arch.cm4.entry.Action.SetBasepri 0#u8)
+            ok (((rec.psp, rec.control, rec.exc_return, 0#u32), true), k2, hw4,
+              state1)
+          else
+            let o ← boundKernelOpsInst.top k
+            match o with
+            | none =>
+              let i5 ← boundKernelOpsInst.basepri_now k
+              let hw3 ←
+                KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri i5)
+              let a1 := index_mut_back { rec with active := false }
+              ok (((rec.psp, rec.control, rec.exc_return, 0#u32), false), k,
+                hw3,
+                {
+                  state
+                    with
+                    levels := a1,
+                    floor := a,
+                    current_partition := rec.previous_partition,
+                    last_switch := i3,
+                    pending_unwind := 0#u32,
+                    chain := g,
+                    chain_levels := g1
+                })
+            | some t =>
+              let b ← boundKernelOpsInst.is_killed k t
+              if b
+              then
+                let k1 ← boundKernelOpsInst.job_return k 0#u32
+                let a1 := index_mut_back { rec with active := false }
+                let (safe, k2, hw3, state1) ←
+                  arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                    TablesInst k1 hw2 tables
+                    {
+                      state
+                        with
+                        levels := a1,
+                        floor := a,
+                        current_partition := rec.previous_partition,
+                        last_switch := i3,
+                        pending_unwind := 0#u32,
+                        chain := g,
+                        chain_levels := g1
+                    }
+                let ji ← boundKernelOpsInst.job_info k2 t
+                let l ← lift (UScalar.cast .Usize ji.priority)
+                let lr ← Array.index_usize state1.levels l
+                let next ← lift (UScalar.cast .U32 lr.exception_number)
+                if next = 0#u32
+                then
+                  let k3 ←
+                    boundKernelOpsInst.fault k2
+                      rsk_logic.logic.log.EV_HARDFAULT true
+                  let (_, k4, hw4, state2) ←
+                    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                      TablesInst k3 hw3 tables state1
+                  let hw5 ←
+                    KernelArchInst.apply hw4 (arch.cm4.entry.Action.SetBasepri
+                      0#u8)
+                  ok (((rec.psp, rec.control, rec.exc_return, 0#u32), true),
+                    k4, hw5, state2)
+                else
+                  ok (((rec.psp, rec.control, rec.exc_return, next), safe), k2,
+                    hw3, state1)
+              else
+                let i5 ← boundKernelOpsInst.basepri_now k
+                let hw3 ←
+                  KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri
+                    i5)
+                let a1 := index_mut_back { rec with active := false }
+                ok (((rec.psp, rec.control, rec.exc_return, 0#u32), false), k,
+                  hw3,
+                  {
+                    state
+                      with
+                      levels := a1,
+                      floor := a,
+                      current_partition := rec.previous_partition,
+                      last_switch := i3,
+                      pending_unwind := 0#u32,
+                      chain := g,
+                      chain_levels := g1
+                  })
+        else
+          let o ← boundKernelOpsInst.top k
+          match o with
+          | none =>
+            let i4 ← boundKernelOpsInst.basepri_now k
+            let hw3 ←
+              KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri i4)
+            let a1 := index_mut_back { rec with active := false }
+            ok (((rec.psp, rec.control, rec.exc_return, 0#u32), false), k, hw3,
+              {
+                state
+                  with
+                  levels := a1,
+                  floor := a,
+                  current_partition := rec.previous_partition,
+                  last_switch := i3,
+                  pending_unwind := 0#u32,
+                  chain := g,
+                  chain_levels := g1
+              })
+          | some t =>
+            let b ← boundKernelOpsInst.is_killed k t
+            if b
+            then
+              let k1 ← boundKernelOpsInst.job_return k 0#u32
+              let a1 := index_mut_back { rec with active := false }
+              let (safe, k2, hw3, state1) ←
+                arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                  TablesInst k1 hw2 tables
+                  {
+                    state
+                      with
+                      levels := a1,
+                      floor := a,
+                      current_partition := rec.previous_partition,
+                      last_switch := i3,
+                      pending_unwind := 0#u32,
+                      chain := g,
+                      chain_levels := g1
+                  }
+              let ji ← boundKernelOpsInst.job_info k2 t
+              let l ← lift (UScalar.cast .Usize ji.priority)
+              let lr ← Array.index_usize state1.levels l
+              let next ← lift (UScalar.cast .U32 lr.exception_number)
+              if next = 0#u32
+              then
+                let k3 ←
+                  boundKernelOpsInst.fault k2 rsk_logic.logic.log.EV_HARDFAULT
+                    true
+                let (_, k4, hw4, state2) ←
+                  arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst
+                    TablesInst k3 hw3 tables state1
+                let hw5 ←
+                  KernelArchInst.apply hw4 (arch.cm4.entry.Action.SetBasepri
+                    0#u8)
+                ok (((rec.psp, rec.control, rec.exc_return, 0#u32), true), k4,
+                  hw5, state2)
+              else
+                ok (((rec.psp, rec.control, rec.exc_return, next), safe), k2,
+                  hw3, state1)
+            else
+              let i4 ← boundKernelOpsInst.basepri_now k
+              let hw3 ←
+                KernelArchInst.apply hw2 (arch.cm4.entry.Action.SetBasepri i4)
+              let a1 := index_mut_back { rec with active := false }
+              ok (((rec.psp, rec.control, rec.exc_return, 0#u32), false), k,
+                hw3,
+                {
+                  state
+                    with
+                    levels := a1,
+                    floor := a,
+                    current_partition := rec.previous_partition,
+                    last_switch := i3,
+                    pending_unwind := 0#u32,
+                    chain := g,
+                    chain_levels := g1
+                })
+
+/-- [rsk_kernel::arch::cm4::ghostv::no_job_in_progress]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 75:0-79:1
+    Visibility: public -/
+def arch.cm4.ghostv.no_job_in_progress
+  {K : Type _} (boundKernelOpsInst : arch.bound.KernelOps K) (k : K) :
+  Result Bool
+  := do
+  let i ← boundKernelOpsInst.depth k
+  ok (i = 0#usize)
+
+/-- [rsk_kernel::arch::cm4::entry::fault_core]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3976:0-4010:1
+    Visibility: public -/
+def arch.cm4.entry.fault_core
+  {K : Type _} {A : Type _} {T : Type _} (boundKernelOpsInst :
+  arch.bound.KernelOps K) (KernelArchInst : arch.cm4.entry.KernelArch A)
+  (TablesInst : arch.cm4.entry.Tables T) (k : K) (hw : A) (tables : T)
+  (state : arch.cm4.plan.ArchState) (kind : Std.U8) (in_kernel : Bool) :
+  Result ((Std.U32 × Bool) × K × A × arch.cm4.plan.ArchState)
+  := do
+  let gk0 ← arch.cm4.ghostv.ghost_snap k
+  let gs0 ← arch.cm4.ghostv.ghost_snap state
+  let i ← lift (UScalar.cast .U32 kind)
+  let hw1 ←
+    KernelArchInst.apply hw (arch.cm4.entry.Action.Trace
+      arch.cm4.entry.TR_FAULT i)
+  let kernel ←
+    if in_kernel
+    then ok true
+    else
+      if kind = rsk_logic.logic.log.EV_HARDFAULT
+      then ok true
+      else arch.cm4.ghostv.no_job_in_progress boundKernelOpsInst k
+  let depth_before ← boundKernelOpsInst.depth k
+  let k1 ← boundKernelOpsInst.fault k kind kernel
+  let (safe, k2, hw2, state1) ←
+    arch.cm4.entry.apply_core boundKernelOpsInst KernelArchInst TablesInst k1
+      hw1 tables state
+  let hop ←
+    arch.cm4.entry.end_plan_core boundKernelOpsInst k2 state1 depth_before gk0
+      gs0
+  let hw3 ←
+    arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst KernelArchInst k2
+      hw2 depth_before
+  ok ((hop, safe), k2, hw3, state1)
 
 end rsk_kernel

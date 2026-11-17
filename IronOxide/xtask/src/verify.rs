@@ -1858,6 +1858,17 @@ fn aeneas_evaluation(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manif
     vec![command]
 }
 
+/// What verifyta prints when its licence lease does not cover the verifier.
+const UPPAAL_UNLICENSED: &str = "License does not cover verifier";
+
+/// The corpus models whose Analyzer report carries verifyta's licence refusal.
+fn uppaal_unlicensed(work: &Path) -> usize {
+    let Ok(dir) = std::fs::read_dir(work) else { return 0 };
+    dir.flatten()
+        .filter(|e| std::fs::read_to_string(e.path().join("report.json")).is_ok_and(|t| t.contains(UPPAAL_UNLICENSED)))
+        .count()
+}
+
 /// R32.6, PAR-03: the UPPAAL cross-check corpus (`corpus.rs`): 50 generated
 /// Task_Models analysed and, where `verifyta` is installed, cross-checked.
 /// Evidence_Item `check-uppaal-corpus`: pass when no cross-check is a
@@ -1876,8 +1887,22 @@ fn uppaal_corpus(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &m
     };
     let _ = store.write_artifact("uppaal-corpus-report.md", &outcome.report);
     let committed = crate::corpus::report_path(&ws.root);
+    // 2026-11-17: an expired licence lease gave every cross-check "no
+    // verdict", which the comparison below reported as a report that
+    // differs. The lease is renewed over the network, which the job's
+    // sandbox denies, so the remedy is a run outside the job.
+    let unlicensed = uppaal_unlicensed(&work);
     match std::fs::read_to_string(&committed) {
         Ok(text) if text == outcome.report => {}
+        Ok(_) if unlicensed > 0 => report.error(
+            Rule::Step,
+            None,
+            format!(
+                "UPPAAL corpus: verifyta refused {unlicensed} cross-check(s) with `{UPPAAL_UNLICENSED}`: its licence lease has expired and cannot be \
+                 renewed inside the job's network sandbox. Run `cargo xtask uppaal-corpus` once outside the job (it renews the lease and should leave \
+                 the committed report unchanged), then run the job again"
+            ),
+        ),
         Ok(_) => report.error(Rule::Step, Some(ws.rel(&committed)), "differs from the regenerated UPPAAL corpus report; run `cargo xtask uppaal-corpus`"),
         Err(_) => report.error(Rule::Step, Some(ws.rel(&committed)), "missing; run `cargo xtask uppaal-corpus`"),
     }
@@ -2175,9 +2200,13 @@ fn analyzer_measured_runs(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, 
 /// with the Profile deny-lists denied (PR-10, PR-11, PR-22) on the Target
 /// crates. Two Check Evidence_Items: `check-profile-lint` and
 /// `check-profile-clippy`.
-fn profile_lint(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
-    let mut commands = Vec::new();
-    let bounds_name = "loop-bounds.json".to_string();
+/// The Profile_Lint's command over the Kernel and Application crates of the
+/// workspace policy, writing the loop-bound export to `out`, and the number
+/// of crates it covers. `built` restricts the Task_Model to that of an
+/// Application whose Flight_Build binary exists under `target_dir` (the
+/// verification job); without it the first Application's committed model is
+/// taken (`cargo xtask check`).
+pub fn lint_command(ws: &Workspace, target_dir: &Path, out: &Path, built: bool) -> (Cmd, usize) {
     let mut cmd = Cmd::cargo_frozen("run")
         .args(["--quiet", "-p", "rsk-lint", "--manifest-path"])
         .arg(ws.root.join("Cargo.toml"))
@@ -2191,7 +2220,7 @@ fn profile_lint(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
         .arg("--core-subset")
         .arg(ws.root.join("profile").join("core_subset.toml"))
         .arg("--out")
-        .arg(store.dir.join(&bounds_name));
+        .arg(out);
     let mut covered = 0;
     for (name, policy) in &ws.policy.crates {
         let Some(pkg) = ws.packages.values().find(|p| &p.name == name) else { continue };
@@ -2216,16 +2245,54 @@ fn profile_lint(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
             }
         }
     }
-    let mut model_given = false;
-    for binary in flight_binaries(ws, target_dir).into_iter().flatten() {
-        if let Some(app_dir) = ws.packages.values().find(|p| p.name == binary.package).and_then(|p| p.dir.parent().map(Path::to_path_buf)) {
+    let roots: Vec<String> = if built {
+        flight_binaries(ws, target_dir).into_iter().flatten().map(|b| b.package).collect()
+    } else {
+        ws.policy.flight_roots().map(str::to_string).collect()
+    };
+    for package in roots {
+        if let Some(app_dir) = ws.packages.values().find(|p| p.name == package).and_then(|p| p.dir.parent().map(Path::to_path_buf)) {
             let model = app_dir.join("gen").join("task_model.json");
-            if model.is_file() && !model_given {
+            if model.is_file() {
                 cmd = cmd.arg("--task-model").arg(model);
-                model_given = true;
+                break;
             }
         }
     }
+    (cmd, covered)
+}
+
+/// The Profile_Lint as `cargo xtask check` runs it (2026-11-17: a loop
+/// without a bound stayed in the tree until the verification job, the only
+/// place the lint ran). No Evidence_Item: the job's step writes that.
+pub fn lint_check(root: &Path, report: &mut Report) {
+    let mut scratch = Report::default();
+    let Some(ws) = Workspace::load(root, &mut scratch) else { return };
+    let target_dir = root.join("target").join("xtask-check");
+    let _ = std::fs::create_dir_all(&target_dir);
+    let (cmd, covered) = lint_command(&ws, &target_dir, &target_dir.join("loop-bounds.json"), false);
+    let (ok, text) = match cmd.output(None) {
+        Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+        Err(e) => (false, format!("cannot run rsk-lint: {e}")),
+    };
+    let summary = text.lines().rev().find(|l| l.starts_with("rsk-lint:")).unwrap_or("rsk-lint: no verdict line").to_string();
+    if ok {
+        report.note(format!("R3.2: Profile_Lint over {covered} crates: {summary}"));
+        return;
+    }
+    let violations: Vec<&str> = text.lines().filter(|l| l.starts_with("error")).collect();
+    for v in &violations {
+        report.error(Rule::Step, None, format!("Profile_Lint: {v}"));
+    }
+    if violations.is_empty() {
+        report.error(Rule::Step, None, format!("Profile_Lint: {summary}"));
+    }
+}
+
+fn profile_lint(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    let bounds_name = "loop-bounds.json".to_string();
+    let (cmd, covered) = lint_command(ws, target_dir, &store.dir.join(&bounds_name), true);
     commands.push(cmd.display());
     let (ok, text) = match cmd.output(Some(sandbox)) {
         Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
@@ -2751,4 +2818,22 @@ fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, st
         }
     }
     commands
+}
+
+#[cfg(test)]
+mod licence_tests {
+    /// The corpus step counts the models whose report carries verifyta's
+    /// licence refusal, and none where the reports carry verdicts.
+    #[test]
+    fn a_licence_refusal_in_a_corpus_report_is_counted() {
+        let work = std::env::temp_dir().join(format!("rsk-uppaal-licence-{}", std::process::id()));
+        for (name, text) in [("m00", "\"detail\": \"gave no verdict:\\nLicense does not cover verifier.\\n\""), ("m01", "\"detail\": \"agree\"")] {
+            std::fs::create_dir_all(work.join(name)).unwrap();
+            std::fs::write(work.join(name).join("report.json"), text).unwrap();
+        }
+        assert_eq!(super::uppaal_unlicensed(&work), 1);
+        std::fs::remove_file(work.join("m00").join("report.json")).unwrap();
+        assert_eq!(super::uppaal_unlicensed(&work), 0);
+        let _ = std::fs::remove_dir_all(&work);
+    }
 }

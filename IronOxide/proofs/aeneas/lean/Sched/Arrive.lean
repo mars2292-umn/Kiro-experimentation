@@ -79,6 +79,30 @@ theorem settle_tk {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
   peel h
   all_goals tk_close
 
+set_option maxHeartbeats 8000000 in
+theorem fault_tk {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {kind : U8} {kn : Bool}
+    (h : logic.kernel.Kernel.fault k cfg kind kn = ok k') : TimeKept k k' := by
+  unfold logic.kernel.Kernel.fault at h
+  peel h
+  all_goals tk_close
+
+set_option maxHeartbeats 8000000 in
+theorem fault_of_tk {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {kind t : U8}
+    (h : logic.kernel.Kernel.fault_of k cfg kind t = ok k') : TimeKept k k' := by
+  unfold logic.kernel.Kernel.fault_of at h
+  peel h
+  all_goals tk_close
+
+set_option maxHeartbeats 8000000 in
+theorem record_event_tk {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {kind t : U8}
+    (h : logic.kernel.Kernel.record_event k cfg kind t = ok k') : TimeKept k k' := by
+  unfold logic.kernel.Kernel.record_event at h
+  peel h
+  all_goals tk_close
+
 theorem observe_nom {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     {cfg : logic.Config NT NR NP} {now : U64}
     (h : logic.kernel.Kernel.observe k cfg now = ok k') :
@@ -171,12 +195,13 @@ theorem periodic_release_nomrel {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     exact NomRel.of_eq rfl
 
 /-- The shape of the transitions `KRun.lean` models by hand, which leave
-the Kernel's state outside the scheduler free: the scheduler state kept,
-or the Job on top ended, or the safe state entered from a Kernel state
-with this scheduler state. -/
+the Kernel's state outside the scheduler free: the scheduler state kept
+(an unmask or housekeeping entry), or the safe state entered from a
+Kernel state with this scheduler state (the end of the operating
+duration). A Budget event's own entry and an Endpoint operation are no
+longer among them (2026-11-17): their Kernel states are the code's. -/
 def HandShape (cfg : logic.Config NT NR NP) (x y : KSt NT NR NP NL NS NE) : Prop :=
   y.k.sched = x.k.sched ∨
-  (∃ r, logic.sched.Sched.finish_top x.k.sched cfg = ok (r, y.k.sched)) ∨
   (∃ k1 : logic.kernel.Kernel NT NR NP NL NS NE,
     k1.sched = x.k.sched ∧ logic.kernel.Kernel.enter_safe_state k1 cfg = ok y.k)
 
@@ -203,17 +228,25 @@ theorem kstep_nomrel {cfg : logic.Config NT NR NP} {P : Params}
   | unwind ec k' hs => exact NomRel.of_eq (job_return_tk hs).2
   | resp partition response cause t k' hs => exact NomRel.of_eq (apply_response_tk hs).2
   | bserved t i k' hs => exact NomRel.of_eq (budget_event_tk hs).2
-  | opend k1 k' h1 hs => exact hh (Or.inr (Or.inr ⟨k1, h1, hs⟩))
+  | opend k1 k' h1 hs => exact hh (Or.inr ⟨k1, h1, hs⟩)
   | settle r k' hs => exact NomRel.of_eq (settle_tk hs).2
   | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
     have := NomRel.of_eq (cfg := cfg) (deferred_release_tk hs).2
     split <;> exact this
   | deadline q c t i k' hq hk hw hc hdl hs => exact NomRel.of_eq (deadline_miss_tk hs).2
   | plain_h q c k' hq hk hw hc hnd hs => exact hh (Or.inl hs)
-  | svc_h hsel hk c k' hd hrun hre hal hs => exact hh (Or.inl hs)
-  | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc hs => exact hh (Or.inl hs)
-  | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal hs =>
-    exact hh (Or.inr (Or.inl ⟨r, hs⟩))
+  | svc_h hsel hk c k' hd hrun hre hal hcode =>
+    rcases hcode with e | ⟨kind, t, h⟩
+    · exact NomRel.of_eq (by rw [e])
+    · exact NomRel.of_eq (record_event_tk h).2
+  | faulted kind kn k' hs => exact NomRel.of_eq (fault_tk hs).2
+  | faulted_of kind t k' hs => exact NomRel.of_eq (fault_of_tk hs).2
+  | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
+    exact NomRel.of_eq (budget_event_tk hcode).2
+  | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
+    exact NomRel.of_eq (budget_event_tk hcode).2
+  | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+    exact NomRel.of_eq (budget_event_tk hcode).2
   | ktick => exact NomRel.of_eq rfl
   | idle => exact NomRel.of_eq rfl
   | exec => exact NomRel.of_eq rfl
