@@ -732,6 +732,14 @@ pub fn run(root: &Path, options: Options) -> bool {
         }
         Err(e) => report.warn(format!("traceability matrix not built: {e}")),
     }
+    // The plain-English companion (docs/requirements_evidence.md): a
+    // contract or lemma a row cites that has changed since the row was
+    // written is a violation naming the row, so that the reading is made
+    // again against the new text (`cargo xtask reqdoc`).
+    match crate::reqdoc::check_statements(root, &mut report) {
+        Ok(n) => report.note(format!("requirements_evidence: {n} cited statements compared with the text their rows were written against")),
+        Err(e) => report.warn(format!("requirements_evidence not checked: {e}")),
+    }
     job.flush(&mut report, "check-evidence", "Evidence_Items", &["R50.3", "R50.5", "R50.6"], vec!["cargo xtask trace".to_string()]);
     // This step's own item exists only once its outcome is recorded, so it is
     // written last, after the items of the steps above.

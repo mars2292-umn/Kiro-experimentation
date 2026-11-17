@@ -1820,3 +1820,67 @@ find = "            if holds_nothing\n            then\n"
 replace = "            if !holds_nothing\n            then\n"
 expect = ["Sched/Timer.lean"]
 prover = "lean"
+
+# The time base on the code (Verification_Plan 7.3, Sched/Time.lean; 2026-11-16).
+
+[[mutation]]
+id = "lean-code-observe-reading-goes-back"
+kills = "observe_now (Kernel::observe as extracted never moves the reading of the time base back)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  if now > self.now\n  then ok { self with now }\n  else ok self\n"
+replace = "  if now < self.now\n  then ok { self with now }\n  else ok self\n"
+expect = ["Sched/Time.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-nominal-instant-not-advanced"
+kills = "advance_periodic_cases (Timing::advance_periodic as extracted moves the nominal instant by exactly the Task's period)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "        let a1 ← Array.update self.nominal i8 next\n"
+replace = "        let a1 ← Array.update self.nominal i8 n\n"
+expect = ["Sched/Time.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-release-slot-armed-for-the-old-instant"
+kills = "periodic_release_nominal (Kernel::periodic_release as extracted arms the release slot for the new nominal instant)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "        rsk_logic.logic.time.Slots.arm self1.slots i next\n          rsk_logic.logic.time.SLOT_RELEASE t\n"
+replace = "        rsk_logic.logic.time.Slots.arm self1.slots i nominal\n          rsk_logic.logic.time.SLOT_RELEASE t\n"
+expect = ["Sched/Time.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-safe-state-resets-the-reading"
+kills = "enter_safe_state_tk, serve_slot_now (a response leaves the Kernel's reading of the time base as it was)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "  ok { self1 with sched := s, safe_state := true }\n"
+replace = "  ok { self1 with sched := s, safe_state := true, now := 0#u64 }\n"
+expect = ["Sched/Time.lean"]
+prover = "lean"
+
+# The EasyDMA request's refusal rule as a postcondition (R17.1, R17.2; 2026-11-16).
+
+[[mutation]]
+id = "dma-request-skips-the-buffer-check"
+kills = "dma_request_core: dma_accepts (R17.1, R17.2: a request is accepted only for a buffer in the Partition's DMA-permitted memory)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                info.partition == d.partition && k.dma_permitted(d.partition, ptr, len)\n"
+replace = "                info.partition == d.partition\n"
+expect = ["entry.rs", "assertion failed", "dma_accepts"]
+
+[[mutation]]
+id = "dma-request-serves-another-partitions-channel"
+kills = "dma_request_core: dma_accepts (R17.1: a request is accepted only for a channel of the executing Job's own Partition)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                info.partition == d.partition && k.dma_permitted(d.partition, ptr, len)\n"
+replace = "                k.dma_permitted(d.partition, ptr, len)\n"
+expect = ["entry.rs", "assertion failed", "dma_accepts"]
+
+[[mutation]]
+id = "dma-refusal-programs-the-registers"
+kills = "dma_request_core: the model's record of programmed transfers (R17.2: a refused request writes no pointer or count register)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));\n    } else {\n        k.fault(EV_DMA_REJECTED, false);\n"
+replace = "        hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));\n    } else {\n        hw.apply(Action::DmaProgram(0, ptr, 0, len));\n        k.fault(EV_DMA_REJECTED, false);\n"
+expect = ["entry.rs", "postcondition not satisfied"]

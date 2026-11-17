@@ -61,6 +61,11 @@ pub struct Justification {
     pub why_no_machine_check: Option<String>,
     pub reviewed_by: Option<String>,
     pub reviewed_on: Option<String>,
+    /// `flight_build = false` in the register: the construct is compiled
+    /// only under a feature no Flight_Build enables (a HIL build's), so no
+    /// construct of a Flight_Build may cite the identifier, and its not
+    /// being cited by one is expected instead of a warning.
+    pub flight_build: bool,
 }
 
 /// Whether `id` has the form `UJ-` followed by at least three digits.
@@ -193,6 +198,7 @@ pub fn read_register(dir: &Path, report: &mut Report, location: &str) -> Option<
             why_no_machine_check: field("why_no_machine_check"),
             reviewed_by: field("reviewed_by"),
             reviewed_on: field("reviewed_on"),
+            flight_build: entry.get("flight_build").and_then(Value::as_bool).unwrap_or(true),
         });
     }
     Some(out)
@@ -291,6 +297,13 @@ pub fn check(ws: &Workspace, report: &mut Report) {
                     );
                     continue;
                 };
+                if !entry.flight_build {
+                    report.error(
+                        Rule::UnsafeJustification,
+                        location.clone(),
+                        format!("{what} is compiled by a Flight_Build and cites `{id}`, which {register_location} records as outside every Flight_Build (`flight_build = false`)"),
+                    );
+                }
                 match entry.kind {
                     Kind::Kani => match &entry.link {
                         Some(link) if harnesses.contains(link) => {
@@ -367,10 +380,19 @@ pub fn check(ws: &Workspace, report: &mut Report) {
                 ),
             );
         }
-        for id in entries.keys() {
-            if !used.contains_key(id) {
+        for (id, entry) in &entries {
+            if used.contains_key(id) {
+                continue;
+            }
+            if entry.flight_build {
                 report.warn(format!(
                     "{register_location}: justification `{id}` is cited by no unsafe construct"
+                ));
+            } else if !module.iter().any(|f| std::fs::read_to_string(f).is_ok_and(|t| marker_in(&t).is_some() && t.contains(id.as_str()))) {
+                // Outside every Flight_Build, so not among the constructs
+                // above; it must still be written in the module's sources.
+                report.warn(format!(
+                    "{register_location}: justification `{id}` (`flight_build = false`) is written nowhere in the Kernel_Unsafe_Module"
                 ));
             }
         }

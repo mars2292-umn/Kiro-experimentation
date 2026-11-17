@@ -248,16 +248,19 @@ pub unsafe extern "C" fn rsk_timer_entry() {
 
 /// Fault entries: `in_kernel` is 1 when the fault was taken from Handler
 /// mode (EXC_RETURN bit 3 clear) or with PRIMASK set (R14.3).
-// SAFETY (UJ-026): as UJ-022; the stub reads nothing through the frame
-// pointer. It passes the frame's address (the PSP when EXC_RETURN bit 2 is
-// set, else the MSP above the two words pushed here) and EXC_RETURN to the
-// Rust half, which reads the stacked PC for the fault record (R14.3) under
+// The Rust half reads the stacked PC for the fault record (R14.3) under
 // `arch::cm4::fault_pc`'s conditions (UJ-061). Until 2026-11-13 the stub
 // loaded word 6 of the frame unconditionally, on the argument that a
 // stacking failure would have raised MSTKERR before this handler ran; a
 // stacking failure is delivered to this very handler (the audit's
 // contested finding A), and the load then read through a stack pointer
-// that had just faulted.
+// that had just faulted. The identifier is on the last line of this
+// comment: the static check takes the nearest one above the construct, and
+// while the line naming the Rust half's identifier came after it, the stub
+// was counted under that one and this one under none (found 2026-11-16).
+// SAFETY (UJ-026): as UJ-022; the stub reads nothing through the frame
+// pointer. It passes the frame's address (the PSP when EXC_RETURN bit 2 is
+// set, else the MSP above the two words pushed here) and EXC_RETURN.
 #[unsafe(naked)]
 #[no_mangle]
 pub unsafe extern "C" fn rsk_memmanage_entry() {

@@ -101,6 +101,13 @@ The handwritten files:
 - `lean/Sched/KRun.lean`: the run over the Kernel's functions (`KStep`,
   `KReach`), the proof that each such run is a specification-level run
   (`ksim`), and `property18_kernel`;
+- `lean/Sched/Time.lean`: the time base on the code. The Kernel's reading
+  `now` is written by `observe` alone and never goes back; the responses and
+  slot handlers leave it and the nominal instants (`TimeKept`); a timer entry
+  serves its slots under one reading (`timer_event_reading`); a
+  Periodic_Task's nominal instant moves by exactly its period and the release
+  slot is armed for it (`advance_periodic_cases`, `periodic_release_nominal`).
+  Not joined to the run's instants (Verification_Plan 7.3).
 - `lean/Sched/Timer.lean`: the timer entry on the code. `serve_slot` gives a
   slot the handler of its kind for the slot's own Task (`serve_slot_cases`),
   a returning `timer_event` is a chain of served slots each armed and due

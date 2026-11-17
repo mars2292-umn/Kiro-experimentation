@@ -297,6 +297,12 @@ pub struct HwModel {
     /// (A-P2, Verification_Plan 5.15): word address to word. The storage is
     /// Kernel-owned (R16.1), so `copy_in` is its only writer.
     pub store: Map<int, int>,
+    /// Every EasyDMA transfer the Kernel has programmed, in order (R17.2;
+    /// 2026-11-16): the pointer register, the buffer, the count register
+    /// and the length of each `Action::DmaProgram`. No other action adds
+    /// to it, so a request that leaves it as it was wrote no pointer and
+    /// no count register.
+    pub dma: Seq<(int, int, int, int)>,
 }
 
 /// The model's step for one action.
@@ -326,7 +332,7 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::MpuEnableBackground => HwModel { mpu_enabled: true, ..h },
         Action::ClearFaultStatus => h,
         Action::ClearPending(n) => HwModel { pending: h.pending.remove(n as int), ..h },
-        Action::DmaProgram(_, _, _, _) => h,
+        Action::DmaProgram(ptr_reg, ptr, cnt_reg, len) => HwModel { dma: h.dma.push((ptr_reg as int, ptr as int, cnt_reg as int, len as int)), ..h },
         Action::DmaStop(_) => h,
         Action::DmaListOff(_) => h,
         Action::DmaShortsOff(_) => h,
@@ -392,6 +398,9 @@ pub trait KernelArch: Sized {
 /// The Endpoint table of a `Tables` as a specification: uninterpreted, the
 /// generated constants (A-P2, Verification_Plan 5.15).
 pub uninterp spec fn spec_endpoint_of<T: ?Sized>(t: &T, i: int) -> EndpointCfg;
+/// The EasyDMA channel table as a specification (as `spec_endpoint_of`).
+pub uninterp spec fn spec_dma_of<T: ?Sized>(t: &T, i: int) -> DmaCfg;
+pub uninterp spec fn spec_dma_count_of<T: ?Sized>(t: &T) -> int;
 /// The Endpoint storage base of a `Tables` as a specification.
 pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
 /// The Endpoint storage's length in bytes, and the number of Endpoints.
@@ -457,8 +466,10 @@ pub trait Tables {
     /// Time-base ticks per second (R21.2), for the watchdog reload.
     fn tick_hz(&self) -> u64;
     /// The EasyDMA channels (DD-08).
-    fn dma_count(&self) -> usize;
-    fn dma(&self, i: usize) -> DmaCfg;
+    fn dma_count(&self) -> (n: usize)
+        ensures n as int == spec_dma_count_of(self);
+    fn dma(&self, i: usize) -> (c: DmaCfg)
+        ensures c == spec_dma_of(self, i as int);
     /// The Endpoints (task 21.2) and their Kernel-owned storage (base, bytes).
     fn endpoint_count(&self) -> (n: usize)
         ensures n as int == spec_endpoint_count_of(self);
@@ -1189,6 +1200,11 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
 /// next transfer (seen on the rig under the traffic scenario of task
 /// 19.2: one restart in about ninety left a transfer running after the
 /// stop task).
+// Checked in a solver instance of its own, as `dma_request_core` below
+// (2026-11-16: with the channel table's specification and the model's
+// record of programmed transfers in the shared context the loop passed the
+// default resource limit; alone it does not).
+#[verifier::spinoff_prover]
 fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     ensures
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
@@ -1268,6 +1284,19 @@ fn dma_boot<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, tables: &
     }
 }
 
+/// R17.1, R17.2: when the Kernel accepts an EasyDMA request. Channel `i`
+/// exists, a Job is executing, the channel's peripheral belongs to that
+/// Job's Partition, and `[ptr, ptr + len)` is DMA-permitted memory of that
+/// Partition (`Layout::dma_permitted`: above the stack, inside the
+/// Partition's RAM, in no disabled part of it).
+pub open spec fn dma_accepts<K: KernelOps, T: Tables>(k: &K, tables: &T, i: int, ptr: int, len: int) -> bool {
+    &&& 0 <= i < spec_dma_count_of(tables)
+    &&& k.spec_depth() > 0
+    &&& k.spec_part()[k.spec_stack(k.spec_depth() - 1)] == spec_dma_of(tables, i).partition as int
+    &&& (spec_dma_of(tables, i).partition as int) < k.partition_count_spec()
+    &&& k.dma_permitted_spec(spec_dma_of(tables, i).partition as int, ptr, len)
+}
+
 /// The EasyDMA mediation service (DD-08; R17.1, R17.2): channel `i` of
 /// the executing Job's own Partition, with a buffer in that Partition's
 /// DMA-permitted memory, is programmed; anything else is refused before
@@ -1281,6 +1310,15 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
     requires old(k).inv(),
     ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         ok ==> *final(k) == *old(k),
+        // R17.1, R17.2 (2026-11-16): the request is accepted exactly when
+        // the channel is one of the executing Job's own Partition and the
+        // buffer is DMA-permitted memory of that Partition; an accepted
+        // request programs that channel's registers with that buffer and
+        // nothing else, and a refused one programs nothing.
+        ok == dma_accepts(old(k), tables, i as int, ptr as int, len as int),
+        ok ==> final(hw).hw().dma == old(hw).hw().dma.push((spec_dma_of(tables, i as int).ptr as int, ptr as int,
+            spec_dma_of(tables, i as int).maxcnt as int, len as int)),
+        !ok ==> final(hw).hw().dma == old(hw).hw().dma,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
 {
@@ -1296,6 +1334,11 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
     } else {
         false
     };
+    proof {
+        // The depth is never negative, so "no Job executing" is depth 0.
+        k.lemma_stack_rising();
+        assert(accepted == dma_accepts(k, tables, i as int, ptr as int, len as int));
+    }
     if accepted {
         let d = tables.dma(i);
         hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));

@@ -1,0 +1,436 @@
+# The hand-written half of docs/requirements_evidence.md (`cargo xtask reqdoc`).
+#
+# One [[row]] per requirement. The sentences are plain English, written by a
+# person who read the cited statement's text: `says` paraphrases what the
+# statement states (not its name, not its comment), and `strength` judges
+# the statements against the requirement's own words.
+#
+# [[row.statement]]: file, name, tool (verus | lean | kani), says, reviewed.
+#   body = true  when the statement is a definition whose body is its meaning
+#                (a spec function); otherwise the contract or theorem
+#                statement up to the body or proof is what counts.
+#   after = "..." text the search starts after, when a file has two items of
+#                the name.
+#   reviewed     the hash of the statement's text when `says` and the row's
+#                judgment were written. `cargo xtask reqdoc --hashes` prints
+#                the present ones. Change it only after reading the row
+#                against the new text.
+# [[row.other]]: kind (checked | tested-qemu | tested-rig | tested-host |
+#   inspected | assumed), ref (an identifier written in the
+#   Verification_Plan, the registers, the Profile or the design), note.
+#
+# strength: "yes" | "weaker" | "no".
+
+schema = 1
+
+# ---------------------------------------------------------------- R10
+
+[[row]]
+requirement = 10
+sentence = "When an event arrives for a sporadic Task, the Kernel releases the Task only if no Release is waiting and at least one minimum inter-arrival time (MIT) has passed since the last one; otherwise it holds the event to the end of the MIT or drops it, records a violation, and applies the Partition's fault response once the violations pass a declared threshold."
+implemented = "The Kernel's intake function decides accept, defer or discard from the Task's last accepted instant and its MIT, counts the violation against the source's Partition, and masks the source for one MIT after every outcome (crates/rsk-logic/src/logic/kernel.rs, `Kernel::intake`; the timing record in logic/time.rs). The interrupt handler that calls it, and which Partition it names as the source, are in crates/rsk-kernel/src/arch/cm4/entry.rs and the generated tables."
+strength = "weaker"
+strength_note = "The statements cover R10.1 to R10.4 on the Kernel's state machine, with one difference in each direction. Weaker: time is the reading the Kernel takes when its handler runs, so a Release becomes due at that reading and not at 'the instant of the event' as R10.1 says; the two differ by the handler's latency, which is measured on the board and not proven. The Partition a violation is charged to is an argument of the function, so R10.7's choice of Partition is decided by the caller and the generated tables, not by these statements. Nothing cited here states R10.5 (Release_Signals), R10.6 (effective within J_rel) or R10.8 (messages kept in the Endpoint buffer). Narrower by decision: an event whose Job could not finish within the operating duration is not released; the requirement's note of 2026-11-13 says so."
+closed = "2026-11-05: a discarded event left its interrupt source unmasked, so a source could fire again inside the MIT; every outcome now masks the source, and the count of intakes in any window is proven (`lemma_intake_count_bound`)."
+gaps = "The handler's latency from the event to the reading (J_rel, Δ_stamp) is measured, not bounded statically. Attribution of a violation to the right Partition rests on the generated tables and inspection of the entry code. The hardware half of masking an interrupt source is by inspection (ASM-10). R10.5 and R10.8 have tests and no proof cited here. In the Lean run the MIT spacing is a condition of the run, not derived from the code, because the run's instants are not tied to the Kernel's readings."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "intake"
+tool = "verus"
+says = "Called on a valid Kernel state for a sporadic Task, the function leaves a valid state, only adds to the history, never lengthens the Job stack, and its result is one of the outcomes `intake_outcome` lists; the last accepted instants of all sporadic Tasks stay at least one MIT apart."
+reviewed = "bd16fd16522976e2"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "intake_outcome"
+tool = "verus"
+body = true
+says = "The outcomes, by case. Not active (safe state, not started, Partition stopped, or too late to finish): nothing changes but the log and the source's mask. Active and acceptable: the Release is accepted. Active, not acceptable, no Release held, policy 'defer': the Release is deferred and a violation is applied. Otherwise (a Release already held, or policy 'discard'): nothing changes but the log and the mask, and a violation is applied."
+reviewed = "70013a788bd75e72"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "mit_accepts"
+tool = "verus"
+body = true
+says = "An event is acceptable exactly when the Task holds no Release and either it has never been released or the present reading is at least one MIT after the last accepted instant."
+reviewed = "2291491763c90e89"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "violation_applied"
+tool = "verus"
+body = true
+says = "A violation adds one to the count of the Partition it is given. If the new count is within the Partition's threshold nothing else happens; if it is above, the Partition's declared fault response is applied."
+reviewed = "8fe48dc825891999"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "lemma_r10_4_count"
+tool = "verus"
+says = "In a valid state, the Partition's counter plus one equals the number of violations recorded in the history since its last restart plus one, capped at the counter's maximum. So the counter is the count R10.4 means."
+reviewed = "0d3d8f3d42424743"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/history.rs"
+name = "lemma_mit_spacing_over_run"
+tool = "verus"
+says = "In any well-formed history, two Releases of the same sporadic Task have due instants at least one MIT apart."
+reviewed = "28f83e6fb6f9797a"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/history.rs"
+name = "lemma_intake_count_bound"
+tool = "verus"
+says = "In any well-formed history, the intakes of one sporadic Task between two of its intake steps are spaced so that (their number minus one) times the MIT is less than the length of any window that holds both: at most one intake per MIT."
+reviewed = "1a4a884e97a303e5"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kani_harness.rs"
+name = "intake_outcomes_match_r10"
+tool = "kani"
+says = "On one small configuration, for every pair of event instants within its bounds and both policies, the compiled function accepts the first event, and treats a second one as R10.2 and R10.3 say. A bounded cross-check of the proof on the code as compiled."
+reviewed = "d6c465147e655037"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Entry.lean"
+name = "intake_decision_accept"
+tool = "lean"
+says = "On the code as extracted from the compiled crate: the decision function answers 'accept' only when its caller's flag says no Release is held and, if the Task was released before, the reading is at least one MIT after that instant."
+reviewed = "3a01d682cfa84a07"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-stress"
+note = "an hour-long interrupt storm: one intake per MIT window"
+
+[[row.other]]
+kind = "inspected"
+ref = "ASM-10"
+note = "the interrupt source's mask in hardware"
+
+# ---------------------------------------------------------------- R14
+
+[[row]]
+requirement = 14
+sentence = "Every fault, panic and violation goes to the Health_Monitor, which applies the response the Partition declared (end the Job, restart or stop the Partition) or, for a fault of the Kernel itself, puts the system in its safe state; other Partitions are left as they were."
+implemented = "`Kernel::fault` picks the response from the executing Job's Partition and `Kernel::apply_response` carries it out: ending the Job on top, or ending every Job and Release of the Partition and marking it for re-initialization or as stopped (crates/rsk-logic/src/logic/kernel.rs). The fault handlers that decide whether a fault was the Kernel's or a Job's are the assembly stubs and their Rust halves in crates/rsk-kernel/src/arch/cm4/."
+strength = "weaker"
+strength_note = "The statements say what each response does to the Kernel's state and that other Partitions' Tasks, stack entries, held Resources and flags are unchanged, which is R14.4, the state part of R14.5 and R14.9. They say less than the requirement in four places. Whether a fault is the Kernel's is an input (`kernel`), so R14.3's attribution of each hardware fault class is outside them. R14.9's exception for Endpoints (the peer sees the state change) is not in `others_unchanged`. No statement bounds the time a response takes (R14.8, R14.10): those are measured. The statements describe the model's state, not the registers; re-initializing memory and stopping DMA are flags here that the entry code acts on. One thing is stricter than a reader might expect: 'end the Job' on a Job that holds a Resource is carried out as a restart of the Partition."
+closed = "2026-11-02: the response suite on the board found four defects (a restart that did not re-initialize, a stale supervisor call served after its Job ended, an Overrun reported more than once, a deadline event served after other events); each was fixed and is covered by the suite."
+gaps = "Fault attribution (R14.3) is by inspection of the stubs, since 2026-11-13 backed by a machine model of the stubs' instruction sequence, and by the rig's injected faults. Response times are measured figures with a margin, not static bounds. R14.1 (abort, one panic handler) is the Link_Checker's check and R14.6 to R14.7 (the event log) have a proof that is not cited in this row. A Partition's stop or restart seen from an Endpoint peer is an assumption with test evidence (A-P6)."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "fault"
+tool = "verus"
+says = "From a valid state: if the fault is the Kernel's, or no Job is executing, the result is the safe state with no Release pending and the Jobs as they were. Otherwise the executing Job's Partition receives its declared fault response, as `response_applied` defines it. The MIT history is kept."
+reviewed = "608021eb99c13b9a"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "apply_response"
+tool = "verus"
+says = "From a valid state the function leaves a valid state in which the given response has been applied to the given Partition as `response_applied` defines; it charges no Task's Budget account, and resets accounts only."
+reviewed = "6c4a887968de2b06"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "response_applied"
+tool = "verus"
+body = true
+says = "By response. Record only: scheduler, Budgets, timer slots and timing unchanged. End the Job, when that Job is on top and holds no Resource: the Job on top is ended and others are unchanged. End the Job otherwise, or restart: every Job and Release of the Partition is ended, it is marked for re-initialization and for stopping its DMA, its violation count is zero, others unchanged. Stop: the same, marked stopped. Anything else: the safe state, with no Release."
+reviewed = "4d10b801747774e8"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "others_unchanged"
+tool = "verus"
+body = true
+says = "For every Task of another Partition its state is unchanged; every stack entry and every held Resource of another Partition is still there, in place; the other Partitions' stopped flag, violation count, re-initialization and DMA-stop marks are unchanged; and the system ceiling has not risen."
+reviewed = "34d4731e9c4b0289"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-response"
+note = "one injected fault per response of R14.5, effects and R14.9 judged on the board"
+
+[[row.other]]
+kind = "inspected"
+ref = "UJ-026"
+note = "the fault entry stub that tells a Kernel fault from a Job's"
+
+# ---------------------------------------------------------------- R16
+
+[[row]]
+requirement = 16
+sentence = "No Partition can write another Partition's or the Kernel's memory, touch a peripheral it does not own, or run code that is not its own or shared; a stack overflow is caught before it damages anything outside the stack."
+implemented = "Each Partition runs unprivileged under a memory-protection (MPU) view computed from the generated layout: its own code, its own RAM, its own peripheral windows and the shared code, nothing else (crates/rsk-logic/src/logic/mpu.rs). The Kernel loads the view at every dispatch (crates/rsk-kernel/src/arch/cm4/entry.rs). The model of what the MPU grants is crates/rsk-logic/src/hw_model.rs."
+strength = "weaker"
+strength_note = "For R16.6, which asks for exactly this proof, yes: for every well-formed layout and the view computed for a Partition, the model of the MPU grants unprivileged access only to the Partition's own regions, and nothing of the Kernel or of another Partition. For R16.1 to R16.5 as statements about the board, weaker: the proof is about a model of the MPU's decision, and that the processor decides as the model does, and that the Kernel has loaded the right view whenever a Partition runs, are outside these statements. On the stack (R16.5): a write outside the Partition's own RAM and windows is refused, which covers an overflow off the bottom of the stack, but not one that jumps far enough to land in the Partition's own peripheral window; the Link_Checker's stack bounds are what excludes that."
+closed = "2026-11-05: the Kernel's own peripherals and the processor's private peripheral bus were not intervals of the layout, so the proof did not cover them; they are now (`lemma_view_no_kernel_window`). 2026-11-13 (audit findings 8 and 9): a stack pointer that a Job moved outside its stack region is now checked by the Kernel at entry."
+gaps = "That the hardware behaves as the model says is by citation of the architecture manual and differential tests on the board (ASM-02, the HW rules). The register encoding of a region is checked at field level only (Kani). The Kernel's own stack check at entry is not cited in this row. R16.10 (no forbidden instruction in privileged-level Partition code) is the Link_Checker's."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/hw_model.rs"
+name = "lemma_hw_partition_isolation"
+tool = "verus"
+says = "For a well-formed layout and the view of Partition p: any address the MPU model grants to unprivileged code is in p's code, p's RAM, p's peripheral windows or the shared code; a write is granted only in p's RAM or windows; an instruction fetch only in p's code or the shared code; no granted address is in the Kernel's flash, RAM or peripheral windows, or owned by another Partition; the address just below p's RAM is not writable; and every enabled region obeys the processor's size and alignment rules."
+reviewed = "dbcb2bb820acb23a"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/hw_model.rs"
+name = "lemma_hw_write_isolation"
+tool = "verus"
+says = "For two different Partitions of a well-formed layout, there is no address that one may write and the other may access in any way."
+reviewed = "16780deb9eccddb1"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "lemma_view_no_kernel_window"
+tool = "verus"
+says = "No address of a Kernel-owned peripheral window is readable in any Partition's view."
+reviewed = "eab6d2a5a3a8e242"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "lemma_stack_overflow_faults"
+tool = "verus"
+says = "The address immediately below a Partition's RAM, where its stack ends, is not writable in that Partition's view. One address, not a range."
+reviewed = "9fddbe6d3c825e6e"
+
+[[row.other]]
+kind = "checked"
+ref = "check-config"
+note = "the Config_Checker recomputes the layout and compares it with the linked binary"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-mpu-matrix"
+note = "71 access attempts across Partitions and against the Kernel, each refused with a fault"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-02"
+note = "the MPU's region rules as the manual states them"
+
+# ---------------------------------------------------------------- R17
+
+[[row]]
+requirement = 17
+sentence = "A peripheral that moves data by itself (EasyDMA), bypassing memory protection, may only read and write its own Partition's ordinary memory; a request for any other buffer is refused before a byte moves, and a Partition's transfers are stopped before its memory is re-initialized."
+implemented = "A Partition cannot write its DMA peripheral's pointer and count registers: its view maps that peripheral read-only. It asks the Kernel, which checks that the buffer lies in the Partition's RAM above the stack and then writes the registers itself (`dma_request_core` in crates/rsk-kernel/src/arch/cm4/entry.rs; the buffer test is `Layout::dma_permitted` in crates/rsk-logic/src/logic/mpu.rs). Only the SPIM class is supported; the Generator rejects the others."
+strength = "weaker"
+strength_note = "Close, since 2026-11-16, for R17.1 and R17.2: the request function is proven to accept a request exactly when the channel belongs to the executing Job's Partition and the buffer passes the test (non-empty, above the stack, inside the Partition's RAM, in no disabled part of it); an accepted request programs that channel's pointer and count registers with that buffer and nothing else, and a refused one programs nothing. Still weaker in three ways. The record of what was programmed is the Kernel's model of its own writes, not the peripheral: that EasyDMA then moves exactly those bytes is the vendor's documentation and the rig's cases. The other mediated service, the register write (`dma_write_core`), has the old kind of contract: that it never writes a pointer or count register is in its body, not in a postcondition. And nothing cited states R17.5 (no Job touches the buffer during a transfer)."
+closed = "2026-11-06: a peripheral shortcut restarted a transfer after the Kernel had stopped it at a restart (one in ninety on the board); the stop now clears the shortcut first. 2026-11-13 (audit findings 1 and 10): the claim is limited to the SPIM class, and the read-only window is proven and checked at boot. 2026-11-16: the contract of `dma_request_core` did not state the refusal rule (found when this row was first written from the contract's text); it is now a postcondition, with three mutants killed."
+gaps = "`dma_write_core` should state as a postcondition that it writes no pointer, count or list-mode register of any channel. R17.5 has no evidence cited here. That EasyDMA honours the registers as written is the vendor's documentation and the rig's cases. Other peripheral classes are out of scope in this version."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "dma_permitted"
+tool = "verus"
+body = true
+says = "A buffer is permitted when its length is positive, it starts at or above the end of the Partition's stack, it ends within the Partition's RAM, and every eighth of that RAM it overlaps is enabled."
+reviewed = "2de92b4b3d8bd5a2"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "dma_permitted_exec"
+tool = "verus"
+says = "The function the Kernel runs returns true exactly when the buffer is permitted by the definition above."
+reviewed = "f2d2c03e0f72268f"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "dma_request_core"
+tool = "verus"
+says = "The Kernel's invariant is preserved and the Job stack does not grow. The request is accepted exactly when `dma_accepts` holds of the state it was called in. If accepted, the Kernel's state is as before and the model's list of programmed transfers has one more entry: this channel's pointer register, the buffer, this channel's count register, the length. If refused, that list is unchanged. The interrupt mask level, the MPU view and the global interrupt mask are unchanged either way."
+reviewed = "18ad4207e07cf1ce"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "dma_accepts"
+tool = "verus"
+body = true
+says = "A request for channel i is acceptable when the channel exists, a Job is executing, the channel's peripheral belongs to the Partition of the Job on top, that Partition exists, and the buffer is DMA-permitted memory of that Partition."
+reviewed = "a10665dcfddd9f8d"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "lemma_ro_window_not_writable"
+tool = "verus"
+says = "An address in a read-only peripheral window of any Partition is writable in no Partition's view, the owner's included."
+reviewed = "2095eae422832b74"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kani_harness.rs"
+name = "dma_permitted_matches_recomputation"
+tool = "kani"
+says = "For every Partition RAM of 1 to 64 KiB, stack size and subregion mask, and every buffer up to 128 KiB, the compiled buffer test agrees with an independent recomputation of the rule."
+reviewed = "ab5340fd1aa62f9f"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-dma"
+note = "refused requests leave the registers unwritten; a restart stops the transfer before re-initialization"
+
+[[row.other]]
+kind = "checked"
+ref = "DD-08"
+note = "the Generator rejects EasyDMA classes other than SPIM"
+
+# ---------------------------------------------------------------- R18
+
+[[row]]
+requirement = 18
+sentence = "Each Job's execution time is counted against its Budget, an overrun is detected and answered as its Partition declared, and as a result a Partition that keeps to its Budgets meets the response times the Analyzer computed whatever lower-criticality Partitions do."
+implemented = "The Kernel charges the executing Job the processor cycles between switch points and arms a timer event for the instant its Budget would run out; the event reports the Overrun and applies the response (`Kernel::timer_event`, `budget_event`, `settle` in crates/rsk-logic/src/logic/kernel.rs; the cycle counter and the charge points in crates/rsk-kernel/src/arch/cm4/entry.rs). The protection claim (R18.7) is the Analyzer's bound, proven over a run of the Kernel's functions in proofs/aeneas/lean/Sched/."
+strength = "weaker"
+strength_note = "R18.1: the statement is that a timer entry charges the executing Job exactly the cycles it is given and no other Task anything. The cycles it is given are wall-clock cycles since the last switch, so the Kernel's own work during an interrupting entry is charged to the interrupted Job; the requirement's note of 2026-11-13 accepts this within Δ_entry per entry, and it is why measured maxima move by a whole entry. R18.2 and R18.3: an Overrun that the Budget event finds is reported and answered, once; no statement bounds how soon (Δ_detect, Δ_enforce are measured). R18.7: the Lean theorem bounds the response of every Job of a Task the analysis calls schedulable, but in a run whose instants are its own and with four kinds of transition still written by hand; and it bounds response by the computed R, which is the requirement, only under the conditions the run lists."
+closed = "2026-11-02: timed events served for other Tasks were charged to the executing Job's account; found by measurement, closed by the contract of `timer_event`. 2026-11-05: an account that passed its Budget at a preemption was taken as already reported and the Job ran on; `Budget::reported` now records the report itself. 2026-11-15: a Budget event could be served ahead of a pending dispatch, a delay the blocking term did not cover; `settle` disarms the event when a dispatch is admitted."
+gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. The Lean run is not joined to the Kernel's time base (the code's half is in Sched/Time.lean since 2026-11-16); four transitions are modelled by hand; one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "timer_event"
+tool = "verus"
+says = "Outside the safe state, after the entry every Task's Budget account is either what it was, or (for the Job executing at entry only) what it was plus the cycles passed in, or zero. Every periodic Task due at the entry's reading has its Release served and every other is left alone. In the safe state nothing changes."
+reviewed = "5d87d24f25e5725c"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "budget_event"
+tool = "verus"
+says = "The event charges no account. If an Overrun was already reported for this Job, the log, the accounts and the scheduler are unchanged. If the Job on top is this Task's, is unreported, and its account exceeds its Budget, then afterwards the Overrun is marked reported, or the account has been reset because the response ended the Partition."
+reviewed = "9030572535810bba"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "settle"
+tool = "verus"
+says = "The last step of every Kernel entry changes nothing but, at most, the executing Job's Budget slot; it returns the Task the scheduling rule admits, if any; and whenever a Task is admitted, no Budget event is left armed."
+reviewed = "1ad81a7cda388d08"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+name = "property18_kernel"
+tool = "lean"
+says = "Take the Analyzer's result as the compiled code computes it. For a Task it reports schedulable with response time R, in every state reachable in the run built from the Kernel's extracted functions, if a Job of that Task has work outstanding then it arrived at some instant a and the present instant is before a + R. The hypotheses: the Task set and Priorities match the Kernel's configuration, Budgets are positive, deadlines are within periods, and each Critical_Section's length is within the bound the analysis used."
+reviewed = "ffc42a0a1d541289"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-stress"
+note = "the protected Partition within its computed response times under overruns and a storm, over an hour"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-cycles"
+note = "the Budget accounting against the processor's cycle counter"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-06"
+note = "the cycle counter's rate"
+
+# ---------------------------------------------------------------- R29
+
+[[row]]
+requirement = 29
+sentence = "The Analyzer computes for each Task a worst-case response time from Budgets, blocking, Kernel overheads and interference, as the least solution of the standard recurrence, and reports PASS only if every Task's bound is within its deadline. Property 18 says the bound is sound: no Job in an execution exceeds it."
+implemented = "The recurrence's terms are derived from the Task_Model and the measured Kernel timing parameters (crates/rsk-analyzer/src/terms.rs), and the least fixed point is found by iteration on unsigned integers (crates/rsk-analyzer/src/rta.rs). Soundness against execution is proven in Lean over the same functions as compiled and the Kernel's functions as extracted (proofs/aeneas/lean/Rta/ and Sched/)."
+strength = "weaker"
+strength_note = "The computation is proven to be what it claims: the iteration returns the least fixed point of the terms it is given, or says 'not schedulable' with a value no fixed point is below. The term list is proven equal to a specification of the list, and that specification is the project's own formalization of R29.1's formula, so their agreement is by reading, with one test per term. Soundness (Property 18) is proven for a run with its own notion of time and four hand-written transitions, under listed conditions, one of which (one Budget event per Job) is a condition and not a consequence of the code. And the inputs are measurements: R29.1 takes C_i as the Budget, which R28.4 keeps above a measured maximum with a margin, not above a static bound."
+closed = "2026-11-14 and 15: the Lean work found two terms the analysis lacked (timer entries of lower-Priority Tasks, and housekeeping) and one case the blocking term did not cover (a Budget event ahead of a pending dispatch); the terms were added and the Kernel changed. 2026-11-15: the utilization check of R29.9 was proven over the rationals."
+gaps = "Not cited in this row, though proven: the derivation of each term from the model (`derive_all`), the rounding of R29.8, the overflow report of R29.6 and the utilization check of R29.9. Open: the run's time base, the four hand-written transitions, static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
+
+[[row.statement]]
+file = "crates/rsk-analyzer/src/rta.rs"
+name = "fixpoint"
+tool = "verus"
+says = "Given well-formed terms: if it returns a fixed point w, then w satisfies the recurrence, no smaller non-negative value does, and jitter plus w is within the deadline. If it returns 'not schedulable' with w, then jitter plus w is past the deadline and w is at or below every fixed point."
+reviewed = "095a7185d1e06198"
+
+[[row.statement]]
+file = "crates/rsk-analyzer/src/terms.rs"
+name = "terms_for"
+tool = "verus"
+says = "For Task i the function returns exactly the list of interference terms the specification defines for i, and every term has a positive period."
+reviewed = "d12b18b9b0a40b6b"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+name = "property18_kernel"
+tool = "lean"
+says = "As in the row for R18: for a Task the compiled analysis reports schedulable with bound R, every Job with work outstanding in a reachable state of the run arrived less than R ago."
+reviewed = "ffc42a0a1d541289"
+
+[[row.other]]
+kind = "tested-host"
+ref = "crates/rsk-analyzer/tests/rules.rs"
+note = "one test per rejection rule and per term; a reference implementation on 500 Task sets"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "analysis-rta-<variant>-measured"
+note = "every observed response on the board within the computed bound"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-11"
+note = "a measured maximum is not a worst case"
+
+# ---------------------------------------------------------------- R41
+
+[[row]]
+requirement = 41
+sentence = "Tasks that exchange messages over Endpoints following a declared Protocol can never all be waiting on each other, buffers are large enough for the Protocol, and a session abandoned half-way is detected."
+implemented = "The Protocol_Checker explores each Protocol's reachable configurations and accepts it only with a certificate of progress and of a bound on messages in transit (crates/rsk-protocol/src/progress.rs for two parties, multiparty.rs for more). The Generator sizes and rejects buffers from that bound, and the role types in crates/rsk make a wrong or abandoned step a compile error or a reported violation."
+strength = "weaker"
+strength_note = "R41.3 asks for a proof about every Application that satisfies the Profile. What is proven is about a Protocol: if the checker accepts it, no reachable configuration of its roles and channels is a deadlock, and (two parties) no channel exceeds its capacity. That is proven of the specification in Verus and again of the checker as compiled in Lean. The step from 'the Protocol's model cannot deadlock' to 'the Application's Tasks cannot' goes through assumptions the plan lists (each role is played by one Task that follows its role type; a Task waiting on a message holds no Resource; gating across Endpoints is as declared), some enforced by the Generator or the Kernel and some by test. R41.3 also asks that those assumptions be listed, and they are."
+closed = "2026-11-08: the first certificate was per Endpoint; the argument across Endpoints was added under declared gating. 2026-11-09 and 2026-11-15: the multiparty theorem, then the same theorem on the compiled checker."
+gaps = "The assumptions that remain with reasons and not proofs (A-P1, the message half of A-P2, A-P4, the body half of A-P8, A-P9, A-P10), and A-P6 for a Partition's stop or restart, which is an assumption with test evidence. R41.2 is partly at compile time and partly a run-time report. R41.4 (end-to-end latency) is the Analyzer's, with tests and no proof cited here."
+
+[[row.statement]]
+file = "crates/rsk-protocol/src/progress.rs"
+name = "certify"
+tool = "verus"
+says = "For a well-formed two-party system: if the function returns true, then no reachable configuration is deadlocked and in every reachable configuration every channel holds at most the declared capacity."
+reviewed = "eb73da4b11a3fb1b"
+
+[[row.statement]]
+file = "crates/rsk-protocol/src/multiparty.rs"
+name = "theorem_multiparty_progress"
+tool = "verus"
+says = "If a global Protocol among n roles meets the acceptance condition, no configuration reachable from it is deadlocked."
+reviewed = "7b9382ea8b45bc41"
+
+[[row.statement]]
+file = "crates/rsk-protocol/src/multiparty.rs"
+name = "accept_multiparty"
+tool = "verus"
+says = "If the checker returns true for a Protocol, the Protocol meets the acceptance condition and no reachable configuration is deadlocked."
+reviewed = "acdcab2ad67f5489"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Proto/Exec.lean"
+name = "accept_multiparty_progress"
+tool = "lean"
+says = "On the checker as extracted from the compiled crate: if it returns true, no configuration reachable under the asynchronous semantics is deadlocked."
+reviewed = "8eb21ac2e9dea365"
+
+[[row.other]]
+kind = "checked"
+ref = "A-P7"
+note = "enforced as a Generator rule, with A-P8"
+
+[[row.other]]
+kind = "tested-host"
+ref = "property20"
+note = "projection and buffer bound, property-based"
+
+[[row.other]]
+kind = "assumed"
+ref = "A-P6"
+note = "peer state after a stop or restart"

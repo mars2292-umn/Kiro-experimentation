@@ -32,6 +32,14 @@ pub const FEATURES: &str = "nrf52840,debug-port,quiet,trace-ram,trace-pins";
 /// ring and the trace pins, to measure what the instrumentation costs.
 pub const FEATURES_LEAN: &str = "nrf52840,debug-port,quiet,trace-ram,record-only";
 
+/// The Flight_Build as the rig can run it (2026-11-16): the board, and the
+/// two features the rig cannot do without: `debug-port` (one register
+/// write at boot; without it the access port locks at the first reset and
+/// the board must be erased to be flashed again) and `quiet` (the Tasks'
+/// debug prints, which need a host). No trace ring, no trace pins, no
+/// record: nothing of the Kernel's instrumentation is compiled.
+pub const FEATURES_FLIGHT: &str = "nrf52840,debug-port,quiet";
+
 pub fn features_for(lean: bool) -> &'static str {
     if lean { FEATURES_LEAN } else { FEATURES }
 }

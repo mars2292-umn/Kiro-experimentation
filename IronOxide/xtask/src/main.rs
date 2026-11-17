@@ -54,7 +54,7 @@ commands:
       target/xtask-nightly/<date>/. Needs the boards attached and the
       machine on AC power; xtask/launchd/com.ironoxide.nightly.plist
       schedules it at 02:00.
-  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] [--defer-probe | --defer-nofix] | --stress [--short] | --response | --isolation | --boot-checks | --stack | --cycles | --coverage [--stress | --plain | --kernel | --response | --isolation]] [--lean]
+  hil [--bin <crate>] [--timeout <s>] [--spike-only | --release-timing [--short] [--defer-probe | --defer-nofix] | --stress [--short] | --response | --isolation | --boot-checks | --stack [--release-timing | --plain | --response | --isolation] | --cycles | --coverage [--stress | --plain | --kernel | --response | --isolation] | --flight] [--lean]
       --lean: the HIL build without the trace ring and the trace pins
       (feature record-only; task 19.2, R34.7), its records written as
       `<variant>_lean` beside the instrumented ones, never used by the job.
@@ -69,6 +69,13 @@ commands:
       board with semihosting; the exit status is the binary's semihosting
       exit code (0 = the demo's safe-state report found every expectation
       met). Output is printed and saved under target/qemu/.
+  reqdoc [--check | --hashes] [--evidence-dir <dir>]
+      Write docs/requirements_evidence.md, the plain-English companion of the
+      matrix: one row per requirement, the sentences from
+      docs/requirements_evidence.toml (written by hand), the identifiers,
+      files, statements and Evidence_Items from the matrix's data. --check
+      fails when the file is not current or a cited statement has changed
+      since its row was written; --hashes prints each statement's hash.
   trace [--check] [--evidence-dir <dir>]
       Write docs/traceability_matrix.md: every acceptance criterion with its
       design, tasks, allocation rows, code, and Evidence_Items (R50.5), the
@@ -96,6 +103,7 @@ fn main() -> ExitCode {
         "confcheck-mutations" => confcheck_mutations_command(rest),
         "conformance" => conformance_command(rest),
         "trace" => trace_command(rest),
+        "reqdoc" => reqdoc_command(rest),
         "gen" => gen_command(rest),
         "uppaal-corpus" => uppaal_corpus_command(rest),
         "qemu" => qemu_command(rest),
@@ -313,6 +321,34 @@ fn trace_command(args: &[String]) -> ExitCode {
     }
 }
 
+fn reqdoc_command(args: &[String]) -> ExitCode {
+    let mut mode = xtask::reqdoc::Mode::Write;
+    let mut evidence_dir: Option<PathBuf> = None;
+    let mut args = args.iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--check" => mode = xtask::reqdoc::Mode::Check,
+            "--hashes" => mode = xtask::reqdoc::Mode::Hashes,
+            "--evidence-dir" => match args.next() {
+                Some(d) => evidence_dir = Some(PathBuf::from(d)),
+                None => return usage_error("--evidence-dir takes a directory"),
+            },
+            other => return usage_error(&format!("unknown reqdoc option `{other}`")),
+        }
+    }
+    let root = xtask::repository_root();
+    let evidence_dir = evidence_dir.unwrap_or_else(|| root.join("target").join("xtask-verify").join("evidence"));
+    let mut report = Report::default();
+    let check = matches!(mode, xtask::reqdoc::Mode::Check);
+    match xtask::reqdoc::run(&root, &evidence_dir, mode, &mut report) {
+        Ok(()) => print_report(&report, if check { "requirements evidence document is current" } else { "requirements evidence document written" }),
+        Err(e) => {
+            eprintln!("reqdoc: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn mutations_command(args: &[String]) -> ExitCode {
     let mut check_only = false;
     let mut only: Option<String> = None;
@@ -410,6 +446,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let mut kernel = false;
     let mut defer_probe = false;
     let mut defer_nofix = false;
+    let mut flight = false;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -431,6 +468,7 @@ fn hil_command(args: &[String]) -> ExitCode {
             "--cycles" => cycles = true,
             "--coverage" => coverage = true,
             "--lean" => lean = true,
+            "--flight" => flight = true,
             "--short" => short = true,
             "--plain" => plain = true,
             "--fpu" => fpu = true,
@@ -488,7 +526,7 @@ fn hil_command(args: &[String]) -> ExitCode {
     let kind = if stress { "stress" } else if plain { "measure" } else if kernel && coverage { "coverage-kernel" } else { "release-timing" };
     if stack {
         // The stress configuration unless another is named.
-        let stack_kind = if release_timing { "release-timing" } else if plain { "measure" } else { "stress" };
+        let stack_kind = if response { "response" } else if isolation { "isolation" } else if release_timing { "release-timing" } else if plain { "measure" } else { "stress" };
         return stack_command(&ws, &rig, &bin, &stimulus_bin, stack_kind, &target_dir, report);
     }
     if coverage && response {
@@ -516,13 +554,25 @@ fn hil_command(args: &[String]) -> ExitCode {
     if cycles {
         return cycles_command(&ws, &rig, &bin, lean, fpu, &target_dir, report);
     }
-    let Some(target) = xtask::hil::build(&ws, &bin, &target_dir, None, &mut report) else {
+    // `--flight` (2026-11-16): the self-test over the Application built as
+    // a Flight_Build is, with the two features the rig cannot do without
+    // (`FEATURES_FLIGHT`): no trace ring, no trace pins, no record, so the
+    // only measurement is the analyzer's, from outside the firmware.
+    let target = if flight {
+        xtask::hil::build_with(&ws, &bin, xtask::hil::FEATURES_FLIGHT, &target_dir.join("flight"), None, &mut report)
+    } else {
+        xtask::hil::build(&ws, &bin, &target_dir, None, &mut report)
+    };
+    let Some(target) = target else {
         return print_report(&report, "hil");
     };
     let Some(stimulus) = xtask::hil::build(&ws, &stimulus_bin, &target_dir, None, &mut report) else {
         return print_report(&report, "hil");
     };
-    let work = target_dir.join("rig");
+    if flight {
+        report.note(format!("Flight_Build features plus the rig's two ({}): {} over {} loadable bytes", xtask::hil::FEATURES_FLIGHT, target.binary.hash, target.binary.loadable_bytes));
+    }
+    let work = target_dir.join(if flight { "rig-flight" } else { "rig" });
     let inputs = rsk_hil::selftest::Inputs {
         rig: &rig,
         target_elf: &target.elf,
@@ -540,6 +590,12 @@ fn hil_command(args: &[String]) -> ExitCode {
     let _ = std::fs::write(work.join("edges.txt"), &out.edges_text);
     let _ = std::fs::write(work.join("trace.txt"), &out.trace_text);
     let _ = std::fs::write(work.join("events.txt"), &out.events_text);
+    if flight {
+        let record = ws.root.join("docs").join("hil");
+        let _ = std::fs::create_dir_all(&record);
+        let _ = std::fs::write(record.join("flight_loopback_nrf52840.md"), format!("{text}\nBuild: `{}` with features `{}` ({}, {} loadable bytes).\n", bin, xtask::hil::FEATURES_FLIGHT, target.binary.hash, target.binary.loadable_bytes));
+        report.note("record written to docs/hil/flight_loopback_nrf52840.md");
+    }
     report.note(format!("report and edge list written under {}", ws.rel(&work)));
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, "the HIL_Rig self-test failed (report above)");
@@ -1340,9 +1396,26 @@ fn isolation_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Ri
 /// the rig before the reset and read back within the operating duration,
 /// each judged against the Link_Checker's bound for this very binary.
 fn stack_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig, bin: &str, stimulus_bin: &str, kind: &str, target_dir: &std::path::Path, mut report: Report) -> ExitCode {
-    let Some(measurement) = xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == kind && m.duration_secs < 10 * 60) else {
-        report.error(xtask::diag::Rule::Step, None, format!("no short `{kind}` configuration"));
-        return print_report(&report, "hil");
+    // The two suite configurations (`--stack --response`, `--stack
+    // --isolation`; 2026-11-16) are not measurement configurations: each
+    // runs its cases from the reset to the safe state within its suite's
+    // timeout, with no host attached here, so the regions are read after
+    // that time whatever the suite's last step did (its report over
+    // semihosting is not taken; the cases have run by then).
+    let suite = match kind {
+        "response" => Some(("nrf52840_response", "response", 90u64)),
+        "isolation" => Some(("nrf52840_isolation", "isolation", 60u64)),
+        _ => None,
+    };
+    let measurement = match suite {
+        Some((variant, feature, secs)) => xtask::hil::Measurement { variant, feature, duration_secs: secs + 15, stress: false, kind: "suite" },
+        None => match xtask::hil::MEASUREMENTS.iter().find(|m| m.kind == kind && m.duration_secs < 10 * 60) {
+            Some(m) => xtask::hil::Measurement { variant: m.variant, feature: m.feature, duration_secs: m.duration_secs, stress: m.stress, kind: m.kind },
+            None => {
+                report.error(xtask::diag::Rule::Step, None, format!("no short `{kind}` configuration"));
+                return print_report(&report, "hil");
+            }
+        },
     };
     let features = format!("{},{}", xtask::hil::FEATURES, measurement.feature);
     let variant = measurement.variant;

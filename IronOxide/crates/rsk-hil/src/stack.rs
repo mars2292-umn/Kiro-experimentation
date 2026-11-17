@@ -219,6 +219,18 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         Ok(None) => out.step("the Application ran", false, "the build has no release record"),
         Err(e) => out.step("the Application ran", false, e),
     }
+    // What the run exercised: the Kernel's events by kind, from its mirror.
+    // Informative: a fault-injecting configuration is told from an idle one
+    // by the responses and restarts counted here, since no host was
+    // attached to take the suite's own report.
+    if let Ok(Some(ev)) = target.read_events(inputs.target_elf, &scratch) {
+        let mut by_kind: std::collections::BTreeMap<u8, usize> = std::collections::BTreeMap::new();
+        for ((kind, _), n) in ev.counts() {
+            *by_kind.entry(kind).or_default() += n;
+        }
+        let kinds: Vec<String> = by_kind.iter().map(|(k, n)| format!("{} {n}", crate::events::kind_name(*k))).collect();
+        out.step("events of the run", true, format!("{} mirrored in all; the held ones by kind: {}", ev.written, if kinds.is_empty() { "none".to_string() } else { kinds.join(", ") }));
+    }
     for r in inputs.regions {
         let len = (r.top - r.base) as usize;
         match target.read(r.base, len, &scratch) {
