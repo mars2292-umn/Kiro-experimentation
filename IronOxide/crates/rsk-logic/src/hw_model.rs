@@ -20,6 +20,7 @@
 //! | HW-12 TIMER compare semantics and the near-counter rule | nRF52840 PS 6.30 (TIMER, COMPARE); ASM-19 |
 //! | HW-13 DWT CYCCNT | Armv7-M ARM C1.8.7 (DWT_CYCCNT), C1.8.8 (DWT_CTRL.CYCCNTENA); ASM-06 |
 //! | HW-14 Tail-chaining and late arrival | Armv7-M ARM B1.5.12 |
+//! | HW-15 An EasyDMA transfer reads and writes the bytes from its pointer register's address for its count register's length and no other | nRF52840 PS, "EasyDMA" and the SPIM chapter's "EasyDMA" (TXD.PTR, TXD.MAXCNT, RXD.PTR, RXD.MAXCNT) [RN-35]; ASM-07. SPIM class only (DD-08) |
 //!
 //! Errata (R49.4, R11.6, ASM-01; task 3.4, reviewed 2026-11-04 against the
 //! Arm Cortex-M4 Software Developers Errata Notice v3 (ARM-ECM-0426805,
@@ -840,6 +841,37 @@ pub open spec fn compare_for(now: int, target: int) -> int {
 pub proof fn lemma_compare_never_too_close(now: int, target: int)
     ensures compare_for(now, target) >= now + MIN_COMPARE_DISTANCE, compare_for(now, target) >= target,
 {
+}
+
+// ------------------------------------------------------------------ HW-15
+
+/// HW-15: the bytes an EasyDMA transfer programmed with pointer `ptr` and
+/// count `len` reads or writes: `[ptr, ptr + len)` and no other. The
+/// peripheral is a bus master the MPU does not check (RN-35), so this rule
+/// is what stands between a programmed transfer and the rest of memory.
+/// Checked on the Target by the measurement configuration's footprint step
+/// (Verification_Plan 11.7: guard bytes on both sides of a receive buffer).
+pub open spec fn dma_touches(ptr: int, len: int, a: int) -> bool {
+    ptr <= a < ptr + len
+}
+
+/// R17.1 over HW-15: every byte a transfer touches, when its buffer is
+/// DMA-permitted memory of Partition `p` (`PartitionLayout::dma_permitted`,
+/// what `dma_request_core` accepts), lies in `p`'s RAM above `p`'s stack
+/// region, and in no memory of the Kernel or of another Partition.
+pub proof fn lemma_dma_footprint_in_partition<const NP: usize>(layout: &Layout<NP>, p: int, ptr: int, len: int, a: int)
+    requires layout.wf(), 0 <= p < NP, layout.partitions[p].dma_permitted(ptr, len), dma_touches(ptr, len, a),
+    ensures
+        layout.partitions[p].ram.contains(a),
+        a >= layout.partitions[p].ram.base as int + layout.partitions[p].stack_size as int,
+        !layout.kernel_ram.contains(a) && !layout.kernel_flash.contains(a),
+        forall|q: int| 0 <= q < NP && q != p ==> !#[trigger] partition_owns(layout, q, a),
+{
+    assert(layout.partition_ok(p));
+    assert forall|q: int| 0 <= q < NP && q != p implies !#[trigger] partition_owns(layout, q, a) by {
+        assert(layout.pair_ok(p, q));
+        assert(layout.pair_ok(q, p));
+    }
 }
 
 // ------------------------------------------------------------------ HW-13

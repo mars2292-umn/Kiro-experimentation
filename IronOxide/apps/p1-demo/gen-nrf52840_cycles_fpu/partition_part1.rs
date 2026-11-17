@@ -5,9 +5,9 @@ pub mod rsk_resources {
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `part1.log.count` (PR-25): touched by `log`'s Jobs only.
-    pub static LOG_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static LOG_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part1.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
-    pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
 }
@@ -52,6 +52,9 @@ pub mod rsk_target {
             [true, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
 pub mod rsk_ctx {
     /// The Context of Task `part1.log` (Priority 2).

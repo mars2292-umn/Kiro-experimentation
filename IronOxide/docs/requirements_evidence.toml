@@ -220,11 +220,11 @@ note = "the MPU's region rules as the manual states them"
 [[row]]
 requirement = 17
 sentence = "A peripheral that moves data by itself (EasyDMA), bypassing memory protection, may only read and write its own Partition's ordinary memory; a request for any other buffer is refused before a byte moves, and a Partition's transfers are stopped before its memory is re-initialized."
-implemented = "A Partition cannot write its DMA peripheral's pointer and count registers: its view maps that peripheral read-only. It asks the Kernel, which checks that the buffer lies in the Partition's RAM above the stack and then writes the registers itself (`dma_request_core` in crates/rsk-kernel/src/arch/cm4/entry.rs; the buffer test is `Layout::dma_permitted` in crates/rsk-logic/src/logic/mpu.rs). Only the SPIM class is supported; the Generator rejects the others."
+implemented = "A Partition cannot write its DMA peripheral's pointer and count registers: its view maps that peripheral read-only. It asks the Kernel, which checks that the buffer lies in the Partition's RAM above the stack and then writes the registers itself (`dma_request_core` in crates/rsk-kernel/src/arch/cm4/entry.rs; the buffer test is `Layout::dma_permitted` in crates/rsk-logic/src/logic/mpu.rs). Since 2026-11-16 a Task can only make that request through a buffer type that hides its bytes while a transfer has them (`rsk::DmaBuf`, `DmaTransfer`, `DmaHeld` in crates/rsk/src/lib.rs): lending returns a value that stands for the transfer, the bytes come back only when that value is given back and the peripheral has reported the stop, and dropping the value stops the transfer. Only the SPIM class is supported; the Generator rejects the others."
 strength = "weaker"
-strength_note = "Close, since 2026-11-16, for R17.1 and R17.2: the request function is proven to accept a request exactly when the channel belongs to the executing Job's Partition and the buffer passes the test (non-empty, above the stack, inside the Partition's RAM, in no disabled part of it); an accepted request programs that channel's pointer and count registers with that buffer and nothing else, and a refused one programs nothing. Still weaker in three ways. The record of what was programmed is the Kernel's model of its own writes, not the peripheral: that EasyDMA then moves exactly those bytes is the vendor's documentation and the rig's cases. The other mediated service, the register write (`dma_write_core`), has the old kind of contract: that it never writes a pointer or count register is in its body, not in a postcondition. And nothing cited states R17.5 (no Job touches the buffer during a transfer)."
-closed = "2026-11-06: a peripheral shortcut restarted a transfer after the Kernel had stopped it at a restart (one in ninety on the board); the stop now clears the shortcut first. 2026-11-13 (audit findings 1 and 10): the claim is limited to the SPIM class, and the read-only window is proven and checked at boot. 2026-11-16: the contract of `dma_request_core` did not state the refusal rule (found when this row was first written from the contract's text); it is now a postcondition, with three mutants killed."
-gaps = "`dma_write_core` should state as a postcondition that it writes no pointer, count or list-mode register of any channel. R17.5 has no evidence cited here. That EasyDMA honours the registers as written is the vendor's documentation and the rig's cases. Other peripheral classes are out of scope in this version."
+strength_note = "Close on every criterion the Kernel is responsible for, with what remains stated. R17.1 and R17.2: the request function is proven to accept a request exactly when the channel belongs to the executing Job's Partition and the buffer passes the test; an accepted request programs that channel's two registers with that buffer and nothing else, a refused one programs nothing; the register write behind it is checked to write those two registers only; and every byte of a permitted buffer is proven to lie in the Partition's own RAM above its stack, given the hardware rule HW-15. R17.3: the register-write service is proven never to write a pointer, count or list-mode register and never to program a transfer. R17.5: the lending library is model-checked for every sequence of four operations, with arbitrary register values, to hand out a buffer's bytes only when no transfer of it is outstanding. Still weaker than the requirement's words in two places. HW-15 is an assumption about the peripheral, cited to the vendor's specification and checked on the board by guard bytes at three transfer rates, not proven. And the model check of the library is bounded (four operations, a two-read wait, the host doubles of the supervisor calls) and is about the library's own bookkeeping: that the peripheral has truly stopped when it reports STOPPED is again the vendor's."
+closed = "2026-11-06: a peripheral shortcut restarted a transfer after the Kernel had stopped it at a restart (one in ninety on the board); the stop now clears the shortcut first. 2026-11-13 (audit findings 1 and 10): the claim is limited to the SPIM class, and the read-only window is proven and checked at boot. 2026-11-16: the contract of `dma_request_core` did not state the refusal rule (found when this row was first written from the contract's text); it is now a postcondition, with three mutants killed. 2026-11-16: nothing addressed R17.5 (the request borrowed the buffer only for the call and the transfer ran on after it); the request now goes through a buffer that is out of reach while lent. 2026-11-16: `dma_write_core` gained its postcondition (two mutants killed); the peripheral's address is no longer the Task's argument (the Generator emits each Partition's channels as constants)."
+gaps = "HW-15 and the meaning of the STOPPED event rest on the vendor's documentation and the footprint test on one peripheral (SPIM0). The library's check is bounded model checking, not an unbounded proof. A transfer that is dropped leaves its buffer out of reach until the Partition restarts. Other peripheral classes are out of scope in this version. The hour-long configurations were not run on this build."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/mpu.rs"
@@ -245,8 +245,8 @@ reviewed = "f2d2c03e0f72268f"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dma_request_core"
 tool = "verus"
-says = "The Kernel's invariant is preserved and the Job stack does not grow. The request is accepted exactly when `dma_accepts` holds of the state it was called in. If accepted, the Kernel's state is as before and the model's list of programmed transfers has one more entry: this channel's pointer register, the buffer, this channel's count register, the length. If refused, that list is unchanged. The interrupt mask level, the MPU view and the global interrupt mask are unchanged either way."
-reviewed = "18ad4207e07cf1ce"
+says = "The Kernel's invariant is preserved and the Job stack does not grow. The request is accepted exactly when `dma_accepts` holds of the state it was called in. If accepted, the Kernel's state is as before and the model's list of programmed transfers has one more entry: this channel's pointer register, the buffer, this channel's count register, the length. If refused, that list is unchanged. The record of register writes made for Partitions is unchanged either way, as are the interrupt mask level, the MPU view and the global interrupt mask."
+reviewed = "1a7806b3291e63ea"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -257,11 +257,55 @@ says = "A request for channel i is acceptable when the channel exists, a Job is 
 reviewed = "a10665dcfddd9f8d"
 
 [[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "dma_write_core"
+tool = "verus"
+says = "The Kernel's invariant is preserved. If the write is performed: the channel exists and belongs to the Partition of the Job on top; the offset is a word inside the 4 KiB window; the register addressed is `dma_reg_unmediated`; the model's record of register writes has exactly one more entry, that register and that value; and the Kernel's state is as before. If it is refused, the record is unchanged. Either way the record of programmed transfers is unchanged: this service never programs a transfer."
+reviewed = "aee06b29a82f3124"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "dma_reg_unmediated"
+tool = "verus"
+body = true
+says = "A register is unmediated for channel i when, for every channel whose pointer register lies in the same 4 KiB window as channel i's, it is not that channel's pointer register, count register, or either list-mode register."
+reviewed = "5e536f98dd5aefa5"
+
+[[row.statement]]
+file = "crates/rsk/src/lib.rs"
+name = "bytes_are_out_of_reach_while_a_transfer_is_outstanding"
+tool = "kani"
+says = "For every sequence of four operations on one buffer (read its bytes, lend it and keep or drop the transfer, take a kept transfer back, drop a kept transfer), with the peripheral's enable register and STOPPED event set to any values before each: the bytes are handed out exactly when no accepted transfer is outstanding; a lend is accepted exactly when none is; and a transfer stops being outstanding only through a take-back that found the peripheral not enabled or reporting STOPPED."
+reviewed = "6e98449c5df664b6"
+
+[[row.statement]]
 file = "crates/rsk-logic/src/logic/mpu.rs"
 name = "lemma_ro_window_not_writable"
 tool = "verus"
 says = "An address in a read-only peripheral window of any Partition is writable in no Partition's view, the owner's included."
 reviewed = "2095eae422832b74"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/hw_model.rs"
+name = "lemma_dma_footprint_in_partition"
+tool = "verus"
+says = "For a well-formed layout, if a buffer is DMA-permitted memory of Partition p and an address is one the transfer touches (between the pointer and the pointer plus the count), then that address is in p's RAM, at or above the end of p's stack, not in the Kernel's RAM or flash, and owned by no other Partition."
+reviewed = "590fd1a978f80dd9"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/hw_model.rs"
+name = "dma_touches"
+tool = "verus"
+body = true
+says = "The hardware rule HW-15 as a definition: a transfer with pointer ptr and count len touches address a exactly when ptr <= a < ptr + len."
+reviewed = "e2ca20ba46807464"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs"
+name = "dma_program_writes_the_pointer_and_the_count_and_nothing_else"
+tool = "kani"
+says = "For any two distinct register addresses and any values, the function behind the program action writes the buffer address to the pointer register and the length to the count register when each is a peripheral-region address, writes nothing to an address that is not, and makes no other write."
+reviewed = "f0a695468ebd32a3"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kani_harness.rs"
@@ -274,6 +318,26 @@ reviewed = "ab5340fd1aa62f9f"
 kind = "tested-rig"
 ref = "hil-dma"
 note = "refused requests leave the registers unwritten; a restart stops the transfer before re-initialization"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "EasyDMA footprint (HW-15)"
+note = "guard bytes on both sides of a receive buffer unchanged after 100 ms of transfers; the buffer read only after its transfer was taken back"
+
+[[row.other]]
+kind = "tested-host"
+ref = "crates/rsk/tests/dma.rs"
+note = "a lent buffer gives no bytes; release waits for STOPPED; a kept transfer comes back unstopped"
+
+[[row.other]]
+kind = "checked"
+ref = "api_dma_private"
+note = "reaching the bytes directly, or using a transfer twice (api_dma_moved), does not compile"
+
+[[row.other]]
+kind = "assumed"
+ref = "HW-15"
+note = "an EasyDMA transfer touches only the bytes from its pointer for its count"
 
 [[row.other]]
 kind = "checked"
@@ -429,6 +493,474 @@ note = "enforced as a Generator rule, with A-P8"
 kind = "tested-host"
 ref = "property20"
 note = "projection and buffer bound, property-based"
+
+[[row.other]]
+kind = "assumed"
+ref = "A-P6"
+note = "peer state after a stop or restart"
+
+# ---------------------------------------------------------------- R7
+
+[[row]]
+requirement = 7
+sentence = "The Kernel starts a released Job only when its Priority is above both the system ceiling and every Job in progress, always picks the highest-Priority such Job (lowest Task number on a tie), and when a Job ends resumes the one it preempted, last in, first out."
+implemented = "Each Task has its own interrupt vector whose hardware priority is its Task Priority; the Kernel pends a vector when its Task's Job may start and sets the processor's priority mask (BASEPRI) from the ceiling, so the interrupt controller itself does the selection (crates/rsk-kernel/src/arch/cm4/entry.rs, `apply_core`). The rule the controller must realise is `Sched::eligible` and `Sched::select` in crates/rsk-logic/src/logic/sched.rs; the model of the controller is crates/rsk-logic/src/hw_model.rs."
+strength = "weaker"
+strength_note = "R7.1 to R7.3 are proven as a statement about a model of the interrupt controller: given the Kernel's state, vectors mapped as generated, no stale pending vector and the selected Task's vector pending, the controller takes that vector and no other. The definition of 'eligible' matches R7.1 word for word (pending Release, no Job in progress, Priority above the ceiling and above the Job on top). Weaker: the tie-break is 'lowest Task index', which is one fixed order and meets R7.3 only because the design records it as the chosen order; R7.4 (what may preempt), the register state of R7.5 and the timing of R7.8 are not in these statements (registers are restored by assembly, timing is measured); and 'no stale pending vector' is a premise the entry code is trusted to establish."
+closed = "2026-11-06: a dispatch vector taken inside another handler's return window raised a UsageFault on the board; a fence and a deferral close the two windows (Verification_Plan 5.8a). 2026-11-13: the assembly stubs' instruction sequences are proven against a machine model."
+gaps = "That the processor's interrupt controller behaves as the model (HW-01 to HW-05, HW-14) is by citation and differential tests. The stale-vector premise (A4) and that BASEPRI is written from the state after every transition are properties of the entry code, proven for the value and inspected for the write. Δ_dispatch, Δ_wake and Δ_complete are measured."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/sched.rs"
+name = "eligible"
+tool = "verus"
+body = true
+says = "A Task is eligible when its Release is pending, it has no Job in progress, its Priority is above the system ceiling, and either no Job is in progress or its Priority is above that of the Job on top."
+reviewed = "ebc4fccc5bf73fed"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/hw_model.rs"
+name = "srp_selection"
+tool = "verus"
+body = true
+says = "Task t is the selection when it is eligible, no Task with a pending Release has a higher Priority, and among pending Tasks of the same Priority t has the lowest index."
+reviewed = "bab2edd7a17efb95"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/hw_model.rs"
+name = "lemma_dispatch_selects_srp_choice"
+tool = "verus"
+says = "In a valid scheduler state, with the vectors mapped as the configuration says, no stale dispatch vector pending and the selected Task's vector pending, the model of the interrupt controller takes exactly that Task's vector at the present execution priority."
+reviewed = "7767470e3acb7cd9"
+
+[[row.other]]
+kind = "tested-qemu"
+ref = "test-qemu-spike-p1-demo"
+note = "the demo's preemption order"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-dt-hw-05"
+note = "the controller takes exactly the vector above the executing level and the ceiling"
+
+[[row.other]]
+kind = "inspected"
+ref = "A4"
+note = "no stale pending dispatch vector"
+
+# ---------------------------------------------------------------- R8
+
+[[row]]
+requirement = 8
+sentence = "A Job enters a shared Resource by raising the system ceiling to the Resource's ceiling and leaves by restoring it; no two Jobs are ever inside the same Resource, a Job never waits at a lock, a Job is blocked at most once per Release for at most one critical section, and no deadlock is possible."
+implemented = "`Sched::lock` and `unlock` keep a stack of held Resources and the ceiling (crates/rsk-logic/src/logic/sched.rs), reached through two supervisor calls; the Generator computes each Resource's ceiling from the declaration, and the `rsk::Shared::lock` API gives the data only inside a closure (crates/rsk/src/lib.rs)."
+strength = "yes"
+strength_note = "For R8.1 to R8.5, which are the properties the requirement asks to be proven, the statements say what the requirement says, about the Kernel's scheduler state. A lock by the Job on top finds any existing holder entry of that Resource to be the Job's own (so it never waits); a pending Job that is not eligible is blocked by exactly the kind of holder R8.4 describes (a lower-Priority Job holding a Resource whose ceiling reaches it); a blocker itself waits for nothing, so there is no cycle; and between a lock and its matching unlock the stack of held Resources and the ceiling return to what they were. R8.6, R8.7 and R8.10 are the type system's and the Generator's, shown by compile-fail cases. What the statements do not carry is time: R8.8's bounds are measured, and the length of the one blocking interval is the Analyzer's term."
+closed = "2026-10-22 and 23: restore across preemptions, single blocking and deadlock freedom moved from written arguments to lemmas over the history."
+gaps = "The realisation of the ceiling in BASEPRI is the entry code's (see R7). Δ_lock_in and Δ_lock_out are measured. R8.9 (Resources released when a Job is ended by the Health_Monitor) is part of the response's contract (see R14), not cited here."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/sched.rs"
+name = "lemma_no_other_holder"
+tool = "verus"
+says = "In a valid state with a Job on top that may access Resource r, any entry of the held-Resource stack for r belongs to that Job itself: no other Job holds r."
+reviewed = "af82b740e91ce767"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/sched.rs"
+name = "lemma_deadlock_free"
+tool = "verus"
+says = "In every valid state: the Job on top waits for no Resource; every pending Job that is not eligible either has a Job in progress or is blocked by some Job on the stack; and a blocker is in progress and is itself blocked by nothing. So no cycle of waiting exists."
+reviewed = "5df6b7057e4fcc7c"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/sched.rs"
+name = "lemma_blocked_by_one_holder"
+tool = "verus"
+says = "A pending Task whose Priority is above the Job on top but not above the ceiling is kept out by a held Resource whose ceiling is at least its Priority and whose holder has a lower Priority."
+reviewed = "6097cdf8d40e492e"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/history.rs"
+name = "lemma_ceiling_restored"
+tool = "verus"
+says = "In any well-formed history, at the unlock that matches a lock (the held-Resource stack never shorter in between), the stack is what it was before the lock and the ceiling is the value it had just before the lock."
+reviewed = "01a64eef6c19f377"
+
+[[row.other]]
+kind = "checked"
+ref = "api_misuse_is_rejected_by_the_type_system"
+note = "re-entry, an escaping reference, an undeclared Resource do not compile"
+
+[[row.other]]
+kind = "tested-host"
+ref = "r47_1"
+note = "Loom and Shuttle interleavings of the dispatch and lock model"
+
+# ---------------------------------------------------------------- R9
+
+[[row]]
+requirement = 9
+sentence = "Each periodic Task is released at its offset plus a whole number of periods, computed from the offset and period alone so that it never drifts; a Release that falls due while the previous one is still pending is discarded and counted; a Job not finished by its deadline is reported; and at the end of the declared operating duration the system enters its safe state."
+implemented = "The Kernel keeps one timer slot per timed event and a nominal instant per periodic Task; the timer entry serves every slot that is due (`Kernel::timer_event`, `periodic_release`, `deadline_miss` in crates/rsk-logic/src/logic/kernel.rs; the instants in logic/time.rs). One hardware timer compare is armed for the earliest slot (crates/rsk-kernel/src/arch/cm4/entry.rs)."
+strength = "weaker"
+strength_note = "R9.3 is proven as stated: the next nominal instant is the offset plus (k+1) periods, whatever else happened, or there is none within the operating duration. R9.1's 'released at the nominal instant' is proven in the sense that every periodic Task whose nominal instant is at or before the reading the timer entry is given has its Release served in that entry. Weaker: 'no later than J_rel after the instant' (R9.2) and 'within Δ_detect' (R9.6) are about real time between the instant and the entry, which is measured on the board, not proven; and the reading itself comes from hardware the proof models only as a number."
+closed = "2026-11-02: one unanswered stimulus pulse in the first hour-long run (still open against the fault-injection task). 2026-11-05: the link from armed slots to the Releases the entry makes was a comment; it is now a postcondition of `timer_event`. 2026-11-16: on the code as extracted, a periodic Task's nominal instant is shown to move by exactly its period (Sched/Time.lean)."
+gaps = "J_rel and Δ_detect are measured over an hour with a margin. The hardware timer's compare rule has a near-counter exception found by test (HW-12, ASM-19). R9.10 is the rig's hour-long run, on one Application."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/time.rs"
+name = "advance_periodic"
+tool = "verus"
+says = "For a periodic Task with a valid timing record: either the function returns the next nominal instant, which equals the configured nominal instant of Job k+1, is within the operating duration, and is now the Task's nominal instant with its Job count one higher; or it returns nothing, because that instant would be past the operating duration, and nothing changed. No other Task's instant or count, and none of the sporadic records, change."
+reviewed = "1420d100d5491077"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/kernel.rs"
+name = "timer_event"
+tool = "verus"
+says = "Outside the safe state, every periodic Task whose nominal instant is due at the entry's reading has its Release served by this entry, and every other periodic Task's slot, instant and absent Release are as they were; sporadic Releases that become due keep their MIT spacing; in the safe state nothing happens."
+reviewed = "5d87d24f25e5725c"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Time.lean"
+name = "advance_periodic_cases"
+tool = "lean"
+says = "On the code as extracted from the compiled crate: the function either returns nothing and leaves the timing record as it was, or returns an instant equal to the Task's nominal instant plus its period, within the operating duration, and stores it as the new nominal instant."
+reviewed = "f35fc49bfdd8a1f4"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Time.lean"
+name = "timer_event_reading"
+tool = "lean"
+says = "On the extracted code: after a timer entry the Kernel's reading is the larger of the value it was given and its reading before, and every slot the entry served was armed with its instant at or before that reading."
+reviewed = "f9927fa26f4cc426"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-release-timing"
+note = "823,317 periodic Releases at their nominal instants over an hour, lag within J_rel"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-19"
+note = "the timer's near-counter compare rule, revised from the board's behaviour"
+
+# ---------------------------------------------------------------- R11
+
+[[row]]
+requirement = 11
+sentence = "A Job that uses floating point finds its floating-point registers exactly as it left them after any preemption, starts each Job with the declared control settings, and the cost and stack space of saving that state are accounted for."
+implemented = "The processor stacks half of the floating-point registers itself on every exception entry (the Kernel sets eager stacking at boot) and the dispatch stubs push and pop the other half in assembly (crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs). The control settings of a new Job come from Generated_Config through the default status register."
+strength = "no"
+strength_note = "There is no formal statement of this requirement. Preservation is done by hardware stacking and assembly, which neither Verus nor Kani models; the evidence is tests: a floating-point Task whose state converges across preempted Jobs under QEMU and on the board, and the board's register-pattern probe across 141 preemptions. Since 2026-11-13 the stubs' instruction sequences are proven against a machine model, which covers the order of the pushes and pops but not the processor's own stacking."
+closed = "2026-11-16: the rig's check of the status register a new floating-point context starts with compared against a record that read zero whether or not the probe had run (a declared non-zero initial value that was never in memory); the record now carries a written flag."
+gaps = "No proof tool applies to the hardware's stacking (testing evidence only, by decision). Δ_fp_save and Δ_fp_restore are measured at the method's resolution. One erratum's workaround (flush-to-zero) is a declaration option."
+
+[[row.other]]
+kind = "tested-qemu"
+ref = "test-qemu-spike-p1-demo"
+note = "the filter Task's state across 8 preempted Jobs"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-dt-hw-10"
+note = "register patterns across preemptions; the status register of a new context"
+
+[[row.other]]
+kind = "inspected"
+ref = "UJ-022"
+note = "the dispatch stub's save and restore of S16 to S31"
+
+# ---------------------------------------------------------------- R12
+
+[[row]]
+requirement = 12
+sentence = "Before the first Task is released the Kernel checks that the processor is the one the configuration was generated for and that its configuration tables are intact, and goes to the safe state if anything differs."
+implemented = "`boot_core` runs the hardware checks, the table validation (`Config::validate`, `Layout::validate`) and the checksums before it enables any interrupt (crates/rsk-kernel/src/arch/cm4/entry.rs; the validators in crates/rsk-logic/src/logic/mod.rs and mpu.rs)."
+strength = "weaker"
+strength_note = "The table validation is proven exactly: the function returns true if and only if the configuration is well-formed, which is the property every other Kernel proof assumes. Boot's own contract says that if it succeeds the Kernel's invariant holds, the hardware model is in its booted state, and every vector has its priority and enable. It does not say that a failed check leads to the safe state with no Release (R12.2), nor state the hardware checks of R12.1 one by one: those are the body's and are shown on the board by failing each check in turn."
+closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each."
+gaps = "R12.2 as a postcondition (a failed boot releases nothing). The hardware reads behind the checks are trusted register accesses. The checksum is CRC-32, an error-detecting code, not a proof of integrity."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mod.rs"
+name = "validate"
+tool = "verus"
+says = "The function returns true exactly when the configuration is well-formed."
+reviewed = "a56d91cd5fdefea3"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "boot_core"
+tool = "verus"
+says = "If boot reports success: the Kernel's invariant holds, the hardware model has every boot setting made, the entry code's own invariant holds with no Job in progress, the loaded MPU view matches the record, the vector tables are consistent, and every interrupt vector has its priority and its enable as the tables say. Nothing is stated for a boot that reports failure."
+reviewed = "a92bdc33f4d67bc1"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-boot-checks"
+note = "one mutated check per run, each ending in the safe state"
+
+# ---------------------------------------------------------------- R19
+
+[[row]]
+requirement = 19
+sentence = "An interrupt source cannot take more processor time than one handler run per minimum inter-arrival time, however fast it fires, and sources nobody declared stay disabled."
+implemented = "Every outcome of an intake masks the source for one MIT (`Kernel::intake` in crates/rsk-logic/src/logic/kernel.rs; the mask and unmask of the interrupt line in crates/rsk-kernel/src/arch/cm4/entry.rs), and the Analyzer charges each source one handler run per MIT to every Task it can preempt (crates/rsk-analyzer/src/terms.rs)."
+strength = "weaker"
+strength_note = "The count is proven: in any run, the intakes of one source inside any window number at most one per MIT (plus one). The requirement is about processor time, which is that count times Δ_irq, and Δ_irq is a measured maximum. The proof is also about intakes the Kernel's logic sees; that a masked line raises no interrupt is the hardware's and is inspected."
+closed = "2026-11-05: a discarded event left its source unmasked, so the bound did not hold for a source whose events were discarded; every outcome now masks."
+gaps = "Δ_irq is measured (2,291 cycles observed under an hour-long storm, exported with a margin). The interrupt line's mask in hardware is by inspection (A13). R19.4 and R19.5 are the Generator's and the boot's."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/history.rs"
+name = "lemma_intake_count_bound"
+tool = "verus"
+says = "In any well-formed history, for two intake steps of one sporadic Task inside a window, (the number of intakes between them minus one) times the MIT is less than the window's length."
+reviewed = "1a4a884e97a303e5"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-stress"
+note = "242,949 intakes within 244,001 MIT windows under a storm"
+
+[[row.other]]
+kind = "inspected"
+ref = "A13"
+note = "a masked interrupt line raises no interrupt"
+
+# ---------------------------------------------------------------- R39
+
+[[row]]
+requirement = 39
+sentence = "Message passing between Tasks uses fixed, statically allocated buffers with no heap and no async runtime, each operation has a bounded execution time, and a buffer behaves as a first-in, first-out queue of its declared capacity."
+implemented = "Each Endpoint channel is a ring of fixed-size slots in Kernel-owned storage; the index arithmetic is `endpoint::Fifo` (crates/rsk-logic/src/logic/endpoint.rs) and the copies in and out are word copies by the Kernel (crates/rsk-kernel/src/arch/cm4/entry.rs)."
+strength = "weaker"
+strength_note = "The queue of slot indices is proven to be a first-in, first-out sequence: a push appends the next slot unless the queue is full, a pop removes the oldest unless it is empty, and a refused operation changes nothing. R39.4 asks this of messages. The step from slots to message contents is the Kernel's copy, which is checked by Kani to stay in bounds and round-trip its words, and the model records only each message's first word. So 'no message lost, duplicated or reordered' is proven for the positions and checked, not proven, for the bytes."
+closed = ""
+gaps = "The copy of message bytes is bounded-checked and tested, not proven equal end to end. R39.3's execution-time bounds are measured. R39.1 (no heap, no executor) is the Link_Checker's and the lint's."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/endpoint.rs"
+name = "push"
+tool = "verus"
+says = "On a well-formed queue of the given capacity: if it returns a slot, the queue was not full, the slot is the next position after the last, and the queue's sequence is the old one with that slot appended; if it returns nothing, the queue was full and is unchanged."
+reviewed = "f77fb1eb7796c15e"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/endpoint.rs"
+name = "pop"
+tool = "verus"
+says = "If it returns a slot, the queue was not empty, the slot is the oldest, and the queue's sequence is the old one without its first element; if it returns nothing, the queue was empty and is unchanged."
+reviewed = "dcb9e455b682a873"
+
+[[row.other]]
+kind = "tested-host"
+ref = "property20"
+note = "projection and buffer bound"
+
+# ---------------------------------------------------------------- R40
+
+[[row]]
+requirement = 40
+sentence = "Endpoint buffers are Kernel-owned Resources under the ceiling protocol, a message can release a sporadic Task subject to its MIT, send and receive never wait, and a full buffer is an error reported to the Health_Monitor."
+implemented = "Send and receive are supervisor calls served at the Kernel's level, so each is one indivisible step for every Task (`endpoint_send_core`, `endpoint_recv_core` in crates/rsk-kernel/src/arch/cm4/entry.rs); a send to a receive role bound as a Release_Source goes through the same intake as an interrupt (see R10); the Analyzer counts each operation in the Task's execution and blocking terms."
+strength = "weaker"
+strength_note = "The entry contracts say less than the requirement. A send that is accepted appends the message's first word to the channel's sequence of labels, and a receive that succeeds takes the oldest label and delivers that word first; a receive that is not refused leaves the Kernel's state exactly as it was; neither moves the executing Job's time account. Together with the queue's contracts (R39) this gives 'never waits' and 'a refused operation changes the queue not at all'. Not stated by any contract read here: that a full buffer is reported to the Health_Monitor and charged to the sender (R40.5), that a message stays in the buffer when the Release it would cause is discarded (R40.3), or what happens to an operation cut short by a Health_Monitor action (R40.6). Those are in the functions' bodies and the board's Endpoint cases."
+closed = "2026-11-09: the label a receiver sees was tied to the label the sender wrote (the channel's label sequence in the hardware model). 2026-11-16: Endpoint injections on the board (a rejected reply, a dropped role state)."
+gaps = "R40.3, R40.5 and R40.6 as postconditions of the send and receive cores. Only a message's first word is modelled; the rest of the payload is the copy's (bounded-checked). R40.2 is the Analyzer's, with tests."
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "endpoint_send_core"
+tool = "verus"
+says = "The Kernel's and the entry code's invariants are preserved and the Job stack does not grow; the interrupt mask level, MPU view and global mask are unchanged; if the send is accepted, the message's first word is appended to the channel's label sequence; the executing Job's charge point is not moved."
+reviewed = "900c19a39137cda8"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "endpoint_recv_core"
+tool = "verus"
+says = "The invariants are preserved; a receive that is not refused leaves the Kernel's state exactly as it was; if it succeeds, it takes the oldest label of the channel's sequence and delivers that word first; the charge point is not moved."
+reviewed = "a4b4292705e97f6a"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/endpoint.rs"
+name = "push"
+tool = "verus"
+says = "As in the row for R39: a push on a full queue returns nothing and leaves the queue unchanged."
+reviewed = "f77fb1eb7796c15e"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-response"
+note = "the Endpoint cases: a full buffer, a rejected message"
+
+# ---------------------------------------------------------------- R44
+
+[[row]]
+requirement = 44
+sentence = "The Kernel's scheduling, locking, queue, isolation and timing-arithmetic properties are proven with Verus over a model of the hardware, covering all Kernel code except a listed set of trusted functions."
+implemented = "The Kernel's logic (crates/rsk-logic) and the hardware-facing entry code (crates/rsk-kernel/src/arch) are written inside Verus and verified on every run of the verification job; the functions with trusted specifications are listed in docs/proof_assumptions.toml and the trust base register."
+strength = "weaker"
+strength_note = "Most of what R44 lists is proven as it asks (see the rows for R7, R8, R9, R10, R16, R39). One item is not: R44.3 asks for a proof that every Overrun and deadline miss is reported within Δ_detect 'as modeled in cycles'. What is proven is that an Overrun the Budget event finds is reported and that a due deadline slot is served; no statement models cycles or bounds the delay, which is measured. R44.5's 'all Kernel code except the listed functions' holds for the logic and the entry cores; the assembly stubs are proven only against a machine model of their instruction sequence."
+closed = "2026-11-13: an audit found seventeen points, among them functions that were calls of unverified shell code; two became trusted functions with entries in the register and the rest contracts."
+gaps = "R44.3's time bound. The nine trusted hardware functions and the assembly stubs. Verus itself, its standard library's assumptions and Z3 are in the trust base."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mod.rs"
+name = "validate"
+tool = "verus"
+says = "As in the row for R12: true exactly when the configuration is well-formed, the premise of every other Kernel proof."
+reviewed = "a56d91cd5fdefea3"
+
+[[row.other]]
+kind = "checked"
+ref = "proof-kernel-verus"
+note = "the job's proof step, with the Verus and Z3 versions recorded"
+
+[[row.other]]
+kind = "checked"
+ref = "R50.2"
+note = "every assumption construct must be in the register or the job fails"
+
+# ---------------------------------------------------------------- R26
+
+[[row]]
+requirement = 26
+sentence = "A second tool, sharing no code with the Generator, recomputes every derived configuration value from the declared ones and compares them with what is actually in the linked binary; any difference fails the build."
+implemented = "`rsk-confcheck` has its own Task_Model reader, its own derivations (crates/rsk-confcheck/src/derive_v.rs, recompute.rs) and reads the configuration tables and their checksums out of the binary (image.rs). The verification job runs it on every Flight_Build."
+strength = "weaker"
+strength_note = "The arithmetic of the recomputation is proven against specifications written in the checker's own crate from the requirements: for example, the ceiling it computes is the maximum of the accessors' Priorities, at least each of them, equal to one of them, and zero when there are none. That makes the recomputed values right. What makes the comparison happen (which values are compared, how the binary's tables are decoded, the checksum) is ordinary code, checked by a mutation suite in which every altered value class is reported. Independence (R26.1) is by construction and inspection of the crate's dependencies, not by a check."
+closed = "2026-11-13: the recomputation core moved into Verus (19 items). 2026-11-05: the layout's Kernel peripheral intervals added to what is compared."
+gaps = "The Task_Model reader, the decoding of the binary and the comparison itself are tested, not proven. A common misreading of the requirements by the Generator and the checker would not be caught by either."
+
+[[row.statement]]
+file = "crates/rsk-confcheck/src/derive_v.rs"
+name = "ceiling_of"
+tool = "verus"
+says = "The value returned equals the maximum of the given Priorities: it is at least every one of them, equal to one of them when there is any, and zero when there are none."
+reviewed = "df93e199212531fc"
+
+[[row.other]]
+kind = "checked"
+ref = "check-config"
+note = "run on every Flight_Build; 354 values compared on the demo"
+
+[[row.other]]
+kind = "tested-host"
+ref = "test-config-mutations"
+note = "16 of 16 altered values reported"
+
+# ---------------------------------------------------------------- R28
+
+[[row]]
+requirement = 28
+sentence = "The Analyzer refuses inputs it cannot trust: malformed files, missing or mismatched execution-time records, a measured time above a Task's Budget, a model for another binary, or anything its version does not support."
+implemented = "Input validation and the rejection rules are in crates/rsk-analyzer/src/inputs.rs, before any response-time computation; each rejection names the item."
+strength = "weaker"
+strength_note = "There is no formal statement of the rejection rules. Each of R28.1 to R28.8 has a test named after its criterion that feeds the Analyzer an input breaking that one rule and checks the rejection and what it names. That shows each rule fires on its example, not that no bad input passes."
+closed = "2026-11-16: the job's note for an R28.4 rejection no longer asserts a cause it did not check."
+gaps = "No proof that validation is complete. R28.4 compares a measured maximum plus a margin with the Budget, so it is only as good as the measurement (see R29)."
+
+[[row.other]]
+kind = "tested-host"
+ref = "crates/rsk-analyzer/tests/rules.rs"
+note = "one test per criterion R28.1 to R28.8, named after it"
+
+# ---------------------------------------------------------------- R30
+
+[[row]]
+requirement = 30
+sentence = "The Analyzer's report states the verdict, every Task's computed figures and where each input came from, is identical for identical inputs, and its exit status tells PASS from FAIL from a rejected input."
+implemented = "The report writers are in crates/rsk-analyzer (JSON and text), with the inputs' hashes and each record's provenance carried through."
+strength = "weaker"
+strength_note = "No formal statement; the report's content, determinism and exit statuses are each fixed by a test named after its criterion (golden files for R30.1, hashes and provenance for R30.2 and R30.3, distinct statuses for R30.4, a repeated run for R30.5). The figures in the report are the proven computation's (R29); that the report prints them faithfully is what the golden files check."
+closed = ""
+gaps = "Golden files check the cases they contain."
+
+[[row.other]]
+kind = "tested-host"
+ref = "R30"
+note = "tests named r30_1 to r30_5 in the Analyzer's test suite"
+
+# ---------------------------------------------------------------- R37
+
+[[row]]
+requirement = 37
+sentence = "The worst-case stack use of every Task and every Kernel entry is computed from the linked binary, combined per stack region according to who can preempt whom, and the build fails if any function's use cannot be bounded."
+implemented = "The Link_Checker (`rsk-link`) reads the binary's instructions, sums each function's stack-pointer decrements, follows the call graph, rejects recursion and unresolved indirect calls, and adds exception and floating-point frames per preemption level. Its bounds are exported to the Config_Checker."
+strength = "weaker"
+strength_note = "No formal statement of the analysis itself: it is a static analysis tool, not a proof, and its soundness rests on its frame model (the sum of stack-pointer decrements is an upper bound for compiler-generated code; a dynamic stack pointer fails the build). Two things stand behind it. If a bound were wrong, the memory protection still refuses a write below the stack (proven, see R16). And since 2026-11-16 the bounds are compared with measured high-water marks on the board in five configurations, all within their bounds."
+closed = "2026-11-16: stack painting on the board (the stress, timing, measurement, response and isolation configurations)."
+gaps = "The tool is not qualified or cross-checked against a second tool (a differential run was not possible offline). Measured high-water marks are lower bounds on real use, so they can refute a bound but not confirm it."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "lemma_stack_overflow_faults"
+tool = "verus"
+says = "The backstop, not the bound: the address immediately below a Partition's RAM, where its stack ends, is not writable in that Partition's view."
+reviewed = "9fddbe6d3c825e6e"
+
+[[row.other]]
+kind = "checked"
+ref = "analysis-stack"
+note = "every function and region of the demo bounded; the build fails otherwise"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-stack"
+note = "measured high-water marks within the bounds in five configurations"
+
+# ---------------------------------------------------------------- R38
+
+[[row]]
+requirement = 38
+sentence = "An Endpoint is declared with a Protocol among two or more roles; the checker projects the Protocol onto each role, and the generated API for a role offers, in each state, exactly the operations the Protocol allows there, so that a wrong step does not compile."
+implemented = "The Protocol_Checker (crates/rsk-protocol) parses, checks and projects Protocols; the Generator emits one type per protocol state and role, whose methods consume the state and return the next (the typestate API); a role's state between Jobs is per-Task state."
+strength = "weaker"
+strength_note = "What is proven is the checker's acceptance (an accepted Protocol cannot deadlock, see R41) and, in Lean on the compiled checker, that an accepted Protocol's receptions are always expected ones. That the generated API offers exactly the projected operations (R38.3) is the Generator's emission, shown by compile-fail cases (an operation not allowed in a state, a state used twice) and by property tests of the projection, not proven."
+closed = "2026-11-09: the Protocol text's lexer verified."
+gaps = "The link from the projection to the emitted types is tested. R38.6 (reuse of established theory) is a design statement."
+
+[[row.statement]]
+file = "crates/rsk-protocol/src/multiparty.rs"
+name = "accept_multiparty"
+tool = "verus"
+says = "If the checker returns true for a Protocol among n roles, the Protocol meets the acceptance condition and no reachable configuration is deadlocked."
+reviewed = "acdcab2ad67f5489"
+
+[[row.other]]
+kind = "checked"
+ref = "api_protocol_state"
+note = "an operation the state does not permit, and a state used twice, do not compile"
+
+[[row.other]]
+kind = "tested-host"
+ref = "property20"
+note = "projection and buffer bound, property-based"
+
+# ---------------------------------------------------------------- R42
+
+[[row]]
+requirement = 42
+sentence = "A message between Partitions carries only plain data, is copied so that neither side can write the other's memory, is validated by the receiver when it comes from a lower-criticality Partition, and a stopped or restarted peer is reported to the other side."
+implemented = "Payload types must derive `rsk::Plain` (no references or pointers), checked by the derive and the Generator; the Kernel copies each message word by word between the Partition and Kernel-owned storage (crates/rsk-kernel/src/arch/cm4/entry.rs); receiver-side validation functions are declared in the App_Declaration and proven total by the Application prover; peer state is recorded by the Kernel at a stop or restart."
+strength = "weaker"
+strength_note = "No single formal statement covers this requirement. R42.1 is the type system's (a payload with a reference or a bool does not compile). R42.2 follows from isolation (R16: neither Partition can write the Kernel's storage or the other's memory) plus the copy, which is bounded-checked to stay in bounds and round-trip its words. R42.4's validation functions are proven free of run-time errors, which is totality, not that they reject every bad message. R42.3 (the peer-state error) is in the entry code and the role API, with tests, and is an assumption of the deadlock-freedom argument for a stop or restart."
+closed = ""
+gaps = "The peer-state report after a Partition's stop or restart (A-P6) has test evidence only. What a validation function accepts is the Application's choice."
+
+[[row.other]]
+kind = "checked"
+ref = "api-misuse"
+note = "a payload type with a reference or a bool does not compile"
+
+[[row.other]]
+kind = "checked"
+ref = "proof-app-creusot"
+note = "the validation functions and role modules proven free of run-time errors"
 
 [[row.other]]
 kind = "assumed"

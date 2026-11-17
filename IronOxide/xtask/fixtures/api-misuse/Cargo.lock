@@ -26,6 +26,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_dma_moved"
+version = "0.1.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "api_dma_private"
+version = "0.1.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
 name = "api_escape"
 version = "0.1.0"
 dependencies = [
@@ -99,6 +113,21 @@ name = "api_reentry"
 version = "0.1.0"
 dependencies = [
  "api_decl",
+ "rsk",
+]
+
+[[package]]
+name = "api_static_decl"
+version = "0.1.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "api_static_nonzero"
+version = "0.1.0"
+dependencies = [
+ "api_static_decl",
  "rsk",
 ]
 

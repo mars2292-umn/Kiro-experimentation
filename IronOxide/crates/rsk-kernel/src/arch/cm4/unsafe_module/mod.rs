@@ -114,8 +114,42 @@ pub struct ResourceCell<T> {
 // argument is the Kernel proof plus the type-system rules.
 unsafe impl<T: Send> Sync for ResourceCell<T> {}
 
+/// Whether every byte of `value` is zero. Evaluated at compile time for
+/// the initial value of every Partition static (`ResourceCell::for_static`).
+/// A type with padding bytes has no defined value there, and the compiler
+/// rejects the evaluation: a Partition static's type has none.
+const fn all_bytes_zero<T>(value: &T) -> bool {
+    let bytes = value as *const T as *const u8;
+    let mut i = 0;
+    while i < core::mem::size_of::<T>() {
+        // SAFETY (UJ-063): `bytes` points to `value`, a live `T`, and `i`
+        // is below its size; the byte is read and nothing is written.
+        if unsafe { *bytes.add(i) } != 0 {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 impl<T> ResourceCell<T> {
     pub const fn new(value: T) -> ResourceCell<T> {
+        ResourceCell { inner: UnsafeCell::new(value) }
+    }
+
+    /// The cell of a Partition static, as the Generator emits it (R14.5;
+    /// 2026-11-16). A Partition's statics have no load image: they are
+    /// zeroed memory at reset and after every restart of the Partition
+    /// (`hw::partition_reinit`), whatever value this function is given.
+    /// So the declared initial value must be that zeroed memory, and a
+    /// declaration whose initial value has a non-zero byte does not
+    /// compile. Until this check such a declaration was accepted and its
+    /// value silently replaced by zero.
+    pub const fn for_static(value: T) -> ResourceCell<T> {
+        assert!(
+            all_bytes_zero(&value),
+            "R14.5: the initial value of a Partition static must be all zero bytes: the Kernel zeroes a Partition's statics at reset and at every restart, so any other initial value would never be seen"
+        );
         ResourceCell { inner: UnsafeCell::new(value) }
     }
 

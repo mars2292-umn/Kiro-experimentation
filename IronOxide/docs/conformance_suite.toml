@@ -695,7 +695,7 @@ binary = "p1-demo"
 # periodic Tasks with offsets, a sporadic Task bound to an interrupt and one
 # released by a Release_Signal, a Resource with a Critical_Section, a
 # peripheral window, a Task with an active FP context (`filter`, R11), an
-# EasyDMA peripheral with `rsk::dma_request` (the QEMU stand-in channel of
+# EasyDMA peripheral with `rsk::DmaBuf::lend` (the QEMU stand-in channel of
 # CMSDK_GPIO0, DD-08), a safe-state hook. Not yet exercised (GAP-13): a
 # cross-Partition Endpoint (Phase 4) and the Init_Arena.
 

@@ -24,15 +24,19 @@ pub fn svc_raise(signal: u8) -> bool {
     true
 }
 
+// Recorded through the Partition-side double: these two cells are no
+// register of the Kernel's, and `sim::write` has asserted UJ-002's
+// precondition since 2026-11-06, so a host test that made a request
+// failed there (found 2026-11-16 by the first one that did).
 pub fn svc_dma(i: u8, ptr: u32, len: u32) -> bool {
-    sim::write(0xFFFF_FFF8, i as u32);
-    sim::write(0xFFFF_FFFC, ptr.wrapping_add(len));
+    sim::partition_write(0xFFFF_FFF8, i as u32);
+    sim::partition_write(0xFFFF_FFFC, ptr.wrapping_add(len));
     true
 }
 
 pub fn svc_dma_write(i: u8, offset: u32, value: u32) -> bool {
-    sim::write(0xFFFF_FFF8, 0x8000_0000 | i as u32);
-    sim::write(0xFFFF_FFFC, offset.wrapping_add(value));
+    sim::partition_write(0xFFFF_FFF8, 0x8000_0000 | i as u32);
+    sim::partition_write(0xFFFF_FFFC, offset.wrapping_add(value));
     true
 }
 

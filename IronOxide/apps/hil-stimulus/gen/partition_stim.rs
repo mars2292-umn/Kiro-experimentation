@@ -5,7 +5,7 @@ pub mod rsk_resources {
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `stim.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
-    pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
 }
@@ -46,6 +46,9 @@ pub mod rsk_target {
             [false, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
 pub mod rsk_ctx {
     /// The Context of Task `stim.pulse` (Priority 1).

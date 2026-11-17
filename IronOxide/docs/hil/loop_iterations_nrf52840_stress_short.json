@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:dac1e4e51606e1ad2dae7bfcb4472bf40c28c3493fd6596a9f76ba6713bfc318",
+  "binary_hash": "sha256:c1adbfa8238b23e8a73b690deeca714fe685aa040685845f19a83fd01a4ff7e0",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -90,7 +90,7 @@
     {
       "key": "loop:part2:filter:hold",
       "file": "apps/p1-demo/part2/src/lib.rs",
-      "line": 335,
+      "line": 442,
       "function": "filter",
       "label": "hold",
       "bound": "10_000_000",

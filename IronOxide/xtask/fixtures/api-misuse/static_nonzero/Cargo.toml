@@ -1,0 +1,9 @@
+[package]
+name = "api_static_nonzero"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+rsk = { path = "../../../../crates/rsk" }
+api_static_decl = { path = "../static_decl" }

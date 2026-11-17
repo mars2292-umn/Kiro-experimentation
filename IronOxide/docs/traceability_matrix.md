@@ -195,7 +195,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R14.2 | — | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; +1 | — |
 | R14.3 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Reuse and Deviation Record | ✓5.3 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +12 | — |
 | R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/hil-stimulus/system/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; +6 | — |
-| R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/decl/src/qemu_flood.rs; crates/rsk-analyzer/tests/properties.rs; +20 | proof-kernel-verus |
+| R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/decl/src/qemu_flood.rs; +24 | proof-kernel-verus |
 | R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
 | R14.7 | P-09 | Health_Monitor event log entry | ✓4.8 | crates/rsk-kernel/src/arch/bound.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
 | R14.8 | — | — | ✓19.3; ✓4.4 | — | — |
@@ -234,11 +234,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R17.1 | — | — | — | apps/p1-demo/part2/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/bound.rs; +7 | — |
-| R17.2 | — | Requirements Impact | — | apps/p1-demo/part2/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-hil/src/isolation.rs; +6 | — |
+| R17.1 | — | — | — | apps/p1-demo/part2/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-hil/src/release_timing.rs; +10 | — |
+| R17.2 | — | Requirements Impact | — | apps/p1-demo/part2/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-hil/src/isolation.rs; +7 | — |
 | R17.3 | — | — | — | crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/bound.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; +2 | — |
 | R17.4 | — | Requirements Impact | ✓19.2 | apps/p1-demo/decl/src/nrf52840_coverage.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; +8 | — |
-| R17.5 | — | — | — | — | — |
+| R17.5 | — | — | — | apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840/partition_part1.rs; +42 | — |
 | R17.6 | — | Closed response sets (DD-10, R14.5); Requirements Impact | — | apps/p1-demo/decl/src/nrf52840_coverage.rs; apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; +14 | — |
 | R17.7 | — | Profile_Conformance_Suite and HIL_Rig | ✓7.4 | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/part2/src/lib.rs; apps/p1-demo/system/Cargo.toml; +4 | — |
 

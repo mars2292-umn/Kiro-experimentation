@@ -2,20 +2,22 @@
 #[cfg(not(creusot))]
 pub mod rsk_resources {
     /// Resource `part2.stats` (Ceiling 3; accessed by filter, sampler).
-    pub static STATS: ::rsk::ResourceCell<crate :: Stats> = ::rsk::ResourceCell::new(crate :: Stats :: new ());
+    pub static STATS: ::rsk::ResourceCell<crate :: Stats> = ::rsk::ResourceCell::for_static(crate :: Stats :: new ());
 }
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `part2.filter.count` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.y` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::new(0.0);
+    pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::for_static(0.0);
     /// Per-Task state `part2.sampler.count` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.dma_ok` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.buf` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_BUF: ::rsk::ResourceCell<[u8 ; 16]> = ::rsk::ResourceCell::new([0 ; 16]);
+    pub static SAMPLER_BUF: ::rsk::ResourceCell<rsk :: DmaBuf < 16 >> = ::rsk::ResourceCell::for_static(rsk :: DmaBuf :: new ());
+    /// Per-Task state `part2.sampler.held` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_HELD: ::rsk::ResourceCell<rsk :: DmaHeld> = ::rsk::ResourceCell::for_static(rsk :: DmaHeld :: none ());
 }
 pub mod rsk_roles {
 }
@@ -60,6 +62,9 @@ pub mod rsk_target {
             [true, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 2] = [::rsk::DmaChannel::generated(0, 0x40003000), ::rsk::DmaChannel::generated(1, 0x40003000)];
 }
 pub mod rsk_ctx {
     /// The Context of Task `part2.filter` (Priority 3).
@@ -78,7 +83,9 @@ pub mod rsk_ctx {
         /// Per-Task state `dma_ok` (PR-25).
         pub dma_ok: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `buf` (PR-25).
-        pub buf: ::rsk::PerTask<'static, [u8 ; 16]>,
+        pub buf: ::rsk::PerTask<'static, rsk :: DmaBuf < 16 >>,
+        /// Per-Task state `held` (PR-25).
+        pub held: ::rsk::PerTask<'static, rsk :: DmaHeld>,
     }
 }
 #[cfg(creusot)]
@@ -123,6 +130,7 @@ pub mod rsk_jobs {
             count: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_COUNT),
             dma_ok: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_OK),
             buf: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_BUF),
+            held: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_HELD),
         });
     }
 }

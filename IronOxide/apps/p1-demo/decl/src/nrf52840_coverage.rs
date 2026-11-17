@@ -66,7 +66,8 @@ rsk::app! {
         state filter.y: f32 = 0.0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
-        state sampler.buf: [u8; 16] = [0; 16];
+        state sampler.buf: rsk::DmaBuf<16> = rsk::DmaBuf::new();
+        state sampler.held: rsk::DmaHeld = rsk::DmaHeld::none();
         state filter.loop_hold: u32 = 0;
         state sampler.loop_spin: u32 = 0;
         // The EasyDMA traffic scenario of R17.4 and R34.5 (task 19.2): SPIM0
@@ -74,8 +75,13 @@ rsk::app! {
         // the whole run; `dma_end` counts the Jobs that found a transfer
         // ended since the last, `dma_after_stop` the restarts after which a
         // transfer still ran once the Kernel had stopped the peripheral (R17.6).
-        state sampler.tx: [u8; 64] = [0; 64];
-        state sampler.rx: [u8; 64] = [0; 64];
+        state sampler.tx: rsk::DmaBuf<64> = rsk::DmaBuf::new();
+        state sampler.tx_held: rsk::DmaHeld = rsk::DmaHeld::none();
+        state sampler.rx: rsk::DmaGuarded<64> = rsk::DmaGuarded::new();
+        state sampler.rx_held: rsk::DmaHeld = rsk::DmaHeld::none();
+        state sampler.dma_footprint: u32 = 0;
+        state sampler.dma_footprint_1m: u32 = 0;
+        state sampler.dma_footprint_125k: u32 = 0;
         state sampler.dma_end: u32 = 0;
         state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 3.ms(), priority = 3, fpu,

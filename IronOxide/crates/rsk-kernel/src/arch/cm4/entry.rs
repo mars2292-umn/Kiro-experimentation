@@ -303,6 +303,10 @@ pub struct HwModel {
     /// to it, so a request that leaves it as it was wrote no pointer and
     /// no count register.
     pub dma: Seq<(int, int, int, int)>,
+    /// Every register the Kernel has written for a Partition through the
+    /// EasyDMA register-write service, in order (R17.3; 2026-11-16): the
+    /// register's address and the value of each `Action::DmaWrite`.
+    pub dma_writes: Seq<(int, int)>,
 }
 
 /// The model's step for one action.
@@ -336,7 +340,7 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::DmaStop(_) => h,
         Action::DmaListOff(_) => h,
         Action::DmaShortsOff(_) => h,
-        Action::DmaWrite(_, _) => h,
+        Action::DmaWrite(reg, value) => HwModel { dma_writes: h.dma_writes.push((reg as int, value as int)), ..h },
         Action::PpiDisableAll => h,
         Action::ReinitPartition(_) => h,
         Action::Copy(_, _, _) => h,
@@ -1319,6 +1323,7 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
         ok ==> final(hw).hw().dma == old(hw).hw().dma.push((spec_dma_of(tables, i as int).ptr as int, ptr as int,
             spec_dma_of(tables, i as int).maxcnt as int, len as int)),
         !ok ==> final(hw).hw().dma == old(hw).hw().dma,
+        final(hw).hw().dma_writes == old(hw).hw().dma_writes,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
 {
@@ -1361,10 +1366,42 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
 /// Partition (R17.2). Tasks (START, STOP), events, shortcuts, ENABLE,
 /// FREQUENCY, CONFIG, and pin selection are what a Partition drives this
 /// way. Returns whether the write was performed.
+/// R17.3: the register the write service addresses for channel `i` and
+/// `offset`: that offset in the 4 KiB window of the channel's pointer
+/// register.
+pub open spec fn dma_write_reg<T: Tables>(tables: &T, i: int, offset: u32) -> u32 {
+    (spec_dma_of(tables, i).ptr & 0xFFFF_F000) | offset
+}
+
+/// R17.3: `reg` is none of the registers `dma_request_core` alone programs:
+/// the pointer, the count and the two list-mode registers of every channel
+/// whose pointer register lies in the same window as channel `i`'s.
+pub open spec fn dma_reg_unmediated<T: Tables>(tables: &T, i: int, reg: u32) -> bool {
+    forall|j: int| 0 <= j < spec_dma_count_of(tables)
+        && (#[trigger] spec_dma_of(tables, j)).ptr & 0xFFFF_F000 == spec_dma_of(tables, i).ptr & 0xFFFF_F000
+        ==> reg != spec_dma_of(tables, j).ptr && reg != spec_dma_of(tables, j).maxcnt
+            && reg != spec_dma_of(tables, j).lists[0] && reg != spec_dma_of(tables, j).lists[1]
+}
+
+// In a solver instance of its own, as the two functions before it.
+#[verifier::spinoff_prover]
 fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, i: usize, offset: u32, value: u32) -> (ok: bool)
     requires old(k).inv(),
     ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         ok ==> *final(k) == *old(k),
+        // R17.3 (2026-11-16): a write is performed only for a channel of
+        // the executing Job's own Partition, at a word of that channel's
+        // window, and never to a pointer, count or list-mode register of
+        // any channel of that window; what is written is that register
+        // and that value, once; a refused request writes nothing; and
+        // this service never programs a transfer.
+        ok ==> 0 <= i < spec_dma_count_of(tables) && old(k).spec_depth() > 0
+            && old(k).spec_part()[old(k).spec_stack(old(k).spec_depth() - 1)] == spec_dma_of(tables, i as int).partition as int,
+        ok ==> offset < 0x1000 && offset % 4 == 0,
+        ok ==> dma_reg_unmediated(tables, i as int, dma_write_reg(tables, i as int, offset)),
+        ok ==> final(hw).hw().dma_writes == old(hw).hw().dma_writes.push((dma_write_reg(tables, i as int, offset) as int, value as int)),
+        !ok ==> final(hw).hw().dma_writes == old(hw).hw().dma_writes,
+        final(hw).hw().dma == old(hw).hw().dma,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
 {
@@ -1386,6 +1423,12 @@ fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         let mut mediated = false;
         let mut j: usize = 0;
         while j < n
+            invariant j <= n, n as int == spec_dma_count_of(tables),
+                window == spec_dma_of(tables, i as int).ptr & 0xFFFF_F000,
+                !mediated ==> forall|q: int| 0 <= q < j
+                    && (#[trigger] spec_dma_of(tables, q)).ptr & 0xFFFF_F000 == window
+                    ==> reg != spec_dma_of(tables, q).ptr && reg != spec_dma_of(tables, q).maxcnt
+                        && reg != spec_dma_of(tables, q).lists[0] && reg != spec_dma_of(tables, q).lists[1],
             decreases n - j,
         {
             let e = tables.dma(j);
@@ -1397,6 +1440,9 @@ fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             j += 1;
         }
         accepted = owned && d.ptr != 0 && !mediated;
+        proof {
+            k.lemma_stack_rising();
+        }
     }
     if accepted {
         hw.apply(Action::DmaWrite(reg, value));

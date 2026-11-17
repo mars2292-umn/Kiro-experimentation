@@ -451,3 +451,11 @@ kind = "review"
 why_no_machine_check = "Unprivileged test code that invalidates its own stack pointer; what it can reach is bounded by the Partition's MPU view, and the Kernel's stack check ends the Job. A stack violation not reported is the failure the cases exist to detect. Test builds only (hw-dt)."
 reviewed_by = "audit of ironoxide-eval-v2"
 reviewed_on = "2026-11-13"
+
+[[justification]]
+id = "UJ-063"
+summary = "all_bytes_zero: the bytes of a Partition static's initial value read at compile time (ResourceCell::for_static, R14.5)"
+kind = "review"
+why_no_machine_check = "A read of each byte of a live value through a pointer derived from a reference to it, inside the value's size; nothing is written. Evaluated by the compiler's constant evaluator for every generated cell, which itself rejects an out-of-bounds read or a read of a padding byte, so a mistake here is a build failure and not an undefined behaviour of the Target. Kani and Verus do not run the constant evaluator."
+reviewed_by = "rsk kernel review (2026-11-16, the zeroed-statics finding)"
+reviewed_on = "2026-11-16"

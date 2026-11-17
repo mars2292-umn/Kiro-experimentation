@@ -2,32 +2,34 @@
 #[cfg(not(creusot))]
 pub mod rsk_resources {
     /// Resource `part2.stats` (Ceiling 3; accessed by filter, sampler).
-    pub static STATS: ::rsk::ResourceCell<crate :: Stats> = ::rsk::ResourceCell::new(crate :: Stats :: new ());
+    pub static STATS: ::rsk::ResourceCell<crate :: Stats> = ::rsk::ResourceCell::for_static(crate :: Stats :: new ());
 }
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `part2.filter.count` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.y` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::new(0.0);
+    pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::for_static(0.0);
     /// Per-Task state `part2.filter.relay_reqs` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_RELAY_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_RELAY_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.report_rounds` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_REPORT_ROUNDS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_REPORT_ROUNDS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.triangle_acks` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_TRIANGLE_ACKS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_TRIANGLE_ACKS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// The RoleSlot of role `sink` of Endpoint `relay` (task 21.3, R38.7): `filter`'s state between its Jobs.
-    pub static FILTER_RELAY: ::rsk::ResourceCell<super::rsk_roles::relay_sink::State> = ::rsk::ResourceCell::new(super::rsk_roles::relay_sink::State::initial());
+    pub static FILTER_RELAY: ::rsk::ResourceCell<super::rsk_roles::relay_sink::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::relay_sink::State::initial());
     /// The RoleSlot of role `ctl` of Endpoint `report` (task 21.3, R38.7): `filter`'s state between its Jobs.
-    pub static FILTER_REPORT: ::rsk::ResourceCell<super::rsk_roles::report_ctl::State> = ::rsk::ResourceCell::new(super::rsk_roles::report_ctl::State::initial());
+    pub static FILTER_REPORT: ::rsk::ResourceCell<super::rsk_roles::report_ctl::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::report_ctl::State::initial());
     /// The RoleSlot of role `sink` of Endpoint `triangle` (task 21.3, R38.7): `filter`'s state between its Jobs.
-    pub static FILTER_TRIANGLE: ::rsk::ResourceCell<super::rsk_roles::triangle_sink::State> = ::rsk::ResourceCell::new(super::rsk_roles::triangle_sink::State::initial());
+    pub static FILTER_TRIANGLE: ::rsk::ResourceCell<super::rsk_roles::triangle_sink::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::triangle_sink::State::initial());
     /// Per-Task state `part2.sampler.count` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.dma_ok` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.buf` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_BUF: ::rsk::ResourceCell<[u8 ; 16]> = ::rsk::ResourceCell::new([0 ; 16]);
+    pub static SAMPLER_BUF: ::rsk::ResourceCell<rsk :: DmaBuf < 16 >> = ::rsk::ResourceCell::for_static(rsk :: DmaBuf :: new ());
+    /// Per-Task state `part2.sampler.held` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_HELD: ::rsk::ResourceCell<rsk :: DmaHeld> = ::rsk::ResourceCell::for_static(rsk :: DmaHeld :: none ());
 }
 pub mod rsk_roles {
     /// Role `sink` of Endpoint `relay` under Protocol `PingPong` (task 21.3): the projection `rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}`, states S0 to S2, the initial state S0.
@@ -455,6 +457,9 @@ pub mod rsk_target {
             [true, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 1] = [::rsk::DmaChannel::generated(0, 0x40010000)];
 }
 pub mod rsk_ctx {
     /// The Context of Task `part2.filter` (Priority 3).
@@ -487,7 +492,9 @@ pub mod rsk_ctx {
         /// Per-Task state `dma_ok` (PR-25).
         pub dma_ok: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `buf` (PR-25).
-        pub buf: ::rsk::PerTask<'static, [u8 ; 16]>,
+        pub buf: ::rsk::PerTask<'static, rsk :: DmaBuf < 16 >>,
+        /// Per-Task state `held` (PR-25).
+        pub held: ::rsk::PerTask<'static, rsk :: DmaHeld>,
     }
 }
 #[cfg(creusot)]
@@ -551,6 +558,7 @@ pub mod rsk_jobs {
             count: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_COUNT),
             dma_ok: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_OK),
             buf: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_BUF),
+            held: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_HELD),
         });
     }
 }

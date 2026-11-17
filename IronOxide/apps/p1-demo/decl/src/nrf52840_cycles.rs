@@ -63,7 +63,8 @@ rsk::app! {
         state filter.y: f32 = 0.0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
-        state sampler.buf: [u8; 16] = [0; 16];
+        state sampler.buf: rsk::DmaBuf<16> = rsk::DmaBuf::new();
+        state sampler.held: rsk::DmaHeld = rsk::DmaHeld::none();
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),

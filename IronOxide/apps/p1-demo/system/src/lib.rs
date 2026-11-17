@@ -230,7 +230,11 @@ pub fn report_and_exit() -> ! {
         print_kv(b"filter_pattern_runs", p1_demo_part2::rsk_state::FILTER_PATTERN_RUNS.peek());
         print_kv(b"filter_pattern_fail", p1_demo_part2::rsk_state::FILTER_PATTERN_FAIL.peek());
         print_kv(b"filter_pattern_mask", p1_demo_part2::rsk_state::FILTER_PATTERN_MASK.peek());
-        print_kv(b"filter_fpscr", p1_demo_part2::rsk_state::FILTER_FPSCR.peek());
+        // Reported only when the probe wrote it: an absent key is an
+        // untested row of the rig, not a value.
+        if p1_demo_part2::rsk_state::FILTER_FPSCR_SEEN.peek() != 0 {
+            print_kv(b"filter_fpscr", p1_demo_part2::rsk_state::FILTER_FPSCR.peek());
+        }
         // SPIM0's EasyDMA registers (nRF52840 PS 6.25.7), read here because
         // the reset the board takes when the probe detaches clears them:
         // channel 0 (RXD) holds the last accepted request's buffer and
@@ -267,6 +271,14 @@ pub fn report_and_exit() -> ! {
         print_kv(b"loop:part2:spin_ms:spin", p1_demo_part2::rsk_state::SAMPLER_LOOP_SPIN.peek());
         print_kv(b"dma_end", p1_demo_part2::rsk_state::SAMPLER_DMA_END.peek());
         print_kv(b"dma_after_stop", p1_demo_part2::rsk_state::SAMPLER_DMA_AFTER_STOP.peek());
+        // Judged in the plain measurement configuration alone (the others
+        // restart or overrun part2 on purpose and do not take the step).
+        #[cfg(feature = "gating")]
+        {
+            print_kv(b"dma_footprint", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT.peek());
+            print_kv(b"dma_footprint_1m", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT_1M.peek());
+            print_kv(b"dma_footprint_125k", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT_125K.peek());
+        }
         const SPIM0: u32 = 0x4000_3000;
         print_kv(b"spim0_enable", hw::mmio_read(SPIM0 + 0x500));
         print_kv(b"spim0_shorts", hw::mmio_read(SPIM0 + 0x200));

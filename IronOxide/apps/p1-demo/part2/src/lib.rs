@@ -3,7 +3,7 @@
 //! its Jobs carry an active FP context that the Kernel stacks and restores
 //! (R11, PR-31; the `fpu` flag of the declaration), and `sampler`
 //! (Priority 1, every 100 ms) requests an EasyDMA transfer of a buffer in
-//! its own RAM through `rsk::dma_request` (DD-08, R17): the Kernel checks
+//! its own RAM through `rsk::DmaBuf::lend` (DD-08, R17): the Kernel checks
 //! the Partition's ownership of the channel and the buffer's permission and
 //! programs the channel's registers (on QEMU, the GPIO0 stand-in). Every
 //! value that outlives a Job is declared per-Task state (PR-25).
@@ -56,6 +56,39 @@ mod inject {
 #[allow(dead_code)]
 const DMA_CHANNEL: u8 = 0;
 
+/// The plain demo's request (R17.1, R17.5): the first Job of the
+/// Partition's incarnation writes its buffer and lends it to the channel;
+/// the transfer is held in the Task's state from then on, and while it is
+/// held the bytes are the peripheral's (`rsk::DmaBuf::bytes` gives none).
+/// Returns whether the Task holds an accepted transfer.
+// App_Prover (task 17.1): as `traffic_step`, the step leaves the count and
+// the Resource as they were.
+#[cfg(all(not(feature = "isolation"), not(feature = "measure")))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).count@ == (*cx).count@))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).stats@ == (*cx).stats@))]
+fn plain_request(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
+    if cx.held.with(|h| h.is_some()) {
+        return true;
+    }
+    let transfer = cx.buf.with(|b| {
+        if let Some(bytes) = b.bytes() {
+            bytes[0] = n;
+        }
+        b.lend(rsk_target::DMA[0])
+    });
+    let accepted = transfer.is_some();
+    cx.held.with(|h| h.put(transfer));
+    accepted
+}
+
+/// Two of `rsk::DmaGuarded::footprint`'s verdicts (`WRITTEN_INSIDE`,
+/// `NOT_STOPPED`), restated: the App_Prover's compiler cannot read an
+/// associated constant of a generic type of another crate.
+#[cfg(all(feature = "measure", feature = "gating"))]
+const FOOTPRINT_WRITTEN_INSIDE: u32 = 1;
+#[cfg(all(feature = "measure", feature = "gating"))]
+const FOOTPRINT_NOT_STOPPED: u32 = 3;
+
 /// The EasyDMA traffic scenario of the measurement configurations (task
 /// 19.2; R17.4, R34.5): SPIM0, the Partition's EasyDMA peripheral,
 /// transfers 64 bytes out of `tx` and 64 bytes into `rx` at its highest
@@ -67,7 +100,7 @@ const DMA_CHANNEL: u8 = 0;
 /// owner of `P0`, sets their direction in the measurement build).
 /// The registers are reached through `rsk::dma_write` (DD-08: the window
 /// is read-only to the Partition); the pointer and count registers
-/// through `rsk::dma_request`, which checks the buffers (R17.1).
+/// through `rsk::DmaBuf::lend`, which checks the buffers (R17.1).
 #[cfg(feature = "measure")]
 mod traffic {
     /// The window of SPIM0 in the Target table (the report reads the same).
@@ -90,6 +123,10 @@ mod traffic {
     pub const MISO_PIN: u32 = 16;
     pub const SHORTS_END_START: u32 = 1 << 17;
     pub const FREQUENCY_M8: u32 = 0x8000_0000;
+    #[allow(dead_code)]
+    pub const FREQUENCY_M1: u32 = 0x1000_0000;
+    #[allow(dead_code)]
+    pub const FREQUENCY_K125: u32 = 0x0200_0000;
     pub const ENABLE_SPIM: u32 = 7;
     /// The channels of the system's DMA table: RXD, then TXD.
     pub const CHANNEL_RX: u8 = 0;
@@ -112,6 +149,30 @@ mod traffic {
 #[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).stats@ == (*cx).stats@))]
 fn traffic_step(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
     use traffic::*;
+    // The plain measurement configuration alone judges the footprint (the
+    // others restart or overrun this Partition on purpose): at the three
+    // Jobs after the first, for the traffic of the 100 ms before each, at
+    // 8 Mbps, then 1 Mbps, then 125 kbps; the run goes on at 8 Mbps.
+    #[cfg(feature = "gating")]
+    {
+        let c = cx.count.get();
+        if c >= 1 && c <= 3 {
+            let next = if c == 1 { FREQUENCY_M1 } else if c == 2 { FREQUENCY_K125 } else { FREQUENCY_M8 };
+            let verdict = footprint_step(cx, next);
+            if c == 1 {
+                cx.dma_footprint.set(verdict);
+            } else if c == 2 {
+                cx.dma_footprint_1m.set(verdict);
+            } else {
+                cx.dma_footprint_125k.set(verdict);
+            }
+            // A transfer that wrote the buffer is a transfer that ended.
+            if verdict == FOOTPRINT_WRITTEN_INSIDE {
+                cx.dma_end.with(|c| *c = c.saturating_add(1));
+            }
+            return true;
+        }
+    }
     if cx.count.get() != 0 {
         let ended = rsk::mmio::read(SPIM0 + EVENTS_END) != 0;
         if ended {
@@ -134,17 +195,58 @@ fn traffic_step(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
     let _ = rsk::dma_write(CHANNEL_RX, FREQUENCY, FREQUENCY_M8);
     let _ = rsk::dma_write(CHANNEL_RX, SHORTS, SHORTS_END_START);
     let _ = rsk::dma_write(CHANNEL_RX, ENABLE, ENABLE_SPIM);
+    // The buffers are lent for the run (R17.5): the transfers are held in
+    // the Task's state, and no Job reaches the bytes until it takes one
+    // back (`footprint_step`).
     let tx = cx.tx.with(|b| {
-        b[0] = n;
-        let bytes: &[u8] = &*b;
-        rsk::dma_request(CHANNEL_TX, bytes)
+        if let Some(bytes) = b.bytes() {
+            bytes[0] = n;
+        }
+        b.lend(rsk_target::DMA[1])
     });
-    let rx = cx.rx.with(|b| {
-        let bytes: &[u8] = &*b;
-        rsk::dma_request(CHANNEL_RX, bytes)
+    let rx = cx.rx.with(|g| {
+        g.arm(0xA5);
+        g.buf.lend(rsk_target::DMA[0])
     });
+    let accepted = tx.is_some() && rx.is_some();
+    cx.tx_held.with(|h| h.put(tx));
+    cx.rx_held.with(|h| h.put(rx));
     let _ = rsk::dma_write(CHANNEL_RX, TASKS_START, 1);
-    tx && rx
+    accepted
+}
+
+/// The footprint of the accepted transfers of the 100 ms before (HW-15;
+/// 2026-11-16): the receive transfer is taken back, which stops the
+/// traffic and waits for the peripheral's STOPPED event; the buffer and
+/// its guards are judged (`rsk::DmaGuarded::footprint`: the transfers wrote
+/// the buffer and neither guard); the peripheral is set to `frequency`,
+/// the guards and the buffer are written again, the buffer is lent again
+/// and the traffic restarted. Returns the verdict.
+#[cfg(all(feature = "measure", feature = "gating"))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).count@ == (*cx).count@))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).stats@ == (*cx).stats@))]
+fn footprint_step(cx: &mut rsk_ctx::Sampler, frequency: u32) -> u32 {
+    use traffic::*;
+    let held = cx.rx_held.with(|h| h.take());
+    let verdict = match held {
+        Some(transfer) => cx.rx.with(|g| match g.buf.reclaim(transfer) {
+            Ok(()) => g.footprint(0xA5),
+            Err(_) => FOOTPRINT_NOT_STOPPED,
+        }),
+        None => FOOTPRINT_NOT_STOPPED,
+    };
+    // The rate is changed with the peripheral disabled.
+    let _ = rsk::dma_write(CHANNEL_RX, ENABLE, 0);
+    let _ = rsk::dma_write(CHANNEL_RX, FREQUENCY, frequency);
+    let _ = rsk::dma_write(CHANNEL_RX, ENABLE, ENABLE_SPIM);
+    let rx = cx.rx.with(|g| {
+        g.arm(0xA5);
+        g.buf.lend(rsk_target::DMA[0])
+    });
+    cx.rx_held.with(|h| h.put(rx));
+    let _ = rsk::dma_write(CHANNEL_RX, SHORTS, SHORTS_END_START);
+    let _ = rsk::dma_write(CHANNEL_RX, TASKS_START, 1);
+    verdict
 }
 
 /// The isolation suite (task 7.4): the EasyDMA cases of R17.7 (R17.1,
@@ -155,13 +257,13 @@ fn traffic_step(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
 ///
 /// | Case | Buffer | Expected |
 /// |---|---|---|
-/// | 0 | the Task's own buffer (Partition RAM above its stack) | accepted: the channel's pointer and count registers hold it |
+/// | 0 | the Task's own buffer (Partition RAM above its stack), lent | accepted: the channel's pointer and count registers hold it |
 /// | 1 | a local array (the Partition's stack region) | refused (R17.1 excludes stacks) |
 /// | 2 | another Partition's RAM | refused |
 /// | 3 | the Kernel's RAM | refused |
 /// | 4 | 16 bytes starting 8 bytes before the Partition's RAM ends | refused (not wholly inside the RAM) |
-/// | 5 | the own buffer on channel 7 (no such channel) | refused |
-/// | 6 | the own buffer again | accepted |
+/// | 5 | the own buffer, taken back, on channel 7 (no such channel) | refused |
+/// | 6 | the own buffer lent again | accepted |
 #[cfg(feature = "isolation")]
 const DMA_CASES: u32 = 7;
 
@@ -187,17 +289,17 @@ fn isolation_step(cx: &mut rsk_ctx::Sampler) {
     let other = if l::SELF == 0 { 1 } else { 0 };
     match case {
         0 | 6 => {
-            let accepted = cx.buf.with(|buf| {
-                let bytes: &[u8] = &*buf;
-                rsk::dma_request(DMA_CHANNEL, bytes)
-            });
-            if accepted {
+            // The transfer is held from here on (R17.5): case 5 takes it
+            // back before its own request, so case 6 lends again.
+            let transfer = cx.buf.with(|b| b.lend(rsk_target::DMA[0]));
+            if transfer.is_some() {
                 cx.dma_ok.with(|c| *c = c.saturating_add(1));
             }
+            cx.held.with(|h| h.put(transfer));
         }
         1 => {
             let local = [0u8; 16];
-            let _ = rsk::dma_request(DMA_CHANNEL, &local);
+            let _ = rsk::hw_dt::dma_request_raw(DMA_CHANNEL, address_of(&local), 16);
         }
         2 => {
             let _ = rsk::hw_dt::dma_request_raw(DMA_CHANNEL, l::RAM[other].0 + 0x1000, 16);
@@ -209,10 +311,14 @@ fn isolation_step(cx: &mut rsk_ctx::Sampler) {
             let _ = rsk::hw_dt::dma_request_raw(DMA_CHANNEL, l::RAM[l::SELF].0 + l::RAM[l::SELF].1 - 8, 16);
         }
         5 => {
-            let _ = cx.buf.with(|buf| {
-                let bytes: &[u8] = &*buf;
-                rsk::dma_request(7, bytes)
-            });
+            // The held transfer is given back first (nothing was started:
+            // the peripheral is not enabled, so the bytes are at rest), and
+            // the buffer is then offered on a channel that does not exist.
+            let held = cx.held.with(|h| h.take());
+            if let Some(transfer) = held {
+                let _ = cx.buf.with(|b| b.reclaim(transfer));
+            }
+            let _ = rsk::hw_dt::dma_request_raw(7, cx.buf.with(|b| b.address()), 16);
         }
         _ => {
             let layout = rsk::matrix::Layout {
@@ -294,6 +400,7 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
     {
         if cx.pattern_runs.get() == 0 {
             cx.fpscr.set(rsk::hw_dt::fpscr());
+            cx.fpscr_seen.set(1);
         }
         let mask = rsk::hw_dt::register_patterns_fp(50_000);
         cx.pattern_runs.with(|c| *c = c.saturating_add(1));
@@ -488,7 +595,7 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
     // matrix; the buffer's address for the rig's register check.
     #[cfg(feature = "isolation")]
     {
-        cx.dma_ptr.set(cx.buf.with(|buf| address_of(buf)));
+        cx.dma_ptr.set(cx.buf.with(|b| b.address()));
         isolation_step(&mut cx);
     }
     #[cfg(creusot)]
@@ -508,13 +615,7 @@ pub fn sampler(mut cx: rsk_ctx::Sampler) {
     #[cfg(all(not(feature = "isolation"), feature = "measure"))]
     let accepted = traffic_step(&mut cx, n);
     #[cfg(all(not(feature = "isolation"), not(feature = "measure")))]
-    let accepted = cx.buf.with(|buf| {
-        buf[0] = n;
-        // An unsizing coercion, not `Index<RangeFull>`, which Creusot has no
-        // contract for on arrays.
-        let bytes: &[u8] = &*buf;
-        rsk::dma_request(DMA_CHANNEL, bytes)
-    });
+    let accepted = plain_request(&mut cx, n);
     if accepted {
         cx.dma_ok.with(|c| *c = c.saturating_add(1));
     }

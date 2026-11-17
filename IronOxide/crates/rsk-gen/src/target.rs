@@ -178,7 +178,7 @@ const MPS2_PERIPHERALS: &[Peripheral] = &[
     // has no DMA engine, so GPIO0's DATAOUT and OUTENSET registers (writes
     // to which have no effect on QEMU, which models no pins) stand for an
     // EasyDMA channel's PTR and MAXCNT, and OUTENCLR for its STOP task. The
-    // mediation path of DD-08 (`rsk::dma_request`: Partition ownership,
+    // mediation path of DD-08 (`rsk::DmaBuf::lend`: Partition ownership,
     // buffer permission, the register writes, DMA_REJECTED, the stop on
     // Partition restart) executes exactly as for a real channel.
     Peripheral { name: "CMSDK_GPIO0", window_base: 0x4001_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: true, dma: Some(&MPS2_GPIO_DMA) },

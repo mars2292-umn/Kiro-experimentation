@@ -70,10 +70,16 @@ rsk::app! {
         state filter.pattern_runs: u32 = 0;
         state filter.pattern_fail: u32 = 0;
         state filter.pattern_mask: u32 = 0;
-        state filter.fpscr: u32 = 0xFFFF_FFFF;
+        // Zero, as every Partition static starts (R14.5); `fpscr_seen` says
+        // whether the probe wrote it (until 2026-11-16 the declared initial
+        // value was 0xFFFF_FFFF as a mark of "not written", which was never
+        // in memory: an unwritten record read 0, the value the rig expects).
+        state filter.fpscr: u32 = 0;
+        state filter.fpscr_seen: u32 = 0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
-        state sampler.buf: [u8; 16] = [0; 16];
+        state sampler.buf: rsk::DmaBuf<16> = rsk::DmaBuf::new();
+        state sampler.held: rsk::DmaHeld = rsk::DmaHeld::none();
         // The EasyDMA cases then the access matrix: the next case, the
         // buffer's address, and a bit per matrix attempt that returned.
         state sampler.dma_case: u32 = 0;

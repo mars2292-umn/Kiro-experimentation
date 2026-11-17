@@ -822,7 +822,7 @@ Three-party Protocols (`triangle` in the demo, where `ctl` chooses, `mid` learns
 | `pulse` | part1 (C) | 4 | sporadic, `CMSDK_DUALTIMER`, MIT 15 ms | acknowledges the timer |
 | `filter` | part2 (B) | 3 | every 25 ms | `fpu`; `stats`; sink of `relay`, ctl of `report` |
 | `log` | part1 (C) | 2 | every 40 ms | starts the timer; sink of `telemetry` and `pingpong`, ctl of `relay`, mid of `triangle` |
-| `sampler` | part2 (B) | 1 | every 100 ms | `rsk::dma_request` on `CMSDK_GPIO0` |
+| `sampler` | part2 (B) | 1 | every 100 ms | `rsk::DmaBuf::lend` on `CMSDK_GPIO0` |
 
 Look at the priorities against the periods: they are rate-monotonic (10, 20, 25, 40, 100 ms in descending priority) with the two sporadic Tasks slotted by their MITs, except that `pulse` at MIT 15 ms sits below `sensor` at 20 ms, and the declaration explains why. Look at the levels: the most trusted Partition has `RECORD_AND_CONTINUE` and the others `END_JOB`, as Section 4.5 described. Look at the Endpoints: every message from level C to B or A names a validation function.
 

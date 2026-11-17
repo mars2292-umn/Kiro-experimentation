@@ -187,7 +187,7 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "const INTAKE_IRQ: [u16; NT] = [{}];", intake.join(", "));
     // EasyDMA channels (DD-08): one entry per channel of every EasyDMA
     // peripheral a Partition owns, in Partition order then peripheral name
-    // order (the order of the summary), for `rsk::dma_request`.
+    // order (the order of the summary), for `rsk::DmaBuf::lend`.
     let mut dma: Vec<String> = Vec::new();
     for (pi, p) in g.plan.partitions.iter().enumerate() {
         for w in &p.windows {
@@ -334,7 +334,7 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
             res.ceiling,
             res.accessors.iter().map(|&t| g.tasks[t].name.clone()).collect::<Vec<_>>().join(", ")
         );
-        let _ = writeln!(s, "    pub static {}: ::rsk::ResourceCell<{}> = ::rsk::ResourceCell::new({});", res.name.to_uppercase(), res.ty, res.init);
+        let _ = writeln!(s, "    pub static {}: ::rsk::ResourceCell<{}> = ::rsk::ResourceCell::for_static({});", res.name.to_uppercase(), res.ty, res.init);
     }
     let _ = writeln!(s, "}}");
     // Per-Task state (PR-25): one cell per declared item, `TASK_NAME`.
@@ -344,12 +344,12 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
         let task = &g.tasks[t];
         for st in &task.state {
             let _ = writeln!(s, "    /// Per-Task state `{}.{}` (PR-25): touched by `{}`'s Jobs only.", task.id, st.name, task.name);
-            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<{}> = ::rsk::ResourceCell::new({});", task.name.to_uppercase(), st.name.to_uppercase(), st.ty, st.init);
+            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<{}> = ::rsk::ResourceCell::for_static({});", task.name.to_uppercase(), st.name.to_uppercase(), st.ty, st.init);
         }
         // Task 21.3 (R38.7): the RoleSlot of every Protocol role the Task is bound to.
         for (e, role) in protocol_roles(g, t) {
             let _ = writeln!(s, "    /// The RoleSlot of role `{role}` of Endpoint `{}` (task 21.3, R38.7): `{}`'s state between its Jobs.", e.name, task.name);
-            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<super::rsk_roles::{}_{role}::State> = ::rsk::ResourceCell::new(super::rsk_roles::{}_{role}::State::initial());", task.name.to_uppercase(), e.name.to_uppercase(), e.name, e.name);
+            let _ = writeln!(s, "    pub static {}_{}: ::rsk::ResourceCell<super::rsk_roles::{}_{role}::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::{}_{role}::State::initial());", task.name.to_uppercase(), e.name.to_uppercase(), e.name, e.name);
         }
     }
     let _ = writeln!(s, "}}");
@@ -446,6 +446,30 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     }
     let _ = writeln!(s, "        ];");
     let _ = writeln!(s, "    }}");
+    // This Partition's EasyDMA channels (DD-08, R17.5; 2026-11-16): the
+    // index of each in the system's DMA table (the order of that table:
+    // Partition, then peripheral name, then the peripheral's channels) with
+    // the base address of its peripheral, so that a Task names a channel by
+    // a generated constant and supplies no address of its own.
+    let mut own: Vec<String> = Vec::new();
+    let mut index = 0usize;
+    for (pi, q) in g.plan.partitions.iter().enumerate() {
+        for w in &q.windows {
+            for name in &w.peripherals {
+                let Some(per) = g.target.peripheral(name) else { continue };
+                let Some(regs) = per.dma else { continue };
+                for _ in regs.channels {
+                    if pi == p {
+                        own.push(format!("::rsk::DmaChannel::generated({index}, 0x{:08x})", per.window_base));
+                    }
+                    index += 1;
+                }
+            }
+        }
+    }
+    let _ = writeln!(s, "    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:");
+    let _ = writeln!(s, "    /// what `rsk::DmaBuf::lend` takes.");
+    let _ = writeln!(s, "    pub const DMA: [::rsk::DmaChannel; {}] = [{}];", own.len(), own.join(", "));
     let _ = writeln!(s, "}}");
     // Task 21.2 (R38.1, R42.1): the payload type of each Endpoint a Task of
     // this Partition is bound to fits the declared payload, and the

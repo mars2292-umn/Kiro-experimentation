@@ -28,4 +28,4 @@ hw-dt = ["rsk-kernel/hw-dt"]
 # the Generator emits is excluded under it.
 [lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = ["cfg(creusot)"]
+check-cfg = ["cfg(creusot)", "cfg(kani)"]

@@ -229,6 +229,26 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             ),
         );
     }
+    // The footprint of an accepted transfer (Hardware_Model HW-15, R17.1,
+    // R17.5; 2026-11-16): the plain measurement configuration's `sampler`
+    // takes its receive transfer back once (the stop, then the
+    // peripheral's STOPPED event), and judges the buffer and the guard
+    // bytes on both sides of it.
+    // At three rates, each for the traffic of the 100 ms before its Job.
+    for (key, rate) in [("dma_footprint", "8 Mbps"), ("dma_footprint_1m", "1 Mbps"), ("dma_footprint_125k", "125 kbps")] {
+        let Some(v) = run.value(key) else { continue };
+        out.step(
+            &format!("EasyDMA footprint (HW-15) at {rate}"),
+            v == 1,
+            match v & 0xFF {
+                1 => "the transfers of 100 ms wrote the 64-byte receive buffer and neither of the 8-byte guards below and above it; the buffer was read only after its transfer was taken back and the peripheral reported STOPPED".to_string(),
+                2 => "no byte of the receive buffer changed: the transfers did not write it".to_string(),
+                3 => "the transfer was not taken back: the peripheral did not report STOPPED within the library's bound".to_string(),
+                4 => format!("a guard byte beside the receive buffer changed: below the buffer, bytes {:#04x}; above it, bytes {:#04x} (bit i: byte i of the guard); the last changed byte reads {:#04x}", (v >> 8) & 0xFF, (v >> 16) & 0xFF, v >> 24),
+                _ => format!("no verdict recorded ({v}): the step did not run"),
+            },
+        );
+    }
     // The loop-iteration report (task 19.2; R34.9, R35.4).
     if let Some(export) = inputs.loop_bounds {
         let value = |key: &str| run.value(key).map(|v| v as u64);

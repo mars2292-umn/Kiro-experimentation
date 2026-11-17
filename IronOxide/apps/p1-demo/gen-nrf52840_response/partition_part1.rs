@@ -5,17 +5,17 @@ pub mod rsk_resources {
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `part1.log.count` (PR-25): touched by `log`'s Jobs only.
-    pub static LOG_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static LOG_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part1.log.telemetry_rx` (PR-25): touched by `log`'s Jobs only.
-    pub static LOG_TELEMETRY_RX: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static LOG_TELEMETRY_RX: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part1.log.telemetry_last` (PR-25): touched by `log`'s Jobs only.
-    pub static LOG_TELEMETRY_LAST: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static LOG_TELEMETRY_LAST: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part1.log.pingpong_reqs` (PR-25): touched by `log`'s Jobs only.
-    pub static LOG_PINGPONG_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static LOG_PINGPONG_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// The RoleSlot of role `sink` of Endpoint `pingpong` (task 21.3, R38.7): `log`'s state between its Jobs.
-    pub static LOG_PINGPONG: ::rsk::ResourceCell<super::rsk_roles::pingpong_sink::State> = ::rsk::ResourceCell::new(super::rsk_roles::pingpong_sink::State::initial());
+    pub static LOG_PINGPONG: ::rsk::ResourceCell<super::rsk_roles::pingpong_sink::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::pingpong_sink::State::initial());
     /// Per-Task state `part1.pulse.count` (PR-25): touched by `pulse`'s Jobs only.
-    pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static PULSE_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
     /// Role `sink` of Endpoint `pingpong` under Protocol `PingPong` (task 21.3): the projection `rec Loop.ctl?{Req(u32).ctl!{Rep(u32).Loop}, Stop().end}`, states S0 to S2, the initial state S0.
@@ -179,6 +179,9 @@ pub mod rsk_target {
             [true, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
 const _: () = assert!(::core::mem::size_of::<u32>() <= 4, "the payload of Endpoint `telemetry` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {

@@ -21,7 +21,7 @@
 //! must exercise: a Partition at Criticality_Level B, a Task with an
 //! active floating-point context (`fpu`; R11, PR-31), and an EasyDMA
 //! peripheral (the QEMU stand-in channel of CMSDK_GPIO0, DD-08) whose
-//! transfers go through `rsk::dma_request`.
+//! transfers go through `rsk::DmaBuf::lend`.
 //!
 //! `pulse` is the sporadic Task (DD-06, task 5.4): `log`'s first Job starts
 //! the Partition's dual timer at an 18 ms period through the peripheral
@@ -180,7 +180,8 @@ rsk::app! {
         state filter.triangle_acks: u32 = 0;
         state sampler.count: u32 = 0;
         state sampler.dma_ok: u32 = 0;
-        state sampler.buf: [u8; 16] = [0; 16];
+        state sampler.buf: rsk::DmaBuf<16> = rsk::DmaBuf::new();
+        state sampler.held: rsk::DmaHeld = rsk::DmaHeld::none();
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,
                      resources = [stats]);
         task sampler (periodic, period = 100.ms(), deadline = 100.ms(), budget = 500.us(),

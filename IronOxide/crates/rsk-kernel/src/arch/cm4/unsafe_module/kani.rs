@@ -1012,6 +1012,37 @@ fn timebase_rearm_cancels_the_compare_and_pends_a_due_instant() {
     }
 }
 
+/// R17.1, R17.2 (2026-11-16): `dma_program`, the one function behind
+/// `Action::DmaProgram`, writes the buffer's address to the pointer
+/// register it is given and the length to the count register it is given,
+/// and nothing else: two writes for two peripheral-region registers, for
+/// any addresses and values. This ties the model's record of programmed
+/// transfers (`HwModel::dma`, which `dma_request_core`'s postcondition is
+/// stated on) to the registers. A register address outside the peripheral
+/// region is not written at all (the guard of `dma_program`), so no value
+/// a request passes reaches a word of the PPB or of memory.
+#[kani::proof]
+#[kani::unwind(100)]
+fn dma_program_writes_the_pointer_and_the_count_and_nothing_else() {
+    sim::reset();
+    let ptr_reg: u32 = kani::any();
+    let cnt_reg: u32 = kani::any();
+    let ptr: u32 = kani::any();
+    let len: u32 = kani::any();
+    kani::assume(ptr_reg != cnt_reg);
+    let before = sim::write_count();
+    hw::dma_program(ptr_reg, ptr, cnt_reg, len);
+    let p_ok = addr::peripheral(ptr_reg);
+    let c_ok = cnt_reg != 0 && addr::peripheral(cnt_reg);
+    if p_ok {
+        assert!(sim::read(ptr_reg) == ptr);
+    }
+    if c_ok {
+        assert!(sim::read(cnt_reg) == len);
+    }
+    assert!(sim::write_count() == before + p_ok as u32 + c_ok as u32);
+}
+
 /// Audit finding 4 (2026-11-13), R45.2: `svc_clear_pending` clears
 /// SHCSR.SVCALLPENDED (bit 15) and writes every other bit of the register
 /// back as read, the active bits (0 to 11) and the enable bits (16 to 18)

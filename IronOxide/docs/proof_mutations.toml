@@ -1884,3 +1884,21 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 find = "        hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));\n    } else {\n        k.fault(EV_DMA_REJECTED, false);\n"
 replace = "        hw.apply(Action::DmaProgram(d.ptr, ptr, d.maxcnt, len));\n    } else {\n        hw.apply(Action::DmaProgram(0, ptr, 0, len));\n        k.fault(EV_DMA_REJECTED, false);\n"
 expect = ["entry.rs", "postcondition not satisfied"]
+
+# The EasyDMA register-write service's rule as a postcondition (R17.3; 2026-11-16).
+
+[[mutation]]
+id = "dma-write-reaches-a-pointer-register"
+kills = "dma_write_core: dma_reg_unmediated (R17.3: the register-write service never writes a pointer, count or list-mode register of a channel)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        accepted = owned && d.ptr != 0 && !mediated;\n"
+replace = "        accepted = owned && d.ptr != 0;\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "dma-write-serves-another-partitions-channel"
+kills = "dma_write_core: the channel is the executing Job's own Partition's (R17.3, R16.2)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        accepted = owned && d.ptr != 0 && !mediated;\n"
+replace = "        accepted = d.ptr != 0 && !mediated;\n"
+expect = ["entry.rs", "postcondition not satisfied"]

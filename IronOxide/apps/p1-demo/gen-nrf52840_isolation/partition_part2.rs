@@ -2,34 +2,38 @@
 #[cfg(not(creusot))]
 pub mod rsk_resources {
     /// Resource `part2.stats` (Ceiling 3; accessed by filter, sampler).
-    pub static STATS: ::rsk::ResourceCell<crate :: Stats> = ::rsk::ResourceCell::new(crate :: Stats :: new ());
+    pub static STATS: ::rsk::ResourceCell<crate :: Stats> = ::rsk::ResourceCell::for_static(crate :: Stats :: new ());
 }
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `part2.filter.count` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.y` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::new(0.0);
+    pub static FILTER_Y: ::rsk::ResourceCell<f32> = ::rsk::ResourceCell::for_static(0.0);
     /// Per-Task state `part2.filter.pattern_runs` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_PATTERN_RUNS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_PATTERN_RUNS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.pattern_fail` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_PATTERN_FAIL: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_PATTERN_FAIL: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.pattern_mask` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_PATTERN_MASK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static FILTER_PATTERN_MASK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.filter.fpscr` (PR-25): touched by `filter`'s Jobs only.
-    pub static FILTER_FPSCR: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0xFFFF_FFFF);
+    pub static FILTER_FPSCR: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
+    /// Per-Task state `part2.filter.fpscr_seen` (PR-25): touched by `filter`'s Jobs only.
+    pub static FILTER_FPSCR_SEEN: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.count` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.dma_ok` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_DMA_OK: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.buf` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_BUF: ::rsk::ResourceCell<[u8 ; 16]> = ::rsk::ResourceCell::new([0 ; 16]);
+    pub static SAMPLER_BUF: ::rsk::ResourceCell<rsk :: DmaBuf < 16 >> = ::rsk::ResourceCell::for_static(rsk :: DmaBuf :: new ());
+    /// Per-Task state `part2.sampler.held` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_HELD: ::rsk::ResourceCell<rsk :: DmaHeld> = ::rsk::ResourceCell::for_static(rsk :: DmaHeld :: none ());
     /// Per-Task state `part2.sampler.dma_case` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_DMA_CASE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_DMA_CASE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.dma_ptr` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_DMA_PTR: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_DMA_PTR: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.survived` (PR-25): touched by `sampler`'s Jobs only.
-    pub static SAMPLER_SURVIVED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SAMPLER_SURVIVED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
 }
@@ -74,6 +78,9 @@ pub mod rsk_target {
             [true, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 2] = [::rsk::DmaChannel::generated(0, 0x40003000), ::rsk::DmaChannel::generated(1, 0x40003000)];
 }
 pub mod rsk_ctx {
     /// The Context of Task `part2.filter` (Priority 3).
@@ -91,6 +98,8 @@ pub mod rsk_ctx {
         pub pattern_mask: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `fpscr` (PR-25).
         pub fpscr: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `fpscr_seen` (PR-25).
+        pub fpscr_seen: ::rsk::PerTask<'static, u32>,
     }
     /// The Context of Task `part2.sampler` (Priority 1).
     pub struct Sampler {
@@ -100,7 +109,9 @@ pub mod rsk_ctx {
         /// Per-Task state `dma_ok` (PR-25).
         pub dma_ok: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `buf` (PR-25).
-        pub buf: ::rsk::PerTask<'static, [u8 ; 16]>,
+        pub buf: ::rsk::PerTask<'static, rsk :: DmaBuf < 16 >>,
+        /// Per-Task state `held` (PR-25).
+        pub held: ::rsk::PerTask<'static, rsk :: DmaHeld>,
         /// Per-Task state `dma_case` (PR-25).
         pub dma_case: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `dma_ptr` (PR-25).
@@ -145,6 +156,7 @@ pub mod rsk_jobs {
             pattern_fail: ::rsk::PerTask::new(&super::rsk_state::FILTER_PATTERN_FAIL),
             pattern_mask: ::rsk::PerTask::new(&super::rsk_state::FILTER_PATTERN_MASK),
             fpscr: ::rsk::PerTask::new(&super::rsk_state::FILTER_FPSCR),
+            fpscr_seen: ::rsk::PerTask::new(&super::rsk_state::FILTER_FPSCR_SEEN),
         });
     }
     /// Job wrapper of `part2.sampler` (vector 56; Critical_Section sites: part2.sampler#cs:stats).
@@ -155,6 +167,7 @@ pub mod rsk_jobs {
             count: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_COUNT),
             dma_ok: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_OK),
             buf: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_BUF),
+            held: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_HELD),
             dma_case: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_CASE),
             dma_ptr: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_PTR),
             survived: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_SURVIVED),

@@ -2,48 +2,48 @@
 #[cfg(not(creusot))]
 pub mod rsk_resources {
     /// Resource `part0.state` (Ceiling 7; accessed by control, sensor).
-    pub static STATE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static STATE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Resource `part0.in_cs` (Ceiling 7; accessed by control, sensor).
-    pub static IN_CS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static IN_CS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 #[cfg(not(creusot))]
 pub mod rsk_state {
     /// Per-Task state `part0.control.count` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.blocked` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_BLOCKED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_BLOCKED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.telemetry_full` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_TELEMETRY_FULL: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_TELEMETRY_FULL: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.pingpong_reps` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_PINGPONG_REPS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_PINGPONG_REPS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.pingpong_last` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_PINGPONG_LAST: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_PINGPONG_LAST: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.telemetry_peer` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_TELEMETRY_PEER: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_TELEMETRY_PEER: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.pingpong_peer` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_PINGPONG_PEER: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_PINGPONG_PEER: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.pingpong_rejected` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_PINGPONG_REJECTED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_PINGPONG_REJECTED: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.report_reqs` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_REPORT_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_REPORT_REQS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.control.triangle_rounds` (PR-25): touched by `control`'s Jobs only.
-    pub static CONTROL_TRIANGLE_ROUNDS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static CONTROL_TRIANGLE_ROUNDS: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// The RoleSlot of role `ctl` of Endpoint `pingpong` (task 21.3, R38.7): `control`'s state between its Jobs.
-    pub static CONTROL_PINGPONG: ::rsk::ResourceCell<super::rsk_roles::pingpong_ctl::State> = ::rsk::ResourceCell::new(super::rsk_roles::pingpong_ctl::State::initial());
+    pub static CONTROL_PINGPONG: ::rsk::ResourceCell<super::rsk_roles::pingpong_ctl::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::pingpong_ctl::State::initial());
     /// The RoleSlot of role `sink` of Endpoint `report` (task 21.3, R38.7): `control`'s state between its Jobs.
-    pub static CONTROL_REPORT: ::rsk::ResourceCell<super::rsk_roles::report_sink::State> = ::rsk::ResourceCell::new(super::rsk_roles::report_sink::State::initial());
+    pub static CONTROL_REPORT: ::rsk::ResourceCell<super::rsk_roles::report_sink::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::report_sink::State::initial());
     /// The RoleSlot of role `ctl` of Endpoint `triangle` (task 21.3, R38.7): `control`'s state between its Jobs.
-    pub static CONTROL_TRIANGLE: ::rsk::ResourceCell<super::rsk_roles::triangle_ctl::State> = ::rsk::ResourceCell::new(super::rsk_roles::triangle_ctl::State::initial());
+    pub static CONTROL_TRIANGLE: ::rsk::ResourceCell<super::rsk_roles::triangle_ctl::State> = ::rsk::ResourceCell::for_static(super::rsk_roles::triangle_ctl::State::initial());
     /// Per-Task state `part0.echo.count` (PR-25): touched by `echo`'s Jobs only.
-    pub static ECHO_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static ECHO_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.sensor.count` (PR-25): touched by `sensor`'s Jobs only.
-    pub static SENSOR_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SENSOR_COUNT: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.sensor.loop_spin` (PR-25): touched by `sensor`'s Jobs only.
-    pub static SENSOR_LOOP_SPIN: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SENSOR_LOOP_SPIN: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.sensor.loop_hold` (PR-25): touched by `sensor`'s Jobs only.
-    pub static SENSOR_LOOP_HOLD: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SENSOR_LOOP_HOLD: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part0.sensor.loop_late` (PR-25): touched by `sensor`'s Jobs only.
-    pub static SENSOR_LOOP_LATE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::new(0);
+    pub static SENSOR_LOOP_LATE: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
 }
 pub mod rsk_roles {
     /// Role `ctl` of Endpoint `pingpong` under Protocol `PingPong` (task 21.3): the projection `rec Loop.sink!{Req(u32).sink?{Rep(u32).Loop}, Stop().end}`, states S0 to S2, the initial state S0.
@@ -489,6 +489,9 @@ pub mod rsk_target {
             [true, false, false, false, false],
         ];
     }
+    /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
+    /// what `rsk::DmaBuf::lend` takes.
+    pub const DMA: [::rsk::DmaChannel; 0] = [];
 }
 const _: () = assert!(::core::mem::size_of::<u32>() <= 4, "the payload of Endpoint `telemetry` exceeds its declared `payload` bytes (R38.1)");
 pub mod rsk_ctx {

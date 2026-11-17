@@ -349,6 +349,13 @@ fn api_misuse_is_rejected_by_the_type_system() {
         ("api_gating_cycle", &["[R41.3]", "cyclic", "`ping`", "`pong`"]),
         ("api_gating_self", &["[R41.3]", "cannot gate itself"]),
         ("api_gating_plain", &["[R41.3]", "plain Endpoint"]),
+        // R17.5 (2026-11-16): a buffer lent to EasyDMA is reached through
+        // `DmaBuf::bytes` alone, and a transfer is one value.
+        ("api_dma_private", &["error[E0616]", "field `bytes` of struct `DmaBuf` is private", "error[E0425]", "cannot find function `dma_request` in crate `rsk`"]),
+        ("api_dma_moved", &["error[E0382]", "use of moved value: `t`"]),
+        // R14.5 (2026-11-16): a Partition static's initial value is the
+        // zeroed memory it starts as.
+        ("api_static_nonzero", &["error[E0080]", "R14.5: the initial value of a Partition static must be all zero bytes"]),
     ];
     for (member, expected) in cases {
         let (ok, text) = check(member);

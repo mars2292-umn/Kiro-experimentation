@@ -42,7 +42,7 @@ Tasks:
   part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 1000000 ticks, deadline 1000000 ticks, Budget 150000 cycles, fpu false, Resources [], state [count: u32, telemetry_rx: u32, telemetry_last: u32, pingpong_reqs: u32, relay_rounds: u32, triangle_fwd: u32], nesting depth 0, slots release 9 deadline 10 budget 11
   part1.pulse (#4, Partition part1, Priority 4, vector 40): sporadic, MIT 375000 ticks, policy defer, source interrupt CMSDK_DUALTIMER (IRQ 10), deadline 375000 ticks, Budget 12500 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 12 deadline 13 budget 14
   part2.filter (#5, Partition part2, Priority 3, vector 41): periodic, offset 0 ticks, period 625000 ticks, deadline 625000 ticks, Budget 20000 cycles, fpu true, Resources [stats], state [count: u32, y: f32, relay_reqs: u32, report_rounds: u32, triangle_acks: u32], nesting depth 1, slots release 15 deadline 16 budget 17
-  part2.sampler (#6, Partition part2, Priority 1, vector 42): periodic, offset 0 ticks, period 2500000 ticks, deadline 2500000 ticks, Budget 12500 cycles, fpu false, Resources [stats], state [count: u32, dma_ok: u32, buf: [u8 ; 16]], nesting depth 1, slots release 18 deadline 19 budget 20
+  part2.sampler (#6, Partition part2, Priority 1, vector 42): periodic, offset 0 ticks, period 2500000 ticks, deadline 2500000 ticks, Budget 12500 cycles, fpu false, Resources [stats], state [count: u32, dma_ok: u32, buf: rsk :: DmaBuf < 16 >, held: rsk :: DmaHeld], nesting depth 1, slots release 18 deadline 19 budget 20
 
 Resources:
   part0.state (#0, Partition part0, type u32): Ceiling 7, accessors [control, sensor]
