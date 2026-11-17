@@ -35,6 +35,7 @@ Partitions:
   part2 (crate p1_demo_part2, level B): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10
     code 32768 bytes at 0x00040000 (region 2^15, srd 0x00); ram 32768 bytes at 0x20018000 (region 2^15, srd 0x00); stack 4096 bytes; init arena 0 bytes
     window 0x40003000 (2^12, srd 0x00, read-only): SPIM0
+    window 0x40004000 (2^12, srd 0x00, read-only): SPIM1
 
 Tasks:
   part0.control (#0, Partition part0, Priority 7, vector 36): periodic, offset 0 ticks, period 160000 ticks, deadline 160000 ticks, Budget 64000 cycles, fpu false, Resources [state, in_cs], state [count: u32, blocked: u32, telemetry_full: u32, pingpong_reps: u32, pingpong_last: u32, telemetry_peer: u32, pingpong_peer: u32, pingpong_rejected: u32, report_reqs: u32, triangle_rounds: u32], nesting depth 2, slots release 0 deadline 1 budget 2
@@ -43,7 +44,7 @@ Tasks:
   part1.log (#3, Partition part1, Priority 2, vector 39): periodic, offset 0 ticks, period 640000 ticks, deadline 640000 ticks, Budget 384000 cycles, fpu false, Resources [], state [count: u32, telemetry_rx: u32, telemetry_last: u32, pingpong_reqs: u32, relay_rounds: u32, triangle_fwd: u32, loop_spin: u32, loop_busy: u32], nesting depth 0, slots release 9 deadline 10 budget 11
   part1.pulse (#4, Partition part1, Priority 4, vector 40): sporadic, MIT 240000 ticks, policy defer, source interrupt GPIOTE (IRQ 6), deadline 240000 ticks, Budget 32000 cycles, fpu false, Resources [], state [count: u32], nesting depth 0, slots release 12 deadline 13 budget 14
   part2.filter (#5, Partition part2, Priority 3, vector 41): periodic, offset 0 ticks, period 400000 ticks, deadline 400000 ticks, Budget 51200 cycles, fpu true, Resources [stats], state [count: u32, y: f32, relay_reqs: u32, report_rounds: u32, triangle_acks: u32, loop_hold: u32], nesting depth 1, slots release 15 deadline 16 budget 17
-  part2.sampler (#6, Partition part2, Priority 1, vector 56): periodic, offset 0 ticks, period 1600000 ticks, deadline 1600000 ticks, Budget 38400 cycles, fpu false, Resources [stats], state [count: u32, dma_ok: u32, buf: rsk :: DmaBuf < 16 >, held: rsk :: DmaHeld, loop_spin: u32, tx: rsk :: DmaBuf < 64 >, tx_held: rsk :: DmaHeld, rx: rsk :: DmaGuarded < 64 >, rx_held: rsk :: DmaHeld, dma_footprint: u32, dma_footprint_1m: u32, dma_footprint_125k: u32, dma_end: u32, dma_after_stop: u32], nesting depth 1, slots release 18 deadline 19 budget 20
+  part2.sampler (#6, Partition part2, Priority 1, vector 56): periodic, offset 0 ticks, period 1600000 ticks, deadline 1600000 ticks, Budget 38400 cycles, fpu false, Resources [stats], state [count: u32, dma_ok: u32, buf: rsk :: DmaBuf < 16 >, held: rsk :: DmaHeld, loop_spin: u32, tx: rsk :: DmaBuf < 64 >, tx_held: rsk :: DmaHeld, rx: rsk :: DmaGuarded < 64 >, rx_held: rsk :: DmaHeld, dma_footprint: u32, dma_footprint_1m: u32, dma_footprint_125k: u32, dma_footprint_spim1: u32, rx2: rsk :: DmaGuarded < 64 >, rx2_held: rsk :: DmaHeld, dma_end: u32, dma_after_stop: u32], nesting depth 1, slots release 18 deadline 19 budget 20
 
 Resources:
   part0.state (#0, Partition part0, type u32): Ceiling 7, accessors [control, sensor]

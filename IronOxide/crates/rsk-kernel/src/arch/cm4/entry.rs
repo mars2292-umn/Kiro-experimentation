@@ -1092,6 +1092,11 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         // priority and its enable (A3).
         ok ==> tables_wf(tables, final(k).task_count_spec()),
         ok ==> forall|v: int| 16 <= v < 16 + spec_irq_count_of(tables) ==> #[trigger] boot_vector_ok(final(k), tables, final(hw).hw(), v),
+        // R12.2, R12.4 (2026-11-16): a boot that fails has enabled no
+        // interrupt, pended none, armed no compare and not started the time
+        // base: nothing that can cause a Release is live when it returns.
+        !ok ==> final(hw).hw().enabled == old(hw).hw().enabled && final(hw).hw().pending == old(hw).hw().pending
+            && final(hw).hw().compare == old(hw).hw().compare && final(hw).hw().timebase_running == old(hw).hw().timebase_running,
 {
     hw.apply(Action::Trace(TR_BOOT, 0));
     if !k.validate() {
@@ -2224,6 +2229,17 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         // A-P2 (2026-11-09): an accepted send appends the message's first
         // word, its label, to the channel's label sequence.
         code == ENDPOINT_OK ==> send_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg),
+        // R40.4, R40.6, R39.4 (2026-11-16): a send that is not accepted
+        // leaves every channel as it was (as `channel_before` reads it) and
+        // writes nothing into the Endpoint storage.
+        code != ENDPOINT_OK ==> final(hw).hw().store == old(hw).hw().store,
+        code != ENDPOINT_OK ==> forall|c: int| 0 <= c < MAX_CHANNELS ==> #[trigger] final(state).fifos[c] == old(state).fifos[c]
+            || final(state).fifos[c] == channel_before(old(state).fifos[c], spec_endpoint_of(tables, (arg & 0xFF) as int).capacity as int),
+        // R40.5 (2026-11-16): a full buffer is reported: the log's newest
+        // event is the buffer-bound violation, against the executing Job's
+        // Task (the sender, `endpoint_args`) and that Task's Partition.
+        code == ENDPOINT_FULL && old(k).spec_depth() > 0 ==> final(k).spec_last_event()
+            == (EV_ENDPOINT_FULL as int, crate::arch::bound::top_task(old(k)), old(k).spec_part()[crate::arch::bound::top_task(old(k))]),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
 {
@@ -2242,10 +2258,21 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
     // The channel from `role` to `peer` (task 21.7): its storage is the
     // dense channel `role * roles + peer` of the Endpoint.
     let ch = channel_index(e, role, peer);
+    // The channel as it is, to put back should the send be refused after
+    // the slot is taken (2026-11-16: that path returned with the slot
+    // counted and nothing copied into it, a message that was never sent;
+    // found when "a send that is not accepted leaves every channel as it
+    // was" was stated as a postcondition).
+    let saved = state.fifos[ch];
     let slot = match channel_push(state, ch, cfg.capacity) {
         Some(s) => s,
         None => {
             let t = cfg.tasks[role];
+            proof {
+                // The sender is the executing Job's Task, one of the
+                // configuration's (`endpoint_args`).
+                k.lemma_stack_rising();
+            }
             k.record_event(EV_ENDPOINT_FULL, t);
             return ENDPOINT_FULL;
         }
@@ -2276,6 +2303,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             }
         }
         None => {
+            state.fifos[ch] = saved;
             k.fault(EV_API_MISUSE, false);
             return ENDPOINT_REFUSED;
         }

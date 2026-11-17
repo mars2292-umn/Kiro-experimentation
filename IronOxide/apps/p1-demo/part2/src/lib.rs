@@ -172,6 +172,14 @@ fn traffic_step(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
             }
             return true;
         }
+        // Then the same on the second instance of the peripheral: SPIM0
+        // off and SPIM1 on the same pins for 100 ms, and back.
+        if c == 4 || c == 5 {
+            if second_instance_step(cx, c == 4) {
+                cx.dma_end.with(|c| *c = c.saturating_add(1));
+            }
+            return true;
+        }
     }
     if cx.count.get() != 0 {
         let ended = rsk::mmio::read(SPIM0 + EVENTS_END) != 0;
@@ -213,6 +221,62 @@ fn traffic_step(cx: &mut rsk_ctx::Sampler, n: u8) -> bool {
     cx.rx_held.with(|h| h.put(rx));
     let _ = rsk::dma_write(CHANNEL_RX, TASKS_START, 1);
     accepted
+}
+
+/// HW-15 on a second instance (2026-11-16): `start` stops SPIM0's traffic
+/// (its receive transfer taken back), disables it, and runs SPIM1 on the
+/// same pins into the guarded buffer `rx2`; the Job after takes that
+/// transfer back, judges the buffer and its guards (`dma_footprint_spim1`),
+/// disables SPIM1 and restarts SPIM0's traffic. Returns whether the
+/// transfer this Job took back had ended or stopped.
+#[cfg(all(feature = "measure", feature = "gating"))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).count@ == (*cx).count@))]
+#[cfg_attr(creusot, rsk::creusot_std::macros::ensures((^cx).stats@ == (*cx).stats@))]
+fn second_instance_step(cx: &mut rsk_ctx::Sampler, start: bool) -> bool {
+    use traffic::*;
+    // SPIM1's channels follow SPIM0's in the system's table (RXD, TXD).
+    const CHANNEL_RX2: u8 = 2;
+    if start {
+        let held = cx.rx_held.with(|h| h.take());
+        let stopped = match held {
+            Some(transfer) => cx.rx.with(|g| g.buf.reclaim(transfer).is_ok()),
+            None => false,
+        };
+        let _ = rsk::dma_write(CHANNEL_RX, ENABLE, 0);
+        let _ = rsk::dma_write(CHANNEL_RX2, PSEL_SCK, SCK_PIN);
+        let _ = rsk::dma_write(CHANNEL_RX2, PSEL_MOSI, MOSI_PIN);
+        let _ = rsk::dma_write(CHANNEL_RX2, PSEL_MISO, MISO_PIN);
+        let _ = rsk::dma_write(CHANNEL_RX2, FREQUENCY, FREQUENCY_M8);
+        let _ = rsk::dma_write(CHANNEL_RX2, SHORTS, SHORTS_END_START);
+        let _ = rsk::dma_write(CHANNEL_RX2, ENABLE, ENABLE_SPIM);
+        let rx2 = cx.rx2.with(|g| {
+            g.arm(0xA5);
+            g.buf.lend(rsk_target::DMA[2])
+        });
+        cx.rx2_held.with(|h| h.put(rx2));
+        let _ = rsk::dma_write(CHANNEL_RX2, TASKS_START, 1);
+        stopped
+    } else {
+        let held = cx.rx2_held.with(|h| h.take());
+        let verdict = match held {
+            Some(transfer) => cx.rx2.with(|g| match g.buf.reclaim(transfer) {
+                Ok(()) => g.footprint(0xA5),
+                Err(_) => FOOTPRINT_NOT_STOPPED,
+            }),
+            None => FOOTPRINT_NOT_STOPPED,
+        };
+        cx.dma_footprint_spim1.set(verdict);
+        let _ = rsk::dma_write(CHANNEL_RX2, ENABLE, 0);
+        let _ = rsk::dma_write(CHANNEL_RX, ENABLE, ENABLE_SPIM);
+        let rx = cx.rx.with(|g| {
+            g.arm(0xA5);
+            g.buf.lend(rsk_target::DMA[0])
+        });
+        cx.rx_held.with(|h| h.put(rx));
+        let _ = rsk::dma_write(CHANNEL_RX, SHORTS, SHORTS_END_START);
+        let _ = rsk::dma_write(CHANNEL_RX, TASKS_START, 1);
+        verdict == FOOTPRINT_WRITTEN_INSIDE
+    }
 }
 
 /// The footprint of the accepted transfers of the 100 ms before (HW-15;

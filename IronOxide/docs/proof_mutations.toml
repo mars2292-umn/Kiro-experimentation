@@ -1902,3 +1902,58 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 find = "        accepted = owned && d.ptr != 0 && !mediated;\n"
 replace = "        accepted = d.ptr != 0 && !mediated;\n"
 expect = ["entry.rs", "postcondition not satisfied"]
+
+# Postconditions the requirements_evidence rows exposed as missing (R40.5, R40.6, R12.2; 2026-11-16).
+
+[[mutation]]
+id = "endpoint-send-refused-with-the-slot-taken"
+kills = "endpoint_send_core: a send that is not accepted leaves every channel as it was (R40.6, R39.4)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            state.fifos[ch] = saved;\n            k.fault(EV_API_MISUSE, false);\n"
+replace = "            k.fault(EV_API_MISUSE, false);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "endpoint-full-not-reported"
+kills = "endpoint_send_core: a full buffer is reported against the sender (R40.5)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            k.record_event(EV_ENDPOINT_FULL, t);\n            return ENDPOINT_FULL;\n"
+replace = "            return ENDPOINT_FULL;\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "boot-failure-starts-the-time-base"
+kills = "boot_core: a failed boot has made nothing live that can cause a Release (R12.2, R12.4)"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if failed != 0 {\n        hw.apply(Action::Trace(TR_BOOTFAIL, failed));\n        k.boot_failed(failed);\n        return false;\n    }\n"
+replace = "    if failed != 0 {\n        hw.apply(Action::Trace(TR_BOOTFAIL, failed));\n        hw.apply(Action::TimebaseInit);\n        k.boot_failed(failed);\n        return false;\n    }\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+# The timed run: periodic arrivals at the Kernel's nominal instants (Verification_Plan 7.3, Sched/Arrive.lean; 2026-11-16).
+
+[[mutation]]
+id = "lean-timed-arrival-may-repeat-an-instant"
+kills = "treach_kreach (a Periodic_Task's arrival is of a nominal instant that has not arrived: without it two arrivals share an instant and the spacing fails)"
+file = "proofs/aeneas/lean/Sched/Arrive.lean"
+find = "      (hfresh : ∀ r, x.jl t = some r → r < x.now) :\n"
+replace = "      (hfresh : ∀ r, x.jl t = some r → r ≤ x.now) :\n"
+expect = ["Sched/Arrive.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-timed-hand-step-moves-a-nominal-instant"
+kills = "kstep_nomrel, treach_kreach (a hand-modelled transition keeps each nominal instant or moves it by a period: without the condition the invariant of the arrivals is not preserved)"
+file = "proofs/aeneas/lean/Sched/Arrive.lean"
+find = "      (hh : HandShape cfg x y → NomRel cfg x.k y.k) : TStep cfg P B x y\n"
+replace = "      (hh : HandShape cfg x y → True) : TStep cfg P B x y\n"
+expect = ["Sched/Arrive.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-timed-period-longer-than-configured"
+kills = "treach_kreach (the analysis's period is not longer than the configured one)"
+file = "proofs/aeneas/lean/Sched/Arrive.lean"
+find = "  hT : ∀ t, t < NT.val → periodic t = true → P.T t ≤ tk * cfgPeriod cfg t\n"
+replace = "  hT : ∀ t, t < NT.val → periodic t = true → P.T t ≤ tk * cfgPeriod cfg t + 1\n"
+expect = ["Sched/Arrive.lean"]
+prover = "lean"

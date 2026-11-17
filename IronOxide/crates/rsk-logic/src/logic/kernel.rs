@@ -1660,6 +1660,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).mit_violations == old(self).mit_violations, final(self).safe_state == old(self).safe_state,
             final(self).started == old(self).started, final(self).now == old(self).now,
             final(self).reinit_partition == old(self).reinit_partition, final(self).stop_dma == old(self).stop_dma,
+            // R14.6 (2026-11-16): the event is the log's newest entry, with
+            // its kind, Task and Partition as given.
+            final(self).log.view().len() > 0,
+            final(self).log.view().last().kind == kind && final(self).log.view().last().task == task
+                && final(self).log.view().last().partition == partition,
     {
         let instant = self.now;
         self.log.push(Event { kind, task, partition, prs, instant, detail });
@@ -1675,6 +1680,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
             final(self).sched == old(self).sched, final(self).timing == old(self).timing, final(self).slots == old(self).slots,
             final(self).budget == old(self).budget, final(self).stopped == old(self).stopped,
             final(self).safe_state == old(self).safe_state, final(self).now == old(self).now,
+            // R40.5 (2026-11-16): the event is the log's newest entry,
+            // against Task `t` and `t`'s own Partition.
+            final(self).log.view().len() > 0,
+            final(self).log.view().last().kind == kind && final(self).log.view().last().task == t
+                && final(self).log.view().last().partition == cfg.tasks[t as int].partition,
     {
         proof {
             assert(cfg.task_ok(t as int));

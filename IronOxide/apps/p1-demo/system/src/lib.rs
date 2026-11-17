@@ -278,6 +278,7 @@ pub fn report_and_exit() -> ! {
             print_kv(b"dma_footprint", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT.peek());
             print_kv(b"dma_footprint_1m", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT_1M.peek());
             print_kv(b"dma_footprint_125k", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT_125K.peek());
+            print_kv(b"dma_footprint_spim1", p1_demo_part2::rsk_state::SAMPLER_DMA_FOOTPRINT_SPIM1.peek());
         }
         const SPIM0: u32 = 0x4000_3000;
         print_kv(b"spim0_enable", hw::mmio_read(SPIM0 + 0x500));

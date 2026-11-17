@@ -13,7 +13,7 @@
     "tick_hz": 16000000
   },
   "config_checksum": "0x82c52625",
-  "layout_checksum": "0xf92e25f6",
+  "layout_checksum": "0x347325e8",
   "operating_duration_ticks": 2880000000,
   "safe_state": "crate::report_and_exit",
   "fp_flush_to_zero": false,
@@ -244,7 +244,8 @@
         "init_arena": 0
       },
       "peripherals": [
-        "SPIM0"
+        "SPIM0",
+        "SPIM1"
       ],
       "mpu": {
         "code": {
@@ -266,6 +267,15 @@
             "srd": 0,
             "peripherals": [
               "SPIM0"
+            ],
+            "read_only": true
+          },
+          {
+            "base": 1073758208,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "SPIM1"
             ],
             "read_only": true
           }

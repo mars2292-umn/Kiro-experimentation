@@ -48,6 +48,12 @@ pub mod rsk_state {
     pub static SAMPLER_DMA_FOOTPRINT_1M: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.dma_footprint_125k` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_DMA_FOOTPRINT_125K: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
+    /// Per-Task state `part2.sampler.dma_footprint_spim1` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_DMA_FOOTPRINT_SPIM1: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
+    /// Per-Task state `part2.sampler.rx2` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_RX2: ::rsk::ResourceCell<rsk :: DmaGuarded < 64 >> = ::rsk::ResourceCell::for_static(rsk :: DmaGuarded :: new ());
+    /// Per-Task state `part2.sampler.rx2_held` (PR-25): touched by `sampler`'s Jobs only.
+    pub static SAMPLER_RX2_HELD: ::rsk::ResourceCell<rsk :: DmaHeld> = ::rsk::ResourceCell::for_static(rsk :: DmaHeld :: none ());
     /// Per-Task state `part2.sampler.dma_end` (PR-25): touched by `sampler`'s Jobs only.
     pub static SAMPLER_DMA_END: ::rsk::ResourceCell<u32> = ::rsk::ResourceCell::for_static(0);
     /// Per-Task state `part2.sampler.dma_after_stop` (PR-25): touched by `sampler`'s Jobs only.
@@ -470,18 +476,18 @@ pub mod rsk_target {
         pub const WINDOWS: [[(u32, u32); 5]; PARTITIONS] = [
             [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)],
             [(0x40006000, 0x1000), (0x50000000, 0x1000), (0, 0), (0, 0), (0, 0)],
-            [(0x40003000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],
+            [(0x40003000, 0x1000), (0x40004000, 0x1000), (0, 0), (0, 0), (0, 0)],
         ];
         /// Whether each window is read-only to its Partition (DD-08: an EasyDMA-capable peripheral's).
         pub const WINDOWS_RO: [[bool; 5]; PARTITIONS] = [
             [false, false, false, false, false],
             [false, false, false, false, false],
-            [true, false, false, false, false],
+            [true, true, false, false, false],
         ];
     }
     /// This Partition's EasyDMA channels (DD-08, R17.5), in the order of the summary:
     /// what `rsk::DmaBuf::lend` takes.
-    pub const DMA: [::rsk::DmaChannel; 2] = [::rsk::DmaChannel::generated(0, 0x40003000), ::rsk::DmaChannel::generated(1, 0x40003000)];
+    pub const DMA: [::rsk::DmaChannel; 4] = [::rsk::DmaChannel::generated(0, 0x40003000), ::rsk::DmaChannel::generated(1, 0x40003000), ::rsk::DmaChannel::generated(2, 0x40004000), ::rsk::DmaChannel::generated(3, 0x40004000)];
 }
 pub mod rsk_ctx {
     /// The Context of Task `part2.filter` (Priority 3).
@@ -535,6 +541,12 @@ pub mod rsk_ctx {
         pub dma_footprint_1m: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `dma_footprint_125k` (PR-25).
         pub dma_footprint_125k: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `dma_footprint_spim1` (PR-25).
+        pub dma_footprint_spim1: ::rsk::PerTask<'static, u32>,
+        /// Per-Task state `rx2` (PR-25).
+        pub rx2: ::rsk::PerTask<'static, rsk :: DmaGuarded < 64 >>,
+        /// Per-Task state `rx2_held` (PR-25).
+        pub rx2_held: ::rsk::PerTask<'static, rsk :: DmaHeld>,
         /// Per-Task state `dma_end` (PR-25).
         pub dma_end: ::rsk::PerTask<'static, u32>,
         /// Per-Task state `dma_after_stop` (PR-25).
@@ -612,6 +624,9 @@ pub mod rsk_jobs {
             dma_footprint: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_FOOTPRINT),
             dma_footprint_1m: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_FOOTPRINT_1M),
             dma_footprint_125k: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_FOOTPRINT_125K),
+            dma_footprint_spim1: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_FOOTPRINT_SPIM1),
+            rx2: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_RX2),
+            rx2_held: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_RX2_HELD),
             dma_end: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_END),
             dma_after_stop: ::rsk::PerTask::new(&super::rsk_state::SAMPLER_DMA_AFTER_STOP),
         });

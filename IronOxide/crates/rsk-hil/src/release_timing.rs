@@ -235,7 +235,7 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     // peripheral's STOPPED event), and judges the buffer and the guard
     // bytes on both sides of it.
     // At three rates, each for the traffic of the 100 ms before its Job.
-    for (key, rate) in [("dma_footprint", "8 Mbps"), ("dma_footprint_1m", "1 Mbps"), ("dma_footprint_125k", "125 kbps")] {
+    for (key, rate) in [("dma_footprint", "8 Mbps"), ("dma_footprint_1m", "1 Mbps"), ("dma_footprint_125k", "125 kbps"), ("dma_footprint_spim1", "8 Mbps on SPIM1")] {
         let Some(v) = run.value(key) else { continue };
         out.step(
             &format!("EasyDMA footprint (HW-15) at {rate}"),

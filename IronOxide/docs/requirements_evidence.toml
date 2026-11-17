@@ -353,7 +353,7 @@ implemented = "The Kernel charges the executing Job the processor cycles between
 strength = "weaker"
 strength_note = "R18.1: the statement is that a timer entry charges the executing Job exactly the cycles it is given and no other Task anything. The cycles it is given are wall-clock cycles since the last switch, so the Kernel's own work during an interrupting entry is charged to the interrupted Job; the requirement's note of 2026-11-13 accepts this within Δ_entry per entry, and it is why measured maxima move by a whole entry. R18.2 and R18.3: an Overrun that the Budget event finds is reported and answered, once; no statement bounds how soon (Δ_detect, Δ_enforce are measured). R18.7: the Lean theorem bounds the response of every Job of a Task the analysis calls schedulable, but in a run whose instants are its own and with four kinds of transition still written by hand; and it bounds response by the computed R, which is the requirement, only under the conditions the run lists."
 closed = "2026-11-02: timed events served for other Tasks were charged to the executing Job's account; found by measurement, closed by the contract of `timer_event`. 2026-11-05: an account that passed its Budget at a preemption was taken as already reported and the Job ran on; `Budget::reported` now records the report itself. 2026-11-15: a Budget event could be served ahead of a pending dispatch, a delay the blocking term did not cover; `settle` disarms the event when a dispatch is admitted."
-gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. The Lean run is not joined to the Kernel's time base (the code's half is in Sched/Time.lean since 2026-11-16); four transitions are modelled by hand; one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application."
+gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. Since 2026-11-16 the Lean run is joined to the Kernel's time base for periodic arrivals (Sched/Arrive.lean: an arrival is the Kernel's nominal instant and its spacing is derived); sporadic arrivals keep their spacing as a condition; four transitions are modelled by hand and must keep the nominal instants by condition; one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -407,7 +407,7 @@ implemented = "The recurrence's terms are derived from the Task_Model and the me
 strength = "weaker"
 strength_note = "The computation is proven to be what it claims: the iteration returns the least fixed point of the terms it is given, or says 'not schedulable' with a value no fixed point is below. The term list is proven equal to a specification of the list, and that specification is the project's own formalization of R29.1's formula, so their agreement is by reading, with one test per term. Soundness (Property 18) is proven for a run with its own notion of time and four hand-written transitions, under listed conditions, one of which (one Budget event per Job) is a condition and not a consequence of the code. And the inputs are measurements: R29.1 takes C_i as the Budget, which R28.4 keeps above a measured maximum with a margin, not above a static bound."
 closed = "2026-11-14 and 15: the Lean work found two terms the analysis lacked (timer entries of lower-Priority Tasks, and housekeeping) and one case the blocking term did not cover (a Budget event ahead of a pending dispatch); the terms were added and the Kernel changed. 2026-11-15: the utilization check of R29.9 was proven over the rationals."
-gaps = "Not cited in this row, though proven: the derivation of each term from the model (`derive_all`), the rounding of R29.8, the overflow report of R29.6 and the utilization check of R29.9. Open: the run's time base, the four hand-written transitions, static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
+gaps = "Not cited in this row, though proven: the derivation of each term from the model (`derive_all`), the rounding of R29.8, the overflow report of R29.6 and the utilization check of R29.9. Open: sporadic arrivals' spacing and the reading's distance from real time in the run (periodic arrivals are joined to the Kernel's nominal instants since 2026-11-16, `property18_timed`), the four hand-written transitions, static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
 
 [[row.statement]]
 file = "crates/rsk-analyzer/src/rta.rs"
@@ -605,7 +605,7 @@ sentence = "Each periodic Task is released at its offset plus a whole number of 
 implemented = "The Kernel keeps one timer slot per timed event and a nominal instant per periodic Task; the timer entry serves every slot that is due (`Kernel::timer_event`, `periodic_release`, `deadline_miss` in crates/rsk-logic/src/logic/kernel.rs; the instants in logic/time.rs). One hardware timer compare is armed for the earliest slot (crates/rsk-kernel/src/arch/cm4/entry.rs)."
 strength = "weaker"
 strength_note = "R9.3 is proven as stated: the next nominal instant is the offset plus (k+1) periods, whatever else happened, or there is none within the operating duration. R9.1's 'released at the nominal instant' is proven in the sense that every periodic Task whose nominal instant is at or before the reading the timer entry is given has its Release served in that entry. Weaker: 'no later than J_rel after the instant' (R9.2) and 'within Δ_detect' (R9.6) are about real time between the instant and the entry, which is measured on the board, not proven; and the reading itself comes from hardware the proof models only as a number."
-closed = "2026-11-02: one unanswered stimulus pulse in the first hour-long run (still open against the fault-injection task). 2026-11-05: the link from armed slots to the Releases the entry makes was a comment; it is now a postcondition of `timer_event`. 2026-11-16: on the code as extracted, a periodic Task's nominal instant is shown to move by exactly its period (Sched/Time.lean)."
+closed = "2026-11-02: one unanswered stimulus pulse in the first hour-long run (still open against the fault-injection task). 2026-11-05: the link from armed slots to the Releases the entry makes was a comment; it is now a postcondition of `timer_event`. 2026-11-16: on the code as extracted, a periodic Task's nominal instant is shown to move by exactly its period (Sched/Time.lean), and the run Property 18 is proven over takes periodic arrivals at those instants with their spacing derived (Sched/Arrive.lean)."
 gaps = "J_rel and Δ_detect are measured over an hour with a margin. The hardware timer's compare rule has a near-counter exception found by test (HW-12, ASM-19). R9.10 is the rig's hour-long run, on one Application."
 
 [[row.statement]]
@@ -635,6 +635,13 @@ name = "timer_event_reading"
 tool = "lean"
 says = "On the extracted code: after a timer entry the Kernel's reading is the larger of the value it was given and its reading before, and every slot the entry served was armed with its instant at or before that reading."
 reviewed = "f9927fa26f4cc426"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Arrive.lean"
+name = "treach_kreach"
+tool = "lean"
+says = "Every state reached by the timed run, in which a periodic Task's Job arrives at the Task's nominal instant in the Kernel's state (once per instant) and no spacing between arrivals is assumed, is a state of the run Property 18 is proven over; and in it the last arrival of each periodic Task lies a whole number of its periods before the Task's present nominal instant."
+reviewed = "368d4e74112c74a6"
 
 [[row.other]]
 kind = "tested-rig"
@@ -679,9 +686,9 @@ requirement = 12
 sentence = "Before the first Task is released the Kernel checks that the processor is the one the configuration was generated for and that its configuration tables are intact, and goes to the safe state if anything differs."
 implemented = "`boot_core` runs the hardware checks, the table validation (`Config::validate`, `Layout::validate`) and the checksums before it enables any interrupt (crates/rsk-kernel/src/arch/cm4/entry.rs; the validators in crates/rsk-logic/src/logic/mod.rs and mpu.rs)."
 strength = "weaker"
-strength_note = "The table validation is proven exactly: the function returns true if and only if the configuration is well-formed, which is the property every other Kernel proof assumes. Boot's own contract says that if it succeeds the Kernel's invariant holds, the hardware model is in its booted state, and every vector has its priority and enable. It does not say that a failed check leads to the safe state with no Release (R12.2), nor state the hardware checks of R12.1 one by one: those are the body's and are shown on the board by failing each check in turn."
-closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each."
-gaps = "R12.2 as a postcondition (a failed boot releases nothing). The hardware reads behind the checks are trusted register accesses. The checksum is CRC-32, an error-detecting code, not a proof of integrity."
+strength_note = "The table validation is proven exactly: the function returns true if and only if the configuration is well-formed, which is the property every other Kernel proof assumes. Boot's contract says that if it succeeds the Kernel's invariant holds, the hardware model is in its booted state and every vector has its priority and enable; and, since 2026-11-16, that if it fails nothing that could cause a Release is live (no interrupt enabled or pended, no compare armed, the time base not started), which is R12.2 and R12.4 in the terms of the Kernel's model. Weaker: the hardware checks of R12.1 are not stated one by one (they are the body's, shown on the board by failing each in turn), and 'enters the safe state' after a failed boot is the entry crate's loop, outside the contract."
+closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each. 2026-11-16: a failed boot leaving nothing live became a postcondition (one mutant killed)."
+gaps = "The hardware reads behind the checks are trusted register accesses. The safe state after a failed boot is the entry crate's. The checksum is CRC-32, an error-detecting code, not a proof of integrity."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/mod.rs"
@@ -694,8 +701,8 @@ reviewed = "a56d91cd5fdefea3"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "boot_core"
 tool = "verus"
-says = "If boot reports success: the Kernel's invariant holds, the hardware model has every boot setting made, the entry code's own invariant holds with no Job in progress, the loaded MPU view matches the record, the vector tables are consistent, and every interrupt vector has its priority and its enable as the tables say. Nothing is stated for a boot that reports failure."
-reviewed = "a92bdc33f4d67bc1"
+says = "If boot reports success: the Kernel's invariant holds, the hardware model has every boot setting made, the entry code's own invariant holds with no Job in progress, the loaded MPU view matches the record, the vector tables are consistent, and every interrupt vector has its priority and its enable as the tables say. If it reports failure: no interrupt has been enabled or pended, no timer compare armed, and the time base not started."
+reviewed = "a495ca6d00050273"
 
 [[row.other]]
 kind = "tested-rig"
@@ -767,16 +774,16 @@ requirement = 40
 sentence = "Endpoint buffers are Kernel-owned Resources under the ceiling protocol, a message can release a sporadic Task subject to its MIT, send and receive never wait, and a full buffer is an error reported to the Health_Monitor."
 implemented = "Send and receive are supervisor calls served at the Kernel's level, so each is one indivisible step for every Task (`endpoint_send_core`, `endpoint_recv_core` in crates/rsk-kernel/src/arch/cm4/entry.rs); a send to a receive role bound as a Release_Source goes through the same intake as an interrupt (see R10); the Analyzer counts each operation in the Task's execution and blocking terms."
 strength = "weaker"
-strength_note = "The entry contracts say less than the requirement. A send that is accepted appends the message's first word to the channel's sequence of labels, and a receive that succeeds takes the oldest label and delivers that word first; a receive that is not refused leaves the Kernel's state exactly as it was; neither moves the executing Job's time account. Together with the queue's contracts (R39) this gives 'never waits' and 'a refused operation changes the queue not at all'. Not stated by any contract read here: that a full buffer is reported to the Health_Monitor and charged to the sender (R40.5), that a message stays in the buffer when the Release it would cause is discarded (R40.3), or what happens to an operation cut short by a Health_Monitor action (R40.6). Those are in the functions' bodies and the board's Endpoint cases."
-closed = "2026-11-09: the label a receiver sees was tied to the label the sender wrote (the channel's label sequence in the hardware model). 2026-11-16: Endpoint injections on the board (a rejected reply, a dropped role state)."
-gaps = "R40.3, R40.5 and R40.6 as postconditions of the send and receive cores. Only a message's first word is modelled; the rest of the payload is the copy's (bounded-checked). R40.2 is the Analyzer's, with tests."
+strength_note = "Close since 2026-11-16. A send that is accepted appends the message's first word to the channel's sequence of labels, whatever the Release it may cause turns out to be (accepted, deferred or discarded), which is R40.3: the message stays. A send that is not accepted leaves every queue and the storage as they were (R40.4, R40.6). A full buffer is reported as the log's newest event against the sender's Task and Partition (R40.5). A receive that is not refused leaves the Kernel's state as it was and delivers the oldest label. Weaker in what a statement about the Kernel's model cannot say: only a message's first word is modelled, an operation is one indivisible Kernel entry by construction rather than by a stated property, and R40.2 is the Analyzer's."
+closed = "2026-11-09: the label a receiver sees was tied to the label the sender wrote. 2026-11-16: stating 'a send that is not accepted leaves every channel as it was' as a postcondition failed to verify: one refusal path returned after the queue had already taken a slot, leaving an entry for a message that was never copied. The queue is now restored on that path; three mutants killed. The same day, the full-buffer report became a postcondition."
+gaps = "Only a message's first word is modelled; the rest of the payload is the copy's (bounded-checked). That an operation cannot be interrupted part-way is the Kernel-level execution of the supervisor call, by design. R40.2 is the Analyzer's, with tests."
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
-says = "The Kernel's and the entry code's invariants are preserved and the Job stack does not grow; the interrupt mask level, MPU view and global mask are unchanged; if the send is accepted, the message's first word is appended to the channel's label sequence; the executing Job's charge point is not moved."
-reviewed = "900c19a39137cda8"
+says = "The Kernel's and the entry code's invariants are preserved and the Job stack does not grow; the interrupt mask level, MPU view and global mask are unchanged. If the send is accepted, the message's first word is appended to the channel's label sequence. If it is not accepted, nothing is written into the Endpoint storage and every channel's queue is as it was. If the buffer was full and a Job is executing, the newest entry of the event log is the buffer-full event against that Job's Task and that Task's Partition. The executing Job's charge point is not moved."
+reviewed = "a95aea3a07f8da8f"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -966,3 +973,640 @@ note = "the validation functions and role modules proven free of run-time errors
 kind = "assumed"
 ref = "A-P6"
 note = "peer state after a stop or restart"
+
+# ================================================================
+# The remaining requirements (2026-11-16): written from each requirement's
+# text, the Verification_Plan and the matrix's facts. Where a row says the
+# tool's source was not read, its judgment is of the evidence's kind, not of
+# the tool's code.
+
+[[row]]
+requirement = 1
+sentence = "The Profile is a versioned document in which every restriction has a permanent identifier and states its rule, the guarantee it supports, how it is enforced and which evidence shows it."
+implemented = "The Profile is data, profile/profile.toml, from which docs/profile.md and the version constants compiled into every tool are generated."
+strength = "yes"
+strength_note = "The requirement asks for a document with a fixed structure, and a tool checks that structure: `cargo xtask profile --check` compares the 36 restrictions, their fields, the version and the change log with what Requirements 1 and 2 ask, and passed on this tree. It checks that each field is present and well-formed, not that what a field says is true."
+closed = ""
+gaps = "Whether each stated guarantee really follows from its rule is the subject of the other rows, not of this check."
+
+[[row.other]]
+kind = "checked"
+ref = "profile/profile.toml"
+note = "`cargo xtask profile --check` passes: 36 restrictions, 6 change-log entries"
+
+[[row]]
+requirement = 2
+sentence = "The Profile lists the thirty-six rules an Application must follow, each with the subjects it applies to and at least one piece of evidence per way it is enforced."
+implemented = "The catalogue is the restriction table of profile/profile.toml; the conformance suite's cases are in docs/conformance_suite.toml."
+strength = "yes"
+strength_note = "As R1: the same check confirms that all 36 restrictions are present with their subjects and that each enforcement category names an evidence item. Whether each named item exists in the evidence store is reported by the traceability matrix."
+closed = ""
+gaps = "Some named evidence items are absent from the store until a full verification run."
+
+[[row.other]]
+kind = "checked"
+ref = "profile/profile.toml"
+note = "the restriction catalogue checked against R2"
+
+[[row]]
+requirement = 3
+sentence = "Every violation of a rule is reported when the program is built, by whichever tool enforces that rule, with the rule's identifier; and for every rule there is a deliberately wrong program that must be rejected."
+implemented = "Four enforcers: the Generator (declaration rules), the Profile_Lint (source rules, crates/rsk-lint), the Link_Checker (binary rules, crates/rsk-link) and the Kernel at run time; the conformance suite holds one rejected case per rule and category."
+strength = "weaker"
+strength_note = "No formal statement. The evidence is the conformance suite: each restriction and category has a case that must fail with the right identifier, and the verification job runs them. That shows each enforcer fires on its example; it does not show an enforcer catches every violation of its rule."
+closed = ""
+gaps = "The enforcers are tools without proofs of completeness. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+
+[[row.other]]
+kind = "checked"
+ref = "check-profile-lint"
+note = "the lint step of the job"
+
+[[row.other]]
+kind = "tested-host"
+ref = "conformance_suite"
+note = "one rejected case per restriction and category"
+
+[[row]]
+requirement = 4
+sentence = "Each rule of Ada's Ravenscar and Jorvik profiles is mapped to its counterpart here, with every deviation stated."
+implemented = "Table 4-1 of the Profile, generated from profile/profile.toml."
+strength = "yes"
+strength_note = "A document requirement with a mechanical check: 29 rows, one per Ada pragma or restriction, each citing the restrictions that correspond, checked by `cargo xtask profile --check`. The check confirms the table's shape and cross-references; that each correspondence is the right one is a reading of the Ada manual."
+closed = ""
+gaps = "The correspondence itself is by review."
+
+[[row.other]]
+kind = "checked"
+ref = "docs/profile.md"
+note = "Table 4-1: 29 rows checked for shape and cross-references"
+
+[[row]]
+requirement = 5
+sentence = "An optional, more permissive variant (Jorvik) would allow several waiters on a signal, relative delays and richer release conditions."
+implemented = "Not implemented. The Generator and the Analyzer reject a model that asks for the variant."
+strength = "no"
+strength_note = "Phase P5 and optional; its task is open. What exists is the rejection: a Task_Model that uses a Jorvik relaxation is refused."
+closed = ""
+gaps = "The whole variant."
+
+[[row.other]]
+kind = "checked"
+ref = "task 26.1"
+note = "open"
+
+[[row]]
+requirement = 6
+sentence = "The Kernel is small, uses no standard library and no heap, keeps all `unsafe` code in one module with a justification for each use, and executes no floating-point arithmetic of its own."
+implemented = "Static checks over the Kernel's sources and dependency graph (xtask/src/checks), the justification register (crates/rsk-kernel/unsafe_justifications.toml) and the Link_Checker's scan of the binary for floating-point instructions."
+strength = "weaker"
+strength_note = "No formal statement; these are structural rules checked mechanically on every run: the line count against its limit, the absence of `std` and an allocator, every `unsafe` construct carrying an identifier that resolves to a proof, a harness or a recorded review. The checks are exact about structure. The justifications themselves are mostly reviews: of the register's entries, eight are Kani harnesses and the rest are written arguments."
+closed = ""
+gaps = "Most `unsafe` justifications are reviews. 2026-11-16: the check counted one stub under another's identifier (the nearest comment won); fixed."
+
+[[row.other]]
+kind = "checked"
+ref = "check-static-checks"
+note = "the size, `std`, allocator and `unsafe` rules"
+
+[[row.other]]
+kind = "checked"
+ref = "proof-kernel-kani"
+note = "the eight machine-checked justifications"
+
+[[row]]
+requirement = 13
+sentence = "Every Kernel overhead that the timing analysis charges is defined, exported as a record with its provenance, and bounded."
+implemented = "The Kernel's instrumented build records each entry's duration; the rig writes them as Kernel_Timing_Parameter records (docs/hil/kernel_timing_*.json) which the Analyzer reads."
+strength = "weaker"
+strength_note = "R13.1 asks for upper bounds. What exists are measured maxima with a 25 % margin, each bound to the binary it was measured on, from runs of three minutes to an hour. A measured maximum is not a bound. R13.5 (bounded loops in the Kernel) is proven. The Analyzer does include every parameter and rejects an input without one, which has tests."
+closed = ""
+gaps = "Static bounds for the Kernel's entries do not exist. The records are of the instrumented build, which is slower than the flight build by a measured share."
+
+[[row.other]]
+kind = "tested-rig"
+ref = "kernel_timing_nrf52840"
+note = "measured records, margin 25 %"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-11"
+note = "a measured maximum is not a worst case"
+
+[[row]]
+requirement = 15
+sentence = "The integrator declares Partitions with a criticality level, memory sizes, owned items and fault responses, and the Generator refuses a declaration in which anything is shared across Partitions or left out."
+implemented = "The declaration grammar and its validation are in crates/rsk-gen (decl.rs, validate.rs); each rejection is a compile error at the offending item."
+strength = "weaker"
+strength_note = "No formal statement. Each rejection rule is the Generator's, with conformance cases that must be rejected. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+closed = ""
+gaps = "The Generator is not proven; its output is re-checked by the Config_Checker (see R26) and at boot (see R12)."
+
+[[row.other]]
+kind = "tested-host"
+ref = "conformance_suite"
+note = "rejected declarations per rule"
+
+[[row]]
+requirement = 20
+sentence = "The design records how hardware-accelerated scheduling and privilege separation are reconciled, and the scheduling and locking properties are proven under the mechanism chosen."
+implemented = "Jobs run unprivileged in Thread mode; the Kernel runs in handlers. The decision and its comparison with the alternatives are in the design document (DD-01)."
+strength = "weaker"
+strength_note = "R20.3 asks that the scheduling and locking properties be proven under the chosen mechanism, and they are (see R7 and R8), over a model of the interrupt controller. R20.4 (reject a layout the MPU cannot realise) is the Generator's with a boot-time validation that is proven. The rest is documentation. One task under this requirement is open."
+closed = ""
+gaps = "The mechanism's realisation in the stubs and the processor is by inspection and test (see R7)."
+
+[[row.other]]
+kind = "checked"
+ref = "P-04"
+note = "the allocation row for the start condition"
+
+[[row]]
+requirement = 21
+sentence = "The whole system is declared in one block, with explicit units for every time, and every error is reported at the place in the declaration that caused it."
+implemented = "The `rsk::app!` macro (crates/rsk-macros, crates/rsk-gen)."
+strength = "weaker"
+strength_note = "No formal statement; the Generator's acceptance and rejection are shown by the demo's thirteen declarations and by rejected cases. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+closed = ""
+gaps = "Not proven; downstream checks (R26, R12) catch a wrong output, not a wrongly accepted declaration."
+
+[[row.other]]
+kind = "tested-host"
+ref = "conformance_suite"
+note = "accepted and rejected declarations"
+
+[[row]]
+requirement = 22
+sentence = "A declaration that is inconsistent or that the tools cannot analyse is rejected at compile time."
+implemented = "The validation pass of the Generator (crates/rsk-gen/src/validate.rs), including the Protocol checks."
+strength = "weaker"
+strength_note = "No formal statement for the Generator's own rules. The Protocol part is stronger: a Protocol the checker accepts is proven deadlock-free (see R41). One hole in this requirement's intent was found and closed on 2026-11-16: a per-Task state declared with a non-zero initial value was accepted although the value could never be seen; the generated cell now refuses it at compile time."
+closed = ""
+gaps = "The Generator's validation is tested, not proven complete. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+
+[[row.other]]
+kind = "tested-host"
+ref = "conformance_suite"
+note = "rejected declarations"
+
+[[row.other]]
+kind = "checked"
+ref = "api-misuse"
+note = "the non-zero initial value and the API misuse cases do not compile"
+
+[[row]]
+requirement = 23
+sentence = "Ceilings, priority encodings, table sizes and the other derived values are computed from the declaration, never written by hand, and exported."
+implemented = "crates/rsk-gen/src/derive.rs; the values go into the generated configuration and the Task_Model."
+strength = "weaker"
+strength_note = "The Generator's computation is tested, including property-based tests. Its results are not trusted: the Config_Checker recomputes every derived value with separately written and proven arithmetic and compares (see R26), so a wrong ceiling fails the build even though the Generator is unproven."
+closed = ""
+gaps = "Both tools read the same requirements; a shared misreading would pass."
+
+[[row.other]]
+kind = "tested-host"
+ref = "Property 13"
+note = "the Generator's property-based tests (determinism, order independence)"
+
+[[row.other]]
+kind = "checked"
+ref = "check-config"
+note = "the independent recomputation"
+
+[[row]]
+requirement = 24
+sentence = "The Kernel's configuration tables are generated from the declaration, with a checksum, so that what runs and what was analysed cannot differ."
+implemented = "crates/rsk-gen/src/emit.rs writes the tables; a drift check compares the committed generated files with a fresh generation; the Kernel verifies the checksums at boot."
+strength = "weaker"
+strength_note = "Three mechanical checks rather than a proof: the generated files are regenerated and compared on every run, the Config_Checker compares the tables in the binary with the model, and the Kernel checks the checksums at boot and validates the tables (the validation is proven, see R12)."
+closed = ""
+gaps = "The checksum is CRC-32."
+
+[[row.other]]
+kind = "checked"
+ref = "check-static-checks"
+note = "`gen --check`: the committed tables are the generated ones"
+
+[[row.other]]
+kind = "checked"
+ref = "check-config"
+note = "the binary's tables against the model"
+
+[[row]]
+requirement = 25
+sentence = "The task model is exported as a versioned, machine-readable file that every other tool consumes."
+implemented = "The Task_Model JSON with its schema (crates/rsk-model)."
+strength = "weaker"
+strength_note = "No formal statement. Round-trip and schema tests exist, and the Config_Checker reads the model with its own parser, so a malformed export is caught by a second reader."
+closed = ""
+gaps = "Tested."
+
+[[row.other]]
+kind = "tested-host"
+ref = "Property 15"
+note = "round trips of the model"
+
+[[row]]
+requirement = 27
+sentence = "The task model already carries core assignments, and every tool of this version refuses a model that uses more than one core."
+implemented = "A core field in the Task_Model; a rejection rule in the Analyzer and the Generator."
+strength = "weaker"
+strength_note = "A small requirement met by a rejection rule with a test named after it (a Task on another core is rejected). Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+closed = ""
+gaps = "Multi-core is out of scope by decision."
+
+[[row.other]]
+kind = "tested-host"
+ref = "crates/rsk-analyzer/tests/rules.rs"
+note = "a Task on another core is rejected"
+
+[[row]]
+requirement = 31
+sentence = "The task set can be exported as timed automata for the UPPAAL model checker, as an independent cross-check of the response-time analysis."
+implemented = "crates/rsk-analyzer/src/uppaal.rs writes the model and the query; a corpus of task sets is checked both ways."
+strength = "weaker"
+strength_note = "This is a cross-check, not a proof, and the requirement asks for no more. Its reach is limited: the exported model leaves out the ceiling protocol, so it checks the analysis on task sets without shared Resources, and it needs the external tool."
+closed = ""
+gaps = "Ceilings are not modelled. The cross-check runs on a corpus, not on every analysis."
+
+[[row.other]]
+kind = "tested-host"
+ref = "uppaal"
+note = "the corpus report and its dispositions"
+
+[[row]]
+requirement = 32
+sentence = "The Analyzer's own correctness is supported by proof where feasible and by property-based tests and cross-checks elsewhere."
+implemented = "Proofs inside crates/rsk-analyzer (the fixed point, the term derivation, the utilization check), a reference implementation, property tests, the UPPAAL cross-check, and the Lean proof over the compiled code."
+strength = "weaker"
+strength_note = "Stronger than most tool requirements: the core is proven (see R29) and Property 18, that the reported bound holds in execution, is proven in Lean over a run of the Kernel's own functions. The composition of the pieces into the final verdict is ordinary code with tests, and the Lean run has conditions listed in the row for R18."
+closed = ""
+gaps = "See R29 and R18."
+
+[[row.other]]
+kind = "checked"
+ref = "proof-kernel-verus"
+note = "the Analyzer's proven items, with the Kernel's"
+
+[[row.other]]
+kind = "tested-host"
+ref = "crates/rsk-analyzer/tests/properties.rs"
+note = "monotonicity, locality, a reference implementation"
+
+[[row]]
+requirement = 33
+sentence = "Every execution-time value carries where it came from and which binary it was measured on, and the Analyzer refuses a value from another binary."
+implemented = "The WCET_Record format (crates/rsk-model) with the binary's hash; the rejection is the Analyzer's."
+strength = "weaker"
+strength_note = "No formal statement; the binding is a hash comparison with a test (records of another binary, clock or cache setting are rejected). One task is open (the static records of Phase P5)."
+closed = ""
+gaps = "Only measured records exist."
+
+[[row.other]]
+kind = "tested-host"
+ref = "crates/rsk-analyzer/tests/rules.rs"
+note = "records of another binary are rejected"
+
+[[row]]
+requirement = 34
+sentence = "Execution times of every Task, critical section and Kernel operation are measured automatically on the real board, under the worst interference the Application can produce."
+implemented = "The instrumented Kernel is the measuring agent; the rig (crates/rsk-hil) runs the configurations, reads the records and writes them with their scenarios and coverage."
+strength = "weaker"
+strength_note = "The pipeline exists and runs, with the interference scenarios the requirement lists and branch coverage of the measured code. The requirement's limit is its own: measurement gives estimates. Most Task records have fewer runs than the stated ten thousand in the short configurations, which each record says."
+closed = ""
+gaps = "Measurement is not a bound (ASM-11). 2026-11-16: the records now say how many Kernel entries interrupted the longest Job, since the accounting charges them to it."
+
+[[row.other]]
+kind = "tested-rig"
+ref = "wcet_nrf52840"
+note = "the committed records"
+
+[[row.other]]
+kind = "tested-rig"
+ref = "coverage_nrf52840"
+note = "branch coverage of the measured inputs"
+
+[[row]]
+requirement = 35
+sentence = "Loop bounds are written once in the source, checked, and used by the timing tools, so that no unbounded loop reaches a Task."
+implemented = "A `#[rsk::bounds]` annotation or a constant bound the lint derives (crates/rsk-lint); the Application prover checks that each loop's variant equals its bound; the measurement build reports the iterations actually seen."
+strength = "weaker"
+strength_note = "Three checks agree on each loop: the lint requires a bound, the prover proves the loop does not exceed it, and the rig compares observed iterations with it. That is close to what is asked for the demo's loops. It rests on the lint finding every loop, which is a tool without a proof."
+closed = ""
+gaps = "Loops in library code are bounded by constants the lint derives."
+
+[[row.other]]
+kind = "checked"
+ref = "loop-bounds"
+note = "31 loops bounded, 26 with a proven variant"
+
+[[row.other]]
+kind = "checked"
+ref = "proof-app-creusot"
+note = "each loop within its annotation"
+
+[[row]]
+requirement = 36
+sentence = "Static worst-case execution times computed from the binary, so that the highest assurance level does not rest on measurement."
+implemented = "Not implemented."
+strength = "no"
+strength_note = "Phase P5; the task is open. All timing evidence is measured."
+closed = ""
+gaps = "The whole requirement. Its absence is why R13, R29 and R34 read 'weaker'."
+
+[[row.other]]
+kind = "checked"
+ref = "task 24.1"
+note = "open"
+
+[[row]]
+requirement = 43
+sentence = "A table assigns every guarantee to the tool that establishes it and the evidence it produces."
+implemented = "Section 3 of the Verification_Plan (25 rows) and the traceability matrix."
+strength = "weaker"
+strength_note = "The table exists and the matrix is generated from it and checked on every run. A document requirement; what makes it weaker is that the table's status column is prose kept by hand, and this file found places where it said 'proven' of a function whose contract did not state the property (the EasyDMA request, before 2026-11-16)."
+closed = ""
+gaps = "The table's prose can drift from the contracts; this file's hashes guard the rows it covers."
+
+[[row.other]]
+kind = "checked"
+ref = "check-evidence"
+note = "the matrix regenerated and compared"
+
+[[row]]
+requirement = 45
+sentence = "Bounded model checking covers the `unsafe` code and the hardware glue that the main prover cannot reach."
+implemented = "Kani harnesses in crates/rsk-kernel (the unsafe module) and crates/rsk-logic, run by the verification job, with a register of the stubs they use."
+strength = "weaker"
+strength_note = "Bounded by nature: each harness checks all inputs within stated bounds on a small configuration. The harnesses run the real functions down to the register write. Two tasks under this requirement are open."
+closed = ""
+gaps = "Bounds; the stubs that stand for registers; assembly is not modelled."
+
+[[row.other]]
+kind = "checked"
+ref = "proof-kernel-kani"
+note = "the job's Kani step"
+
+[[row.other]]
+kind = "checked"
+ref = "R45.8"
+note = "the harness sizes pinned to the demo's"
+
+[[row]]
+requirement = 46
+sentence = "Task bodies of the higher-criticality Partitions can be proven free of run-time errors, and against functional properties."
+implemented = "Creusot over the Partition crates, with trusted contracts on the `rsk` API (proofs/creusot)."
+strength = "weaker"
+strength_note = "The demo's bodies are proven free of panics, overflow and out-of-bounds access in every configuration the rig builds, with two solver sets. The API's contracts are trusted, not proven, and a few constructs are outside the prover (one floating-point step, pointer casts)."
+closed = ""
+gaps = "The trusted API contracts (TBR-08). 2026-11-16: the EasyDMA lending API was added as trusted functions and checked separately by Kani."
+
+[[row.other]]
+kind = "checked"
+ref = "proof-app-creusot"
+note = "the job's Application prover step"
+
+[[row]]
+requirement = 47
+sentence = "Concurrent components are explored on the host with Loom and Shuttle, and the results are labelled as testing."
+implemented = "A host model of dispatch and locking (crates/rsk-loom) running the Kernel's logic."
+strength = "yes"
+strength_note = "The requirement asks for exploration and for honest labelling, and gets both: exhaustive runs on a small configuration, random schedules on a larger one, every execution checked against the restated postconditions, recorded as testing evidence only."
+closed = ""
+gaps = "Neither tool is sound for proof; the plan says so."
+
+[[row.other]]
+kind = "tested-host"
+ref = "Loom"
+note = "exhaustive on the small configuration; 20,000 random schedules on the large one"
+
+[[row]]
+requirement = 48
+sentence = "Every trusted component and assumption is listed with its justification."
+implemented = "docs/trust_base_register.toml and docs/proof_assumptions.toml."
+strength = "weaker"
+strength_note = "The registers exist and one of them is enforced: an assumption construct in a verified crate that is not in the register fails the job. That the list of trusted components is complete is by review. This file's reading added one (HW-15) and found the rule range out of date."
+closed = ""
+gaps = "Completeness of the list."
+
+[[row.other]]
+kind = "checked"
+ref = "trust_base_register"
+note = "the register"
+
+[[row.other]]
+kind = "checked"
+ref = "R50.2"
+note = "unlisted assumption constructs fail the job"
+
+[[row]]
+requirement = 49
+sentence = "A formal model states the processor behaviours the proofs depend on, each with its source, and each is validated against the real chip."
+implemented = "crates/rsk-logic/src/hw_model.rs: fifteen rules with citations; differential tests on the board for fourteen and a footprint test for the fifteenth."
+strength = "weaker"
+strength_note = "The model exists, is cited rule by rule, and was tested against the board, which refuted one rule (a timer constant) and had it revised. A model validated by test is still an assumption wherever the test did not look; three rules have parts marked untested."
+closed = ""
+gaps = "Untested parts of three rules; errata by review."
+
+[[row.other]]
+kind = "tested-rig"
+ref = "hil-dt-hw-01"
+note = "one differential test per rule"
+
+[[row.other]]
+kind = "assumed"
+ref = "ASM-08"
+note = "the processor behaves as the manual says"
+
+[[row]]
+requirement = 50
+sentence = "Proofs and tests run automatically, assumptions are gated, and every result is archived with the versions of the tools that produced it."
+implemented = "`cargo xtask verify` and the evidence store; the mutation register checks that proofs fail when the code is broken."
+strength = "weaker"
+strength_note = "The job does what is asked when it is run in full. The qualification is practical: the last full run predates several changes (since 2026-11-16 changes are checked piece by piece and the full job has not been rerun), so the store's items are older than the tree."
+closed = ""
+gaps = "A full run on the present tree."
+
+[[row.other]]
+kind = "checked"
+ref = "check-evidence"
+note = "the store's step"
+
+[[row.other]]
+kind = "checked"
+ref = "R50.2"
+note = "the assumption gate"
+
+[[row]]
+requirement = 51
+sentence = "Each tool's need for qualification is assessed per the avionics tool-qualification guidance."
+implemented = "Section 8 of the Verification_Plan."
+strength = "weaker"
+strength_note = "A written assessment. It classifies each tool and argues that the Generator needs no qualification because its output is verified. It is an assessment by the project, not a qualification, and it was written without access to the standards' texts."
+closed = ""
+gaps = "No tool is qualified. The objective tables could not be confirmed against the standards (the open items of the gap register)."
+
+[[row.other]]
+kind = "inspected"
+ref = "TQL"
+note = "the assessment"
+
+[[row]]
+requirement = 52
+sentence = "Each formal analysis meets the avionics formal-methods supplement's expectations: soundness, validated models, and preservation of the proven properties down to the object code."
+implemented = "Section 9 of the Verification_Plan; the mutation register for model validation; the Lean proofs over the compiled code for preservation."
+strength = "weaker"
+strength_note = "Partly evidence and partly argument. Model validation has real evidence: 208 registered mutations, each of which must make a proof fail. Preservation to object code is argued, and for the scheduler and the analysis is supported by proofs on the code as the compiler produced it. Soundness of the provers is assumed."
+closed = ""
+gaps = "The provers' soundness; the compiler below the extraction point."
+
+[[row.other]]
+kind = "checked"
+ref = "DO-333"
+note = "section 9"
+
+[[row.other]]
+kind = "assumed"
+ref = "ORQ-08"
+note = "property preservation to object code"
+
+[[row]]
+requirement = 53
+sentence = "A defined way to obtain structural coverage, and source-to-object traceability at the highest level."
+implemented = "Branch coverage of the measured Partition code on the board with an instrumented build; section 14 of the plan."
+strength = "weaker"
+strength_note = "Branch coverage is measured for the Partition code that is measured for timing. The stronger criteria the requirement names for the top levels (modified condition/decision coverage, source-to-object traceability) are described, not obtained."
+closed = ""
+gaps = "MC/DC and source-to-object traceability."
+
+[[row.other]]
+kind = "tested-rig"
+ref = "coverage_nrf52840"
+note = "branch coverage per Task entry"
+
+[[row]]
+requirement = 54
+sentence = "A living register of certification gaps, so that readiness is not overstated."
+implemented = "docs/gap_register.toml."
+strength = "weaker"
+strength_note = "The register exists. Two of its items say the register itself may be wrong (the objective counts and numbering of the standards could not be confirmed), and they stay open by decision."
+closed = ""
+gaps = "The two open items."
+
+[[row.other]]
+kind = "inspected"
+ref = "gap_register"
+note = "the register, with two open items about its own accuracy"
+
+[[row]]
+requirement = 55
+sentence = "The code builds with both the prover's compiler and the qualified compiler, so that the verified source is the source that ships."
+implemented = "A language subset recorded in toolchain/decision.toml and enforced by the lint."
+strength = "weaker"
+strength_note = "The subset is enforced. The second build, with the qualified compiler, is Phase P5 and its task is open, so 'both' is not yet shown."
+closed = ""
+gaps = "The dual build."
+
+[[row.other]]
+kind = "checked"
+ref = "decision.toml"
+note = "the pinned toolchains"
+
+[[row.other]]
+kind = "checked"
+ref = "task 23.1"
+note = "open"
+
+[[row]]
+requirement = 56
+sentence = "Flight binaries built by a pinned release of the qualified compiler."
+implemented = "Not implemented."
+strength = "no"
+strength_note = "Phase P5; the task is open."
+closed = ""
+gaps = "The whole requirement."
+
+[[row.other]]
+kind = "checked"
+ref = "task 23.1"
+note = "open"
+
+[[row]]
+requirement = 57
+sentence = "The standard-library items the Kernel and Applications may use are a documented, minimal list."
+implemented = "profile/core_subset.toml (24 items), enforced by the lint and the Link_Checker."
+strength = "weaker"
+strength_note = "The list exists and is enforced on source: a use outside it is a lint error, as happened on 2026-11-16 when a new library function used an item outside the list and was rewritten. That each listed item maps to certification evidence is stated, not shown."
+closed = ""
+gaps = "The mapping to certification evidence."
+
+[[row.other]]
+kind = "checked"
+ref = "core_subset.toml"
+note = "24 items, enforced by the lint"
+
+[[row.other]]
+kind = "checked"
+ref = "check-profile-lint"
+note = "a use outside the subset fails"
+
+[[row]]
+requirement = 58
+sentence = "Every dependency is pinned, vendored and assessed for `unsafe` code."
+implemented = "Vendored dependencies, a lockfile check and a dependency report in the static checks."
+strength = "weaker"
+strength_note = "Mechanical checks of pinning and vendoring; the assessment of third-party `unsafe` code is a report read by a person. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+closed = ""
+gaps = "The assessment's depth."
+
+[[row.other]]
+kind = "checked"
+ref = "vendor"
+note = "pinned and vendored"
+
+[[row.other]]
+kind = "checked"
+ref = "check-static-checks"
+note = "the lockfile and dependency checks"
+
+[[row]]
+requirement = 59
+sentence = "A rebuild from the same sources gives a bit-identical binary."
+implemented = "`cargo xtask rebuild-check` rebuilds the flight binaries from a clean copy and compares hashes."
+strength = "weaker"
+strength_note = "A direct test of what is asked, on this machine. Identical rebuilds on one host do not show the same across hosts."
+closed = ""
+gaps = "One host."
+
+[[row.other]]
+kind = "checked"
+ref = "R59.3"
+note = "the rebuild comparison"
+
+[[row]]
+requirement = 60
+sentence = "Architecture-specific code is isolated so that other processors can reuse the portable logic and its proofs."
+implemented = "The Kernel's logic (crates/rsk-logic) is separate from the Cortex-M4 code (crates/rsk-kernel/src/arch/cm4); a QEMU board and the nRF52840 share it."
+strength = "no"
+strength_note = "Phase P5; the ports are not done and the tasks are open. The separation exists and is exercised by two boards of one architecture, which is weaker than a second architecture."
+closed = ""
+gaps = "Any second architecture."
+
+[[row.other]]
+kind = "inspected"
+ref = "ASM-01"
+note = "one core revision is supported; the separation is by code structure"
+
+[[row]]
+requirement = 61
+sentence = "Each reused project's contribution and each deviation from it is recorded with its reason."
+implemented = "The design document's reuse section."
+strength = "weaker"
+strength_note = "A documentation requirement; the record exists. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+closed = ""
+gaps = "By review."
+
+[[row.other]]
+kind = "inspected"
+ref = "RN-22"
+note = "the reuse record cites its sources"

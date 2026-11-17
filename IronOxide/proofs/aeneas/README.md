@@ -101,6 +101,12 @@ The handwritten files:
 - `lean/Sched/KRun.lean`: the run over the Kernel's functions (`KStep`,
   `KReach`), the proof that each such run is a specification-level run
   (`ksim`), and `property18_kernel`;
+- `lean/Sched/Arrive.lean`: the timed run. A Periodic_Task's Job arrives at
+  the Task's nominal instant in the Kernel's state, once per instant, with no
+  spacing condition; `treach_kreach` derives the spacing `KRun.lean` asks,
+  and `property18_timed` is Property 18 over it. The hand-modelled
+  transitions keep the nominal instants by condition; sporadic arrivals keep
+  their spacing condition.
 - `lean/Sched/Time.lean`: the time base on the code. The Kernel's reading
   `now` is written by `observe` alone and never goes back; the responses and
   slot handlers leave it and the nominal instants (`TimeKept`); a timer entry

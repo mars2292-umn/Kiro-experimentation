@@ -87,7 +87,9 @@ rsk::app! {
     partition part2 (level = B, crate = p1_demo_part2, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
                      fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
-        peripherals = [SPIM0];
+        // SPIM1 for the footprint step alone (HW-15 on a second instance of
+        // the peripheral; 2026-11-16).
+        peripherals = [SPIM0, SPIM1];
         // A Resource of the Partition's own type with a relational invariant
         // (R46.4, task 17.1): accepted transfers never exceed requested ones.
         resource stats: crate::Stats = crate::Stats::new() invariant |s: crate::Stats| s.ok@ <= s.total@;
@@ -117,6 +119,9 @@ rsk::app! {
         state sampler.dma_footprint: u32 = 0;
         state sampler.dma_footprint_1m: u32 = 0;
         state sampler.dma_footprint_125k: u32 = 0;
+        state sampler.dma_footprint_spim1: u32 = 0;
+        state sampler.rx2: rsk::DmaGuarded<64> = rsk::DmaGuarded::new();
+        state sampler.rx2_held: rsk::DmaHeld = rsk::DmaHeld::none();
         state sampler.dma_end: u32 = 0;
         state sampler.dma_after_stop: u32 = 0;
         task filter (periodic, period = 25.ms(), deadline = 25.ms(), budget = 800.us(), priority = 3, fpu,

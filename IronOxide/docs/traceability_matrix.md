@@ -196,7 +196,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R14.3 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Reuse and Deviation Record | ✓5.3 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +12 | — |
 | R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/hil-stimulus/system/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; +6 | — |
 | R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/decl/src/qemu_flood.rs; +24 | proof-kernel-verus |
-| R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
+| R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-kernel/src/arch/bound.rs; +3 | proof-kernel-verus |
 | R14.7 | P-09 | Health_Monitor event log entry | ✓4.8 | crates/rsk-kernel/src/arch/bound.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
 | R14.8 | — | — | ✓19.3; ✓4.4 | — | — |
 | R14.9 | P-18 | Kernel logic and Kernel_Arch (Component B) | ✓4.4 | crates/rsk-hil/src/response.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/sched.rs; +3 | proof-kernel-verus |
@@ -489,7 +489,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R39.1 | — | — | ✓21.2; ✓21.7 | profile/profile.toml | — |
 | R39.2 | — | — | ✓21.2 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs | — |
 | R39.3 | — | — | ✓21.2 | crates/rsk-hil/src/kernel_timing.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs | — |
-| R39.4 | P-09 | Property 11 | ✓21.2 | crates/rsk-logic/src/logic/endpoint.rs | — |
+| R39.4 | P-09 | Property 11 | ✓21.2 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/logic/endpoint.rs | — |
 
 ### Requirement 40: Ceiling integration and message-driven release (Phase P4)
 

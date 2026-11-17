@@ -539,10 +539,15 @@ pub trait KernelOps: Sized {
     fn message_permitted(&self, p: u8, ptr: u32, len: u32) -> (ok: bool)
         requires self.inv(),
         ensures ok == ((p as int) < self.partition_count_spec() && self.message_permitted_spec(p as int, ptr as int, len as int));
+    /// The newest entry of the event log: its kind, Task and Partition
+    /// (R14.6), `(-1, -1, -1)` for an empty log.
+    spec fn spec_last_event(&self) -> (int, int, int);
     /// R40.5 (task 21.2): an event against Task `t` with no response.
     fn record_event(&mut self, kind: u8, t: u8)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures (t as int) < old(self).task_count_spec()
+                ==> final(self).spec_last_event() == (kind as int, t as int, old(self).spec_part()[t as int]),
+            final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// R42.4 (task 21.4): a fault of Task `t`'s Partition raised by another
     /// Partition's Job (a rejected message): the event against `t` and
@@ -576,6 +581,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     open spec fn spec_prio(&self) -> Seq<int> {
         Seq::new(256, |t: int| if t < NT { self.cfg.priority(t) as int } else { 0 })
+    }
+
+    open spec fn spec_last_event(&self) -> (int, int, int) {
+        let v = self.kernel.log.view();
+        if v.len() > 0 { (v.last().kind as int, v.last().task as int, v.last().partition as int) } else { (-1, -1, -1) }
     }
 
     open spec fn spec_part(&self) -> Seq<int> {
