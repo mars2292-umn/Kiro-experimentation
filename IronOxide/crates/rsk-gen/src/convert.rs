@@ -25,6 +25,17 @@ pub struct Change {
 
 /// `value * num / den` rounded as requested; `None` on overflow.
 fn scale(value: u64, num: u128, den: u128, rounding: Rounding) -> Option<(u64, bool)> {
+    if den == 0 {
+        return None;
+    }
+    // Down and up are verified (`derive_v::scale`: the result is within
+    // one unit of the exact value, on the side asked for; R29.8, Property
+    // 14). Rounding to nearest (a Task's offset) is not verified.
+    match rounding {
+        Rounding::Down => return crate::derive_v::scale(value, num, den, false),
+        Rounding::Up => return crate::derive_v::scale(value, num, den, true),
+        Rounding::Nearest => {}
+    }
     let v = (value as u128).checked_mul(num)?;
     let q = v / den;
     let r = v % den;

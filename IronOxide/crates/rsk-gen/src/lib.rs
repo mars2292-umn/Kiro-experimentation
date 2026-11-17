@@ -14,12 +14,14 @@
 pub mod convert;
 pub mod decl;
 pub mod derive;
+pub mod derive_v;
 pub mod emit;
 pub mod json;
 pub mod layout;
 pub mod model;
 pub mod roles;
 pub mod profile_version;
+pub mod readback;
 #[cfg(feature = "syntax")]
 pub mod syntax;
 pub mod target;
@@ -59,8 +61,14 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
         .iter()
         .map(|p| (p.name.clone(), emit::partition_source(&generated, p.index)))
         .collect();
+    let system_source = emit::system_source(&generated);
+    // R24.1 (2026-11-16): the table as printed is read back and compared
+    // with the derived values before anything is handed out.
+    if let Err(difference) = readback::check(&system_source, &generated) {
+        return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted configuration does not match the derived values: {difference}"))]);
+    }
     Ok(Outputs {
-        system_source: emit::system_source(&generated),
+        system_source,
         partition_sources,
         memory_x: emit::memory_x(&generated),
         link_x: emit::link_x(&generated, system_crate),
@@ -71,7 +79,7 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::decl::*;
     use super::*;
 

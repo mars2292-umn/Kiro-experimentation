@@ -687,7 +687,7 @@ sentence = "Before the first Task is released the Kernel checks that the process
 implemented = "`boot_core` runs the hardware checks, the table validation (`Config::validate`, `Layout::validate`) and the checksums before it enables any interrupt (crates/rsk-kernel/src/arch/cm4/entry.rs; the validators in crates/rsk-logic/src/logic/mod.rs and mpu.rs)."
 strength = "weaker"
 strength_note = "The table validation is proven exactly: the function returns true if and only if the configuration is well-formed, which is the property every other Kernel proof assumes. Boot's contract says that if it succeeds the Kernel's invariant holds, the hardware model is in its booted state and every vector has its priority and enable; and, since 2026-11-16, that if it fails nothing that could cause a Release is live (no interrupt enabled or pended, no compare armed, the time base not started), which is R12.2 and R12.4 in the terms of the Kernel's model. Weaker: the hardware checks of R12.1 are not stated one by one (they are the body's, shown on the board by failing each in turn), and 'enters the safe state' after a failed boot is the entry crate's loop, outside the contract."
-closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each. 2026-11-16: a failed boot leaving nothing live became a postcondition (one mutant killed)."
+closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each. 2026-11-16: a failed boot leaving nothing live became a postcondition (one mutant killed); the same validation now also runs in the compiler on the generated tables (see R24)."
 gaps = "The hardware reads behind the checks are trusted register accesses. The safe state after a failed boot is the entry crate's. The checksum is CRC-32, an error-detecting code, not a proof of integrity."
 
 [[row.statement]]
@@ -695,7 +695,7 @@ file = "crates/rsk-logic/src/logic/mod.rs"
 name = "validate"
 tool = "verus"
 says = "The function returns true exactly when the configuration is well-formed."
-reviewed = "a56d91cd5fdefea3"
+reviewed = "c5f501ec02a7b23f"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -820,7 +820,7 @@ file = "crates/rsk-logic/src/logic/mod.rs"
 name = "validate"
 tool = "verus"
 says = "As in the row for R12: true exactly when the configuration is well-formed, the premise of every other Kernel proof."
-reviewed = "a56d91cd5fdefea3"
+reviewed = "c5f501ec02a7b23f"
 
 [[row.other]]
 kind = "checked"
@@ -1140,9 +1140,9 @@ requirement = 22
 sentence = "A declaration that is inconsistent or that the tools cannot analyse is rejected at compile time."
 implemented = "The validation pass of the Generator (crates/rsk-gen/src/validate.rs), including the Protocol checks."
 strength = "weaker"
-strength_note = "No formal statement for the Generator's own rules. The Protocol part is stronger: a Protocol the checker accepts is proven deadlock-free (see R41). One hole in this requirement's intent was found and closed on 2026-11-16: a per-Task state declared with a non-zero initial value was accepted although the value could never be seen; the generated cell now refuses it at compile time."
+strength_note = "No formal statement for the Generator's own acceptance rules; they are shown by rejected cases. Two things now back them up statically. A declaration whose generated tables are not well-formed in the Kernel's sense does not compile, because the generated code asserts the Kernel's proven validation on them (see R24); so the Generator accepting something the Kernel's proofs do not cover is a build failure, not a boot failure. And a per-Task state declared with a non-zero initial value, which the Generator accepted although the value could never be seen, is refused by the generated cell. The Protocol part is stronger still: a Protocol the checker accepts is proven deadlock-free (see R41)."
 closed = ""
-gaps = "The Generator's validation is tested, not proven complete. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+gaps = "The Generator's validation rules themselves are tested, not proven complete: a rule it should apply and does not is caught only if the Kernel's well-formedness, the Config_Checker or a proof downstream depends on it."
 
 [[row.other]]
 kind = "tested-host"
@@ -1157,11 +1157,40 @@ note = "the non-zero initial value and the API misuse cases do not compile"
 [[row]]
 requirement = 23
 sentence = "Ceilings, priority encodings, table sizes and the other derived values are computed from the declaration, never written by hand, and exported."
-implemented = "crates/rsk-gen/src/derive.rs; the values go into the generated configuration and the Task_Model."
+implemented = "crates/rsk-gen/src/derive.rs reads the declaration and names things; the arithmetic it needs is in crates/rsk-gen/src/derive_v.rs, verified since 2026-11-16: Ceilings, priority bytes, the timed-event slot plan, time conversions and region sizes. The values go into the generated configuration and the Task_Model."
 strength = "weaker"
-strength_note = "The Generator's computation is tested, including property-based tests. Its results are not trusted: the Config_Checker recomputes every derived value with separately written and proven arithmetic and compares (see R26), so a wrong ceiling fails the build even though the Generator is unproven."
-closed = ""
-gaps = "Both tools read the same requirements; a shared misreading would pass."
+strength_note = "The arithmetic is now proven against definitions written in the Generator's own crate: a Ceiling is an upper bound of the accessors' Priorities that one of them attains; no timed-event slot is given twice and all are below the count less the Kernel's two; a converted time is within one unit of the exact value on the side asked for. The Config_Checker still recomputes every value from separately written and separately proven arithmetic and compares (see R26), so two independent proofs now stand behind each derived number. Weaker than the requirement in what surrounds the arithmetic: which Tasks access a Resource, the nesting depths and the lock-stack capacity are read and summed in ordinary code, and rounding to nearest (used for a Task's offset) is not verified."
+closed = "2026-11-16: the derivation arithmetic moved into Verus (17 items, five mutants killed). Doing so removed two latent faults the old code had outside its tested range: the priority byte underflowed for a level above 8, and the slot counter was an 8-bit value checked against its limit only after it could have wrapped."
+gaps = "The reading of the declaration into the arithmetic's inputs is tested, not proven. Both tools read the same requirements; a shared misreading would pass both proofs."
+
+[[row.statement]]
+file = "crates/rsk-gen/src/derive_v.rs"
+name = "is_ceiling"
+tool = "verus"
+body = true
+says = "c is the Ceiling for the Priorities p when no element of p is above c, c is 0 for an empty p, and for a non-empty p some element equals c."
+reviewed = "cbf8dae0a0225568"
+
+[[row.statement]]
+file = "crates/rsk-gen/src/derive_v.rs"
+name = "ceiling"
+tool = "verus"
+says = "The value returned is the Ceiling of the given Priorities, as `is_ceiling` defines it."
+reviewed = "fb787ab502f38c85"
+
+[[row.statement]]
+file = "crates/rsk-gen/src/derive_v.rs"
+name = "slot_plan"
+tool = "verus"
+says = "If a plan is returned it gives every Task a deadline slot and a Budget slot, and a release slot exactly when asked; no slot is given twice, to one Task or to two; every slot is below the count less two; the count is the slots taken plus two and at most 253. If none is returned, the slots needed plus two exceed 253."
+reviewed = "b9f4fdc53be20291"
+
+[[row.statement]]
+file = "crates/rsk-gen/src/derive_v.rs"
+name = "scale"
+tool = "verus"
+says = "For a positive divisor: if a value is returned it is value times numerator over denominator rounded down, or up, as asked (within one unit of the exact quotient on that side), and the flag is true exactly when the division was not exact. If none is returned, the product does not fit 128 bits or the quotient plus one does not fit 64."
+reviewed = "36e875e40d5e32c5"
 
 [[row.other]]
 kind = "tested-host"
@@ -1176,11 +1205,18 @@ note = "the independent recomputation"
 [[row]]
 requirement = 24
 sentence = "The Kernel's configuration tables are generated from the declaration, with a checksum, so that what runs and what was analysed cannot differ."
-implemented = "crates/rsk-gen/src/emit.rs writes the tables; a drift check compares the committed generated files with a fresh generation; the Kernel verifies the checksums at boot."
+implemented = "crates/rsk-gen/src/emit.rs writes the tables. Since 2026-11-16 the emitted table is read back and compared with the derived values before it is handed out (crates/rsk-gen/src/readback.rs), and the generated code asserts, at compile time, that the tables pass the Kernel's own validation. A drift check compares the committed generated files with a fresh generation; the Kernel verifies the checksums at boot."
 strength = "weaker"
-strength_note = "Three mechanical checks rather than a proof: the generated files are regenerated and compared on every run, the Config_Checker compares the tables in the binary with the model, and the Kernel checks the checksums at boot and validates the tables (the validation is proven, see R12)."
-closed = ""
-gaps = "The checksum is CRC-32."
+strength_note = "Four mechanical checks now stand around the unproven printer. The printed table is read back by a separate reader and compared with the derivation. The generated crate will not compile unless `Config::validate` and `Layout::validate`, the Kernel's own validators, accept the tables: `Config::validate` is proven to be true exactly for a well-formed configuration, which is the premise of every Kernel proof, so a build that succeeds has tables the proofs apply to. The Config_Checker compares the tables in the linked binary with the model. And the Kernel repeats the validation and checks the checksums at boot. This is validation of each build's output, not a proof about the Generator for all declarations; for the property the requirement is after (what runs and what was analysed cannot differ) it is the stronger of the two kinds, because it checks the actual output."
+closed = "2026-11-16: well-formedness of the generated tables was established only at boot, on the board; it is now a condition of compiling. The read-back was added the same day."
+gaps = "The read-back covers the configuration table's numbers, not the layout table or the DMA and Endpoint tables (the Config_Checker covers those from the binary). The checksum is CRC-32."
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mod.rs"
+name = "validate"
+tool = "verus"
+says = "The function returns true exactly when the configuration is well-formed. Since 2026-11-16 it is a constant function, evaluated by the compiler on the generated tables: the assertion the Generator emits after the table fails the build when it returns false."
+reviewed = "c5f501ec02a7b23f"
 
 [[row.other]]
 kind = "checked"

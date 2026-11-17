@@ -81,7 +81,7 @@ pub proof fn lemma_pow2_pos(k: nat)
 }
 
 /// 2^k as a `u32`, by a bounded loop (PR-16).
-pub fn pow2_u32(k: u8) -> (r: u32)
+pub const fn pow2_u32(k: u8) -> (r: u32)
     requires k <= 31,
     ensures r == pow2(k as nat),
 {
@@ -133,7 +133,7 @@ impl Interval {
     }
 
     /// Executable check of `rules_ok` (boot validation, R12.3).
-    pub fn check_rules(&self) -> (ok: bool)
+    pub const fn check_rules(&self) -> (ok: bool)
         ensures ok == self.rules_ok(),
     {
         if !(5 <= self.size_log2 && self.size_log2 <= 31) {
@@ -149,7 +149,7 @@ impl Interval {
     }
 
     /// Executable check of disjointness.
-    pub fn check_disjoint(&self, other: &Interval) -> (d: bool)
+    pub const fn check_disjoint(&self, other: &Interval) -> (d: bool)
         requires self.size_log2 <= 31, other.size_log2 <= 31,
         ensures d == self.disjoint(other),
     {
@@ -497,7 +497,7 @@ impl<const NP: usize> Layout<NP> {
     }
 
     /// Executable check of `wf` (boot validation of the layout, R12.3).
-    pub fn validate(&self) -> (ok: bool)
+    pub const fn validate(&self) -> (ok: bool)
         ensures ok ==> self.wf(),
     {
         if !(self.shared_code.check_rules() && self.kernel_flash.check_rules() && self.kernel_ram.check_rules()) {
@@ -550,7 +550,7 @@ impl<const NP: usize> Layout<NP> {
         &&& self.apart_from_kernel_windows(&self.shared_code)
     }
 
-    fn validate_kernel_windows(&self) -> (ok: bool)
+    const fn validate_kernel_windows(&self) -> (ok: bool)
         requires self.shared_code.rules_ok(),
         ensures ok ==> self.kernel_windows_ok(),
     {
@@ -578,7 +578,7 @@ impl<const NP: usize> Layout<NP> {
     }
 
     /// Executable check of `apart_from_kernel_windows` (R16.2).
-    fn check_apart(&self, i: &Interval) -> (ok: bool)
+    const fn check_apart(&self, i: &Interval) -> (ok: bool)
         requires self.kernel_windows_ok(), i.size_log2 <= 31,
         ensures ok == self.apart_from_kernel_windows(i),
     {
@@ -598,7 +598,7 @@ impl<const NP: usize> Layout<NP> {
         true
     }
 
-    fn validate_partition(&self, p: usize) -> (ok: bool)
+    const fn validate_partition(&self, p: usize) -> (ok: bool)
         requires p < NP, self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(),
             self.kernel_windows_ok(),
         ensures ok ==> self.partition_ok(p as int),
@@ -681,7 +681,7 @@ impl<const NP: usize> Layout<NP> {
         true
     }
 
-    fn validate_pair(&self, p: usize, q: usize) -> (ok: bool)
+    const fn validate_pair(&self, p: usize, q: usize) -> (ok: bool)
         requires p < NP, q < NP,
         ensures ok ==> self.pair_ok(p as int, q as int),
     {

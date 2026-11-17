@@ -331,6 +331,8 @@ fn api_misuse_is_rejected_by_the_type_system() {
     };
     let (ok, text) = check("api_ok");
     assert!(ok, "the rule-abiding Partition crate must compile:\n{text}");
+    let (ok, text) = check("api_tables_valid");
+    assert!(ok, "well-formed tables must pass the build-time validation:\n{text}");
     let cases: &[(&str, &[&str])] = &[
         ("api_reentry", &["error[E0499]", "cannot borrow `cx.state` as mutable more than once"]),
         ("api_escape", &["lifetime may not live long enough"]),
@@ -356,6 +358,9 @@ fn api_misuse_is_rejected_by_the_type_system() {
         // R14.5 (2026-11-16): a Partition static's initial value is the
         // zeroed memory it starts as.
         ("api_static_nonzero", &["error[E0080]", "R14.5: the initial value of a Partition static must be all zero bytes"]),
+        // R12.3 at build time (2026-11-16): tables the Kernel's validation
+        // refuses do not compile.
+        ("api_tables_invalid", &["error[E0080]", "R12.3: the generated configuration is not well-formed"]),
     ];
     for (member, expected) in cases {
         let (ok, text) = check(member);

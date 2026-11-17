@@ -18,7 +18,18 @@ cli = ["syntax", "dep:rsk-model"]
 # Generators of valid declarations for property-based tests (tests only).
 arbitrary = ["dep:proptest"]
 
+# The derivation arithmetic (`src/derive_v.rs`) is verified:
+# `cargo verus verify -p rsk-gen` in the verification job.
+[package.metadata.verus]
+verify = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)"] }
+
 [dependencies]
+vstd = { workspace = true, features = ["std"] }
+verus_builtin = { workspace = true }
+verus_builtin_macros = { workspace = true }
 # The Protocol_Checker (task 21.1): projection and the buffer bound of every Endpoint's Protocol (R22.7).
 rsk-protocol = { workspace = true }
 syn = { workspace = true, optional = true }

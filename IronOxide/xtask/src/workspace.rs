@@ -14,6 +14,8 @@ pub struct Target {
     pub name: String,
     pub kinds: Vec<String>,
     pub src_path: PathBuf,
+    /// The features the target is built only with (`required-features`).
+    pub required_features: Vec<String>,
 }
 
 impl Target {
@@ -333,6 +335,7 @@ fn parse_package(p: &Value, members: &BTreeSet<String>) -> Package {
             name: str_of(t, "name"),
             kinds: strings(t.get("kind")).into_iter().collect(),
             src_path: canonical(Path::new(&str_of(t, "src_path"))),
+            required_features: strings(t.get("required-features")).into_iter().collect(),
         })
         .collect();
     let dependencies = p

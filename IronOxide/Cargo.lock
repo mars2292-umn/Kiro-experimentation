@@ -676,6 +676,9 @@ dependencies = [
  "rsk-model",
  "rsk-protocol",
  "syn 2.0.119",
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
 ]
 
 [[package]]

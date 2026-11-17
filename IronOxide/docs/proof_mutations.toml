@@ -1957,3 +1957,50 @@ find = "  hT : ∀ t, t < NT.val → periodic t = true → P.T t ≤ tk * cfgPer
 replace = "  hT : ∀ t, t < NT.val → periodic t = true → P.T t ≤ tk * cfgPeriod cfg t + 1\n"
 expect = ["Sched/Arrive.lean"]
 prover = "lean"
+
+# The Generator's derivation arithmetic (crates/rsk-gen/src/derive_v.rs; 2026-11-16).
+
+[[mutation]]
+id = "gen-ceiling-takes-the-smaller"
+kills = "derive_v::ceiling (R23.1: the Ceiling is an upper bound of the accessors' Priorities)"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "        if i == 0 || p[i] > c {\n"
+replace = "        if i == 0 || p[i] < c {\n"
+expect = ["derive_v.rs"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "gen-priority-byte-wrong-shift"
+kills = "derive_v::priority_byte (DD-02: the NVIC byte of a level)"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "    if level >= 1 && level <= 8 { (8 - level) * 32 } else { 0 }\n"
+replace = "    if level >= 1 && level <= 8 { (8 - level) * 16 } else { 0 }\n"
+expect = ["derive_v.rs"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "gen-slot-plan-shares-a-slot"
+kills = "derive_v::slot_plan (R9.4: no timed-event slot is given twice)"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "        let base = if want { next + 1 } else { next };\n"
+replace = "        let base = next;\n"
+expect = ["derive_v.rs"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "gen-scale-up-rounds-down"
+kills = "derive_v::scale (R29.8, Property 14: a quantity rounded up is not below the exact value)"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "    let x: u128 = if up && rem != 0 { q + 1 } else { q };\n"
+replace = "    let x: u128 = q;\n"
+expect = ["derive_v.rs"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "gen-region-too-small"
+kills = "derive_v::region_log2 (DD-07: the region holds the bytes)"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "    while size < bytes\n"
+replace = "    while size + 1 < bytes\n"
+expect = ["derive_v.rs"]
+package = "rsk-gen"

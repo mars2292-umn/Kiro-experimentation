@@ -6,7 +6,7 @@
 # `cargo check` on each member).
 [workspace]
 resolver = "2"
-members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody", "bounds", "protocol_state", "protocol_reuse", "plain_fields", "plain_enum", "gating_cycle", "gating_self", "gating_plain", "dma_private", "dma_moved", "static_decl", "static_nonzero"]
+members = ["decl", "ok", "reentry", "escape", "undeclared", "asyncbody", "bounds", "protocol_state", "protocol_reuse", "plain_fields", "plain_enum", "gating_cycle", "gating_self", "gating_plain", "dma_private", "dma_moved", "static_decl", "static_nonzero", "tables_valid", "tables_invalid"]
 
 [workspace.package]
 version = "0.1.0"

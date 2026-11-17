@@ -267,11 +267,9 @@ fn global_labels(g: &rsk_protocol::Global) -> Vec<String> {
 
 /// NVIC priority byte of a Task level (DD-02, `arch::cm4::encode_level`).
 pub fn encode_level(level: u8) -> u8 {
-    if level == 0 {
-        0
-    } else {
-        (8 - level) << 5
-    }
+    // Verified (`derive_v::priority_byte`): total, where `(8 - level) << 5`
+    // underflowed for a level above 8.
+    crate::derive_v::priority_byte(level)
 }
 
 pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, Vec<Diagnostic>> {
@@ -496,30 +494,32 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
     // Ceilings (R23.1): the maximum Priority over the accessor set, a
     // function of the set alone (R23.2).
     for r in &mut resources {
-        r.ceiling = r.accessors.iter().map(|&t| tasks[t].priority).max().expect("validated: at least one accessor");
+        // Verified (`derive_v::ceiling`): no accessor above it, one at it.
+        let priorities: Vec<u8> = r.accessors.iter().map(|&t| tasks[t].priority).collect();
+        assert!(!priorities.is_empty(), "validated: at least one accessor");
+        r.ceiling = crate::derive_v::ceiling(&priorities);
     }
     // Timed-event slots (R9.4, PR-14): one release slot per Periodic_Task
     // or deferring Sporadic_Task, one deadline and one Budget slot per
     // Task, then the end-of-operation and housekeeping slots.
-    let mut next = 0u8;
-    for t in &mut tasks {
-        if t.kind == Kind::Periodic || t.mit_policy == MitPolicy::Defer {
-            t.slot_release = next;
-            next += 1;
-        }
-        t.slot_deadline = next;
-        next += 1;
-        t.slot_budget = next;
-        next += 1;
-    }
-    let slot_count = next as usize + 2;
-    if slot_count > 253 {
+    // Verified (`derive_v::slot_plan`): every slot given once, below the
+    // count less the Kernel's two, the count at most 253. The loop it
+    // replaces counted in a `u8` and checked the limit afterwards.
+    let wants: Vec<bool> = tasks.iter().map(|t| t.kind == Kind::Periodic || t.mit_policy == MitPolicy::Defer).collect();
+    let Some((slots, count)) = crate::derive_v::slot_plan(&wants) else {
+        let needed: usize = wants.iter().map(|w| if *w { 3 } else { 2 }).sum::<usize>() + 2;
         return Err(vec![Diagnostic::new(
             "PR-14",
             ItemRef::Declaration,
-            format!("{slot_count} timed-event slots exceed the 253 the Kernel addresses"),
+            format!("{needed} timed-event slots exceed the 253 the Kernel addresses"),
         )]);
+    };
+    for (t, s) in tasks.iter_mut().zip(slots.iter()) {
+        t.slot_release = s.release;
+        t.slot_deadline = s.deadline;
+        t.slot_budget = s.budget;
     }
+    let slot_count = count as usize;
     // Lock stack (PR-07): every in-progress Job holds at most its declared
     // Resources, so the sum over Tasks bounds the stack.
     let lock_capacity = tasks.iter().map(|t| t.resources.len()).sum::<usize>().max(1);

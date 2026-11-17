@@ -42,6 +42,8 @@ pub const CONFIG: ::rsk_kernel::logic::Config<NT, NR, NP> = ::rsk_kernel::logic:
     slot_budget: [2],
     slot_count: NS as u8,
 };
+/// R12.3 at build time: the tables pass the Kernel's own validation, or this crate does not compile.
+const _: () = assert!(CONFIG.validate(), "R12.3: the generated configuration is not well-formed (Config::validate)");
 use ::rsk_kernel::logic::mpu::{Interval, Layout, PartitionLayout};
 const NO_WINDOW: Interval = Interval { base: 0, size_log2: 5 };
 pub const LAYOUT: Layout<NP> = Layout {
@@ -55,6 +57,8 @@ pub const LAYOUT: Layout<NP> = Layout {
         PartitionLayout { code: Interval { base: 0x00030000, size_log2: 15 }, code_srd: 0x00, ram: Interval { base: 0x20008000, size_log2: 15 }, ram_srd: 0x00, stack_size: 4096, windows: [Interval { base: 0x50000000, size_log2: 12 }, NO_WINDOW, NO_WINDOW, NO_WINDOW, NO_WINDOW], window_count: 1, windows_ro: [false, false, false, false, false] }, // stim
     ],
 };
+/// R12.3, R16.6 at build time: the layout passes the Kernel's own validation, or this crate does not compile.
+const _: () = assert!(LAYOUT.validate(), "R12.3: the generated layout is not well-formed (Layout::validate)");
 pub type K = ::rsk_kernel::arch::Bound<NT, NR, NP, NL, NS, NE>;
 static KERNEL: ::rsk_kernel::arch::cm4::KernelCell<K> = ::rsk_kernel::arch::cm4::KernelCell::new(::rsk_kernel::arch::Bound { cfg: CONFIG, kernel: ::rsk_kernel::arch::placeholder_kernel(), layout: LAYOUT, views: [::rsk_kernel::arch::placeholder_view()] });
 const DISPATCH_IRQ: [u16; NT] = [20];

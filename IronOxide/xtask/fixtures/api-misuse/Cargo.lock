@@ -132,6 +132,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_tables_invalid"
+version = "0.1.0"
+dependencies = [
+ "rsk-kernel",
+]
+
+[[package]]
+name = "api_tables_valid"
+version = "0.1.0"
+dependencies = [
+ "rsk-kernel",
+]
+
+[[package]]
 name = "api_undeclared"
 version = "0.1.0"
 dependencies = [
@@ -200,6 +214,9 @@ dependencies = [
  "proc-macro2",
  "rsk-protocol",
  "syn",
+ "verus_builtin",
+ "verus_builtin_macros",
+ "vstd",
 ]
 
 [[package]]

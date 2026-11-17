@@ -114,14 +114,23 @@ pub struct ResourceCell<T> {
 // argument is the Kernel proof plus the type-system rules.
 unsafe impl<T: Send> Sync for ResourceCell<T> {}
 
+/// The most bytes a Partition static is checked over: the nRF52840's RAM
+/// (256 KiB), which no static exceeds. The bound of `all_bytes_zero`'s loop
+/// (PR-16); a larger value is refused, not passed unchecked.
+const STATIC_BYTES_MAX: usize = 0x4_0000;
+
 /// Whether every byte of `value` is zero. Evaluated at compile time for
 /// the initial value of every Partition static (`ResourceCell::for_static`).
 /// A type with padding bytes has no defined value there, and the compiler
 /// rejects the evaluation: a Partition static's type has none.
 const fn all_bytes_zero<T>(value: &T) -> bool {
     let bytes = value as *const T as *const u8;
+    let size = core::mem::size_of::<T>();
+    if size > STATIC_BYTES_MAX {
+        return false;
+    }
     let mut i = 0;
-    while i < core::mem::size_of::<T>() {
+    while i < STATIC_BYTES_MAX && i < size {
         // SAFETY (UJ-063): `bytes` points to `value`, a live `T`, and `i`
         // is below its size; the byte is read and nothing is written.
         if unsafe { *bytes.add(i) } != 0 {

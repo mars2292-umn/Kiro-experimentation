@@ -236,7 +236,7 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
     /// Executable validation of `wf` (R12.3, boot-time configuration
     /// validation of the tables): returns `true` exactly when the
     /// configuration is well formed.
-    pub fn validate(&self) -> (ok: bool)
+    pub const fn validate(&self) -> (ok: bool)
         ensures ok == self.wf(),
     {
         if !(0 < NT && NT <= 255 && NR <= 255 && 0 < NP && NP <= 255
@@ -351,7 +351,7 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
     }
 
     /// Executable check of `partition_ok` for every Partition.
-    pub fn validate_partitions(&self) -> (ok: bool)
+    pub const fn validate_partitions(&self) -> (ok: bool)
         requires 0 < NP <= 255,
         ensures ok == forall|p: int| 0 <= p < NP ==> self.partition_ok(p),
     {
@@ -403,7 +403,7 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
     }
 
     /// Executable check of the slot tables.
-    pub fn validate_slots(&self) -> (ok: bool)
+    pub const fn validate_slots(&self) -> (ok: bool)
         requires 0 < NT <= 255,
         ensures ok == (2 <= self.slot_count
             && (forall|t: int| 0 <= t < NT ==> self.slot_ok(t))

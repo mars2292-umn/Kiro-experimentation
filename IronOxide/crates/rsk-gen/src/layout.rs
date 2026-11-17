@@ -76,11 +76,11 @@ pub struct Plan {
 }
 
 fn log2_ceil(bytes: u64, min_log2: u8) -> u8 {
-    let mut k = min_log2;
-    while (1u64 << k) < bytes {
-        k += 1;
-    }
-    k
+    // Verified (`derive_v::region_log2`): the smallest power of two, not
+    // below the minimum, that holds the bytes. A size no region of the
+    // Target's 32-bit address space holds gets the exponent 32, which
+    // `plan` cannot place and reports.
+    crate::derive_v::region_log2(bytes, min_log2.min(31)).unwrap_or(32)
 }
 
 /// A region of at least `bytes` usable bytes: the smallest power of two

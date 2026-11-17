@@ -1,0 +1,8 @@
+[package]
+name = "api_tables_valid"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+rsk-kernel = { path = "../../../../crates/rsk-kernel" }

@@ -126,6 +126,14 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    slot_budget: [{}],", slots(|t| t.slot_budget));
     let _ = writeln!(s, "    slot_count: NS as u8,");
     let _ = writeln!(s, "}};");
+    // R12.3 at build time (2026-11-16): the Kernel's own validation of the
+    // tables, which is proven to return true exactly for a well-formed
+    // configuration (`Config::validate`: ok == wf, the premise of every
+    // Kernel proof), evaluated by the compiler on the tables as generated. A
+    // declaration whose tables are not well-formed does not build; until
+    // this check such tables were refused only at boot.
+    let _ = writeln!(s, "/// R12.3 at build time: the tables pass the Kernel's own validation, or this crate does not compile.");
+    let _ = writeln!(s, "const _: () = assert!(CONFIG.validate(), \"R12.3: the generated configuration is not well-formed (Config::validate)\");");
     // Layout.
     let _ = writeln!(s, "use ::rsk_kernel::logic::mpu::{{Interval, Layout, PartitionLayout}};");
     let _ = writeln!(s, "const NO_WINDOW: Interval = Interval {{ base: 0, size_log2: 5 }};");
@@ -167,6 +175,11 @@ pub fn system_source(g: &Generated) -> String {
     }
     let _ = writeln!(s, "    ],");
     let _ = writeln!(s, "}};");
+    // R12.3 at build time (2026-11-16): as for `CONFIG` above; `Layout::validate`
+    // is proven to return true only for a well-formed layout (the premise of
+    // the isolation proofs, R16.6).
+    let _ = writeln!(s, "/// R12.3, R16.6 at build time: the layout passes the Kernel's own validation, or this crate does not compile.");
+    let _ = writeln!(s, "const _: () = assert!(LAYOUT.validate(), \"R12.3: the generated layout is not well-formed (Layout::validate)\");");
     let _ = writeln!(s, "pub type K = ::rsk_kernel::arch::Bound<NT, NR, NP, NL, NS, NE>;");
     let views: Vec<&str> = (0..np).map(|_| "::rsk_kernel::arch::placeholder_view()").collect();
     let _ = writeln!(

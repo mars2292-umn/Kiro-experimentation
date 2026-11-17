@@ -274,7 +274,9 @@ pub fn package_verus_results(lines: &[(u64, u64)], targets: usize) -> Option<(u6
 fn verus_target_count(pkg: &Package) -> usize {
     pkg.targets
         .iter()
-        .filter(|t| t.is_lib() || t.kinds.iter().any(|k| k == "bin"))
+        // A binary with `required-features` is not built by the plain
+        // `cargo verus verify -p`, so it prints no results line.
+        .filter(|t| t.is_lib() || (t.kinds.iter().any(|k| k == "bin") && t.required_features.is_empty()))
         .count()
 }
 
