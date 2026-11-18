@@ -13,43 +13,25 @@ use crate::logic::mpu::{View, MPU_REGIONS};
 /// `uj_001_mmio_addresses_valid` checks that every one lies in the system
 /// control space or the peripheral region and is word aligned.
 pub mod addr {
-    pub const ACTLR: u32 = 0xE000_E008;
-    pub const NVIC_ISER: u32 = 0xE000_E100;
-    pub const NVIC_ICER: u32 = 0xE000_E180;
-    pub const NVIC_ISPR: u32 = 0xE000_E200;
-    pub const NVIC_ICPR: u32 = 0xE000_E280;
-    pub const NVIC_IPR: u32 = 0xE000_E400;
+    // The registers the drivers of `arch::cm4::drivers` write are defined there.
+    pub use crate::arch::cm4::drivers::addr::{ACTLR, NVIC_ISER, NVIC_ICER, NVIC_ISPR, NVIC_ICPR, NVIC_IPR, AIRCR, CCR, SHPR1, SHPR2, SHPR3, SHCSR, CPACR, MPU_CTRL, DEMCR, FPCCR, FPDSCR, DWT_CTRL, DWT_CYCCNT, NRF_TIMER0, NVIC_LINES};
     pub const CPUID: u32 = 0xE000_ED00;
     pub const ICSR: u32 = 0xE000_ED04;
-    pub const AIRCR: u32 = 0xE000_ED0C;
-    pub const CCR: u32 = 0xE000_ED14;
-    pub const SHPR1: u32 = 0xE000_ED18;
-    pub const SHPR2: u32 = 0xE000_ED1C;
-    pub const SHPR3: u32 = 0xE000_ED20;
-    pub const SHCSR: u32 = 0xE000_ED24;
     /// HardFault status (Armv7-M ARM B3.2.16), read by `hard_fault` for the trace; in the
     /// register list since 2026-11-13 (audit finding 18: the read used a literal outside it).
     pub const HFSR: u32 = 0xE000_ED2C;
     pub const CFSR: u32 = 0xE000_ED28;
     /// MemManage Fault Address Register (valid when CFSR.MMARVALID).
     pub const MMFAR: u32 = 0xE000_ED34;
-    pub const CPACR: u32 = 0xE000_ED88;
     pub const MPU_TYPE: u32 = 0xE000_ED90;
-    pub const MPU_CTRL: u32 = 0xE000_ED94;
     pub const MPU_RNR: u32 = 0xE000_ED98;
     pub const MPU_RBAR: u32 = 0xE000_ED9C;
     pub const MPU_RASR: u32 = 0xE000_EDA0;
-    pub const DEMCR: u32 = 0xE000_EDFC;
-    pub const FPCCR: u32 = 0xE000_EF34;
-    pub const FPDSCR: u32 = 0xE000_EF3C;
     /// Media and VFP Feature Register 0: non-zero when an FPU is present.
     pub const MVFR0: u32 = 0xE000_EF40;
     /// Debug Halting Control and Status: bit 0 C_DEBUGEN (a debugger is attached, ORQ-30).
     pub const DHCSR: u32 = 0xE000_EDF0;
-    pub const DWT_CTRL: u32 = 0xE000_1000;
-    pub const DWT_CYCCNT: u32 = 0xE000_1004;
     /// nRF52840 TIMER0 (PS 6.30).
-    pub const NRF_TIMER0: u32 = 0x4000_8000;
     /// nRF52840 POWER.RESETREAS (PS 5.3.6): bit 1 DOG, a watchdog reset.
     pub const NRF_RESETREAS: u32 = 0x4000_0400;
     /// nRF52840 APPROTECT.DISABLE (PS 4.3, build codes with hardware access
@@ -91,7 +73,6 @@ pub mod addr {
 
     /// The NVIC lines the Armv7-M register arrays can address (B3.4.6:
     /// ISER0 to ISER15, IPR0 to IPR123): the bound of `irq_of`.
-    pub const NVIC_LINES: u32 = 496;
 
     /// A word-aligned address of the peripheral region (0x4000_0000 to
     /// 0x6000_0000): where the Target's peripherals and the EasyDMA
@@ -299,39 +280,11 @@ pub fn mmio_write(a: u32, v: u32) {
 
 use crate::arch::cm4::drivers;
 
-/// The memory-mapped registers as the register file of
-/// `arch::cm4::drivers`: its three methods are the volatile accesses of
-/// UJ-001, UJ-002 and UJ-009, with their preconditions.
-pub struct Mmio;
-
-impl drivers::Regs for Mmio {
-    #[inline(always)]
-    fn read(&mut self, a: u32) -> u32 {
-        mmio_read(a)
-    }
-    #[inline(always)]
-    fn write(&mut self, a: u32, v: u32) {
-        mmio_write(a, v)
-    }
-    #[inline(always)]
-    fn write_u8(&mut self, a: u32, v: u8) {
-        mmio_write_u8(a, v)
-    }
-}
-
-/// The Kernel_Arch state's count of the counter's wraps (`extend`).
-pub struct Clock;
-
-impl drivers::Extend for Clock {
-    #[inline(always)]
-    fn extend(&mut self, low: u32) -> u64 {
-        super::extend(low)
-    }
-}
+use crate::arch::cm4::drivers::{Clock, Mmio};
 
 /// Writes one byte of the NVIC_IPR array. Precondition:
 /// `addr::kernel_byte_access_ok(a)` (UJ-009).
-fn mmio_write_u8(a: u32, v: u8) {
+pub fn mmio_write_u8(a: u32, v: u8) {
     raw::write_byte(a, v)
 }
 
@@ -669,46 +622,46 @@ pub fn vectpending() -> u16 {
 }
 
 pub fn nvic_enable(n: u16) {
-    drivers::nvic_enable(&mut Mmio, n)
+    drivers::nvic_enable(&mut Mmio::new(), n)
 }
 
 pub fn nvic_disable(n: u16) {
-    drivers::nvic_disable(&mut Mmio, n)
+    drivers::nvic_disable(&mut Mmio::new(), n)
 }
 
 pub fn nvic_set_pending(n: u16) {
-    drivers::nvic_set_pending(&mut Mmio, n)
+    drivers::nvic_set_pending(&mut Mmio::new(), n)
 }
 
 pub fn nvic_clear_pending(n: u16) {
-    drivers::nvic_clear_pending(&mut Mmio, n)
+    drivers::nvic_clear_pending(&mut Mmio::new(), n)
 }
 
 pub fn nvic_set_priority(n: u16, encoded: u8) {
-    drivers::nvic_set_priority(&mut Mmio, n, encoded)
+    drivers::nvic_set_priority(&mut Mmio::new(), n, encoded)
 }
 
 /// AIRCR.PRIGROUP = 4: with 3 implemented bits (7:5) every bit is a group
 /// bit (HW-01). VECTKEY 0x05FA is required for the write.
 pub fn set_prigroup_all_preempt() {
-    drivers::set_prigroup_all_preempt(&mut Mmio);
+    drivers::set_prigroup_all_preempt(&mut Mmio::new());
 }
 
 /// CCR.NONBASETHRDENA (HW-07). The Kernel keeps it 0: no Job executes
 /// with an exception active (DD-01 as revised by the P1 spike).
 pub fn set_nonbasethrdena(on: bool) {
-    drivers::set_nonbasethrdena(&mut Mmio, on);
+    drivers::set_nonbasethrdena(&mut Mmio::new(), on);
 }
 
 /// ACTLR.DISDEFWBUF (HW-11, DD-12).
 pub fn set_disdefwbuf(on: bool) {
-    drivers::set_disdefwbuf(&mut Mmio, on);
+    drivers::set_disdefwbuf(&mut Mmio::new(), on);
 }
 
 /// MemManage, BusFault, UsageFault, and SVCall at the Kernel level (priority
 /// 0) and enabled (SHCSR bits 16 to 18).
 pub fn set_kernel_exception_priorities() {
-    drivers::set_kernel_exception_priorities(&mut Mmio);
+    drivers::set_kernel_exception_priorities(&mut Mmio::new());
 }
 
 /// Clears a pending SVCall (SHCSR.SVCALLPENDED, bit 15; Armv7-M B3.2.13).
@@ -840,7 +793,7 @@ pub fn clear_fault_status() {
 /// forbid arithmetic, comparison, conversion, and FPSCR writes
 /// (verification_plan.md 5.7).
 pub fn fpu_configure_eager(flush_to_zero: bool) {
-    drivers::fpu_configure_eager(&mut Mmio, flush_to_zero);
+    drivers::fpu_configure_eager(&mut Mmio::new(), flush_to_zero);
     barrier();
 }
 
@@ -897,14 +850,14 @@ pub fn mpu_load(view: &View) {
 /// MPU_CTRL = PRIVDEFENA | ENABLE: the Kernel runs on the background map,
 /// Jobs only see their regions (B3.5.7).
 pub fn mpu_enable_background() {
-    drivers::mpu_enable_background(&mut Mmio);
+    drivers::mpu_enable_background(&mut Mmio::new());
     barrier();
 }
 
 // ------------------------------------------------------------------ DWT
 
 pub fn dwt_enable() {
-    drivers::dwt_enable(&mut Mmio);
+    drivers::dwt_enable(&mut Mmio::new());
 }
 
 /// DWT_CYCCNT (HW-13).
@@ -1290,15 +1243,10 @@ mod timebase {
     const TASKS_START: u32 = 0x000;
     const TASKS_STOP: u32 = 0x004;
     const TASKS_CLEAR: u32 = 0x00C;
-    const TASKS_CAPTURE1: u32 = 0x044;
-    const EVENTS_COMPARE0: u32 = 0x140;
-    const INTENSET: u32 = 0x304;
     const INTENCLR: u32 = 0x308;
     const MODE: u32 = 0x504;
     const BITMODE: u32 = 0x508;
     const PRESCALER: u32 = 0x510;
-    const CC0: u32 = 0x540;
-    const CC1: u32 = 0x544;
 
     pub fn init() {
         let t = addr::NRF_TIMER0;
@@ -1312,29 +1260,29 @@ mod timebase {
     }
 
     pub fn now() -> u64 {
-        timer0::now(&mut Mmio, &mut Clock)
+        timer0::now(&mut Mmio::new(), &mut Clock)
     }
 
     /// `timer0::arm`; on the rig the capture after the write is recorded
     /// (the distance the hardware is left with, HW-12, ASM-19).
     pub fn arm(at: u64) {
-        let post = timer0::arm(&mut Mmio, &mut Clock, at);
+        let post = timer0::arm(&mut Mmio::new(), &mut Clock, at);
         #[cfg(feature = "trace-ram")]
         super::super::stats_arm(at, post);
         let _ = post;
     }
 
     pub fn ack() {
-        timer0::ack(&mut Mmio)
+        timer0::ack(&mut Mmio::new())
     }
 
     pub fn cancel() {
-        timer0::cancel(&mut Mmio)
+        timer0::cancel(&mut Mmio::new())
     }
 
     /// `timer0::rearm`, recorded on the rig as `arm`.
     pub fn rearm(at: u64) {
-        let post = timer0::rearm(&mut Mmio, &mut Clock, at);
+        let post = timer0::rearm(&mut Mmio::new(), &mut Clock, at);
         #[cfg(feature = "trace-ram")]
         super::super::stats_arm(at, post);
         let _ = post;

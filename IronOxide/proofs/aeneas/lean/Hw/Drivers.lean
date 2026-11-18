@@ -20,8 +20,134 @@ set_option maxRecDepth 2048
 
 namespace rsk_kernel
 
+/-- [rsk_kernel::arch::cm4::drivers::addr::ACTLR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 28:4-28:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.ACTLR : Std.U32 := 3758153736#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NVIC_ISER]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 29:4-29:43
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NVIC_ISER : Std.U32 := 3758153984#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NVIC_ICER]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 30:4-30:43
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NVIC_ICER : Std.U32 := 3758154112#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NVIC_ISPR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 31:4-31:43
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NVIC_ISPR : Std.U32 := 3758154240#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NVIC_ICPR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 32:4-32:43
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NVIC_ICPR : Std.U32 := 3758154368#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NVIC_IPR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 33:4-33:42
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NVIC_IPR : Std.U32 := 3758154752#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::AIRCR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 34:4-34:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.AIRCR : Std.U32 := 3758157068#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::CCR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 35:4-35:37
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.CCR : Std.U32 := 3758157076#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::SHPR1]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 36:4-36:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.SHPR1 : Std.U32 := 3758157080#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::SHPR2]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 37:4-37:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.SHPR2 : Std.U32 := 3758157084#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::SHPR3]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 38:4-38:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.SHPR3 : Std.U32 := 3758157088#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::SHCSR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 39:4-39:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.SHCSR : Std.U32 := 3758157092#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::CPACR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 40:4-40:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.CPACR : Std.U32 := 3758157192#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::MPU_CTRL]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 41:4-41:42
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.MPU_CTRL : Std.U32 := 3758157204#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::DEMCR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 42:4-42:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.DEMCR : Std.U32 := 3758157308#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::FPCCR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 43:4-43:39
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.FPCCR : Std.U32 := 3758157620#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::FPDSCR]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 44:4-44:40
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.FPDSCR : Std.U32 := 3758157628#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::DWT_CTRL]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 45:4-45:42
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.DWT_CTRL : Std.U32 := 3758100480#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::DWT_CYCCNT]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 46:4-46:44
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.DWT_CYCCNT : Std.U32 := 3758100484#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NRF_TIMER0]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 48:4-48:44
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NRF_TIMER0 : Std.U32 := 1073774592#u32
+
+/-- [rsk_kernel::arch::cm4::drivers::addr::NVIC_LINES]
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 50:4-50:36
+    Visibility: public -/
+@[global_simps, irreducible]
+def arch.cm4.drivers.addr.NVIC_LINES : Std.U32 := 496#u32
+
 /-- Trait declaration: [rsk_kernel::arch::cm4::drivers::Regs]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 22:0-26:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 102:0-113:1
     Visibility: public -/
 structure arch.cm4.drivers.Regs (Self : Type _) where
   read : Self → Std.U32 → Result (Std.U32 × Self)
@@ -29,19 +155,13 @@ structure arch.cm4.drivers.Regs (Self : Type _) where
   write_u8 : Self → Std.U32 → Std.U8 → Result Self
 
 /-- Trait declaration: [rsk_kernel::arch::cm4::drivers::Extend]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 30:0-32:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 117:0-119:1
     Visibility: public -/
 structure arch.cm4.drivers.Extend (Self : Type _) where
   extend : Self → Std.U32 → Result (Std.U64 × Self)
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NVIC_LINES]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 94:4-94:36
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NVIC_LINES : Std.U32 := 496#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::irq_of]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 37:0-43:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 183:0-191:1
     Visibility: public -/
 def arch.cm4.drivers.irq_of (n : Std.U16) : Result (Option Std.U32) := do
   if n < 16#u16
@@ -49,21 +169,15 @@ def arch.cm4.drivers.irq_of (n : Std.U16) : Result (Option Std.U32) := do
   else
     let i ← lift (UScalar.cast .U32 n)
     let i1 ← i - 16#u32
-    if i1 >= arch.cm4.unsafe_module.hw.addr.NVIC_LINES
+    if i1 >= arch.cm4.drivers.addr.NVIC_LINES
     then ok none
     else
       let i2 ← lift (UScalar.cast .U32 n)
       let i3 ← i2 - 16#u32
       ok (some i3)
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NVIC_ISER]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 17:4-17:43
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NVIC_ISER : Std.U32 := 3758153984#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::nvic_enable]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 46:0-50:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 211:0-220:1
     Visibility: public -/
 def arch.cm4.drivers.nvic_enable
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (n : Std.U16) :
@@ -75,19 +189,13 @@ def arch.cm4.drivers.nvic_enable
   | some irq =>
     let i ← irq / 32#u32
     let i1 ← 4#u32 * i
-    let i2 ← arch.cm4.unsafe_module.hw.addr.NVIC_ISER + i1
+    let i2 ← arch.cm4.drivers.addr.NVIC_ISER + i1
     let i3 ← irq % 32#u32
     let i4 ← 1#u32 <<< i3
     RegsInst.write r i2 i4
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NVIC_ICER]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 18:4-18:43
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NVIC_ICER : Std.U32 := 3758154112#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::nvic_disable]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 53:0-57:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 224:0-233:1
     Visibility: public -/
 def arch.cm4.drivers.nvic_disable
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (n : Std.U16) :
@@ -99,19 +207,13 @@ def arch.cm4.drivers.nvic_disable
   | some irq =>
     let i ← irq / 32#u32
     let i1 ← 4#u32 * i
-    let i2 ← arch.cm4.unsafe_module.hw.addr.NVIC_ICER + i1
+    let i2 ← arch.cm4.drivers.addr.NVIC_ICER + i1
     let i3 ← irq % 32#u32
     let i4 ← 1#u32 <<< i3
     RegsInst.write r i2 i4
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NVIC_ISPR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 19:4-19:43
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NVIC_ISPR : Std.U32 := 3758154240#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::nvic_set_pending]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 60:0-64:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 237:0-246:1
     Visibility: public -/
 def arch.cm4.drivers.nvic_set_pending
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (n : Std.U16) :
@@ -123,19 +225,13 @@ def arch.cm4.drivers.nvic_set_pending
   | some irq =>
     let i ← irq / 32#u32
     let i1 ← 4#u32 * i
-    let i2 ← arch.cm4.unsafe_module.hw.addr.NVIC_ISPR + i1
+    let i2 ← arch.cm4.drivers.addr.NVIC_ISPR + i1
     let i3 ← irq % 32#u32
     let i4 ← 1#u32 <<< i3
     RegsInst.write r i2 i4
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NVIC_ICPR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 20:4-20:43
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NVIC_ICPR : Std.U32 := 3758154368#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::nvic_clear_pending]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 67:0-71:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 250:0-259:1
     Visibility: public -/
 def arch.cm4.drivers.nvic_clear_pending
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (n : Std.U16) :
@@ -147,19 +243,13 @@ def arch.cm4.drivers.nvic_clear_pending
   | some irq =>
     let i ← irq / 32#u32
     let i1 ← 4#u32 * i
-    let i2 ← arch.cm4.unsafe_module.hw.addr.NVIC_ICPR + i1
+    let i2 ← arch.cm4.drivers.addr.NVIC_ICPR + i1
     let i3 ← irq % 32#u32
     let i4 ← 1#u32 <<< i3
     RegsInst.write r i2 i4
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NVIC_IPR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 21:4-21:42
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NVIC_IPR : Std.U32 := 3758154752#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::nvic_set_priority]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 74:0-78:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 263:0-272:1
     Visibility: public -/
 def arch.cm4.drivers.nvic_set_priority
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (n : Std.U16)
@@ -170,260 +260,170 @@ def arch.cm4.drivers.nvic_set_priority
   match o with
   | none => ok r
   | some irq =>
-    let i ← arch.cm4.unsafe_module.hw.addr.NVIC_IPR + irq
+    let i ← arch.cm4.drivers.addr.NVIC_IPR + irq
     RegsInst.write_u8 r i encoded
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::AIRCR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 24:4-24:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.AIRCR : Std.U32 := 3758157068#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::set_prigroup_all_preempt]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 83:0-86:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 282:0-288:1
     Visibility: public -/
 def arch.cm4.drivers.set_prigroup_all_preempt
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) : Result R := do
-  let (i, r1) ← RegsInst.read r arch.cm4.unsafe_module.hw.addr.AIRCR
+  let (i, r1) ← RegsInst.read r arch.cm4.drivers.addr.AIRCR
   let v ← lift (i &&& 63743#u32)
   let i1 ← 1530#u32 <<< 16#i32
   let i2 ← lift (i1 ||| v)
   let i3 ← 4#u32 <<< 8#i32
   let i4 ← lift (i2 ||| i3)
-  RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.AIRCR i4
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::CCR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 25:4-25:37
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.CCR : Std.U32 := 3758157076#u32
+  RegsInst.write r1 arch.cm4.drivers.addr.AIRCR i4
 
 /-- [rsk_kernel::arch::cm4::drivers::set_nonbasethrdena]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 91:0-94:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 293:0-299:1
     Visibility: public -/
 def arch.cm4.drivers.set_nonbasethrdena
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (on : Bool) :
   Result R
   := do
-  let (v, r1) ← RegsInst.read r arch.cm4.unsafe_module.hw.addr.CCR
+  let (v, r1) ← RegsInst.read r arch.cm4.drivers.addr.CCR
   if on
   then
     let i ← lift (v ||| 1#u32)
-    RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.CCR i
+    RegsInst.write r1 arch.cm4.drivers.addr.CCR i
   else
     let i ← lift (~~~ 1#u32)
     let i1 ← lift (v &&& i)
-    RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.CCR i1
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::ACTLR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 16:4-16:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.ACTLR : Std.U32 := 3758153736#u32
+    RegsInst.write r1 arch.cm4.drivers.addr.CCR i1
 
 /-- [rsk_kernel::arch::cm4::drivers::set_disdefwbuf]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 98:0-101:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 303:0-309:1
     Visibility: public -/
 def arch.cm4.drivers.set_disdefwbuf
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) (on : Bool) :
   Result R
   := do
-  let (v, r1) ← RegsInst.read r arch.cm4.unsafe_module.hw.addr.ACTLR
+  let (v, r1) ← RegsInst.read r arch.cm4.drivers.addr.ACTLR
   if on
   then
     let i ← lift (v ||| 2#u32)
-    RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.ACTLR i
+    RegsInst.write r1 arch.cm4.drivers.addr.ACTLR i
   else
     let i ← lift (~~~ 2#u32)
     let i1 ← lift (v &&& i)
-    RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.ACTLR i1
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::SHCSR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 29:4-29:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.SHCSR : Std.U32 := 3758157092#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::SHPR3]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 28:4-28:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.SHPR3 : Std.U32 := 3758157088#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::SHPR2]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 27:4-27:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.SHPR2 : Std.U32 := 3758157084#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::SHPR1]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 26:4-26:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.SHPR1 : Std.U32 := 3758157080#u32
+    RegsInst.write r1 arch.cm4.drivers.addr.ACTLR i1
 
 /-- [rsk_kernel::arch::cm4::drivers::set_kernel_exception_priorities]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 106:0-112:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 314:0-323:1
     Visibility: public -/
 def arch.cm4.drivers.set_kernel_exception_priorities
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) : Result R := do
-  let r1 ← RegsInst.write r arch.cm4.unsafe_module.hw.addr.SHPR1 0#u32
-  let r2 ← RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.SHPR2 0#u32
-  let r3 ← RegsInst.write r2 arch.cm4.unsafe_module.hw.addr.SHPR3 0#u32
-  let (v, r4) ← RegsInst.read r3 arch.cm4.unsafe_module.hw.addr.SHCSR
+  let r1 ← RegsInst.write r arch.cm4.drivers.addr.SHPR1 0#u32
+  let r2 ← RegsInst.write r1 arch.cm4.drivers.addr.SHPR2 0#u32
+  let r3 ← RegsInst.write r2 arch.cm4.drivers.addr.SHPR3 0#u32
+  let (v, r4) ← RegsInst.read r3 arch.cm4.drivers.addr.SHCSR
   let i ← 1#u32 <<< 16#i32
   let i1 ← lift (v ||| i)
   let i2 ← 1#u32 <<< 17#i32
   let i3 ← lift (i1 ||| i2)
   let i4 ← 1#u32 <<< 18#i32
   let i5 ← lift (i3 ||| i4)
-  RegsInst.write r4 arch.cm4.unsafe_module.hw.addr.SHCSR i5
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::FPDSCR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 44:4-44:40
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.FPDSCR : Std.U32 := 3758157628#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::FPCCR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 43:4-43:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.FPCCR : Std.U32 := 3758157620#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::CPACR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 36:4-36:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.CPACR : Std.U32 := 3758157192#u32
+  RegsInst.write r4 arch.cm4.drivers.addr.SHCSR i5
 
 /-- [rsk_kernel::arch::cm4::drivers::fpu_configure_eager]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 120:0-126:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 331:0-342:1
     Visibility: public -/
 def arch.cm4.drivers.fpu_configure_eager
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R)
   (flush_to_zero : Bool) :
   Result R
   := do
-  let (v, r1) ← RegsInst.read r arch.cm4.unsafe_module.hw.addr.FPCCR
+  let (v, r1) ← RegsInst.read r arch.cm4.drivers.addr.FPCCR
   let i ← 1#u32 <<< 31#i32
   let i1 ← lift (v ||| i)
   let i2 ← 1#u32 <<< 30#i32
   let i3 ← lift (~~~ i2)
   let i4 ← lift (i1 &&& i3)
-  let r2 ← RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.FPCCR i4
+  let r2 ← RegsInst.write r1 arch.cm4.drivers.addr.FPCCR i4
   if flush_to_zero
   then
     let i5 ← 1#u32 <<< 24#i32
-    let r3 ← RegsInst.write r2 arch.cm4.unsafe_module.hw.addr.FPDSCR i5
-    let (i6, r4) ← RegsInst.read r3 arch.cm4.unsafe_module.hw.addr.CPACR
+    let r3 ← RegsInst.write r2 arch.cm4.drivers.addr.FPDSCR i5
+    let (i6, r4) ← RegsInst.read r3 arch.cm4.drivers.addr.CPACR
     let i7 ← 15#u32 <<< 20#i32
     let c ← lift (i6 ||| i7)
-    RegsInst.write r4 arch.cm4.unsafe_module.hw.addr.CPACR c
+    RegsInst.write r4 arch.cm4.drivers.addr.CPACR c
   else
-    let r3 ← RegsInst.write r2 arch.cm4.unsafe_module.hw.addr.FPDSCR 0#u32
-    let (i5, r4) ← RegsInst.read r3 arch.cm4.unsafe_module.hw.addr.CPACR
+    let r3 ← RegsInst.write r2 arch.cm4.drivers.addr.FPDSCR 0#u32
+    let (i5, r4) ← RegsInst.read r3 arch.cm4.drivers.addr.CPACR
     let i6 ← 15#u32 <<< 20#i32
     let c ← lift (i5 ||| i6)
-    RegsInst.write r4 arch.cm4.unsafe_module.hw.addr.CPACR c
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::MPU_CTRL]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 38:4-38:42
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.MPU_CTRL : Std.U32 := 3758157204#u32
+    RegsInst.write r4 arch.cm4.drivers.addr.CPACR c
 
 /-- [rsk_kernel::arch::cm4::drivers::mpu_enable_background]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 130:0-132:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 346:0-350:1
     Visibility: public -/
 def arch.cm4.drivers.mpu_enable_background
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) : Result R := do
   let i ← 1#u32 <<< 2#i32
   let i1 ← lift (i ||| 1#u32)
-  RegsInst.write r arch.cm4.unsafe_module.hw.addr.MPU_CTRL i1
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::DWT_CYCCNT]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 50:4-50:44
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.DWT_CYCCNT : Std.U32 := 3758100484#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::DWT_CTRL]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 49:4-49:42
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.DWT_CTRL : Std.U32 := 3758100480#u32
-
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::DEMCR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 42:4-42:39
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.DEMCR : Std.U32 := 3758157308#u32
+  RegsInst.write r arch.cm4.drivers.addr.MPU_CTRL i1
 
 /-- [rsk_kernel::arch::cm4::drivers::dwt_enable]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 136:0-142:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 354:0-365:1
     Visibility: public -/
 def arch.cm4.drivers.dwt_enable
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) : Result R := do
-  let (v, r1) ← RegsInst.read r arch.cm4.unsafe_module.hw.addr.DEMCR
+  let (v, r1) ← RegsInst.read r arch.cm4.drivers.addr.DEMCR
   let i ← 1#u32 <<< 24#i32
   let i1 ← lift (v ||| i)
-  let r2 ← RegsInst.write r1 arch.cm4.unsafe_module.hw.addr.DEMCR i1
-  let r3 ← RegsInst.write r2 arch.cm4.unsafe_module.hw.addr.DWT_CYCCNT 0#u32
-  let (c, r4) ← RegsInst.read r3 arch.cm4.unsafe_module.hw.addr.DWT_CTRL
+  let r2 ← RegsInst.write r1 arch.cm4.drivers.addr.DEMCR i1
+  let r3 ← RegsInst.write r2 arch.cm4.drivers.addr.DWT_CYCCNT 0#u32
+  let (c, r4) ← RegsInst.read r3 arch.cm4.drivers.addr.DWT_CTRL
   let i2 ← lift (c ||| 1#u32)
-  RegsInst.write r4 arch.cm4.unsafe_module.hw.addr.DWT_CTRL i2
+  RegsInst.write r4 arch.cm4.drivers.addr.DWT_CTRL i2
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::TASKS_CAPTURE1]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 148:4-148:42
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 379:4-379:42
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.TASKS_CAPTURE1 : Std.U32 := 68#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::EVENTS_COMPARE0]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 149:4-149:43
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 380:4-380:43
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.EVENTS_COMPARE0 : Std.U32 := 320#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::INTENSET]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 150:4-150:36
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 381:4-381:36
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.INTENSET : Std.U32 := 772#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::INTENCLR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 151:4-151:36
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 382:4-382:36
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.INTENCLR : Std.U32 := 776#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::CC0]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 152:4-152:31
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 383:4-383:31
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.CC0 : Std.U32 := 1344#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::CC1]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 153:4-153:31
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 384:4-384:31
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.CC1 : Std.U32 := 1348#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::TIMER0_VECTOR]
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 155:4-155:42
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 386:4-386:42
     Visibility: public -/
 @[global_simps, irreducible]
 def arch.cm4.drivers.timer0.TIMER0_VECTOR : Result Std.U16 := 16#u16 + 8#u16
 
-/-- [rsk_kernel::arch::cm4::unsafe_module::hw::addr::NRF_TIMER0]
-    Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 52:4-52:44
-    Visibility: public -/
-@[global_simps, irreducible]
-def arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 : Std.U32 := 1073774592#u32
-
 /-- [rsk_kernel::arch::cm4::drivers::timer0::now]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 159:4-164:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 394:4-401:5
     Visibility: public -/
 def arch.cm4.drivers.timer0.now
   {R : Type _} {E : Type _} (RegsInst : arch.cm4.drivers.Regs R) (ExtendInst :
@@ -431,30 +431,26 @@ def arch.cm4.drivers.timer0.now
   Result (Std.U64 × R × E)
   := do
   let i ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.TASKS_CAPTURE1
+    arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.TASKS_CAPTURE1
   let r1 ← RegsInst.write r i 1#u32
-  let i1 ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.CC1
+  let i1 ← arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.CC1
   let (low, r2) ← RegsInst.read r1 i1
   let (i2, e1) ← ExtendInst.extend e low
   ok (i2, r2, e1)
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::arm]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 175:4-184:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 426:4-441:5
     Visibility: public -/
 def arch.cm4.drivers.timer0.arm
   {R : Type _} {E : Type _} (RegsInst : arch.cm4.drivers.Regs R) (ExtendInst :
   arch.cm4.drivers.Extend E) (r : R) (e : E) («at» : Std.U64) :
   Result (Std.U64 × R × E)
   := do
-  let i ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.CC0
+  let i ← arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.CC0
   let i1 ← lift (UScalar.cast .U32 «at»)
   let r1 ← RegsInst.write r i i1
   let i2 ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.INTENSET
+    arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.INTENSET
   let i3 ← 1#u32 <<< 16#i32
   let r2 ← RegsInst.write r1 i2 i3
   let (post, r3, e1) ← arch.cm4.drivers.timer0.now RegsInst ExtendInst r2 e
@@ -466,60 +462,51 @@ def arch.cm4.drivers.timer0.arm
   else ok (post, r3, e1)
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::ack]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 187:4-190:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 444:4-449:5
     Visibility: public -/
 def arch.cm4.drivers.timer0.ack
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) : Result R := do
   let i ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.EVENTS_COMPARE0
+    arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.EVENTS_COMPARE0
   RegsInst.write r i 0#u32
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::cancel]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 199:4-205:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 466:4-474:5
     Visibility: public -/
 def arch.cm4.drivers.timer0.cancel
   {R : Type _} (RegsInst : arch.cm4.drivers.Regs R) (r : R) : Result R := do
-  let i ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.INTENCLR
+  let i ← arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.INTENCLR
   let i1 ← 1#u32 <<< 16#i32
   let r1 ← RegsInst.write r i i1
   let i2 ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.EVENTS_COMPARE0
+    arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.EVENTS_COMPARE0
   let r2 ← RegsInst.write r1 i2 0#u32
   let (_, r3) ← RegsInst.read r2 i2
   let i3 ← arch.cm4.drivers.timer0.TIMER0_VECTOR
   arch.cm4.drivers.nvic_clear_pending RegsInst r3 i3
 
 /-- [rsk_kernel::arch::cm4::drivers::timer0::rearm]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 215:4-228:5
+    Source: 'crates/rsk-kernel/src/arch/cm4/drivers.rs', lines 498:4-517:5
     Visibility: public -/
 def arch.cm4.drivers.timer0.rearm
   {R : Type _} {E : Type _} (RegsInst : arch.cm4.drivers.Regs R) (ExtendInst :
   arch.cm4.drivers.Extend E) (r : R) (e : E) («at» : Std.U64) :
   Result (Std.U64 × R × E)
   := do
-  let i ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.INTENCLR
+  let i ← arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.INTENCLR
   let i1 ← 1#u32 <<< 16#i32
   let r1 ← RegsInst.write r i i1
-  let i2 ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.CC0
+  let i2 ← arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.CC0
   let i3 ← lift (UScalar.cast .U32 «at»)
   let r2 ← RegsInst.write r1 i2 i3
   let i4 ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.EVENTS_COMPARE0
+    arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.EVENTS_COMPARE0
   let r3 ← RegsInst.write r2 i4 0#u32
   let (_, r4) ← RegsInst.read r3 i4
   let i5 ← arch.cm4.drivers.timer0.TIMER0_VECTOR
   let r5 ← arch.cm4.drivers.nvic_clear_pending RegsInst r4 i5
   let i6 ←
-    arch.cm4.unsafe_module.hw.addr.NRF_TIMER0 +
-      arch.cm4.drivers.timer0.INTENSET
+    arch.cm4.drivers.addr.NRF_TIMER0 + arch.cm4.drivers.timer0.INTENSET
   let r6 ← RegsInst.write r5 i6 i1
   let (post, r7, e1) ← arch.cm4.drivers.timer0.now RegsInst ExtendInst r6 e
   if post >= «at»

@@ -132,3 +132,37 @@ construct = "#[verifier::external_body]"
 item = "chars_of"
 why = "The standard library's decoding of the Protocol text (`str::chars().collect()`) into the characters the verified lexer reads (2026-11-09): the contract is the view, `v@ == text@`, which is what vstd's `str` view means. The lexer, the grammar, and the parser from the characters on are verified (`lex_v::sp_lex`, `parse_v::sp_parse`, `lex_v::parse_chars`)."
 evidence = "vstd's specification of `str::chars` (the iterator's remaining elements are the view); the parser's unit tests and Property 20 over the whole text path; `cargo test -p rsk-protocol`."
+
+# 2026-11-18: the register drivers (crates/rsk-kernel/src/arch/cm4/drivers.rs)
+# are verified against a register file's specification (`RegState`,
+# `write_step`). `Mmio`, the memory-mapped registers as that file, is the
+# trusted surface below them: three volatile accesses. `Clock::extend` is
+# the Kernel_Arch state's wrap count and carries no specification.
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
+construct = "#[verifier::external_body]"
+item = "read"
+why = "A volatile word read of a register (hw::mmio_read, UJ-001), which Verus cannot model; the specification says the value is the model's and nothing is changed, so a register whose read has an effect or returns hardware state (an event, a capture) is not described by it."
+evidence = "The drivers verified here read configuration registers they then write back (AIRCR, CCR, ACTLR, SHCSR, FPCCR, CPACR, DEMCR, DWT_CTRL) and TIMER0's CC[1] and EVENTS_COMPARE0, whose values no postcondition depends on; Kani harnesses configuration_actions_set_their_bits_and_keep_the_rest and uj_001_mmio_addresses_valid; Lean on the extracted drivers (proofs/aeneas/lean/Hw/Model.lean) over a model with the same read."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
+construct = "#[verifier::external_body]"
+item = "write"
+why = "A volatile word write of a register (hw::mmio_write, UJ-002); the specification is `write_step`: the NVIC's set and clear registers are write-one-to-set and write-one-to-clear on the enabled and pending lines (HW-05), TIMER0's INTENSET and INTENCLR likewise on its interrupt enable (nRF52840 PS 6.30), any other register keeps the value. That the silicon behaves so is not provable."
+evidence = "Hardware_Model rules HW-05 and HW-12 with their HIL differential tests; the Kani stub KS-11 implements the same semantics (docs/kani_stubs.toml) and the four step harnesses run the drivers on it; Lean's `RegFile.write` is the same function (Hw/Model.lean)."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
+construct = "#[verifier::external_body]"
+item = "write_u8"
+why = "A volatile byte write into the NVIC's priority array (hw::mmio_write_u8, UJ-009); the specification records the byte at its address. The three implemented bits of a priority byte (ASM-03) are not modelled: the Kernel writes encodings of HW-01 only."
+evidence = "Kani harnesses uj_001_mmio_addresses_valid (the address is a byte of NVIC_IPR) and mask_and_priority_actions_step_one_field; HIL differential test HW-01."
+
+[[assumption]]
+file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
+construct = "#[verifier::external_body]"
+item = "extend"
+why = "The extension of the 32-bit counter reading to 64 bits reads and writes the Kernel_Arch state through unsafe_module::extend (UJ-006). It has no specification: the drivers' postconditions hold for whatever instant it returns."
+evidence = "`arm` and `rearm` state their pending decision on the returned instant, whatever it is; the extension's own rule (a reading below the last means one wrap) is exercised by the hour-long rig runs across the counter's wrap (R9.5)."

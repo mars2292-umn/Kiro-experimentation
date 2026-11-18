@@ -2,7 +2,7 @@ import Hw.Drivers
 open Aeneas Aeneas.Std Result
 
 namespace Hw
-open rsk_kernel rsk_kernel.arch.cm4 rsk_kernel.arch.cm4.unsafe_module.hw
+open rsk_kernel rsk_kernel.arch.cm4 rsk_kernel.arch.cm4.drivers
 
 theorem bind_eq_ok {α β} (x : Result α) (f : α → Result β) (y : β) :
     Std.bind x f = ok y ↔ ∃ a, x = ok a ∧ f a = ok y := by
