@@ -284,3 +284,31 @@ D='crate::arch::cm4::drivers'
 ../../../aeneas/bin/aeneas -backend lean -dest /tmp/drivers-out /tmp/drivers.llbc
 cp /tmp/drivers-out/Drivers.lean ../../proofs/aeneas/lean/Hw/Drivers.lean
 ```
+
+## The Generator's arithmetic and the Config_Checker's core (Verification_Plan, 2026-11-18)
+
+`lean/Tools/Gen.lean` and `lean/Tools/Cc.lean` are the Aeneas translations
+of `crates/rsk-gen/src/derive_v.rs` and `crates/rsk-confcheck/src/derive_v.rs`;
+`lean/Tools/GenProofs.lean` and `lean/Tools/CcProofs.lean` (handwritten)
+prove of each function what its Verus contract states. `lake build Tools`
+checks them. The two proof files do not import each other: the tools'
+specifications are written apart (R26.1).
+
+Regenerating the translations:
+
+```sh
+cd crates/rsk-gen
+D='crate::derive_v'
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from "$D::priority_byte,$D::ceiling,$D::slot_plan,$D::scale,$D::region_log2" \
+    --dest-file /tmp/gen.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/gen-out /tmp/gen.llbc
+cp /tmp/gen-out/Gen.lean ../../proofs/aeneas/lean/Tools/Gen.lean
+
+cd ../rsk-confcheck
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from "$D::encode_level,$D::ceiling_of,$D::sum_checked,$D::timer_slots,$D::slot_index,$D::levels_of,$D::size_of,$D::aligned,$D::disjoint,$D::stack_fits" \
+    --dest-file /tmp/cc.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/cc-out /tmp/cc.llbc
+cp /tmp/cc-out/Cc.lean ../../proofs/aeneas/lean/Tools/Cc.lean
+```

@@ -1832,3 +1832,39 @@ What this does not give. The model's step (`entry::step`) is a Verus specificati
 **The register drivers in Verus as well (2026-11-18, evening): the first row proven in both provers by statement.** On the request that what one prover shows the other show too. `arch/cm4/drivers.rs` is inside `verus!`: `RegState` and `write_step` are the register file's specification (the same function as Lean's `RegFile.write` and the Kani stub KS-11), `Regs` carries it as the contract of `read`, `write` and `write_u8`, and each of the seventeen drivers has the postcondition Lean proves of it: the line drivers through `set_line` and `clear_line`, the configuration drivers as the state with the named register written (`with_mem`), `arm` and `rearm` as the armed state with the time base's line pending exactly when the returned reading has reached the instant. Verus on `rsk-kernel`: 329 verified, 0 errors (282 before). The registers' addresses moved into the module (`drivers::addr`, re-exported by `unsafe_module::hw::addr`) so that the proofs see their values. `Mmio`, the memory-mapped registers as a `Regs`, and `Clock` are the trusted surface: four `external_body` functions listed in `docs/proof_assumptions.toml`. The translation was regenerated from the annotated source (the ghost code erased) and `Hw/Model.lean` builds on it unchanged but for one `open`.
 
 Where the two provers stand against each other, by size (2026-11-18): Kernel logic and entry code, Verus 141 proof functions and 352 postcondition clauses, Lean 479 theorems, which are mostly Property 18 and its invariants and are not the same statements; the Analyzer's numeric chain and the Protocol checker's progress theorem, both; the drivers, both since today; the Generator's derivation arithmetic and the Config_Checker's core, Verus only; Property 18, Lean only. The order taken: the two small Verus-only crates in Lean, then the Kernel's properties in Lean one invariant at a time (mutual exclusion and the ceiling protocol first, the lock lemmas of `Sched/Locks.lean` being there), and Property 18 in Verus last.
+
+**The Generator's derivation arithmetic and the Config_Checker's core in Lean (2026-11-18, night): every verified tool crate is now proven in both provers.** `proofs/aeneas/lean/Tools`: `Gen.lean` and `Cc.lean` are the Aeneas translations of `crates/rsk-gen/src/derive_v.rs` (5 functions) and `crates/rsk-confcheck/src/derive_v.rs` (10 functions), no error; `GenProofs.lean` (18 theorems) and `CcProofs.lean` (25 theorems), no `sorry`, state of each function what its Verus contract states, as a total specification: the function returns for every input the statement admits and its result satisfies the postcondition.
+
+| Function | Lean theorem | Statement |
+|---|---|---|
+| `priority_byte`, `encode_level` | `priority_byte_spec`, `encode_level_spec` | `(8 - level) * 32` for a level 1 to 8, 0 otherwise |
+| `ceiling` | `ceiling_spec` | an upper bound of the Priorities that one of them attains; 0 for none |
+| `ceiling_of` | `ceiling_of_spec` (`maxP_bound`, `maxP_attained`) | the maximum |
+| `slot_plan` | `slot_plan_spec`, `plan_ok_of_exact` | the consecutive plan and its count, from which Verus's `plan_ok` follows (distinct slots per Task, all below the count less two, no slot given twice); none when the Tasks need more than 251 |
+| `scale` | `scale_spec` (`rounded_div`) | the product over the denominator rounded down or up as asked, and whether rounding changed it; none exactly on overflow |
+| `region_log2` | `region_log2_spec` | the smallest exponent from the minimum to 31 whose power of two holds the bytes |
+| `sum_checked`, `timer_slots`, `slot_index` | `*_spec` | the sum, `3n + 2`, `3i + k`; none exactly when it does not fit 64 bits |
+| `levels_of` | `levels_of_spec` | ascending, and the same members as the input |
+| `size_of`, `aligned`, `stack_fits`, `disjoint` | `*_spec` (`intervals_disjoint`) | two to the exponent below 64; aligned exactly when the exponent is 5 to 32 and the base a multiple; the stack non-empty and within the region; disjoint exactly when no address lies in both |
+
+Three mutants, each tried against both provers and failing in both: `scale` rounding up without a remainder, `region_log2` stopping one size late, `disjoint` with a strict comparison.
+
+One change of source for the translation: `levels_of` pushes at the end and inserts elsewhere. Rust's `Vec::insert` admits the vector's length as an index; the Aeneas library's model of it (the pinned checkout) admits only an index below the length, so with `insert` alone the translated function fails on every non-empty input and no total statement of it holds. Verus on `rsk-confcheck` after the change: 19 verified, 0 errors, with no proof text changed; its tests pass.
+
+Where the two provers stand now: the tool crates (Analyzer's numeric chain, Protocol checker's progress theorem, Generator arithmetic, Config_Checker core) and the register drivers are proven in both. The Kernel's properties 1 to 12 and 21 are Verus with parts in Lean; Property 18 is Lean only.
+
+**Properties 3 and 4 in Lean, on the Kernel's code (2026-11-18, night).** `proofs/aeneas/lean/Sched/Mutex.lean` (16 theorems, no `sorry`; the whole `Sched` library built with it, 1,823 jobs, which also rebuilt the two files whose comments had changed). Verus proves both of `rsk_logic` (`Sched::inv`, `lock`, `unlock`); these are the statements over the run of the Kernel's functions as extracted.
+
+| Property | Lean | Statement |
+|---|---|---|
+| 4, no Resource held by two Jobs | `kreach_excl` (`excl_step`, `reach_excl`) | in every state a run reaches, no Resource is in two entries of the lock stack; each entry has one holder, so none is held twice by one Job or by two |
+| 4, every lock entry finds its Resource free | `kreach_lock_entry_finds_free`, `lock_free` | an entry holding a Resource the Job on top may access is that Job's own (from the invariant's Stack Resource Policy clause, under the Generator's rule that a Ceiling is at least each accessor's Priority, R23.1, taken as a hypothesis on the configuration); and a granted `Sched::lock` found the Resource in no entry at all (its search loop, by induction) with its caller a declared accessor |
+| 3, the ceiling is the held Resources' maximum | `kreach_ceiling`, `IsCeil.unique` | in every reached state, and that value is determined by the lock stack |
+| 3, a lock raises it | `lock_raises` | to the maximum of its value and the Resource's Ceiling |
+| 3, the matching unlock restores it | `unlock_restores` | for a lock granted in a state whose ceiling is its lock stack's, the unlock granted in any later state with the lock stack the lock left returns the ceiling to its value before the lock, and names the same Resource |
+
+What was already there and is used: the run's invariant `Wf` (`reach_wf`: the lock stack's holders, their order, the Stack Resource Policy clause, the ceiling), `lock_views`, `unlock_views`, `finish_top_views` and the frame lemmas of the other scheduler functions. What is new: the exclusion invariant with its preservation by all seventeen transitions of the run, the lock's search loop, and the two statements of Property 3 across a lock and its unlock.
+
+A mutant in Verus: with the re-entry check of `Sched::lock` removed, `rsk-logic` fails (345 verified, 1 error; 346 restored). The same mutant was not run against Lean: it changes `Sched/Kernel.lean`, which rebuilds the whole library, and restoring rebuilds it again.
+
+Not in Lean yet of the Kernel's properties: 1 (the start condition: the run takes the dispatched Task from `Sched::select`, and `select_some` states its choice, but the property is not stated as one theorem), 2 (context preservation: the stubs, outside the extraction), 5, 6, 10, 11, 12 and 21.

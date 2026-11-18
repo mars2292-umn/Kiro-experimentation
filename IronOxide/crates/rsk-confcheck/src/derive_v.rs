@@ -208,8 +208,17 @@ pub fn levels_of(prios: &Vec<u64>) -> (out: Vec<u64>)
         proof {
             assert(seen1 =~= seen.push(p));
         }
-        if pos == out.len() || out[pos] != p {
-            out.insert(pos, p);
+        // At the end the value is pushed: `Vec::insert` at the length is the
+        // same in Rust, but the Aeneas library's model of `insert` admits
+        // only an index below the length, so the translation proven in Lean
+        // (proofs/aeneas/lean/Tools) needs the push (2026-11-18).
+        let at_end = pos == out.len();
+        if at_end || out[pos] != p {
+            if at_end {
+                out.push(p);
+            } else {
+                out.insert(pos, p);
+            }
             proof {
                 assert(out@ =~= before.insert(pos as int, p));
                 assert forall|i: int, j: int| 0 <= i < j < out@.len() implies out@[i] < out@[j] by {

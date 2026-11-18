@@ -57,3 +57,13 @@ model and the proof that each driver takes the Hardware_Model's step on it
 @[default_target] lean_lib «Hw» {
   globs := #[.submodules `Hw]
 }
+
+/-- `Tools/Gen.lean` and `Tools/Cc.lean`: the Aeneas translations of the
+Generator's derivation arithmetic (`crates/rsk-gen/src/derive_v.rs`) and of
+the Config_Checker's core (`crates/rsk-confcheck/src/derive_v.rs`),
+generated and committed; `Tools/GenProofs.lean` and `Tools/CcProofs.lean`:
+the statements Verus proves of those functions, proven on the code as
+compiled (Verification_Plan, 2026-11-18). -/
+@[default_target] lean_lib «Tools» {
+  globs := #[.submodules `Tools]
+}
