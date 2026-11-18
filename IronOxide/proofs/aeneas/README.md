@@ -104,8 +104,9 @@ The handwritten files:
 - `lean/Sched/Arrive.lean`: the timed run. A Periodic_Task's Job arrives at
   the Task's nominal instant in the Kernel's state, once per instant, with no
   spacing condition; `treach_kreach` derives the spacing `KRun.lean` asks,
-  and `property18_timed` is Property 18 over it. The hand-modelled
-  transitions keep the nominal instants by condition.
+  and `property18_timed` is Property 18 over it. Every transition keeps
+  each nominal instant or moves it by a period, from the code
+  (`kstep_nomrel`; `serve_slot_nomrel` for a served slot of any kind).
 - `lean/Sched/SpFrame.lean`, `lean/Sched/SpIntake.lean`,
   `lean/Sched/Sporadic.lean`: the run with sporadic arrivals. `SpFrame`
   shows that every Kernel function of the run but `intake_release` and
@@ -117,8 +118,8 @@ The handwritten files:
   the instant the Kernel records, or at the instant a deferred event was
   deferred to, with no spacing condition, proves that each such run is a
   run of `KRun.lean` (`sreach_kreach`), and states `property18_sporadic`.
-  The hand-modelled transitions leave the sporadic timing fields by
-  condition.
+  Every transition changes the sporadic timing fields only as `SpRel`
+  allows, from the code (`kstep_sprel`, `serve_slot_sprel`).
 - `lean/Sched/Time.lean`: the time base on the code. The Kernel's reading
   `now` is written by `observe` alone and never goes back; the responses and
   slot handlers leave it and the nominal instants (`TimeKept`); a timer entry
@@ -141,8 +142,23 @@ The handwritten files:
   transitions carry `budget_event`'s own Kernel state. The time base is not
   covered.
 
-The plan lists the transitions that are still modelled by hand and every
-condition of the run.
+`lean/Sched/Slots.lean` proves the Kernel's Verus invariant
+`budget_slots_owned` a second time, on the extracted functions: an armed
+Budget slot is the executing Job's in every state the run reaches
+(`kreachb_bo`), from which the premises of the run's Budget transitions
+about the slot follow (`budget_slot_top`, `KStep.served_bevent_reach`).
+
+`lean/Sched/Deadline.lean` proves an invariant Verus does not state:
+outside the safe state, an armed deadline slot belongs to a Task with a
+Release pending or a Job in progress (`kreachs_di`), so the Job of a
+served deadline slot is not complete (`deadline_slot_incomplete`,
+`KStep.served_deadline_reach`).
+
+Since 2026-11-17 no transition of the run is modelled by hand: each one
+that changes the Kernel's state carries the extracted function's result.
+`lean/Sched/Endpoint.lean` reads the Endpoint entry cores and `Bound`'s
+`intake` (`bound_intake`, `kernel_intake_cases`, `KStep.bound_intake_run`).
+The plan lists every condition of the run (7.3, "What remains").
 
 Regenerating the translation:
 

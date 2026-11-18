@@ -15,8 +15,8 @@ for a Sporadic_Task, whose period is its minimum inter-arrival time (MIT):
   MIT), or it made a deferred Release (the due instant is the deferral
   instant). Every code-modelled transition satisfies it (`kstep_sprel`,
   from the extracted `intake_release` and `deferred_release` and the frame
-  lemmas of `Sched/SpFrame.lean`); for the transitions modelled by hand it
-  is a condition, as in `Sched/Arrive.lean`.
+  lemmas of `Sched/SpFrame.lean`); since 2026-11-17 no transition is left
+  for which it is a condition (`serve_slot_sprel`).
 - `SStep`, `SReach`: the run in which the Job of a Sporadic_Task arrives
   either with the transition that accepts its event, at the instant the
   Kernel records as the Release's due instant (`saccept`), or, for a
@@ -28,7 +28,7 @@ for a Sporadic_Task, whose period is its minimum inter-arrival time (MIT):
 What stays a condition: that the instant the Kernel records for an
 accepted event is the instant of the run (the Kernel's reading when its
 handler runs, not the instant of the event itself; the handler's latency
-is measured, R10.6), and the hand-modelled transitions. -/
+is measured, R10.6). -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic
@@ -209,12 +209,30 @@ theorem deferred_release_sprel {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
       · intro _ e; rw [hrv u, if_neg hut] at e; exact e
   · exact SpRel.of_rsteps hk hrs
 
-/-- Every transition of the run satisfies `SpRel`: from the code for the
-transitions that are the Kernel's functions, and for the hand-modelled
-ones under the condition that they do. -/
+set_option maxHeartbeats 8000000 in
+/-- `Kernel::serve_slot`, of a slot of any kind. -/
+theorem serve_slot_sprel {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {i : Usize}
+    (h : logic.kernel.Kernel.serve_slot k cfg i = ok k') : SpRel cfg k k' := by
+  unfold logic.kernel.Kernel.serve_slot at h
+  peel h
+  all_goals first
+    | exact periodic_release_sprel h
+    | exact deferred_release_sprel h
+    | exact SpRel.of_rsteps (deadline_miss_sp h) (deadline_miss_eff h)
+    | exact SpRel.of_rsteps (budget_event_sp h) (budget_event_eff h)
+    | exact SpRel.of_rsteps (by sp_close)
+        (by
+          have h1 := enter_safe_state_r h
+          have h2 := push_event_sched (by assumption)
+          dsimp only at h2
+          rw [h2] at h1
+          exact h1)
+    | exact SpRel.of_releq (by sp_close) (fun _ => rfl)
+
+/-- Every transition of the run satisfies `SpRel`, from the code. -/
 theorem kstep_sprel {cfg : logic.Config NT NR NP} {P : Params}
-    {x y : KSt NT NR NP NL NS NE} (h : KStep cfg P x y)
-    (hh : HandShape cfg x y → SpRel cfg x.k y.k) : SpRel cfg x.k y.k := by
+    {x y : KSt NT NR NP NL NS NE} (h : KStep cfg P x y) : SpRel cfg x.k y.k := by
   cases h with
   | jarrive => exact SpRel.refl
   | earrive => exact SpRel.refl
@@ -242,15 +260,20 @@ theorem kstep_sprel {cfg : logic.Config NT NR NP} {P : Params}
   | resp partition response cause t k' hs =>
     exact SpRel.of_rsteps (apply_response_sp hs) (apply_response_r hs)
   | bserved t i k' hs => exact SpRel.of_rsteps (budget_event_sp hs) (budget_event_eff hs)
-  | opend k1 k' h1 hs => exact hh (Or.inr ⟨k1, h1, hs⟩)
+  | opend i k1 k' hcode h1 hs => exact serve_slot_sprel hcode
   | settle r k' hs =>
     exact SpRel.of_releq (settle_sp hs) (fun u => by rw [settle_sched hs])
+  | observed now k' hs =>
+    have e := observe_timing hs
+    have e2 := observe_sched hs
+    exact SpRel.of_releq ⟨congrArg (·.has_last) e, congrArg spw e⟩
+      (fun u => congrArg (fun s => rel s u) e2)
   | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
     have := deferred_release_sprel hs
     split <;> exact this
   | deadline q c t i k' hq hk hw hc hdl hs =>
     exact SpRel.of_rsteps (deadline_miss_sp hs) (deadline_miss_eff hs)
-  | plain_h q c k' hq hk hw hc hnd hs => exact hh (Or.inl hs)
+  | plain_h q c k' hq hk hw hc hnd i hcode hs => exact serve_slot_sprel hcode
   | svc_h hsel hk c k' hd hrun hre hal hcode =>
     rcases hcode with e | ⟨kind, t, h⟩
     · rw [e]; exact SpRel.refl
@@ -262,6 +285,8 @@ theorem kstep_sprel {cfg : logic.Config NT NR NP} {P : Params}
   | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
     exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
   | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+    exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
+  | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
     exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
   | ktick => exact SpRel.refl
   | idle => exact SpRel.refl
@@ -433,13 +458,10 @@ inductive SStep (cfg : logic.Config NT NR NP) (P : Params) (B : SBase cfg P) :
       (hmade : rel x.k.sched t = 0 ∧ rel y.k.sched t = 1)
       (hnow : x.now = B.tk * ldOf y.k t)
       (hjl : ∀ u, u < NT.val → (B.periodic u = true ∨ B.sporadic u = true) →
-        y.jl u = (x.arrive t).jl u)
-      (hhn : HandShape cfg (x.arrive t) y → NomRel cfg x.k y.k)
-      (hhs : HandShape cfg (x.arrive t) y → SpRel cfg x.k y.k) : SStep cfg P B x y
+        y.jl u = (x.arrive t).jl u) : SStep cfg P B x y
   | other (x y : KSt NT NR NP NL NS NE) (h : KStep cfg P x y)
-      (hjl : ∀ u, u < NT.val → (B.periodic u = true ∨ B.sporadic u = true) → y.jl u = x.jl u)
-      (hhn : HandShape cfg x y → NomRel cfg x.k y.k)
-      (hhs : HandShape cfg x y → SpRel cfg x.k y.k) : SStep cfg P B x y
+      (hjl : ∀ u, u < NT.val → (B.periodic u = true ∨ B.sporadic u = true) → y.jl u = x.jl u) :
+      SStep cfg P B x y
 
 /-- The states the run reaches from boot. -/
 inductive SReach (cfg : logic.Config NT NR NP) (P : Params) (B : SBase cfg P) :
@@ -553,9 +575,9 @@ theorem sreach_kreach {cfg : logic.Config NT NR NP} {P : Params} {B : SBase cfg 
         · have := hsp u hu hsu
           simp only [KSt.arrive, Function.update_of_ne hut]
           exact this
-    | saccept _ t ht hs hw h hmade hnow hjl hhn hhs =>
-      have hR := kstep_sprel h hhs
-      have hN : NomRel cfg (x.arrive t).k y.k := kstep_nomrel h hhn
+    | saccept _ t ht hs hw h hmade hnow hjl =>
+      have hR := kstep_sprel h
+      have hN : NomRel cfg (x.arrive t).k y.k := kstep_nomrel h
       have hacc : hlOf y.k t = true ∧
           (hlOf x.k t = true → ldOf x.k t + cfgPeriod cfg t ≤ ldOf y.k t) := by
         rcases hR t ht with ⟨_, _, _, _, h1⟩ | ⟨a, b, _, _⟩ | ⟨_, _, _, _, rne⟩ | ⟨r2, _⟩
@@ -605,12 +627,12 @@ theorem sreach_kreach {cfg : logic.Config NT NR NP} {P : Params} {B : SBase cfg 
         · have hj := kstep_jwait h u
           simp only [KSt.arrive, Function.update_of_ne hut] at hj ⊢
           exact spat_step (hsp u hu hsu) (hR u hu) (B.hK u hu hsu) hj
-    | other _ h hjl hhn hhs =>
+    | other _ h hjl =>
       refine ⟨KReach.step _ _ hk h, ?_, ?_⟩
-      · exact arrinv_step hinv (fun u hu hpu => hjl u hu (Or.inl hpu)) (kstep_nomrel h hhn)
+      · exact arrinv_step hinv (fun u hu hpu => hjl u hu (Or.inl hpu)) (kstep_nomrel h)
       · intro u hu hsu
         rw [hjl u hu (Or.inr hsu)]
-        exact spat_step (hsp u hu hsu) (kstep_sprel h hhs u hu) (B.hK u hu hsu) (kstep_jwait h u)
+        exact spat_step (hsp u hu hsu) (kstep_sprel h u hu) (B.hK u hu hsu) (kstep_jwait h u)
 
 open rsk_analyzer (candidateOf) in
 open rsk_analyzer.terms (TaskIn Site Window Verdict) in

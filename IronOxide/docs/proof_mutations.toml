@@ -567,10 +567,19 @@ expect = ["entry.rs", "postcondition not satisfied", "spec_rejection_permitted"]
 
 [[mutation]]
 id = "job-return-disarms-held-deadline"
-kills = "job_return's R9.6 clause (audit finding 5): with a Release of the Task held, its deadline event stays in the slot when the previous Job returns, so that the Job started from it has its miss reported"
+kills = "job_return's R9.6 clause (audit finding 5): with a Release of the Task pending, its deadline event stays in the slot when the previous Job returns, so that the Job started from it has its miss reported"
 file = "crates/rsk-logic/src/logic/kernel.rs"
-find = "        // unless a Release of the Task is held, whose deadline it then holds.\n        if self.sched.release[t as usize] == REL_NONE {"
-replace = "        // unless a Release of the Task is held, whose deadline it then holds.\n        if true {"
+find = "        // holds. A deferred Release arms the slot only when it is made.\n        if self.sched.release[t as usize] != REL_PENDING {"
+replace = "        // holds. A deferred Release arms the slot only when it is made.\n        if true {"
+expect = ["kernel.rs", "postcondition not satisfied"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "job-return-keeps-the-deadline-under-a-deferred-release"
+kills = "job_return's R9.6 clause (finding of 2026-11-17): with a deferred Release of the Task held, the ended Job's deadline event is disarmed, since the deferred Release has armed none; kept, it is served later and a Job that ended in time is reported late"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "        // holds. A deferred Release arms the slot only when it is made.\n        if self.sched.release[t as usize] != REL_PENDING {"
+replace = "        // holds. A deferred Release arms the slot only when it is made.\n        if self.sched.release[t as usize] == REL_NONE {"
 expect = ["kernel.rs", "postcondition not satisfied"]
 package = "rsk-logic"
 
@@ -1508,8 +1517,8 @@ prover = "lean"
 id = "lean-kernel-plain-entry-of-a-deadline-source"
 kills = "ksim (an entry modelled by hand that leaves the scheduler state is no deadline event's)"
 file = "proofs/aeneas/lean/Sched/KRun.lean"
-find = "      (hnd : P.dlOf q = none)\n      (hs : k'.sched = x.k.sched) :\n"
-replace = "      (hnd : True)\n      (hs : k'.sched = x.k.sched) :\n"
+find = "      (hnd : P.dlOf q = none) (i : Usize)\n"
+replace = "      (hnd : True) (i : Usize)\n"
 expect = ["Sched/KRun.lean"]
 prover = "lean"
 
@@ -1941,12 +1950,12 @@ expect = ["Sched/Arrive.lean"]
 prover = "lean"
 
 [[mutation]]
-id = "lean-timed-hand-step-moves-a-nominal-instant"
-kills = "kstep_nomrel, treach_kreach (a hand-modelled transition keeps each nominal instant or moves it by a period: without the condition the invariant of the arrivals is not preserved)"
-file = "proofs/aeneas/lean/Sched/Arrive.lean"
-find = "      (hh : HandShape cfg x y → NomRel cfg x.k y.k) : TStep cfg P B x y\n"
-replace = "      (hh : HandShape cfg x y → True) : TStep cfg P B x y\n"
-expect = ["Sched/Arrive.lean"]
+id = "lean-plain-entry-state-not-the-codes"
+kills = "KStep.served_kept, kstep_nomrel, kstep_sprel (the Kernel state after an unmask, housekeeping or free-slot entry is what Kernel::serve_slot returns: without it the nominal instants and the sporadic timing fields after the entry are free. Until 2026-11-17 this was a condition of the timed run, `hh`, and this entry mutated that condition as lean-timed-hand-step-moves-a-nominal-instant)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hcode : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')\n      (hs : k'.sched = x.k.sched) :\n"
+replace = "      (hcode : True)\n      (hs : k'.sched = x.k.sched) :\n"
+expect = ["Sched/Timer.lean"]
 prover = "lean"
 
 [[mutation]]
@@ -2023,12 +2032,12 @@ expect = ["Sched/SpIntake.lean"]
 prover = "lean"
 
 [[mutation]]
-id = "lean-sporadic-hand-step-moves-a-due-instant"
-kills = "kstep_sprel, sreach_kreach (a hand-modelled transition leaves the sporadic timing fields: without the condition the invariant of the sporadic arrivals is not preserved)"
-file = "proofs/aeneas/lean/Sched/Sporadic.lean"
-find = "      (hhs : HandShape cfg x y → SpRel cfg x.k y.k) : SStep cfg P B x y\n"
-replace = "      (hhs : HandShape cfg x y → True) : SStep cfg P B x y\n"
-expect = ["Sched/Sporadic.lean"]
+id = "lean-end-entry-state-not-the-codes"
+kills = "KStep.served_end, kstep_nomrel, kstep_sprel (the Kernel state after the entry of the end of the operating duration is what Kernel::serve_slot returns: without it the timing fields after the entry are free. Until 2026-11-17 this was a condition of the run with sporadic arrivals, `hhs`, and this entry mutated that condition as lean-sporadic-hand-step-moves-a-due-instant)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hcode : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')\n      (h1 : k1.sched = x.k.sched)\n"
+replace = "      (hcode : True)\n      (h1 : k1.sched = x.k.sched)\n"
+expect = ["Sched/Timer.lean"]
 prover = "lean"
 
 [[mutation]]
@@ -2038,6 +2047,67 @@ file = "proofs/aeneas/lean/Sched/KRun.lean"
 find = "      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k')\n      (hs : k'.sched = x.k.sched) :\n"
 replace = "      (hcode : True)\n      (hs : k'.sched = x.k.sched) :\n"
 expect = ["Sched/Timer.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-budget-response-entry-state-not-the-codes"
+kills = "ksim (a Budget event's own entry read through its response, `bevent_r`, takes the Kernel state Kernel::budget_event returns: without it the scheduler state after the entry is free and the accounts do not follow it)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :\n      KStep cfg P x { x with\n        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend,\n        ks := c, kp := x.top,\n        rb :="
+replace = "      (hcode : True) :\n      KStep cfg P x { x with\n        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend,\n        ks := c, kp := x.top,\n        rb :="
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-observed-state-not-the-codes"
+kills = "ksim (the reading of the time base, `observed`, takes the Kernel state Kernel::observe returns, which leaves the scheduler state: without it the scheduler state after is free)"
+file = "proofs/aeneas/lean/Sched/KRun.lean"
+find = "      (hs : logic.kernel.Kernel.observe x.k cfg now = ok k') :\n"
+replace = "      (hs : True) :\n"
+expect = ["Sched/KRun.lean"]
+prover = "lean"
+
+# An armed Budget slot is the executing Job's, on the code (Verification_Plan
+# 7.3, Sched/Slots.lean, 2026-11-17): the Verus invariant budget_slots_owned
+# proven a second time over the extracted functions.
+
+[[mutation]]
+id = "lean-budget-slot-owner-is-any-task"
+kills = "box_sched, budget_slot_top (the invariant names the Task on top of the stack: without that conjunct the proofs that carry it across a call fail first, and the Budget slot of the Job on top is not known to be the armed one)"
+file = "proofs/aeneas/lean/Sched/Slots.lean"
+find = "    0 < sc.depth.val ∧ (slotAt sl i).task.val = stk sc (sc.depth.val - 1) ∧\n"
+replace = "    0 < sc.depth.val ∧ True ∧\n"
+expect = ["Sched/Slots.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-dispatch-keeps-the-preempted-budget-slot"
+kills = "dispatch_box (Kernel::dispatch as extracted disarms the Budget slot of the Job it preempts: without the disarm an armed Budget slot names a Task that is no longer on top)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "      let s1 ← rsk_logic.logic.time.Slots.disarm self.slots i3\n      ok (s1, b1, cfg)\n"
+replace = "      ok (self.slots, b1, cfg)\n"
+expect = ["Sched/Slots.lean"]
+prover = "lean"
+
+# An armed deadline slot belongs to a Job that is pending or in progress, on
+# the code (Verification_Plan 7.3, Sched/Deadline.lean, 2026-11-17).
+
+[[mutation]]
+id = "lean-deadline-slot-of-a-task-with-no-job"
+kills = "dg_mono, deadline_slot_incomplete (the invariant says the Task of an armed deadline slot has a Release pending or a Job in progress: without it the proofs that carry it across a call fail first, and the run's account of that Task's work is not known to be positive)"
+file = "proofs/aeneas/lean/Sched/Deadline.lean"
+find = "    (rel sc (slotAt sl i).task.val = 1 ∨ job sc (slotAt sl i).task.val = 1 ∨\n      E (slotAt sl i).task.val)\n"
+replace = "    (True ∨ rel sc (slotAt sl i).task.val = 1 ∨ job sc (slotAt sl i).task.val = 1 ∨\n      E (slotAt sl i).task.val)\n"
+expect = ["Sched/Deadline.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-code-job-return-keeps-the-deadline-under-a-deferred-release"
+kills = "job_return_dx (Kernel::job_return as extracted disarms the ended Job's deadline slot unless a Release of the Task is pending; with the condition as it was before 2026-11-17, kept under a deferred Release, an armed deadline slot names a Task with no Job)"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "    if i7 != rsk_logic.logic.sched.REL_PENDING\n"
+replace = "    if i7 = rsk_logic.logic.sched.REL_NONE\n"
+expect = ["Sched/Deadline.lean"]
 prover = "lean"
 
 [[mutation]]

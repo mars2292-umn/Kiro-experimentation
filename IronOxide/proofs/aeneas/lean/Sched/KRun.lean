@@ -97,6 +97,10 @@ function returns):
   (2026-11-15). It leaves the scheduler state as it is and has no Kernel
   section of its own.
 
+- `observed`: the Kernel reads the time base, `Kernel::observe`, the first
+  step of a timer entry and of an intake. It writes the Kernel's reading
+  and nothing else, and has no Kernel section of its own.
+
 - `deferred`: the entry of a deferral event, `Kernel::deferred_release`:
   the held Release made, or dropped; the accounts as for `periodic`.
 - `deadline`: the entry of a deadline event, `Kernel::deadline_miss`, with
@@ -111,7 +115,11 @@ overrun, or recorded only: the scheduler state kept), `overrun_h` (the
 overrunning Job on top ended, `finish_top`, as its last unit), `overrun_p`
 (the same followed by the rest of a Partition's response: the Job on top
 ended, then a response on the scheduler state; the accounts follow the
-scheduler state the Kernel left).
+scheduler state the Kernel left), `bevent_r` (any Budget event's own entry
+read only through what the code did to the scheduler state: a response on
+it, with no last unit of the Job counted; this is the entry whose
+Overrun_Response is the safe state, which drops every Release and ends no
+Job. Its Kernel section is bounded as a Budget event's entry, `Kt`).
 
 **An Endpoint operation** (since 2026-11-17 on the code): `svc_h`, the
 SVC's Kernel section, after which the Kernel state is the one before or
@@ -125,9 +133,14 @@ the receiving Task, `intake` (`Sched/Endpoint.lean` reads this from
 Like `resp`, `faulted` and `faulted_of` have no Kernel section of their
 own.
 
-**By hand** (the scheduler state as stated; the rest of the Kernel's state
-may change in any way): `plain_h` (an entry that leaves the scheduler
-state and is no deadline event: unmask, housekeeping).
+**A served slot that is none of the above** (since 2026-11-17, later, on
+the code: the Kernel state after is what `Kernel::serve_slot` returns):
+`plain_h` (an entry that leaves the scheduler state and is no deadline
+event: unmask, housekeeping, a free slot) and `opend` (the end of the
+operating duration: the safe state). No transition of the run leaves the
+Kernel's state to a hypothesis any more; what stays stated beside the
+code's result is what that call did to the scheduler state, read from the
+code in `Sched/Timer.lean`.
 
 **Instants and time** as in `Step`: `jarrive`, `earrive`, `ktick`, `idle`,
 `exec`. A Job executes, locks, unlocks and calls an Endpoint operation only when
@@ -261,8 +274,9 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
       (hs : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :
       KStep cfg P x { x with
         k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend }
-  | opend (x : KSt NT NR NP NL NS NE)
+  | opend (x : KSt NT NR NP NL NS NE) (i : Usize)
       (k1 k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hcode : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
       (h1 : k1.sched = x.k.sched)
       (hs : logic.kernel.Kernel.enter_safe_state k1 cfg = ok k') :
       KStep cfg P x { x with
@@ -270,6 +284,10 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
   | settle (x : KSt NT NR NP NL NS NE) (r : Option U8 × Bool)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hs : logic.kernel.Kernel.settle x.k cfg = ok (r, k')) :
+      KStep cfg P x { x with k := k' }
+  | observed (x : KSt NT NR NP NL NS NE) (now : U64)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.observe x.k cfg now = ok k') :
       KStep cfg P x { x with k := k' }
   | deferred (x : KSt NT NR NP NL NS NE) (q : Nat) (t : U8) (i : Usize) (d c : Nat)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
@@ -303,7 +321,8 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
   | plain_h (x : KSt NT NR NP NL NS NE) (q c : Nat)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hq : q < P.NQ) (hk : x.ks = 0) (hw : x.ewait q = true) (hc : c ≤ P.EC q)
-      (hnd : P.dlOf q = none)
+      (hnd : P.dlOf q = none) (i : Usize)
+      (hcode : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
       (hs : k'.sched = x.k.sched) :
       KStep cfg P x { x with
         k := k', ewait := Function.update x.ewait q false, ks := c, kp := NT.val + q }
@@ -370,6 +389,19 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         run := normRun k'.sched (Function.update x.run x.top 0),
         pend := normPend k'.sched x.pend,
         ks := c, kp := x.top }
+  | bevent_r (x : KSt NT NR NP NL NS NE)
+      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
+      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (harmed : topBudgetArmed x.k cfg)
+      (hk : x.ks = 0) (c : Nat) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hd : 0 < x.k.sched.depth.val)
+      (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt)
+      (t : U8) (i : Usize)
+      (hcode : logic.kernel.Kernel.budget_event x.k cfg t i = ok k') :
+      KStep cfg P x { x with
+        k := k', run := normRun k'.sched x.run, pend := normPend k'.sched x.pend,
+        ks := c, kp := x.top,
+        rb := Function.update x.rb x.top (x.rb x.top - 1) }
   | ktick (x : KSt NT NR NP NL NS NE) (hk : 0 < x.ks) (hj : JitterOk P x.st) :
       KStep cfg P x { x with now := x.now + 1, ks := x.ks - 1 }
   | idle (x : KSt NT NR NP NL NS NE)
@@ -606,7 +638,7 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
     | faulted_of kind t k' hs => exact rsteps_norm ih (fault_of_r hs)
     | bserved t i k' hs =>
       exact rsteps_norm ih (budget_event_eff hs)
-    | opend k1 k' h1 hs =>
+    | opend i k1 k' hcode h1 hs =>
       have hr := enter_safe_state_r hs
       rw [h1] at hr
       exact rsteps_norm ih hr
@@ -614,6 +646,11 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       have := ih
       dsimp only [KSt.st] at this ⊢
       rw [settle_sched hs]
+      exact this
+    | observed now k' hs =>
+      have := ih
+      dsimp only [KSt.st] at this ⊢
+      rw [observe_sched hs]
       exact this
     | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
       rcases deferred_release_eff hs with ⟨hr0, hmp⟩ | hrs
@@ -633,7 +670,7 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
     | deadline q c t i k' hq hk hw hc hdl hs =>
       have h1 := Reach.step _ _ ih (Step.eplain x.st q c hq hk hw hc hdl)
       exact rsteps_norm h1 (deadline_miss_eff hs)
-    | plain_h q c k' hq hk hw hc hnd hs =>
+    | plain_h q c k' hq hk hw hc hnd i hcode hs =>
       have := Reach.step _ _ ih (Step.eplain x.st q c hq hk hw hc
         (fun t' ht' => by rw [hnd] at ht'; cases ht'))
       dsimp only [KSt.st]
@@ -663,6 +700,10 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       have h1 := Reach.step _ _ ih (Step.finish x.st (none_elig hNT w hsel) hk hj true c r s1
         hd hr0 hr (fun _ => ⟨hstop, hrb⟩) hc hal hs)
       exact rsteps_norm h1 hrs
+    | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
+      have hsel := settled_armed_none hset harmed
+      have h1 := Reach.step _ _ ih (Step.bevent x.st (none_elig hNT w hsel) hk c hd hrun hrb hc)
+      exact rsteps_norm h1 (budget_event_eff hcode)
     | ktick hk hj => exact Reach.step _ _ ih (Step.ktick x.st hk hj)
     | idle hsel hk hj hd =>
       exact Reach.step _ _ ih (Step.idle x.st (none_elig hNT w hsel) hk hj hd)

@@ -421,7 +421,7 @@ theorem KStep.served_kept (x : KSt NT NR NP NL NS NE) (i : Usize) (q c : Nat)
     (hq : q < P.NQ) (hk : x.ks = 0) (hw : x.ewait q = true) (hc : c ≤ P.EC q)
     (hnd : P.dlOf q = none) :
     ∃ y, KStep cfg P x y ∧ y.k = k' :=
-  ⟨_, KStep.plain_h x q c k' hq hk hw hc hnd (serve_slot_kept hs h1 h3 h2 h4 h6), rfl⟩
+  ⟨_, KStep.plain_h x q c k' hq hk hw hc hnd i hs (serve_slot_kept hs h1 h3 h2 h4 h6), rfl⟩
 
 /-! ## The slot of the end of the operating duration
 
@@ -457,7 +457,7 @@ theorem KStep.served_end (x : KSt NT NR NP NL NS NE) (i : Usize)
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_END) :
     ∃ y, KStep cfg P x y ∧ y.k = k' := by
   obtain ⟨k1, h1, h⟩ := serve_slot_end hs hkind
-  exact ⟨_, KStep.opend x k1 k' h1 h, rfl⟩
+  exact ⟨_, KStep.opend x i k1 k' hs h1 h, rfl⟩
 
 /-! ## A Budget event as an entry of its own, on the code
 
@@ -891,5 +891,27 @@ theorem KStep.served_overrun_partition (x : KSt NT NR NP NL NS NE) (i : Usize)
   exact ⟨_, KStep.overrun_p x k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal _ _
     (serve_slot_budget hs hkind ht) hf hrs, rfl⟩
 
+/-! ### The Overrun answered by the safe state, or by any response
+
+A Budget slot served as an entry of its own is the run's `bevent_r`
+transition whatever the account shows and whatever the Partition's
+Overrun_Response is: the transition states the code's result and nothing
+beside it. It is the transition for the response that enters the safe
+state, which `served_bevent`, `served_overrun` and
+`served_overrun_partition` do not cover: that response drops every Release
+and ends no Job (`Kernel::enter_safe_state`). -/
+theorem KStep.served_bevent_any (x : KSt NT NR NP NL NS NE) (i : Usize)
+    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
+    (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
+    (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
+    (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
+    (ht : (slotOf x.k i).task.val < NT.val)
+    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (harmed : topBudgetArmed x.k cfg)
+    (hk : x.ks = 0) (hd : 0 < x.k.sched.depth.val)
+    (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt) :
+    ∃ y, KStep cfg P x y ∧ y.k = k' :=
+  ⟨_, KStep.bevent_r x k0 r0 hset harmed hk c k' hd hrun hrb hc _ _
+    (serve_slot_budget hs hkind ht), rfl⟩
 
 end P18

@@ -21,8 +21,14 @@ the Kernel, each statement of the form "if the function returns":
   on top is the run's `svc_h` transition, followed by `faulted` when the
   operation was an API misuse; for a send that releases the receiver, the
   `svc_h` transition leaves the Kernel as it was and the interface's
-  `intake` call is what remains (the run's `intake` transition, whose link
-  to `Bound`'s `intake` is still by hand: Verification_Plan 7.3).
+  `intake` call is what remains.
+- `bound_intake`, `kernel_intake_cases`, `KStep.bound_intake_run`: that
+  call for `Bound` is nothing (an index out of range, a Task that is not
+  sporadic, an instant past the operating duration) or `Kernel::intake`,
+  which is `Kernel::observe` (the run's `observed` transition), then
+  `Kernel::deadline_miss` when the Task's deadline slot is armed and due,
+  then `Kernel::intake_release`: the Kernel-side premises of the run's
+  `deadline` and `intake` transitions.
 
 The interface is given as a structure of functions, of which the extraction
 holds `Bound`'s one by one and not as a whole (some are not extracted); the
@@ -175,5 +181,67 @@ theorem KStep.svc_recv {cfg : logic.Config NT NR NP} {P : Params} (x : KSt NT NR
     rw [hb, hc] at hkf
     exact ⟨_, _, KStep.svc_h x hsel hk c x.k hd hrun hre hal (Or.inl rfl), rfl,
       KStep.faulted _ _ _ b'.kernel hkf, rfl⟩
+
+/-! ## The interface's `intake` call for `Bound` -/
+
+/-- `Bound`'s `intake` is `Kernel::intake` on its Kernel state (the
+offender replaced by the Task when out of range), or nothing. -/
+theorem bound_intake {b b' : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE}
+    {t sp off : U8} {now : U64}
+    (h : _root_.rsk_kernel.arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake b t sp now off
+      = ok b') :
+    b'.cfg = b.cfg ∧
+    (b'.kernel = b.kernel ∨
+      ∃ off1, logic.kernel.Kernel.intake b.kernel b.cfg t sp now off1 = ok b'.kernel) := by
+  unfold _root_.rsk_kernel.arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake at h
+  peel h
+  all_goals first
+    | exact ⟨rfl, Or.inr ⟨_, by assumption⟩⟩
+    | exact ⟨rfl, Or.inl rfl⟩
+
+/-- `Kernel::intake` reads the time base, serves the Task's deadline slot
+when it is armed and due, and hands the event to `intake_release`. -/
+theorem kernel_intake_cases {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {t sp off : U8} {now : U64}
+    (h : logic.kernel.Kernel.intake k cfg t sp now off = ok k') :
+    ∃ k1 k2, logic.kernel.Kernel.observe k cfg now = ok k1 ∧
+      (k2 = k1 ∨ ∃ sd, logic.kernel.Kernel.deadline_miss k1 cfg t sd = ok k2) ∧
+      logic.kernel.Kernel.intake_release k2 cfg t sp now off = ok k' := by
+  unfold logic.kernel.Kernel.intake at h
+  simp only [bind_eq_ok, lift, bind_ok] at h
+  obtain ⟨k1, hobs, i1, _, s, _, k2, hk2, h⟩ := h
+  refine ⟨k1, k2, hobs, ?_, h⟩
+  split at hk2
+  · split at hk2
+    · split at hk2
+      · exact Or.inr ⟨_, hk2⟩
+      · exact Or.inl (ok_inj hk2).symm
+    · exact Or.inl (ok_inj hk2).symm
+  · exact Or.inl (ok_inj hk2).symm
+
+/-- The interface's `intake` call for `Bound`, from a state of the run:
+nothing, or the run's `observed` transition followed by the calls that are
+the Kernel-side premises of the run's `intake` transition, and before it,
+when the Task's deadline slot was armed and due, of its `deadline`
+transition. -/
+theorem KStep.bound_intake_run {cfg : logic.Config NT NR NP} {P : Params}
+    (x : KSt NT NR NP NL NS NE)
+    {b b' : _root_.rsk_kernel.arch.bound.Bound NT NR NP NL NS NE} {t sp off : U8} {now : U64}
+    (hb : b.kernel = x.k) (hc : b.cfg = cfg)
+    (h : _root_.rsk_kernel.arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.intake b t sp now off
+      = ok b') :
+    b'.kernel = x.k ∨
+    ∃ y off1, KStep cfg P x y ∧
+      (logic.kernel.Kernel.intake_release y.k cfg t sp now off1 = ok b'.kernel ∨
+       ∃ sd k2, logic.kernel.Kernel.deadline_miss y.k cfg t sd = ok k2 ∧
+         logic.kernel.Kernel.intake_release k2 cfg t sp now off1 = ok b'.kernel) := by
+  obtain ⟨_, e | ⟨off1, hi⟩⟩ := bound_intake h
+  · exact Or.inl (by rw [e, hb])
+  · rw [hb, hc] at hi
+    obtain ⟨k1, k2, hobs, hk2, hrel⟩ := kernel_intake_cases hi
+    refine Or.inr ⟨_, off1, KStep.observed x now k1 hobs, ?_⟩
+    rcases hk2 with e | ⟨sd, hd⟩
+    · subst e; exact Or.inl hrel
+    · exact Or.inr ⟨sd, k2, hd, hrel⟩
 
 end P18

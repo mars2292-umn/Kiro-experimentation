@@ -15,9 +15,8 @@ changes it.
   slot: `dispatch`, `job_return`, `svc_lock`, `svc_unlock`,
   `intake_release`, `settle`.
 - `NomRel`: between two Kernel states every Task's nominal instant is
-  where it was or one period later. Every code-modelled transition of the
-  run satisfies it (`kstep_nomrel`); for the transitions modelled by hand
-  it is a condition (they leave the rest of the Kernel's state free).
+  where it was or one period later. Every transition of the run satisfies
+  it, from the code (`kstep_nomrel`).
 - `TStep`, `TReach`: the timed run, in which a Periodic_Task's arrival
   carries no spacing condition. `treach_kreach`: every timed run is a run
   of `KRun.lean`. `property18_timed`: Property 18 over it. -/
@@ -194,24 +193,29 @@ theorem periodic_release_nomrel {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     subst h1
     exact NomRel.of_eq rfl
 
-/-- The shape of the transitions `KRun.lean` models by hand, which leave
-the Kernel's state outside the scheduler free: the scheduler state kept
-(an unmask or housekeeping entry), or the safe state entered from a
-Kernel state with this scheduler state (the end of the operating
-duration). A Budget event's own entry and an Endpoint operation are no
-longer among them (2026-11-17): their Kernel states are the code's. -/
-def HandShape (cfg : logic.Config NT NR NP) (x y : KSt NT NR NP NL NS NE) : Prop :=
-  y.k.sched = x.k.sched ∨
-  (∃ k1 : logic.kernel.Kernel NT NR NP NL NS NE,
-    k1.sched = x.k.sched ∧ logic.kernel.Kernel.enter_safe_state k1 cfg = ok y.k)
+set_option maxHeartbeats 8000000 in
+/-- `Kernel::serve_slot`, of a slot of any kind: only a release slot moves
+a nominal instant, by its Task's period. -/
+theorem serve_slot_nomrel {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {i : Usize}
+    (h : logic.kernel.Kernel.serve_slot k cfg i = ok k') : NomRel cfg k k' := by
+  unfold logic.kernel.Kernel.serve_slot at h
+  peel h
+  all_goals first
+    | exact periodic_release_nomrel h
+    | exact NomRel.of_eq (deferred_release_tk h).2
+    | exact NomRel.of_eq (deadline_miss_tk h).2
+    | exact NomRel.of_eq (budget_event_tk h).2
+    | (refine NomRel.of_eq ?_
+       repeat (first | tk_step | dsimp only))
 
 /-- Every transition of the run keeps each nominal instant or moves it by
-its Task's period: from the code for the transitions that are the Kernel's
-functions, and for the hand-modelled ones (which fix the scheduler state
-only) under the condition that they do. -/
+its Task's period. Since 2026-11-17 this is from the code for every
+transition: the last two that left the Kernel's state outside the
+scheduler free (`plain_h`, `opend`) now carry `Kernel::serve_slot`'s
+result. -/
 theorem kstep_nomrel {cfg : logic.Config NT NR NP} {P : Params}
-    {x y : KSt NT NR NP NL NS NE} (h : KStep cfg P x y)
-    (hh : HandShape cfg x y → NomRel cfg x.k y.k) : NomRel cfg x.k y.k := by
+    {x y : KSt NT NR NP NL NS NE} (h : KStep cfg P x y) : NomRel cfg x.k y.k := by
   cases h with
   | jarrive => exact NomRel.of_eq rfl
   | earrive => exact NomRel.of_eq rfl
@@ -228,13 +232,14 @@ theorem kstep_nomrel {cfg : logic.Config NT NR NP} {P : Params}
   | unwind ec k' hs => exact NomRel.of_eq (job_return_tk hs).2
   | resp partition response cause t k' hs => exact NomRel.of_eq (apply_response_tk hs).2
   | bserved t i k' hs => exact NomRel.of_eq (budget_event_tk hs).2
-  | opend k1 k' h1 hs => exact hh (Or.inr ⟨k1, h1, hs⟩)
+  | opend i k1 k' hcode h1 hs => exact serve_slot_nomrel hcode
   | settle r k' hs => exact NomRel.of_eq (settle_tk hs).2
+  | observed now k' hs => exact NomRel.of_eq (observe_nom hs)
   | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
     have := NomRel.of_eq (cfg := cfg) (deferred_release_tk hs).2
     split <;> exact this
   | deadline q c t i k' hq hk hw hc hdl hs => exact NomRel.of_eq (deadline_miss_tk hs).2
-  | plain_h q c k' hq hk hw hc hnd hs => exact hh (Or.inl hs)
+  | plain_h q c k' hq hk hw hc hnd i hcode hs => exact serve_slot_nomrel hcode
   | svc_h hsel hk c k' hd hrun hre hal hcode =>
     rcases hcode with e | ⟨kind, t, h⟩
     · exact NomRel.of_eq (by rw [e])
@@ -246,6 +251,8 @@ theorem kstep_nomrel {cfg : logic.Config NT NR NP} {P : Params}
   | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
     exact NomRel.of_eq (budget_event_tk hcode).2
   | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+    exact NomRel.of_eq (budget_event_tk hcode).2
+  | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
     exact NomRel.of_eq (budget_event_tk hcode).2
   | ktick => exact NomRel.of_eq rfl
   | idle => exact NomRel.of_eq rfl
@@ -268,8 +275,7 @@ structure TimeBase (cfg : logic.Config NT NR NP) (P : Params) where
   nominal instant in the Kernel's state, and that instant has not arrived
   before. No spacing from the previous arrival is assumed.
 - `other`: any transition of `KRun.lean` that is no arrival of a
-  Periodic_Task; if it has the shape of a hand-modelled transition, it
-  moves each nominal instant by a period or not at all. -/
+  Periodic_Task. -/
 inductive TStep (cfg : logic.Config NT NR NP) (P : Params) (B : TimeBase cfg P) :
     KSt NT NR NP NL NS NE → KSt NT NR NP NL NS NE → Prop
   | parrive (x : KSt NT NR NP NL NS NE) (t : Nat) (ht : t < NT.val)
@@ -280,8 +286,7 @@ inductive TStep (cfg : logic.Config NT NR NP) (P : Params) (B : TimeBase cfg P) 
         jl := Function.update x.jl t (some x.now),
         jwait := Function.update x.jwait t true }
   | other (x y : KSt NT NR NP NL NS NE) (h : KStep cfg P x y)
-      (hjl : ∀ t, t < NT.val → B.periodic t = true → y.jl t = x.jl t)
-      (hh : HandShape cfg x y → NomRel cfg x.k y.k) : TStep cfg P B x y
+      (hjl : ∀ t, t < NT.val → B.periodic t = true → y.jl t = x.jl t) : TStep cfg P B x y
 
 /-- The states the timed run reaches from boot. -/
 inductive TReach (cfg : logic.Config NT NR NP) (P : Params) (B : TimeBase cfg P) :
@@ -334,12 +339,12 @@ theorem treach_kreach {cfg : logic.Config NT NR NP} {P : Params} {B : TimeBase c
           exact ⟨0, by rw [hnow]; simp⟩
         · rw [Function.update_of_ne hut] at hr
           exact hinv u hu hpu r hr
-    | other _ h hjl hh =>
+    | other _ h hjl =>
       refine ⟨KReach.step _ _ hk h, ?_⟩
       intro u hu hpu r hr
       rw [hjl u hu hpu] at hr
       obtain ⟨j, hj⟩ := hinv u hu hpu r hr
-      rcases kstep_nomrel h hh u hu with e | e
+      rcases kstep_nomrel h u hu with e | e
       · exact ⟨j, by rw [e]; exact hj⟩
       · refine ⟨j + 1, ?_⟩
         rw [e, Nat.mul_add, hj, Nat.add_mul, Nat.one_mul, Nat.add_assoc]
