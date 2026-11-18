@@ -346,7 +346,10 @@ pub trait KernelOps: Sized {
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
             final(self).spec_depth() == old(self).spec_depth();
     fn started(&self) -> bool;
-    fn safe_state(&self) -> bool;
+    /// Ghost: the system safe state has been entered (R14.4).
+    spec fn spec_safe(&self) -> bool;
+    fn safe_state(&self) -> (r: bool)
+        ensures r == self.spec_safe();
     fn job_info(&self, t: u8) -> (info: JobInfo)
         requires self.inv(),
         ensures info.task == t, info.priority <= MAX_PRIORITY,
@@ -450,7 +453,8 @@ pub trait KernelOps: Sized {
             forall|t: int| #[trigger] final(self).spec_source_masked(t) == old(self).spec_source_masked(t),
             forall|p: int| #[trigger] final(self).spec_partition_stopped(p) == old(self).spec_partition_stopped(p),
             r.0.is_some() ==> (r.0.unwrap() as int) < final(self).task_count_spec() && final(self).task_eligible(r.0.unwrap() as int),
-            final(self).spec_dispatch_guard();
+            final(self).spec_dispatch_guard(),
+            final(self).spec_safe() == old(self).spec_safe();
     /// `offender`: the Task a threshold response is for (DD-10; audit finding
     /// 11): `t` for an interrupt source, the executing sender for a signal
     /// raise or an Endpoint send.
@@ -466,7 +470,10 @@ pub trait KernelOps: Sized {
         requires old(self).inv(),
         ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
-            kernel ==> final(self).spec_depth() == old(self).spec_depth();
+            kernel ==> final(self).spec_depth() == old(self).spec_depth(),
+            // R14.4, R11.5: a fault attributed to the Kernel, or one with no
+            // Job executing, enters the safe state.
+            kernel || old(self).spec_depth() == 0 ==> final(self).spec_safe();
     fn next_compare(&self) -> Option<u64>
         requires self.inv();
     /// DD-06: the source of Task `t` is masked for the rest of its MIT window.
@@ -480,12 +487,14 @@ pub trait KernelOps: Sized {
         requires old(self).inv(),
         ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
+            final(self).spec_safe() == old(self).spec_safe(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn take_stop_dma(&mut self, p: u8) -> bool
         requires old(self).inv(),
         ensures final(self).inv(), final(self).top_level() == old(self).top_level(), final(self).ceiling_level() == old(self).ceiling_level(),
             old(self).spec_dispatch_guard() ==> final(self).spec_dispatch_guard(),
+            final(self).spec_safe() == old(self).spec_safe(),
             final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)), final(self).spec_depth() == old(self).spec_depth();
     fn log_len(&self) -> usize
@@ -708,7 +717,11 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         self.kernel.started
     }
 
-    fn safe_state(&self) -> bool {
+    open spec fn spec_safe(&self) -> bool {
+        self.kernel.safe_state
+    }
+
+    fn safe_state(&self) -> (r: bool) {
         self.kernel.safe_state
     }
 

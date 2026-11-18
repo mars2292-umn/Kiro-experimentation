@@ -6,7 +6,7 @@
 
 pub const MAGIC: u32 = 0x5253_4b53;
 const HEADER: usize = 4;
-const PER_TASK: usize = 58;
+const PER_TASK: usize = 60;
 /// Kernel-entry kinds of the entry table (the Kernel's `ENTRY_*`).
 pub const ENTRY_KINDS: usize = 18;
 pub const ENTRY_NAMES: [&str; 18] = ["dispatch", "timer", "intake", "lock", "unlock", "job_end", "now", "raise", "dma", "fault", "epilogue", "restart", "stop", "enforce", "panic", "view", "send", "recv"];
@@ -55,6 +55,11 @@ pub struct TaskStats {
     /// ticks, from the edge to the intake handler's timestamp.
     pub stamp_count: u32,
     pub stamp_max_ticks: u32,
+    /// Δ_wake (Table 13-1, R7.8): the latched edges whose intake found no
+    /// Job executing (the processor in the idle activity), and the largest
+    /// lag of those, in ticks.
+    pub wake_count: u32,
+    pub wake_max_ticks: u32,
 }
 
 /// One Kernel-entry kind's record: runs, the largest, the sum (task 19.3).
@@ -99,6 +104,32 @@ pub struct Release {
     pub lag_cycles: u32,
 }
 
+/// The time-base driver's compares of the run (HW-12, ASM-19): those left
+/// to the hardware, with the smallest distance in ticks from the counter
+/// captured after the write to the compare instant, and those pended by
+/// software because the instant was already reached.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ArmStats {
+    pub left: u32,
+    pub pended: u32,
+    pub margin_min_ticks: u32,
+    pub below_4: u32,
+    pub below_8: u32,
+    pub below_16: u32,
+}
+
+impl ArmStats {
+    pub fn summary(&self) -> String {
+        if self.left == 0 {
+            return format!("no compare left to the hardware ({} pended by software)", self.pended);
+        }
+        format!(
+            "{} compares left to the hardware, the closest {} ticks ahead of the counter captured after the write ({} below 4 ticks, {} below 8, {} below 16); {} pended by software, the instant reached",
+            self.left, self.margin_min_ticks, self.below_4, self.below_8, self.below_16, self.pended
+        )
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Stats {
     pub tasks: Vec<TaskStats>,
@@ -114,6 +145,8 @@ pub struct Stats {
     /// The Kernel-entry table by kind (`ENTRY_NAMES`).
     pub entries: Vec<EntryStats>,
     pub releases_recorded: u32,
+    /// The compare-arm record after the ring; `None` for a build without it.
+    pub arm: Option<ArmStats>,
 }
 
 impl TaskStats {
@@ -168,6 +201,8 @@ impl Stats {
                 exec_max_entries: words[b + 55],
                 exec_max_entry_cycles: words[b + 56],
                 exec_max_entry_kinds: words[b + 57],
+                wake_count: words[b + 58],
+                wake_max_ticks: words[b + 59],
             });
         }
         let cs_at = HEADER + n * PER_TASK;
@@ -198,7 +233,10 @@ impl Stats {
                 recent.push(Release { task: words[s] as u8, due: (words[s + 2] as u64) << 32 | words[s + 1] as u64, lag_cycles: words[s + 3] });
             }
         }
-        Ok(Stats { tasks, cs, calibration_cycles: words[3], nominal_mismatches: words[2], recent, entries, releases_recorded: written })
+        // The compare-arm record follows a full ring (a shorter record has none).
+        let arm_at = ring + 1 + 4 * RING;
+        let arm = words.get(arm_at..arm_at + 8).map(|a| ArmStats { left: a[0], pended: a[1], margin_min_ticks: a[2], below_4: a[3], below_8: a[4], below_16: a[5] });
+        Ok(Stats { tasks, cs, calibration_cycles: words[3], nominal_mismatches: words[2], recent, entries, releases_recorded: written, arm })
     }
 
     /// The response-time table (Tasks with completed Jobs): `(task, jobs, max ms)`.
@@ -333,6 +371,9 @@ mod tests {
         w[b + 27] = 20_000;
         w[b + 28] = 1;
         w[b + 29 + 15] = 3;
+        // Δ_wake: the last two words of the Task's record.
+        w[b + 58] = 4;
+        w[b + 59] = 310;
         w[3] = 2;
         let cs = HEADER + n * PER_TASK + (1 * RES + 2) * 2;
         w[cs] = 5;
@@ -364,5 +405,24 @@ mod tests {
         assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 entry | 3 | 20000 / 0.312 (min 0, mean 0) | 1 above the Budget; 2^15:3 |"), "{}", st.render(64_000_000, 16_000_000));
         assert!(st.render(64_000_000, 16_000_000).contains("| Task 1 on Resource 2 | 5 | 16000 / 0.250 |"));
         assert!(Stats::decode(&[0, 0, 0, 0]).is_err());
+        // The record's last two words per Task (Table 13-1's Δ_wake).
+        assert_eq!((st.tasks[1].wake_count, st.tasks[1].wake_max_ticks), (4, 310));
+        assert_eq!((st.tasks[0].wake_count, st.tasks[0].wake_max_ticks), (0, 0));
+    }
+
+    /// The compare-arm record sits after a full ring; a record that ends
+    /// with the ring (a build before 2026-11-18) has none.
+    #[test]
+    fn decodes_the_compare_arm_record_after_a_full_ring() {
+        let n = 1;
+        let ring = HEADER + n * PER_TASK + n * RES * 3 + 4 * ENTRY_KINDS;
+        let mut w = vec![0u32; ring + 1 + 4 * RING];
+        w[0] = MAGIC;
+        w[1] = n as u32;
+        assert_eq!(Stats::decode(&w).unwrap().arm, None);
+        w.extend_from_slice(&[1000, 7, 5, 0, 12, 40, 0, 0]);
+        let arm = Stats::decode(&w).unwrap().arm.unwrap();
+        assert_eq!(arm, ArmStats { left: 1000, pended: 7, margin_min_ticks: 5, below_4: 0, below_8: 12, below_16: 40 });
+        assert!(arm.summary().contains("the closest 5 ticks"));
     }
 }

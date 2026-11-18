@@ -438,6 +438,9 @@ pub fn partition_source(g: &Generated, p: usize) -> String {
     let _ = writeln!(s, "        pub const CODE: [(u32, u32); PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| pair(&q.code)).collect::<Vec<_>>().join(", "));
     let _ = writeln!(s, "        pub const RAM: [(u32, u32); PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| pair(&q.ram)).collect::<Vec<_>>().join(", "));
     let _ = writeln!(s, "        pub const STACK: [u32; PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| q.stack.to_string()).collect::<Vec<_>>().join(", "));
+    let _ = writeln!(s, "        /// Each Partition's RAM region's subregion-disable bits (bit n set: the");
+    let _ = writeln!(s, "        /// n-th eighth of the region is outside the view; HW-09).");
+    let _ = writeln!(s, "        pub const RAM_SRD: [u8; PARTITIONS] = [{}];", g.plan.partitions.iter().map(|q| format!("0x{:02x}", q.ram.srd)).collect::<Vec<_>>().join(", "));
     let _ = writeln!(s, "        /// Each Partition's peripheral windows, `(0, 0)` past its count.");
     let _ = writeln!(s, "        pub const WINDOWS: [[(u32, u32); {}]; PARTITIONS] = [", crate::layout::MAX_WINDOWS);
     for q in &g.plan.partitions {
@@ -814,6 +817,8 @@ pub fn link_x(g: &Generated, system_crate: &str) -> String {
     let _ = writeln!(s);
     let _ = writeln!(s, "  .kernel.text : ALIGN(4)");
     let _ = writeln!(s, "  {{");
+    // R6.7: the Kernel's version symbols, which nothing reads at run time.
+    let _ = writeln!(s, "    KEEP(*(.rsk.version));");
     let _ = writeln!(s, "    *librsk_kernel-*:*(.text .text.* .rodata .rodata.*)");
     let _ = writeln!(s, "    *librsk_entry-*:*(.text .text.* .rodata .rodata.*)");
     let _ = writeln!(s, "    *lib{}-*:*(.text .text.* .rodata .rodata.*)", archive(system_crate));

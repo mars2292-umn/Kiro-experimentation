@@ -916,13 +916,13 @@ theorem kstep_di {cfg : logic.Config NT NR NP} {P : Params}
     rcases hcode with e | ⟨kind, t, h⟩
     · rw [e]; exact hb
     · exact record_event_dx h hb
-  | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
+  | bevent_h hq harmed hk c k' hd hrun hrb hc t i hcode hs =>
     exact budget_event_dx hcode hb
-  | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
+  | overrun_h hq harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
     exact budget_event_dx hcode hb
-  | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+  | overrun_p hq harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
     exact budget_event_dx hcode hb
-  | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
+  | bevent_r hq harmed hk c k' hd hrun hrb hc t i hcode =>
     exact budget_event_dx hcode hb
   | ktick => exact hb
   | idle => exact hb

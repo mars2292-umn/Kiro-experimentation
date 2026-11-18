@@ -49,6 +49,7 @@ SECTIONS
 
   .kernel.text : ALIGN(4)
   {
+    KEEP(*(.rsk.version));
     *librsk_kernel-*:*(.text .text.* .rodata .rodata.*)
     *librsk_entry-*:*(.text .text.* .rodata .rodata.*)
     *librsk_system-*:*(.text .text.* .rodata .rodata.*)

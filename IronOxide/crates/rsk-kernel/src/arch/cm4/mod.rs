@@ -59,6 +59,7 @@
 // so this module denies `unsafe_code` and contains none (R6.3).
 #![deny(unsafe_code)]
 
+pub mod drivers;
 pub mod entry;
 pub mod ghostv;
 pub mod plan;
@@ -499,7 +500,7 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
         if let crate::arch::Binding::Intake { task, .. } = binding {
             unsafe_module::stats_intake(task, hw::dwt_cyccnt().wrapping_sub(entry_cycles));
             // Δ_stamp: from the edge the probe latched to this entry's timestamp.
-            unsafe_module::stats_stamp(task, hw::stamp_capture(), entry_now as u32);
+            unsafe_module::stats_stamp(task, hw::stamp_capture(), entry_now as u32, top_before.is_none());
         }
         // Task 19.3: the entry's cycles by kind, and the Job it interrupted.
         let kind = match binding {

@@ -111,11 +111,19 @@ impl ProfileInputs {
 /// Runs the Link_Checker over the binary and the Task_Model text, with the
 /// scans when the Profile inputs are given.
 pub fn check_with_profile(elf_bytes: &[u8], model_text: &str, profile: Option<&ProfileInputs>) -> Result<Result_, String> {
-    let mut out = check(elf_bytes, model_text)?;
+    check_with_profile_probed(elf_bytes, model_text, profile, &[])
+}
+
+/// `check_with_profile` with declared fetch probes (`check_probed`).
+pub fn check_with_profile_probed(elf_bytes: &[u8], model_text: &str, profile: Option<&ProfileInputs>, fetch_probes: &[String]) -> Result<Result_, String> {
+    let mut out = check_probed(elf_bytes, model_text, fetch_probes)?;
     if let Some(p) = profile {
         let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
         let model = stack::ModelInputs::parse(model_text)?;
-        let g = graph::CallGraph::build(&elf)?;
+        let mut g = graph::CallGraph::build(&elf)?;
+        for path in fetch_probes {
+            g.declare_fetch_probe(path)?;
+        }
         let inputs = scan::ScanInputs { disallowed_crates: p.disallowed_crates.clone(), system_crate: p.system_crate.clone(), core_items: scan::core_subset(&p.core_subset_toml), model: &model, verified: p.verified.clone() };
         scan::run(&elf, &g, &inputs, &mut out.violations, &mut out.notes)?;
     } else {
@@ -126,14 +134,52 @@ pub fn check_with_profile(elf_bytes: &[u8], model_text: &str, profile: Option<&P
 
 /// Runs the Link_Checker over the binary and the Task_Model text.
 pub fn check(elf_bytes: &[u8], model_text: &str) -> Result<Result_, String> {
+    check_probed(elf_bytes, model_text, &[])
+}
+
+/// The demangled path of the isolation suite's fetch probe (HW-09, R16.3):
+/// the one function whose indirect call is an instruction fetch the MPU
+/// refuses. Declared only for a HIL build with the `isolation` feature.
+pub const ISOLATION_FETCH_PROBE: &str = "rsk::matrix::perform";
+
+/// `check` with declared fetch probes (`--fetch-probe <path>`): each names
+/// one function, by its demangled path, whose single indirect call is an
+/// instruction fetch at an address outside the Partition's view (the
+/// isolation suite's matrix walker). The call has no callee, so the
+/// function is bounded by its frame and its direct calls. A declaration
+/// that does not match the binary, or names Kernel code, is an error. No
+/// probe is declared for a Flight_Build.
+pub fn check_probed(elf_bytes: &[u8], model_text: &str, fetch_probes: &[String]) -> Result<Result_, String> {
     let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
     if !elf.is_arm() {
         return Err("binary: not an Arm ELF".to_string());
     }
     let model = stack::ModelInputs::parse(model_text)?;
     let mut out = Result_::default();
-    let g = graph::CallGraph::build(&elf)?;
+    let mut g = graph::CallGraph::build(&elf)?;
+    for path in fetch_probes {
+        let i = g.declare_fetch_probe(path)?;
+        let f = &g.functions[i];
+        if scan::in_kernel_text(&elf, f.address) {
+            return Err(format!("fetch probe `{path}` (0x{:08x}) is Kernel code: only Partition code probes a fetch", f.address));
+        }
+        out.notes.push(format!("fetch probe `{path}` (0x{:08x}): its one indirect call is an instruction fetch the MPU refuses (HW-09), taken as having no callee", f.address));
+    }
     out.notes.push(format!("{} functions, {} call edges, {} indirect call sites", g.functions.len(), g.edge_count(), g.indirect_sites));
+    // PR-18: the whole target set of an indirect call that materialises no
+    // address, word by word, so that no candidate goes unseen.
+    if g.embedded.is_empty() {
+        out.notes.push("PR-18: no function address in the read-only data inside the Partitions' and the shared code sections".to_string());
+    } else {
+        let words: Vec<String> = g.embedded.iter().map(|(s, a, i)| format!("{s} 0x{a:08x} -> {}", demangle::demangle(&g.functions[*i].name))).collect();
+        out.notes.push(format!("PR-18: {} function address(es) in the read-only data inside the code sections, the target set of the callers that can read each section: {}", words.len(), words.join("; ")));
+    }
+    if g.table_words.is_empty() {
+        out.notes.push(format!("PR-18: no function address in the table sections ({}): an indirect call that materialises no function address is unresolved", graph::TABLE_SECTIONS.join(", ")));
+    } else {
+        let words: Vec<String> = g.table_words.iter().map(|(s, a, i)| format!("{s} 0x{a:08x} -> {}", demangle::demangle(&g.functions[*i].name))).collect();
+        out.notes.push(format!("PR-18: {} function address(es) in the table sections ({}), the target set of an indirect call that materialises none: {}", words.len(), graph::TABLE_SECTIONS.join(", "), words.join("; ")));
+    }
     let reports = g.analyse();
     let exception_returns = g.exception_returns();
     if !exception_returns.is_empty() {

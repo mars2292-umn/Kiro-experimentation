@@ -37,6 +37,11 @@ pub fn realm_of_section(name: &str) -> Realm {
     }
 }
 
+/// Whether the function at `address` is Kernel code (its section).
+pub fn in_kernel_text(elf: &rsk_elf::Elf, address: u32) -> bool {
+    elf.section_at(address).is_some_and(|s| realm_of_section(&s.name) == Realm::Kernel)
+}
+
 /// The crate a mangled symbol belongs to: the first path segment of a
 /// legacy symbol, the crate root of a v0 symbol, or `None` for plain
 /// (unmangled) names.

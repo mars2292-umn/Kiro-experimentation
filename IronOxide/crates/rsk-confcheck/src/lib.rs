@@ -112,6 +112,18 @@ fn reject_other_cores(json: &Value) -> Result<(), String> {
     Ok(())
 }
 
+/// R6.7: one version symbol of the Kernel in the binary against the value
+/// the Task_Model records. A symbol that is absent, and one that differs,
+/// are each a discrepancy.
+pub fn check_version(out: &mut Outcome, symbol: &str, model_field: &str, in_model: Option<&str>, in_binary: Option<&str>) {
+    let item = format!("{symbol} (R6.7; Task_Model `{model_field}`)");
+    match (in_model, in_binary) {
+        (Some(m), Some(b)) => out.mismatch(item, m, b),
+        (Some(m), None) => out.require(item, false, m, "absent from the binary"),
+        (None, b) => out.require(item, false, format!("`{model_field}` in the Task_Model"), format!("missing from the Task_Model (binary: {})", b.unwrap_or("absent"))),
+    }
+}
+
 /// Checks `model_text` (the Task_Model JSON) and, when given, the linked
 /// binary. Errors are unusable inputs; discrepancies are in the outcome.
 pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
@@ -119,6 +131,12 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
     reject_other_cores(&json)?;
     let model = model::Model::parse(&json)?;
     let mut out = Outcome::default();
+    // R23.5: the priority-to-hardware mapping and the Kernel-reserved
+    // levels, which the checker recomputes, are marked as derived.
+    let marked: Vec<&str> = json.get("derived").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
+    for name in ["kernel_levels", "priority_map"] {
+        out.require(format!("derived marker of `{name}` (R23.5)"), marked.contains(&name), "listed in `derived`", "not listed");
+    }
     recompute::check_model(&model, &mut out);
     match elf {
         Some(bytes) => {
@@ -131,6 +149,16 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
             ));
             let tables = image::decode(&img.bytes)?;
             recompute::check_binary(&model, &img, &tables, &mut out);
+            // R6.7: the Kernel linked is the one the model was generated
+            // for, of the model's Profile version and Profile_Variant.
+            for (symbol, field, value) in [
+                ("RSK_KERNEL_VERSION", "kernel", json.get("kernel").and_then(Value::as_str)),
+                ("RSK_PROFILE_VERSION", "profile.version", json.get("profile").and_then(|p| p.get("version")).and_then(Value::as_str)),
+                ("RSK_PROFILE_VARIANT", "profile.variant", json.get("profile").and_then(|p| p.get("variant")).and_then(Value::as_str)),
+            ] {
+                let found = image::version_symbol(bytes, symbol)?;
+                check_version(&mut out, symbol, field, value, found.as_deref());
+            }
             let limg = image::extract_layout(bytes)?;
             out.notes.push(format!(
                 "binary: RSK_LAYOUT_IMAGE {} bytes at 0x{:08x}, RSK_LAYOUT_CHECKSUM 0x{:08x}",
@@ -153,4 +181,48 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
         None => out.notes.push("no binary given: the Task_Model's derived values were checked, not the linked binary (R26.4)".to_string()),
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    /// R6.7: a Kernel version symbol that is absent from the binary, and
+    /// one that differs from the Task_Model's, are each reported; an equal
+    /// one is counted and not reported.
+    #[test]
+    fn r6_7_an_absent_or_differing_kernel_version_symbol_is_reported() {
+        let mut out = Outcome::default();
+        check_version(&mut out, "RSK_KERNEL_VERSION", "kernel", Some("1.2.0"), Some("1.2.0"));
+        assert!(out.discrepancies.is_empty() && out.checked == 1);
+        check_version(&mut out, "RSK_KERNEL_VERSION", "kernel", Some("1.2.0"), Some("1.1.0"));
+        check_version(&mut out, "RSK_KERNEL_VERSION", "kernel", Some("1.2.0"), None);
+        check_version(&mut out, "RSK_KERNEL_VERSION", "kernel", None, Some("1.2.0"));
+        assert_eq!(out.checked, 4);
+        let found: Vec<(&str, &str)> = out.discrepancies.iter().map(|d| (d.expected.as_str(), d.found.as_str())).collect();
+        assert_eq!(found[0], ("1.2.0", "1.1.0"));
+        assert_eq!(found[1], ("1.2.0", "absent from the binary"));
+        assert!(found[2].1.contains("missing from the Task_Model"));
+        assert!(out.discrepancies.iter().all(|d| d.item.contains("R6.7")));
+    }
+}
+
+#[cfg(test)]
+mod floor_tests {
+    use super::*;
+
+    /// R23.4, R26.3: an Application whose Tasks access no Resource has a
+    /// lock stack of one slot, the Generator's floor, and the checker
+    /// recomputes the same (until 2026-11-17 it recomputed 0 and reported
+    /// the HIL stimulus Application's model).
+    #[test]
+    fn r23_4_an_application_without_resources_has_a_lock_stack_of_one() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/hil-stimulus/gen/task_model.json");
+        let text = std::fs::read_to_string(&path).unwrap();
+        let json: Value = serde_json::from_str(&text).unwrap();
+        assert!(json["resources"].as_array().unwrap().is_empty(), "the stimulus Application declares no Resource");
+        assert_eq!(json["capacities"]["lock_stack"], Value::from(1));
+        let out = check(&text, None).unwrap();
+        assert!(out.discrepancies.is_empty(), "{:?}", out.discrepancies.iter().map(|d| format!("{}: expected {}, found {}", d.item, d.expected, d.found)).collect::<Vec<_>>());
+    }
 }

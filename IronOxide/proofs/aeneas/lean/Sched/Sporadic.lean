@@ -280,13 +280,13 @@ theorem kstep_sprel {cfg : logic.Config NT NR NP} {P : Params}
     · exact SpRel.of_releq (record_event_sp h) (fun u => by rw [record_event_sched h])
   | faulted kind kn k' hs => exact SpRel.of_rsteps (fault_sp hs) (fault_r hs)
   | faulted_of kind t k' hs => exact SpRel.of_rsteps (fault_of_sp hs) (fault_of_r hs)
-  | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
+  | bevent_h hq harmed hk c k' hd hrun hrb hc t i hcode hs =>
     exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
-  | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
+  | overrun_h hq harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
     exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
-  | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+  | overrun_p hq harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
     exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
-  | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
+  | bevent_r hq harmed hk c k' hd hrun hrb hc t i hcode =>
     exact SpRel.of_rsteps (budget_event_sp hcode) (budget_event_eff hcode)
   | ktick => exact SpRel.refl
   | idle => exact SpRel.refl

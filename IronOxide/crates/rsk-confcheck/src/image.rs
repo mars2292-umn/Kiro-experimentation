@@ -76,6 +76,18 @@ pub fn extract_named(elf_bytes: &[u8], image_symbol: &str, checksum_symbol: &str
     Ok(Image { address: image.address(), bytes, stored_checksum: u32::from_le_bytes([c[0], c[1], c[2], c[3]]) })
 }
 
+/// The text of a version symbol of the Kernel (R6.7: `RSK_KERNEL_VERSION`,
+/// `RSK_PROFILE_VERSION`, `RSK_PROFILE_VARIANT`), a byte string padded with
+/// zeros; `None` when the binary has no such symbol.
+pub fn version_symbol(elf_bytes: &[u8], name: &str) -> Result<Option<String>, String> {
+    let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
+    let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
+    let Some(sym) = symbols.iter().find(|s| s.name == name && s.is_object()) else { return Ok(None) };
+    let bytes = elf.read_at(sym.address(), sym.size as usize).map_err(|e| format!("binary: {name}: {e}"))?;
+    let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+    String::from_utf8(bytes[..end].to_vec()).map(Some).map_err(|_| format!("binary: {name} is not text"))
+}
+
 /// Locates and reads `RSK_CONFIG_IMAGE` and `RSK_CONFIG_CHECKSUM`.
 pub fn extract(elf_bytes: &[u8]) -> Result<Image, String> {
     extract_named(elf_bytes, "RSK_CONFIG_IMAGE", "RSK_CONFIG_CHECKSUM")

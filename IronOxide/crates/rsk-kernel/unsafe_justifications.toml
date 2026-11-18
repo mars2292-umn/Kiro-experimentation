@@ -357,9 +357,9 @@ reviewed_on = "2026-11-02"
 
 [[justification]]
 id = "UJ-046"
-summary = "dt::fpscr_read, dt::register_patterns, dt::register_patterns_fp: the Task-side register probes (rsk hw_dt API)"
+summary = "dt::fpscr_read, dt::fpscr_set_round_toward_zero, dt::register_patterns, dt::register_patterns_fp: the Task-side register probes (rsk hw_dt API)"
 kind = "review"
-why_no_machine_check = "Inlined into the Partition's code and run unprivileged; every register the blocks touch is declared as an output, no memory is accessed, and the spin is bounded by the argument (PR-16). The FP variants are reachable from FPU Tasks only (PR-31). HIL builds only."
+why_no_machine_check = "Inlined into the Partition's code and run unprivileged; every register the blocks touch is declared as an output, no memory is accessed, and the spin is bounded by the argument (PR-16). The FP variants are reachable from FPU Tasks only (PR-31). The one write, of FPSCR's rounding mode (R11.8's probe, 2026-11-17), is to the calling Job's own FP context. HIL builds only."
 reviewed_by = "rsk kernel review (task 3.3)"
 reviewed_on = "2026-11-02"
 
@@ -455,7 +455,5 @@ reviewed_on = "2026-11-13"
 [[justification]]
 id = "UJ-063"
 summary = "all_bytes_zero: the bytes of a Partition static's initial value read at compile time (ResourceCell::for_static, R14.5)"
-kind = "review"
-why_no_machine_check = "A read of each byte of a live value through a pointer derived from a reference to it, inside the value's size; nothing is written. Evaluated by the compiler's constant evaluator for every generated cell, which itself rejects an out-of-bounds read or a read of a padding byte, so a mistake here is a build failure and not an undefined behaviour of the Target. Kani and Verus do not run the constant evaluator."
-reviewed_by = "rsk kernel review (2026-11-16, the zeroed-statics finding)"
-reviewed_on = "2026-11-16"
+kind = "kani"
+link = "uj_063_all_bytes_zero_reads_exactly_the_value"

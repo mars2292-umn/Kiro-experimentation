@@ -32,6 +32,10 @@ pub struct Inputs<'a> {
     pub rig: &'a Rig,
     /// The Application under test in its release-timing configuration.
     pub target_elf: &'a Path,
+    /// The hash of the target binary's loadable image (the Build_Manifest's
+    /// `sha256:` form), printed in the report so that the report itself
+    /// says which binary it is of (R33.4).
+    pub target_hash: Option<&'a str>,
     pub stimulus_elf: &'a Path,
     pub work_dir: &'a Path,
     /// The operating duration of the configuration, in seconds, and the
@@ -268,6 +272,12 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         Ok(Some(st)) => {
             let max = st.max_cycles();
             let ok = st.nominal_mismatches == 0 && (max <= rig.expect.j_rel_cycles || !inputs.timing_bounds) && st.total() > 0;
+            // HW-12, ASM-19: what the time-base driver left to the hardware.
+            // The distance is judged against the probe's in the isolation
+            // suite (`dt::kernel_compare_row`); here the record must be live.
+            if let Some(arm) = &st.arm {
+                out.step("compare arms (HW-12, ASM-19)", arm.left + arm.pended > 0, arm.summary());
+            }
             out.step(
                 "release timing (R9.10)",
                 ok,
@@ -643,6 +653,9 @@ pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome) -> String {
         "Operating duration {} s on the target {} with the stimulus board {}; analyzer {} at {} Hz; J_rel bound {} cycles.\n\n",
         inputs.duration_secs, rig.target.serial, rig.stimulus.serial, rig.analyzer.driver, inputs.samplerate_hz, rig.expect.j_rel_cycles
     ));
+    if let Some(hash) = inputs.target_hash {
+        s.push_str(&format!("Target binary: {hash}\n\n"));
+    }
     s.push_str("## Steps\n\n| Step | Result | Detail |\n|---|---|---|\n");
     for st in &out.steps {
         s.push_str(&format!("| {} | {} | {} |\n", st.name, if st.ok { "pass" } else { "FAIL" }, st.detail.replace('|', "\\|")));

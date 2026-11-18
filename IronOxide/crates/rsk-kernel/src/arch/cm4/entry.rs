@@ -783,6 +783,9 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         final(state).last_switch == old(state).last_switch,
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
+        // The entry reports the safe state exactly when the Kernel is in
+        // it, and does not itself enter or leave it.
+        safe == final(k).spec_safe(), final(k).spec_safe() == old(k).spec_safe(),
 {
     // 2026-11-15 (Verification_Plan 7.3): the selection, with the
     // executing Job's Budget event disarmed when a dispatch is pended.
@@ -882,6 +885,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             k.spec_prio() == k1.spec_prio(), k.spec_part() == k1.spec_part(),
             k.task_count_spec() == k1.task_count_spec(),
             k.spec_dispatch_guard(),
+            k.spec_safe() == k1.spec_safe(),
             super::plan::arch_frame(*state, *old(state)),
             hw.hw().pending == h2.pending, hw.hw().enabled == h2.enabled,
             hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
@@ -3987,6 +3991,14 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         // A fault taken from Handler mode or with PRIMASK held is the
         // Kernel's: it ends no Job and plans no unwind.
         in_kernel ==> r.0 == 0,
+        // R14.4, R11.5: such a fault, any HardFault, and a fault with no
+        // Job executing end in the system safe state. Under eager stacking
+        // (DD-04) the Kernel's own floating-point context preservation, the
+        // stubs' save and restore of S16 to S31, runs in Handler mode, so a
+        // fault during it is one of these; an overflow of a Partition's
+        // stack while the hardware stacks S0 to S15 at an exception entry
+        // is taken from the Job's context and is its Partition's.
+        in_kernel || kind == EV_HARDFAULT || old(k).spec_depth() == 0 ==> r.1,
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.

@@ -113,7 +113,11 @@ pub fn attempts(model: &TaskModel, p: usize) -> Vec<Attempt> {
     let kwin_addr = kwin.map(|w| w.base + 0x100);
     // DD-08, R17.3 (audit finding 1): the Partition's own first read-only window, at SPIM's RXD.PTR.
     let own_ro = model.partitions[p].mpu.windows.iter().find(|w| w.read_only).map(|w| w.base + 0x534);
-    let kernel: [(String, Option<u32>, Class, u8); 10] = [
+    // HW-09: the first disabled subregion of the Partition's own RAM region
+    // (`rsk::matrix::target`, attempt 10 of the Kernel class).
+    let own_ram = &model.partitions[p].mpu.ram;
+    let own_srd = (own_ram.srd != 0).then(|| own_ram.base + ((1u64 << own_ram.size_log2) / 8) as u32 * own_ram.srd.trailing_zeros() + 0x10);
+    let kernel: [(String, Option<u32>, Class, u8); 11] = [
         ("read the Kernel's RAM".into(), Some(kram), Class::Read, MEMMANAGE),
         ("write the Kernel's RAM".into(), Some(kram), Class::Write, MEMMANAGE),
         ("read the Kernel's flash".into(), Some(kflash), Class::Read, MEMMANAGE),
@@ -124,6 +128,7 @@ pub fn attempts(model: &TaskModel, p: usize) -> Vec<Attempt> {
         (format!("write the Kernel-owned peripheral {kwin_name} (R16.2)"), kwin_addr, Class::Write, MEMMANAGE),
         ("write the word below the own stack (R16.5)".into(), Some(own), Class::Write, MEMMANAGE),
         ("write the own read-only window, an EasyDMA pointer register (DD-08, R17.3)".into(), own_ro, Class::Write, MEMMANAGE),
+        ("write a disabled subregion of the own RAM region (HW-09)".into(), own_srd, Class::Write, MEMMANAGE),
     ];
     for (what, address, class, kind) in kernel {
         out.push(Attempt { index: i, what, address, class, kind });
@@ -163,6 +168,7 @@ pub fn judge_matrix(walkers: &[Walker], events: &[EventRec], faults: &[Fault]) -
     let mut side = TaskSide::default();
     let mut refused_total = 0usize;
     let mut stack_overflow_ok = true;
+    let mut srd_ok = true;
     for w in walkers {
         let expected: Vec<&Attempt> = w.attempts.iter().filter(|a| a.address.is_some()).collect();
         let fault_events: Vec<(usize, &EventRec)> = events.iter().enumerate().filter(|(_, e)| e.task == w.task && (e.kind == MEMMANAGE || e.kind == BUSFAULT)).collect();
@@ -203,6 +209,9 @@ pub fn judge_matrix(walkers: &[Walker], events: &[EventRec], faults: &[Fault]) -
             if what.contains("own stack") {
                 stack_overflow_ok = false;
             }
+            if what.contains("disabled subregion") {
+                srd_ok = false;
+            }
         }
     }
     if missing.is_empty() {
@@ -217,6 +226,8 @@ pub fn judge_matrix(walkers: &[Walker], events: &[EventRec], faults: &[Fault]) -
     side.ppb_attempts = walkers.len() * 2;
     side.ppb_faults = faults.iter().filter(|f| f.is_bus()).map(|f| (f.precise_bus(), f.imprecise_bus(), f.bfarvalid(), f.address)).collect();
     side.stack_overflow_refused = Some(stack_overflow_ok);
+    let srd_attempts = walkers.iter().flat_map(|w| w.attempts.iter()).filter(|a| a.what.contains("disabled subregion") && a.address.is_some()).count();
+    side.srd_refused = (srd_attempts > 0).then_some((srd_attempts, srd_ok));
     side.matrix = Some((ok, notes.join(" | ")));
     (ok, notes, side)
 }
@@ -339,12 +350,15 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     out.faults = faults;
     // The Task-side probes.
     side.filter_fpscr = v("filter_fpscr");
+    side.filter_fpscr_jobs = v("filter_fpscr_jobs");
     side.patterns = match (v("filter_pattern_runs"), v("filter_pattern_fail"), v("filter_pattern_mask")) { (Some(r), Some(f), Some(m)) => Some((r, f, m)), _ => None };
     side.srd_used = inputs.model.partitions.iter().any(|p| p.mpu.code.srd != 0 || p.mpu.ram.srd != 0 || p.mpu.windows.iter().any(|w| w.srd != 0));
     side.fp_flush_to_zero = inputs.model.fp_flush_to_zero;
     if let Some((runs, fail, mask)) = side.patterns {
         out.step("register patterns across preemptions (HW-06, HW-10, R7.5)", runs > 0 && fail == 0, format!("{runs} probe runs of filter (FPU Task), {fail} with a changed register, mask {mask:#x}; FPSCR of the first Job {}", v("filter_fpscr").map(|f| format!("{f:#x}")).unwrap_or("?".into())));
     }
+    // The time-base driver's compares of this run (HW-12 on the Kernel's path).
+    side.arm = target.read_stats(inputs.target_elf, &scratch).ok().flatten().and_then(|st| st.arm);
     // The differential tests.
     match target.read_words(inputs.target_elf, "DT_RECORD", &scratch) {
         Ok(Some(w)) => match dt::Record::decode(&w) {
@@ -434,7 +448,7 @@ mod tests {
         assert_eq!(w[1].task, 3);
         assert_eq!(w[2].task, 6);
         let a = &w[1].attempts; // part1 against part0, part2, the Kernel
-        assert_eq!(a.len(), 2 * 8 + 10);
+        assert_eq!(a.len(), 2 * 8 + 11);
         assert_eq!(a[25].address, None, "part1 owns no read-only window");
         assert_eq!(w[2].attempts[25].address, Some(0x4000_3534), "part2's own SPIM0 window is read-only to it: RXD.PTR (DD-08, R17.3)");
         assert_eq!(w[2].attempts[25].class, Class::Write);
@@ -454,7 +468,16 @@ mod tests {
         assert_eq!(a[23].address, Some(0x4000_0100));
         assert_eq!(a[23].class, Class::Write);
         assert_eq!(a[23].kind, MEMMANAGE);
-        assert_eq!(a[24].address, Some(0x2001_0000 - 4));
+        // part1's RAM is the last region since 2026-11-18 (24 KiB in a 32 KiB region).
+        assert_eq!(a[24].address, Some(0x2001_8000 - 4));
+        // HW-09: part1's RAM region has its two top subregions disabled (SRD 0xC0):
+        // the attempt is in the first of them, 6 eighths of 32 KiB above the base.
+        assert_eq!(m.partitions[1].mpu.ram.srd, 0xC0);
+        assert_eq!(a[26].address, Some(0x2001_8000 + 6 * 0x1000 + 0x10));
+        assert_eq!(a[26].class, Class::Write);
+        assert_eq!(a[26].kind, MEMMANAGE);
+        assert_eq!(w[0].attempts[26].address, None, "part0's RAM region has no disabled subregion");
+        assert_eq!(w[2].attempts[26].address, None, "part2's RAM region has no disabled subregion");
     }
 
     #[test]
@@ -477,6 +500,12 @@ mod tests {
         assert!(ok, "{notes:?}");
         assert_eq!(side.ppb_faults.len(), 6);
         assert_eq!(side.stack_overflow_refused, Some(true));
+        assert_eq!(side.srd_refused, Some((1, true)));
+        // The disabled subregion's fault absent from the record: the access was granted.
+        let granted: Vec<Fault> = faults.iter().filter(|f| f.address != 0x2001_E010).cloned().collect();
+        let (ok, _, side) = judge_matrix(&w, &events, &granted);
+        assert!(!ok);
+        assert_eq!(side.srd_refused, Some((1, false)));
         // One attempt that returned (no event, no fault) fails it.
         let dropped: Vec<EventRec> = events.iter().skip(2).cloned().collect();
         let (ok, _, _) = judge_matrix(&w, &dropped, &faults);

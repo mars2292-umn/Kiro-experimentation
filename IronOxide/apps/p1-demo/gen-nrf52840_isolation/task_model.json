@@ -13,7 +13,7 @@
     "tick_hz": 16000000
   },
   "config_checksum": "0x984134c2",
-  "layout_checksum": "0xf92e25f6",
+  "layout_checksum": "0xab3cca1b",
   "operating_duration_ticks": 57600000,
   "safe_state": "crate::report_and_exit",
   "fp_flush_to_zero": true,
@@ -49,6 +49,10 @@
       "level": 7,
       "nvic": 32
     }
+  ],
+  "derived": [
+    "kernel_levels",
+    "priority_map"
   ],
   "capacities": {
     "lock_stack": 6,
@@ -179,7 +183,7 @@
       "mit_threshold": 10,
       "regions": {
         "code": 32768,
-        "ram": 32768,
+        "ram": 24576,
         "stack": 4096,
         "init_arena": 0
       },
@@ -189,16 +193,16 @@
       ],
       "mpu": {
         "code": {
-          "base": 229376,
+          "base": 262144,
           "size_log2": 15,
           "srd": 0,
           "usable_bytes": 32768
         },
         "ram": {
-          "base": 536936448,
+          "base": 536969216,
           "size_log2": 15,
-          "srd": 0,
-          "usable_bytes": 32768
+          "srd": 192,
+          "usable_bytes": 24576
         },
         "windows": [
           {
@@ -248,13 +252,13 @@
       ],
       "mpu": {
         "code": {
-          "base": 262144,
+          "base": 229376,
           "size_log2": 15,
           "srd": 0,
           "usable_bytes": 32768
         },
         "ram": {
-          "base": 536969216,
+          "base": 536936448,
           "size_log2": 15,
           "srd": 0,
           "usable_bytes": 32768

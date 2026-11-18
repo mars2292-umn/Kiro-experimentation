@@ -37,6 +37,9 @@ pub mod rsk_target {
         pub const CODE: [(u32, u32); PARTITIONS] = [(0x00030000, 0x8000)];
         pub const RAM: [(u32, u32); PARTITIONS] = [(0x20008000, 0x8000)];
         pub const STACK: [u32; PARTITIONS] = [4096];
+        /// Each Partition's RAM region's subregion-disable bits (bit n set: the
+        /// n-th eighth of the region is outside the view; HW-09).
+        pub const RAM_SRD: [u8; PARTITIONS] = [0x00];
         /// Each Partition's peripheral windows, `(0, 0)` past its count.
         pub const WINDOWS: [[(u32, u32); 5]; PARTITIONS] = [
             [(0x50000000, 0x1000), (0, 0), (0, 0), (0, 0), (0, 0)],

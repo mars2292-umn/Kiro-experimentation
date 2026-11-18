@@ -234,6 +234,9 @@ pub fn report_and_exit() -> ! {
         // untested row of the rig, not a value.
         if p1_demo_part2::rsk_state::FILTER_FPSCR_SEEN.peek() != 0 {
             print_kv(b"filter_fpscr", p1_demo_part2::rsk_state::FILTER_FPSCR.peek());
+            // R11.8: the Jobs that found FPSCR as the first did, each after
+            // a Job that left another rounding mode (or the two marks).
+            print_kv(b"filter_fpscr_jobs", p1_demo_part2::rsk_state::FILTER_FPSCR_SEEN.peek());
         }
         // SPIM0's EasyDMA registers (nRF52840 PS 6.25.7), read here because
         // the reset the board takes when the probe detaches clears them:
@@ -304,6 +307,28 @@ pub fn report_and_exit() -> ! {
     // and counted apart, anything else is a fault.
     #[cfg(any(feature = "timing", feature = "timing-short"))]
     let mut expected_late = 0u32;
+    // The deliberate overload case, judged as the rig judges it
+    // (`rsk_hil::events::Events::overload_misses`): a deadline miss of
+    // `control` (Task 0) within three `sensor` periods (60 ms) of an
+    // overrun, a deadline miss or a held Release of a late `sensor` Job is
+    // a consequence of the injection (the shifted 12 ms Critical_Section
+    // blocks `control` for nearly its 10 ms deadline). It is counted apart
+    // and printed; a `control` miss anywhere else is still a miss. Until
+    // 2026-11-18 such a miss failed the run when it fell inside the log's
+    // 32 entries and passed unseen after them.
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let mut overload_misses = 0u32;
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let mut late_seen = false;
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let mut last_late = 0u64;
+    // The Release that arrives at the missed deadline (deadline = period)
+    // finds the Job in progress: its held Release (R9.7) at that instant
+    // is the same occurrence, seen in the run of 2026-11-18 at 123.040 s.
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let mut overload_seen = false;
+    #[cfg(any(feature = "timing", feature = "timing-short"))]
+    let mut last_overload = 0u64;
     // Task 21.3 (R41.2): the QEMU configuration's `control` drops its
     // PingPong state in its last Job on purpose: the dropped value and the
     // empty slot are two expected Protocol violations of Task 0; any other
@@ -361,6 +386,25 @@ pub fn report_and_exit() -> ! {
         #[cfg(any(feature = "timing", feature = "timing-short"))]
         if task == 2 && (kind == EV_OVERRUN || kind == EV_DEADLINE_MISS || kind == EV_MIT_VIOLATION || kind == EV_RELEASE_OVERLAP) {
             expected_late += 1;
+            if kind != EV_MIT_VIOLATION {
+                late_seen = true;
+                last_late = k.log_instant(i);
+            }
+            i += 1;
+            continue;
+        }
+        #[cfg(any(feature = "timing", feature = "timing-short"))]
+        if task == 0 && kind == EV_DEADLINE_MISS && late_seen && k.log_instant(i) >= last_late && k.log_instant(i) - last_late <= 60 * MS {
+            overload_misses += 1;
+            overload_seen = true;
+            last_overload = k.log_instant(i);
+            print_kv(b"overload_miss_at_ms", (k.log_instant(i) / MS) as u32);
+            i += 1;
+            continue;
+        }
+        #[cfg(any(feature = "timing", feature = "timing-short"))]
+        if task == 0 && kind == EV_RELEASE_OVERLAP && overload_seen && k.log_instant(i) >= last_overload && k.log_instant(i) - last_overload <= MS {
+            print_kv(b"overload_held_release_at_ms", (k.log_instant(i) / MS) as u32);
             i += 1;
             continue;
         }
@@ -531,6 +575,7 @@ pub fn report_and_exit() -> ! {
         print_kv(b"expected_sensor", jobs(2) - late);
         print_kv(b"expected_late_jobs", late);
         print_kv(b"late_events_seen", expected_late);
+        print_kv(b"overload_misses", overload_misses);
         ended && faults == 0 && misses == 0
             && a + 2 >= jobs(0) && b + 2 >= jobs(2) - late && b <= jobs(2) - late
             && c + 2 >= jobs(3) && f + 2 >= jobs(5) && filter_ok && g + 2 >= jobs(6) && dma_ok + 2 >= jobs(6)

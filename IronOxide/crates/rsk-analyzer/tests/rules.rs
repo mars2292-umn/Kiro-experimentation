@@ -314,6 +314,9 @@ fn r29_7_iteration_stops_at_the_deadline_with_a_lower_bound() {
 
 // ------------------------------------------------------------- R29.2, R29.3, R29.4: the terms on the demo
 
+/// R29.2, and the Analyzer's half of R14.10: the work of stopping or
+/// restarting a Partition is in the blocking term of every Task it can
+/// delay.
 #[test]
 fn r29_2_blocking_is_the_longest_lower_priority_critical_section_with_a_ceiling_at_least_the_priority() {
     let m = model();

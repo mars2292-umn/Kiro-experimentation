@@ -246,13 +246,13 @@ theorem kstep_nomrel {cfg : logic.Config NT NR NP} {P : Params}
     · exact NomRel.of_eq (record_event_tk h).2
   | faulted kind kn k' hs => exact NomRel.of_eq (fault_tk hs).2
   | faulted_of kind t k' hs => exact NomRel.of_eq (fault_of_tk hs).2
-  | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
+  | bevent_h hq harmed hk c k' hd hrun hrb hc t i hcode hs =>
     exact NomRel.of_eq (budget_event_tk hcode).2
-  | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
+  | overrun_h hq harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
     exact NomRel.of_eq (budget_event_tk hcode).2
-  | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+  | overrun_p hq harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
     exact NomRel.of_eq (budget_event_tk hcode).2
-  | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
+  | bevent_r hq harmed hk c k' hd hrun hrb hc t i hcode =>
     exact NomRel.of_eq (budget_event_tk hcode).2
   | ktick => exact NomRel.of_eq rfl
   | idle => exact NomRel.of_eq rfl

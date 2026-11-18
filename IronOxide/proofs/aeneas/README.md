@@ -264,3 +264,23 @@ short-circuit condition mixing calls and comparisons (`wfn_exec` computes
 its three conditions first). The mutually recursive types have no
 `induction` tactic in Lean: the structural theorems are written as
 mutually recursive functions or by strong induction on a size.
+
+## The register drivers (Verification_Plan, 2026-11-18)
+
+`lean/Hw/Drivers.lean` is the Aeneas translation of
+`crates/rsk-kernel/src/arch/cm4/drivers.rs`: the NVIC, TIMER0 and boot
+configuration drivers as functions of a register file. `lean/Hw/Model.lean`
+(handwritten) gives the register model and proves each driver's effect on
+it. `lake build Hw` checks them.
+
+Regenerating the translation:
+
+```sh
+cd crates/rsk-kernel
+D='crate::arch::cm4::drivers'
+../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from "$D::nvic_enable,$D::nvic_disable,$D::nvic_set_pending,$D::nvic_clear_pending,$D::nvic_set_priority,$D::set_prigroup_all_preempt,$D::set_nonbasethrdena,$D::set_disdefwbuf,$D::set_kernel_exception_priorities,$D::fpu_configure_eager,$D::mpu_enable_background,$D::dwt_enable,$D::timer0::now,$D::timer0::arm,$D::timer0::ack,$D::timer0::cancel,$D::timer0::rearm" \
+    --dest-file /tmp/drivers.llbc -- --lib
+../../../aeneas/bin/aeneas -backend lean -dest /tmp/drivers-out /tmp/drivers.llbc
+cp /tmp/drivers-out/Drivers.lean ../../proofs/aeneas/lean/Hw/Drivers.lean
+```

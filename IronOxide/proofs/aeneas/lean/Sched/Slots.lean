@@ -827,13 +827,13 @@ theorem kstep_bo {cfg : logic.Config NT NR NP} {P : Params}
     rcases hcode with e | ⟨kind, t, h⟩
     · rw [e]; exact hb
     · exact record_event_box h hb
-  | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
+  | bevent_h hq harmed hk c k' hd hrun hrb hc t i hcode hs =>
     exact budget_event_box hcode hb
-  | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
+  | overrun_h hq harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
     exact budget_event_box hcode hb
-  | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+  | overrun_p hq harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
     exact budget_event_box hcode hb
-  | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
+  | bevent_r hq harmed hk c k' hd hrun hrb hc t i hcode =>
     exact budget_event_box hcode hb
   | ktick => exact hb
   | idle => exact hb
@@ -884,17 +884,16 @@ premises about the slot ("a Job is in progress", "the Budget slot of the
 Job on top is armed") derived from the invariant and no longer asked. -/
 theorem KStep.served_bevent_reach {cfg : logic.Config NT NR NP} {P : Params}
     {x : KSt NT NR NP NL NS NE} (hx : KReachB cfg P x) (i : Usize)
-    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
     (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
     (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
     (hdue : SlotDue x.k i)
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
     (ht : (slotOf x.k i).task.val < NT.val)
-    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (hq : Quieted cfg x.k)
     (hk : x.ks = 0) (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt) :
     ∃ y, KStep cfg P x y ∧ y.k = k' := by
   obtain ⟨hd, _, harmed⟩ := budget_slot_top hx hdue.1 hdue.2.1 hkind
-  exact KStep.served_bevent_any x i k0 r0 k' c hs hkind ht hset harmed hk hd hrun hrb hc
+  exact KStep.served_bevent_any x i k' c hs hkind ht hq harmed hk hd hrun hrb hc
 
 /-! ## The boot state -/
 

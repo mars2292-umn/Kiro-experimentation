@@ -386,7 +386,7 @@ fn isolation_step(cx: &mut rsk_ctx::Sampler) {
         }
         _ => {
             let layout = rsk::matrix::Layout {
-                this: l::SELF, code: &l::CODE, ram: &l::RAM, stack: &l::STACK, windows: &l::WINDOWS, windows_ro: &l::WINDOWS_RO,
+                this: l::SELF, code: &l::CODE, ram: &l::RAM, ram_srd: &l::RAM_SRD, stack: &l::STACK, windows: &l::WINDOWS, windows_ro: &l::WINDOWS_RO,
                 kernel_flash: l::KERNEL_FLASH, kernel_ram: l::KERNEL_RAM, kernel_windows: &l::KERNEL_WINDOWS,
             };
             let i = (case - DMA_CASES) as usize;
@@ -462,9 +462,25 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
     // the EasyDMA cases that follow are those of one uninterrupted run).
     #[cfg(feature = "isolation")]
     {
-        if cx.pattern_runs.get() == 0 {
-            cx.fpscr.set(rsk::hw_dt::fpscr());
+        // R11.8: every Job reads FPSCR as it finds it. The first records
+        // the value; each later one, which starts after a Job that left
+        // round-toward-zero behind (the end of this function), must find
+        // the same. `fpscr_seen` counts the Jobs that did (1 for the first
+        // alone), and holds `FPSCR_DIFFERED` once a Job found another value
+        // (kept in `fpscr`) or `FPSCR_NOT_CHANGED` if the settings could
+        // not be changed, which would make the comparison empty.
+        let found = rsk::hw_dt::fpscr();
+        let seen = cx.fpscr_seen.get();
+        if seen == 0 {
+            cx.fpscr.set(found);
             cx.fpscr_seen.set(1);
+        } else if seen < FPSCR_JOBS_MAX {
+            if found != cx.fpscr.get() {
+                cx.fpscr.set(found);
+                cx.fpscr_seen.set(FPSCR_DIFFERED);
+            } else {
+                cx.fpscr_seen.set(seen + 1);
+            }
         }
         let mask = rsk::hw_dt::register_patterns_fp(50_000);
         cx.pattern_runs.with(|c| *c = c.saturating_add(1));
@@ -475,6 +491,18 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
         if inject::window(50, 25) {
             inject::spin_ms(40);
         }
+    }
+    // R11.5 (conformance case fi-R11-5-fp-stack-bottom): with this Job's
+    // floating-point context in use, an SVC with the stack pointer where
+    // less than a frame fits. The exception entry would stack the extended
+    // frame (the FP context among it) below the Partition's stack region:
+    // the fault is this Partition's, a stack violation, and not the
+    // Kernel's.
+    #[cfg(feature = "fi-fp-stack-bottom")]
+    if cx.count.get() == 0 {
+        let warm = core::hint::black_box(1.5f32) * core::hint::black_box(2.0f32);
+        let _ = core::hint::black_box(warm);
+        rsk::hw_dt::svc_with_sp(rsk_target::layout::RAM[rsk_target::layout::SELF].0 + 16);
     }
     // The response configuration (task 7.5, R14.11): the Job of 250 ms
     // faults (END_JOB as a fault response), and the Job of 500 ms exceeds
@@ -636,9 +664,26 @@ pub fn filter(mut cx: rsk_ctx::Filter) {
     rsk::creusot_std::macros::proof_assert!(exists<t: Stats> rsk_spec::stats_inv(t) && t.ok == ok);
     let _ = ok;
     cx.count.with(|c| *c = c.saturating_add(1));
+    // R11.8 (the isolation suite): the Job's last floating-point act is to
+    // leave another rounding mode behind for the next Job to not inherit.
+    #[cfg(feature = "isolation")]
+    if !rsk::hw_dt::fpscr_set_round_toward_zero() && cx.fpscr_seen.get() < FPSCR_JOBS_MAX {
+        cx.fpscr_seen.set(FPSCR_NOT_CHANGED);
+    }
     // A byte array, not a byte-string literal: Creusot has no `b".."` yet.
     rsk::debug(&[b'F']);
 }
+
+/// `fpscr_seen` of the isolation suite (R11.8): below this, the number of
+/// Jobs of `filter` that found FPSCR as the first did.
+#[cfg(feature = "isolation")]
+const FPSCR_JOBS_MAX: u32 = 1_000_000;
+/// A Job found FPSCR other than the first Job did; `fpscr` holds the value.
+#[cfg(feature = "isolation")]
+const FPSCR_DIFFERED: u32 = 2_000_000;
+/// The probe could not change the rounding mode.
+#[cfg(feature = "isolation")]
+const FPSCR_NOT_CHANGED: u32 = 3_000_000;
 
 /// Task `sampler`: fills its buffer (in the Partition's RAM, so
 /// DMA-permitted), requests the transfer, and records the outcome in the

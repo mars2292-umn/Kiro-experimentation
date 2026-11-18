@@ -93,7 +93,7 @@ pub const COUNTERS: &[&str] = &["control", "sensor", "log", "pulse", "echo", "fi
 /// takes (task 19.3): built for the Build_Manifest like the measurement
 /// configurations, each `(variant, bin feature)`. The cycle configuration
 /// measures Δ_entry and the entry kinds (section 11.11).
-pub const RECORD_VARIANTS: &[(&str, &str)] = &[("nrf52840_cycles", "cycles"), ("nrf52840_cycles_fpu", "cycles-fpu")];
+pub const RECORD_VARIANTS: &[(&str, &str)] = &[("nrf52840_cycles", "cycles"), ("nrf52840_cycles_fpu", "cycles-fpu"), ("nrf52840_response", "response")];
 
 /// The margin `m` of R34.6 applied to a measured Kernel_Timing_Parameter,
 /// in percent (Verification_Plan 11.5; ORQ-13).
@@ -424,7 +424,7 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
     let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
     let Ok(model_text) = std::fs::read_to_string(&model) else { return true };
     let Ok(bytes) = std::fs::read(elf) else { return true };
-    match rsk_link::check(&bytes, &model_text) {
+    match rsk_link::check_probed(&bytes, &model_text, &fetch_probes(features)) {
         Ok(result) => {
             for v in &result.violations {
                 report.error(Rule::Step, None, format!("Link_Checker on the HIL build `{bin}` ({features}): [{}] {}", v.rule, v.message));
@@ -441,6 +441,20 @@ fn link_check(ws: &Workspace, bin: &str, features: &str, elf: &Path, report: &mu
     }
 }
 
+/// The fetch probes the Link_Checker is told of for a HIL build with these
+/// features: the isolation suite's matrix walker for the `isolation`
+/// configuration (HW-09: its fetch at an address outside the Partition's
+/// view is refused by the MPU and has no callee), none for any other
+/// build. Until 2026-11-18 that call passed PR-18 only because one word of
+/// the Kernel's data happened to equal a function address.
+pub fn fetch_probes(features: &str) -> Vec<String> {
+    if features.split(',').any(|f| f == "isolation") {
+        vec![rsk_link::ISOLATION_FETCH_PROBE.to_string()]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The stack regions of the HIL build `elf` of `bin` in the declaration
 /// variant `variant`, each with the Link_Checker's bound for that binary
 /// (`rsk_link::check`): the Partitions' stacks below `_p<N>_stack_top` in
@@ -451,7 +465,8 @@ pub fn stack_regions(ws: &Workspace, bin: &str, variant: &str, elf: &Path) -> Re
     let model = app_dir.join(format!("gen-{variant}")).join("task_model.json");
     let model_text = std::fs::read_to_string(&model).map_err(|e| format!("cannot read {}: {e}", model.display()))?;
     let bytes = std::fs::read(elf).map_err(|e| format!("cannot read {}: {e}", elf.display()))?;
-    let result = rsk_link::check(&bytes, &model_text)?;
+    let probes = if variant.ends_with("_isolation") { vec![rsk_link::ISOLATION_FETCH_PROBE.to_string()] } else { Vec::new() };
+    let result = rsk_link::check_probed(&bytes, &model_text, &probes)?;
     // A Partition's stack is the first `stack` bytes of its RAM region (the
     // generated link.x: `_p<N>_stack_top = ORIGIN(P<N>RAM) + stack`; the
     // symbol is provided and not kept in the binary, so the origin is read

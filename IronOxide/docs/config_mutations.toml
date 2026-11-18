@@ -173,3 +173,41 @@ symbol = "RSK_LAYOUT_CHECKSUM"
 offset = 0
 xor = 255
 expect = ["RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)"]
+
+# --- The Kernel's version symbols (R6.7; 2026-11-17) ---
+# The binary carries RSK_KERNEL_VERSION, RSK_PROFILE_VERSION and
+# RSK_PROFILE_VARIANT; a Task_Model that records another Kernel version,
+# Profile version or Profile_Variant than the binary's is reported.
+[[mutation]]
+id = "kernel-version-differs"
+class = "kernel-version"
+kind = "model"
+find = "\"kernel\": \"0.0.0\""
+replace = "\"kernel\": \"9.9.9\""
+expect = ["RSK_KERNEL_VERSION (R6.7; Task_Model `kernel`): expected 9.9.9, found 0.0.0"]
+
+[[mutation]]
+id = "profile-version-differs"
+class = "kernel-version"
+kind = "model"
+find = "\"version\": \"0.6\""
+replace = "\"version\": \"0.5\""
+expect = ["RSK_PROFILE_VERSION (R6.7; Task_Model `profile.version`): expected 0.5, found 0.6"]
+
+[[mutation]]
+id = "profile-variant-differs"
+class = "kernel-version"
+kind = "model"
+find = "\"variant\": \"Ravenscar\""
+replace = "\"variant\": \"Jorvik\""
+expect = ["RSK_PROFILE_VARIANT (R6.7; Task_Model `profile.variant`): expected Jorvik, found Ravenscar"]
+
+# --- The marker on the derived top-level values (R23.5; 2026-11-17) ---
+[[mutation]]
+id = "priority-map-not-marked-derived"
+class = "priority-map"
+kind = "model"
+find = "\"derived\": [\n    \"kernel_levels\",\n    \"priority_map\"\n  ]"
+replace = "\"derived\": [\n    \"kernel_levels\"\n  ]"
+expect = ["derived marker of `priority_map` (R23.5)"]
+

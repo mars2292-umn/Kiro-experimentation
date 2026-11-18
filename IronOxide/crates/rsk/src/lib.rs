@@ -1010,6 +1010,15 @@ pub mod hw_dt {
         dt::fpscr_read()
     }
 
+    /// R11.8: sets this Job's rounding mode to round toward zero and says
+    /// whether FPSCR then reads so; the Job leaves settings other than the
+    /// defaults behind. FPU Tasks only; the last FP use of the Job.
+    #[inline(always)]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
+    pub fn fpscr_set_round_toward_zero() -> bool {
+        dt::fpscr_set_round_toward_zero()
+    }
+
     /// An instruction fetch at `addr`: a call, which the MPU refuses
     /// (IACCVIOL) when the address is outside the Partition's view.
     #[inline(always)]
@@ -1063,6 +1072,8 @@ pub mod matrix {
         pub this: usize,
         pub code: &'a [(u32, u32)],
         pub ram: &'a [(u32, u32)],
+        /// Each RAM region's subregion-disable bits (`rsk_target::layout::RAM_SRD`).
+        pub ram_srd: &'a [u8],
         pub stack: &'a [u32],
         pub windows: &'a [[(u32, u32); 5]],
         /// Whether each window is read-only to its Partition (DD-08; `rsk_target::layout::WINDOWS_RO`).
@@ -1075,7 +1086,7 @@ pub mod matrix {
 
     /// Attempts per other Partition and against the Kernel.
     pub const PER_PARTITION: usize = 8;
-    pub const KERNEL: usize = 10;
+    pub const KERNEL: usize = 11;
     /// The register offset of the own-read-only-window attempt: SPIM's RXD.PTR
     /// (nRF52840 PS 6.26), the EasyDMA pointer a Partition must not write itself
     /// (DD-08, R17.3; audit finding 1, 2026-11-13).
@@ -1104,7 +1115,7 @@ pub mod matrix {
     #[logic(open)]
     pub fn wf(l: &Layout<'_>) -> bool {
         pearlite! {
-            l.code@.len() >= 1 && l.ram@.len() == l.code@.len() && l.stack@.len() == l.code@.len()
+            l.code@.len() >= 1 && l.ram@.len() == l.code@.len() && l.ram_srd@.len() == l.code@.len() && l.stack@.len() == l.code@.len()
                 && l.windows@.len() == l.code@.len() && l.windows_ro@.len() == l.code@.len() && l.this@ < l.code@.len()
         }
     }
@@ -1171,9 +1182,36 @@ pub mod matrix {
                         None
                     }
                 }
+                // HW-09: a write into the first disabled subregion of this
+                // Partition's own RAM region (skipped when the region has
+                // none). The region matches the address and its subregion
+                // is disabled, so the access is outside the view.
+                10 => {
+                    let srd = l.ram_srd[l.this];
+                    if srd == 0 {
+                        None
+                    } else {
+                        Some((l.ram[l.this].0.wrapping_add((l.ram[l.this].1 / 8).wrapping_mul(first_disabled(srd))).wrapping_add(0x10), 1))
+                    }
+                }
                 _ => None,
             }
         }
+    }
+
+    /// The index of the lowest set bit of a non-zero subregion-disable byte
+    /// (the first disabled eighth of the region); 8 for zero.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(result@ <= 8))]
+    pub fn first_disabled(srd: u8) -> u32 {
+        if srd & 0x01 != 0 { 0 }
+        else if srd & 0x02 != 0 { 1 }
+        else if srd & 0x04 != 0 { 2 }
+        else if srd & 0x08 != 0 { 3 }
+        else if srd & 0x10 != 0 { 4 }
+        else if srd & 0x20 != 0 { 5 }
+        else if srd & 0x40 != 0 { 6 }
+        else if srd & 0x80 != 0 { 7 }
+        else { 8 }
     }
 
     /// Performs attempt `i`. Returns only when the access was skipped or
@@ -1181,6 +1219,10 @@ pub mod matrix {
     /// response) and never returns here.
     #[cfg_attr(feature = "creusot", creusot_std::macros::requires(wf(l)))]
     #[cfg_attr(feature = "creusot", creusot_std::macros::requires(i@ < (l.code@.len() - 1) * PER_PARTITION@ + KERNEL@))]
+    // Never inlined: the Link_Checker's fetch-probe declaration names this
+    // function (`rsk_link::ISOLATION_FETCH_PROBE`), whose `hw_dt::fetch` is
+    // the one indirect call of the isolation configuration's Partition code.
+    #[inline(never)]
     pub fn perform(l: &Layout<'_>, i: usize) -> Outcome {
         match target(l, i) {
             None => Outcome::Skipped,

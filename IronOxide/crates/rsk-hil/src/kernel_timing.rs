@@ -130,6 +130,28 @@ pub fn record_from_stats(st: &crate::stats::Stats, binding: &Binding<'_>, cpu_hz
     Some(KernelTiming { schema: KERNEL_TIMING_SCHEMA.into(), binary_hash: binding.binary_hash.to_string(), target: binding.target.to_string(), clock_hz: cpu_hz, icache: binding.icache.to_string(), parameters })
 }
 
+/// Δ_wake from the Tasks' wake-up records: the largest lag, in cycles,
+/// from a latched Release_Source edge to the intake handler's timestamp
+/// among the edges that found the processor idle. It bounds the wake-up
+/// from above: the exception entry and the handler's read of the time base
+/// are inside it, as they are inside Δ_stamp.
+pub fn wake_parameter(woken: &[&crate::stats::TaskStats], cycles_per_tick: u64, margin_percent: u64, scenario: &str) -> Option<KernelTimingParameter> {
+    let max_ticks = woken.iter().filter(|t| t.wake_count > 0).map(|t| t.wake_max_ticks as u64).max()?;
+    let runs: u64 = woken.iter().map(|t| t.wake_count as u64).sum();
+    let max = max_ticks * cycles_per_tick;
+    Some(KernelTimingParameter {
+        symbol: "delta_wake".into(),
+        cycles: bound(max, margin_percent),
+        method: "measured".into(),
+        tool: TOOL.into(),
+        conditions: vec![
+            "from a Release_Source edge that arrived with no Job executing (the processor in the idle activity's WFI), latched by the time base through PPI, to the intake handler's timestamp: the wake-up from sleep, with the exception entry and the handler's read of the time base after it (an upper bound of the wake-up alone)".to_string(),
+            instrumented_for_stamp(),
+        ],
+        measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.to_string()] }),
+    })
+}
+
 /// The margin-applied bound of R34.6: `max * (1 + m / 100)`, rounded up.
 pub fn bound(max_observed: u64, margin_percent: u64) -> u64 {
     let scaled = max_observed as u128 * (100 + margin_percent as u128);
@@ -214,6 +236,12 @@ pub fn record(inputs: &Inputs<'_>, out: &Outcome, binding: &Binding<'_>, margin_
             measured: Some(Measured { runs, max_observed: max, margin_percent, coverage_branch_percent: 0, scenarios: vec![scenario.clone()] }),
         });
     }
+    // Δ_wake (Table 13-1, R7.8): the same lag over the edges whose intake
+    // found no Job executing, the processor in the idle activity's WFI.
+    let woken: Vec<&crate::stats::TaskStats> = stamped.iter().copied().filter(|t| t.wake_count > 0).collect();
+    if let Some(p) = wake_parameter(&woken, cycles_per_tick, margin_percent, &scenario) {
+        parameters.push(p);
+    }
     parameters.extend(entry_parameters(st, &scenario, margin_percent, out.span.as_ref()));
     if parameters.is_empty() {
         return None;
@@ -278,6 +306,23 @@ pub fn fold(kept: Option<KernelTiming>, new: KernelTiming) -> (KernelTiming, boo
 
 #[cfg(test)]
 mod tests {
+    /// R7.8, Table 13-1: Δ_wake is the largest lag among the edges that
+    /// found the processor idle, in cycles with the margin, and is absent
+    /// when no edge did.
+    #[test]
+    fn r7_8_delta_wake_is_the_largest_idle_lag_with_the_margin() {
+        use crate::stats::TaskStats;
+        let a = TaskStats { wake_count: 3, wake_max_ticks: 100, ..TaskStats::default() };
+        let b = TaskStats { wake_count: 5, wake_max_ticks: 250, ..TaskStats::default() };
+        let none = TaskStats::default();
+        let p = super::wake_parameter(&[&a, &b, &none], 4, 25, "s").expect("measured");
+        assert_eq!(p.symbol, "delta_wake");
+        let m = p.measured.as_ref().unwrap();
+        assert_eq!((m.runs, m.max_observed), (8, 1000));
+        assert_eq!(p.cycles, 1250);
+        assert!(super::wake_parameter(&[&none], 4, 25, "s").is_none());
+    }
+
     use super::*;
 
     fn timing(hash: &str, runs: u64, max: u64) -> KernelTiming {

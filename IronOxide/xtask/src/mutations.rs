@@ -59,8 +59,11 @@ pub struct Mutation {
     /// The package `cargo-verus verify -p` runs on (or, for the App_Prover,
     /// the proof member `cargo creusot -p` runs on).
     pub package: String,
-    /// `verus` (the default), `creusot` or `lean`.
+    /// `verus` (the default), `creusot`, `lean` or `kani`.
     pub prover: String,
+    /// For `prover = "kani"`: the one harness to run (`cargo kani
+    /// --harness`); every harness of the package when absent.
+    pub harness: Option<String>,
 }
 
 fn field<'a>(t: &'a Table, key: &str, id: &str) -> Result<&'a str, String> {
@@ -95,6 +98,7 @@ pub fn load(root: &Path) -> Result<Vec<Mutation>, String> {
             expect,
             package: m.get("package").and_then(Value::as_str).unwrap_or("rsk-kernel").to_string(),
             prover: m.get("prover").and_then(Value::as_str).unwrap_or("verus").to_string(),
+            harness: m.get("harness").and_then(Value::as_str).map(str::to_string),
         });
     }
     Ok(out)
@@ -121,8 +125,11 @@ pub fn check(root: &Path, report: &mut Report) -> Vec<Mutation> {
         if m.find == m.replace {
             report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}` changes nothing", m.id));
         }
-        if m.prover != "verus" && m.prover != "creusot" && m.prover != "lean" {
-            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: `prover` must be `verus`, `creusot` or `lean`, not `{}`", m.id, m.prover));
+        if m.prover != "verus" && m.prover != "creusot" && m.prover != "lean" && m.prover != "kani" {
+            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: `prover` must be `verus`, `creusot`, `lean` or `kani`, not `{}`", m.id, m.prover));
+        }
+        if m.harness.is_some() && m.prover != "kani" {
+            report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: `harness` is for `prover = \"kani\"`", m.id));
         }
         if m.prover == "lean" && !m.file.starts_with(LEAN_DIR) {
             report.error(Rule::Proof, Some(MUTATIONS.to_string()), format!("mutation `{}`: a `lean` mutation's file must be under {LEAN_DIR}", m.id));
@@ -161,6 +168,24 @@ pub enum Verdict {
 /// `cargo creusot` output: proved when it succeeds and reports `Proved (`)
 /// against the mutation's expectations.
 pub fn classify(m: &Mutation, exit_ok: bool, text: &str) -> Verdict {
+    if m.prover == "kani" {
+        // The job's own judgement of a Kani run (R45.5): a mutant survives
+        // when every harness run is verified with no failed check.
+        let v = crate::proofs::kani_verdict(exit_ok, text);
+        if v.ok {
+            return Verdict::Survived { verified: v.successes as u64 };
+        }
+        let first_error = text
+            .lines()
+            .find(|l| l.contains("Status: FAILURE") || l.contains("VERIFICATION:- FAILED") || l.starts_with("error"))
+            .unwrap_or("(no failure line)")
+            .trim()
+            .to_string();
+        return match m.expect.iter().find(|e| !text.contains(e.as_str())) {
+            None => Verdict::Killed { first_error },
+            Some(missing) => Verdict::Unexpected { first_error, missing: missing.clone() },
+        };
+    }
     if m.prover == "lean" {
         // `lake build` succeeds only when every file elaborates; a `sorry`
         // is a warning, so it counts as a survivor only if the build passes.
@@ -317,6 +342,17 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
                 return false;
             };
             Cmd::new(lake).arg("build").cwd(lean_tree.as_ref().expect("prepared above"))
+        } else if m.prover == "kani" {
+            // The Kani_Harnesses of the package on the mutated tree, under
+            // the job's flags; one harness when the mutation names it.
+            let mut cmd = Cmd::new("cargo").args(["kani", "-p", &m.package, "--target-dir"]).arg(work.join("kani"));
+            if let Some(h) = &m.harness {
+                cmd = cmd.args(["--harness", h]);
+            }
+            for flag in crate::proofs::kani_extra_checks(&m.package) {
+                cmd = cmd.arg(flag);
+            }
+            cmd.cwd(&tree)
         } else if m.prover == "creusot" {
             // The App_Prover over the copied proof workspace: a fresh session
             // (the copy carries the main tree's `verif` and `.why3find`), the
@@ -356,7 +392,9 @@ pub fn run(root: &Path, only: Option<&str>, report: &mut Report) -> bool {
                 report.error(
                     Rule::Proof,
                     Some(m.file.clone()),
-                    if m.prover == "lean" {
+                    if m.prover == "kani" {
+                        format!("mutation `{}` survived: Kani verified {verified} harness(es) with no failed check, so {} does not exclude it (R52.2 vacuity)", m.id, m.kills)
+                    } else if m.prover == "lean" {
                         format!("mutation `{}` survived: the Lean project builds with it, so {} does not exclude it (R52.2 vacuity)", m.id, m.kills)
                     } else if m.prover == "creusot" {
                         format!("mutation `{}` survived: the App_Prover proved the member, so {} does not exclude it (R52.2 vacuity)", m.id, m.kills)
@@ -398,10 +436,27 @@ mod tests {
             expect: expect.iter().map(|s| s.to_string()).collect(),
             package: "rsk-kernel".into(),
             prover: "verus".into(),
+            harness: None,
         }
     }
 
     /// R52.2: an App_Prover mutant is killed by a failed proof with the expected text and survives a proved member.
+    /// R52.2: a Kani mutant survives only when every harness run is
+    /// verified; a failed check kills it when the output names what the
+    /// register expects, and is reported when it does not.
+    #[test]
+    fn r52_2_a_kani_mutant_is_judged_by_the_harness_verdict() {
+        let m = Mutation { prover: "kani".into(), harness: Some("h".into()), ..mutation(&["VERIFICATION:- FAILED", "write_u8"]) };
+        let pass = "Checking harness h...\nVERIFICATION:- SUCCESSFUL\nComplete - 1 successfully verified harnesses, 0 failures, 1 total.";
+        assert_eq!(classify(&m, true, pass), Verdict::Survived { verified: 1 });
+        let fail = "Check 3: write_u8.assertion.1\n\t - Status: FAILURE\nVERIFICATION:- FAILED";
+        assert!(matches!(classify(&m, false, fail), Verdict::Killed { .. }));
+        let other = "Check 3: other.assertion.1\n\t - Status: FAILURE\nVERIFICATION:- FAILED";
+        assert!(matches!(classify(&m, false, other), Verdict::Unexpected { .. }));
+        // A run that verified nothing (a build error) is not a survivor.
+        assert!(!matches!(classify(&Mutation { expect: vec![], ..m.clone() }, false, "error: could not compile"), Verdict::Survived { .. }));
+    }
+
     #[test]
     fn an_app_prover_mutant_is_judged_by_the_proof_verdict() {
         let m = Mutation { prover: "creusot".into(), ..mutation(&["proof failed", "vc_send_"]) };

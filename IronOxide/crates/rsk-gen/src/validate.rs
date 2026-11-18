@@ -303,7 +303,22 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
                     }
                     period
                 }
-                Release::Sporadic { mit, policy: _, source } => {
+                Release::Sporadic { mit, policy, source } => {
+                    // R19.4 (DD-06): while an interrupt line is masked for its
+                    // MIT window, further events stay latched in the peripheral
+                    // and are delivered when the line is re-enabled. An
+                    // interrupt source therefore coalesces and defers; it cannot
+                    // discard, and a declaration that asks it to is refused.
+                    if matches!(source, Source::Interrupt(_)) && *policy == crate::decl::MitPolicy::Discard {
+                        d.push(Diagnostic::new(
+                            "R19.4",
+                            field("mit_policy"),
+                            format!(
+                                "Task `{}` is bound to an interrupt and declares `mit_policy = discard`; an interrupt source coalesces and defers the events of an MIT window (DD-06), so only `defer` is provided",
+                                t.name
+                            ),
+                        ));
+                    }
                     match source {
                         Source::Interrupt(name) => match target.peripheral(name) {
                             None => d.push(Diagnostic::new(

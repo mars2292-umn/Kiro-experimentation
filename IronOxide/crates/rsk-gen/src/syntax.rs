@@ -760,8 +760,10 @@ mod tests {
         }
     "#;
 
-    /// R21.1: the surface syntax declares the Target, Profile_Variant,
-    /// Partitions, Tasks and Resources, and the result generates.
+    /// R21.1, R15.1: the surface syntax declares the Target, Profile_Variant,
+    /// Partitions (name, Criticality_Level, region sizes, peripherals, the
+    /// three responses and the MIT_Violation threshold), Tasks and Resources,
+    /// and the result generates.
     #[test]
     fn parses_the_demo_declaration() {
         let parsed = parse_app(DEMO.parse().unwrap()).unwrap();
@@ -774,6 +776,31 @@ mod tests {
         if let Err(errs) = crate::generate(&d) {
             panic!("{}", errs.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"));
         }
+    }
+
+    /// R3.1, R21.4: a Generator diagnostic is reported at the source span of
+    /// the offending item, with the rule it violates: a Priority beyond the
+    /// hardware levels at the Task's `priority` field, a response outside its
+    /// set at the Partition's field, each on the line where it is written.
+    #[test]
+    fn r3_1_r21_4_a_violation_is_reported_at_the_span_of_the_offending_item() {
+        let src = DEMO.replace("priority = 2", "priority = 9").replace(
+            "fault = RESTART_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY, mit_threshold = 10) {\n            task log",
+            "fault = RECORD_ONLY, overrun = END_JOB, deadline_miss = RECORD_ONLY, mit_threshold = 10) {\n            task log",
+        );
+        assert_ne!(src, DEMO);
+        let line_of = |needle: &str| src.lines().position(|l| l.contains(needle)).expect(needle) + 1;
+        let parsed = parse_app(src.parse().unwrap()).unwrap();
+        let errs = crate::generate(&parsed.decl).unwrap_err();
+        let resolved = parsed.spans.resolve(&errs);
+        assert_eq!(resolved.len(), errs.len());
+        let at = |rule: &str| resolved.iter().find(|e| e.message.starts_with(&format!("[{rule}]"))).unwrap_or_else(|| panic!("{rule}: {resolved:?}"));
+        let prio = at("PR-33");
+        assert_eq!(prio.span.start().line, line_of("priority = 9"), "{}", prio.message);
+        let fault = at("R15.7");
+        assert_eq!(fault.span.start().line, line_of("fault = RECORD_ONLY"), "{}", fault.message);
+        // The two are different places of the declaration.
+        assert_ne!(prio.span.start().line, fault.span.start().line);
     }
 
     /// R21.2: a time quantity without an explicit unit is rejected.

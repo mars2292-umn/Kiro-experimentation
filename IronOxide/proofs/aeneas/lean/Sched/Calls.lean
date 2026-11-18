@@ -308,6 +308,23 @@ theorem settled_armed_none {k0 k : logic.kernel.Kernel NT NR NP NL NS NE}
   | none => exact hadm
   | some u => exact absurd ha (settle_admitted_quiet h hadm)
 
+/-- A Kernel state with no Budget event of the Job on top armed while a
+dispatch is pending: when the Budget slot of the Job on top is armed,
+R7.1 admits no Task. This is what a Budget event's own timer entry needs
+of the state it finds, and all the run asks of it since 2026-11-18. The
+premise before was that the state is literally what `Kernel::settle`
+returned, which is not what an entry leaves: `apply_core` acknowledges a
+Partition's stop and re-initialization requests after `settle`, the timer
+entry reads the time base first, and the dispatch entry and four SVC
+services return without `apply_core` (`Sched/Settle.lean`). -/
+def Quieted (cfg : logic.Config NT NR NP) (k : logic.kernel.Kernel NT NR NP NL NS NE) : Prop :=
+  topBudgetArmed k cfg → logic.sched.Sched.select k.sched cfg = ok none
+
+theorem settle_quieted {k0 k : logic.kernel.Kernel NT NR NP NL NS NE}
+    {cfg : logic.Config NT NR NP} {r : Option U8 × Bool}
+    (h : logic.kernel.Kernel.settle k0 cfg = ok (r, k)) : Quieted cfg k :=
+  fun ha => settled_armed_none h ha
+
 /-- The two cases that the Analyzer's `B_i` did not cover before the
 Kernel change (Verification_Plan 7.3) do not arise. After the unlock that
 ends a blocking Critical_Section, when it makes a dispatch pending, -/

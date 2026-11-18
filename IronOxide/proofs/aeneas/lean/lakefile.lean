@@ -47,3 +47,13 @@ the extracted checker returns `true` only for an accepted Protocol
 @[default_target] lean_lib «Proto» {
   globs := #[.submodules `Proto]
 }
+
+/-- `Hw/Drivers.lean`: the Aeneas translation of the Kernel's register
+drivers (`crates/rsk-kernel/src/arch/cm4/drivers.rs`: the NVIC, the
+nRF52840's TIMER0 compare, the boot configuration bits), each a function
+of a register file, generated and committed; `Hw/Model.lean`: a register
+model and the proof that each driver takes the Hardware_Model's step on it
+(Verification_Plan, 2026-11-18). -/
+@[default_target] lean_lib «Hw» {
+  globs := #[.submodules `Hw]
+}

@@ -28,5 +28,6 @@ use vstd::prelude::*;
 
 pub mod arch;
 pub mod profile_version;
+pub mod version;
 
 pub use rsk_logic::{hw_model, logic};

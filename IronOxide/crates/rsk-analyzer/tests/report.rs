@@ -57,6 +57,8 @@ fn golden(name: &str, actual: &str) {
     assert!(expected == actual, "{} differs from the golden file; diff the output or run with UPDATE_GOLDEN=1 after an intended change:\n{actual}", path.display());
 }
 
+/// R30.1, and R27.5: the report states that the analysis assumes a single
+/// core.
 #[test]
 fn r30_1_the_demo_report_matches_its_golden_files() {
     let m = model();

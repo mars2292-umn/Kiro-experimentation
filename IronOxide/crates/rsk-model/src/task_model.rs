@@ -26,6 +26,10 @@ pub struct TaskModel {
     pub fp_flush_to_zero: bool,
     pub kernel_levels: Vec<u8>,
     pub priority_map: Vec<PriorityMapping>,
+    /// R23.5: the top-level values the Generator derives (`kernel_levels`,
+    /// `priority_map`), marked as the derived fields of a Task or a
+    /// Resource are.
+    pub derived: Vec<String>,
     pub capacities: Capacities,
     pub layout: Layout,
     pub partitions: Vec<Partition>,

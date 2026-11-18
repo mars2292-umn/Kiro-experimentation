@@ -114,3 +114,13 @@ hardware_rule = "None: host doubles so that the `rsk` API compiles and tests on 
 harnesses = []
 validated = "n/a"
 validation = "The real assembly is exercised by the QEMU demo and the HIL suites and reviewed."
+
+[[stub]]
+id = "KS-11"
+name = "sim::track (sim::nvic_enabled, sim::nvic_pending, sim::timer_inten; sim::seed_nvic, sim::seed_timer_inten)"
+replaces = "the state the NVIC's set and clear registers and TIMER0's INTENSET and INTENCLR stand for (2026-11-18)"
+behaviour = "Beside the cells of KS-01, which keep the last value written to each register: a write to NVIC_ISERn sets the written bits of word n of the enabled lines and a write to NVIC_ICERn clears them; NVIC_ISPRn and NVIC_ICPRn do the same for the pending lines; a write to TIMER0's INTENSET sets and one to INTENCLR clears the written bits of the timer's interrupt enable. Sixteen words of lines (hw::addr::NVIC_LINES). A pending bit is set by a write only: no interrupt source, no exception entry and no compare match is modelled, so the state is what the Kernel's writes leave. Reads of the set and clear registers still return the KS-01 cell, not this state."
+hardware_rule = "HW-05 (the NVIC's set-enable, clear-enable, set-pending and clear-pending registers are write-one-to-set and write-one-to-clear); nRF52840 PS 6.30 (TIMER INTENSET, INTENCLR); HW-12 for the harness that uses the compare."
+harnesses = ["nvic_actions_step_the_enabled_and_pending_sets", "mask_and_priority_actions_step_one_field", "compare_actions_leave_the_compare_armed_or_the_time_base_pended", "configuration_actions_set_their_bits_and_keep_the_rest"]
+validated = "pending"
+validation = "The HIL differential tests of HW-05 (pending and enabled lines under BASEPRI and PRIMASK) and HW-12 exercise the registers on the nRF52840-DK; no test reads back that a clear-enable write leaves the other lines enabled."

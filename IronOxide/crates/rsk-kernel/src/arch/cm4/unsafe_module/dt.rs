@@ -38,6 +38,7 @@
 //! | 42, 43 | HW-14 | cycles from the exit of one handler to the entry of the next: A then B pended together (tail-chained), and A pended again after returning to Thread mode |
 //! | 44 | | the handler-log count |
 //! | 45 to 108 | HW-05 | the handler log: 16 entries of (vector, CYCCNT at entry, CYCCNT at exit, CONTROL) |
+//! | 140 to 151 | HW-12 | per distance, the compare value less the counter captured right after the write (signed): the distance left to the hardware |
 //! | 110 to 133 | HW-12 | for compare distances 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16 ticks: whether COMPARE[2] fired within the poll and the ticks elapsed |
 //! | 134 to 139 | HW-10, HW-11, HW-07, HW-09, HW-01 | FPCCR, FPDSCR, ACTLR, CCR, MPU_CTRL, AIRCR.PRIGROUP after `boot_core` |
 //!
@@ -89,6 +90,12 @@ pub const W_LOG: usize = 45;
 pub const LOG_LEN: usize = 16;
 pub const W_COMPARE: usize = 110;
 pub const COMPARE_DISTANCES: [u32; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16];
+/// Words 140 to 151 (2026-11-18): per distance of `COMPARE_DISTANCES`, the
+/// compare value less the counter captured right after the write, as a
+/// two's-complement word: the distance the hardware was left with, the
+/// quantity the time-base driver records for its own compares
+/// (`stats_arm`), so that the two can be compared (ASM-19).
+pub const W_COMPARE_POST: usize = 140;
 pub const W_FPCCR: usize = 134;
 pub const W_FPDSCR: usize = 135;
 pub const W_ACTLR: usize = 136;
@@ -391,6 +398,9 @@ pub fn late() {
             mmio_write(t + TASKS_CAPTURE3, 1);
             let now = mmio_read(t + CC3);
             mmio_write(t + CC2, now.wrapping_add(d));
+            mmio_write(t + TASKS_CAPTURE3, 1);
+            let post = mmio_read(t + CC3);
+            r[W_COMPARE_POST + k] = now.wrapping_add(d).wrapping_sub(post);
             let mut fired = 0;
             let mut i = 0;
             while i < 4096 {
@@ -520,6 +530,39 @@ fn svc_frame_probe() -> u32 {
 }
 
 // --------------------------------------------------- Task-side probes
+
+/// R11.8: leaves floating-point control settings other than the defaults
+/// for whatever runs next: sets FPSCR's rounding mode to round toward zero
+/// (RMode, bits 23:22) and says whether FPSCR then reads so. The Job that
+/// calls this last must not be what the next Job's settings come from: a
+/// new Job's FP context takes FPDSCR's value. For FPU Tasks only (PR-31).
+#[inline(always)]
+#[cfg_attr(feature = "coverage", coverage(off))]
+pub fn fpscr_set_round_toward_zero() -> bool {
+    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    {
+        let v: u32;
+        // SAFETY (UJ-046): an FPSCR read, a write of the calling Job's own
+        // FP context's rounding mode, and a read back; unprivileged, no
+        // memory effect. The write changes how this Job's later FP
+        // instructions round, which is the caller's purpose.
+        unsafe {
+            core::arch::asm!(
+                "vmrs {0}, fpscr",
+                "orr {0}, {0}, #0x00C00000",
+                "vmsr fpscr, {0}",
+                "vmrs {0}, fpscr",
+                out(reg) v,
+                options(nomem, nostack, preserves_flags)
+            )
+        }
+        v & 0x00C0_0000 == 0x00C0_0000
+    }
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    {
+        true
+    }
+}
 
 /// HW-10: FPSCR as the Job finds it (its new FP context takes FPDSCR's
 /// value at the Job's first FP instruction). For FPU Tasks only (PR-31).

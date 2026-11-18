@@ -23,7 +23,17 @@ struct Store {
     frame: [Cell<u32>; 8],
     writes: Cell<u32>,
     exited: Cell<Option<u32>>,
+    /// KS-11: the NVIC's enable and pending state per word of lines, as the
+    /// set and clear registers leave it (write one to set, write one to
+    /// clear; HW-05), and the time base's interrupt enable (INTENSET and
+    /// INTENCLR of the nRF52840's TIMER0, PS 6.30).
+    enabled: [Cell<u32>; NVIC_WORDS],
+    pending: [Cell<u32>; NVIC_WORDS],
+    timer_inten: Cell<u32>,
 }
+
+/// The words of NVIC lines the state covers (`hw::addr::NVIC_LINES` = 496).
+pub const NVIC_WORDS: usize = 16;
 
 // SAFETY (UJ-040): the simulated register file exists only in host and
 // Kani builds, which are single threaded; no Flight_Build compiles it.
@@ -41,7 +51,64 @@ static STORE: Store = Store {
     frame: [C; 8],
     writes: Cell::new(0),
     exited: Cell::new(None),
+    enabled: [C; NVIC_WORDS],
+    pending: [C; NVIC_WORDS],
+    timer_inten: Cell::new(0),
 };
+
+/// The word of NVIC lines a set or clear register at `a` addresses, when
+/// `a` is one of the `NVIC_WORDS` registers from `base`.
+fn nvic_word(a: u32, base: u32) -> Option<usize> {
+    if a >= base && a < base + 4 * NVIC_WORDS as u32 && (a - base) % 4 == 0 {
+        Some(((a - base) / 4) as usize)
+    } else {
+        None
+    }
+}
+
+/// KS-11: the effect of a register write on the state the set and clear
+/// registers stand for. The cells of KS-01 keep the last value written to
+/// each register as before; this is what the hardware keeps.
+fn track(a: u32, v: u32) {
+    use super::hw::addr;
+    if let Some(w) = nvic_word(a, addr::NVIC_ISER) {
+        STORE.enabled[w].set(STORE.enabled[w].get() | v);
+    } else if let Some(w) = nvic_word(a, addr::NVIC_ICER) {
+        STORE.enabled[w].set(STORE.enabled[w].get() & !v);
+    } else if let Some(w) = nvic_word(a, addr::NVIC_ISPR) {
+        STORE.pending[w].set(STORE.pending[w].get() | v);
+    } else if let Some(w) = nvic_word(a, addr::NVIC_ICPR) {
+        STORE.pending[w].set(STORE.pending[w].get() & !v);
+    } else if a == addr::NRF_TIMER0 + 0x304 {
+        STORE.timer_inten.set(STORE.timer_inten.get() | v);
+    } else if a == addr::NRF_TIMER0 + 0x308 {
+        STORE.timer_inten.set(STORE.timer_inten.get() & !v);
+    }
+}
+
+/// The enabled and the pending lines of word `w` (KS-11).
+pub fn nvic_enabled(w: usize) -> u32 {
+    STORE.enabled[w].get()
+}
+
+pub fn nvic_pending(w: usize) -> u32 {
+    STORE.pending[w].get()
+}
+
+/// The time base's enabled interrupts (KS-11).
+pub fn timer_inten() -> u32 {
+    STORE.timer_inten.get()
+}
+
+/// Sets the state of KS-11 (a harness starts from any state).
+pub fn seed_nvic(w: usize, enabled: u32, pending: u32) {
+    STORE.enabled[w].set(enabled);
+    STORE.pending[w].set(pending);
+}
+
+pub fn seed_timer_inten(v: u32) {
+    STORE.timer_inten.set(v);
+}
 
 fn slot(a: u32) -> Option<usize> {
     let n = STORE.used.get();
@@ -63,6 +130,13 @@ pub fn reset() {
     STORE.frame_sp.set(0);
     STORE.writes.set(0);
     STORE.exited.set(None);
+    let mut w = 0;
+    while w < NVIC_WORDS {
+        STORE.enabled[w].set(0);
+        STORE.pending[w].set(0);
+        w += 1;
+    }
+    STORE.timer_inten.set(0);
     // A plausible nRF52840 identity for the boot checks.
     write(super::hw::addr::CPUID, 0x410F_C241);
     write(super::hw::addr::MPU_TYPE, 8 << 8);
@@ -141,6 +215,7 @@ pub fn ram_write(a: u32, v: u32) {
 pub fn write(a: u32, v: u32) {
     assert!(super::hw::addr::kernel_access_ok(a), "mmio_write of an address outside the Kernel's registers (UJ-002)");
     STORE.writes.set(STORE.writes.get().wrapping_add(1));
+    track(a, v);
     match slot(a) {
         Some(i) => STORE.values[i].set(v),
         None => {

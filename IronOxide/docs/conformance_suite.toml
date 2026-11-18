@@ -138,6 +138,8 @@ kind = "generator"
 find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
 replace = "task log (periodic, signal = tick, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
 expect = ["PR-11"]
+# R22.4: a Periodic_Task with a Release_Source is refused (one of its three forms).
+criteria = ["R22.4"]
 
 [[case]]
 id = "conf-PR-12-mc"
@@ -147,6 +149,8 @@ kind = "generator"
 find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
 replace = "task log (sporadic, signal = tick, mit = 20.ms(), mit_policy = defer, deadline = 40.ms(), budget = 6.ms(), priority = 2);"
 expect = ["PR-12"]
+# R22.3: a Release_Signal that releases a second Task is refused (the signal form).
+criteria = ["R22.3"]
 
 [[case]]
 id = "conf-PR-13-mc"
@@ -209,6 +213,9 @@ kind = "generator"
 find = "resource in_cs: u32 = 0 invariant |v: u32| v@ <= 1;"
 replace = "resource state: u32 = 0;"
 expect = ["PR-28"]
+# R15.2: an item declared a second time is refused; the grammar nests every
+# item in one Partition, so this is the form a violation can take.
+criteria = ["R15.2"]
 
 [[case]]
 id = "conf-PR-29-mc"
@@ -227,6 +234,8 @@ kind = "generator"
 find = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2);"
 replace = "task log (periodic, period = 40.ms(), deadline = 40.ms(), budget = 6.ms(), priority = 2, resources = [state]);"
 expect = ["PR-30"]
+# R15.3: a Task of another Partition accessing the Resource is refused.
+criteria = ["R15.3"]
 
 [[case]]
 id = "conf-PR-31-mc"
@@ -653,6 +662,21 @@ untagged = true
 note = "The audit's findings 8 and 9 (2026-11-13), R16.5: `log` issues an SVC with its stack pointer 16 bytes above the bottom of its stack, so that the SVC's entry cannot stack its frame and the stacking fault is pending behind the SVC handler; it must not be attributed a second time. The Kernel's stack check reports one stack violation (event 27) of part1 and applies its fault response before anything is read or written through the pointer: no BusFault (3), no Kernel fault (5), and part0 is not restarted (16)."
 
 [[case]]
+id = "fi-R11-5-fp-stack-bottom"
+restriction = "PR-22"
+category = "RT"
+kind = "fault-injection"
+feature = "p1-demo-part2/fi-fp-stack-bottom"
+event = 27
+# As fi-R16-5-stack-bottom: the SVC's entry cannot stack, and which of the SVC handler's stack check
+# (event 27) and MemManage (event 2) runs first is the hardware's; either way it is the Partition's, once.
+alternates = [2]
+absent = [3, 5]
+untagged = true
+criteria = ["R11.5"]
+note = "R11.5 (2026-11-17): `filter`, the FPU Task, issues an SVC with its floating-point context in use and its stack pointer 16 bytes above the bottom of the Partition's RAM, so the exception entry's extended frame (the FP context in it) cannot be stacked. The fault during floating-point context preservation is an overflow of the Partition's stack region and is attributed to the Partition (a stack violation or MemManage of part2, its fault response applied; part2's response restarts the Partition, whose first Job injects again, so the event recurs): no HardFault and no BusFault, which a fault taken as the Kernel's would be."
+
+[[case]]
 id = "fi-PR-15"
 restriction = "PR-15"
 category = "RT"
@@ -667,6 +691,7 @@ kind = "fault-injection"
 feature = "fi-pr19"
 event = 1
 note = "echo panics in its second Job: the panic handler's SVC reaches the Kernel, which logs EV_PANIC for the Partition and applies RESTART_PARTITION (R14.2)."
+criteria = ["R14.2"]
 
 [[case]]
 id = "fi-PR-22"

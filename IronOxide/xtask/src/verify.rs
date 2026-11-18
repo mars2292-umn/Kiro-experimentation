@@ -298,7 +298,7 @@ pub fn run(root: &Path, options: Options) -> bool {
     let mut job = Job {
         all: Vec::new(),
         steps: 0,
-        total_steps: 24,
+        total_steps: 26,
         current: None,
         timings: Vec::new(),
         outcomes: Vec::new(),
@@ -567,6 +567,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     let link_cmds = link_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "analysis-stack-step", "Link_Checker step", &["R37.1", "R37.2", "R37.3", "R37.4", "PR-17", "PR-18", "R3.3"], link_cmds);
 
+    // ---------------------------------------------- 8a'. rebuild comparison
+    job.heading("clean-checkout rebuild comparison (R59.3)");
+    let rebuild_cmds = rebuild_step(root, &target_dir, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "check-rebuild-step", "rebuild comparison step", &["R59.3"], rebuild_cmds);
+
     // ------------------------------------------------- 8b. Config_Checker
     job.heading("Config_Checker (R26.5)");
     let confcheck_cmds = config_check(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
@@ -595,6 +600,10 @@ pub fn run(root: &Path, options: Options) -> bool {
         Some(v) => {
             verus_ok = proofs::run_verus(&ws, v, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
             verus_cmds.push(format!("{} verus verify -p rsk-kernel", v.cargo_verus().display()));
+            // R50.4: one crate's proofs a second time, when the first run passed.
+            if verus_ok {
+                verus_cmds.extend(proofs::rerun_verus(&ws, v, &target_dir, &sandbox, &mut store, &manifest_id, &mut report));
+            }
             if let Some(lines) = own_lines {
                 proofs::line_count_cross_check(&ws, v, lines, &mut report);
             }
@@ -651,6 +660,11 @@ pub fn run(root: &Path, options: Options) -> bool {
     };
     let rig_cmds = hil_rig(&ws, rig.as_ref(), &hil_builds, &target_dir, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "hil-rig-step", "HIL_Rig self-test step", &["R34.8", "R48.4"], rig_cmds);
+
+    // ------------------------------------- 10b-static. the HIL builds' static checks
+    job.heading("HIL builds: Link_Checker and Config_Checker on every HIL binary (Verification_Plan 11.1)");
+    let hs_cmds = hil_static_checks(&ws, &target_dir, &hil_builds, &sandbox, &mut store, &manifest_id, &mut report);
+    job.flush(&mut report, "check-hil-static-step", "HIL builds' static checks step", &[], hs_cmds);
 
     // ------------------------------------------- 10b-hil. HIL spike on the board
     job.heading("HIL: dispatch spike on the nRF52840-DK (task 3.1, hil-spike)");
@@ -890,6 +904,179 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
         report.note("Link_Checker: no Flight_Build binary with a Task_Model");
     }
     commands
+}
+
+/// The configuration a HIL build is of, from where its ELF lies under the
+/// job's `hil` directory: `hil/<variant>/<triple>/release/<bin>` for a
+/// measurement or record configuration, `hil/<triple>/release/<bin>` for
+/// the plain HIL build (`None`).
+pub fn hil_build_variant(hil_dir: &Path, triple: &str, elf: &Path) -> Option<String> {
+    let rel = elf.strip_prefix(hil_dir).ok()?;
+    let first = rel.components().next()?.as_os_str().to_str()?;
+    (first != triple).then(|| first.to_string())
+}
+
+/// The Task_Model of a HIL build: `<app>/gen-<variant>/task_model.json`,
+/// the plain HIL build's being `gen-nrf52840` for an Application that has
+/// one and `gen` otherwise (the stimulus Application).
+pub fn hil_build_model(app_dir: &Path, variant: Option<&str>) -> Option<PathBuf> {
+    let candidates: Vec<PathBuf> = match variant {
+        Some(v) => vec![app_dir.join(format!("gen-{v}"))],
+        None => vec![app_dir.join("gen-nrf52840"), app_dir.join("gen")],
+    };
+    candidates.into_iter().map(|d| d.join("task_model.json")).find(|m| m.is_file())
+}
+
+/// The name of an Application's system crate: the package in its `system`
+/// directory (`rsk-system` for the demo, `hil-stimulus-system` for the
+/// stimulus), or the Generator's default binding when there is none.
+pub fn system_crate_of(ws: &Workspace, app_dir: &Path) -> String {
+    let dir = app_dir.join("system");
+    ws.packages.values().find(|p| p.dir == dir).map(|p| p.name.clone()).unwrap_or_else(|| "rsk-system".to_string())
+}
+
+/// Verification_Plan 11.1 (open until 2026-11-17): the Link_Checker and the
+/// Config_Checker on every HIL build of this job, each against the
+/// Task_Model of its configuration, as the Flight_Build's are. The boards
+/// are not needed. One Evidence_Item per tool and build
+/// (`analysis-stack-hil-<name>`, `check-config-hil-<name>`); a failure is a
+/// violation. The items name no acceptance criterion: the criteria speak of
+/// the Flight_Build, and these builds carry the HIL instrumentation.
+fn hil_static_checks(ws: &Workspace, target_dir: &Path, builds: &[crate::hil::HilBuild], sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let mut commands = Vec::new();
+    let hil_dir = target_dir.join("hil");
+    let mut done = 0;
+    for b in builds {
+        let variant = hil_build_variant(&hil_dir, &ws.policy.target, &b.elf);
+        let name = match &variant {
+            Some(v) => format!("{}-{v}", b.bin),
+            None => b.bin.clone(),
+        };
+        let Some(app_dir) = ws.packages.values().find(|p| p.name == b.bin).and_then(|p| p.dir.parent().map(Path::to_path_buf)) else { continue };
+        let Some(model) = hil_build_model(&app_dir, variant.as_deref()) else {
+            report.note(format!("HIL build `{name}`: no Task_Model under {}; not checked", ws.rel(&app_dir)));
+            continue;
+        };
+        let run = |cmd: &Cmd, tool: &str| -> (bool, String) {
+            match cmd.output(Some(sandbox)) {
+                Ok(o) => (o.status.success(), format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))),
+                Err(e) => (false, format!("cannot run {tool}: {e}")),
+            }
+        };
+        // The Link_Checker, whose stack bounds the Config_Checker then reads.
+        let bounds_name = format!("stack-bounds-hil-{name}.json");
+        let bounds = store.dir.join(&bounds_name);
+        let mut link = Cmd::cargo_frozen("run")
+            .args(["--quiet", "-p", "rsk-link", "--manifest-path"])
+            .arg(ws.root.join("Cargo.toml"))
+            .arg("--target-dir")
+            .arg(target_dir)
+            .arg("--")
+            .arg(&b.elf)
+            .arg(&model)
+            .arg("--out")
+            .arg(&bounds)
+            .arg("--profile")
+            .arg(ws.root.join("profile").join("profile.toml"))
+            .arg("--core-subset")
+            .arg(ws.root.join("profile").join("core_subset.toml"))
+            // DD-11: the Application's own system crate (`<app>/system`).
+            .args(["--system-crate", &system_crate_of(ws, &app_dir)]);
+        for prefix in verified_modules(ws) {
+            link = link.args(["--verified", &prefix]);
+        }
+        // The isolation configuration's fetch probe (HW-09), for that build only.
+        if variant.as_deref().is_some_and(|v| v.ends_with("isolation")) {
+            link = link.args(["--fetch-probe", rsk_link::ISOLATION_FETCH_PROBE]);
+        }
+        let mut conf = Cmd::cargo_frozen("run").args(["--quiet", "-p", "rsk-confcheck", "--manifest-path"]).arg(ws.root.join("Cargo.toml")).arg("--target-dir").arg(target_dir).arg("--").arg(&model).arg(&b.elf);
+        let (link_ok, link_text) = run(&link, "rsk-link");
+        if bounds.is_file() {
+            conf = conf.arg(&bounds);
+        }
+        let (conf_ok, conf_text) = run(&conf, "rsk-confcheck");
+        for (tool, prefix, id, kind, what, ok, text, cmd) in [
+            ("rsk-link", "rsk-link:", format!("analysis-stack-hil-{name}"), Kind::Analysis, "Link_Checker", link_ok, &link_text, &link),
+            ("rsk-confcheck", "rsk-confcheck:", format!("check-config-hil-{name}"), Kind::Check, "Config_Checker", conf_ok, &conf_text, &conf),
+        ] {
+            commands.push(cmd.display());
+            let log_name = format!("{id}.log");
+            let _ = store.write_artifact(&log_name, text);
+            let summary = text.lines().rev().find(|l| l.starts_with(prefix)).map(str::to_string).unwrap_or_else(|| format!("{tool}: no verdict line"));
+            if !ok {
+                report.error(Rule::Step, None, format!("{what}: HIL build `{name}` against {}: {summary} (see {log_name})", ws.rel(&model)));
+            }
+            let mut item = Item::new(
+                &id,
+                kind,
+                &format!("{what} on the HIL build `{name}` against {} ({})", ws.rel(&model), b.binary.hash),
+                Tool { name: tool.to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+                Verdict::from_bool(ok),
+            );
+            item.command_lines = vec![cmd.display()];
+            item.notes = vec![summary, "a HIL build: the Flight_Build's items are `analysis-stack-<binary>` and `check-config-<binary>`".to_string()];
+            item.build_manifest = Some(manifest_id.to_string());
+            item.artifacts = vec![log_name];
+            if let Err(e) = store.write(&item) {
+                report.error(Rule::Evidence, None, e);
+            }
+        }
+        done += 1;
+    }
+    report.note(format!("Verification_Plan 11.1: the Link_Checker and the Config_Checker run on {done} of {} HIL builds", builds.len()));
+    commands
+}
+
+/// What the rebuild comparison can say for the state of the tree (R59.3):
+/// the comparison is of a committed revision, so it is made only for a
+/// tracked tree with no uncommitted change.
+pub fn rebuild_applicable(revision: &crate::tools::Revision) -> Result<(), String> {
+    if !revision.tracked {
+        return Err("the source tree is not tracked by git: there is no revision to rebuild".to_string());
+    }
+    if revision.dirty {
+        return Err(format!("the working tree has uncommitted changes: a clean checkout of {} is not what this job built", revision.commit));
+    }
+    Ok(())
+}
+
+/// R59.3: the Flight_Build binaries rebuilt from a clean checkout of the
+/// revision, in another directory, with their hashes compared against this
+/// job's build (`cargo xtask rebuild-check`, until 2026-11-17 a command the
+/// job did not run). The Evidence_Item `check-rebuild` passes on identical
+/// hashes, fails on a difference (a violation), and is `inconclusive`,
+/// with the reason, when the tree is not a committed revision.
+fn rebuild_step(root: &Path, target_dir: &Path, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
+    let revision = crate::tools::Revision::of(root);
+    let command = "cargo xtask rebuild-check".to_string();
+    let (verdict, notes) = match rebuild_applicable(&revision) {
+        Err(why) => {
+            report.note(format!("R59.3: the rebuild comparison is not made: {why}"));
+            (Verdict::Inconclusive, vec![why])
+        }
+        Ok(()) => {
+            let mut inner = Report::default();
+            let ok = crate::rebuild::run(root, target_dir, &mut inner);
+            let notes: Vec<String> = inner.diagnostics.iter().map(ToString::to_string).collect();
+            report.absorb(inner);
+            (Verdict::from_bool(ok), notes)
+        }
+    };
+    let mut item = Item::new(
+        "check-rebuild",
+        Kind::Check,
+        &format!("The Flight_Build binaries rebuilt from a clean checkout of {} have the hashes of this job's build (R59.3)", revision.commit),
+        Tool { name: "cargo xtask rebuild-check".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
+        verdict,
+    )
+    .covers(&["R59.3"]);
+    item.command_lines = vec![command.clone()];
+    item.notes = notes;
+    item.build_manifest = Some(manifest_id.to_string());
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    vec![command]
 }
 
 /// The module paths of the Kernel crates' files that hold a `verus!` block
@@ -1619,7 +1806,7 @@ fn hil_boot_checks(ws: &Workspace, rig: Option<&rsk_hil::config::Rig>, target_di
         Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
         Verdict::from_bool(out.ok()),
     )
-    .covers(&["R12.6", "R12.2", "R12.1", "R12.3"]);
+    .covers(&["R12.6", "R12.2", "R12.1", "R12.3", "R12.5"]);
     let mut commands = vec![target.command.clone()];
     commands.extend(out.commands.iter().cloned());
     item.command_lines = commands.clone();
@@ -1928,7 +2115,7 @@ fn uppaal_corpus(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &m
         Tool { name: "rsk-analyzer".to_string(), version: format!("{} ({})", env!("CARGO_PKG_VERSION"), outcome.verifier.clone().unwrap_or_else(|| "verifyta absent".into())), solvers: vec![] },
         verdict,
     )
-    .covers(&["R32.6", "R31.4", "R31.5", "R31.6", "R31.9"]);
+    .covers(&["R32.6", "R31.1", "R31.4", "R31.5", "R31.6", "R31.9"]);
     item.command_lines = vec!["cargo xtask uppaal-corpus".to_string()];
     item.notes = vec![format!("{} models; cross-check statuses {:?}; dispositions in docs/uppaal_dispositions.toml", outcome.rows.len(), outcome.by_status)];
     item.build_manifest = Some(manifest_id.to_string());
@@ -2003,7 +2190,36 @@ fn analyzer_run(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
         report.note("Analyzer: no Flight_Build binary with a Task_Model and a Build_Manifest");
     }
     commands.extend(analyzer_measured_runs(ws, target_dir, sandbox, store, manifest_id, &manifest_file, report));
+    rig_record_items(ws, store, manifest_id, &manifest_file, report);
     commands
+}
+
+/// The rig's committed campaign records as Evidence_Items (R50.6; R9.10,
+/// R18.8, R19.3 and the measured bounds of R8.8, R10.6, R11.3): read from
+/// `docs/hil/`, each bound to its binary and `inconclusive` when that
+/// binary is not one of this manifest's (R33.4). The job runs no campaign;
+/// a stale record is named, and is a note, not a violation.
+fn rig_record_items(ws: &Workspace, store: &mut Store, manifest_id: &str, manifest_file: &Path, report: &mut Report) {
+    let manifest_value: serde_json::Value = std::fs::read_to_string(manifest_file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null);
+    let items = crate::rig_records::items(&ws.root, &manifest_value);
+    let (mut pass, mut stale) = (0, Vec::new());
+    for r in items {
+        match r.verdict {
+            Verdict::Pass => pass += 1,
+            Verdict::Fail => report.error(Rule::Step, None, format!("rig record `{}`: {}", r.id, r.notes.first().cloned().unwrap_or_default())),
+            Verdict::Inconclusive => stale.push(r.id.clone()),
+        }
+        let mut item = Item::new(&r.id, r.kind, &r.name, Tool { name: "rsk-hil".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] }, r.verdict).covers(&r.covers);
+        item.notes = r.notes;
+        item.build_manifest = Some(manifest_id.to_string());
+        if let Err(e) = store.write(&item) {
+            report.error(Rule::Evidence, None, e);
+        }
+    }
+    report.note(format!(
+        "R50.6: the rig's committed records as Evidence_Items: {pass} of a binary of this manifest{}",
+        if stale.is_empty() { String::new() } else { format!("; inconclusive, to be measured again on this revision's HIL build: {}", stale.join(", ")) }
+    ));
 }
 
 /// Task 19.3: the analyses that use the measured Kernel_Timing_Parameters.
@@ -2315,7 +2531,7 @@ fn profile_lint(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mu
         Tool { name: "rsk-lint".to_string(), version: env!("CARGO_PKG_VERSION").to_string(), solvers: vec![] },
         Verdict::from_bool(ok),
     )
-    .covers(&["R3.2", "R3.4", "R3.5", "R35.1", "R35.2", "R35.3", "R35.5", "R57.2", "PR-05", "PR-09", "PR-16", "PR-17", "PR-18", "PR-21"]);
+    .covers(&["R3.2", "R3.4", "R3.5", "R35.1", "R35.2", "R35.3", "R35.5", "R57.2", "PR-05", "PR-09", "PR-16", "PR-17", "PR-18", "PR-21", "R13.5"]);
     item.command_lines = vec![commands[0].clone()];
     item.notes = vec![summary];
     item.build_manifest = Some(manifest_id.to_string());
@@ -2818,6 +3034,41 @@ fn structural_coverage(ws: &Workspace, target_dir: &Path, _sandbox: &Sandbox, st
         }
     }
     commands
+}
+
+#[cfg(test)]
+mod step_tests {
+    use super::*;
+
+    /// Verification_Plan 11.1: a HIL build's configuration is read from
+    /// where its ELF lies, and its Task_Model is that configuration's.
+    #[test]
+    fn a_hil_builds_configuration_and_model_come_from_its_directory() {
+        let hil = Path::new("/t/hil");
+        let triple = "thumbv7em-none-eabihf";
+        assert_eq!(hil_build_variant(hil, triple, Path::new("/t/hil/thumbv7em-none-eabihf/release/p1-demo")), None);
+        assert_eq!(hil_build_variant(hil, triple, Path::new("/t/hil/nrf52840_stress/thumbv7em-none-eabihf/release/p1-demo")), Some("nrf52840_stress".to_string()));
+        assert_eq!(hil_build_variant(hil, triple, Path::new("/elsewhere/p1-demo")), None);
+        let root = crate::repository_root();
+        let demo = root.join("apps/p1-demo");
+        assert_eq!(hil_build_model(&demo, Some("nrf52840_stress")), Some(demo.join("gen-nrf52840_stress/task_model.json")));
+        assert_eq!(hil_build_model(&demo, None), Some(demo.join("gen-nrf52840/task_model.json")));
+        assert_eq!(hil_build_model(&root.join("apps/hil-stimulus"), None), Some(root.join("apps/hil-stimulus/gen/task_model.json")));
+        assert_eq!(hil_build_model(&demo, Some("no_such_configuration")), None);
+        let mut report = Report::default();
+        let ws = Workspace::load(&root, &mut report).expect("workspace");
+        assert_eq!(system_crate_of(&ws, &demo), "rsk-system");
+        assert_eq!(system_crate_of(&ws, &root.join("apps/hil-stimulus")), "hil-stimulus-system");
+    }
+
+    /// R59.3: the rebuild comparison is made only of a committed revision.
+    #[test]
+    fn r59_3_the_rebuild_comparison_needs_a_committed_revision() {
+        let rev = |tracked, dirty| crate::tools::Revision { commit: "abc".into(), dirty, tracked };
+        assert!(rebuild_applicable(&rev(true, false)).is_ok());
+        assert!(rebuild_applicable(&rev(true, true)).unwrap_err().contains("uncommitted"));
+        assert!(rebuild_applicable(&rev(false, false)).unwrap_err().contains("not tracked"));
+    }
 }
 
 #[cfg(test)]

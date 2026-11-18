@@ -297,6 +297,38 @@ pub fn mmio_write(a: u32, v: u32) {
     raw::write_word(a, v)
 }
 
+use crate::arch::cm4::drivers;
+
+/// The memory-mapped registers as the register file of
+/// `arch::cm4::drivers`: its three methods are the volatile accesses of
+/// UJ-001, UJ-002 and UJ-009, with their preconditions.
+pub struct Mmio;
+
+impl drivers::Regs for Mmio {
+    #[inline(always)]
+    fn read(&mut self, a: u32) -> u32 {
+        mmio_read(a)
+    }
+    #[inline(always)]
+    fn write(&mut self, a: u32, v: u32) {
+        mmio_write(a, v)
+    }
+    #[inline(always)]
+    fn write_u8(&mut self, a: u32, v: u8) {
+        mmio_write_u8(a, v)
+    }
+}
+
+/// The Kernel_Arch state's count of the counter's wraps (`extend`).
+pub struct Clock;
+
+impl drivers::Extend for Clock {
+    #[inline(always)]
+    fn extend(&mut self, low: u32) -> u64 {
+        super::extend(low)
+    }
+}
+
 /// Writes one byte of the NVIC_IPR array. Precondition:
 /// `addr::kernel_byte_access_ok(a)` (UJ-009).
 fn mmio_write_u8(a: u32, v: u8) {
@@ -470,13 +502,7 @@ pub fn wait_for_interrupt() {
 /// given one does nothing rather than write the word its arithmetic
 /// would reach (before 2026-11-06 the line was `n.saturating_sub(16)`,
 /// so a number above the arrays would have reached the SCB).
-pub fn irq_of(n: u16) -> Option<u32> {
-    if n < 16 || n as u32 - 16 >= addr::NVIC_LINES {
-        None
-    } else {
-        Some(n as u32 - 16)
-    }
-}
+pub use crate::arch::cm4::drivers::irq_of;
 
 /// The Endpoint message copy (task 21.2; DD-09, R42.2): `len` bytes from
 /// `src` to `dst` by words. Total for every argument: nothing is copied
@@ -643,63 +669,46 @@ pub fn vectpending() -> u16 {
 }
 
 pub fn nvic_enable(n: u16) {
-    if let Some(irq) = irq_of(n) {
-        mmio_write(addr::NVIC_ISER + 4 * (irq / 32), 1 << (irq % 32));
-    }
+    drivers::nvic_enable(&mut Mmio, n)
 }
 
 pub fn nvic_disable(n: u16) {
-    if let Some(irq) = irq_of(n) {
-        mmio_write(addr::NVIC_ICER + 4 * (irq / 32), 1 << (irq % 32));
-    }
+    drivers::nvic_disable(&mut Mmio, n)
 }
 
 pub fn nvic_set_pending(n: u16) {
-    if let Some(irq) = irq_of(n) {
-        mmio_write(addr::NVIC_ISPR + 4 * (irq / 32), 1 << (irq % 32));
-    }
+    drivers::nvic_set_pending(&mut Mmio, n)
 }
 
 pub fn nvic_clear_pending(n: u16) {
-    if let Some(irq) = irq_of(n) {
-        mmio_write(addr::NVIC_ICPR + 4 * (irq / 32), 1 << (irq % 32));
-    }
+    drivers::nvic_clear_pending(&mut Mmio, n)
 }
 
 pub fn nvic_set_priority(n: u16, encoded: u8) {
-    if let Some(irq) = irq_of(n) {
-        mmio_write_u8(addr::NVIC_IPR + irq, encoded);
-    }
+    drivers::nvic_set_priority(&mut Mmio, n, encoded)
 }
 
 /// AIRCR.PRIGROUP = 4: with 3 implemented bits (7:5) every bit is a group
 /// bit (HW-01). VECTKEY 0x05FA is required for the write.
 pub fn set_prigroup_all_preempt() {
-    let v = mmio_read(addr::AIRCR) & 0x0000_F8FF;
-    mmio_write(addr::AIRCR, (0x05FA << 16) | v | (4 << 8));
+    drivers::set_prigroup_all_preempt(&mut Mmio);
 }
 
 /// CCR.NONBASETHRDENA (HW-07). The Kernel keeps it 0: no Job executes
 /// with an exception active (DD-01 as revised by the P1 spike).
 pub fn set_nonbasethrdena(on: bool) {
-    let v = mmio_read(addr::CCR);
-    mmio_write(addr::CCR, if on { v | 1 } else { v & !1 });
+    drivers::set_nonbasethrdena(&mut Mmio, on);
 }
 
 /// ACTLR.DISDEFWBUF (HW-11, DD-12).
 pub fn set_disdefwbuf(on: bool) {
-    let v = mmio_read(addr::ACTLR);
-    mmio_write(addr::ACTLR, if on { v | 2 } else { v & !2 });
+    drivers::set_disdefwbuf(&mut Mmio, on);
 }
 
 /// MemManage, BusFault, UsageFault, and SVCall at the Kernel level (priority
 /// 0) and enabled (SHCSR bits 16 to 18).
 pub fn set_kernel_exception_priorities() {
-    mmio_write(addr::SHPR1, 0);
-    mmio_write(addr::SHPR2, 0);
-    mmio_write(addr::SHPR3, 0);
-    let v = mmio_read(addr::SHCSR);
-    mmio_write(addr::SHCSR, v | (1 << 16) | (1 << 17) | (1 << 18));
+    drivers::set_kernel_exception_priorities(&mut Mmio);
 }
 
 /// Clears a pending SVCall (SHCSR.SVCALLPENDED, bit 15; Armv7-M B3.2.13).
@@ -831,14 +840,7 @@ pub fn clear_fault_status() {
 /// forbid arithmetic, comparison, conversion, and FPSCR writes
 /// (verification_plan.md 5.7).
 pub fn fpu_configure_eager(flush_to_zero: bool) {
-    let v = mmio_read(addr::FPCCR);
-    mmio_write(addr::FPCCR, (v | (1 << 31)) & !(1 << 30));
-    // FPDSCR: the FPSCR every new FP context starts from (HW-10). FZ (bit
-    // 24) when the declaration asks for it (erratum 839676's workaround,
-    // task 3.4); the other defaults (DN, AHP, RMode) stay 0.
-    mmio_write(addr::FPDSCR, if flush_to_zero { 1 << 24 } else { 0 });
-    let c = mmio_read(addr::CPACR) | (0xF << 20);
-    mmio_write(addr::CPACR, c);
+    drivers::fpu_configure_eager(&mut Mmio, flush_to_zero);
     barrier();
 }
 
@@ -895,18 +897,14 @@ pub fn mpu_load(view: &View) {
 /// MPU_CTRL = PRIVDEFENA | ENABLE: the Kernel runs on the background map,
 /// Jobs only see their regions (B3.5.7).
 pub fn mpu_enable_background() {
-    mmio_write(addr::MPU_CTRL, (1 << 2) | 1);
+    drivers::mpu_enable_background(&mut Mmio);
     barrier();
 }
 
 // ------------------------------------------------------------------ DWT
 
 pub fn dwt_enable() {
-    let v = mmio_read(addr::DEMCR);
-    mmio_write(addr::DEMCR, v | (1 << 24));
-    mmio_write(addr::DWT_CYCCNT, 0);
-    let c = mmio_read(addr::DWT_CTRL);
-    mmio_write(addr::DWT_CTRL, c | 1);
+    drivers::dwt_enable(&mut Mmio);
 }
 
 /// DWT_CYCCNT (HW-13).
@@ -1287,7 +1285,8 @@ mod timebase {
 mod timebase {
     //! nRF52840 TIMER0 (PS 6.30): 32-bit mode at 16 MHz (prescaler 0),
     //! CC[0] for the compare event, CAPTURE[1]/CC[1] to read the counter.
-    use super::{addr, mmio_read, mmio_write};
+    use super::{addr, mmio_write, Clock, Mmio};
+    use crate::arch::cm4::drivers::timer0;
     const TASKS_START: u32 = 0x000;
     const TASKS_STOP: u32 = 0x004;
     const TASKS_CLEAR: u32 = 0x00C;
@@ -1313,67 +1312,32 @@ mod timebase {
     }
 
     pub fn now() -> u64 {
-        let t = addr::NRF_TIMER0;
-        mmio_write(t + TASKS_CAPTURE1, 1);
-        let low = mmio_read(t + CC1);
-        super::super::extend(low)
+        timer0::now(&mut Mmio, &mut Clock)
     }
 
-    /// TIMER0's interrupt line (nRF52840 IRQ 8), for a compare already due.
-    const TIMER0_VECTOR: u16 = 16 + 8;
-
+    /// `timer0::arm`; on the rig the capture after the write is recorded
+    /// (the distance the hardware is left with, HW-12, ASM-19).
     pub fn arm(at: u64) {
-        let t = addr::NRF_TIMER0;
-        mmio_write(t + CC0, at as u32);
-        mmio_write(t + INTENSET, 1 << 16);
-        // The compare is absolute: an instant the counter has already passed
-        // matches only after the 32-bit wrap (268 s at 16 MHz), so a due or
-        // past instant pends the time-base interrupt instead; the handler
-        // serves every due slot by `now`, not by the event. Seen on the DK on
-        // 2026-10-29: the first release (instant 0) was armed after the
-        // counter started and no tick ever came, so the watchdog reset the
-        // chip. The QEMU timer is armed with a relative distance (HW-12).
-        if now() >= at {
-            super::nvic_set_pending(TIMER0_VECTOR);
-        }
+        let post = timer0::arm(&mut Mmio, &mut Clock, at);
+        #[cfg(feature = "trace-ram")]
+        super::super::stats_arm(at, post);
+        let _ = post;
     }
 
     pub fn ack() {
-        let t = addr::NRF_TIMER0;
-        mmio_write(t + EVENTS_COMPARE0, 0);
+        timer0::ack(&mut Mmio)
     }
 
-    /// Cancels the compare that is armed or has matched (2026-11-15: the
-    /// Budget event it was armed for is disarmed, Verification_Plan 7.3):
-    /// the compare interrupt is disabled, its event cleared, and the
-    /// pending state of TIMER0's line cleared in the NVIC. The event is
-    /// read back before the NVIC write so that the line is low by then
-    /// (the event register drives it).
     pub fn cancel() {
-        let t = addr::NRF_TIMER0;
-        mmio_write(t + INTENCLR, 1 << 16);
-        mmio_write(t + EVENTS_COMPARE0, 0);
-        let _ = mmio_read(t + EVENTS_COMPARE0);
-        super::nvic_clear_pending(TIMER0_VECTOR);
+        timer0::cancel(&mut Mmio)
     }
 
-    /// Cancels the compare that is armed or has matched and arms it for
-    /// `at`. The new compare value is written before the old event is
-    /// cleared, so no match of the old value survives; a match of the new
-    /// one that the clearing erased is caught by the last test, which
-    /// pends the time base at once for an instant already reached (as
-    /// `arm` does): no due event is lost.
+    /// `timer0::rearm`, recorded on the rig as `arm`.
     pub fn rearm(at: u64) {
-        let t = addr::NRF_TIMER0;
-        mmio_write(t + INTENCLR, 1 << 16);
-        mmio_write(t + CC0, at as u32);
-        mmio_write(t + EVENTS_COMPARE0, 0);
-        let _ = mmio_read(t + EVENTS_COMPARE0);
-        super::nvic_clear_pending(TIMER0_VECTOR);
-        mmio_write(t + INTENSET, 1 << 16);
-        if now() >= at {
-            super::nvic_set_pending(TIMER0_VECTOR);
-        }
+        let post = timer0::rearm(&mut Mmio, &mut Clock, at);
+        #[cfg(feature = "trace-ram")]
+        super::super::stats_arm(at, post);
+        let _ = post;
     }
 }
 

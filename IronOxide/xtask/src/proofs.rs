@@ -395,6 +395,79 @@ pub fn run_verus(
     all_ok
 }
 
+/// The verified crate whose proofs are run a second time (R50.4): the
+/// Kernel's logic, which depends on no other verified crate, so that its
+/// run prints one results line of its own.
+pub const RERUN_CRATE: &str = "rsk-logic";
+
+/// R50.4: the verdict of a proof run repeated from the same inputs and tool
+/// versions against the first run's. `None` is a run that printed no
+/// results line.
+pub fn rerun_comparison(first: Option<(u64, u64)>, second: Option<(u64, u64)>) -> (Verdict, String) {
+    match (first, second) {
+        (Some(a), Some(b)) if a == b => (Verdict::Pass, format!("{} verified, {} errors in both runs", a.0, a.1)),
+        (Some(a), Some(b)) => (Verdict::Fail, format!("the first run reported {} verified, {} errors and the second {} verified, {} errors", a.0, a.1, b.0, b.1)),
+        (None, _) => (Verdict::Inconclusive, "the first run's log holds no results line to compare with".to_string()),
+        (_, None) => (Verdict::Fail, "the second run printed no results line".to_string()),
+    }
+}
+
+/// R50.4: runs the proofs of `RERUN_CRATE` a second time, from the same
+/// sources and with the same tools, in a build directory of its own that
+/// is emptied first (a build directory that holds the first run's results
+/// would answer from them), and compares what the two runs report. Writes
+/// the Evidence_Item `check-proof-rerun`. One crate of one proof item: the
+/// criterion asks it of every proof item, and of the archived inputs of a
+/// past revision, which a clean checkout of that revision supplies.
+pub fn rerun_verus(ws: &Workspace, verus: &Verus, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Option<String> {
+    let name = RERUN_CRATE;
+    let pkg = ws.package_named(name)?;
+    let targets = verus_target_count(pkg);
+    let first = std::fs::read_to_string(store.dir.join(format!("verus-{name}.log"))).ok().and_then(|t| package_verus_results(&parse_verus_result_lines(&t), targets));
+    let dir = target_dir.join("verus-rerun");
+    let _ = std::fs::remove_dir_all(&dir);
+    let cmd = Cmd::new(verus.cargo_verus()).args(["verus", "verify", "-p", name, "--target-dir"]).arg(&dir).cwd(&ws.root);
+    println!("   $ {}", cmd.display());
+    let command = cmd.display();
+    let (second, log_name) = match cmd.output(Some(sandbox)) {
+        Ok(out) => {
+            let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+            let log_name = format!("verus-rerun-{name}.log");
+            let _ = store.write_artifact(&log_name, &text);
+            (package_verus_results(&parse_verus_result_lines(&text), targets), Some(log_name))
+        }
+        Err(e) => {
+            report.error(Rule::Proof, None, format!("cannot run cargo-verus a second time: {e}"));
+            (None, None)
+        }
+    };
+    let (verdict, what) = rerun_comparison(first, second);
+    match verdict {
+        Verdict::Pass => report.note(format!("R50.4: the proofs of `{name}` run a second time in an empty build directory: {what}")),
+        Verdict::Fail => report.error(Rule::Proof, None, format!("R50.4: the proofs of `{name}` run a second time do not give the first run's result: {what}")),
+        Verdict::Inconclusive => report.note(format!("R50.4: the second run of `{name}` could not be compared: {what}")),
+    }
+    let mut item = Item::new(
+        "check-proof-rerun",
+        Kind::Check,
+        &format!("A proof Evidence_Item run again gives the same verdict (R50.4): the Verus proofs of `{name}`, part of `proof-kernel-verus`, in an empty build directory"),
+        Tool { name: "Verus".to_string(), version: format!("{} ({})", verus.version, verus.toolchain), solvers: vec![("z3".to_string(), verus.z3_version.clone())] },
+        verdict,
+    )
+    .covers(&["R50.4"]);
+    item.command_lines = vec![command.clone()];
+    item.notes = vec![
+        what,
+        format!("one crate of one proof item, from the sources and tool versions of this Build_Manifest; the other proof items (the remaining Verus crates, Kani, the App_Prover, the Lean proofs) are not run twice by this job"),
+    ];
+    item.build_manifest = Some(manifest_id.to_string());
+    item.artifacts = log_name.into_iter().chain([format!("verus-{name}.log")]).collect();
+    if let Err(e) = store.write(&item) {
+        report.error(Rule::Evidence, None, e);
+    }
+    Some(command)
+}
+
 /// PAR-01 cross-check with Verus's `line_count` (notes only; the gate is
 /// the Build_System counter, `checks::kernel_size`).
 /// The criteria the Verus Evidence_Item covers (task 8.4 follow-up,
@@ -626,6 +699,20 @@ pub fn name_failed_obligations(verus_ok: bool, kani_ok: bool, report: &mut Repor
 
 #[cfg(test)]
 mod tests {
+    /// R50.4: two runs agree only when they report the same counts; a
+    /// second run without a results line fails, a first one without is not
+    /// comparable.
+    #[test]
+    fn r50_4_a_second_proof_run_must_report_what_the_first_did() {
+        use super::rerun_comparison;
+        use crate::evidence::Verdict;
+        assert_eq!(rerun_comparison(Some((346, 0)), Some((346, 0))).0, Verdict::Pass);
+        assert_eq!(rerun_comparison(Some((346, 0)), Some((345, 1))).0, Verdict::Fail);
+        assert_eq!(rerun_comparison(Some((346, 0)), Some((345, 0))).0, Verdict::Fail);
+        assert_eq!(rerun_comparison(Some((346, 0)), None).0, Verdict::Fail);
+        assert_eq!(rerun_comparison(None, Some((346, 0))).0, Verdict::Inconclusive);
+    }
+
     #[test]
     fn kernel_crates_are_verified_dependencies_first() {
         let mut report = crate::diag::Report::default();

@@ -13,6 +13,9 @@ const ENABLE: u32 = 0x500;
 /// The register doubles are one table: the tests take turns.
 static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// R17.5: while a transfer has a buffer, the buffer gives out no bytes and
+/// takes no second request; only its own transfer, taken back after the
+/// peripheral's stop, releases it.
 #[test]
 fn a_lent_buffer_is_out_of_reach_until_its_transfer_is_taken_back_and_stopped() {
     let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());

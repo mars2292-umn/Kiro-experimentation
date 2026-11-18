@@ -41,6 +41,8 @@ const W_LOG_COUNT: usize = 44;
 const W_LOG: usize = 45;
 const LOG_LEN: usize = 16;
 const W_COMPARE: usize = 110;
+/// Per distance, the compare value less the counter captured after the write (signed).
+const W_COMPARE_POST: usize = 140;
 const COMPARE_DISTANCES: [u32; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16];
 const W_FPCCR: usize = 134;
 const W_FPDSCR: usize = 135;
@@ -110,8 +112,17 @@ pub struct TaskSide {
     pub ppb_attempts: usize,
     /// FPSCR as the FPU Task's first Job found it (HW-10).
     pub filter_fpscr: Option<u32>,
+    /// R11.8: the FPU Task's Jobs that found FPSCR as its first Job did,
+    /// each after a Job that left round-toward-zero behind; or one of the
+    /// two marks of the probe (`FPSCR_DIFFERED`, `FPSCR_NOT_CHANGED`).
+    pub filter_fpscr_jobs: Option<u32>,
     /// The register-pattern probe: runs, failures, the union of mismatch masks (HW-06, HW-10).
     pub patterns: Option<(u32, u32, u32)>,
+    /// The time-base driver's compares of this run (HW-12, ASM-19).
+    pub arm: Option<crate::stats::ArmStats>,
+    /// The attempts on a disabled subregion of the walker's own RAM region
+    /// and whether each has its fault (HW-09); `None` when no view has one.
+    pub srd_refused: Option<(usize, bool)>,
     /// Whether any MPU view uses subregion-disable bits (HW-09).
     pub srd_used: bool,
     /// The declaration's `fp_flush_to_zero` (FPDSCR.FZ expected set; HW-10).
@@ -139,6 +150,41 @@ fn row(rule: &'static str, what: &str, predicted: impl Into<String>, observed: i
     Row { rule, what: what.to_string(), predicted: predicted.into(), observed: observed.into(), verdict: if ok { Verdict::Match } else { Verdict::Mismatch } }
 }
 
+/// HW-12 for the compares the Kernel's time-base driver wrote in this run.
+/// The probe gives, per trial, the distance from the counter captured after
+/// the write to the compare value and whether the event came; the driver
+/// records the smallest such distance among the compares it left to the
+/// hardware. The rule holds on the Kernel's path when every compare left to
+/// the hardware was at least as far ahead as a probe compare that fired,
+/// and the probe's outcomes are ordered (no compare that failed was further
+/// ahead than one that fired).
+fn kernel_compare_row(w: &[u32], arm: Option<&crate::stats::ArmStats>) -> Row {
+    let what = "every compare the time-base driver left to the hardware was at least as far ahead of the counter, captured after the write, as a probe compare that fired (ASM-19)";
+    let post: Vec<i32> = (0..COMPARE_DISTANCES.len()).map(|k| w[W_COMPARE_POST + k] as i32).collect();
+    if post.iter().all(|m| *m == 0) {
+        return untested("HW-12", what, "smallest distance left >= smallest that fired", "the record has no post-write captures (a build before 2026-11-18)");
+    }
+    let Some(arm) = arm else {
+        return untested("HW-12", what, "smallest distance left >= smallest that fired", "the run has no compare-arm record");
+    };
+    let fired: Vec<i32> = (0..post.len()).filter(|k| w[W_COMPARE + 2 * k] == 1).map(|k| post[k]).collect();
+    let missed: Vec<i32> = (0..post.len()).filter(|k| w[W_COMPARE + 2 * k] != 1).map(|k| post[k]).collect();
+    let fire_min = fired.iter().copied().min();
+    let miss_max = missed.iter().copied().max();
+    let probe = format!(
+        "probe: fired from {} ticks after the write's capture, no event up to {}",
+        fire_min.map(|m| m.to_string()).unwrap_or("none".into()),
+        miss_max.map(|m| m.to_string()).unwrap_or("none".into())
+    );
+    let observed = format!("{probe}; Kernel: {}", arm.summary());
+    let ordered = match (fire_min, miss_max) { (Some(f), Some(m)) => m < f, _ => true };
+    let ok = match fire_min {
+        Some(f) => ordered && arm.left > 0 && arm.margin_min_ticks as i64 >= f as i64,
+        None => false,
+    };
+    row("HW-12", what, "smallest distance left >= smallest that fired", observed, ok)
+}
+
 fn untested(rule: &'static str, what: &str, predicted: impl Into<String>, disposition: impl Into<String>) -> Row {
     Row { rule, what: what.to_string(), predicted: predicted.into(), observed: disposition.into(), verdict: Verdict::NotTested }
 }
@@ -162,6 +208,11 @@ pub const RULES: [(&str, &str); 14] = [
 ];
 
 /// Every row of the differential tests.
+/// The marks of the R11.8 probe in `filter_fpscr_jobs` (the demo's
+/// `FPSCR_DIFFERED` and `FPSCR_NOT_CHANGED`).
+pub const FPSCR_DIFFERED: u32 = 2_000_000;
+pub const FPSCR_NOT_CHANGED: u32 = 3_000_000;
+
 pub fn judge(r: &Record, side: &TaskSide) -> Vec<Row> {
     let w = &r.words;
     let log = r.log();
@@ -215,10 +266,14 @@ pub fn judge(r: &Record, side: &TaskSide) -> Vec<Row> {
         None => {}
     }
     rows.push(row("HW-09", "MPU_CTRL after the Kernel's boot: ENABLE and PRIVDEFENA (background map for privileged code only)", "0x5", hex(w[W_MPU_CTRL]), w[W_MPU_CTRL] & 5 == 5));
-    if side.srd_used {
-        rows.push(row("HW-09", "subregion-disable bits", "a disabled subregion refuses", "exercised by the matrix", true));
-    } else {
+    match side.srd_refused {
+        Some((n, ok)) => {
+            rows.push(row("HW-09", "a write into a disabled subregion of the Partition's own RAM region refused (the region matches, its subregion is disabled)", "MemManage (DACCVIOL) at the attempted address", format!("{n} attempt(s): {}", if ok { "each with its fault" } else { "a fault MISSING: the access was granted" }), ok));
+            rows.push(untested("HW-09", "overlap precedence", "the highest-numbered region decides", "not exercised: no view has two enabled regions covering one address; the encoding is checked at field level by the Kani harnesses"));
+        }
+        None => {
         rows.push(untested("HW-09", "subregion-disable bits and overlap precedence", "a disabled subregion refuses; the highest-numbered region decides", "not exercised: no view of this Application sets SRD bits (every region is a power-of-two region of exactly its size) and no view has two enabled regions covering one address; the encoding is checked at field level by the Kani harnesses `rasr_encoding_fields` and `rbar_encoding_fields`"));
+        }
     }
     // HW-10
     rows.push(row("HW-10", "FPCCR.ASPEN set, FPCCR.LSPEN clear (eager stacking)", "ASPEN 1, LSPEN 0", format!("FPCCR {}", hex(w[W_FPCCR])), w[W_FPCCR] >> 31 == 1 && (w[W_FPCCR] >> 30) & 1 == 0));
@@ -227,6 +282,15 @@ pub fn judge(r: &Record, side: &TaskSide) -> Vec<Row> {
     match side.filter_fpscr {
         Some(f) => rows.push(row("HW-10", "FPSCR of a new FP context equals FPDSCR", hex(w[W_FPDSCR]), hex(f), f == w[W_FPDSCR])),
         None => rows.push(untested("HW-10", "FPSCR of a new FP context", "FPDSCR", "no Task-side record in this run")),
+    }
+    // R11.8: a Job's settings are FPDSCR's whatever the Job before left.
+    let what = "FPSCR of every later Job's FP context equals the first Job's, each after a Job that left round-toward-zero (R11.8)";
+    match side.filter_fpscr_jobs {
+        Some(FPSCR_DIFFERED) => rows.push(row("HW-10", what, "every Job as the first", format!("a later Job found FPSCR {}", side.filter_fpscr.map(hex).unwrap_or_else(|| "?".into())), false)),
+        Some(FPSCR_NOT_CHANGED) => rows.push(row("HW-10", what, "the rounding mode changed by the probe", "FPSCR did not take round-toward-zero: nothing was left to inherit".to_string(), false)),
+        Some(n) if n >= 2 => rows.push(row("HW-10", what, "every Job as the first", format!("{n} Jobs, each as the first"), true)),
+        Some(_) => rows.push(untested("HW-10", what, "every Job as the first", "one Job of the FPU Task only: no later Job to compare")),
+        None => rows.push(untested("HW-10", what, "every Job as the first", "no Task-side record in this run")),
     }
     match side.patterns {
         Some((runs, fail, mask)) => rows.push(row("HW-10", "S0-S31 preserved across preemptions (the hardware's S0-S15 under eager stacking, the stubs' S16-S31)", "0 failures", format!("{runs} runs, {fail} failures, mask {}", hex(mask)), runs > 0 && fail == 0)),
@@ -253,6 +317,9 @@ pub fn judge(r: &Record, side: &TaskSide) -> Vec<Row> {
     }
     let smallest = COMPARE_DISTANCES.iter().enumerate().find(|(k, _)| w[W_COMPARE + 2 * k] == 1).map(|(_, d)| d.to_string()).unwrap_or("none".into());
     rows.push(row("HW-12", "COMPARE fires for every distance of MIN_COMPARE_DISTANCE (16, revised from 2 by this test's first run) ticks or more from the counter captured before the write; below it the event is not guaranteed (ASM-19)", "fired for every d >= 16; the model's former 2 refuted (0 to 7 never fire: the capture-to-write path is about 7 ticks)", format!("smallest distance that fired: {smallest} ticks; {}", obs.join("; ")), ok12));
+    // HW-12 on the Kernel's own path (ASM-19): the probe's distances and the
+    // driver's are both measured from the counter captured after the write.
+    rows.push(kernel_compare_row(w, side.arm.as_ref()));
     // HW-13
     let (c0, c1, c2, c3) = (w[W_CYC], w[W_CYC + 1], w[W_CYC + 2], w[W_CYC + 3]);
     let elapsed = |s: u32, e: u32| if e >= s { e - s } else { e.wrapping_sub(s) };
@@ -332,6 +399,9 @@ mod tests {
         w[W_LOG_COUNT] = order.len() as u32;
         for (i, v) in order.iter().enumerate() { w[W_LOG + 4 * i] = *v; }
         for k in 0..COMPARE_DISTANCES.len() { w[W_COMPARE + 2 * k] = if COMPARE_DISTANCES[k] >= 8 { 1 } else { 0 }; }
+        // The write lands 7 ticks after the first capture: a compare d ticks
+        // from it is d - 7 from the capture after the write.
+        for k in 0..COMPARE_DISTANCES.len() { w[W_COMPARE_POST + k] = (COMPARE_DISTANCES[k] as i32 - 7) as u32; }
         w[W_FPCCR] = 1 << 31; w[W_FPDSCR] = 0; w[W_ACTLR] = 2; w[W_CCR] = 0x200; w[W_MPU_CTRL] = 5;
         Record::decode(&w).unwrap()
     }
@@ -339,11 +409,34 @@ mod tests {
     #[test]
     fn a_record_matching_the_model_passes_every_rule() {
         let r = good();
-        let side = TaskSide { matrix: Some((true, "69 attempts refused".into())), stack_overflow_refused: Some(true), ppb_faults: vec![(true, false, true, 0xE000_E100); 6], ppb_attempts: 6, filter_fpscr: Some(0), patterns: Some((100, 0, 0)), srd_used: false, fp_flush_to_zero: false };
+        let side = TaskSide { matrix: Some((true, "69 attempts refused".into())), stack_overflow_refused: Some(true), ppb_faults: vec![(true, false, true, 0xE000_E100); 6], ppb_attempts: 6, filter_fpscr: Some(0), filter_fpscr_jobs: Some(12), patterns: Some((100, 0, 0)), arm: Some(crate::stats::ArmStats { left: 1000, pended: 3, margin_min_ticks: 9, below_4: 0, below_8: 0, below_16: 20 }), srd_refused: None, srd_used: false, fp_flush_to_zero: false };
         let rows = judge(&r, &side);
         let v = verdicts(&rows);
         assert!(v.iter().all(|(_, _, x)| *x != Verdict::Mismatch), "{:?}", rows.iter().filter(|r| r.verdict == Verdict::Mismatch).collect::<Vec<_>>());
         assert_eq!(v.iter().filter(|(_, _, x)| *x == Verdict::Match).count(), 14);
+    }
+
+    /// HW-12 on the Kernel's path: a compare the driver left closer to the
+    /// counter than any probe compare that fired is a mismatch; one as far
+    /// as the closest that fired matches; without the driver's record, or
+    /// with a record that has no post-write captures, the row is untested.
+    #[test]
+    fn the_kernels_closest_compare_is_judged_against_the_probes() {
+        let r = good();
+        let arm = |m: u32| crate::stats::ArmStats { left: 10, pended: 0, margin_min_ticks: m, below_4: 0, below_8: 0, below_16: 0 };
+        // The probe fired from 1 tick after the write's capture (d = 8).
+        assert_eq!(kernel_compare_row(&r.words, Some(&arm(1))).verdict, Verdict::Match);
+        assert_eq!(kernel_compare_row(&r.words, Some(&arm(0))).verdict, Verdict::Mismatch);
+        assert_eq!(kernel_compare_row(&r.words, Some(&crate::stats::ArmStats::default())).verdict, Verdict::Mismatch);
+        assert_ne!(kernel_compare_row(&r.words, None).verdict, Verdict::Mismatch);
+        assert_ne!(kernel_compare_row(&r.words, None).verdict, Verdict::Match);
+        let mut old = good();
+        for k in 0..COMPARE_DISTANCES.len() { old.words[W_COMPARE_POST + k] = 0; }
+        assert_ne!(kernel_compare_row(&old.words, Some(&arm(9))).verdict, Verdict::Mismatch);
+        // A probe compare that failed further ahead than one that fired: not ordered.
+        let mut odd = good();
+        odd.words[W_COMPARE_POST] = 5;
+        assert_eq!(kernel_compare_row(&odd.words, Some(&arm(9))).verdict, Verdict::Mismatch);
     }
 
     #[test]

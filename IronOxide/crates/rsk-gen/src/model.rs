@@ -240,6 +240,8 @@ pub fn task_model(g: &Generated) -> Value {
                 .map(|&(level, nvic)| Value::obj().with("level", level).with("nvic", nvic))
                 .collect::<Vec<_>>(),
         )
+        // R23.5: the two top-level values above are derived.
+        .with("derived", vec!["kernel_levels".to_string(), "priority_map".to_string()])
         .with(
             "capacities",
             Value::obj()

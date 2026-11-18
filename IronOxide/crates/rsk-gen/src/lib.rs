@@ -204,6 +204,178 @@ pub(crate) mod tests {
         assert!(rules.contains(&("R22.5".into(), "resource part1.unused".into())), "{rules:?}");
     }
 
+    fn rules_of(d: &Declaration) -> Vec<(String, String)> {
+        generate(d).unwrap_err().iter().map(|e| (e.rule.clone(), e.item.to_string())).collect()
+    }
+
+    /// R18.5: a Partition below the highest Criticality_Level of the
+    /// Application that lets an overrunning Job continue is rejected, naming
+    /// the Partition's Overrun_Response.
+    #[test]
+    fn r18_5_a_lower_level_partition_may_not_let_an_overrunning_job_continue() {
+        let mut d = demo();
+        d.partitions[1].overrun = Response::RecordAndContinue;
+        let errs = generate(&d).unwrap_err();
+        assert!(errs.iter().any(|e| e.item.to_string() == "partition part1.overrun" && e.message.contains("R18.5")), "{errs:?}");
+        // With two Partitions of the highest level, both may.
+        let mut d = demo();
+        d.partitions[1].level = Level::A;
+        d.partitions[0].overrun = Response::RecordAndContinue;
+        d.partitions[1].overrun = Response::RecordAndContinue;
+        generate(&d).expect("accepted at the highest level");
+    }
+
+    /// R18.6: the Partition of the highest Criticality_Level may record an
+    /// Overrun and let the Job complete, and the generated table carries the
+    /// response.
+    #[test]
+    fn r18_6_the_highest_level_partition_may_record_an_overrun_and_continue() {
+        let mut d = demo();
+        d.partitions[0].overrun = Response::RecordAndContinue;
+        let g = generate(&d).expect("accepted");
+        let out = outputs(&d, "rsk-system").unwrap();
+        assert_eq!(g.plan.partitions.len(), 2);
+        assert!(out.system_source.contains("RESP_RECORD_AND_CONTINUE"), "the response is not in the generated table");
+    }
+
+    /// R21.5: an owned peripheral, and the interrupt a Task binds, must exist
+    /// in the Target's device description; each is rejected naming the item.
+    #[test]
+    fn r21_5_a_peripheral_or_interrupt_the_target_lacks_is_rejected() {
+        let mut d = demo();
+        d.partitions[1].peripherals.push("NO_SUCH_PERIPHERAL".into());
+        assert!(rules_of(&d).contains(&("R21.5".into(), "peripheral part1.NO_SUCH_PERIPHERAL".into())), "{:?}", rules_of(&d));
+        let mut d = demo();
+        d.partitions[1].tasks[0].release =
+            Release::Sporadic { mit: ms(40), policy: MitPolicy::Defer, source: Source::Interrupt("NO_SUCH_PERIPHERAL".into()) };
+        assert!(rules_of(&d).contains(&("R21.5".into(), "task part1.log.binds".into())), "{:?}", rules_of(&d));
+    }
+
+    /// R22.6: an operating duration the time base cannot represent, a period
+    /// longer than the operating duration and an offset beyond it are each
+    /// rejected naming the field.
+    #[test]
+    fn r22_6_times_the_kernel_time_base_cannot_hold_are_rejected() {
+        let mut d = demo();
+        d.operating_duration = ms(0);
+        assert!(rules_of(&d).contains(&("R22.6".into(), "app.operating_duration".into())), "{:?}", rules_of(&d));
+        let mut d = demo();
+        d.operating_duration = Time { value: u64::MAX, unit: TimeUnit::Ms };
+        assert!(rules_of(&d).contains(&("R22.6".into(), "app.operating_duration".into())), "{:?}", rules_of(&d));
+        let mut d = demo();
+        d.partitions[1].tasks[0].release = Release::Periodic { period: ms(400), offset: None };
+        d.partitions[1].tasks[0].deadline = ms(400);
+        assert!(rules_of(&d).contains(&("R22.6".into(), "task part1.log.period".into())), "{:?}", rules_of(&d));
+        let mut d = demo();
+        d.partitions[1].tasks[0].release = Release::Periodic { period: ms(40), offset: Some(ms(300)) };
+        assert!(rules_of(&d).contains(&("R22.6".into(), "task part1.log.offset".into())), "{:?}", rules_of(&d));
+    }
+
+    /// R15.7: a Partition that omits a region size, or declares a response
+    /// outside the closed set of its kind (R14.5), is rejected naming the
+    /// Partition and the field, one diagnostic per field.
+    #[test]
+    fn r15_7_each_missing_field_and_each_response_outside_its_set_is_named() {
+        let cases: [(&str, fn(&mut PartitionDecl)); 7] = [
+            ("code", |p| p.code = 0),
+            ("ram", |p| p.ram = 0),
+            ("stack", |p| p.stack = 0),
+            ("stack", |p| p.stack = 4092),
+            ("fault", |p| p.fault = Response::RecordOnly),
+            ("overrun", |p| p.overrun = Response::RecordOnly),
+            ("deadline_miss", |p| p.deadline_miss = Response::EndJob),
+        ];
+        for (field, change) in cases {
+            let mut d = demo();
+            change(&mut d.partitions[1]);
+            let rules = rules_of(&d);
+            assert!(rules.contains(&("R15.7".into(), format!("partition part1.{field}"))), "{field}: {rules:?}");
+            assert!(!rules.iter().any(|(_, item)| item.starts_with("partition part0")), "{field}: the other Partition is named: {rules:?}");
+        }
+    }
+
+    /// R15.5: an Application of a single Partition generates, with that
+    /// Partition's regions placed apart from the Kernel's.
+    #[test]
+    fn r15_5_an_application_of_one_partition_generates_with_its_own_regions() {
+        let mut d = demo();
+        d.partitions.truncate(1);
+        let g = generate(&d).expect("valid");
+        assert_eq!(g.plan.partitions.len(), 1);
+        let p = &g.plan.partitions[0];
+        assert!(p.code.size() > 0 && p.ram.size() > 0);
+        let out = outputs(&d, "rsk-system").unwrap();
+        assert!(out.system_source.contains("pub const NP: usize = 1;"), "the generated tables are not for one Partition");
+    }
+
+    /// R21.6 (PR-29): a Task bound to the interrupt of a peripheral that its
+    /// Partition does not own is rejected naming the binding, while the
+    /// owning Partition's Task may bind it.
+    #[test]
+    fn r21_6_a_task_may_bind_only_an_interrupt_of_a_peripheral_its_partition_owns() {
+        let bound = |d: &mut Declaration, p: usize| {
+            d.partitions[p].tasks.last_mut().unwrap().release =
+                Release::Sporadic { mit: ms(40), policy: MitPolicy::Defer, source: Source::Interrupt("CMSDK_DUALTIMER".into()) };
+        };
+        let mut d = demo();
+        d.partitions[0].peripherals.push("CMSDK_DUALTIMER".into());
+        bound(&mut d, 1);
+        let errs = generate(&d).unwrap_err();
+        assert!(errs.iter().any(|e| e.rule == "PR-29" && e.item.to_string() == "task part1.log.binds" && e.message.contains("R21.6")), "{errs:?}");
+        let mut d = demo();
+        d.partitions[1].peripherals.push("CMSDK_DUALTIMER".into());
+        bound(&mut d, 1);
+        generate(&d).expect("the owning Partition's Task binds it");
+    }
+
+    /// R19.4: an interrupt-bound Task must accept the behaviour the design
+    /// provides for interrupt sources (events of an MIT window coalesced and
+    /// deferred, DD-06): `discard` is rejected naming the Task's policy,
+    /// `defer` is accepted, and a Task released by a Release_Signal may
+    /// declare either.
+    #[test]
+    fn r19_4_an_interrupt_bound_task_may_not_declare_the_discard_policy() {
+        let with = |policy: MitPolicy, source: Source| {
+            let mut d = demo();
+            if matches!(source, Source::Interrupt(_)) {
+                d.partitions[1].peripherals.push("CMSDK_DUALTIMER".into());
+            } else {
+                d.partitions[1].signals.push(SignalDecl { name: "tick".into() });
+                d.partitions[0].tasks[0].raises.push("tick".into());
+            }
+            d.partitions[1].tasks[0].release = Release::Sporadic { mit: ms(40), policy, source };
+            d
+        };
+        let irq = || Source::Interrupt("CMSDK_DUALTIMER".into());
+        let errs = generate(&with(MitPolicy::Discard, irq())).unwrap_err();
+        assert_eq!(errs.len(), 1, "{errs:?}");
+        assert!(errs[0].rule == "R19.4" && errs[0].item.to_string() == "task part1.log.mit_policy" && errs[0].message.contains("DD-06"), "{errs:?}");
+        generate(&with(MitPolicy::Defer, irq())).expect("an interrupt source defers");
+        for policy in [MitPolicy::Defer, MitPolicy::Discard] {
+            if let Err(errs) = generate(&with(policy, Source::Signal("tick".into()))) {
+                panic!("a Release_Signal offers both policies: {errs:?}");
+            }
+        }
+    }
+
+    /// R24.3: the configuration summary lists the values of R24.1 for
+    /// review: the Target, the capacities, each Partition with its level and
+    /// responses, each Task and each Resource with its Ceiling.
+    #[test]
+    fn r24_3_the_summary_lists_the_generated_values() {
+        let out = outputs(&demo(), "rsk-system").unwrap();
+        let s = &out.summary;
+        assert!(s.starts_with("rsk Generated_Config summary (R24.3)"), "{s}");
+        for needle in ["Target: qemu_mps2_an386", "Capacities: lock stack 2, timer slots 11, event log 32", "Operating duration: 5000000 ticks", "part0 (crate demo_part0, level A): fault RESTART_PARTITION, overrun END_JOB, deadline miss RECORD_ONLY, MIT threshold 10", "part1 (crate demo_part1, level C)"] {
+            assert!(s.contains(needle), "the summary lacks `{needle}`:\n{s}");
+        }
+        for name in ["control", "sensor", "log", "state"] {
+            assert!(s.contains(name), "the summary lacks `{name}`:\n{s}");
+        }
+    }
+
+    /// R15.3 (PR-30): a Resource accessed by a Task of another Partition is
+    /// rejected.
     #[test]
     fn cross_partition_resource_access_is_pr30() {
         let mut d = demo();

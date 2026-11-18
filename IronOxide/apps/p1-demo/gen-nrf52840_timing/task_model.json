@@ -46,6 +46,10 @@
       "nvic": 32
     }
   ],
+  "derived": [
+    "kernel_levels",
+    "priority_map"
+  ],
   "capacities": {
     "lock_stack": 6,
     "timer_slots": 23,

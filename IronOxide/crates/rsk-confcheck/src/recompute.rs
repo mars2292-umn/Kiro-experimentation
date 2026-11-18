@@ -12,7 +12,7 @@ use crate::Outcome;
 /// comparison on the conformance Application.
 pub fn kernel_owned(target: &str) -> &'static [&'static str] {
     match target {
-        "nrf52840" => &["CLOCK", "TIMER0", "WDT", "PPI"],
+        "nrf52840" | "nrf52840_coverage" => &["CLOCK", "TIMER0", "WDT", "PPI"],
         "qemu-mps2-an386" => &["CMSDK_TIMER0", "CMSDK_TIMER1"],
         _ => &[],
     }
@@ -26,7 +26,7 @@ pub fn kernel_owned(target: &str) -> &'static [&'static str] {
 pub fn kernel_windows(target: &str) -> Vec<(&'static str, u64, u8)> {
     let mut out = vec![("PPB", 0xE000_0000, 20)];
     let windows: &[(&str, u64)] = match target {
-        "nrf52840" => &[("CLOCK", 0x4000_0000), ("TIMER0", 0x4000_8000), ("WDT", 0x4001_0000), ("PPI", 0x4001_F000)],
+        "nrf52840" | "nrf52840_coverage" => &[("CLOCK", 0x4000_0000), ("TIMER0", 0x4000_8000), ("WDT", 0x4001_0000), ("PPI", 0x4001_F000)],
         "qemu-mps2-an386" => &[("CMSDK_TIMER0", 0x4000_0000), ("CMSDK_TIMER1", 0x4000_1000)],
         _ => &[],
     };
@@ -38,7 +38,7 @@ pub fn kernel_windows(target: &str) -> Vec<(&'static str, u64, u8)> {
 /// are read-only to the owning Partition.
 pub fn easy_dma(target: &str) -> &'static [&'static str] {
     match target {
-        "nrf52840" => &["RADIO", "UARTE0", "SPIM0", "SPIM1", "SAADC", "PWM0"],
+        "nrf52840" | "nrf52840_coverage" => &["RADIO", "UARTE0", "SPIM0", "SPIM1", "SAADC", "PWM0"],
         // The QEMU spike's EasyDMA stand-in (rsk-gen target.rs, task 14).
         "qemu-mps2-an386" => &["CMSDK_GPIO0"],
         _ => &[],
@@ -119,7 +119,12 @@ pub fn check_model(m: &Model, out: &mut Outcome) {
     // and housekeeping slots (R9.4); the log capacity is declared.
     let depths: Vec<u64> = m.tasks.iter().map(|t| t.resources.len() as u64).collect();
     match derive_v::sum_checked(&depths) {
-        Some(depth_sum) => out.mismatch("capacities.lock_stack", depth_sum, m.lock_stack),
+        // At least one slot: the Generator's floor (`derive`: the sum, or 1
+        // for an Application whose Tasks access no Resource, the Kernel's
+        // lock stack being an array of the capacity). Until 2026-11-17 the
+        // floor was missing here, and such an Application (the HIL
+        // stimulus) was reported with "expected 0, found 1".
+        Some(depth_sum) => out.mismatch("capacities.lock_stack", depth_sum.max(1), m.lock_stack),
         None => out.require("capacities.lock_stack", false, "a sum within 64 bits", "overflow"),
     }
     match derive_v::timer_slots(m.tasks.len() as u64) {

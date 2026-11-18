@@ -46,6 +46,7 @@ pub mod profile_gen;
 pub mod proofs;
 pub mod qemu;
 pub mod rebuild;
+pub mod rig_records;
 pub mod sandbox;
 pub mod tokens;
 pub mod tools;

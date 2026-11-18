@@ -43,7 +43,10 @@ rsk::app! {
                      priority = 5, resources = [state, in_cs]);
     }
 
-    partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
+    // 24 KiB of RAM: a 32 KiB region with its two top subregions disabled
+    // (SRD 0xC0), so that `log`'s matrix walk attempts a disabled subregion
+    // of its own region (HW-09; 2026-11-18).
+    partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 24.KiB(), stack = 4.KiB(),
                      fault = END_JOB, overrun = END_JOB, deadline_miss = RECORD_ONLY,
                      mit_threshold = 10) {
         peripherals = [GPIOTE, P0];

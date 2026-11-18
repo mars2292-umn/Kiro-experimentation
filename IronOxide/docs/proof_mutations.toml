@@ -723,6 +723,14 @@ replace = "    let kernel = kind == EV_HARDFAULT || no_job_in_progress(k);"
 expect = ["entry.rs", "postcondition not satisfied"]
 
 [[mutation]]
+id = "hardfault-not-the-kernels"
+kills = "fault_core's safe-state clause (R14.4, R11.5; 2026-11-17): a HardFault, a fault taken from Handler mode or under PRIMASK, and a fault with no Job executing end in the system safe state; a HardFault passed on as the executing Job's would get its Partition's response"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let kernel = in_kernel || kind == EV_HARDFAULT || no_job_in_progress(k);"
+replace = "    let kernel = in_kernel || no_job_in_progress(k);"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
 id = "handler-mode-entry-plans-unwind"
 kills = "irq_entry_core's irq_rel: an entry taken from Handler mode (at a dispatch stub's entry instruction, 5.8a) hands its stub no unwind plan; the unwind is owed instead"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
@@ -1625,10 +1633,10 @@ prover = "lean"
 
 [[mutation]]
 id = "lean-kernel-budget-entry-in-an-unsettled-state"
-kills = "ksim (a Budget event's own timer entry finds a Kernel state that the last step of an entry, Kernel::settle, left: with the slot armed, no dispatch is pending)"
+kills = "ksim (a Budget event's own timer entry finds a quieted Kernel state, `Quieted`: with the Budget slot of the Job on top armed, no dispatch is pending; until 2026-11-18 the premise was that the state is what Kernel::settle returned)"
 file = "proofs/aeneas/lean/Sched/KRun.lean"
-find = "  | bevent_h (x : KSt NT NR NP NL NS NE)\n      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)\n      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))\n"
-replace = "  | bevent_h (x : KSt NT NR NP NL NS NE)\n      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)\n      (hset : True)\n"
+find = "  | bevent_h (x : KSt NT NR NP NL NS NE)\n      (hq : Quieted cfg x.k)\n"
+replace = "  | bevent_h (x : KSt NT NR NP NL NS NE)\n      (hq : True)\n"
 expect = ["Sched/KRun.lean"]
 prover = "lean"
 
@@ -2118,3 +2126,32 @@ find = "      (hcode : k' = x.k ∨\n        ∃ kind t, logic.kernel.Kernel.rec
 replace = "      (hcode : True) :\n"
 expect = ["Sched/KRun.lean"]
 prover = "lean"
+
+# Kani mutants (R52.2; Verification_Plan 9.2). Until 2026-11-17 the register
+# did not reach Kani, and the two defects the restructuring of 6.1 found were
+# replayed by hand once (2026-11-06). `prover = "kani"` runs the package's
+# harnesses, or the one named, on the mutated tree under the job's flags; the
+# mutant is killed when a check fails and the output carries `expect`.
+
+[[mutation]]
+id = "kani-nvic-line-of-a-system-exception"
+kills = "apply_every_action_is_total (an NVIC function given an exception number below 16 or beyond the register arrays writes nothing: with the line computed by saturating subtraction, as before 2026-11-06, the write lands outside the NVIC arrays)"
+file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
+find = "    if n < 16 || n as u32 - 16 >= addr::NVIC_LINES {\n        None\n    } else {\n        Some(n as u32 - 16)\n    }"
+replace = "    Some((n as u32).saturating_sub(16))"
+expect = ["VERIFICATION:- FAILED", "unsafe_module::sim::write"]
+package = "rsk-kernel"
+prover = "kani"
+harness = "apply_every_action_is_total"
+
+[[mutation]]
+id = "kani-dma-program-guarded-by-plausible"
+kills = "apply_every_action_is_total (an EasyDMA pointer register is written only inside the peripheral region: guarded by `plausible`, as before 2026-11-06, a word of the PPB is admitted)"
+file = "crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs"
+find = "    if addr::peripheral(ptr_reg) {\n        mmio_write(ptr_reg, ptr);"
+replace = "    if addr::plausible(ptr_reg) {\n        mmio_write(ptr_reg, ptr);"
+expect = ["VERIFICATION:- FAILED", "unsafe_module::sim::write"]
+package = "rsk-kernel"
+prover = "kani"
+harness = "apply_every_action_is_total"
+

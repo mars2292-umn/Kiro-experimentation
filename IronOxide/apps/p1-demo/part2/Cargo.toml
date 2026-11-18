@@ -20,6 +20,8 @@ cycles = []
 measure = []
 # Task 21.6 (R41.3): the gated Endpoints `relay` and `report` of the QEMU and plain measurement configurations (`filter` plays `relay`'s sink and `report`'s ctl).
 gating = []
+# R11.5 (conformance case fi-R11-5-fp-stack-bottom): the FPU Task's first Job issues an SVC with its FP context in use and no room for the frame.
+fi-fp-stack-bottom = ["rsk/hw-dt"]
 
 [dependencies]
 p1-demo-decl = { path = "../decl" }

@@ -39,6 +39,9 @@ pub struct Case {
     pub kind: CaseKind,
     pub expect: Vec<String>,
     pub note: Option<String>,
+    /// Acceptance criteria the case establishes beside its restriction
+    /// (`criteria = ["R15.3"]`): added to the Evidence_Item's covers list.
+    pub criteria: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,7 +115,7 @@ pub fn load(root: &Path) -> Result<Suite, String> {
             "reason" => CaseKind::Reason(str_of(c, "reason", &id)?),
             other => return Err(format!("{REGISTER}: {id}: unknown kind `{other}`")),
         };
-        cases.push(Case { restriction: str_of(c, "restriction", &id)?, category: str_of(c, "category", &id)?, kind, expect: list_of(c, "expect"), note: c.get("note").and_then(Value::as_str).map(String::from), id });
+        cases.push(Case { restriction: str_of(c, "restriction", &id)?, category: str_of(c, "category", &id)?, kind, expect: list_of(c, "expect"), note: c.get("note").and_then(Value::as_str).map(String::from), criteria: list_of(c, "criteria"), id });
     }
     let mut accepted = Vec::new();
     for a in doc.get("accepted").and_then(Value::as_array).into_iter().flatten() {
@@ -429,6 +432,13 @@ pub fn run(cx: &mut Context, report: &mut Report) -> Result<(Vec<String>, bool),
             verdict,
         )
         .covers(&[case.restriction.as_str(), if case.category == "RT" { "R3.11" } else { "R3.6" }]);
+        // R3.9: a fault-injection case passes only when the logged event
+        // carries its restriction's bit, unless the case is `untagged`.
+        if matches!(&case.kind, CaseKind::FaultInjection { untagged: false, .. }) {
+            item = item.covers(&["R3.9"]);
+        }
+        let criteria: Vec<&str> = case.criteria.iter().map(String::as_str).collect();
+        item = item.covers(&criteria);
         item.command_lines = if command.is_empty() { vec![] } else { vec![command] };
         item.notes = notes;
         item.build_manifest = cx.manifest_id.clone();

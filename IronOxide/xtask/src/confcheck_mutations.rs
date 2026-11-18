@@ -202,7 +202,7 @@ mod tests {
         let model = std::fs::read_to_string(root.join("apps/p1-demo/gen/task_model.json")).unwrap();
         let problems = check_against(&model, &mutations);
         assert!(problems.is_empty(), "{problems:?}");
-        for class in ["ceilings", "priority-map", "nesting-depths", "capacities", "budget-and-mit-tables", "kernel-owned-peripherals", "mpu-permissions", "checksum"] {
+        for class in ["ceilings", "priority-map", "nesting-depths", "capacities", "budget-and-mit-tables", "kernel-owned-peripherals", "mpu-permissions", "checksum", "kernel-version"] {
             assert!(mutations.iter().any(|m| m.class == class), "no mutation for the value class `{class}`");
         }
         assert!(mutations.iter().any(|m| matches!(m.change, Change::Binary { .. })), "no altered-binary case");

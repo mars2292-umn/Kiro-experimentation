@@ -239,6 +239,25 @@ unsafe impl Sync for TraceCell {}
 #[link_section = ".rsk.noinit"]
 static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_LEN]));
 
+/// R6.7: the Kernel's version identifier and the Profile version and
+/// Profile_Variant it implements, as linked symbols for the Config_Checker
+/// (`crate::version`). Constant data in the section `.rsk.version`, which
+/// the generated linker script keeps; no code reads or writes them. (The
+/// section is named for the Target only: a host build's object format has
+/// other section names.)
+#[used]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.version")]
+pub static RSK_KERNEL_VERSION: [u8; crate::version::VERSION_SYMBOL_LEN] = crate::version::version_bytes(crate::version::KERNEL_VERSION);
+#[used]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.version")]
+pub static RSK_PROFILE_VERSION: [u8; crate::version::VERSION_SYMBOL_LEN] = crate::version::version_bytes(crate::profile_version::PROFILE_VERSION);
+#[used]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.version")]
+pub static RSK_PROFILE_VARIANT: [u8; crate::version::VERSION_SYMBOL_LEN] = crate::version::version_bytes(crate::profile_version::PROFILE_DEFAULT_VARIANT);
+
 /// The release-lag statistics (feature `trace-ram`; R9.10): for every
 /// periodic Release the time-base handler makes effective, the lag from
 /// the time base reaching the nominal instant to the Release becoming
@@ -259,7 +278,10 @@ static TRACE_RING: TraceCell = TraceCell(UnsafeCell::new([0; 1 + 3 * TRACE_RING_
 /// test), `interrupted` (the entries that interrupted the Task's Jobs), and
 /// `stamp_count, stamp_max, stamp_last` (the lag in ticks from the
 /// stimulus edge the Δ_stamp probe latched to the intake handler's own
-/// timestamp, counted once per latched edge; Table 13-1); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
+/// timestamp, counted once per latched edge; Table 13-1), three words of
+/// the longest Job's entries, and `wake_count, wake_max` (the same lag for
+/// the edges whose intake found no Job executing, the processor in the
+/// idle activity: Δ_wake); then per (Task, Resource) `cs_count, cs_max` (Critical_Sections
 /// closed and the largest execution of one, lock to unlock, from the
 /// Budget accounting at the two SVCs, less the counter read cost) and the
 /// consumed count at each open Critical_Section's lock; then a ring of
@@ -276,7 +298,7 @@ pub const STATS_RING: usize = 256;
 #[cfg(feature = "trace-ram")]
 const STATS_HEADER: usize = 4;
 #[cfg(feature = "trace-ram")]
-const STATS_PER_TASK: usize = 58;
+const STATS_PER_TASK: usize = 60;
 #[cfg(feature = "trace-ram")]
 const STATS_CS: usize = STATS_HEADER + STATS_TASKS * STATS_PER_TASK;
 #[cfg(feature = "trace-ram")]
@@ -332,8 +354,17 @@ pub const ENTRY_VIEW: u8 = 15;
 pub const ENTRY_SEND: u8 = 16;
 #[cfg(feature = "trace-ram")]
 pub const ENTRY_RECV: u8 = 17;
+/// The compare-arm record (HW-12, ASM-19; 2026-11-18), after the ring:
+/// `left, pended, margin_min, below_4, below_8, below_16, 0, 0`. Of the
+/// compares the time-base driver wrote, `left` were left to the hardware
+/// (the counter captured after the write had not reached the instant) and
+/// `pended` were pended by software; `margin_min` is the smallest distance
+/// in ticks from that capture to the instant among those left, and the
+/// three counts are those left with a distance below 4, 8 and 16 ticks.
 #[cfg(feature = "trace-ram")]
-const STATS_WORDS: usize = STATS_RING_AT + 1 + 4 * STATS_RING;
+const STATS_ARM: usize = STATS_RING_AT + 1 + 4 * STATS_RING;
+#[cfg(feature = "trace-ram")]
+const STATS_WORDS: usize = STATS_ARM + 8;
 #[cfg(feature = "trace-ram")]
 struct StatsCell(UnsafeCell<[u32; STATS_WORDS]>);
 // SAFETY (UJ-005b): as UJ-005.
@@ -363,6 +394,33 @@ pub fn stats_reset() {
     *s = [0; STATS_WORDS];
     s[0] = 0x5253_4b53;
     s[1] = STATS_TASKS as u32;
+}
+
+/// The time-base driver wrote the compare for `at` and then captured the
+/// counter at `post` (`STATS_ARM`): the distance the hardware was left
+/// with, or a compare pended by software because the instant was reached.
+#[cfg(feature = "trace-ram")]
+pub fn stats_arm(at: u64, post: u64) {
+    let s = stats();
+    if post >= at {
+        s[STATS_ARM + 1] = s[STATS_ARM + 1].wrapping_add(1);
+        return;
+    }
+    let d = at - post;
+    let margin = if d > u32::MAX as u64 { u32::MAX } else { d as u32 };
+    if s[STATS_ARM] == 0 || margin < s[STATS_ARM + 2] {
+        s[STATS_ARM + 2] = margin;
+    }
+    s[STATS_ARM] = s[STATS_ARM].wrapping_add(1);
+    if margin < 4 {
+        s[STATS_ARM + 3] = s[STATS_ARM + 3].wrapping_add(1);
+    }
+    if margin < 8 {
+        s[STATS_ARM + 4] = s[STATS_ARM + 4].wrapping_add(1);
+    }
+    if margin < 16 {
+        s[STATS_ARM + 5] = s[STATS_ARM + 5].wrapping_add(1);
+    }
 }
 
 /// A periodic Release of Task `t` became effective: due at `due` ticks
@@ -418,8 +476,14 @@ pub fn stats_response(t: u8, response: u64) {
 /// (a second intake without a new edge, under the storm's masking, does
 /// not count), and only when the lag is below a second (a stale capture
 /// from before a wrap is not a lag).
+///
+/// `idle`: no Job was executing at the entry, so the processor was in the
+/// idle activity (WFI, R7.6) when the edge arrived: the lag is then also
+/// recorded as the wake-up record of Δ_wake (Table 13-1, R7.8), which is
+/// the wake-up from sleep with the exception entry and this handler's
+/// read after it.
 #[cfg(feature = "trace-ram")]
-pub fn stats_stamp(t: u8, captured: u32, now: u32) {
+pub fn stats_stamp(t: u8, captured: u32, now: u32, idle: bool) {
     let s = stats();
     if t as usize >= STATS_TASKS || captured == 0 {
         return;
@@ -436,6 +500,13 @@ pub fn stats_stamp(t: u8, captured: u32, now: u32) {
     s[v] = s[v].saturating_add(1);
     if lag > s[v + 1] {
         s[v + 1] = lag;
+    }
+    if idle {
+        let w = STATS_HEADER + t as usize * STATS_PER_TASK + 58;
+        s[w] = s[w].saturating_add(1);
+        if lag > s[w + 1] {
+            s[w + 1] = lag;
+        }
     }
 }
 

@@ -687,6 +687,7 @@ fn release_timing_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::confi
     let inputs = rsk_hil::release_timing::Inputs {
         rig,
         target_elf: &target.elf,
+        target_hash: Some(&target.binary.hash),
         stimulus_elf: &stimulus.elf,
         work_dir: &work,
         duration_secs,
@@ -991,6 +992,7 @@ fn coverage_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     let inputs = rsk_hil::release_timing::Inputs {
         rig,
         target_elf: &target.elf,
+        target_hash: Some(&target.binary.hash),
         stimulus_elf: &stimulus.elf,
         work_dir: &work,
         duration_secs,
@@ -1256,6 +1258,31 @@ fn response_command(ws: &xtask::workspace::Workspace, rig: &rsk_hil::config::Rig
     }
     let _ = std::fs::write(record.join("response_nrf52840_response.md"), &text);
     report.note(format!("report written to {} and docs/hil/response_nrf52840_response.md", ws.rel(&work)));
+    // The Kernel_Timing_Parameter record of the suite (2026-11-17): it is
+    // the one configuration that takes a fault entry and stops a Partition,
+    // so the one that measures Δ_hm and Δ_stop (with Δ_restart and
+    // Δ_enforce beside them: R14.8, R14.10). Written after a passed run,
+    // bound to this build, folded into the kept record of the same binary.
+    if out.ok() {
+        if let Some(st) = &out.stats {
+            let variant = "nrf52840_response";
+            let model = xtask::hil::task_model(ws, bin, variant);
+            let target_name = model.as_ref().map(|m| format!("{}/{}", m.target, m.core_revision)).unwrap_or_else(|| "nrf52840/?".to_string());
+            let binding = rsk_hil::kernel_timing::Binding { binary_hash: &target.binary.hash, target: &target_name, icache: "off", configuration: variant };
+            if let Some(new) = rsk_hil::kernel_timing::record_from_stats(st, &binding, xtask::hil::CPU_HZ, &format!("{variant} (2 s): one injected fault per response of R14.5"), xtask::hil::MARGIN_PERCENT, vec![]) {
+                let path = xtask::hil::timing_record_path(&ws.root, variant);
+                let kept = std::fs::read_to_string(&path).ok().and_then(|t| rsk_model::read_kernel_timing(&t).ok());
+                let (folded, replaced) = rsk_hil::kernel_timing::fold(kept, new);
+                match serde_json::to_string_pretty(&folded) {
+                    Ok(text) => {
+                        let _ = std::fs::write(&path, format!("{text}\n"));
+                        report.note(format!("Kernel_Timing_Parameter record {} {} ({} parameters: {})", ws.rel(&path), if replaced { "written" } else { "extended" }, folded.parameters.len(), folded.parameters.iter().map(|p| p.symbol.as_str()).collect::<Vec<_>>().join(", ")));
+                    }
+                    Err(e) => report.error(xtask::diag::Rule::Step, None, format!("cannot write the record: {e}")),
+                }
+            }
+        }
+    }
     if !out.ok() {
         report.error(xtask::diag::Rule::Step, None, "the response suite failed (report above)");
     }

@@ -22,6 +22,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 pub const OUTPUT: &str = "docs/traceability_matrix.md";
+/// The dispositions of the criteria without an Evidence_Item (R50.6).
+const DISPOSITIONS: &str = "docs/criteria_dispositions.toml";
 const REQUIREMENTS: &str = ".kiro/specs/rsk-ravenscar-profile/requirements.md";
 const DESIGN: &str = ".kiro/specs/rsk-ravenscar-profile/design.md";
 const TASKS: &str = ".kiro/specs/rsk-ravenscar-profile/tasks.md";
@@ -46,10 +48,98 @@ pub struct Links {
     pub evidence: BTreeSet<(String, String)>,
 }
 
+/// The hand-kept disposition of a criterion that has no Evidence_Item
+/// (docs/criteria_dispositions.toml): where its evidence is, or that none
+/// was found. Every pointer is checked when the matrix is built.
+#[derive(Debug, Clone)]
+pub struct Disposition {
+    pub kind: String,
+    /// `file` and the text it must contain.
+    pub at: Option<(String, String)>,
+    /// An Evidence_Item of the store.
+    pub item: Option<String>,
+    pub note: String,
+}
+
+/// The kinds a disposition may have.
+pub const DISPOSITION_KINDS: [&str; 7] = ["item", "proof", "test", "measurement", "document", "inspection", "none"];
+
+/// Whether the tasks of a Phase are done, so that a criterion of it without
+/// an Evidence_Item needs a disposition (Phases P1 and P2 and their mixed
+/// forms; a later Phase awaits its tasks).
+pub fn phase_finished(phase: &str) -> bool {
+    phase.starts_with("P1") || phase.starts_with("P2")
+}
+
+/// Reads the dispositions and checks their pointers. Returns the table and
+/// one message per defect.
+pub fn dispositions(root: &Path, item_ids: &BTreeSet<String>, store_present: bool) -> (BTreeMap<String, Disposition>, Vec<String>) {
+    let mut out = BTreeMap::new();
+    let mut errors = Vec::new();
+    let Ok(text) = std::fs::read_to_string(root.join(DISPOSITIONS)) else { return (out, errors) };
+    let table: toml::Table = match text.parse() {
+        Ok(t) => t,
+        Err(e) => {
+            errors.push(format!("{DISPOSITIONS}: {e}"));
+            return (out, errors);
+        }
+    };
+    let str_of = |v: &toml::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_string);
+    for c in table.get("criterion").and_then(|c| c.as_array()).into_iter().flatten() {
+        let Some(id) = str_of(c, "id") else {
+            errors.push(format!("{DISPOSITIONS}: an entry without `id`"));
+            continue;
+        };
+        let kind = str_of(c, "kind").unwrap_or_default();
+        if !DISPOSITION_KINDS.contains(&kind.as_str()) {
+            errors.push(format!("{DISPOSITIONS}: {id}: unknown kind `{kind}`"));
+        }
+        let note = str_of(c, "note").unwrap_or_default();
+        if note.is_empty() {
+            errors.push(format!("{DISPOSITIONS}: {id}: no `note`"));
+        }
+        let at = match (str_of(c, "file"), str_of(c, "anchor")) {
+            (Some(f), Some(a)) => {
+                match std::fs::read_to_string(root.join(&f)) {
+                    Ok(t) if t.contains(&a) => {}
+                    Ok(_) => errors.push(format!("{DISPOSITIONS}: {id}: `{f}` does not contain `{a}`")),
+                    Err(_) => errors.push(format!("{DISPOSITIONS}: {id}: `{f}` cannot be read")),
+                }
+                Some((f, a))
+            }
+            (None, None) => None,
+            _ => {
+                errors.push(format!("{DISPOSITIONS}: {id}: `file` and `anchor` go together"));
+                None
+            }
+        };
+        let item = str_of(c, "item");
+        if let Some(i) = &item {
+            if store_present && !item_ids.contains(i) {
+                errors.push(format!("{DISPOSITIONS}: {id}: the evidence store has no item `{i}`"));
+            }
+        }
+        if kind != "none" && at.is_none() && item.is_none() {
+            errors.push(format!("{DISPOSITIONS}: {id}: kind `{kind}` needs a `file` with an `anchor`, or an `item`"));
+        }
+        if kind == "item" && item.is_none() {
+            errors.push(format!("{DISPOSITIONS}: {id}: kind `item` needs an `item`"));
+        }
+        if out.insert(id.clone(), Disposition { kind, at, item, note }).is_some() {
+            errors.push(format!("{DISPOSITIONS}: {id}: listed twice"));
+        }
+    }
+    (out, errors)
+}
+
 pub struct Matrix {
     pub criteria: Vec<Criterion>,
     pub links: BTreeMap<String, Links>,
     pub evidence_items: usize,
+    /// Dispositions of the criteria without an Evidence_Item, and the
+    /// defects found in the table.
+    pub dispositions: BTreeMap<String, Disposition>,
+    pub disposition_errors: Vec<String>,
     /// Profile evidence names and whether the store has them.
     pub profile_evidence: Vec<(String, String, bool)>,
 }
@@ -434,7 +524,8 @@ pub fn build(root: &Path, evidence_dir: &Path) -> Result<Matrix, String> {
             (pr, name, present)
         })
         .collect();
-    Ok(Matrix { criteria, links, evidence_items, profile_evidence })
+    let (dispositions, disposition_errors) = dispositions(root, &item_ids, evidence_items > 0);
+    Ok(Matrix { criteria, links, evidence_items, dispositions, disposition_errors, profile_evidence })
 }
 
 fn short(set: &BTreeSet<String>, max: usize) -> String {
@@ -499,17 +590,50 @@ pub fn render(m: &Matrix, evidence_dir_name: &str) -> String {
         }
     }
     // R50.6.
-    s.push_str("\n## Criteria without an Evidence_Item (R50.6)\n\nGrouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of Phase P1 or P2 names the tasks that will produce its evidence (○ open, ✓ done but producing no item, which is the document-and-review kind of evidence or a check folded into another item).\n");
+    s.push_str("\n## Criteria without an Evidence_Item (R50.6)\n\nGrouped by Phase. A criterion of a later Phase awaits that Phase. A criterion of Phase P1 or P2, whose tasks are done (✓; ○ open), has a disposition from `docs/criteria_dispositions.toml`: where its evidence is, with what that evidence does not cover, or that none was found. The kinds: `item` (an Evidence_Item of the store establishes it though the item's covers list does not name it), `proof` (a proven statement), `test` (a test the workspace-test item does not attribute to it), `measurement` (a record of the rig), `document` (the criterion asks for a document, which exists), `inspection` (the code exists, nothing executable was found), `none`. Every pointer is checked when this file is written: the file exists and contains the quoted text, or the item is in the store.\n");
+    let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut undisposed = 0;
+    for c in m.without_evidence() {
+        if phase_finished(&c.phase) {
+            match m.dispositions.get(&c.id) {
+                Some(d) => *kinds.entry(d.kind.as_str()).or_default() += 1,
+                None => undisposed += 1,
+            }
+        }
+    }
+    let counts: Vec<String> = DISPOSITION_KINDS.iter().filter_map(|k| kinds.get(k).map(|n| format!("{n} `{k}`"))).collect();
+    s.push_str(&format!("\nOf the criteria of Phases P1 and P2 without an Evidence_Item: {}; {undisposed} without a disposition.\n", counts.join(", ")));
     let mut missing: BTreeMap<&str, Vec<&Criterion>> = BTreeMap::new();
     for c in m.without_evidence() {
         missing.entry(c.phase.as_str()).or_default().push(c);
     }
     for (p, cs) in &missing {
-        s.push_str(&format!("\n### Phase {p}: {} criteria\n\n| Criterion | Tasks | Design |\n|---|---|---|\n", cs.len()));
+        if phase_finished(p) {
+            s.push_str(&format!("\n### Phase {p}: {} criteria\n\n| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |\n|---|---|---|---|---|\n", cs.len()));
+        } else {
+            s.push_str(&format!("\n### Phase {p}: {} criteria\n\n| Criterion | Tasks | Design |\n|---|---|---|\n", cs.len()));
+        }
         for c in cs {
             let l = m.links.get(&c.id).cloned().unwrap_or_default();
             let tasks: BTreeSet<String> = l.tasks.iter().map(|(d, t)| format!("{}{t}", if *d { "✓" } else { "○" })).collect();
-            s.push_str(&format!("| {} | {} | {} |\n", c.id, short(&tasks, 4), short(&l.design, 2)));
+            if phase_finished(p) {
+                let (kind, at, note) = match m.dispositions.get(&c.id) {
+                    Some(d) => {
+                        let mut at = Vec::new();
+                        if let Some(i) = &d.item {
+                            at.push(format!("`{i}`"));
+                        }
+                        if let Some((f, a)) = &d.at {
+                            at.push(format!("`{f}`: \"{}\"", a.replace('|', "\\|")));
+                        }
+                        (d.kind.clone(), if at.is_empty() { "—".to_string() } else { at.join("; ") }, d.note.replace('|', "\\|"))
+                    }
+                    None => ("**missing**".to_string(), "—".to_string(), "—".to_string()),
+                };
+                s.push_str(&format!("| {} | {} | {kind} | {at} | {note} |\n", c.id, short(&tasks, 4)));
+            } else {
+                s.push_str(&format!("| {} | {} | {} |\n", c.id, short(&tasks, 4), short(&l.design, 2)));
+            }
         }
     }
     // R43.5.
@@ -544,6 +668,19 @@ pub fn run(root: &Path, evidence_dir: &Path, check_only: bool, report: &mut crat
         std::fs::write(&path, &text).map_err(|e| format!("{OUTPUT}: {e}"))?;
         report.note(format!("wrote {OUTPUT}"));
     }
+    for e in &m.disposition_errors {
+        report.error(crate::diag::Rule::Evidence, Some(DISPOSITIONS.into()), e);
+    }
+    let finished: Vec<&Criterion> = m.without_evidence().into_iter().filter(|c| phase_finished(&c.phase)).collect();
+    let undisposed: Vec<&str> = finished.iter().filter(|c| !m.dispositions.contains_key(&c.id)).map(|c| c.id.as_str()).collect();
+    let found_none = finished.iter().filter(|c| m.dispositions.get(&c.id).is_some_and(|d| d.kind == "none")).count();
+    report.note(format!(
+        "R50.6: of the {} criteria of Phase P1 or P2 without an Evidence_Item, {} have a disposition ({} of them `none`){}",
+        finished.len(),
+        finished.len() - undisposed.len(),
+        found_none,
+        if undisposed.is_empty() { String::new() } else { format!("; without one: {}", undisposed.join(", ")) }
+    ));
     let missing = m.without_evidence().len();
     report.note(format!(
         "R50.5/R50.6: {} criteria, {} with an Evidence_Item, {} without ({} of Phase P1 or P2), {} outside the allocation table (R43.5); {} of {} Profile evidence names present",
@@ -573,6 +710,28 @@ mod tests {
     }
 
     /// R50.5: the matrix links criteria to the tests and harnesses that name them, by function name and by doc comment.
+    /// R50.6: a disposition whose pointer does not exist is reported, and
+    /// one whose pointer does is kept.
+    #[test]
+    fn r50_6_a_disposition_with_a_stale_pointer_is_reported() {
+        let dir = std::env::temp_dir().join(format!("rsk-trace-disp-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("docs")).unwrap();
+        std::fs::write(dir.join("docs/a.md"), "## 3. Property allocation\n").unwrap();
+        std::fs::write(
+            dir.join(DISPOSITIONS),
+            "[[criterion]]\nid = \"R1.1\"\nkind = \"document\"\nfile = \"docs/a.md\"\nanchor = \"## 3. Property\"\nnote = \"n\"\n\n[[criterion]]\nid = \"R1.2\"\nkind = \"document\"\nfile = \"docs/a.md\"\nanchor = \"## 9. Gone\"\nnote = \"n\"\n\n[[criterion]]\nid = \"R1.3\"\nkind = \"item\"\nitem = \"check-x\"\nnote = \"n\"\n\n[[criterion]]\nid = \"R1.4\"\nkind = \"proof\"\nnote = \"n\"\n",
+        )
+        .unwrap();
+        let ids: BTreeSet<String> = ["check-y".to_string()].into_iter().collect();
+        let (table, errors) = dispositions(&dir, &ids, true);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(table.len(), 4);
+        assert_eq!(errors.len(), 3, "{errors:?}");
+        assert!(errors.iter().any(|e| e.contains("R1.2") && e.contains("does not contain")));
+        assert!(errors.iter().any(|e| e.contains("R1.3") && e.contains("no item `check-x`")));
+        assert!(errors.iter().any(|e| e.contains("R1.4") && e.contains("needs a `file`")));
+    }
+
     #[test]
     fn criteria_named_by_tests_are_found_in_names_and_doc_comments() {
         assert_eq!(criteria_in_name("kernel_violations_are_rejected_naming_r6_1_and_pr20_r6_3"), vec!["R6.1", "PR-20", "R6.3"]);

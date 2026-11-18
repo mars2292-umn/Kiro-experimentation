@@ -13,6 +13,7 @@ fn main() {
     let mut core_subset: Option<String> = None;
     let mut verified: Vec<String> = Vec::new();
     let mut system_crate: Option<String> = None;
+    let mut fetch_probes: Vec<String> = Vec::new();
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -21,11 +22,12 @@ fn main() {
             "--core-subset" => core_subset = it.next(),
             "--verified" => verified.extend(it.next()),
             "--system-crate" => system_crate = it.next(),
+            "--fetch-probe" => fetch_probes.extend(it.next()),
             _ => positional.push(a),
         }
     }
     let [elf_path, model_path] = positional.as_slice() else {
-        eprintln!("usage: rsk-link <flight-build.elf> <task_model.json> [--out <stack_bounds.json>] [--profile <profile.toml> --core-subset <core_subset.toml> [--system-crate <name>]]");
+        eprintln!("usage: rsk-link <flight-build.elf> <task_model.json> [--out <stack_bounds.json>] [--profile <profile.toml> --core-subset <core_subset.toml> [--system-crate <name>]] [--fetch-probe <path>]");
         std::process::exit(2);
     };
     let elf = match std::fs::read(elf_path) {
@@ -57,7 +59,7 @@ fn main() {
         },
         _ => None,
     };
-    match rsk_link::check_with_profile(&elf, &model, profile_inputs.as_ref()) {
+    match rsk_link::check_with_profile_probed(&elf, &model, profile_inputs.as_ref(), &fetch_probes) {
         Ok(result) => {
             for n in &result.notes {
                 println!("note: {n}");

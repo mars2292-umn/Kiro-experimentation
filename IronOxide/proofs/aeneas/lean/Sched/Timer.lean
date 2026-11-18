@@ -554,18 +554,17 @@ theorem budget_event_cases {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
 Overrun, is the run's `bevent_h` transition: that the scheduler state is
 kept is read from the code. -/
 theorem KStep.served_bevent (x : KSt NT NR NP NL NS NE) (i : Usize)
-    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
     (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
     (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
     (ht : (slotOf x.k i).task.val < NT.val)
     (hn : logic.budget.Budget.overrun x.k.budget cfg (slotOf x.k i).task = ok false)
-    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (hq : Quieted cfg x.k)
     (harmed : topBudgetArmed x.k cfg)
     (hk : x.ks = 0) (hd : 0 < x.k.sched.depth.val)
     (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt) :
     ∃ y, KStep cfg P x y ∧ y.k = k' :=
-  ⟨_, KStep.bevent_h x k0 r0 hset harmed hk c k' hd hrun hrb hc _ _
+  ⟨_, KStep.bevent_h x hq harmed hk c k' hd hrun hrb hc _ _
       (serve_slot_budget hs hkind ht)
       (budget_event_no_overrun (serve_slot_budget hs hkind ht) hn), rfl⟩
 
@@ -573,7 +572,6 @@ theorem KStep.served_bevent (x : KSt NT NR NP NL NS NE) (i : Usize)
 Overrun_Response one that only records, is the run's `bevent_h`
 transition whether the account shows an Overrun or not. -/
 theorem KStep.served_bevent_recorded (x : KSt NT NR NP NL NS NE) (i : Usize)
-    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
     (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
     (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
@@ -583,7 +581,7 @@ theorem KStep.served_bevent_recorded (x : KSt NT NR NP NL NS NE) (i : Usize)
       cfg.partitions.index_usize (UScalar.cast .Usize tc.partition) = ok pc →
       pc.overrun_response = logic.RESP_RECORD_ONLY ∨
         pc.overrun_response = logic.RESP_RECORD_AND_CONTINUE)
-    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (hq : Quieted cfg x.k)
     (harmed : topBudgetArmed x.k cfg)
     (hk : x.ks = 0) (hd : 0 < x.k.sched.depth.val)
     (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt) :
@@ -592,7 +590,7 @@ theorem KStep.served_bevent_recorded (x : KSt NT NR NP NL NS NE) (i : Usize)
     rcases budget_event_cases (serve_slot_budget hs hkind ht) with h | ⟨k1, tc, pc, _, htc, hpc, h1, ha⟩
     · exact h
     · rw [apply_response_record ha (hrec tc pc htc hpc), h1]
-  exact ⟨_, KStep.bevent_h x k0 r0 hset harmed hk c k' hd hrun hrb hc _ _
+  exact ⟨_, KStep.bevent_h x hq harmed hk c k' hd hrun hrb hc _ _
     (serve_slot_budget hs hkind ht) hkept, rfl⟩
 
 /-! ### The Overrun that ends the Job -/
@@ -719,7 +717,6 @@ Overrun of the Job on top and the Partition's Overrun_Response the one
 that ends the Job, is the run's `overrun_h` transition: that the Job on
 top is ended through `Sched::finish_top` is read from the code. -/
 theorem KStep.served_overrun (x : KSt NT NR NP NL NS NE) (i : Usize)
-    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
     (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
     (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
@@ -732,7 +729,7 @@ theorem KStep.served_overrun (x : KSt NT NR NP NL NS NE) (i : Usize)
       cfg.partitions.index_usize (UScalar.cast .Usize tc.partition) = ok pc →
       pc.overrun_response = logic.RESP_END_JOB)
     (hh : logic.kernel.Kernel.top_holds_nothing_exec x.k = ok true)
-    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (hq : Quieted cfg x.k)
     (harmed : topBudgetArmed x.k cfg)
     (hk : x.ks = 0) (hj : JitterOk P x.st)
     (hd : 0 < x.k.sched.depth.val)
@@ -747,7 +744,7 @@ theorem KStep.served_overrun (x : KSt NT NR NP NL NS NE) (i : Usize)
     (by rw [h1]; exact hd) (by rw [h1]; exact htop)
     (by rw [top_holds_nothing_congr h1]; exact hh)
   rw [h1] at hf
-  exact ⟨_, KStep.overrun_h x k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal _ _
+  exact ⟨_, KStep.overrun_h x hq harmed hk hj c r k' hd hr0 hr hstop hrb hc hal _ _
     (serve_slot_budget hs hkind ht) hf, rfl⟩
 
 /-! ### The Overrun answered by stopping or restarting the Partition
@@ -849,7 +846,6 @@ stops or restarts the Partition, is the run's `overrun_p` transition:
 that the Job on top is ended through `Sched::finish_top` and the rest is
 a response on the scheduler state is read from the code. -/
 theorem KStep.served_overrun_partition (x : KSt NT NR NP NL NS NE) (i : Usize)
-    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
     (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
     (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
@@ -862,7 +858,7 @@ theorem KStep.served_overrun_partition (x : KSt NT NR NP NL NS NE) (i : Usize)
       cfg.partitions.index_usize (UScalar.cast .Usize tc.partition) = ok pc →
       pc.overrun_response = logic.RESP_RESTART_PARTITION ∨
         pc.overrun_response = logic.RESP_STOP_PARTITION)
-    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (hq : Quieted cfg x.k)
     (harmed : topBudgetArmed x.k cfg)
     (hk : x.ks = 0) (hj : JitterOk P x.st)
     (hd : 0 < x.k.sched.depth.val)
@@ -888,7 +884,7 @@ theorem KStep.served_overrun_partition (x : KSt NT NR NP NL NS NE) (i : Usize)
       subst e
       rfl)
   rw [h1] at hf
-  exact ⟨_, KStep.overrun_p x k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal _ _
+  exact ⟨_, KStep.overrun_p x hq harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal _ _
     (serve_slot_budget hs hkind ht) hf hrs, rfl⟩
 
 /-! ### The Overrun answered by the safe state, or by any response
@@ -901,17 +897,16 @@ state, which `served_bevent`, `served_overrun` and
 `served_overrun_partition` do not cover: that response drops every Release
 and ends no Job (`Kernel::enter_safe_state`). -/
 theorem KStep.served_bevent_any (x : KSt NT NR NP NL NS NE) (i : Usize)
-    (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
     (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c : Nat)
     (hs : logic.kernel.Kernel.serve_slot x.k cfg i = ok k')
     (hkind : (slotOf x.k i).kind = logic.time.SLOT_BUDGET)
     (ht : (slotOf x.k i).task.val < NT.val)
-    (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+    (hq : Quieted cfg x.k)
     (harmed : topBudgetArmed x.k cfg)
     (hk : x.ks = 0) (hd : 0 < x.k.sched.depth.val)
     (hrun : 0 < x.run x.top) (hrb : 0 < x.rb x.top) (hc : c ≤ P.Kt) :
     ∃ y, KStep cfg P x y ∧ y.k = k' :=
-  ⟨_, KStep.bevent_r x k0 r0 hset harmed hk c k' hd hrun hrb hc _ _
+  ⟨_, KStep.bevent_r x hq harmed hk c k' hd hrun hrb hc _ _
     (serve_slot_budget hs hkind ht), rfl⟩
 
 end P18

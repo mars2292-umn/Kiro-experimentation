@@ -63,6 +63,61 @@ pub fn special_register(sysm: u8) -> &'static str {
     }
 }
 
+/// The sections whose words may be indirect-call targets (PR-18): the
+/// generated tables and the shared read-only data. A function table is
+/// read-only (the Profile allows function pointers in generated tables
+/// only). The initialised data (`.kernel.data`, `.data`) is state: until
+/// 2026-11-18 it was scanned too, and one word of the Kernel's state that
+/// happened to equal a function address bounded every unresolved indirect
+/// call of the isolation build (Verification_Plan, 2026-11-18).
+pub const TABLE_SECTIONS: [&str; 2] = [".rodata", ".rsk.tables"];
+
+/// The words of `sections` (`(name, address, bytes)`) that are a function
+/// address with the Thumb bit, at a 4-aligned address, as `(section,
+/// address of the word, function index)`.
+pub fn table_words(sections: &[(&str, u32, &[u8])], by_address: &BTreeMap<u32, usize>) -> Vec<(String, u32, usize)> {
+    let mut out = Vec::new();
+    for (name, addr, data) in sections {
+        // Words are read at 4-aligned addresses whatever the section's start.
+        let skip = ((4 - (addr % 4)) % 4) as usize;
+        for (k, w) in data.get(skip..).unwrap_or(&[]).chunks_exact(4).enumerate() {
+            let v = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
+            if v & 1 == 1 {
+                if let Some(&i) = by_address.get(&(v & !1)) {
+                    out.push((name.to_string(), addr + (skip + 4 * k) as u32, i));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether read-only data the linker script placed inside the executable
+/// section `name` is read for function addresses: a Partition's code
+/// section and the shared code. The Kernel's is not: no indirect call is
+/// allowed in Kernel code (PR-18, the scan), and the addresses its tables
+/// hold (Task entries, handlers) are entry points, not call targets.
+pub fn embedded_table_section(name: &str) -> bool {
+    name == ".text" || name == ".shared.rsk" || (name.starts_with(".p") && name.ends_with(".text"))
+}
+
+/// Whether a caller in section `caller` can read a table in section
+/// `table`: its own section and the shared code; shared code is handed
+/// tables by any Partition, so it reads every one of them.
+pub fn table_readable(caller: &str, table: &str) -> bool {
+    let shared = |n: &str| n == ".text" || n == ".shared.rsk";
+    table == caller || shared(table) || (shared(caller) && embedded_table_section(table))
+}
+
+/// The table words of an executable section outside every function body
+/// (`bodies`: `(address, size)`): read-only data placed in the code
+/// section. A function's own literal pool is inside its symbol and is
+/// read as that function's materialised addresses, not here.
+pub fn embedded_words(name: &str, addr: u32, data: &[u8], bodies: &[(u32, u32)], by_address: &BTreeMap<u32, usize>) -> Vec<(String, u32, usize)> {
+    let inside = |a: u32| bodies.iter().any(|(f, n)| a.wrapping_add(3) >= *f && a < f + n);
+    table_words(&[(name, addr, data)], by_address).into_iter().filter(|w| !inside(w.1)).collect()
+}
+
 pub struct CallGraph {
     pub functions: Vec<Function>,
     /// Address -> index into `functions`.
@@ -72,6 +127,19 @@ pub struct CallGraph {
     /// (vtable slots, function tables): the finite target universe of an
     /// indirect call that materialises no function address itself (PR-18).
     pub table_targets: Vec<usize>,
+    /// Where each table target was found: `(section, address of the word,
+    /// function index)`, for the report (every candidate is listed).
+    pub table_words: Vec<(String, u32, usize)>,
+    /// Function addresses in the read-only data inside the code sections
+    /// (`embedded_table_section`), as `table_words`: candidates for the
+    /// callers that can read the section (`table_readable`).
+    pub embedded: Vec<(String, u32, usize)>,
+    /// The section of each function (empty in fixtures).
+    pub section_of: Vec<String>,
+    /// Declared fetch probes (`declare_fetch_probe`): functions whose one
+    /// indirect call is an instruction fetch the MPU is to refuse, so it
+    /// has no callee. Empty unless the caller declares one.
+    pub fetch_probes: Vec<usize>,
 }
 
 impl CallGraph {
@@ -177,31 +245,59 @@ impl CallGraph {
             by_address.insert(*address, i);
             functions.push(f);
         }
-        // Function addresses stored in the read-only and initialised data.
-        let mut table_targets = Vec::new();
-        for name in [".rodata", ".kernel.data", ".data", ".rsk.tables"] {
+        // Function addresses stored in the read-only table sections.
+        let mut sections: Vec<(&str, u32, &[u8])> = Vec::new();
+        for name in TABLE_SECTIONS {
             if let Some(section) = elf.section_by_name(name) {
                 if let Ok(data) = elf.section_data(section) {
-                    for w in data.chunks_exact(4) {
-                        let v = u32::from_le_bytes([w[0], w[1], w[2], w[3]]);
-                        if v & 1 == 1 {
-                            if let Some(&i) = by_address.get(&(v & !1)) {
-                                table_targets.push(i);
-                            }
-                        }
-                    }
+                    sections.push((name, section.addr, data));
                 }
             }
         }
+        let table_words = table_words(&sections, &by_address);
+        let mut table_targets: Vec<usize> = table_words.iter().map(|w| w.2).collect();
         table_targets.sort_unstable();
         table_targets.dedup();
-        Ok(CallGraph { functions, by_address, indirect_sites: indirect_total, table_targets })
+        let bodies: Vec<(u32, u32)> = functions.iter().map(|f| (f.address, f.size)).collect();
+        let mut embedded = Vec::new();
+        for section in elf.sections.iter().filter(|x| x.is_alloc() && x.is_exec() && !x.is_nobits() && embedded_table_section(&x.name)) {
+            if let Ok(data) = elf.section_data(section) {
+                embedded.extend(embedded_words(&section.name, section.addr, data, &bodies, &by_address));
+            }
+        }
+        let section_of: Vec<String> = functions.iter().map(|f| elf.section_at(f.address).map(|x| x.name.clone()).unwrap_or_default()).collect();
+        Ok(CallGraph { functions, by_address, indirect_sites: indirect_total, table_targets, table_words, embedded, section_of, fetch_probes: vec![] })
     }
 
     /// A graph over given functions with no indirect-call universe (fixtures).
     pub fn from_functions(functions: Vec<Function>) -> CallGraph {
         let by_address = functions.iter().enumerate().map(|(i, f)| (f.address, i)).collect();
-        CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![] }
+        CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![], table_words: vec![], embedded: vec![], section_of: vec![], fetch_probes: vec![] }
+    }
+
+    /// Declares the function whose demangled name is `path` a fetch probe
+    /// (the isolation suite's `rsk::matrix::perform`, HW-09): its indirect
+    /// call is a `blx` to an address outside the Partition's view, which
+    /// the MPU refuses before any instruction there executes (IACCVIOL), so
+    /// the call has no callee and adds no stack beyond the exception frame
+    /// every Task stack is charged. The declaration must match the binary:
+    /// exactly one function of that name, outside the Kernel's text (the
+    /// caller's check), with exactly one indirect call site and no indirect
+    /// branch. Anything else is an error, so a stale or widened declaration
+    /// fails the check instead of hiding a call.
+    pub fn declare_fetch_probe(&mut self, path: &str) -> Result<usize, String> {
+        let found: Vec<usize> = (0..self.functions.len()).filter(|&i| crate::demangle::demangle(&self.functions[i].name) == path).collect();
+        let [i] = found.as_slice() else {
+            return Err(format!("fetch probe `{path}`: {} functions of that name in the binary (exactly one expected)", found.len()));
+        };
+        let f = &self.functions[*i];
+        if f.indirect_sites != 1 || f.indirect_branches != 0 {
+            return Err(format!("fetch probe `{path}`: {} indirect call site(s) and {} indirect branch(es) in its body (exactly one call and no branch expected)", f.indirect_sites, f.indirect_branches));
+        }
+        if !self.fetch_probes.contains(i) {
+            self.fetch_probes.push(*i);
+        }
+        Ok(*i)
     }
 
     pub fn index_of(&self, address: u32) -> Option<usize> {
@@ -237,17 +333,22 @@ impl CallGraph {
     pub fn callees(&self, i: usize) -> Option<Vec<usize>> {
         let f = &self.functions[i];
         let mut out: Vec<usize> = f.direct.iter().filter_map(|a| self.index_of(*a)).collect();
-        if f.indirect_sites > 0 || f.indirect_branches > 0 {
+        if self.fetch_probes.contains(&i) {
+            // The one indirect call is the refused fetch: no callee.
+        } else if f.indirect_sites > 0 || f.indirect_branches > 0 {
             if !f.materialised.is_empty() {
                 out.extend(f.materialised.iter().filter_map(|a| self.index_of(*a)));
             } else if f.indirect_sites > 0 || self.uses_table(i) {
                 // No address in the body: the call goes through a table (a
                 // vtable or function table) in the data, whose function
                 // addresses are the finite target set.
-                if self.table_targets.is_empty() {
+                let own = self.section_of.get(i).map(String::as_str).unwrap_or("");
+                let embedded: Vec<usize> = self.embedded.iter().filter(|w| table_readable(own, &w.0)).map(|w| w.2).collect();
+                if self.table_targets.is_empty() && embedded.is_empty() {
                     return None;
                 }
                 out.extend(self.table_targets.iter().copied());
+                out.extend(embedded);
             }
         }
         out.sort_unstable();
@@ -379,7 +480,7 @@ mod tests {
             by_address.insert(address, i);
             functions.push(Function { name: name.into(), address, size: 4, frame, dynamic_sp: dynamic, direct, indirect_sites: indirect, indirect_branches: 0, materialised, svcs: vec![], fp: vec![], privileged: vec![], ppb_refs: vec![], nonlocal_cbz: vec![], nops: vec![], returns_without_dsb: vec![] });
         }
-        CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![] }
+        CallGraph { functions, by_address, indirect_sites: 0, table_targets: vec![], table_words: vec![], embedded: vec![], section_of: vec![], fetch_probes: vec![] }
     }
 
     /// Usage is the frame plus the deepest callee; a cycle is reported as
@@ -409,6 +510,91 @@ mod tests {
         assert!(by("unres").unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
         assert!(by("dyn").unbounded.as_deref().unwrap().contains("dynamic"));
     }
+
+    /// A declared fetch probe has no callee for its one indirect call; the
+    /// declaration covers that function only (another unresolved indirect
+    /// call is still PR-18), and one that does not match the binary (no
+    /// such function, two call sites, no call site) is refused.
+    #[test]
+    fn a_fetch_probe_is_one_named_function_with_one_indirect_call() {
+        let funcs = || {
+            vec![
+                ("_ZN3rsk6matrix7perform17h0123456789abcdefE", 0x100, 16, vec![0x400], 1, vec![], false),
+                ("_ZN3app5other17h0123456789abcdefE", 0x200, 8, vec![], 1, vec![], false),
+                ("_ZN3app3two17h0123456789abcdefE", 0x300, 8, vec![], 2, vec![], false),
+                ("leaf", 0x400, 4, vec![], 0, vec![], false),
+            ]
+        };
+        let undeclared = graph(funcs()).analyse();
+        assert!(undeclared[0].unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
+        let mut g = graph(funcs());
+        assert_eq!(g.declare_fetch_probe("rsk::matrix::perform"), Ok(0));
+        let r = g.analyse();
+        assert!(r[0].unbounded.is_none());
+        assert_eq!(r[0].usage, 20);
+        assert!(r[1].unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
+        assert!(r[2].unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
+        assert!(g.declare_fetch_probe("rsk::matrix::absent").unwrap_err().contains("0 functions"));
+        assert!(g.declare_fetch_probe("app::two").unwrap_err().contains("2 indirect call site(s)"));
+        assert!(g.declare_fetch_probe("leaf").unwrap_err().contains("0 indirect call site(s)"));
+    }
+
+    /// A table target is a word of a read-only table section that equals a
+    /// function address with the Thumb bit, at a 4-aligned address. A word
+    /// of the Kernel's initialised data that happens to equal one is not
+    /// (the coincidence of the isolation build, 2026-11-18): no section of
+    /// state is a table section.
+    #[test]
+    fn a_table_target_is_a_word_of_a_read_only_table_section() {
+        let by_address: BTreeMap<u32, usize> = [(0x100, 0), (0x200, 1)].into_iter().collect();
+        let word = |v: u32| v.to_le_bytes();
+        let table: Vec<u8> = [word(0x201), word(0x200), word(0x999), word(0x101)].concat();
+        let found = table_words(&[(".rsk.tables", 0x1000, &table)], &by_address);
+        // 0x200 has no Thumb bit; 0x999 is no function.
+        assert_eq!(found, vec![(".rsk.tables".to_string(), 0x1000, 1), (".rsk.tables".to_string(), 0x100C, 0)]);
+        // The same bytes at an unaligned start: no aligned word equals an address.
+        let mut shifted = vec![0u8];
+        shifted.extend_from_slice(&table);
+        shifted.extend_from_slice(&[0, 0, 0]);
+        assert!(table_words(&[(".rodata", 0x1001, &shifted)], &by_address).iter().all(|w| w.1 % 4 == 0));
+        assert!(!TABLE_SECTIONS.contains(&".kernel.data"));
+        assert!(!TABLE_SECTIONS.contains(&".data"));
+        assert!(TABLE_SECTIONS.iter().all(|s| !s.contains("bss") && !s.contains("noinit")));
+    }
+
+    /// A function table the linker script placed inside a Partition's code
+    /// section is found (outside every function body), and it is the target
+    /// set of that Partition's and the shared code's unresolved indirect
+    /// calls only: another Partition's caller stays unresolved (PR-18).
+    #[test]
+    fn a_table_inside_a_partitions_code_section_bounds_its_own_callers() {
+        let by_address: BTreeMap<u32, usize> = [(0x3_0000, 0), (0x3_0010, 1), (0x3_8000, 2), (0x2_0000, 3)].into_iter().collect();
+        // .p0.text: two 16-byte bodies, then a table of one entry and one word that is no function.
+        let mut data = vec![0u8; 0x20];
+        // A word inside the first body that equals a function address: its literal pool, not a table.
+        data[8..12].copy_from_slice(&0x3_0011u32.to_le_bytes());
+        data.extend_from_slice(&0x3_0011u32.to_le_bytes());
+        data.extend_from_slice(&0x1234_5679u32.to_le_bytes());
+        let words = embedded_words(".p0.text", 0x3_0000, &data, &[(0x3_0000, 16), (0x3_0010, 16)], &by_address);
+        assert_eq!(words, vec![(".p0.text".to_string(), 0x3_0020, 1)]);
+
+        assert!(embedded_table_section(".p0.text") && embedded_table_section(".text") && embedded_table_section(".shared.rsk"));
+        assert!(!embedded_table_section(".kernel.text") && !embedded_table_section(".vector_table"));
+        assert!(table_readable(".p0.text", ".p0.text") && table_readable(".text", ".p0.text") && table_readable(".p1.text", ".text"));
+        assert!(!table_readable(".p1.text", ".p0.text") && !table_readable(".kernel.text", ".p0.text"));
+
+        let mut g = graph(vec![
+            ("p0_caller", 0x3_0000, 8, vec![], 1, vec![], false),
+            ("p0_target", 0x3_0010, 24, vec![], 0, vec![], false),
+            ("p1_caller", 0x3_8000, 8, vec![], 1, vec![], false),
+            ("shared_caller", 0x2_0000, 8, vec![], 1, vec![], false),
+        ]);
+        g.embedded = words;
+        g.section_of = vec![".p0.text".into(), ".p0.text".into(), ".p1.text".into(), ".text".into()];
+        let r = g.analyse();
+        assert_eq!(r[0].usage, 8 + 24);
+        assert!(r[0].unbounded.is_none());
+        assert!(r[2].unbounded.as_deref().unwrap().starts_with("unresolved indirect"));
+        assert_eq!(r[3].usage, 8 + 24);
+    }
 }
-
-

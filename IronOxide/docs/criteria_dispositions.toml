@@ -1,0 +1,733 @@
+# Dispositions of the acceptance criteria that have no Evidence_Item in the
+# verification job's store (R50.6), for the Phases whose tasks are done.
+# Read by `cargo xtask trace`, which prints them in
+# docs/traceability_matrix.md and checks every pointer: a `file` must exist
+# and contain `anchor`; an `item` must be an Evidence_Item of the store.
+#
+# kind:
+#   item         an Evidence_Item of the store establishes it, though the
+#                item's covers list does not name the criterion
+#   proof        a proven statement (Verus), at `file`/`anchor`
+#   test         a test, at `file`/`anchor`, that the workspace-test item does
+#                not attribute to the criterion
+#   measurement  a record of the rig or a section of the plan that reports one
+#   document     the criterion asks for a document, which is at `file`/`anchor`
+#   inspection   the code is at `file`/`anchor`; nothing executable was found
+#   none         nothing was found
+#
+# A disposition says where the evidence is, not that it is sufficient: the
+# note says what it does not cover. Written 2026-11-17 from a reading of the
+# sources, the plan and docs/requirements_evidence.toml.
+
+[[criterion]]
+id = "R6.5"
+kind = "inspection"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+anchor = "pub struct Kernel<const NT: usize"
+note = "The Kernel state is one struct of const-generic arrays sized by the generated constants; nothing executable names the criterion, and the conformance cases for PR-14 are inconclusive in the store."
+
+[[criterion]]
+id = "R6.7"
+kind = "test"
+file = "crates/rsk-confcheck/src/lib.rs"
+anchor = "fn r6_7_an_absent_or_differing_kernel_version_symbol_is_reported"
+note = "Since 2026-11-17 the Kernel links RSK_KERNEL_VERSION, RSK_PROFILE_VERSION and RSK_PROFILE_VARIANT (kept by the generated linker script), and the Config_Checker reports each when absent from the binary or different from the Task_Model; three cases of its mutation suite alter the model. A binary without the symbols was seen reported (the first build, before the section was kept). Named by the test, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R7.4"
+kind = "inspection"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "| DD-02 | One Kernel-reserved NVIC level"
+note = "What may preempt a Job is the dispatch-level design (DD-02) and the entry code; the evidence document records that no proven statement carries it."
+
+[[criterion]]
+id = "R7.5"
+kind = "proof"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+anchor = "pub fn job_return"
+note = "Partial: the stack and System_Ceiling at a Job end are proven (allocation row P-10); the register state is the stub model and the QEMU spike, not this proof."
+
+[[criterion]]
+id = "R7.6"
+kind = "inspection"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "R7.6"
+note = "The idle level is stated in the Hardware_Model and set by the boot code; shown on QEMU and the board by the dispatch spike, which does not name the criterion."
+
+[[criterion]]
+id = "R7.8"
+kind = "measurement"
+file = "docs/hil/kernel_timing_nrf52840_stress.json"
+anchor = "\"rsk-kernel-timing/"
+note = "Δ_dispatch and Δ_complete are measured maxima in the rig's records. Δ_wake is recorded since 2026-11-17 (the edge-to-timestamp lag of the edges that found the processor idle) and is in a record from the next release-timing run on; until then no item covers the criterion."
+
+[[criterion]]
+id = "R8.8"
+kind = "measurement"
+file = "docs/hil/kernel_timing_nrf52840_stress.json"
+anchor = "\"rsk-kernel-timing/"
+note = "Δ_lock_in and Δ_lock_out are measured maxima in the rig's records (plan 11.5); not bounds. From the next job this is the item `measure-kernel-timing-<variant>`, which is inconclusive when the record is of another binary than the job's."
+
+[[criterion]]
+id = "R9.10"
+kind = "measurement"
+file = "docs/verification_plan.md"
+anchor = "### 11.3 Release timing over PAR-05"
+note = "The hour-long release-timing campaign (plan 11.3), an operator run. From the next job this is the item `hil-release-timing`, which is inconclusive when the record is of another binary than the job's."
+
+[[criterion]]
+id = "R10.5"
+kind = "proof"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+anchor = "A Release_Signal raise (R10.5, R10.7)"
+note = "The raise is the entry core `raise_core`, whose contract hands the event to `Kernel::intake` for the Task bound to the signal; the Jorvik case is Phase P5."
+
+[[criterion]]
+id = "R10.6"
+kind = "measurement"
+file = "docs/hil/kernel_timing_nrf52840_stress.json"
+anchor = "\"rsk-kernel-timing/"
+note = "J_rel is a measured maximum in the rig's records; the Lean run takes it as a condition. From the next job this is the item `measure-kernel-timing-<variant>`, which is inconclusive when the record is of another binary than the job's."
+
+[[criterion]]
+id = "R10.8"
+kind = "proof"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+anchor = "R10.8"
+note = "The send core keeps the message in the channel whatever the intake decides (its postcondition on the channel view); see plan 5.10."
+
+[[criterion]]
+id = "R10.9"
+kind = "inspection"
+file = "docs/verification_plan.md"
+anchor = "R10.9 (local masking)"
+note = "Partial by the plan's own account (9.5): the Kernel applies R10.1 to R10.3 to what reaches it; the masking of the line is by inspection."
+
+[[criterion]]
+id = "R11.2"
+kind = "document"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "HW-10"
+note = "The policy is named in the design and modelled as HW-10, with a differential test on the board (item hil-dt-hw-10)."
+
+[[criterion]]
+id = "R11.3"
+kind = "measurement"
+item = "hil-cycles-fpu"
+note = "Δ_fp_save and Δ_fp_restore are measured by the floating-point variant of the cycle test (item hil-cycles-fpu, plan 11.11)."
+
+[[criterion]]
+id = "R11.5"
+kind = "proof"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+anchor = "in_kernel || kind == EV_HARDFAULT || old(k).spec_depth() == 0 ==> r.1"
+note = "The Kernel's half is the fault entry's contract (a fault taken from Handler mode or under PRIMASK, any HardFault, and a fault with no Job executing end in the safe state; the stubs' save and restore of S16 to S31 runs in Handler mode). The Partition's half has a run-time case since 2026-11-17, `fi-R11-5-fp-stack-bottom`: the FPU Task issues an SVC with its FP context in use and no room for the frame, and the fault is the Partition's (passed on QEMU; an item of the conformance step from the next job)."
+
+[[criterion]]
+id = "R11.7"
+kind = "proof"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+anchor = "R11.7"
+note = "Stricter than written: the dispatch contract grants the FPU per Job as the Task's configuration says (2026-11-17), not once at Init."
+
+[[criterion]]
+id = "R11.8"
+kind = "item"
+item = "hil-dt-hw-10"
+note = "Partial until the rig runs again: the differential test of HW-10 shows that a new floating-point context takes the default status register's settings. Since 2026-11-17 the isolation suite's FPU Task leaves round-toward-zero at the end of every Job and every later Job compares what it finds with the first; the rig judges the count as a row of HW-10."
+
+[[criterion]]
+id = "R12.4"
+kind = "proof"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+anchor = "fn boot_core"
+note = "`boot_core` returning false has enabled and pended no interrupt, armed no compare and not started the time base."
+
+[[criterion]]
+id = "R12.5"
+kind = "item"
+item = "hil-boot-checks"
+note = "The boot-check suite fails the DWT presence check in turn on the board. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R14.2"
+kind = "item"
+item = "fi-PR-19"
+note = "The run-time case for PR-19: a panic in a Job reaches the Kernel, which logs the event for the Partition and applies its response. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R14.4"
+kind = "proof"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+anchor = "pub fn fault"
+note = "`Kernel::fault` with the Kernel flag logs the event and enters the safe state."
+
+[[criterion]]
+id = "R14.8"
+kind = "measurement"
+file = "docs/hil/kernel_timing_nrf52840_stress.json"
+anchor = "\"rsk-kernel-timing/"
+note = "Δ_enforce is a measured maximum in the rig's records. Δ_hm is the fault entry, which only the response suite takes: since 2026-11-17 that suite writes a record (`kernel_timing_nrf52840_response.json`) from its next run on; until then no item covers the criterion."
+
+[[criterion]]
+id = "R14.10"
+kind = "measurement"
+file = "crates/rsk-analyzer/tests/rules.rs"
+anchor = "R14.10"
+note = "Δ_restart is measured on the rig and Δ_stop is the entry that stops a Partition, which only the response suite takes: since 2026-11-17 that suite writes a record from its next run on. That the Analyzer includes the work has a rule test."
+
+[[criterion]]
+id = "R17.3"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 11.7 Isolation"
+note = "The mechanism (the register-write service, the read-only window) is in the plan with its evidence, and the service is proven never to write a pointer register."
+
+[[criterion]]
+id = "R17.4"
+kind = "measurement"
+file = "docs/verification_plan.md"
+anchor = "### 11.13 Loop-bound driving"
+note = "The EasyDMA traffic scenario of the measurement configurations (plan 11.13)."
+
+[[criterion]]
+id = "R17.5"
+kind = "test"
+file = "crates/rsk/tests/dma.rs"
+anchor = "/// R17.5: while a transfer has a buffer"
+note = "The lending library's test and the model check of its four operations (plan 11.7, 2026-11-16). Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R18.3"
+kind = "proof"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+anchor = "fn budget_event"
+note = "Partial: an Overrun the Budget event finds is answered by the Partition's response, once; Δ_enforce is measured."
+
+[[criterion]]
+id = "R18.5"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r18_5_a_lower_level_partition_may_not_let_an_overrunning_job_continue"
+note = "A lower-level Partition that lets an overrunning Job continue is rejected naming its Overrun_Response; two Partitions of the highest level may both. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R18.6"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r18_6_the_highest_level_partition_may_record_an_overrun_and_continue"
+note = "The highest-level Partition is accepted with the response and the generated table carries it. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R18.8"
+kind = "measurement"
+file = "docs/verification_plan.md"
+anchor = "### 11.4 Fault injection"
+note = "The fault-injection and stress campaign (plan 11.4), an operator run. From the next job this is the item `hil-stress`, which is inconclusive when the record is of another binary than the job's."
+
+[[criterion]]
+id = "R19.3"
+kind = "measurement"
+file = "docs/verification_plan.md"
+anchor = "### 11.4 Fault injection"
+note = "The interrupt storm of the stress campaign (plan 11.4). From the next job this is the item `hil-stress`, which is inconclusive when the record is of another binary than the job's."
+
+[[criterion]]
+id = "R19.4"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r19_4_an_interrupt_bound_task_may_not_declare_the_discard_policy"
+note = "The design states deferral only for every interrupt source (DD-06), and since 2026-11-17 the Generator refuses `discard` on an interrupt-bound Task and accepts it for a Release_Signal. Named by the test, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R19.5"
+kind = "proof"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+anchor = "fn unbound_core"
+note = "The boot code leaves every unbound vector disabled (`boot_vectors`) and `unbound_core` reports an exception from one as a Kernel fault."
+
+[[criterion]]
+id = "R43.1"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "## 3. Property allocation"
+note = "The property allocation table."
+
+[[criterion]]
+id = "R43.2"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "## 3. Property allocation"
+note = "The property allocation table."
+
+[[criterion]]
+id = "R43.3"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "## 2. What the type system gives"
+note = "Section 2 of the plan."
+
+[[criterion]]
+id = "R43.4"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### Testing-only evidence (R43.4)"
+note = "The subsection on testing-only evidence."
+
+[[criterion]]
+id = "R43.5"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "## 12. Criteria outside the allocation table"
+note = "Section 12 of the plan and the generated matrix, which `cargo xtask trace --check` keeps current."
+
+[[criterion]]
+id = "R44.2"
+kind = "proof"
+file = "crates/rsk-logic/src/logic/endpoint.rs"
+anchor = "pub struct Fifo"
+note = "The slot table, the log and the Endpoint channel are proven against sequence models (allocation row P-09); the plan does not list the criterion as completely covered."
+
+[[criterion]]
+id = "R44.3"
+kind = "proof"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+anchor = "fn budget_event"
+note = "Partial, and the evidence document says so: reported and answered once is proven, the Δ_detect bound in cycles is not (it is measured); the MIT spacing half is proven."
+
+[[criterion]]
+id = "R44.4"
+kind = "proof"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "lemma_hw_partition_isolation"
+note = "`lemma_hw_partition_isolation` over the Hardware_Model (allocation row P-16)."
+
+[[criterion]]
+id = "R44.5"
+kind = "document"
+file = "docs/trust_base_register.toml"
+anchor = "[["
+note = "The Trust_Base_Register lists the trusted functions, checked against the sources by `cargo xtask check`; the assembly stubs are proven against a machine model only."
+
+[[criterion]]
+id = "R44.8"
+kind = "proof"
+file = "crates/rsk-logic/src/logic/time.rs"
+anchor = "fn advance_periodic"
+note = "Partial by the plan's own account (9.5): `advance_periodic` gives O + k·T without overflow; the single pending or deferred Release is `Sched::inv`."
+
+[[criterion]]
+id = "R45.4"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 6.2 Stubs and the differential tests"
+note = "Section 6.2 of the plan and the stub list `docs/kani_stubs.toml`."
+
+[[criterion]]
+id = "R45.6"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 6.1 Limitations and mitigations (R45.6)"
+note = "Section 6.1 of the plan."
+
+[[criterion]]
+id = "R49.1"
+kind = "document"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "HW-01"
+note = "The Hardware_Model's rules HW-01 to HW-15, each with a differential test on the board where one applies (items hil-dt-hw-*)."
+
+[[criterion]]
+id = "R49.2"
+kind = "document"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "HW-01"
+note = "Each rule of the Hardware_Model carries its citation in the source."
+
+[[criterion]]
+id = "R49.4"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 11.10 Errata review"
+note = "The errata table in the Hardware_Model and the review of plan 11.10."
+
+[[criterion]]
+id = "R49.5"
+kind = "document"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "spec fn"
+note = "The Hardware_Model is the Verus module `hw_model`, used by the Kernel proofs directly."
+
+[[criterion]]
+id = "R49.6"
+kind = "document"
+file = "crates/rsk-logic/src/hw_model.rs"
+anchor = "R49.6"
+note = "The list of behaviours not formalized, in the Hardware_Model's header."
+
+[[criterion]]
+id = "R50.1"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### HIL frequency (R50.1)"
+note = "The verification job is `cargo xtask verify`; the HIL frequency is recorded in the plan. That the job runs on every change to the main branch is not enforced by anything in the repository."
+
+[[criterion]]
+id = "R50.4"
+kind = "inspection"
+file = "xtask/src/proofs.rs"
+anchor = "pub fn rerun_verus"
+note = "Since 2026-11-17 the job runs the Verus proofs of one crate a second time in an empty build directory and compares the result with the first run's; from the next job this is the item `check-proof-rerun`. One crate of one proof item, on the job's own revision: not every proof item, and not a past revision's archive."
+
+[[criterion]]
+id = "R51.1"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 8.1 Classification (R51.1, R51.2)"
+note = "Section 8.1 of the plan."
+
+[[criterion]]
+id = "R51.2"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 8.1 Classification (R51.1, R51.2)"
+note = "Section 8.1 of the plan."
+
+[[criterion]]
+id = "R51.3"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 8.2 The Generator needs no TQL-1 or TQL-2 (R51.3)"
+note = "Section 8.2 of the plan."
+
+[[criterion]]
+id = "R51.4"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 8.3 Verus and Kani (R51.4)"
+note = "Section 8.3 of the plan."
+
+[[criterion]]
+id = "R51.5"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 8.4 Analyzer (R51.5)"
+note = "Section 8.4 of the plan."
+
+[[criterion]]
+id = "R51.6"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "Qualification is per project"
+note = "Stated at the end of section 8.1."
+
+[[criterion]]
+id = "R51.7"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 8.5 Independence (R51.7)"
+note = "Section 8.5 of the plan."
+
+[[criterion]]
+id = "R57.4"
+kind = "document"
+file = "docs/gap_register.toml"
+anchor = "\"R57.4\""
+note = "The Gap_Register entry, whose presence and links `cargo xtask check` verifies (the registers check)."
+
+[[criterion]]
+id = "R58.3"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "## 10. HAL and PAC strategy for Partitions"
+note = "Section 10 of the plan."
+
+[[criterion]]
+id = "R61.1"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "## Reuse and Deviation Record"
+note = "The Reuse and Deviation Record of the design document; not checked by any tool."
+
+[[criterion]]
+id = "R61.2"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "## Reuse and Deviation Record"
+note = "The Reuse and Deviation Record of the design document; not checked by any tool."
+
+[[criterion]]
+id = "R61.3"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "## Reuse and Deviation Record"
+note = "The Reuse and Deviation Record of the design document; not checked by any tool."
+
+[[criterion]]
+id = "R61.4"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "## Reuse and Deviation Record"
+note = "The Reuse and Deviation Record of the design document; not checked by any tool."
+
+[[criterion]]
+id = "R61.5"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "## Reuse and Deviation Record"
+note = "The Reuse and Deviation Record of the design document; not checked by any tool."
+
+[[criterion]]
+id = "R61.6"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "## Reuse and Deviation Record"
+note = "The Reuse and Deviation Record of the design document; not checked by any tool."
+
+[[criterion]]
+id = "R15.1"
+kind = "test"
+file = "crates/rsk-gen/src/syntax.rs"
+anchor = "fn parses_the_demo_declaration"
+note = "The demo declaration states every field R15.1 lists, parses and generates. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R15.2"
+kind = "item"
+item = "conf-PR-28-mc"
+note = "The Generator's rejection of an item declared twice; the grammar nests every item in one Partition, so this is the form a violation can take. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R15.3"
+kind = "item"
+item = "conf-PR-30-mc"
+note = "The Generator's rejection case for PR-30, and a unit test of the same rule. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R15.4"
+kind = "test"
+file = "crates/rsk-model/tests/exports.rs"
+anchor = "fn r15_4_each_partition_is_exported_with_level_members_regions_threshold_and_responses"
+note = "Each Partition of the demo's committed model has its level, members, region sizes, threshold and responses; the members listed are the items that name the Partition; a model without one of these is refused. Named by the test, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R15.5"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r15_5_an_application_of_one_partition_generates_with_its_own_regions"
+note = "An Application of one Partition generates with its regions placed; the Kernel's behaviour on it is not run. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R15.7"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r15_7_each_missing_field_and_each_response_outside_its_set_is_named"
+note = "Each missing region size and each response outside its set is rejected naming the Partition and the field, and no other Partition. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R13.1"
+kind = "measurement"
+file = "docs/hil/kernel_timing_nrf52840_stress.json"
+anchor = "\"rsk-kernel-timing/"
+note = "Every row of Table 13-1 is measured or dispositioned (plan 11.5); the values are measured maxima with a margin, not upper bounds."
+
+[[criterion]]
+id = "R13.5"
+kind = "item"
+item = "check-profile-lint"
+note = "The Profile_Lint bounds every loop of the Kernel crates and Verus proves each terminates (`decreases`). From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R13.6"
+kind = "document"
+file = ".kiro/specs/rsk-ravenscar-profile/design.md"
+anchor = "### Kernel_Timing_Parameters added by this design (R13.6)"
+note = "The design section that defines the added parameters; that the Analyzer requires each has a rule test."
+
+[[criterion]]
+id = "R52.1"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 9.1 Soundness justification (R52.1)"
+note = "Section 9.1 of the plan."
+
+[[criterion]]
+id = "R52.3"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 9.3 Property preservation to object code (R52.3, ORQ-08)"
+note = "Section 9.3 of the plan."
+
+[[criterion]]
+id = "R52.4"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 9.4 Objectives claimed and testing that remains (R52.4)"
+note = "Section 9.4 of the plan."
+
+[[criterion]]
+id = "R52.5"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 9.5 Criteria covered by each formal analysis (R52.5)"
+note = "Section 9.5 of the plan, from which the Verus item's covers list is derived."
+
+[[criterion]]
+id = "R55.3"
+kind = "none"
+note = "Task 23.1 (the qualified toolchain and the dual build) is open; the plan's section 9.3 describes the argument, the archive does not exist."
+
+[[criterion]]
+id = "R3.1"
+kind = "test"
+file = "crates/rsk-gen/src/syntax.rs"
+anchor = "fn r3_1_r21_4_a_violation_is_reported_at_the_span_of_the_offending_item"
+note = "A violation resolves to the line of the offending field, with its rule, for a Task field and a Partition field; the conformance suite's MC cases check the PR identifier per restriction. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R3.9"
+kind = "item"
+item = "fi-PR-12"
+note = "A run-time case passes only when the logged event carries its restriction's bit. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R21.4"
+kind = "test"
+file = "crates/rsk-gen/src/syntax.rs"
+anchor = "fn r3_1_r21_4_a_violation_is_reported_at_the_span_of_the_offending_item"
+note = "As R3.1: the diagnostic is at the span of the offending item and names the rule. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R21.5"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r21_5_a_peripheral_or_interrupt_the_target_lacks_is_rejected"
+note = "An owned peripheral and a bound interrupt the Target lacks are each rejected naming the item. A peripheral without an interrupt line is not exercised. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R21.6"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r21_6_a_task_may_bind_only_an_interrupt_of_a_peripheral_its_partition_owns"
+note = "A Task binding the interrupt of a peripheral its Partition does not own is rejected; the owner's Task may bind it. (The conformance case for PR-29 is about a Kernel-owned peripheral, which is R15.6.) Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R22.3"
+kind = "item"
+item = "conf-PR-12-mc"
+note = "The Generator's rejection of a Release_Signal that releases a second Task; the interrupt and Endpoint forms have no case, and the Jorvik waiter count is Phase P5. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R22.4"
+kind = "item"
+item = "conf-PR-11-mc"
+note = "The Generator's rejection of a Periodic_Task with a Release_Source; the other two forms (two sources, a Sporadic_Task with none) have no case. From the next job the item's covers list names it."
+
+[[criterion]]
+id = "R22.6"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r22_6_times_the_kernel_time_base_cannot_hold_are_rejected"
+note = "An operating duration of zero or beyond the time base, a period over the operating duration and an offset beyond it are each rejected naming the field. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R23.3"
+kind = "inspection"
+file = "crates/rsk-logic/src/logic/sched.rs"
+anchor = "R23.3"
+note = "The nesting bound is used by the Kernel's scheduler proof (PR-07); no test of the Generator's computation names it. The derivation arithmetic proven on 2026-11-17 covers Ceilings and levels."
+
+[[criterion]]
+id = "R23.5"
+kind = "test"
+file = "crates/rsk-model/tests/exports.rs"
+anchor = "fn r23_5_every_derived_value_is_exported_with_its_marker"
+note = "Since 2026-11-17 the priority-to-hardware mapping and the Kernel-reserved levels carry the marker too (a top-level `derived` list, required by the schema and the reader, checked by the Config_Checker). Named by the test, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R24.3"
+kind = "test"
+file = "crates/rsk-gen/src/lib.rs"
+anchor = "fn r24_3_the_summary_lists_the_generated_values"
+note = "The summary names the Target, the capacities, each Partition with its level and responses, and each Task and Resource. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R24.6"
+kind = "inspection"
+file = "crates/rsk-logic/src/logic/mod.rs"
+anchor = "R24.6"
+note = "Generated_Config is emitted as constants, and the layout places it in flash; the Config_Checker reads the same bytes. No test names the criterion."
+
+[[criterion]]
+id = "R25.3"
+kind = "test"
+file = "crates/rsk-model/tests/exports.rs"
+anchor = "fn r25_3_wcet_records_are_associated_by_the_models_task_and_site_identifiers"
+note = "Every Task has an entry point and one site per accessed Resource, and every record of the rig's committed set names one of them. A release condition carries code only in the Jorvik variant. Named by the test, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R27.1"
+kind = "test"
+file = "crates/rsk-model/tests/exports.rs"
+anchor = "fn r27_1_the_core_fields_are_present_and_required_with_no_default"
+note = "The core fields are in the model and a model without one is refused by the reader. Named by the test, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R27.4"
+kind = "document"
+file = "crates/rsk-logic/src/logic/mod.rs"
+anchor = "R27.4"
+note = "Stated in the header of the Kernel logic: the single core is the shape of the state every proof is over."
+
+[[criterion]]
+id = "R27.5"
+kind = "test"
+file = "crates/rsk-analyzer/tests/report.rs"
+anchor = "/// R30.1, and R27.5"
+note = "The demo report's test asserts the single-core statement is present. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job."
+
+[[criterion]]
+id = "R31.1"
+kind = "item"
+item = "check-uppaal-corpus"
+note = "The corpus run hands the exported `model.xml` and `model.q` to `verifyta`, which accepts them; the item is inconclusive on 4 of 11 models for another reason. In the item's covers list from the next job."
+
+[[criterion]]
+id = "R31.2"
+kind = "inspection"
+file = "crates/rsk-analyzer/src/uppaal.rs"
+anchor = "R31.2"
+note = "What the model contains is described in plan 8.7 with its approximations; the only exporter test is the round trip of R31.8, and the corpus cross-check exercises the model without checking its parts one by one."
+
+[[criterion]]
+id = "R35.4"
+kind = "measurement"
+file = "docs/verification_plan.md"
+anchor = "### 11.13 Loop-bound driving"
+note = "The loop-iteration report of the measurement builds (plan 11.13)."
+
+[[criterion]]
+id = "R47.3"
+kind = "document"
+file = "docs/verification_plan.md"
+anchor = "### 6.4 Interleaving tests: Loom and Shuttle"
+note = "Section 6.4 of the plan."
+
+[[criterion]]
+id = "R47.4"
+kind = "none"
+note = "The multi-core extension is not built (NG-01); the criterion has no subject yet."
+
+[[criterion]]
+id = "R59.3"
+kind = "inspection"
+file = "xtask/src/verify.rs"
+anchor = "fn rebuild_step"
+note = "Since 2026-11-17 the comparison is a step of the verification job; from the next job this is the item `check-rebuild`, which is inconclusive when the tree has uncommitted changes. One host."
+
+[[criterion]]
+id = "R33.1"
+kind = "inspection"
+file = "crates/rsk-model/src/wcet.rs"
+anchor = "KERNEL_TIMING_SYMBOLS"
+note = "The record schemas are the serde types of rsk-model, which reject unknown fields, and the rig writes and the Analyzer reads records through them; no test states the schema's required fields one by one."

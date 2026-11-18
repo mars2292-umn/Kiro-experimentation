@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": [
     "schema", "profile", "generator", "kernel", "target", "core_revision", "clock", "config_checksum", "layout_checksum",
-    "operating_duration_ticks", "safe_state", "kernel_levels", "priority_map", "capacities", "layout",
+    "operating_duration_ticks", "safe_state", "kernel_levels", "priority_map", "derived", "capacities", "layout",
     "partitions", "tasks", "resources", "signals", "endpoints", "chains", "conversions"
   ],
   "properties": {
@@ -37,6 +37,7 @@
         "properties": { "level": { "type": "integer", "minimum": 1, "maximum": 7 }, "nvic": { "type": "integer", "minimum": 0, "maximum": 255 } }
       }
     },
+    "derived": { "type": "array", "items": { "enum": ["kernel_levels", "priority_map"] } },
     "capacities": {
       "type": "object", "additionalProperties": false, "required": ["lock_stack", "timer_slots", "event_log", "derived"],
       "properties": {

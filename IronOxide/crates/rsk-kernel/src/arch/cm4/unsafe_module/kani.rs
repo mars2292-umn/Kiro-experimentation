@@ -1103,3 +1103,306 @@ fn svc_clear_pending_clears_only_the_pending_bit() {
     crate::arch::cm4::entry::svc_of_ended_job_core(&k, &mut cm4, 1);
     assert!(sim::read(addr::SHCSR) == pending & !(1 << 15));
 }
+
+// ------------------------------------------------ the drivers against the model's step
+//
+// `Cm4Hw::apply` is trusted by the verified entry cores to take the
+// Hardware_Model's step for each `Action` (`entry::step`). The harnesses
+// below check that for the actions whose step changes a state the
+// hardware keeps: from any such state (KS-11: the NVIC's enabled and
+// pending lines, the time base's interrupt enable; KS-02: BASEPRI and
+// PRIMASK), for any argument, the driver leaves the state the step names
+// and every other part as it was (2026-11-18).
+
+/// The state the hardware keeps between writes (KS-02, KS-11).
+struct Kept {
+    enabled: [u32; sim::NVIC_WORDS],
+    pending: [u32; sim::NVIC_WORDS],
+    inten: u32,
+    basepri: u8,
+    primask: bool,
+}
+
+fn kept() -> Kept {
+    let mut k = Kept { enabled: [0; sim::NVIC_WORDS], pending: [0; sim::NVIC_WORDS], inten: sim::timer_inten(), basepri: sim::basepri(), primask: sim::primask() };
+    let mut w = 0;
+    while w < sim::NVIC_WORDS {
+        k.enabled[w] = sim::nvic_enabled(w);
+        k.pending[w] = sim::nvic_pending(w);
+        w += 1;
+    }
+    k
+}
+
+/// Any state of the kind `kept` reads.
+fn any_kept() -> Kept {
+    let mut w = 0;
+    while w < sim::NVIC_WORDS {
+        sim::seed_nvic(w, kani::any(), kani::any());
+        w += 1;
+    }
+    sim::seed_timer_inten(kani::any());
+    sim::set_basepri(kani::any());
+    sim::set_primask(kani::any());
+    kept()
+}
+
+/// Whether the two states agree on every NVIC word but `pending[skip]`.
+fn same_lines(a: &Kept, b: &Kept, skip: usize) -> bool {
+    let mut ok = true;
+    let mut w = 0;
+    while w < sim::NVIC_WORDS {
+        if a.enabled[w] != b.enabled[w] || (w != skip && a.pending[w] != b.pending[w]) {
+            ok = false;
+        }
+        w += 1;
+    }
+    ok
+}
+
+/// `Action::Enable`, `Disable`, `Pend`, `ClearPending` (HW-05; the step's
+/// `enabled.insert`, `enabled.remove`, `pending.insert`, `pending.remove`):
+/// from any state and for any exception number, the line's bit is set or
+/// cleared in the set the step names, every other line of both sets is as
+/// it was, and BASEPRI, PRIMASK and the time base's interrupt enable are
+/// untouched. A number that names no NVIC line changes nothing (the
+/// model's set gains an element no register stands for).
+#[kani::proof]
+#[kani::unwind(48)]
+fn nvic_actions_step_the_enabled_and_pending_sets() {
+    sim::reset();
+    let before = any_kept();
+    let n: u16 = kani::any();
+    let which: u8 = kani::any();
+    kani::assume(which < 4);
+    let a = match which {
+        0 => Action::Enable(n),
+        1 => Action::Disable(n),
+        2 => Action::Pend(n),
+        _ => Action::ClearPending(n),
+    };
+    let mut cm4 = Cm4Hw::new();
+    cm4.apply(a);
+    let after = kept();
+    let (word, mask) = match hw::irq_of(n) {
+        Some(irq) => ((irq / 32) as usize, 1u32 << (irq % 32)),
+        None => (0, 0),
+    };
+    let mut w = 0;
+    while w < sim::NVIC_WORDS {
+        let m = if w == word { mask } else { 0 };
+        let (enabled, pending) = match which {
+            0 => (before.enabled[w] | m, before.pending[w]),
+            1 => (before.enabled[w] & !m, before.pending[w]),
+            2 => (before.enabled[w], before.pending[w] | m),
+            _ => (before.enabled[w], before.pending[w] & !m),
+        };
+        assert!(after.enabled[w] == enabled);
+        assert!(after.pending[w] == pending);
+        w += 1;
+    }
+    assert!(after.inten == before.inten && after.basepri == before.basepri && after.primask == before.primask);
+}
+
+/// `Action::SetBasepri`, `PrimaskSet`, `PrimaskClear`, `SetPriority`
+/// (HW-01, HW-03, HW-04): each writes the one field its step names. The
+/// priority byte of the line is the encoding given (an encoding of HW-01:
+/// the three implemented bits) and the other three bytes of its word are
+/// as they were; no line's enable or pending bit changes.
+#[kani::proof]
+#[kani::unwind(48)]
+fn mask_and_priority_actions_step_one_field() {
+    sim::reset();
+    let n: u16 = kani::any();
+    let p: u8 = kani::any();
+    let old: u32 = kani::any();
+    let which: u8 = kani::any();
+    kani::assume(which < 4);
+    let irq = hw::irq_of(n);
+    if let Some(i) = irq {
+        sim::write(addr::NVIC_IPR + (i & !3), old);
+    }
+    let before = any_kept();
+    let word_before = match irq {
+        Some(i) => sim::read(addr::NVIC_IPR + (i & !3)),
+        None => 0,
+    };
+    let a = match which {
+        0 => Action::SetBasepri(p),
+        1 => Action::PrimaskSet,
+        2 => Action::PrimaskClear,
+        _ => {
+            kani::assume(p & 0x1F == 0);
+            Action::SetPriority(n, p)
+        }
+    };
+    let mut cm4 = Cm4Hw::new();
+    cm4.apply(a);
+    let after = kept();
+    assert!(same_lines(&before, &after, sim::NVIC_WORDS));
+    assert!(after.inten == before.inten);
+    assert!(after.basepri == if which == 0 { p } else { before.basepri });
+    assert!(after.primask == match which { 1 => true, 2 => false, _ => before.primask });
+    if let Some(i) = irq {
+        let shift = (i & 3) * 8;
+        let word_after = sim::read(addr::NVIC_IPR + (i & !3));
+        if which == 3 {
+            assert!((word_after >> shift) & 0xFF == p as u32);
+            assert!(word_after & !(0xFF << shift) == word_before & !(0xFF << shift));
+        } else {
+            assert!(word_after == word_before);
+        }
+    }
+}
+
+/// `Action::ArmCompare`, `RearmCompare`, `CancelCompare` on the nRF52840's
+/// TIMER0 (HW-12; the step's `compare: Some(at)` and `compare: None`): from
+/// any state, any compare value and any counter reading,
+///
+/// - after an arm or a re-arm the compare register holds the instant and
+///   its interrupt is enabled, and the time base's line is pending exactly
+///   when the counter has reached the instant (arm: or was pending
+///   before), so the event is armed or the interrupt is pending and no
+///   due instant waits for the counter's wrap;
+/// - a re-arm and a cancel leave the compare event clear and no pending
+///   bit of an earlier match; a cancel leaves the interrupt disabled;
+/// - no other line's enable or pending bit, no other interrupt enable of
+///   the timer, and neither BASEPRI nor PRIMASK changes.
+#[cfg(not(feature = "board-qemu-mps2"))]
+#[kani::proof]
+#[kani::unwind(48)]
+fn compare_actions_leave_the_compare_armed_or_the_time_base_pended() {
+    const TIMER0: u32 = addr::NRF_TIMER0;
+    const EVENTS_COMPARE0: u32 = 0x140;
+    const CC0: u32 = 0x540;
+    const CC1: u32 = 0x544;
+    const LINE: u32 = 1 << 8;
+    const INT: u32 = 1 << 16;
+    sim::reset();
+    let at: u32 = kani::any();
+    let counter: u32 = kani::any();
+    let event: bool = kani::any();
+    sim::write(TIMER0 + EVENTS_COMPARE0, event as u32);
+    sim::write(TIMER0 + CC1, counter);
+    let before = any_kept();
+    let which: u8 = kani::any();
+    kani::assume(which < 3);
+    let a = match which {
+        0 => Action::ArmCompare(at as u64),
+        1 => Action::RearmCompare(at as u64),
+        _ => Action::CancelCompare,
+    };
+    let mut cm4 = Cm4Hw::new();
+    cm4.apply(a);
+    let after = kept();
+    let due = if counter >= at { LINE } else { 0 };
+    match which {
+        0 => {
+            assert!(sim::read(TIMER0 + CC0) == at);
+            assert!(after.inten == before.inten | INT);
+            assert!(after.pending[0] == before.pending[0] | due);
+        }
+        1 => {
+            assert!(sim::read(TIMER0 + CC0) == at);
+            assert!(sim::read(TIMER0 + EVENTS_COMPARE0) == 0);
+            assert!(after.inten == before.inten | INT);
+            assert!(after.pending[0] == (before.pending[0] & !LINE) | due);
+        }
+        _ => {
+            assert!(sim::read(TIMER0 + EVENTS_COMPARE0) == 0);
+            assert!(after.inten == before.inten & !INT);
+            assert!(after.pending[0] == before.pending[0] & !LINE);
+        }
+    }
+    if which < 2 {
+        // Armed, or pending: never a due instant with neither.
+        assert!(after.inten & INT != 0 && (counter < at || after.pending[0] & LINE != 0));
+    }
+    assert!(same_lines(&before, &after, 0));
+    assert!(after.basepri == before.basepri && after.primask == before.primask);
+}
+
+/// The boot configuration actions (`PrigroupAllPreempt`, `Nonbasethrdena`,
+/// `Disdefwbuf`, `FpuEager`, `KernelExceptionPriorities`,
+/// `MpuEnableBackground`, `DwtEnable`; HW-01, HW-07, HW-09, HW-10, HW-11,
+/// HW-13): from any contents of the register each writes, the bits its
+/// step stands for are as the step says and every other bit of the
+/// register is as it was; the state of KS-02 and KS-11 is untouched.
+#[kani::proof]
+#[kani::unwind(48)]
+fn configuration_actions_set_their_bits_and_keep_the_rest() {
+    sim::reset();
+    let on: bool = kani::any();
+    let old: u32 = kani::any();
+    let old2: u32 = kani::any();
+    let which: u8 = kani::any();
+    kani::assume(which < 7);
+    let (reg, reg2) = match which {
+        0 => (addr::AIRCR, 0),
+        1 => (addr::CCR, 0),
+        2 => (addr::ACTLR, 0),
+        3 => (addr::FPCCR, addr::CPACR),
+        4 => (addr::SHCSR, 0),
+        5 => (addr::MPU_CTRL, 0),
+        _ => (addr::DEMCR, addr::DWT_CTRL),
+    };
+    sim::write(reg, old);
+    if reg2 != 0 {
+        sim::write(reg2, old2);
+    }
+    let before = any_kept();
+    let a = match which {
+        0 => Action::PrigroupAllPreempt,
+        1 => Action::Nonbasethrdena(on),
+        2 => Action::Disdefwbuf(on),
+        3 => Action::FpuEager(on),
+        4 => Action::KernelExceptionPriorities,
+        5 => Action::MpuEnableBackground,
+        _ => Action::DwtEnable,
+    };
+    let mut cm4 = Cm4Hw::new();
+    cm4.apply(a);
+    let after = kept();
+    let r = sim::read(reg);
+    match which {
+        0 => {
+            assert!(r >> 16 == 0x05FA);
+            assert!((r >> 8) & 7 == 4);
+            assert!(r & 0x0000_F8FF == old & 0x0000_F8FF);
+        }
+        1 => assert!(r == if on { old | 1 } else { old & !1 }),
+        2 => assert!(r == if on { old | 2 } else { old & !2 }),
+        3 => {
+            assert!(r >> 31 == 1 && (r >> 30) & 1 == 0);
+            assert!(r & 0x3FFF_FFFF == old & 0x3FFF_FFFF);
+            assert!(sim::read(addr::FPDSCR) == (on as u32) << 24);
+            assert!(sim::read(addr::CPACR) == old2 | (0xF << 20));
+        }
+        4 => {
+            assert!(sim::read(addr::SHPR1) == 0 && sim::read(addr::SHPR2) == 0 && sim::read(addr::SHPR3) == 0);
+            assert!(r == old | (7 << 16));
+        }
+        5 => assert!(r == 5),
+        _ => {
+            assert!(r == old | (1 << 24));
+            assert!(sim::read(addr::DWT_CTRL) == old2 | 1);
+        }
+    }
+    assert!(same_lines(&before, &after, sim::NVIC_WORDS));
+    assert!(after.inten == before.inten && after.basepri == before.basepri && after.primask == before.primask);
+}
+
+/// UJ-063: `all_bytes_zero` reads the bytes of the value it is given and
+/// no other (the pointer checks of the job see every read), and answers
+/// whether all of them are zero, for any value of a word, a double word
+/// and an array.
+#[kani::proof]
+#[kani::unwind(12)]
+fn uj_063_all_bytes_zero_reads_exactly_the_value() {
+    let a: u32 = kani::any();
+    assert!(super::all_bytes_zero(&a) == (a == 0));
+    let b: u64 = kani::any();
+    assert!(super::all_bytes_zero(&b) == (b == 0));
+    let c: [u16; 3] = kani::any();
+    assert!(super::all_bytes_zero(&c) == (c[0] == 0 && c[1] == 0 && c[2] == 0));
+}

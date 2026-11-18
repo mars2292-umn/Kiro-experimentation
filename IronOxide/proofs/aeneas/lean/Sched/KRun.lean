@@ -91,7 +91,8 @@ function returns):
   the Release (`periodic`, `deferred`) and then serves the Budget event
   with the dispatch pending. No condition on `Sched::select`.
 
-- `settle`: the last step of every Kernel entry, `Kernel::settle`: when
+- `settle`: the first step of `apply_core`, with which most Kernel entries
+  end (not all: `Sched/Settle.lean`), `Kernel::settle`: when
   R7.1 admits a Task the Budget event of the Job on top is disarmed, so
   that no Budget event has a timer entry of its own ahead of the dispatch
   (2026-11-15). It leaves the scheduler state as it is and has no Kernel
@@ -145,10 +146,13 @@ code in `Sched/Timer.lean`.
 **Instants and time** as in `Step`: `jarrive`, `earrive`, `ktick`, `idle`,
 `exec`. A Job executes, locks, unlocks and calls an Endpoint operation only when
 `Sched::select` returns no Task. A Budget event has a timer entry of its
-own (`bevent_h`, `overrun_h`) in a Kernel state that the last step of an
-entry left (`settle`) and in which the Budget slot of the Job on top is
-armed; that `Sched::select` returns no Task there is then a consequence of
-the Kernel's code (`settled_armed_none`), not a condition. -/
+own (`bevent_h`, `overrun_h`, `overrun_p`, `bevent_r`) in a quieted Kernel
+state (`Quieted`, `Sched/Calls.lean`: with the Budget slot of the Job on
+top armed, `Sched::select` returns no Task) in which that slot is armed.
+Until 2026-11-18 the premise was that the state is what `Kernel::settle`
+returned, which is not what an entry leaves; `Sched/Settle.lean` proves the
+premise for every state `apply_core` returns and names the entries that
+return without it, for which it stays a premise. -/
 inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
     KSt NT NR NP NL NS NE → KSt NT NR NP NL NS NE → Prop
   | jarrive (x : KSt NT NR NP NL NS NE) (t : Nat) (ht : t < NT.val)
@@ -339,8 +343,7 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         ks := c, kp := x.top,
         re := Function.update x.re x.top (x.re x.top - c) }
   | bevent_h (x : KSt NT NR NP NL NS NE)
-      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
-      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (hq : Quieted cfg x.k)
       (harmed : topBudgetArmed x.k cfg)
       (hk : x.ks = 0) (c : Nat) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hd : 0 < x.k.sched.depth.val)
@@ -352,8 +355,7 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         k := k', ks := c, kp := x.top,
         rb := Function.update x.rb x.top (x.rb x.top - 1) }
   | overrun_h (x : KSt NT NR NP NL NS NE)
-      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
-      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (hq : Quieted cfg x.k)
       (harmed : topBudgetArmed x.k cfg)
       (hk : x.ks = 0) (hj : JitterOk P x.st)
       (c : Nat) (r : Usize) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
@@ -369,8 +371,7 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         k := k', now := x.now + 1, run := Function.update x.run x.top 0,
         ks := c, kp := x.top }
   | overrun_p (x : KSt NT NR NP NL NS NE)
-      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
-      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (hq : Quieted cfg x.k)
       (harmed : topBudgetArmed x.k cfg)
       (hk : x.ks = 0) (hj : JitterOk P x.st)
       (c : Nat) (r : Usize) (s1 : logic.sched.Sched NT NR NL)
@@ -390,8 +391,7 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
         pend := normPend k'.sched x.pend,
         ks := c, kp := x.top }
   | bevent_r (x : KSt NT NR NP NL NS NE)
-      (k0 : logic.kernel.Kernel NT NR NP NL NS NE) (r0 : Option U8 × Bool)
-      (hset : logic.kernel.Kernel.settle k0 cfg = ok (r0, x.k))
+      (hq : Quieted cfg x.k)
       (harmed : topBudgetArmed x.k cfg)
       (hk : x.ks = 0) (c : Nat) (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hd : 0 < x.k.sched.depth.val)
@@ -685,23 +685,23 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | bevent_h k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode hs =>
-      have hsel := settled_armed_none hset harmed
+    | bevent_h hq harmed hk c k' hd hrun hrb hc t i hcode hs =>
+      have hsel := hq harmed
       have := Reach.step _ _ ih (Step.bevent x.st (none_elig hNT w hsel) hk c hd hrun hrb hc)
       dsimp only [KSt.st]
       rw [hs]
       exact this
-    | overrun_h k0 r0 hset harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
-      have hsel := settled_armed_none hset harmed
+    | overrun_h hq harmed hk hj c r k' hd hr0 hr hstop hrb hc hal t i hcode hs =>
+      have hsel := hq harmed
       exact Reach.step _ _ ih (Step.finish x.st (none_elig hNT w hsel) hk hj true c r k'.sched
         hd hr0 hr (fun _ => ⟨hstop, hrb⟩) hc hal hs)
-    | overrun_p k0 r0 hset harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
-      have hsel := settled_armed_none hset harmed
+    | overrun_p hq harmed hk hj c r s1 k' hd hr0 hr hstop hrb hc hal t i hcode hs hrs =>
+      have hsel := hq harmed
       have h1 := Reach.step _ _ ih (Step.finish x.st (none_elig hNT w hsel) hk hj true c r s1
         hd hr0 hr (fun _ => ⟨hstop, hrb⟩) hc hal hs)
       exact rsteps_norm h1 hrs
-    | bevent_r k0 r0 hset harmed hk c k' hd hrun hrb hc t i hcode =>
-      have hsel := settled_armed_none hset harmed
+    | bevent_r hq harmed hk c k' hd hrun hrb hc t i hcode =>
+      have hsel := hq harmed
       have h1 := Reach.step _ _ ih (Step.bevent x.st (none_elig hNT w hsel) hk c hd hrun hrb hc)
       exact rsteps_norm h1 (budget_event_eff hcode)
     | ktick hk hj => exact Reach.step _ _ ih (Step.ktick x.st hk hj)
