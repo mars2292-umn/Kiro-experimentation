@@ -210,6 +210,86 @@ tool = "verus"
 says = "The address immediately below a Partition's RAM, where its stack ends, is not writable in that Partition's view. One address, not a range."
 reviewed = "9fddbe6d3c825e6e"
 
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "wf"
+tool = "verus"
+body = true
+after = "impl PartitionLayout"
+says = "One Partition's layout is well formed when its code and RAM obey the region rules, the RAM is at least 256 bytes and holds the stack, it has at most MAX_WINDOWS windows, each obeying the rules, the code, the RAM and the windows are pairwise disjoint, and no window holds the word below the RAM."
+reviewed = "3edb29baf2a22407"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "partition_ok"
+tool = "verus"
+body = true
+says = "Partition p's layout is well formed and its code, RAM and every window are disjoint from the Kernel's flash, the Kernel's RAM, the shared code and every Kernel peripheral interval."
+reviewed = "b6301cfe01243f70"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "pair_ok"
+tool = "verus"
+body = true
+says = "Partitions p and q have disjoint code and RAM (all four pairings), each one's windows are disjoint from the other's RAM and code, and no window of one overlaps a window of the other."
+reviewed = "9b5c790999e86e77"
+
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/mpu.rs"
+name = "wf"
+tool = "verus"
+body = true
+after = "impl<const NP: usize> Layout<NP>"
+says = "The whole layout is well formed when the shared code, the Kernel's flash and the Kernel's RAM obey the region rules and are pairwise disjoint, there are at most MAX_KERNEL_WINDOWS Kernel peripheral intervals, each obeying the rules and disjoint from the shared code, every Partition satisfies partition_ok and every two different Partitions satisfy pair_ok."
+reviewed = "c14d5c450b658ff7"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutTotal.lean"
+name = "PLWf"
+tool = "lean"
+body = true
+says = "The Lean statement of PartitionLayout::wf, clause for clause over the extracted types: the rules of code and RAM, the RAM exponent at least 8, the stack within the RAM, at most 5 windows, each within the rules, code and RAM disjoint, every window disjoint from RAM and code, no window holding the word below the RAM, the windows pairwise disjoint."
+reviewed = "d021b46280d0158e"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutTotal.lean"
+name = "PartWf"
+tool = "lean"
+body = true
+says = "The Lean statement of partition_ok: PLWf of Partition p, its code, RAM and windows disjoint from the Kernel's flash, RAM and the shared code, and apart from every Kernel peripheral interval."
+reviewed = "31cd37bc3e867a8c"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutTotal.lean"
+name = "PairWf"
+tool = "lean"
+body = true
+says = "The Lean statement of pair_ok: the four code and RAM pairings disjoint, each Partition's windows disjoint from the other's RAM and code, and every window of one disjoint from every window of the other."
+reviewed = "7ac6f4a27219b6ba"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutTotal.lean"
+name = "LWf"
+tool = "lean"
+body = true
+says = "The Lean statement of Layout::wf: the three Kernel intervals within the rules and pairwise disjoint, at most 8 Kernel peripheral intervals each within the rules, the shared code apart from them, PartWf of every Partition below NP and PairWf of every two different ones. A transcription by hand of the Verus definition cited above: this row's hashes are what ties the two texts, nothing proves them equal."
+reviewed = "57f80e3aeb120ec2"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutTotal.lean"
+name = "layout_validate_wf"
+tool = "lean"
+says = "The extracted Layout::validate returns for every layout, and when it returns true the layout satisfies LWf."
+reviewed = "c379b886a3867e42"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutIso.lean"
+name = "validate_layoutok"
+tool = "lean"
+says = "A layout for which the extracted Layout::validate returns true satisfies LayoutOk, the hypothesis of the Lean isolation theorems (Sched/Isolation.lean)."
+reviewed = "d171d3c41408424c"
+
 [[row.other]]
 kind = "checked"
 ref = "check-config"

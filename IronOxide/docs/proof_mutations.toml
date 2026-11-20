@@ -258,8 +258,8 @@ package = "rsk-logic"
 id = "layout-window-over-kernel-peripheral"
 kills = "R16.2 in the layout proof: the boot validation must refuse a Partition window over a Kernel peripheral interval (the PPB or a Kernel-owned peripheral), else `validate` no longer establishes `wf` and `lemma_view_no_kernel_window` has no premise; 2026-11-05"
 file = "crates/rsk-logic/src/logic/mpu.rs"
-find = "            // R16.2: the window against the Kernel peripheral intervals.\n            if !self.check_apart(&win) {\n                return false;\n            }\n"
-replace = "            // (mutant) a window over a Kernel peripheral interval passes the boot validation\n"
+find = "                } else if !self.check_apart(&win) {\n                    // R16.2: the window against the Kernel peripheral intervals.\n                    good = false;\n"
+replace = "                } else if false {\n                    // (mutant) a window over a Kernel peripheral interval passes the boot validation\n                    good = false;\n"
 expect = ["mpu.rs", "apart_from_kernel_windows"]
 package = "rsk-logic"
 
@@ -2155,3 +2155,43 @@ package = "rsk-kernel"
 prover = "kani"
 harness = "apply_every_action_is_total"
 
+# Property 21 in Lean for Kernel_Arch's entry cores and the boot validation
+# (verification_plan.md, 2026-11-20 and 2026-11-20): one mutant of the
+# extracted code per new proof file that states something the older files
+# do not.
+
+[[mutation]]
+id = "lean-interval-size-check-widened"
+kills = "check_rules_t (Sched/LayoutTotal.lean): `Interval::check_rules` returns for every interval because it refuses a size exponent above 31 before `pow2_u32`; with 32 let through, the doubling overflows and the function no longer returns; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "    if self.size_log2 <= 31#u8\n"
+replace = "    if self.size_log2 <= 32#u8\n"
+expect = ["Sched/LayoutTotal.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-window-kernel-peripheral-check-dropped"
+kills = "validate_partition_loop0_t and layout_validate_wf (Sched/LayoutTotal.lean): R16.2 on the extracted code, a Partition window over a Kernel peripheral interval must fail the boot validation, else `Layout::validate` no longer gives `LWf` and the isolation theorems' `LayoutOk` (Sched/LayoutIso.lean) has no premise; the Lean counterpart of `layout-window-over-kernel-peripheral`; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "                      if b6\n                      then\n                        let i7 ← rsk_logic.logic.mpu.pow2_u32 win.size_log2\n"
+replace = "                      if true\n                      then\n                        let i7 ← rsk_logic.logic.mpu.pow2_u32 win.size_log2\n"
+expect = ["Sched/LayoutTotal.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-resource-ceiling-check-dropped"
+kills = "cvalidate_loop1_t and config_validate_t (Sched/ConfigTotal.lean): `Config::validate` must refuse a Resource Ceiling above MAX_PRIORITY, else `RC` does not follow, the System_Ceiling is not bounded (Sched/CeilBound.lean) and `basepri_now` is not proven to return (Sched/BoundAll.lean); 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          if res.ceiling <= rsk_logic.logic.MAX_PRIORITY\n"
+replace = "          if res.ceiling <= 255#u8\n"
+expect = ["Sched/ConfigTotal.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-endpoint-index-check-dropped"
+kills = "endpoint_args_t (Sched/CoreTotal.lean): an Endpoint operation's argument must name an Endpoint below MAX_ENDPOINTS before the channel tables are indexed, else `endpoint_send_core` and `endpoint_recv_core` are not proven to return; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "      if e >= arch.cm4.plan.MAX_ENDPOINTS\n      then ok none\n"
+replace = "      if false\n      then ok none\n"
+expect = ["Sched/CoreTotal.lean"]
+prover = "lean"

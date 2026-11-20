@@ -18,9 +18,6 @@ set_option maxHeartbeats 1000000
 /- You can set the `maxRecDepth` value with the `-max-recdepth` CLI option -/
 set_option maxRecDepth 2048
 
-/- You can remove the following line by using the CLI option `-all-computable`: -/
-noncomputable section
-
 namespace rsk_kernel
 
 /-- [core::marker::PhantomData]
@@ -552,15 +549,26 @@ structure rsk_logic.logic.kernel.Kernel (NT : Std.Usize) (NR : Std.Usize) (NP :
   now : Std.U64
   history : verus_builtin.Ghost (vstd.seq.Seq rsk_logic.logic.history.Step)
 
+/-- [verus_builtin::{verus_builtin::Ghost<A>}::assume_new]:
+    Source: 'vendor/verus_builtin-0.0.0-2026-09-16-0054/src/lib.rs', lines 507:4-507:37
+    Name pattern: [verus_builtin::{verus_builtin::Ghost<@A>}::assume_new]
+    Visibility: public -/
+@[rust_fun "verus_builtin::{verus_builtin::Ghost<@A>}::assume_new"]
+def verus_builtin.Ghost.assume_new
+  (A : Type _) : Result (verus_builtin.Ghost A) := do
+  ok { phantom := () }
+
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::no_history]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1594:4-1594:43
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1608:4-1608:39
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::no_history] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::no_history"]
-axiom rsk_logic.logic.kernel.Kernel.no_history
+def rsk_logic.logic.kernel.Kernel.no_history
   (NT : Std.Usize) (NR : Std.Usize) (NP : Std.Usize) (NL : Std.Usize) (NS :
   Std.Usize) (NE : Std.Usize) :
   Result (verus_builtin.Ghost (vstd.seq.Seq rsk_logic.logic.history.Step))
+  := do
+  verus_builtin.Ghost.assume_new (vstd.seq.Seq rsk_logic.logic.history.Step)
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::new]: loop body 0:
     Source: 'crates/rsk-logic/src/logic/time.rs', lines 213:8-222:9
@@ -774,7 +782,7 @@ def rsk_logic.logic.log.Log.new
     }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::new]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1601:4-1601:52
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1613:4-1613:52
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::new]
     Visibility: public -/
 @[rust_fun
@@ -841,7 +849,7 @@ def rsk_logic.logic.log.Log.push
     ok { self with entries := a, head := i2, overflow := i3, seq := i }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::push_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1654:4-1654:112
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1666:4-1666:112
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::push_event] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::push_event"]
@@ -859,7 +867,7 @@ def rsk_logic.logic.kernel.Kernel.push_event
   ok { self with log := l }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::record_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1676:4-1676:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1688:4-1688:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::record_event]
     Visibility: public -/
 @[rust_fun
@@ -878,7 +886,7 @@ def rsk_logic.logic.kernel.Kernel.record_event
     0#u32
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::observe]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1696:4-1696:65
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1708:4-1708:65
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::observe]
     Visibility: public -/
 @[rust_fun
@@ -939,7 +947,7 @@ def rsk_logic.logic.time.SLOT_RELEASE : Std.U8 := 1#u8
 def rsk_logic.logic.KIND_PERIODIC : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1741:8-1772:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1753:8-1784:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -973,7 +981,7 @@ def rsk_logic.logic.kernel.Kernel.start_loop.body
   else ok (done (self, cfg))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1741:8-1772:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1753:8-1784:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -992,7 +1000,7 @@ def rsk_logic.logic.kernel.Kernel.start_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::start]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1726:4-1726:53
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1738:4-1738:53
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::start]
     Visibility: public -/
 @[rust_fun
@@ -1102,7 +1110,7 @@ def rsk_logic.logic.sched.Sched.start
 def rsk_logic.logic.time.SLOT_BUDGET : Std.U8 := 4#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::arm_budget]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1906:4-1906:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1918:4-1918:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::arm_budget] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::arm_budget"]
@@ -1132,7 +1140,7 @@ def rsk_logic.logic.kernel.Kernel.arm_budget
   ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::dispatch]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1816:4-1816:86
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1828:4-1828:86
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::dispatch]
     Visibility: public -/
 @[rust_fun
@@ -1381,7 +1389,7 @@ def rsk_logic.logic.time.Timing.try_unmask
 def rsk_logic.logic.time.SLOT_UNMASK : Std.U8 := 7#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::unmask_instant]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2062:4-2062:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2074:4-2074:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::unmask_instant] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::unmask_instant"]
@@ -1399,7 +1407,7 @@ def rsk_logic.logic.kernel.Kernel.unmask_instant
   else ok «end»
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_mit_window]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2078:4-2078:65
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2090:4-2090:65
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_mit_window] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_mit_window"]
@@ -1432,7 +1440,7 @@ def rsk_logic.logic.kernel.Kernel.end_mit_window
     else ok { self with timing := t1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::job_return]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1943:4-1943:79
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 1955:4-1955:79
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::job_return]
     Visibility: public -/
 @[rust_fun
@@ -1497,7 +1505,7 @@ def rsk_logic.logic.kernel.Kernel.job_return
   else ok self2
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2047:8-2056:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2059:8-2068:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1520,7 +1528,7 @@ def rsk_logic.logic.kernel.Kernel.top_holds_nothing_exec_loop.body
   else ok (done all)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2047:8-2056:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2059:8-2068:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1538,7 +1546,7 @@ def rsk_logic.logic.kernel.Kernel.top_holds_nothing_exec_loop
     (e, all)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::top_holds_nothing_exec]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2041:4-2041:48
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2053:4-2053:48
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec] -/
 @[reducible, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::top_holds_nothing_exec"]
@@ -1644,7 +1652,7 @@ def rsk_logic.logic.sched.Sched.lock
   else ok (false, self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::svc_lock]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2127:4-2127:76
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2139:4-2139:76
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::svc_lock]
     Visibility: public -/
 @[rust_fun
@@ -1705,7 +1713,7 @@ def rsk_logic.logic.sched.Sched.unlock
         ok (true, { self with ceiling := i3, lock_len := n })
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::svc_unlock]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2171:4-2171:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2183:4-2183:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::svc_unlock]
     Visibility: public -/
 @[rust_fun
@@ -1820,7 +1828,7 @@ def rsk_logic.logic.sched.Sched.clear_release
 def rsk_logic.logic.log.EV_SAFE_STATE : Std.U8 := 18#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3798:8-3811:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3810:8-3823:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -1841,7 +1849,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop.body
   else ok (done s)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3798:8-3811:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3810:8-3823:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -1858,7 +1866,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop
     (s, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3781:4-3781:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3793:4-3793:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_fun
@@ -1896,7 +1904,7 @@ def rsk_logic.logic.log.EV_PARTITION_STOP : Std.U8 := 17#u8
 def rsk_logic.logic.MIT_DEFER : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3591:8-3655:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3603:8-3667:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1967,7 +1975,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3591:8-3655:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3603:8-3667:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1986,7 +1994,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3576:4-3576:83
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3588:4-3588:83
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -2022,7 +2030,7 @@ def rsk_logic.logic.sched.Sched.kill
   ok { self with job := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_at]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3470:4-3470:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3482:4-3482:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at"]
@@ -2038,7 +2046,7 @@ def rsk_logic.logic.kernel.Kernel.kill_at
   ok { self with sched := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3534:8-3557:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3546:8-3569:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2082,7 +2090,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop.body
       self.safe_state, self.started, self.now, self.history))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3534:8-3557:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3546:8-3569:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2107,7 +2115,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3522:4-3522:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3534:4-3534:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2151,7 +2159,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs
     }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3329:4-3329:59
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3341:4-3341:59
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release"]
@@ -2193,7 +2201,7 @@ def rsk_logic.logic.kernel.Kernel.end_top_release
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3381:4-3381:51
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3393:4-3393:51
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top"]
@@ -2215,7 +2223,7 @@ def rsk_logic.logic.kernel.Kernel.end_top
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3662:4-3662:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3674:4-3674:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs"]
@@ -2245,7 +2253,7 @@ def rsk_logic.logic.kernel.Kernel.end_partition_jobs
   rsk_logic.logic.kernel.Kernel.clear_partition_releases self2 cfg1 partition
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::stop_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3750:4-3750:84
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3762:4-3762:84
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition"]
@@ -2276,7 +2284,7 @@ def rsk_logic.logic.kernel.Kernel.stop_partition
 def rsk_logic.logic.log.EV_PARTITION_RESTART : Std.U8 := 16#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::restart_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3707:4-3707:87
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3719:4-3719:87
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition"]
@@ -2301,7 +2309,7 @@ def rsk_logic.logic.kernel.Kernel.restart_partition
   ok { self2 with mit_violations := a, reinit_partition := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::apply_response]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3237:4-3237:105
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3249:4-3249:105
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response"]
@@ -2363,7 +2371,7 @@ def rsk_logic.logic.kernel.Kernel.apply_response
           else rsk_logic.logic.kernel.Kernel.enter_safe_state self cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deadline_miss]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3063:4-3063:74
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3075:4-3075:74
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss"]
@@ -2586,7 +2594,7 @@ def rsk_logic.logic.sched.Sched.make_pending
 def rsk_logic.logic.log.EV_MIT_VIOLATION : Std.U8 := 9#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::mit_violation]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2484:4-2484:93
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2496:4-2496:93
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::mit_violation] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::mit_violation"]
@@ -2621,7 +2629,7 @@ def rsk_logic.logic.kernel.Kernel.mit_violation
        ok { self1 with mit_violations := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::intake_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2313:4-2313:111
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2325:4-2325:111
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake_release"]
@@ -2716,7 +2724,7 @@ def rsk_logic.logic.kernel.Kernel.intake_release
     else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::intake]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2247:4-2247:107
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2259:4-2259:107
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::intake]
     Visibility: public -/
 @[rust_fun
@@ -2779,7 +2787,7 @@ def rsk_logic.logic.log.EV_OPERATING_END : Std.U8 := 10#u8
 def rsk_logic.logic.log.EV_OVERRUN : Std.U8 := 6#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::budget_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3103:4-3103:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3115:4-3115:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event"]
@@ -2846,7 +2854,7 @@ def rsk_logic.logic.time.Timing.deferred_due_clamped
   ok { self with has_last := a2, last_due := a, due := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deferred_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2973:4-2973:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2985:4-2985:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release"]
@@ -2957,7 +2965,7 @@ def rsk_logic.logic.time.Timing.advance_periodic
 def rsk_logic.logic.log.EV_RELEASE_OVERLAP : Std.U8 := 8#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::periodic_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2852:4-2852:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2864:4-2864:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release"]
@@ -3038,7 +3046,7 @@ def rsk_logic.logic.kernel.Kernel.periodic_release
       ok { self1 with timing := t1, slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::serve_slot]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2759:4-2759:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2771:4-2771:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot"]
@@ -3110,7 +3118,7 @@ def rsk_logic.logic.kernel.Kernel.serve_slot
         ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2612:8-2636:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2624:8-2648:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -3140,7 +3148,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2612:8-2636:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2624:8-2648:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3158,7 +3166,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2638:8-2714:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2650:8-2726:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -3185,7 +3193,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2638:8-2714:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2650:8-2726:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3203,7 +3211,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2551:4-2551:90
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2563:4-2563:90
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_fun
@@ -3234,7 +3242,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event
     rsk_logic.logic.kernel.Kernel.timer_event_loop1 self2 cfg 0#usize
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3164:4-3164:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3176:4-3176:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault]
     Visibility: public -/
 @[rust_fun
@@ -3274,7 +3282,7 @@ def rsk_logic.logic.kernel.Kernel.fault
         pc.fault_response kind t
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault_of]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3210:4-3210:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3222:4-3222:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault_of]
     Visibility: public -/
 @[rust_fun
@@ -3313,7 +3321,7 @@ def rsk_logic.logic.log.EV_DEBUGGER : Std.U8 := 23#u8
 def rsk_logic.logic.log.EV_WATCHDOG_RESET : Std.U8 := 15#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::boot_info]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3823:4-3823:95
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3835:4-3835:95
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::boot_info]
     Visibility: public -/
 @[rust_fun
@@ -3346,7 +3354,7 @@ def rsk_logic.logic.kernel.Kernel.boot_info
 def rsk_logic.logic.log.EV_BOOT_CHECK : Std.U8 := 14#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::boot_check_failed]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3838:4-3838:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3850:4-3850:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::boot_check_failed]
     Visibility: public -/
 @[rust_fun
@@ -3364,7 +3372,7 @@ def rsk_logic.logic.kernel.Kernel.boot_check_failed
   rsk_logic.logic.kernel.Kernel.enter_safe_state self1 cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_reinit]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3850:4-3850:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3862:4-3862:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_reinit]
     Visibility: public -/
 @[rust_fun
@@ -3381,7 +3389,7 @@ def rsk_logic.logic.kernel.Kernel.ack_reinit
   ok { self with reinit_partition := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_stop_dma]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3862:4-3862:75
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3874:4-3874:75
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_stop_dma]
     Visibility: public -/
 @[rust_fun
@@ -3499,7 +3507,7 @@ def rsk_logic.logic.sched.Sched.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3877:4-3877:70
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3889:4-3889:70
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::select]
     Visibility: public -/
 @[rust_fun
@@ -3519,7 +3527,7 @@ def rsk_logic.logic.kernel.Kernel.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::settle]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3921:4-3921:80
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3933:4-3933:80
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::settle]
     Visibility: public -/
 @[rust_fun
@@ -4339,6 +4347,29 @@ structure rsk_logic.logic.mpu.Interval where
   base : Std.U32
   size_log2 : Std.U8
 
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Interval}::check_rules]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 136:4-136:48
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Interval}::check_rules]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Interval}::check_rules"]
+def rsk_logic.logic.mpu.Interval.check_rules
+  (self : rsk_logic.logic.mpu.Interval) : Result Bool := do
+  if 5#u8 <= self.size_log2
+  then
+    if self.size_log2 <= 31#u8
+    then
+      let size ← rsk_logic.logic.mpu.pow2_u32 self.size_log2
+      let i ← self.base % size
+      let i1 ← lift (UScalar.cast .U64 self.base)
+      let i2 ← lift (UScalar.cast .U64 size)
+      let i3 ← i1 + i2
+      if i = 0#u32
+      then ok (i3 <= 4294967296#u64)
+      else ok false
+    else ok false
+  else ok false
+
 /-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Interval}::check_disjoint]:
     Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 152:4-152:68
     Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Interval}::check_disjoint]
@@ -4463,6 +4494,154 @@ def rsk_logic.logic.mpu.PartitionLayout.message_permitted_exec
          ok (i1 <= i2)
     else ok false
 
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 334:8-383:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec_loop.body
+  (i : Std.U8) (p : Std.U64) (l : Std.U64) (sub : Std.U64) (s : Std.U8)
+  (ok1 : Bool) (lo : Std.U64) :
+  Result (ControlFlow (Std.U8 × Bool × Std.U64) Bool)
+  := do
+  if s < 8#u8
+  then
+    let hi ← lo + sub
+    let i1 ← p + l
+    let hit ←
+      if lo < i1
+      then
+        if p < hi
+        then do
+             let i2 ← i >>> s
+             let i3 ← lift (i2 &&& 1#u8)
+             ok (i3 = 1#u8)
+        else ok false
+      else ok false
+    let ok2 ← if hit
+                then ok false
+                else ok ok1
+    let s1 ← s + 1#u8
+    ok (cont (s1, ok2, hi))
+  else ok (done ok1)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 334:8-383:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec_loop
+  (i : Std.U8) (p : Std.U64) (l : Std.U64) (sub : Std.U64) (s : Std.U8)
+  (ok1 : Bool) (lo : Std.U64) :
+  Result Bool
+  := do
+  loop
+    (fun (s1, ok2, lo1) =>
+      rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec_loop.body i p l
+      sub s1 ok2 lo1)
+    (s, ok1, lo)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 314:4-314:69
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::dma_permitted_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec
+  (self : rsk_logic.logic.mpu.PartitionLayout) (ptr : Std.U32) (len : Std.U32)
+  :
+  Result Bool
+  := do
+  if len = 0#u32
+  then ok false
+  else
+    let i ← rsk_logic.logic.mpu.pow2_u32 self.ram.size_log2
+    let size ← lift (UScalar.cast .U64 i)
+    let base ← lift (UScalar.cast .U64 self.ram.base)
+    let p ← lift (UScalar.cast .U64 ptr)
+    let l ← lift (UScalar.cast .U64 len)
+    let i1 ← lift (UScalar.cast .U64 self.stack_size)
+    let i2 ← base + i1
+    if p < i2
+    then ok false
+    else
+      let i3 ← p + l
+      let i4 ← base + size
+      if i3 > i4
+      then ok false
+      else
+        let sub ← size / 8#u64
+        rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec_loop
+          self.ram_srd p l sub 0#u8 true base
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 406:8-422:5
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec_loop.body
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (a1 : Array Bool 5#usize)
+  (a2 : Std.U32) (count : Std.Usize) (w : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  if w < count
+  then
+    let win ← Array.index_usize a w
+    let b ← Array.index_usize a1 w
+    if b
+    then
+      let i ← rsk_logic.logic.mpu.pow2_u32 win.size_log2
+      let size ← lift (UScalar.cast .U64 i)
+      let i1 ← lift (UScalar.cast .U64 win.base)
+      let i2 ← lift (UScalar.cast .U64 a2)
+      if i1 <= i2
+      then
+        let i3 ← lift (UScalar.cast .U64 a2)
+        let i4 ← lift (UScalar.cast .U64 win.base)
+        let i5 ← i4 + size
+        if i3 < i5
+        then ok (done true)
+        else let w1 ← w + 1#usize
+             ok (cont w1)
+      else let w1 ← w + 1#usize
+           ok (cont w1)
+    else let w1 ← w + 1#usize
+         ok (cont w1)
+  else ok (done false)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 406:8-422:5
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec_loop
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (a1 : Array Bool 5#usize)
+  (a2 : Std.U32) (count : Std.Usize) (w : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun w1 => rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec_loop.body
+      a a1 a2 count w1)
+    w
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 399:4-399:56
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec]
+    Visibility: public -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::PartitionLayout}::in_ro_window_exec"]
+def rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec
+  (self : rsk_logic.logic.mpu.PartitionLayout) (a : Std.U32) :
+  Result Bool
+  := do
+  let count ← lift (UScalar.cast .Usize self.window_count)
+  rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec_loop self.windows
+    self.windows_ro a count 0#usize
+
 /-- [rsk_logic::logic::mpu::Layout]
     Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 442:0-442:34
     Name pattern: [rsk_logic::logic::mpu::Layout]
@@ -4476,17 +4655,761 @@ structure rsk_logic.logic.mpu.Layout (NP : Std.Usize) where
   kernel_window_count : Std.U8
   partitions : Array rsk_logic.logic.mpu.PartitionLayout NP
 
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]: loop body 1:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 742:16-755:17
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair_loop0_loop0.body
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (cb : Std.Usize)
+  (i : Std.U32) (i1 : Std.U8) (fine : Bool) (j : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if j < cb
+  then
+    if fine
+    then
+      let other ← Array.index_usize a j
+      let fine1 ←
+        if other.size_log2 > 31#u8
+        then ok false
+        else
+          do
+          let b ←
+            rsk_logic.logic.mpu.Interval.check_disjoint
+              { base := i, size_log2 := i1 } other
+          if b
+          then ok fine
+          else ok false
+      let j1 ← j + 1#usize
+      ok (cont (fine1, j1))
+    else ok (done fine)
+  else ok (done fine)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]: loop 1:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 742:16-755:17
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair_loop0_loop0
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (cb : Std.Usize)
+  (i : Std.U32) (i1 : Std.U8) (fine : Bool) (j : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (fine1, j1) =>
+      rsk_logic.logic.mpu.Layout.validate_pair_loop0_loop0.body a cb i i1 fine1
+      j1)
+    (fine, j)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 725:8-761:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair_loop0.body
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (i : Std.U32) (i1 : Std.U8)
+  (i2 : Std.U32) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.Interval 5#usize) (ca : Std.Usize)
+  (cb : Std.Usize) (good : Bool) (v : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if v < ca
+  then
+    if good
+    then
+      let win ← Array.index_usize a v
+      if win.size_log2 > 31#u8
+      then let v1 ← v + 1#usize
+           ok (cont (false, v1))
+      else
+        let b ←
+          rsk_logic.logic.mpu.Interval.check_disjoint win
+            { base := i2, size_log2 := i3 }
+        if b
+        then
+          let b1 ←
+            rsk_logic.logic.mpu.Interval.check_disjoint win
+              { base := i, size_log2 := i1 }
+          if b1
+          then
+            let fine ←
+              rsk_logic.logic.mpu.Layout.validate_pair_loop0_loop0 a1 cb
+                win.base win.size_log2 true 0#usize
+            let good1 ← if fine
+                          then ok good
+                          else ok false
+            let v1 ← v + 1#usize
+            ok (cont (good1, v1))
+          else let v1 ← v + 1#usize
+               ok (cont (false, v1))
+        else let v1 ← v + 1#usize
+             ok (cont (false, v1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 725:8-761:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair_loop0
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (i : Std.U32) (i1 : Std.U8)
+  (i2 : Std.U32) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.Interval 5#usize) (ca : Std.Usize)
+  (cb : Std.Usize) (good : Bool) (v : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (good1, v1) => rsk_logic.logic.mpu.Layout.validate_pair_loop0.body a i
+      i1 i2 i3 a1 ca cb good1 v1)
+    (good, v)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]: loop body 2:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 764:8-781:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair_loop1.body
+  (i : Std.U32) (i1 : Std.U8) (i2 : Std.U32) (i3 : Std.U8)
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (cb : Std.Usize)
+  (good : Bool) (w : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if w < cb
+  then
+    if good
+    then
+      let win ← Array.index_usize a w
+      let good1 ←
+        if win.size_log2 > 31#u8
+        then ok false
+        else
+          do
+          let b ←
+            rsk_logic.logic.mpu.Interval.check_disjoint win
+              { base := i2, size_log2 := i3 }
+          if b
+          then
+            let b1 ←
+              rsk_logic.logic.mpu.Interval.check_disjoint win
+                { base := i, size_log2 := i1 }
+            if b1
+            then ok good
+            else ok false
+          else ok false
+      let w1 ← w + 1#usize
+      ok (cont (good1, w1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]: loop 2:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 764:8-781:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair_loop1
+  (i : Std.U32) (i1 : Std.U8) (i2 : Std.U32) (i3 : Std.U8)
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (cb : Std.Usize)
+  (good : Bool) (w : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (good1, w1) => rsk_logic.logic.mpu.Layout.validate_pair_loop1.body i
+      i1 i2 i3 a cb good1 w1)
+    (good, w)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_pair]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 706:4-706:66
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair] -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_pair"]
+def rsk_logic.logic.mpu.Layout.validate_pair
+  {NP : Std.Usize} (self : rsk_logic.logic.mpu.Layout NP) (p : Std.Usize)
+  (q : Std.Usize) :
+  Result Bool
+  := do
+  let a ← Array.index_usize self.partitions p
+  let b ← Array.index_usize self.partitions q
+  if a.code.size_log2 <= 31#u8
+  then
+    if a.ram.size_log2 <= 31#u8
+    then
+      if b.code.size_log2 <= 31#u8
+      then
+        if b.ram.size_log2 <= 31#u8
+        then
+          let b1 ← rsk_logic.logic.mpu.Interval.check_disjoint a.code b.code
+          if b1
+          then
+            let b2 ← rsk_logic.logic.mpu.Interval.check_disjoint a.code b.ram
+            if b2
+            then
+              let b3 ←
+                rsk_logic.logic.mpu.Interval.check_disjoint a.ram b.code
+              if b3
+              then
+                let b4 ←
+                  rsk_logic.logic.mpu.Interval.check_disjoint a.ram b.ram
+                if b4
+                then
+                  let ca ← lift (UScalar.cast .Usize a.window_count)
+                  let cb ← lift (UScalar.cast .Usize b.window_count)
+                  if ca > rsk_logic.logic.mpu.MAX_WINDOWS
+                  then ok false
+                  else
+                    if cb > rsk_logic.logic.mpu.MAX_WINDOWS
+                    then ok false
+                    else
+                      let good ←
+                        rsk_logic.logic.mpu.Layout.validate_pair_loop0
+                          a.windows b.code.base b.code.size_log2 b.ram.base
+                          b.ram.size_log2 b.windows ca cb true 0#usize
+                      rsk_logic.logic.mpu.Layout.validate_pair_loop1
+                        a.code.base a.code.size_log2 a.ram.base a.ram.size_log2
+                        b.windows cb good 0#usize
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::check_apart]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 599:8-613:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::check_apart] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::check_apart"]
+def rsk_logic.logic.mpu.Layout.check_apart_loop.body
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize)
+  (i : rsk_logic.logic.mpu.Interval) (count : Std.Usize) (good : Bool)
+  (k : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if k < count
+  then
+    if good
+    then
+      let win ← Array.index_usize a k
+      let b ← rsk_logic.logic.mpu.Interval.check_disjoint i win
+      let good1 ← if b
+                    then ok good
+                    else ok false
+      let k1 ← k + 1#usize
+      ok (cont (good1, k1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::check_apart]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 599:8-613:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::check_apart] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::check_apart"]
+def rsk_logic.logic.mpu.Layout.check_apart_loop
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize)
+  (i : rsk_logic.logic.mpu.Interval) (count : Std.Usize) (good : Bool)
+  (k : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (good1, k1) => rsk_logic.logic.mpu.Layout.check_apart_loop.body a i
+      count good1 k1)
+    (good, k)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::check_apart]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 592:4-592:58
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::check_apart] -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::check_apart"]
+def rsk_logic.logic.mpu.Layout.check_apart
+  {NP : Std.Usize} (self : rsk_logic.logic.mpu.Layout NP)
+  (i : rsk_logic.logic.mpu.Interval) :
+  Result Bool
+  := do
+  let count ← lift (UScalar.cast .Usize self.kernel_window_count)
+  rsk_logic.logic.mpu.Layout.check_apart_loop self.kernel_windows i count true
+    0#usize
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_partition]: loop body 1:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 666:16-678:17
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition"]
+def rsk_logic.logic.mpu.Layout.validate_partition_loop0_loop0.body
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (w : Std.Usize)
+  (win : rsk_logic.logic.mpu.Interval) (fine : Bool) (u : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if u < w
+  then
+    if fine
+    then
+      let other ← Array.index_usize a u
+      let b ← rsk_logic.logic.mpu.Interval.check_disjoint other win
+      let fine1 ← if b
+                    then ok fine
+                    else ok false
+      let u1 ← u + 1#usize
+      ok (cont (fine1, u1))
+    else ok (done fine)
+  else ok (done fine)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_partition]: loop 1:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 666:16-678:17
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition"]
+def rsk_logic.logic.mpu.Layout.validate_partition_loop0_loop0
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (w : Std.Usize)
+  (win : rsk_logic.logic.mpu.Interval) (fine : Bool) (u : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (fine1, u1) =>
+      rsk_logic.logic.mpu.Layout.validate_partition_loop0_loop0.body a w win
+      fine1 u1)
+    (fine, u)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_partition]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 648:8-702:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition"]
+def rsk_logic.logic.mpu.Layout.validate_partition_loop0.body
+  {NP : Std.Usize} (i : rsk_logic.logic.mpu.Interval)
+  (i1 : rsk_logic.logic.mpu.Interval) (i2 : rsk_logic.logic.mpu.Interval)
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.PartitionLayout NP)
+  (i4 : rsk_logic.logic.mpu.Interval) (i5 : Std.U32) (i6 : Std.U8)
+  (a2 : Array rsk_logic.logic.mpu.Interval 5#usize) (count : Std.Usize)
+  (good : Bool) (w : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if w < count
+  then
+    if good
+    then
+      let win ← Array.index_usize a2 w
+      let b ← rsk_logic.logic.mpu.Interval.check_rules win
+      if b
+      then
+        let fine ←
+          rsk_logic.logic.mpu.Layout.validate_partition_loop0_loop0 a2 w win
+            true 0#usize
+        let good1 ←
+          if fine
+          then
+            do
+            let b1 ←
+              rsk_logic.logic.mpu.Interval.check_disjoint win
+                { base := i5, size_log2 := i6 }
+            if b1
+            then
+              let b2 ← rsk_logic.logic.mpu.Interval.check_disjoint win i4
+              if b2
+              then
+                let b3 ← rsk_logic.logic.mpu.Interval.check_disjoint win i1
+                if b3
+                then
+                  let b4 ← rsk_logic.logic.mpu.Interval.check_disjoint win i2
+                  if b4
+                  then
+                    let b5 ←
+                      rsk_logic.logic.mpu.Interval.check_disjoint win i
+                    if b5
+                    then
+                      let b6 ←
+                        rsk_logic.logic.mpu.Layout.check_apart
+                          {
+                            shared_code := i,
+                            kernel_flash := i1,
+                            kernel_ram := i2,
+                            kernel_windows := a,
+                            kernel_window_count := i3,
+                            partitions := a1
+                          } win
+                      if b6
+                      then
+                        let i7 ← rsk_logic.logic.mpu.pow2_u32 win.size_log2
+                        let wsize ← lift (UScalar.cast .U64 i7)
+                        let i8 ← lift (UScalar.cast .U64 win.base)
+                        let i9 ← i8 + wsize
+                        let i10 ← lift (UScalar.cast .U64 i5)
+                        if i9 = i10
+                        then ok false
+                        else ok good
+                      else ok false
+                    else ok false
+                  else ok false
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+        let w1 ← w + 1#usize
+        ok (cont (good1, w1))
+      else let w1 ← w + 1#usize
+           ok (cont (false, w1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_partition]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 648:8-702:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition"]
+def rsk_logic.logic.mpu.Layout.validate_partition_loop0
+  {NP : Std.Usize} (i : rsk_logic.logic.mpu.Interval)
+  (i1 : rsk_logic.logic.mpu.Interval) (i2 : rsk_logic.logic.mpu.Interval)
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.PartitionLayout NP)
+  (i4 : rsk_logic.logic.mpu.Interval) (i5 : Std.U32) (i6 : Std.U8)
+  (a2 : Array rsk_logic.logic.mpu.Interval 5#usize) (count : Std.Usize)
+  (good : Bool) (w : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (good1, w1) =>
+      rsk_logic.logic.mpu.Layout.validate_partition_loop0.body i i1 i2 a i3 a1
+      i4 i5 i6 a2 count good1 w1)
+    (good, w)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_partition]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 617:4-617:61
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition] -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_partition"]
+def rsk_logic.logic.mpu.Layout.validate_partition
+  {NP : Std.Usize} (self : rsk_logic.logic.mpu.Layout NP) (p : Std.Usize) :
+  Result Bool
+  := do
+  let pl ← Array.index_usize self.partitions p
+  let b ← rsk_logic.logic.mpu.Interval.check_rules pl.code
+  if b
+  then
+    let b1 ← rsk_logic.logic.mpu.Interval.check_rules pl.ram
+    if b1
+    then
+      if pl.ram.size_log2 >= 8#u8
+      then
+        let ram_size ← rsk_logic.logic.mpu.pow2_u32 pl.ram.size_log2
+        if 0#u32 < pl.stack_size
+        then
+          if pl.stack_size <= ram_size
+          then
+            let i ← lift (UScalar.cast .Usize pl.window_count)
+            if i > rsk_logic.logic.mpu.MAX_WINDOWS
+            then ok false
+            else
+              let b2 ←
+                rsk_logic.logic.mpu.Interval.check_disjoint pl.code pl.ram
+              if b2
+              then
+                let b3 ←
+                  rsk_logic.logic.mpu.Interval.check_disjoint pl.code
+                    self.kernel_flash
+                if b3
+                then
+                  let b4 ←
+                    rsk_logic.logic.mpu.Interval.check_disjoint pl.code
+                      self.kernel_ram
+                  if b4
+                  then
+                    let b5 ←
+                      rsk_logic.logic.mpu.Interval.check_disjoint pl.code
+                        self.shared_code
+                    if b5
+                    then
+                      let b6 ←
+                        rsk_logic.logic.mpu.Interval.check_disjoint pl.ram
+                          self.kernel_flash
+                      if b6
+                      then
+                        let b7 ←
+                          rsk_logic.logic.mpu.Interval.check_disjoint 
+                            pl.ram self.kernel_ram
+                        if b7
+                        then
+                          let b8 ←
+                            rsk_logic.logic.mpu.Interval.check_disjoint 
+                              pl.ram self.shared_code
+                          if b8
+                          then
+                            let b9 ←
+                              rsk_logic.logic.mpu.Layout.check_apart self
+                                pl.code
+                            if b9
+                            then
+                              let b10 ←
+                                rsk_logic.logic.mpu.Layout.check_apart self
+                                  pl.ram
+                              if b10
+                              then
+                                let count ←
+                                  lift (UScalar.cast .Usize pl.window_count)
+                                rsk_logic.logic.mpu.Layout.validate_partition_loop0
+                                  self.shared_code self.kernel_flash
+                                  self.kernel_ram self.kernel_windows
+                                  self.kernel_window_count self.partitions
+                                  pl.code pl.ram.base pl.ram.size_log2
+                                  pl.windows count true 0#usize
+                              else ok false
+                            else ok false
+                          else ok false
+                        else ok false
+                      else ok false
+                    else ok false
+                  else ok false
+                else ok false
+              else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_kernel_windows]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 574:8-587:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_kernel_windows] -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_kernel_windows"]
+def rsk_logic.logic.mpu.Layout.validate_kernel_windows_loop.body
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (count : Std.Usize)
+  (shared : rsk_logic.logic.mpu.Interval) (good : Bool) (k : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if k < count
+  then
+    if good
+    then
+      let win ← Array.index_usize a k
+      let b ← rsk_logic.logic.mpu.Interval.check_rules win
+      let good1 ←
+        if b
+        then
+          do
+          let b1 ← rsk_logic.logic.mpu.Interval.check_disjoint shared win
+          if b1
+          then ok good
+          else ok false
+        else ok false
+      let k1 ← k + 1#usize
+      ok (cont (good1, k1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_kernel_windows]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 574:8-587:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_kernel_windows] -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_kernel_windows"]
+def rsk_logic.logic.mpu.Layout.validate_kernel_windows_loop
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (count : Std.Usize)
+  (shared : rsk_logic.logic.mpu.Interval) (good : Bool) (k : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (good1, k1) =>
+      rsk_logic.logic.mpu.Layout.validate_kernel_windows_loop.body a count
+      shared good1 k1)
+    (good, k)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate_kernel_windows]:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 561:4-561:56
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_kernel_windows] -/
+@[rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate_kernel_windows"]
+def rsk_logic.logic.mpu.Layout.validate_kernel_windows
+  {NP : Std.Usize} (self : rsk_logic.logic.mpu.Layout NP) : Result Bool := do
+  let count ← lift (UScalar.cast .Usize self.kernel_window_count)
+  if count > rsk_logic.logic.mpu.MAX_KERNEL_WINDOWS
+  then ok false
+  else
+    rsk_logic.logic.mpu.Layout.validate_kernel_windows_loop self.kernel_windows
+      count self.shared_code true 0#usize
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate]: loop body 1:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 533:16-544:17
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate"]
+def rsk_logic.logic.mpu.Layout.validate_loop0_loop0.body
+  {NP : Std.Usize} (i : rsk_logic.logic.mpu.Interval)
+  (i1 : rsk_logic.logic.mpu.Interval) (i2 : rsk_logic.logic.mpu.Interval)
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.PartitionLayout NP) (p : Std.Usize)
+  (fine : Bool) (q : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if q < p
+  then
+    if fine
+    then
+      let b ←
+        rsk_logic.logic.mpu.Layout.validate_pair
+          {
+            shared_code := i,
+            kernel_flash := i1,
+            kernel_ram := i2,
+            kernel_windows := a,
+            kernel_window_count := i3,
+            partitions := a1
+          } p q
+      let fine1 ←
+        if b
+        then
+          do
+          let b1 ←
+            rsk_logic.logic.mpu.Layout.validate_pair
+              {
+                shared_code := i,
+                kernel_flash := i1,
+                kernel_ram := i2,
+                kernel_windows := a,
+                kernel_window_count := i3,
+                partitions := a1
+              } q p
+          if b1
+          then ok fine
+          else ok false
+        else ok false
+      let q1 ← q + 1#usize
+      ok (cont (fine1, q1))
+    else ok (done fine)
+  else ok (done fine)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate]: loop 1:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 533:16-544:17
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate"]
+def rsk_logic.logic.mpu.Layout.validate_loop0_loop0
+  {NP : Std.Usize} (i : rsk_logic.logic.mpu.Interval)
+  (i1 : rsk_logic.logic.mpu.Interval) (i2 : rsk_logic.logic.mpu.Interval)
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.PartitionLayout NP) (p : Std.Usize)
+  (fine : Bool) (q : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (fine1, q1) => rsk_logic.logic.mpu.Layout.validate_loop0_loop0.body i
+      i1 i2 a i3 a1 p fine1 q1)
+    (fine, q)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate]: loop body 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 518:8-550:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate]
+    Visibility: public -/
+@[rust_loop_body, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate"]
+def rsk_logic.logic.mpu.Layout.validate_loop0.body
+  {NP : Std.Usize} (i : rsk_logic.logic.mpu.Interval)
+  (i1 : rsk_logic.logic.mpu.Interval) (i2 : rsk_logic.logic.mpu.Interval)
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.PartitionLayout NP) (good : Bool)
+  (p : Std.Usize) :
+  Result (ControlFlow (Bool × Std.Usize) Bool)
+  := do
+  if p < NP
+  then
+    if good
+    then
+      let b ←
+        rsk_logic.logic.mpu.Layout.validate_partition
+          {
+            shared_code := i,
+            kernel_flash := i1,
+            kernel_ram := i2,
+            kernel_windows := a,
+            kernel_window_count := i3,
+            partitions := a1
+          } p
+      if b
+      then
+        let fine ←
+          rsk_logic.logic.mpu.Layout.validate_loop0_loop0 i i1 i2 a i3 a1 p
+            true 0#usize
+        let good1 ← if fine
+                      then ok good
+                      else ok false
+        let p1 ← p + 1#usize
+        ok (cont (good1, p1))
+      else let p1 ← p + 1#usize
+           ok (cont (false, p1))
+    else ok (done good)
+  else ok (done good)
+
+/-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate]: loop 0:
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 518:8-550:9
+    Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate]
+    Visibility: public -/
+@[rust_loop, rust_fun
+  "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate"]
+def rsk_logic.logic.mpu.Layout.validate_loop0
+  {NP : Std.Usize} (i : rsk_logic.logic.mpu.Interval)
+  (i1 : rsk_logic.logic.mpu.Interval) (i2 : rsk_logic.logic.mpu.Interval)
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (i3 : Std.U8)
+  (a1 : Array rsk_logic.logic.mpu.PartitionLayout NP) (good : Bool)
+  (p : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (good1, p1) => rsk_logic.logic.mpu.Layout.validate_loop0.body i i1 i2
+      a i3 a1 good1 p1)
+    (good, p)
+
 /-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::validate]:
     Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 500:4-500:45
     Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate]
     Visibility: public -/
 @[rust_fun
   "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::validate"]
-axiom rsk_logic.logic.mpu.Layout.validate
-  {NP : Std.Usize} : rsk_logic.logic.mpu.Layout NP → Result Bool
+def rsk_logic.logic.mpu.Layout.validate
+  {NP : Std.Usize} (self : rsk_logic.logic.mpu.Layout NP) : Result Bool := do
+  let b ← rsk_logic.logic.mpu.Interval.check_rules self.shared_code
+  if b
+  then
+    let b1 ← rsk_logic.logic.mpu.Interval.check_rules self.kernel_flash
+    if b1
+    then
+      let b2 ← rsk_logic.logic.mpu.Interval.check_rules self.kernel_ram
+      if b2
+      then
+        let b3 ←
+          rsk_logic.logic.mpu.Interval.check_disjoint self.shared_code
+            self.kernel_flash
+        if b3
+        then
+          let b4 ←
+            rsk_logic.logic.mpu.Interval.check_disjoint self.shared_code
+              self.kernel_ram
+          if b4
+          then
+            let b5 ←
+              rsk_logic.logic.mpu.Interval.check_disjoint self.kernel_flash
+                self.kernel_ram
+            if b5
+            then
+              let b6 ←
+                rsk_logic.logic.mpu.Layout.validate_kernel_windows self
+              if b6
+              then
+                rsk_logic.logic.mpu.Layout.validate_loop0 self.shared_code
+                  self.kernel_flash self.kernel_ram self.kernel_windows
+                  self.kernel_window_count self.partitions true 0#usize
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
 
 /-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::view]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 806:8-816:9
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 831:8-841:9
     Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::view]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -4518,7 +5441,7 @@ def rsk_logic.logic.mpu.Layout.view_loop.body
   else ok (done regions)
 
 /-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::view]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 806:8-816:9
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 831:8-841:9
     Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::view]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -4535,7 +5458,7 @@ def rsk_logic.logic.mpu.Layout.view_loop
     (regions, w)
 
 /-- [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<NP>}::view]:
-    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 785:4-785:44
+    Source: 'crates/rsk-logic/src/logic/mpu.rs', lines 810:4-810:44
     Name pattern: [rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::view]
     Visibility: public -/
 @[rust_fun "rsk_logic::logic::mpu::{rsk_logic::logic::mpu::Layout<@NP>}::view"]
@@ -4670,6 +5593,529 @@ def arch.bound.basepri_for
                else ok ceiling
   arch.bound.basepri_for_ceiling top1
 
+/-- [rsk_kernel::arch::bound::Crc32]
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 80:0-80:26
+    Visibility: public -/
+@[reducible]
+def arch.bound.Crc32 := Std.U32
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::new]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 83:4-85:5
+    Visibility: public -/
+def arch.bound.Crc32.new : Result arch.bound.Crc32 := do
+  ok 4294967295#u32
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::byte]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 90:8-97:9
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.Crc32.byte_loop.body
+  (crc : Std.U32) (i : Std.Usize) :
+  Result (ControlFlow (Std.U32 × Std.Usize) Std.U32)
+  := do
+  if i < 8#usize
+  then
+    let i1 ← lift (crc &&& 1#u32)
+    let mask ← if i1 = 1#u32
+                 then ok 4294967295#u32
+                 else ok 0#u32
+    let i2 ← crc >>> 1#i32
+    let i3 ← lift (3988292384#u32 &&& mask)
+    let crc1 ← lift (i2 ^^^ i3)
+    let i4 ← i + 1#usize
+    ok (cont (crc1, i4))
+  else ok (done crc)
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::byte]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 90:8-97:9
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.Crc32.byte_loop
+  (crc : Std.U32) (i : Std.Usize) : Result Std.U32 := do
+  loop
+    (fun (crc1, i1) => arch.bound.Crc32.byte_loop.body crc1 i1)
+    (crc, i)
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::byte]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 87:4-99:5
+    Visibility: public -/
+def arch.bound.Crc32.byte
+  (self : arch.bound.Crc32) (b : Std.U8) : Result arch.bound.Crc32 := do
+  let i ← lift (UScalar.cast .U32 b)
+  let crc ← lift (self ^^^ i)
+  let crc1 ← arch.bound.Crc32.byte_loop crc 0#usize
+  ok crc1
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::u32]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 102:4-107:5
+    Visibility: public -/
+def arch.bound.Crc32.u32
+  (self : arch.bound.Crc32) (v : Std.U32) : Result arch.bound.Crc32 := do
+  let i ← lift (v &&& 255#u32)
+  let i1 ← lift (UScalar.cast .U8 i)
+  let c ← arch.bound.Crc32.byte self i1
+  let i2 ← v >>> 8#i32
+  let i3 ← lift (i2 &&& 255#u32)
+  let i4 ← lift (UScalar.cast .U8 i3)
+  let c1 ← arch.bound.Crc32.byte c i4
+  let i5 ← v >>> 16#i32
+  let i6 ← lift (i5 &&& 255#u32)
+  let i7 ← lift (UScalar.cast .U8 i6)
+  let c2 ← arch.bound.Crc32.byte c1 i7
+  let i8 ← v >>> 24#i32
+  let i9 ← lift (i8 &&& 255#u32)
+  let i10 ← lift (UScalar.cast .U8 i9)
+  arch.bound.Crc32.byte c2 i10
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::u64]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 109:4-111:5
+    Visibility: public -/
+def arch.bound.Crc32.u64
+  (self : arch.bound.Crc32) (v : Std.U64) : Result arch.bound.Crc32 := do
+  let i ← lift (v &&& 4294967295#u64)
+  let i1 ← lift (UScalar.cast .U32 i)
+  let c ← arch.bound.Crc32.u32 self i1
+  let i2 ← v >>> 32#i32
+  let i3 ← lift (i2 &&& 4294967295#u64)
+  let i4 ← lift (UScalar.cast .U32 i3)
+  arch.bound.Crc32.u32 c i4
+
+/-- [rsk_kernel::arch::bound::{rsk_kernel::arch::bound::Crc32}::finish]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 113:4-115:5
+    Visibility: public -/
+def arch.bound.Crc32.finish (self : arch.bound.Crc32) : Result Std.U32 := do
+  ok (~~~ self)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 124:4-132:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop0.body
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (t : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) ((rsk_logic.logic.Config
+    NT NR NP) × arch.bound.Crc32))
+  := do
+  if t < NT
+  then
+    let x ← Array.index_usize cfg.tasks t
+    let c1 ← arch.bound.Crc32.byte c x.priority
+    let c2 ← arch.bound.Crc32.byte c1 x.partition
+    let c3 ← arch.bound.Crc32.byte c2 x.kind
+    let c4 ← arch.bound.Crc32.u64 c3 x.offset
+    let c5 ← arch.bound.Crc32.u64 c4 x.period
+    let c6 ← arch.bound.Crc32.u64 c5 x.deadline
+    let c7 ← arch.bound.Crc32.u32 c6 x.budget
+    let c8 ← arch.bound.Crc32.byte c7 x.mit_policy
+    let i ← if x.fpu
+              then ok 1#u8
+              else ok 0#u8
+    let c9 ← arch.bound.Crc32.byte c8 i
+    let t1 ← t + 1#usize
+    ok (cont (c9, t1))
+  else ok (done (cfg, c))
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 124:4-132:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop0
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (t : Std.Usize) :
+  Result ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32)
+  := do
+  loop
+    (fun (c1, t1) => arch.bound.config_crc_loop0.body cfg c1 t1)
+    (c, t)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 134:4-140:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop1.body
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (r : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) ((rsk_logic.logic.Config
+    NT NR NP) × arch.bound.Crc32))
+  := do
+  if r < NR
+  then
+    let rc ← Array.index_usize cfg.resources r
+    let c1 ← arch.bound.Crc32.byte c rc.ceiling
+    let c2 ← arch.bound.Crc32.byte c1 rc.partition
+    let r1 ← r + 1#usize
+    ok (cont (c2, r1))
+  else ok (done (cfg, c))
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 134:4-140:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop1
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (r : Std.Usize) :
+  Result ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32)
+  := do
+  loop
+    (fun (c1, r1) => arch.bound.config_crc_loop1.body cfg c1 r1)
+    (c, r)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 3:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 147:8-153:9
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop2_loop0.body
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (t : Std.Usize)
+  (c : arch.bound.Crc32) (r : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) ((rsk_logic.logic.Config
+    NT NR NP) × arch.bound.Crc32))
+  := do
+  if r < NR
+  then
+    let a ← Array.index_usize cfg.access t
+    let b ← Array.index_usize a r
+    let i ← if b
+              then ok 1#u8
+              else ok 0#u8
+    let c1 ← arch.bound.Crc32.byte c i
+    let r1 ← r + 1#usize
+    ok (cont (c1, r1))
+  else ok (done (cfg, c))
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 3:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 147:8-153:9
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop2_loop0
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (t : Std.Usize) (r : Std.Usize) :
+  Result ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32)
+  := do
+  loop
+    (fun (c1, r1) => arch.bound.config_crc_loop2_loop0.body cfg t c1 r1)
+    (c, r)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 2:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 142:4-155:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop2.body
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (t : Std.Usize) :
+  Result (ControlFlow ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32 ×
+    Std.Usize) ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32))
+  := do
+  if t < NT
+  then
+    let (cfg1, c1) ← arch.bound.config_crc_loop2_loop0 cfg c t 0#usize
+    let t1 ← t + 1#usize
+    ok (cont (cfg1, c1, t1))
+  else ok (done (cfg, c))
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 2:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 142:4-155:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop2
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (t : Std.Usize) :
+  Result ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32)
+  := do
+  loop
+    (fun (cfg1, c1, t1) => arch.bound.config_crc_loop2.body cfg1 c1 t1)
+    (cfg, c, t)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 4:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 157:4-164:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop3.body
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (p : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) ((rsk_logic.logic.Config
+    NT NR NP) × arch.bound.Crc32))
+  := do
+  if p < NP
+  then
+    let x ← Array.index_usize cfg.partitions p
+    let c1 ← arch.bound.Crc32.byte c x.level
+    let c2 ← arch.bound.Crc32.byte c1 x.fault_response
+    let c3 ← arch.bound.Crc32.byte c2 x.overrun_response
+    let c4 ← arch.bound.Crc32.byte c3 x.deadline_response
+    let c5 ← arch.bound.Crc32.u32 c4 x.mit_threshold
+    let p1 ← p + 1#usize
+    ok (cont (c5, p1))
+  else ok (done (cfg, c))
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 4:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 157:4-164:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop3
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) (c : arch.bound.Crc32)
+  (p : Std.Usize) :
+  Result ((rsk_logic.logic.Config NT NR NP) × arch.bound.Crc32)
+  := do
+  loop
+    (fun (c1, p1) => arch.bound.config_crc_loop3.body cfg c1 p1)
+    (c, p)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 5:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 167:4-173:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop4.body
+  {NT : Std.Usize} (a : Array Std.U8 NT) (c : arch.bound.Crc32) (t : Std.Usize)
+  :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) arch.bound.Crc32)
+  := do
+  if t < NT
+  then
+    let i ← Array.index_usize a t
+    let c1 ← arch.bound.Crc32.byte c i
+    let t1 ← t + 1#usize
+    ok (cont (c1, t1))
+  else ok (done c)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 5:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 167:4-173:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop4
+  {NT : Std.Usize} (a : Array Std.U8 NT) (c : arch.bound.Crc32) (t : Std.Usize)
+  :
+  Result arch.bound.Crc32
+  := do
+  loop
+    (fun (c1, t1) => arch.bound.config_crc_loop4.body a c1 t1)
+    (c, t)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 6:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 175:4-181:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop5.body
+  {NT : Std.Usize} (a : Array Std.U8 NT) (c : arch.bound.Crc32) (t : Std.Usize)
+  :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) arch.bound.Crc32)
+  := do
+  if t < NT
+  then
+    let i ← Array.index_usize a t
+    let c1 ← arch.bound.Crc32.byte c i
+    let t1 ← t + 1#usize
+    ok (cont (c1, t1))
+  else ok (done c)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 6:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 175:4-181:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop5
+  {NT : Std.Usize} (a : Array Std.U8 NT) (c : arch.bound.Crc32) (t : Std.Usize)
+  :
+  Result arch.bound.Crc32
+  := do
+  loop
+    (fun (c1, t1) => arch.bound.config_crc_loop5.body a c1 t1)
+    (c, t)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop body 7:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 183:4-189:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.config_crc_loop6.body
+  {NT : Std.Usize} (a : Array Std.U8 NT) (c : arch.bound.Crc32) (t : Std.Usize)
+  :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) arch.bound.Crc32)
+  := do
+  if t < NT
+  then
+    let i ← Array.index_usize a t
+    let c1 ← arch.bound.Crc32.byte c i
+    let t1 ← t + 1#usize
+    ok (cont (c1, t1))
+  else ok (done c)
+
+/-- [rsk_kernel::arch::bound::config_crc]: loop 7:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 183:4-189:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.config_crc_loop6
+  {NT : Std.Usize} (a : Array Std.U8 NT) (c : arch.bound.Crc32) (t : Std.Usize)
+  :
+  Result arch.bound.Crc32
+  := do
+  loop
+    (fun (c1, t1) => arch.bound.config_crc_loop6.body a c1 t1)
+    (c, t)
+
+/-- [rsk_kernel::arch::bound::config_crc]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 121:0-191:1
+    Visibility: public -/
+def arch.bound.config_crc
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize}
+  (cfg : rsk_logic.logic.Config NT NR NP) :
+  Result Std.U32
+  := do
+  let c ← arch.bound.Crc32.new
+  let i ← lift (UScalar.cast .U32 NT)
+  let c1 ← arch.bound.Crc32.u32 c i
+  let i1 ← lift (UScalar.cast .U32 NR)
+  let c2 ← arch.bound.Crc32.u32 c1 i1
+  let i2 ← lift (UScalar.cast .U32 NP)
+  let c3 ← arch.bound.Crc32.u32 c2 i2
+  let (cfg1, c4) ← arch.bound.config_crc_loop0 cfg c3 0#usize
+  let (cfg2, c5) ← arch.bound.config_crc_loop1 cfg1 c4 0#usize
+  let (cfg3, c6) ← arch.bound.config_crc_loop2 cfg2 c5 0#usize
+  let (cfg4, c7) ← arch.bound.config_crc_loop3 cfg3 c6 0#usize
+  let c8 ← arch.bound.Crc32.u64 c7 cfg4.operating_duration
+  let c9 ← arch.bound.config_crc_loop4 cfg4.slot_release c8 0#usize
+  let c10 ← arch.bound.config_crc_loop5 cfg4.slot_deadline c9 0#usize
+  let c11 ← arch.bound.config_crc_loop6 cfg4.slot_budget c10 0#usize
+  let c12 ← arch.bound.Crc32.byte c11 cfg4.slot_count
+  arch.bound.Crc32.finish c12
+
+/-- [rsk_kernel::arch::bound::layout_crc]: loop body 0:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 207:4-213:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.layout_crc_loop0.body
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (c : arch.bound.Crc32)
+  (k : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) arch.bound.Crc32)
+  := do
+  if k < rsk_logic.logic.mpu.MAX_KERNEL_WINDOWS
+  then
+    let i ← Array.index_usize a k
+    let c1 ← arch.bound.Crc32.u32 c i.base
+    let c2 ← arch.bound.Crc32.byte c1 i.size_log2
+    let k1 ← k + 1#usize
+    ok (cont (c2, k1))
+  else ok (done c)
+
+/-- [rsk_kernel::arch::bound::layout_crc]: loop 0:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 207:4-213:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.layout_crc_loop0
+  (a : Array rsk_logic.logic.mpu.Interval 8#usize) (c : arch.bound.Crc32)
+  (k : Std.Usize) :
+  Result arch.bound.Crc32
+  := do
+  loop
+    (fun (c1, k1) => arch.bound.layout_crc_loop0.body a c1 k1)
+    (c, k)
+
+/-- [rsk_kernel::arch::bound::layout_crc]: loop body 2:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 225:8-231:9
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.layout_crc_loop1_loop0.body
+  (a : Array rsk_logic.logic.mpu.Interval 5#usize) (a1 : Array Bool 5#usize)
+  (c : arch.bound.Crc32) (w : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) arch.bound.Crc32)
+  := do
+  if w < rsk_logic.logic.mpu.MAX_WINDOWS
+  then
+    let i ← Array.index_usize a w
+    let c1 ← arch.bound.Crc32.u32 c i.base
+    let c2 ← arch.bound.Crc32.byte c1 i.size_log2
+    let b ← Array.index_usize a1 w
+    let i1 ← if b
+               then ok 1#u8
+               else ok 0#u8
+    let c3 ← arch.bound.Crc32.byte c2 i1
+    let w1 ← w + 1#usize
+    ok (cont (c3, w1))
+  else ok (done c)
+
+/-- [rsk_kernel::arch::bound::layout_crc]: loop 2:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 225:8-231:9
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.layout_crc_loop1_loop0
+  (c : arch.bound.Crc32) (a : Array rsk_logic.logic.mpu.Interval 5#usize)
+  (a1 : Array Bool 5#usize) (w : Std.Usize) :
+  Result arch.bound.Crc32
+  := do
+  loop
+    (fun (c1, w1) => arch.bound.layout_crc_loop1_loop0.body a a1 c1 w1)
+    (c, w)
+
+/-- [rsk_kernel::arch::bound::layout_crc]: loop body 1:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 216:4-233:5
+    Visibility: public -/
+@[rust_loop_body]
+def arch.bound.layout_crc_loop1.body
+  {NP : Std.Usize} (a : Array rsk_logic.logic.mpu.PartitionLayout NP)
+  (c : arch.bound.Crc32) (p : Std.Usize) :
+  Result (ControlFlow (arch.bound.Crc32 × Std.Usize) arch.bound.Crc32)
+  := do
+  if p < NP
+  then
+    let pl ← Array.index_usize a p
+    let c1 ← arch.bound.Crc32.u32 c pl.code.base
+    let c2 ← arch.bound.Crc32.byte c1 pl.code.size_log2
+    let c3 ← arch.bound.Crc32.byte c2 pl.code_srd
+    let c4 ← arch.bound.Crc32.u32 c3 pl.ram.base
+    let c5 ← arch.bound.Crc32.byte c4 pl.ram.size_log2
+    let c6 ← arch.bound.Crc32.byte c5 pl.ram_srd
+    let c7 ← arch.bound.Crc32.u32 c6 pl.stack_size
+    let c8 ← arch.bound.Crc32.byte c7 pl.window_count
+    let c9 ←
+      arch.bound.layout_crc_loop1_loop0 c8 pl.windows pl.windows_ro 0#usize
+    let p1 ← p + 1#usize
+    ok (cont (c9, p1))
+  else ok (done c)
+
+/-- [rsk_kernel::arch::bound::layout_crc]: loop 1:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 216:4-233:5
+    Visibility: public -/
+@[rust_loop]
+def arch.bound.layout_crc_loop1
+  {NP : Std.Usize} (a : Array rsk_logic.logic.mpu.PartitionLayout NP)
+  (c : arch.bound.Crc32) (p : Std.Usize) :
+  Result arch.bound.Crc32
+  := do
+  loop
+    (fun (c1, p1) => arch.bound.layout_crc_loop1.body a c1 p1)
+    (c, p)
+
+/-- [rsk_kernel::arch::bound::layout_crc]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 200:0-235:1
+    Visibility: public -/
+def arch.bound.layout_crc
+  {NP : Std.Usize} (layout : rsk_logic.logic.mpu.Layout NP) :
+  Result Std.U32
+  := do
+  let c ← arch.bound.Crc32.new
+  let c1 ← arch.bound.Crc32.u32 c layout.kernel_flash.base
+  let c2 ← arch.bound.Crc32.byte c1 layout.kernel_flash.size_log2
+  let c3 ← arch.bound.Crc32.byte c2 0#u8
+  let c4 ← arch.bound.Crc32.u32 c3 layout.shared_code.base
+  let c5 ← arch.bound.Crc32.byte c4 layout.shared_code.size_log2
+  let c6 ← arch.bound.Crc32.byte c5 0#u8
+  let c7 ← arch.bound.Crc32.u32 c6 layout.kernel_ram.base
+  let c8 ← arch.bound.Crc32.byte c7 layout.kernel_ram.size_log2
+  let c9 ← arch.bound.Crc32.byte c8 0#u8
+  let c10 ← arch.bound.Crc32.byte c9 layout.kernel_window_count
+  let c11 ← arch.bound.layout_crc_loop0 layout.kernel_windows c10 0#usize
+  let i ← lift (UScalar.cast .U32 NP)
+  let c12 ← arch.bound.Crc32.u32 c11 i
+  let c13 ← arch.bound.layout_crc_loop1 layout.partitions c12 0#usize
+  arch.bound.Crc32.finish c13
+
 /-- [rsk_kernel::arch::bound::JobInfo]
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 241:0-246:1
     Visibility: public -/
@@ -4768,6 +6214,26 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_count
   Result Std.Usize
   := do
   ok NP
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::config_checksum]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 676:4-678:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.config_checksum
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result Std.U32
+  := do
+  arch.bound.config_crc self.cfg
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::layout_checksum]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 680:4-682:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.layout_checksum
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE) :
+  Result Std.U32
+  := do
+  arch.bound.layout_crc self.layout
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::validate]:
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 684:4-691:5
@@ -4940,6 +6406,36 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.top_priority
     let i2 ← lift (UScalar.cast .Usize i1)
     let tc ← Array.index_usize self.cfg.tasks i2
     ok tc.priority
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::stack_at]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 795:4-797:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.stack_at
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (i : Std.Usize) :
+  Result Std.U8
+  := do
+  if i < NT
+  then Array.index_usize self.kernel.sched.stack i
+  else ok 0#u8
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::is_killed]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 799:4-801:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.is_killed
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (t : Std.U8) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize t)
+  if i < NT
+  then
+    let i1 ← lift (UScalar.cast .Usize t)
+    let i2 ← Array.index_usize self.kernel.sched.job i1
+    ok (i2 = rsk_logic.logic.sched.JOB_KILLED)
+  else ok false
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::eligible]:
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 803:4-813:5
@@ -5196,6 +6692,21 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.source_masked
     Array.index_usize self.kernel.timing.masked i1
   else ok false
 
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::partition_view]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 924:4-927:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_view
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) :
+  Result rsk_logic.logic.mpu.View
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  let i1 ← if i < NP
+             then ok (UScalar.cast .Usize p)
+             else ok 0#usize
+  Array.index_usize self.views i1
+
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::take_reinit]:
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 929:4-938:5
     Visibility: public -/
@@ -5281,6 +6792,40 @@ def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.partition_stopped
     let i1 ← lift (UScalar.cast .Usize p)
     Array.index_usize self.kernel.stopped i1
   else ok true
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::dma_permitted]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 995:4-1003:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.dma_permitted
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) (ptr : Std.U32) (len : Std.U32) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  if i >= NP
+  then ok false
+  else
+    let i1 ← lift (UScalar.cast .Usize p)
+    let pl ← Array.index_usize self.layout.partitions i1
+    rsk_logic.logic.mpu.PartitionLayout.dma_permitted_exec pl ptr len
+
+/-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::in_ro_window]:
+    Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1005:4-1013:5
+    Visibility: public -/
+def arch.bound.Bound.Insts.Rsk_kernelArchBoundKernelOps.in_ro_window
+  {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
+  Std.Usize} {NE : Std.Usize} (self : arch.bound.Bound NT NR NP NL NS NE)
+  (p : Std.U8) (a : Std.U32) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize p)
+  if i >= NP
+  then ok false
+  else
+    let i1 ← lift (UScalar.cast .Usize p)
+    let pl ← Array.index_usize self.layout.partitions i1
+    rsk_logic.logic.mpu.PartitionLayout.in_ro_window_exec pl a
 
 /-- [rsk_kernel::arch::bound::{impl rsk_kernel::arch::bound::KernelOps for rsk_kernel::arch::bound::Bound<NT, NR, NP, NL, NS, NE>}::message_permitted]:
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 1015:4-1023:5
@@ -6367,10 +7912,11 @@ def arch.cm4.entry.boot_vectors
     k hw tables «end» 16#u16
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_empty]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 45:0-49:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 81:0-83:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_seq_empty
-  : Result (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+def arch.cm4.ghostv.ghost_seq_empty
+  : Result (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)) := do
+  verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::dma_boot]: loop body 0:
     Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 1287:4-1298:5 -/
@@ -7341,12 +8887,13 @@ def arch.cm4.entry.endpoint_slot
   else ok none
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_partition]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 38:0-42:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 67:0-69:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_partition
-  :
-  arch.cm4.plan.EndpointCfg → Std.Usize → Result (verus_builtin.Ghost
-    verus_builtin.int)
+def arch.cm4.ghostv.ghost_partition
+  (_cfg : arch.cm4.plan.EndpointCfg) (_role : Std.Usize) :
+  Result (verus_builtin.Ghost verus_builtin.int)
+  := do
+  verus_builtin.Ghost.assume_new verus_builtin.int
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_send_core]:
     Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2229:0-2326:1 -/
@@ -7419,10 +8966,11 @@ def arch.cm4.entry.endpoint_send_core
           else ok (arch.cm4.entry.ENDPOINT_OK, k, hw1, state1)
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_int]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 30:0-34:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 52:0-54:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_int
-  : Std.U32 → Result (verus_builtin.Ghost verus_builtin.int)
+def arch.cm4.ghostv.ghost_int
+  (_v : Std.U32) : Result (verus_builtin.Ghost verus_builtin.int) := do
+  verus_builtin.Ghost.assume_new verus_builtin.int
 
 /-- [rsk_kernel::arch::cm4::entry::endpoint_recv_core]:
     Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 2331:0-2390:1 -/
@@ -7562,10 +9110,11 @@ def arch.cm4.entry.svc_of_ended_job_core
   else ok hw
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_snap]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 22:0-26:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 37:0-39:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_snap
-  {V : Type _} : V → Result (verus_builtin.Ghost V)
+def arch.cm4.ghostv.ghost_snap
+  {V : Type _} (_x : V) : Result (verus_builtin.Ghost V) := do
+  verus_builtin.Ghost.assume_new V
 
 /-- [rsk_kernel::arch::cm4::plan::top_active]: loop body 0:
     Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 232:4-244:5
@@ -7671,20 +9220,23 @@ def arch.cm4.plan.plan_frame
       else ok (some f)
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_push_usize]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 59:0-63:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 109:0-111:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_seq_push_usize
+def arch.cm4.ghostv.ghost_seq_push_usize
+  (_c : verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)) (_v : Std.Usize)
   :
-  verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int) → Std.Usize → Result
-    (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+  Result (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+  := do
+  verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_push_u8]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 52:0-56:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 95:0-97:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_seq_push_u8
-  :
-  verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int) → Std.U8 → Result
-    (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+def arch.cm4.ghostv.ghost_seq_push_u8
+  (_c : verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)) (_v : Std.U8) :
+  Result (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+  := do
+  verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::dispatch_job_core]:
     Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3047:0-3201:1 -/
@@ -8955,12 +10507,13 @@ def arch.cm4.entry.svc_core
             TablesInst k hw1 tables state frame number
 
 /-- [rsk_kernel::arch::cm4::ghostv::ghost_seq_drop_last]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 66:0-70:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 123:0-125:1
     Visibility: public -/
-axiom arch.cm4.ghostv.ghost_seq_drop_last
-  :
-  verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int) → Result
-    (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+def arch.cm4.ghostv.ghost_seq_drop_last
+  (_c : verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int)) :
+  Result (verus_builtin.Ghost (vstd.seq.Seq verus_builtin.int))
+  := do
+  verus_builtin.Ghost.assume_new (vstd.seq.Seq verus_builtin.int)
 
 /-- [rsk_kernel::arch::cm4::entry::epilogue_core]:
     Source: 'crates/rsk-kernel/src/arch/cm4/entry.rs', lines 3787:0-3975:1
@@ -9273,7 +10826,7 @@ def arch.cm4.entry.epilogue_core
                 })
 
 /-- [rsk_kernel::arch::cm4::ghostv::no_job_in_progress]:
-    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 77:0-81:1
+    Source: 'crates/rsk-kernel/src/arch/cm4/ghostv.rs', lines 132:0-136:1
     Visibility: public -/
 def arch.cm4.ghostv.no_job_in_progress
   {K : Type _} (boundKernelOpsInst : arch.bound.KernelOps K) (k : K) :

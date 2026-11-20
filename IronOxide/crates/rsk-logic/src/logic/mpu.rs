@@ -511,36 +511,44 @@ impl<const NP: usize> Layout<NP> {
         if !self.validate_kernel_windows() {
             return false;
         }
+        // Written with a verdict flag and no `return` inside a loop, so that
+        // the Lean translation of this function exists (2026-11-20).
+        let mut good = true;
         let mut p: usize = 0;
-        while p < NP
+        while p < NP && good
             invariant p <= NP,
                 self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(),
                 self.shared_code.disjoint(&self.kernel_flash), self.shared_code.disjoint(&self.kernel_ram),
                 self.kernel_flash.disjoint(&self.kernel_ram),
                 self.kernel_windows_ok(),
-                forall|i: int| 0 <= i < p ==> self.partition_ok(i),
-                forall|i: int, j: int| 0 <= i < p && 0 <= j < p && i != j ==> self.pair_ok(i, j),
+                good ==> forall|i: int| 0 <= i < p ==> self.partition_ok(i),
+                good ==> forall|i: int, j: int| 0 <= i < p && 0 <= j < p && i != j ==> self.pair_ok(i, j),
             decreases NP - p,
         {
             if !self.validate_partition(p) {
-                return false;
-            }
-            let mut q: usize = 0;
-            while q < p
-                invariant q <= p, p < NP, self.partition_ok(p as int),
-                    forall|i: int| 0 <= i < p ==> self.partition_ok(i),
-                    forall|i: int, j: int| 0 <= i < p && 0 <= j < p && i != j ==> self.pair_ok(i, j),
-                    forall|j: int| 0 <= j < q ==> self.pair_ok(p as int, j) && self.pair_ok(j, p as int),
-                decreases p - q,
-            {
-                if !(self.validate_pair(p, q) && self.validate_pair(q, p)) {
-                    return false;
+                good = false;
+            } else {
+                let mut fine = true;
+                let mut q: usize = 0;
+                while q < p && fine
+                    invariant q <= p, p < NP, self.partition_ok(p as int),
+                        forall|i: int| 0 <= i < p ==> self.partition_ok(i),
+                        forall|i: int, j: int| 0 <= i < p && 0 <= j < p && i != j ==> self.pair_ok(i, j),
+                        fine ==> forall|j: int| 0 <= j < q ==> self.pair_ok(p as int, j) && self.pair_ok(j, p as int),
+                    decreases p - q,
+                {
+                    if !(self.validate_pair(p, q) && self.validate_pair(q, p)) {
+                        fine = false;
+                    }
+                    q = q + 1;
                 }
-                q = q + 1;
+                if !fine {
+                    good = false;
+                }
             }
             p = p + 1;
         }
-        true
+        good
     }
 
     /// The Kernel peripheral intervals' part of `wf` (R16.2).
@@ -558,23 +566,26 @@ impl<const NP: usize> Layout<NP> {
         if count > MAX_KERNEL_WINDOWS {
             return false;
         }
+        // The shared code interval by value: with it read through `self`
+        // inside the loop, Aeneas cannot join the two branches (2026-11-20).
+        let shared = self.shared_code;
+        let mut good = true;
         let mut k: usize = 0;
-        while k < count
+        while k < count && good
             invariant k <= count, count <= MAX_KERNEL_WINDOWS, count == self.kernel_window_count as int,
-                self.shared_code.rules_ok(),
-                forall|i: int| 0 <= i < k ==> self.kernel_windows[i].rules_ok() && self.shared_code.disjoint(&self.kernel_windows[i]),
+                shared == self.shared_code, self.shared_code.rules_ok(),
+                good ==> forall|i: int| 0 <= i < k ==> self.kernel_windows[i].rules_ok() && self.shared_code.disjoint(&self.kernel_windows[i]),
             decreases count - k,
         {
             let win = self.kernel_windows[k];
             if !win.check_rules() {
-                return false;
-            }
-            if !self.shared_code.check_disjoint(&win) {
-                return false;
+                good = false;
+            } else if !shared.check_disjoint(&win) {
+                good = false;
             }
             k = k + 1;
         }
-        true
+        good
     }
 
     /// Executable check of `apart_from_kernel_windows` (R16.2).
@@ -583,19 +594,24 @@ impl<const NP: usize> Layout<NP> {
         ensures ok == self.apart_from_kernel_windows(i),
     {
         let count = self.kernel_window_count as usize;
+        let mut good = true;
         let mut k: usize = 0;
-        while k < count
+        while k < count && good
             invariant k <= count, count == self.kernel_window_count as int, self.kernel_windows_ok(), i.size_log2 <= 31,
-                forall|j: int| 0 <= j < k ==> i.disjoint(&self.kernel_windows[j]),
+                good ==> forall|j: int| 0 <= j < k ==> i.disjoint(&self.kernel_windows[j]),
+                !good ==> !self.apart_from_kernel_windows(i),
             decreases count - k,
         {
             let win = self.kernel_windows[k];
             if !i.check_disjoint(&win) {
-                return false;
+                proof {
+                    assert(!i.disjoint(&self.kernel_windows[k as int]));
+                }
+                good = false;
             }
             k = k + 1;
         }
-        true
+        good
     }
 
     const fn validate_partition(&self, p: usize) -> (ok: bool)
@@ -627,58 +643,64 @@ impl<const NP: usize> Layout<NP> {
             return false;
         }
         let count = pl.window_count as usize;
+        let mut good = true;
         let mut w: usize = 0;
-        while w < count
+        while w < count && good
             invariant w <= count, count <= MAX_WINDOWS, count == pl.window_count as int, pl == self.partitions[p as int], p < NP,
                 pl.ram.rules_ok(), pl.ram.size_log2 >= 8, pl.code.rules_ok(),
                 self.shared_code.rules_ok(), self.kernel_flash.rules_ok(), self.kernel_ram.rules_ok(), self.kernel_windows_ok(),
-                forall|i: int| 0 <= i < w ==> pl.windows[i].rules_ok() && pl.windows[i].disjoint(&pl.ram) && pl.windows[i].disjoint(&pl.code)
+                good ==> forall|i: int| 0 <= i < w ==> pl.windows[i].rules_ok() && pl.windows[i].disjoint(&pl.ram) && pl.windows[i].disjoint(&pl.code)
                     && !pl.windows[i].contains(pl.ram.base as int - 1)
                     && pl.windows[i].disjoint(&self.kernel_flash) && pl.windows[i].disjoint(&self.kernel_ram) && pl.windows[i].disjoint(&self.shared_code)
                     && self.apart_from_kernel_windows(&pl.windows[i]),
-                forall|i: int, j: int| 0 <= i < j < w ==> pl.windows[i].disjoint(&pl.windows[j]),
+                good ==> forall|i: int, j: int| 0 <= i < j < w ==> pl.windows[i].disjoint(&pl.windows[j]),
             decreases count - w,
         {
             let win = pl.windows[w];
             if !win.check_rules() {
-                return false;
-            }
-            // The Partition's own windows are pairwise disjoint (DD-08).
-            let mut u: usize = 0;
-            while u < w
-                invariant u <= w, w < count, count <= MAX_WINDOWS, count == pl.window_count as int,
-                    win == pl.windows[w as int], win.rules_ok(),
-                    forall|i: int| 0 <= i < w ==> pl.windows[i].rules_ok(),
-                    forall|i: int| 0 <= i < u ==> pl.windows[i].disjoint(&win),
-                decreases w - u,
-            {
-                let other = pl.windows[u];
-                if !other.check_disjoint(&win) {
-                    return false;
+                good = false;
+            } else {
+                // The Partition's own windows are pairwise disjoint (DD-08).
+                let mut fine = true;
+                let mut u: usize = 0;
+                while u < w && fine
+                    invariant u <= w, w < count, count <= MAX_WINDOWS, count == pl.window_count as int,
+                        win == pl.windows[w as int], win.rules_ok(),
+                        forall|i: int| 0 <= i < w ==> pl.windows[i].rules_ok(),
+                        fine ==> forall|i: int| 0 <= i < u ==> pl.windows[i].disjoint(&win),
+                    decreases w - u,
+                {
+                    let other = pl.windows[u];
+                    if !other.check_disjoint(&win) {
+                        fine = false;
+                    }
+                    u = u + 1;
                 }
-                u = u + 1;
-            }
-            if !(win.check_disjoint(&pl.ram) && win.check_disjoint(&pl.code) && win.check_disjoint(&self.kernel_flash)
-                && win.check_disjoint(&self.kernel_ram) && win.check_disjoint(&self.shared_code))
-            {
-                return false;
-            }
-            // R16.2: the window against the Kernel peripheral intervals.
-            if !self.check_apart(&win) {
-                return false;
-            }
-            // The word below the stack: with the window disjoint from RAM, it is
-            // inside the window only if the window ends exactly at the RAM base.
-            let wsize = pow2_u32(win.size_log2) as u64;
-            if (win.base as u64) + wsize == pl.ram.base as u64 {
-                return false;
-            }
-            proof {
-                assert(!win.contains(pl.ram.base as int - 1));
+                if !fine {
+                    good = false;
+                } else if !(win.check_disjoint(&pl.ram) && win.check_disjoint(&pl.code) && win.check_disjoint(&self.kernel_flash)
+                    && win.check_disjoint(&self.kernel_ram) && win.check_disjoint(&self.shared_code))
+                {
+                    good = false;
+                } else if !self.check_apart(&win) {
+                    // R16.2: the window against the Kernel peripheral intervals.
+                    good = false;
+                } else {
+                    // The word below the stack: with the window disjoint from RAM, it is
+                    // inside the window only if the window ends exactly at the RAM base.
+                    let wsize = pow2_u32(win.size_log2) as u64;
+                    if (win.base as u64) + wsize == pl.ram.base as u64 {
+                        good = false;
+                    } else {
+                        proof {
+                            assert(!win.contains(pl.ram.base as int - 1));
+                        }
+                    }
+                }
             }
             w = w + 1;
         }
-        true
+        good
     }
 
     const fn validate_pair(&self, p: usize, q: usize) -> (ok: bool)
@@ -698,63 +720,66 @@ impl<const NP: usize> Layout<NP> {
         if ca > MAX_WINDOWS || cb > MAX_WINDOWS {
             return false;
         }
+        let mut good = true;
         let mut v: usize = 0;
-        while v < ca
+        while v < ca && good
             invariant v <= ca, ca <= MAX_WINDOWS, cb <= MAX_WINDOWS, ca == a.window_count as int, cb == b.window_count as int,
                 a == self.partitions[p as int], b == self.partitions[q as int], p < NP, q < NP,
                 a.code.size_log2 <= 31, a.ram.size_log2 <= 31, b.code.size_log2 <= 31, b.ram.size_log2 <= 31,
                 a.code.disjoint(&b.code), a.code.disjoint(&b.ram), a.ram.disjoint(&b.code), a.ram.disjoint(&b.ram),
-                forall|i: int| 0 <= i < v ==> a.windows[i].disjoint(&b.ram) && a.windows[i].disjoint(&b.code)
+                good ==> forall|i: int| 0 <= i < v ==> a.windows[i].disjoint(&b.ram) && a.windows[i].disjoint(&b.code)
                     && forall|j: int| 0 <= j < cb ==> a.windows[i].disjoint(&b.windows[j]),
             decreases ca - v,
         {
             let win = a.windows[v];
             if win.size_log2 > 31 {
-                return false;
-            }
-            if !(win.check_disjoint(&b.ram) && win.check_disjoint(&b.code)) {
-                return false;
-            }
-            let mut j: usize = 0;
-            while j < cb
-                invariant j <= cb, cb <= MAX_WINDOWS, cb == b.window_count as int, b == self.partitions[q as int], q < NP,
-                    win == a.windows[v as int], win.size_log2 <= 31,
-                    forall|k: int| 0 <= k < j ==> win.disjoint(&b.windows[k]),
-                decreases cb - j,
-            {
-                let other = b.windows[j];
-                if other.size_log2 > 31 {
-                    return false;
+                good = false;
+            } else if !(win.check_disjoint(&b.ram) && win.check_disjoint(&b.code)) {
+                good = false;
+            } else {
+                let mut fine = true;
+                let mut j: usize = 0;
+                while j < cb && fine
+                    invariant j <= cb, cb <= MAX_WINDOWS, cb == b.window_count as int, b == self.partitions[q as int], q < NP,
+                        win == a.windows[v as int], win.size_log2 <= 31,
+                        fine ==> forall|k: int| 0 <= k < j ==> win.disjoint(&b.windows[k]),
+                    decreases cb - j,
+                {
+                    let other = b.windows[j];
+                    if other.size_log2 > 31 {
+                        fine = false;
+                    } else if !win.check_disjoint(&other) {
+                        fine = false;
+                    }
+                    j = j + 1;
                 }
-                if !win.check_disjoint(&other) {
-                    return false;
+                if !fine {
+                    good = false;
                 }
-                j = j + 1;
             }
             v = v + 1;
         }
         // b's windows against a's RAM and code.
         let mut w: usize = 0;
-        while w < cb
+        while w < cb && good
             invariant w <= cb, cb <= MAX_WINDOWS, ca <= MAX_WINDOWS, cb == b.window_count as int, ca == a.window_count as int,
                 b == self.partitions[q as int], q < NP,
                 a == self.partitions[p as int], p < NP, a.code.size_log2 <= 31, a.ram.size_log2 <= 31,
                 a.code.disjoint(&b.code), a.code.disjoint(&b.ram), a.ram.disjoint(&b.code), a.ram.disjoint(&b.ram),
-                forall|i: int| 0 <= i < ca ==> a.windows[i].disjoint(&b.ram) && a.windows[i].disjoint(&b.code)
+                good ==> forall|i: int| 0 <= i < ca ==> a.windows[i].disjoint(&b.ram) && a.windows[i].disjoint(&b.code)
                     && forall|j: int| 0 <= j < cb ==> a.windows[i].disjoint(&b.windows[j]),
-                forall|j: int| 0 <= j < w ==> b.windows[j].disjoint(&a.ram) && b.windows[j].disjoint(&a.code),
+                good ==> forall|j: int| 0 <= j < w ==> b.windows[j].disjoint(&a.ram) && b.windows[j].disjoint(&a.code),
             decreases cb - w,
         {
             let win = b.windows[w];
             if win.size_log2 > 31 {
-                return false;
-            }
-            if !(win.check_disjoint(&a.ram) && win.check_disjoint(&a.code)) {
-                return false;
+                good = false;
+            } else if !(win.check_disjoint(&a.ram) && win.check_disjoint(&a.code)) {
+                good = false;
             }
             w = w + 1;
         }
-        true
+        good
     }
 
     /// Region `i` of Partition `p`'s view: region 0 shared code (R, X),

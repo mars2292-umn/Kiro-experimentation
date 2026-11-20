@@ -452,6 +452,11 @@ theorem unwind_round_world [KSpec ki kv okK] {k k' : K} {hwd hwd' : A} {tables :
       (unwind_round m h p.val c.val e.val nx.val).psp = p.val ∧
       (unwind_round m h p.val c.val e.val nx.val).control = c.val ∧
       (unwind_round m h p.val c.val e.val nx.val).r 2 = e.val ∧
+      (unwind_round m h p.val c.val e.val nx.val).z = decide ((nx.val : Int) = 0) ∧
+      (unwind_round m h p.val c.val e.val nx.val).primask = m.primask ∧
+      (unwind_round m h p.val c.val e.val nx.val).faultmask = m.faultmask ∧
+      (∀ x, m.sp ≤ x → (unwind_round m h p.val c.val e.val nx.val).mem x = m.mem x) ∧
+      (rest ≠ [] → f.gap = 0) ∧
       f.regs 9 = (e.val : Int) ∧
       World s1.levels (unwind_round m h p.val c.val e.val nx.val).mem
         ((unwind_round m h p.val c.val e.val nx.val).sp + f.gap) rest
@@ -472,8 +477,8 @@ theorem unwind_round_world [KSpec ki kv okK] {k k' : K} {hwd hwd' : A} {tables :
   have hz : f.hasFp = !hasBit (rc.exc_return.val : Int) 16 := by rw [← hexc]; exact hfo.1
   obtain ⟨u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, u11, u12⟩ :=
     unwind_round_spec m h rc.psp.val rc.control.val rc.exc_return.val nx.val f hft hz
-  refine ⟨hok', hai', level'.val, f, rest, rfl, u1, u2, u3, u5, u6, u7, by rw [← hexc]; exact hfo.2,
-    ?_⟩
+  refine ⟨hok', hai', level'.val, f, rest, rfl, u1, u2, u3, u5, u6, u7, u9, u10, u11, u12,
+    fun hne => (hup hne).1, by rw [← hexc]; exact hfo.2, ?_⟩
   have hpop := hw.pop (m' := (unwind_round m h rc.psp.val rc.control.val rc.exc_return.val
     nx.val).mem) (tp' := (hasBit (rc.exc_return.val : Int) 8 && hasBit (rc.exc_return.val : Int) 4))
     hsame hoff u12 (fun hne => by

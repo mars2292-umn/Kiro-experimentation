@@ -166,18 +166,13 @@ Regenerating the translation:
 cd crates/rsk-kernel
 I='{impl crate::arch::bound::KernelOps for _}'
 E='crate::arch::cm4::entry'
-G='crate::arch::cm4::ghostv'
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$I::top,$I::boot_failed,$I::boot_info,$I::validate,$I::safe_state,$I::task_count,$I::partition_count,$I::source_masked,$I::started,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core" \
+    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$I::top,$I::boot_failed,$I::boot_info,$I::validate,$I::safe_state,$I::task_count,$I::partition_count,$I::source_masked,$I::started,$I::stack_at,$I::is_killed,$I::partition_view,$I::dma_permitted,$I::in_ro_window,$I::config_checksum,$I::layout_checksum,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core" \
     --include 'rsk_logic::logic::kernel' --include 'rsk_logic::logic::sched' \
     --include 'rsk_logic::logic::time' --include 'rsk_logic::logic::budget' \
     --include 'rsk_logic::logic::log' --include 'rsk_logic::logic::mpu' \
     --include 'rsk_logic::logic::_' --include 'rsk_logic::hw_model::MIN_COMPARE_DISTANCE' \
-    --opaque 'rsk_logic::logic::kernel::_::no_history' \
-    --opaque "$G::ghost_snap" --opaque "$G::ghost_int" --opaque "$G::ghost_partition" \
-    --opaque "$G::ghost_seq_empty" --opaque "$G::ghost_seq_push_u8" --opaque "$G::ghost_seq_push_usize" \
-    --opaque "$G::ghost_seq_drop_last" \
-    --include 'vstd::seq::Seq' --include 'verus_builtin::Ghost' --include 'verus_builtin::Tracked' \
+    --include 'vstd::seq::Seq' --include 'verus_builtin::Ghost' --include 'verus_builtin::_::assume_new' --include 'verus_builtin::Tracked' \
     --dest-file /tmp/kernel.llbc -- --lib
 ../../../aeneas/bin/aeneas -backend lean -dest ../../proofs/aeneas/lean/Sched /tmp/kernel.llbc
 ```
@@ -192,8 +187,9 @@ call: 315 functions on 2026-11-17, none without a body (363 definitions on
 structures of functions. A `Ghost(..)` value built in executable code is
 a closure in the build without Verus, which Aeneas rejects in the function
 that holds it; the cores build every ghost value through a function of
-`arch/cm4/ghostv.rs`, and those seven are kept opaque (declared `axiom` in
-the output, like `no_history`). `lean/Sched/Endpoint.lean` is the first
+`arch/cm4/ghostv.rs`, and those seven were kept opaque until 2026-11-20
+(declared `axiom` in the output, like `no_history`; see "No opaque function"
+below). `lean/Sched/Endpoint.lean` is the first
 proof over the entry cores: what `endpoint_send_core` and
 `endpoint_recv_core` do to the Kernel (at most one interface call:
 `fault`, `record_event` or `intake`), and that an Endpoint operation is
@@ -204,10 +200,22 @@ The `--include` options make Charon translate the bodies of the
 dependency's items and the erased ghost types (without them Aeneas
 declares axioms); an inherent method is named `crate::module::_::name`, a
 trait method `{impl Trait for _}::name`, and a `--start-from` must name an
-item of the crate being compiled (Charon panics on a dependency's). Aeneas
-reports errors for `Layout::validate` and its helpers (returns from inside
-a loop, breaks and continues to outer loops); `Layout::validate` is in the
-output as an `axiom`, that is, a function the proofs know nothing of.
+item of the crate being compiled (Charon panics on a dependency's). Until
+2026-11-20 Aeneas reported errors for `Layout::validate` and its helpers
+(returns from inside a loop) and the function was an `axiom` of the output.
+Since that date its five functions (`validate`, `validate_kernel_windows`,
+`check_apart`, `validate_partition`, `validate_pair` in
+`crates/rsk-logic/src/logic/mpu.rs`) run their loops to a verdict, with the
+contracts unchanged, and are translated; `lean/Sched/LayoutTotal.lean`
+proves that `Layout::validate` returns for every layout and that a layout
+it accepts is well formed (`LWf`, after `Layout::wf`); `lean/Sched/LayoutIso.lean`
+derives the isolation theorems' hypothesis `LayoutOk` from it. One more thing Aeneas needs of such code: an interval
+read through `self` inside a loop whose branches join (`self.shared_code`
+in `validate_kernel_windows`) is copied to a local before the loop ("Could
+not match the contexts" otherwise). The start set names seven more methods
+of `KernelOps` since then (`stack_at`, `is_killed`, `partition_view`,
+`dma_permitted`, `in_ro_window`, `config_checksum`, `layout_checksum`), so
+that every method the entry cores call has a body.
 Since 2026-11-20 `Config::validate`, `validate_partitions` and
 `validate_slots` are translated: their loops run to a verdict and the
 functions return after them (`lean/Sched/Boot.lean` derives the
@@ -217,9 +225,10 @@ things Aeneas needs of such code: no `return` inside a loop, and no
 by Lean; write `if a == B || c == D { true } else { false }`). The start
 set also names `top`, `boot_failed`, `boot_info`, `validate` and five
 read-only methods of `KernelOps` since that date.
-`no_history` (the empty ghost history of `Kernel::new`) is kept opaque: its
-body constructs a `Ghost` value, which the erased build turns into a
-closure that Aeneas does not translate. It is the one `axiom` of the file;
+`no_history` (the empty ghost history of `Kernel::new`) was kept opaque
+until 2026-11-20: its body constructs a `Ghost` value, which the erased
+build turns into a closure that Aeneas does not translate. It was the one
+`axiom` of the file at the time;
 `property18_kernel` does not depend on it (`#print axioms`).
 
 What Aeneas needs of the source, found on this code: no `Ghost(..)`
@@ -322,3 +331,42 @@ cd ../rsk-confcheck
 ../../../aeneas/bin/aeneas -backend lean -dest /tmp/cc-out /tmp/cc.llbc
 cp /tmp/cc-out/Cc.lean ../../proofs/aeneas/lean/Tools/Cc.lean
 ```
+
+## No opaque function since 2026-11-20
+
+Until 2026-11-20 the translation kept eight functions opaque (`axiom`):
+`Kernel::no_history` and the seven helpers of `arch/cm4/ghostv.rs`, each of
+which builds a `Ghost` value, a closure in the build without Verus. Each now
+has two bodies: the verified one under `cfg(verus_keep_ghost)`, and in every
+other build `Ghost::assume_new()`, which constructs the zero-sized marker
+with no closure. The extraction command above therefore has no `--opaque`
+option and includes `assume_new`'s body; `Sched/Kernel.lean` declares no
+`axiom`, and `Sched/GhostTotal.lean` proves the eight return. What this
+costs: for these eight functions the compiled text is not the verified
+text. Both produce the same zero-sized value.
+
+## The generated tables (`Tab`)
+
+`Tab/Tables.lean` is the translation of the table accessors of the P1
+demo's system crate (the QEMU configuration):
+
+```sh
+cd apps/p1-demo/system
+I='{impl rsk_kernel::arch::System for _}'
+../../../../aeneas/charon/bin/charon cargo --preset=aeneas \
+    --start-from "$I::dma,$I::signal,$I::endpoint_storage,$I::binding,$I::dispatch_vector,$I::intake_vector,$I::stack_top,$I::stack_bottom" \
+    --include 'rsk_kernel::arch::_' --include 'rsk_logic::logic::_' \
+    --opaque 'rsk_kernel::arch::cm4::unsafe_module::hw::_::base' \
+    --dest-file /tmp/tables.llbc -- --lib
+../../../../aeneas/bin/aeneas -backend lean -dest ../../../proofs/aeneas/lean/Tab /tmp/tables.llbc
+```
+
+`endpoint` is not in the start set: its table (five Endpoints of nested
+arrays) takes Lean more than 17 minutes and 11 GB to elaborate.
+`EndpointStorage::base` is a pointer cast of the Kernel_Unsafe_Module and
+stays opaque. `Tab/Proofs.lean` proves for which arguments each accessor
+returns: `dma`, `signal` and `binding` for every argument; `dispatch_vector`
+and `intake_vector` only for a Task below `NT`, `stack_top` and
+`stack_bottom` only for a Partition below `NP` (they index their table with
+the argument). `Sched/CoreTotal.lean` assumes exactly that of the tables
+(`TabT`) and proves the entry cores call them in range.
