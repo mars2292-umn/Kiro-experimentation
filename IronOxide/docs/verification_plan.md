@@ -1917,4 +1917,32 @@ Not stated in this file: the length in time of the blocking Critical_Section. Th
 
 Checked by two wrong variants of the file, each rejected by Lean: `blocking_step` without its second case (no lock ever adds a blocking entry), and `single_section` without the minimality of the first entry. No mutant of the Kernel's code was run against it (each costs two builds of the library).
 
-Of the Kernel's properties, not in Lean now: 2 (the stubs), 10, 11 and 21.
+**Properties 10 and 2 in Lean (2026-11-19).** Four files of the `Sched` library (`lake build Sched`, 3,486 jobs, no `sorry`): `Sched/Overrun.lean` (48 theorems), `Sched/Lifo.lean` (6), `Sched/Record.lean` (7), `Sched/StubModel.lean` (30).
+
+*Property 10* (`Sched/Overrun.lean`), on the extracted code:
+
+| Part | Verus | Lean theorems | Statement |
+|---|---|---|---|
+| The accounts | `Budget::reset`, `charge`, `report`, `overrun`, `remaining` | `reset_ok`, `charge_ok`, `charge_mono`, `report_ok`, `overrun_ok`, `remaining_ok` | a charge adds to one account and no other, saturating, and never lowers it; an Overrun is an account above the Budget |
+| The charge points (R18.1) | `Kernel::dispatch`, `job_return`, `timer_event` | `dispatch_budget`, `dispatch_charges_only_preempted`, `job_return_budget`, `timer_event_budget` | a dispatch charges the preempted Job and empties the new Job's account; a Job end charges the ended Job; a timer entry charges the Job on top; each once, with the cycles it is passed |
+| Nothing else charges (R18.1, R18.6) | `only_reset_from`, `reported_kept` | `Kept`, `apply_response_kept` and the response chain, `budget_event_kept`, `serve_slot_kept_budget`, `ServedChain.kept` | across a response, a served slot, and every slot a timer entry serves, each account is as it was with its report kept, or has been emptied |
+| Detection (R18.2) | `budget_event`, `arm_budget` | `budget_event_detects`, `arm_budget_at` | the Budget event of the executing Job, found above its Budget and unreported, marks it reported, logs it and applies the Overrun_Response; the event is armed for the instant the remaining Budget runs out, in ticks rounded up, capped at the operating duration |
+| Whatever the ceiling (DD-02) | `lemma_kernel_level_never_masked`, `lemma_kernel_level_taken_in_every_state`, `lemma_job_cannot_set_mask` | `encode_level_ok`, `basepri_for_ok`, `basepri_for_task_level`, `kernel_level_never_masked`, `kernel_level_taken`, `job_cannot_set_mask` | the BASEPRI value the extracted `basepri_for` computes is 0 or a Task level's encoding, and under the execution-priority rule of HW-02 a pending Kernel-level exception is taken with any such value |
+
+The execution-priority rule (`execPrio`, `nvicTakes`, `maskWrite`) is written out in Lean as it is in `hw_model.rs`: an assumption about the processor in both tools. "Within Δ_detect" is a measured quantity (19.1) in both.
+
+*Property 2*, in three files:
+
+| Part | File | Main theorems | Statement |
+|---|---|---|---|
+| The scheduler state | `Sched/Lifo.lean` | `Step.framed`, `lifo_resume` | over a stretch of a run that ends no Job already on the stack, the Jobs below and their lock entries are untouched; when the stack is back at its depth the same Tasks are on it, the lock stack is the same entry by entry, and the System_Ceiling is the one of the beginning |
+| The level record | `Sched/Record.lean` | `dispatch_stores_record`, `top_active_spec`, `epilogue_returns_record`, `unwind_returns_dispatched_context` | on the extracted `dispatch_job_core` and `epilogue_core`, for any Kernel, hardware and tables behind their traits: a dispatch that starts a Job stores the PSP, CONTROL and EXC_RETURN it was entered with in a level's record; every path of the unwind returns the context of the record `top_active` names; so with that record unchanged and no higher level active, the unwind returns what the dispatch stored |
+| The registers | `Sched/StubModel.lean` | `irq_called_spec`, `irq_restore_spec`, `unwind_round_spec`, `dispatch_unwind_restores`, `unwind_loop_frames`, `svc_stub`, `timer_stub`, `fault_stub`, `memmanage_stub`, `nested_irq_resumed` | the machine model of `stub_model.rs` written in Lean with the seven stubs line by line: a dispatch stub leaves the level's register record on the main stack; without a dispatch it restores every register it pushed; one round of `rsk_unwind` pops exactly the top record; a dispatch followed by the unwind of its level gives the preempted context R3 to R11, S16 to S31, the stack pointer and the memory above it as it had them, with the record's PSP and CONTROL; the same over any number of levels; the Kernel-level stubs preserve R4 to R11, LR and SP; a handler preempted at its entry instruction resumes as it left |
+
+`cargo xtask check` now also compares the Lean stub model with the Verus model, function by function and line by line (`checks::stub_model::compare_lean`, with a test of a changed, a removed and a missing line); the Verus model is compared with the assembly as before, so the Lean model follows the assembly through it.
+
+Weaker than Verus in one respect, stated as hypotheses in Lean: Verus proves that the main stack and the level records agree at every entry (`world`, `arch_inv`), from which the two conditions of `unwind_returns_dispatched_context` (the record unchanged, no higher level active) and the condition of `dispatch_unwind_restores` (the main stack where the dispatch left it) follow. That invariant is over ghost fields of `ArchState` (`chain`, `chain_levels`), which the extraction erases, so it is not restated in Lean. The MPU view the unwind loads is an `Action` handed to the hardware trait, whose effect is the Hardware_Model's; not stated here.
+
+Checked by two wrong variants of the Lean stub model, each rejected: `pop {r3-r11, lr}` reading LR from the wrong word (the proofs fail), and `rsk_unwind` popping the registers before S16 to S31 (the proofs fail and the static check names the line). No mutant of the Kernel's code was run against these files.
+
+Of the Kernel's properties, not in Lean now: 11 and 21.

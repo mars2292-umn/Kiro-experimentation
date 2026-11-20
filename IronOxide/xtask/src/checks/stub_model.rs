@@ -21,6 +21,9 @@ use crate::diag::{Report, Rule};
 
 pub const STUBS: &str = "crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs";
 pub const MODEL: &str = "crates/rsk-kernel/src/arch/cm4/stub_model.rs";
+/// The Lean counterpart of the model (Property 2 in Lean, 2026-11-19): the
+/// same stubs under the same function names, `let s := i_... s ...` lines.
+pub const LEAN_MODEL: &str = "proofs/aeneas/lean/Sched/StubModel.lean";
 
 /// Each modelled stub and the model functions that state it, in the order
 /// of the assembly.
@@ -50,6 +53,72 @@ pub fn check(root: &Path, report: &mut Report) {
     if diffs.is_empty() {
         report.note(format!("R44.6: the stub model matches the assembly of {} stubs line by line ({STUBS})", STUB_MODELS.len()));
     }
+    let Ok(lean) = std::fs::read_to_string(root.join(LEAN_MODEL)) else {
+        report.error(Rule::Proof, Some(LEAN_MODEL.to_string()), "the Lean stub model is missing");
+        return;
+    };
+    let lean_diffs = compare_lean(&model, &lean);
+    for d in &lean_diffs {
+        report.error(Rule::Proof, Some(LEAN_MODEL.to_string()), d.clone());
+    }
+    if lean_diffs.is_empty() {
+        report.note(format!("R44.6: the Lean stub model states the same instruction sequences as the Verus model ({LEAN_MODEL})"));
+    }
+}
+
+/// The instruction functions and control lines of the Lean model function
+/// `name`, in order, in the Verus model's text (`i_f(s, a, b)`).
+pub fn lean_model_lines(lean: &str, name: &str) -> Option<Vec<String>> {
+    let head = format!("def {name} (s : M) : M :=");
+    let start = lean.find(&head)? + head.len();
+    let mut out = Vec::new();
+    for line in lean[start..].lines() {
+        let t = line.trim();
+        if t == "s" {
+            return Some(out);
+        }
+        if let Some(c) = t.strip_prefix("-- ctl: ") {
+            out.push(format!("ctl: {c}"));
+        } else if let Some(op) = t.strip_prefix("let s := ") {
+            let mut words = op.split_whitespace();
+            let f = words.next().unwrap_or("");
+            let args: Vec<String> = words.map(|a| number(a).unwrap_or_else(|| a.to_string())).collect();
+            out.push(format!("{f}({})", args.join(", ")));
+        } else if !t.is_empty() {
+            out.push(format!("unreadable Lean model line `{t}`"));
+        }
+    }
+    None
+}
+
+/// The differences between the Verus model and the Lean model: for every
+/// model function of `STUB_MODELS`, the same lines in the same order.
+pub fn compare_lean(model: &str, lean: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen: Vec<&str> = Vec::new();
+    for (_, functions) in STUB_MODELS {
+        for f in functions {
+            if seen.contains(f) {
+                continue;
+            }
+            seen.push(f);
+            let Some(v) = model_lines(model, f) else { continue };
+            let Some(l) = lean_model_lines(lean, f) else {
+                out.push(format!("the model function `{f}` is missing from the Lean model"));
+                continue;
+            };
+            if v != l {
+                let at = v.iter().zip(l.iter()).position(|(a, b)| a != b).unwrap_or(v.len().min(l.len()));
+                out.push(format!(
+                    "`{f}`, line {}: the Verus model has `{}`, the Lean model `{}`",
+                    at + 1,
+                    v.get(at).map(String::as_str).unwrap_or("(nothing more)"),
+                    l.get(at).map(String::as_str).unwrap_or("(nothing more)")
+                ));
+            }
+        }
+    }
+    out
 }
 
 /// A number as decimal text (`0x10` and `16` are the same operand).
@@ -404,6 +473,26 @@ mod tests {
         assert!(compare(&stubs, &changed).iter().any(|d| d.contains("rsk_irq_entry")));
         let extra = format!("{stubs}\n#[unsafe(naked)]\npub unsafe extern \"C\" fn rsk_new_entry() {{\n    naked_asm!(\n        \"dsb\",\n    )\n}}\n");
         assert!(compare(&extra, &model).iter().any(|d| d.contains("rsk_new_entry` has no model")));
+    }
+
+    #[test]
+    fn the_lean_model_of_the_tree_states_the_same_sequences() {
+        let (_, model) = tree();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+        let lean = std::fs::read_to_string(root.join(LEAN_MODEL)).unwrap();
+        assert_eq!(compare_lean(&model, &lean), Vec::<String>::new());
+        // Every function was read with its lines, operands by value.
+        let irq = lean_model_lines(&lean, "irq_to_call").unwrap();
+        assert_eq!(irq.len(), 13);
+        assert!(irq.contains(&"i_tst_lr(s, 16)".to_string()) && irq.contains(&"ctl: bl {entry}".to_string()));
+        // A changed, a removed and a missing Lean line are each reported.
+        let changed = lean.replace("  let s := i_ldr_sp s 12 12\n", "  let s := i_ldr_sp s 12 8\n");
+        let d = compare_lean(&model, &changed);
+        assert!(d.len() == 1 && d[0].contains("unwind_after_call") && d[0].contains("i_ldr_sp(s, 12, 8)"), "{d:?}");
+        let removed = lean.replace("  let s := i_mov_r_lr s 8\n", "");
+        assert!(compare_lean(&model, &removed).iter().any(|d| d.contains("irq_to_call")));
+        let missing = lean.replace("def unwind_exit (s : M) : M :=", "def unwind_exit2 (s : M) : M :=");
+        assert!(compare_lean(&model, &missing).iter().any(|d| d.contains("`unwind_exit` is missing")));
     }
 
     #[test]
