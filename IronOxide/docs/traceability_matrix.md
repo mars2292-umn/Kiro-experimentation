@@ -28,10 +28,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R1.1 | — | — | ✓2.1 | xtask/src/checks/registers.rs; xtask/src/profile_gen.rs; xtask/src/verify.rs | check-static-checks |
-| R1.2 | — | — | ✓2.1 | profile/profile.toml; xtask/src/checks/registers.rs; xtask/src/profile_gen.rs; +1 | check-static-checks |
-| R1.3 | — | — | ✓2.1 | profile/profile.toml; xtask/src/checks/registers.rs; xtask/src/profile_gen.rs; +1 | check-static-checks |
-| R1.4 | — | — | ✓2.1 | crates/rsk-analyzer/src/profile_version.rs; crates/rsk-gen/src/profile_version.rs; crates/rsk-kernel/src/profile_version.rs; +5 | check-static-checks; test-workspace-tests |
+| R1.1 | — | — | ✓2.1 | xtask/src/checks/registers.rs; xtask/src/profile_gen.rs; xtask/src/trace.rs; +1 | check-static-checks |
+| R1.2 | — | — | ✓2.1 | profile/profile.toml; xtask/src/checks/registers.rs; xtask/src/profile_gen.rs; +2 | check-static-checks |
+| R1.3 | — | — | ✓2.1 | profile/profile.toml; xtask/src/checks/registers.rs; xtask/src/profile_gen.rs; +2 | check-static-checks |
+| R1.4 | — | — | ✓2.1 | crates/rsk-analyzer/src/profile_version.rs; crates/rsk-gen/src/profile_version.rs; crates/rsk-kernel/src/profile_version.rs; +6 | check-static-checks; test-workspace-tests |
 | R1.5 | — | — | ✓2.1 | crates/rsk-link/src/scan.rs; profile/profile.toml; xtask/src/profile_gen.rs; +1 | check-static-checks |
 | R1.6 | — | — | ✓2.1 | profile/profile.toml; xtask/src/profile_gen.rs; xtask/src/verify.rs | check-static-checks |
 
@@ -79,7 +79,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R5.2 | — | — | ○26.1 | profile/profile.toml | — |
 | R5.3 | — | — | ○26.1 | crates/rsk-entry/clippy.toml; crates/rsk-kernel/clippy.toml; profile/profile.toml | — |
 | R5.4 | — | — | ○26.1 | crates/rsk-entry/clippy.toml; crates/rsk-kernel/clippy.toml; profile/profile.toml | — |
-| R5.5 | — | — | ○26.1 | profile/profile.toml | — |
+| R5.5 | — | — | ○26.1 | crates/rsk-model/tests/exports.rs; profile/profile.toml | — |
 | R5.6 | — | — | ○26.1 | — | — |
 | R5.7 | — | — | ○26.1 | profile/profile.toml | — |
 
@@ -93,7 +93,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R6.4 | P-13 | Application API (`rsk`); Kani harnesses (R45); Kernel logic and Kernel_Arch (Component B); +2 | ✓1.2; ✓5.1 | crates/rsk-entry/unsafe_justifications.toml; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +11 | check-static-checks; proof-kernel-kani; test-workspace-tests |
 | R6.5 | — | — | ✓4.1 | — | — |
 | R6.6 | P-11 | Requirements Impact | ✓12.3; ✓5.1 | apps/p1-demo/system/src/lib.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-link/src/scan.rs; +4 | analysis-stack-p1-demo; test-workspace-tests |
-| R6.7 | — | Generated_Config | ✓5.1 | crates/rsk-analyzer/src/profile_version.rs; crates/rsk-gen/src/profile_version.rs; crates/rsk-kernel/src/profile_version.rs; +2 | — |
+| R6.7 | — | Generated_Config | ✓5.1 | crates/rsk-analyzer/src/profile_version.rs; crates/rsk-confcheck/src/image.rs; crates/rsk-confcheck/src/lib.rs; +7 | — |
 
 ### Requirement 7: SRP dispatching (Phase P1)
 
@@ -104,9 +104,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R7.3 | P-04 | Design decisions; Priority and privilege model (DD-01, DD-02); Property 1 | ✓4.2 | crates/rsk-analyzer/src/uppaal.rs; crates/rsk-logic/src/hw_model.rs; crates/rsk-logic/src/logic/sched.rs; +3 | proof-kernel-verus |
 | R7.4 | — | Design decisions | ✓4.2 | crates/rsk-logic/src/logic/sched.rs | — |
 | R7.5 | P-10 | Property 2 | ✓4.2 | crates/rsk-hil/src/dt.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/dt.rs; +4 | — |
-| R7.6 | P-10 | — | ✓4.2 | crates/rsk-entry/src/lib.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/unsafe_justifications.toml; +4 | — |
+| R7.6 | P-10 | — | ✓4.2 | crates/rsk-entry/src/lib.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +5 | — |
 | R7.7 | — | Reuse and Deviation Record | ✓3.1; ✓5.1 | xtask/src/verify.rs | hil-spike-p1-demo; hil-spike-step; test-qemu-spike-p1-demo; test-qemu-spike-step |
-| R7.8 | — | — | ✓5.1 | — | — |
+| R7.8 | — | — | ✓5.1 | crates/rsk-hil/src/kernel_timing.rs; crates/rsk-hil/src/stats.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | — |
 
 ### Requirement 8: Resource locking and the ceiling protocol (Phase P1)
 
@@ -119,7 +119,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R8.5 | P-06 | Ceiling-Protocol State Machine; Property 4 | ✓4.14; ✓4.3 | crates/rsk-logic/src/logic/sched.rs; profile/profile.toml | proof-kernel-verus |
 | R8.6 | P-01; P-03 | Application API (`rsk`); Ceiling-Protocol State Machine; Kernel logic and Kernel_Arch (Component B); +2 | ✓5.6 | crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-kernel/unsafe_justifications.toml; crates/rsk-logic/src/logic/kernel.rs; +2 | test-workspace-tests |
 | R8.7 | — | Application API (`rsk`); Generated_Config; What the type system gives, and what it does not | ✓5.6 | crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/emit.rs; +9 | test-workspace-tests |
-| R8.8 | — | — | ✓5.6 | — | — |
+| R8.8 | — | — | ✓5.6 | xtask/src/rig_records.rs; xtask/src/verify.rs | — |
 | R8.9 | — | Ceiling-Protocol State Machine; Closed response sets (DD-10, R14.5); Priority and privilege model (DD-01, DD-02); +1 | ✓4.13; ✓4.4 | crates/rsk-hil/src/response.rs; crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kernel.rs; +2 | proof-kernel-verus |
 | R8.10 | P-01 | Application API (`rsk`); Priority and privilege model (DD-01, DD-02); What the type system gives, and what it does not | ✓5.6 | crates/rsk-gen/src/validate.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-kernel/unsafe_justifications.toml; +6 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
 
@@ -136,7 +136,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R9.7 | P-08 | Priority and privilege model (DD-01, DD-02); Property 8; Reuse and Deviation Record | ✓4.5 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +7 | proof-kernel-kani; proof-kernel-verus |
 | R9.8 | P-08 | Ceiling-Protocol State Machine; Property 8 | ✓4.5 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +5 | proof-kernel-verus |
 | R9.9 | — | Generated_Config; Interrupt intake and MIT enforcement (DD-06) | ✓4.5 | apps/p1-demo/system/src/lib.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; +3 | proof-kernel-kani; proof-kernel-verus |
-| R9.10 | P-07 | Profile_Conformance_Suite and HIL_Rig; Property 7 | ✓7.3 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +10 | — |
+| R9.10 | P-07 | Profile_Conformance_Suite and HIL_Rig; Property 7 | ✓7.3 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +12 | — |
 
 ### Requirement 10: Sporadic release and MIT enforcement (Phase P1)
 
@@ -147,7 +147,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R10.3 | P-08 | Ceiling-Protocol State Machine; Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.6 | crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs; +4 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
 | R10.4 | P-08 | Open Research Question Dispositions; Property 8 | ✓4.6 | crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs | proof-kernel-kani; proof-kernel-verus |
 | R10.5 | — | Application API (`rsk`); Reuse and Deviation Record | ✓4.6 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840_coverage/partition_part0.rs; +21 | — |
-| R10.6 | — | — | ✓4.6 | — | — |
+| R10.6 | — | — | ✓4.6 | xtask/src/rig_records.rs; xtask/src/verify.rs | — |
 | R10.7 | P-08 | Application API (`rsk`); Endpoint_Library and Protocol_Checker (Component F); Property 8 | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/plan.rs; crates/rsk-kernel/unsafe_justifications.toml; +4 | proof-kernel-kani; proof-kernel-verus |
 | R10.8 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | crates/rsk-analyzer/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs | — |
 | R10.9 | P-08 | — | ✓4.6; ✓5.4 | crates/rsk-logic/src/hw_model.rs | — |
@@ -158,12 +158,12 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R11.1 | P-11 | Property 2 | ✓3.1; ✓5.1 | crates/rsk-kernel/src/arch/cm4/entry.rs; xtask/src/verify.rs | hil-spike-p1-demo; hil-spike-step; test-qemu-spike-p1-demo; test-qemu-spike-step |
 | R11.2 | P-11 | — | ✓5.1 | apps/p1-demo/system/src/lib.rs; crates/rsk-kernel/src/arch/cm4/plan.rs; crates/rsk-kernel/src/arch/mod.rs; +1 | — |
-| R11.3 | P-11 | — | ✓5.1 | — | — |
+| R11.3 | P-11 | — | ✓5.1 | xtask/src/rig_records.rs; xtask/src/verify.rs | — |
 | R11.4 | — | — | ✓12.2 | crates/rsk-link/src/stack.rs; xtask/src/verify.rs | analysis-stack-p1-demo |
-| R11.5 | — | Closed response sets (DD-10, R14.5) | ✓5.3 | — | — |
+| R11.5 | — | Closed response sets (DD-10, R14.5) | ✓5.3 | apps/p1-demo/part2/Cargo.toml; apps/p1-demo/part2/src/lib.rs; crates/rsk-kernel/src/arch/bound.rs; +1 | — |
 | R11.6 | — | Kernel logic and Kernel_Arch (Component B) | ✓3.4 | crates/rsk-link/src/graph.rs; crates/rsk-link/src/scan.rs; crates/rsk-link/src/thumb.rs; +1 | test-workspace-tests |
 | R11.7 | — | — | ✓5.1 | crates/rsk-kernel/src/arch/cm4/entry.rs | — |
-| R11.8 | — | Generated_Config | ✓5.1 | — | — |
+| R11.8 | — | Generated_Config | ✓5.1 | apps/p1-demo/part2/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-hil/src/dt.rs; +3 | — |
 
 ### Requirement 12: Boot-time configuration validation (Phase P1)
 
@@ -184,7 +184,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R13.2 | — | — | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; +2 | analysis-rta-nrf52840_measure-measured; test-workspace-tests |
 | R13.3 | — | — | ✓15.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-model/src/wcet.rs; +1 | analysis-rta-nrf52840_measure-measured; analysis-rta-p1-demo; test-workspace-tests |
 | R13.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/config.rs; +3 | test-workspace-tests |
-| R13.5 | — | — | ✓19.3 | — | — |
+| R13.5 | — | — | ✓19.3 | xtask/src/verify.rs | — |
 | R13.6 | — | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/terms.rs; crates/rsk-analyzer/tests/rules.rs; +5 | — |
 
 ### Requirement 14: Fault handling, panic policy, and Health_Monitor (Phase P1)
@@ -194,13 +194,13 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R14.1 | — | — | ✓12.3; ✓5.3 | crates/rsk-entry/src/lib.rs; crates/rsk-link/src/lib.rs; crates/rsk-link/src/scan.rs; +3 | analysis-stack-p1-demo; test-workspace-tests |
 | R14.2 | — | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; +1 | — |
 | R14.3 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Reuse and Deviation Record | ✓5.3 | apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +12 | hil-mpu-matrix |
-| R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/hil-stimulus/system/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; +6 | — |
-| R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/decl/src/qemu_flood.rs; +24 | hil-response; hil-response-step; proof-kernel-verus; test-workspace-tests |
+| R14.4 | P-18 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record | ✓5.3 | apps/hil-stimulus/system/src/lib.rs; apps/p1-demo/system/src/lib.rs; crates/rsk-entry/src/lib.rs; +8 | — |
+| R14.5 | P-18 | Closed response sets (DD-10, R14.5); Design decisions; Kernel logic and Kernel_Arch (Component B); +3 | ✓4.13; ✓4.4 | apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/decl/src/qemu_flood.rs; +25 | hil-response; hil-response-step; proof-kernel-verus; test-workspace-tests |
 | R14.6 | P-09 | Error Handling; Health_Monitor event log entry | ✓4.8 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/validate.rs; crates/rsk-kernel/src/arch/bound.rs; +3 | proof-kernel-verus |
 | R14.7 | P-09 | Health_Monitor event log entry | ✓4.8 | crates/rsk-kernel/src/arch/bound.rs; crates/rsk-kernel/src/arch/cm4/mod.rs; crates/rsk-logic/src/logic/log.rs; +1 | proof-kernel-verus |
-| R14.8 | — | — | ✓19.3; ✓4.4 | — | — |
+| R14.8 | — | — | ✓19.3; ✓4.4 | xtask/src/main.rs; xtask/src/rig_records.rs | — |
 | R14.9 | P-18 | Kernel logic and Kernel_Arch (Component B) | ✓4.4 | crates/rsk-hil/src/response.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/sched.rs; +3 | hil-response; hil-response-step; proof-kernel-verus |
-| R14.10 | P-18 | Closed response sets (DD-10, R14.5); Endpoint_Library and Protocol_Checker (Component F) | ✓4.4 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/terms.rs; crates/rsk-analyzer/tests/rules.rs; +5 | — |
+| R14.10 | P-18 | Closed response sets (DD-10, R14.5); Endpoint_Library and Protocol_Checker (Component F) | ✓4.4 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/terms.rs; crates/rsk-analyzer/tests/rules.rs; +7 | — |
 | R14.11 | P-18 | Profile_Conformance_Suite and HIL_Rig; Property 6 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part1/src/lib.rs; +5 | hil-response; hil-response-step |
 
 ### Requirement 15: Partition declaration (Phase P1 Kernel; P2 Generator)
@@ -209,11 +209,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R15.1 | — | Design decisions | ✓10.2 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/syntax.rs; crates/rsk-logic/src/logic/mod.rs | — |
 | R15.2 | — | — | ✓10.2 | profile/profile.toml | — |
-| R15.3 | — | — | ✓10.2 | crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs; profile/profile.toml | — |
-| R15.4 | — | — | ✓10.6 | — | — |
-| R15.5 | — | — | ✓10.5 | — | — |
+| R15.3 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs; +2 | — |
+| R15.4 | — | — | ✓10.6 | crates/rsk-model/tests/exports.rs | — |
+| R15.5 | — | — | ✓10.5 | crates/rsk-gen/src/lib.rs | — |
 | R15.6 | — | Reuse and Deviation Record | ✓10.2 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/lib.rs; +4 | check-config-p1-demo; test-workspace-tests |
-| R15.7 | — | — | ✓10.2 | crates/rsk-gen/src/validate.rs | — |
+| R15.7 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; crates/rsk-gen/src/validate.rs | — |
 
 ### Requirement 16: Spatial isolation (Phase P1)
 
@@ -250,10 +250,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R18.2 | P-17 | Design decisions; Overview; Priority and privilege model (DD-01, DD-02); +2 | ✓4.7 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-logic/src/hw_model.rs; +2 | proof-kernel-kani; proof-kernel-verus |
 | R18.3 | P-17 | — | ✓4.7 | crates/rsk-logic/src/logic/kernel.rs | — |
 | R18.4 | P-18 | Closed response sets (DD-10, R14.5) | ✓4.4 | apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/part0/src/lib.rs; apps/p1-demo/part2/src/lib.rs; +5 | hil-response |
-| R18.5 | — | Closed response sets (DD-10, R14.5); Design decisions | ✓4.7 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs | — |
-| R18.6 | — | Closed response sets (DD-10, R14.5) | ✓4.7 | apps/p1-demo/part0/src/lib.rs; crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs; +4 | — |
+| R18.5 | — | Closed response sets (DD-10, R14.5); Design decisions | ✓4.7 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; +1 | — |
+| R18.6 | — | Closed response sets (DD-10, R14.5) | ✓4.7 | apps/p1-demo/part0/src/lib.rs; crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/lib.rs; +5 | — |
 | R18.7 | P-17 | Property 18 | ✓19.4 | apps/p1-demo/decl/src/nrf52840_measure.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; +7 | test-workspace-tests |
-| R18.8 | P-17 | Profile_Conformance_Suite and HIL_Rig; Property 10 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/part1/src/lib.rs; +9 | — |
+| R18.8 | P-17 | Profile_Conformance_Suite and HIL_Rig; Property 10 | ✓7.5 | apps/p1-demo/decl/src/nrf52840_stress.rs; apps/p1-demo/decl/src/nrf52840_stress_short.rs; apps/p1-demo/part1/src/lib.rs; +10 | — |
 | R18.9 | — | — | ✓15.3 | crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/report.rs; crates/rsk-analyzer/tests/report.rs | test-workspace-tests |
 
 ### Requirement 19: Interrupt-source isolation (Phase P1)
@@ -262,8 +262,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R19.1 | P-08; P-17 | Interrupt intake and MIT enforcement (DD-06); Property 9; Requirements Impact | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kernel.rs; +1 | proof-kernel-verus |
 | R19.2 | P-08; P-17 | Property 16; Property 9 | ✓5.4 | apps/p1-demo/decl/src/lib.rs; crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; +3 | test-workspace-tests |
-| R19.3 | P-17 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Profile_Conformance_Suite and HIL_Rig; Property 9 | ✓7.5 | apps/hil-stimulus/part/Cargo.toml; apps/hil-stimulus/part/src/lib.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; +9 | — |
-| R19.4 | — | Interrupt intake and MIT enforcement (DD-06); Requirements Impact | ✓5.4 | — | — |
+| R19.3 | P-17 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Profile_Conformance_Suite and HIL_Rig; Property 9 | ✓7.5 | apps/hil-stimulus/part/Cargo.toml; apps/hil-stimulus/part/src/lib.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; +11 | — |
+| R19.4 | — | Interrupt intake and MIT enforcement (DD-06); Requirements Impact | ✓5.4 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs | — |
 | R19.5 | — | — | ✓5.4 | crates/rsk-entry/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-logic/src/hw_model.rs | — |
 
 ### Requirement 20: Privilege model resolution (Phase P1)
@@ -284,8 +284,8 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R21.2 | — | Property 14 | ✓10.3 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +21 | test-workspace-tests |
 | R21.3 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; crates/rsk-gen/src/validate.rs; +1 | test-workspace-tests |
 | R21.4 | — | — | ✓10.2 | crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/syntax.rs; +2 | — |
-| R21.5 | — | — | ✓10.2 | crates/rsk-gen/src/target.rs; crates/rsk-gen/src/validate.rs | — |
-| R21.6 | — | — | ✓10.2 | crates/rsk-gen/src/validate.rs | — |
+| R21.5 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/target.rs; crates/rsk-gen/src/validate.rs | — |
+| R21.6 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs | — |
 
 ### Requirement 22: Declaration validation (Phase P2)
 
@@ -296,7 +296,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R22.3 | — | — | ✓10.2 | crates/rsk-gen/src/validate.rs; profile/profile.toml | — |
 | R22.4 | — | — | ✓10.2 | crates/rsk-gen/src/syntax.rs; profile/profile.toml | — |
 | R22.5 | — | — | ✓10.2 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; +1 | test-workspace-tests |
-| R22.6 | — | — | ✓10.2 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/validate.rs | — |
+| R22.6 | — | — | ✓10.2 | crates/rsk-gen/src/arbitrary.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs | — |
 | R22.7 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1 | crates/rsk-gen/Cargo.toml; crates/rsk-gen/src/decl.rs; crates/rsk-gen/src/lib.rs; +2 | test-workspace-tests |
 
 ### Requirement 23: Ceiling and derived-value computation (Phase P2)
@@ -307,7 +307,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R23.2 | — | Property 13 | ✓10.3 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/tests/properties.rs | test-workspace-tests |
 | R23.3 | — | — | ✓10.3 | crates/rsk-logic/src/logic/sched.rs; profile/profile.toml | — |
 | R23.4 | — | — | ✓10.3 | crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; +6 | test-workspace-tests |
-| R23.5 | — | Task_Model (excerpt) | ✓10.3 | crates/rsk-gen/src/model.rs | — |
+| R23.5 | — | Task_Model (excerpt) | ✓10.3 | crates/rsk-confcheck/src/lib.rs; crates/rsk-gen/src/model.rs; crates/rsk-model/src/task_model.rs; +1 | — |
 | R23.6 | — | Property 13 | ✓10.3 | crates/rsk-gen/src/derive.rs; crates/rsk-gen/src/lib.rs; crates/rsk-gen/tests/properties.rs; +1 | check-static-checks; test-workspace-tests |
 
 ### Requirement 24: Generated configuration (Phase P2)
@@ -327,7 +327,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R25.1 | — | — | ✓10.1 | crates/rsk-gen/Cargo.toml; crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/main.rs; +5 | test-workspace-tests |
 | R25.2 | — | — | ✓10.6 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; crates/rsk-gen/src/derive.rs; +2 | check-config-p1-demo; check-config-step |
-| R25.3 | — | — | ✓10.6 | crates/rsk-gen/src/model.rs | — |
+| R25.3 | — | — | ✓10.6 | crates/rsk-gen/src/model.rs; crates/rsk-model/tests/exports.rs | — |
 | R25.4 | — | Task_Model (excerpt) | ✓10.1 | crates/rsk-gen/src/json.rs; crates/rsk-gen/src/model.rs; crates/rsk-model/src/lib.rs; +1 | test-workspace-tests |
 | R25.5 | — | Module boundaries; Property 15 | ✓10.1; ✓13.1 | crates/rsk-model/src/lib.rs; crates/rsk-model/src/task_model.rs; crates/rsk-model/tests/properties.rs; +1 | test-workspace-tests |
 | R25.6 | — | — | ✓10.1 | crates/rsk-analyzer/src/lib.rs; crates/rsk-model/src/lib.rs; crates/rsk-model/src/schema.rs | test-workspace-tests |
@@ -348,7 +348,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R27.1 | — | — | ✓10.7 | crates/rsk-confcheck/src/lib.rs; crates/rsk-gen/src/decl.rs | — |
+| R27.1 | — | — | ✓10.7 | crates/rsk-confcheck/src/lib.rs; crates/rsk-gen/src/decl.rs; crates/rsk-model/tests/exports.rs | — |
 | R27.2 | — | — | ✓10.7 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; +2 | test-workspace-tests |
 | R27.3 | — | — | ✓10.7 | profile/profile.toml; xtask/src/lib.rs; xtask/src/profile_gen.rs; +1 | check-static-checks |
 | R27.4 | — | Trust-Base Analysis | ✓10.7 | crates/rsk-logic/src/logic/mod.rs | — |
@@ -395,7 +395,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R31.1 | — | — | ✓16.1 | crates/rsk-analyzer/src/uppaal.rs | — |
+| R31.1 | — | — | ✓16.1 | crates/rsk-analyzer/src/uppaal.rs; xtask/src/verify.rs | — |
 | R31.2 | — | — | ✓16.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/lib.rs; crates/rsk-analyzer/src/uppaal.rs | — |
 | R31.3 | — | — | ✓16.1 | crates/rsk-analyzer/src/uppaal.rs; crates/rsk-analyzer/tests/uppaal_properties.rs | test-workspace-tests |
 | R31.4 | — | — | ✓16.1 | crates/rsk-analyzer/src/uppaal.rs; xtask/src/corpus.rs; xtask/src/verify.rs | check-uppaal-corpus (inconclusive) |
@@ -424,7 +424,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R33.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓10.1; ✓19.3 | crates/rsk-analyzer/tests/rules.rs; crates/rsk-hil/src/kernel_timing.rs; crates/rsk-hil/src/release_timing.rs; +5 | — |
 | R33.2 | — | Module boundaries; Property 15 | ✓10.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-model/tests/properties.rs; xtask/src/verify.rs | test-workspace-tests |
 | R33.3 | — | — | ✓1.3 | crates/rsk-digest/Cargo.toml; crates/rsk-digest/src/lib.rs; crates/rsk-elf/src/lib.rs; +4 | check-build-manifest; test-workspace-tests |
-| R33.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +5 | analysis-rta-nrf52840_measure-measured; test-workspace-tests |
+| R33.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.3 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/src/main.rs; crates/rsk-analyzer/tests/rules.rs; +7 | analysis-rta-nrf52840_measure-measured; test-workspace-tests |
 | R33.5 | — | WCET and structural coverage | ○24.1 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-analyzer/tests/rules.rs | test-workspace-tests |
 
 ### Requirement 34: Measurement-based WCET (Phase P3)
@@ -436,7 +436,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R34.3 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.1 | crates/rsk-hil/src/stats.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; +1 | analysis-rta-nrf52840_measure-measured |
 | R34.4 | — | — | ✓19.2 | apps/p1-demo/bin/Cargo.toml; apps/p1-demo/system/Cargo.toml; crates/rsk-gen/src/emit.rs; +8 | coverage-partitions-nrf52840_isolation; coverage-partitions-nrf52840_measure; coverage-partitions-nrf52840_response; coverage-partitions-nrf52840_stress_short; coverage-partitions-nrf52840_timing_short |
 | R34.5 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Trust-Base Analysis | ✓19.2 | apps/p1-demo/decl/src/nrf52840_coverage.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; +9 | — |
-| R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-analyzer/src/report.rs; +6 | analysis-rta-nrf52840_measure-measured |
+| R34.6 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/part0/src/lib.rs; crates/rsk-analyzer/src/report.rs; +7 | analysis-rta-nrf52840_measure-measured |
 | R34.7 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓19.1 | crates/rsk-hil/src/cycles.rs; crates/rsk-hil/src/wcet_records.rs; crates/rsk-kernel/Cargo.toml; +5 | analysis-rta-nrf52840_measure-measured |
 | R34.8 | — | — | ✓19.2; ✓7.1 | apps/hil-stimulus/decl/src/lib.rs; crates/rsk-hil/src/lib.rs; crates/rsk-hil/src/selftest.rs; +1 | hil-rig; hil-rig-step |
 | R34.9 | — | WCET and structural coverage | ✓19.2 | apps/p1-demo/decl/src/nrf52840_coverage.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/nrf52840_stress.rs; +13 | — |
@@ -551,7 +551,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R45.2 | P-13 | Property 21 | ✓21.2; ✓5.3; ✓5.4; ✓5.6 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; xtask/src/proofs.rs | proof-kernel-kani |
 | R45.3 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.2 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/proofs.rs | proof-kernel-kani |
 | R45.4 | — | Kani harnesses (R45); Reuse and Deviation Record; Trust-Base Analysis | ✓6.1 | crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/sim.rs; +2 | — |
-| R45.5 | — | — | ✓6.1 | xtask/src/diag.rs; xtask/src/lib.rs; xtask/src/proofs.rs; +1 | check-kani-step; proof-kernel-kani; test-workspace-tests |
+| R45.5 | — | — | ✓6.1 | xtask/src/diag.rs; xtask/src/lib.rs; xtask/src/mutations.rs; +2 | check-kani-step; proof-kernel-kani; test-workspace-tests |
 | R45.6 | — | — | ✓6.3 | — | — |
 | R45.7 | — | — | ✓6.1 | xtask/src/checks/ci.rs; xtask/src/lib.rs; xtask/src/proofs.rs; +2 | check-kani-step; proof-kernel-kani |
 | R45.8 | — | Kani harnesses (R45); Trust-Base Analysis | ✓6.1 | crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs; crates/rsk-logic/src/logic/kani_harness.rs; xtask/src/checks/kani_bounds.rs; +3 | proof-kernel-kani; test-workspace-tests |
@@ -602,9 +602,9 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R50.1 | — | — | ✓8.2 | xtask/src/evidence.rs; xtask/src/main.rs; xtask/src/verify.rs | — |
 | R50.2 | — | Kernel proofs (Verus, R44); Trust-Base Analysis | ✓5.7; ✓8.2 | xtask/src/checks/mod.rs; xtask/src/diag.rs; xtask/src/lib.rs; +2 | check-static-checks; test-workspace-tests |
 | R50.3 | — | — | ✓1.3 | crates/rsk-digest/Cargo.toml; crates/rsk-digest/src/lib.rs; xtask/src/diag.rs; +5 | check-evidence |
-| R50.4 | — | — | ✓8.2 | xtask/src/evidence.rs | — |
+| R50.4 | — | — | ✓8.2 | xtask/src/evidence.rs; xtask/src/proofs.rs; xtask/src/verify.rs | — |
 | R50.5 | — | — | ✓8.4 | xtask/src/main.rs; xtask/src/trace.rs; xtask/src/verify.rs | check-evidence; test-workspace-tests |
-| R50.6 | — | — | ✓8.4 | profile/profile.toml; xtask/src/evidence.rs; xtask/src/main.rs; +2 | check-evidence |
+| R50.6 | — | — | ✓8.4 | profile/profile.toml; xtask/src/evidence.rs; xtask/src/main.rs; +3 | check-evidence |
 
 ### Requirement 51: DO-330 tool qualification assessment (Phase P1)
 
@@ -692,7 +692,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 |---|---|---|---|---|---|
 | R59.1 | — | Property 13 | ✓1.3 | xtask/src/cmd.rs; xtask/src/diag.rs; xtask/src/gen.rs; +3 | test-target-build |
 | R59.2 | — | — | ✓1.3 | crates/rsk-digest/src/lib.rs; xtask/src/manifest.rs; xtask/src/verify.rs | check-build-manifest |
-| R59.3 | — | Trust-Base Analysis | ✓1.3 | xtask/src/diag.rs; xtask/src/lib.rs; xtask/src/main.rs; +1 | — |
+| R59.3 | — | Trust-Base Analysis | ✓1.3 | xtask/src/diag.rs; xtask/src/lib.rs; xtask/src/main.rs; +2 | — |
 
 ### Requirement 60: Architecture abstraction and later targets (Phase P5)
 
@@ -717,146 +717,148 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 ## Criteria without an Evidence_Item (R50.6)
 
-Grouped by Phase. A criterion of a later Phase awaits that Phase; a criterion of Phase P1 or P2 names the tasks that will produce its evidence (○ open, ✓ done but producing no item, which is the document-and-review kind of evidence or a check folded into another item).
+Grouped by Phase. A criterion of a later Phase awaits that Phase. A criterion of Phase P1 or P2, whose tasks are done (✓; ○ open), has a disposition from `docs/criteria_dispositions.toml`: where its evidence is, with what that evidence does not cover, or that none was found. The kinds: `item` (an Evidence_Item of the store establishes it though the item's covers list does not name it), `proof` (a proven statement), `test` (a test the workspace-test item does not attribute to it), `measurement` (a record of the rig), `document` (the criterion asks for a document, which exists), `inspection` (the code exists, nothing executable was found), `none`. Every pointer is checked when this file is written: the file exists and contains the quoted text, or the item is in the store.
+
+Of the criteria of Phases P1 and P2 without an Evidence_Item: 10 `item`, 13 `proof`, 19 `test`, 12 `measurement`, 38 `document`, 10 `inspection`, 2 `none`; 0 without a disposition.
 
 ### Phase P1: 67 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R6.5 | ✓4.1 | — |
-| R6.7 | ✓5.1 | Generated_Config |
-| R7.4 | ✓4.2 | Design decisions |
-| R7.5 | ✓4.2 | Property 2 |
-| R7.6 | ✓4.2 | — |
-| R7.8 | ✓5.1 | — |
-| R8.8 | ✓5.6 | — |
-| R9.10 | ✓7.3 | Profile_Conformance_Suite and HIL_Rig; Property 7 |
-| R10.5 | ✓4.6 | Application API (`rsk`); Reuse and Deviation Record |
-| R10.6 | ✓4.6 | — |
-| R10.8 | ✓21.2 | Endpoint_Library and Protocol_Checker (Component F) |
-| R10.9 | ✓4.6; ✓5.4 | — |
-| R11.2 | ✓5.1 | — |
-| R11.3 | ✓5.1 | — |
-| R11.5 | ✓5.3 | Closed response sets (DD-10, R14.5) |
-| R11.7 | ✓5.1 | — |
-| R11.8 | ✓5.1 | Generated_Config |
-| R12.4 | ✓5.2 | — |
-| R12.5 | ✓5.2 | — |
-| R14.2 | ✓5.3 | — |
-| R14.4 | ✓5.3 | Closed response sets (DD-10, R14.5); Reuse and Deviation Record |
-| R14.8 | ✓19.3; ✓4.4 | — |
-| R14.10 | ✓4.4 | Closed response sets (DD-10, R14.5); Endpoint_Library and Protocol_Checker (Component F) |
-| R17.3 | — | — |
-| R17.4 | ✓19.2 | Requirements Impact |
-| R17.5 | — | — |
-| R18.3 | ✓4.7 | — |
-| R18.5 | ✓4.7 | Closed response sets (DD-10, R14.5); Design decisions |
-| R18.6 | ✓4.7 | Closed response sets (DD-10, R14.5) |
-| R18.8 | ✓7.5 | Profile_Conformance_Suite and HIL_Rig; Property 10 |
-| R19.3 | ✓7.5 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Profile_Conformance_Suite and HIL_Rig; +1 |
-| R19.4 | ✓5.4 | Interrupt intake and MIT enforcement (DD-06); Requirements Impact |
-| R19.5 | ✓5.4 | — |
-| R43.1 | ✓8.1 | — |
-| R43.2 | ✓8.1 | — |
-| R43.3 | ✓8.1 | What the type system gives, and what it does not |
-| R43.4 | ✓8.1 | Correctness Properties; Testing Strategy |
-| R43.5 | ✓8.1 | — |
-| R44.2 | ✓4.5; ✓4.8 | Property 11 |
-| R44.3 | ✓4.7 | Property 10 |
-| R44.4 | ✓4.9 | Property 12 |
-| R44.5 | ✓4.10; ✓5.7 | Kernel logic and Kernel_Arch (Component B); Kernel proofs (Verus, R44); +2 |
-| R44.8 | ✓4.5 | Property 7 |
-| R45.4 | ✓6.1 | Kani harnesses (R45); Reuse and Deviation Record; +1 |
-| R45.6 | ✓6.3 | — |
-| R49.1 | ✓3.2 | Kernel proofs (Verus, R44) |
-| R49.2 | ✓3.2 | Trust-Base Analysis |
-| R49.4 | ✓3.4 | Trust-Base Analysis |
-| R49.5 | ✓3.2 | — |
-| R49.6 | ✓3.2 | — |
-| R50.1 | ✓8.2 | — |
-| R50.4 | ✓8.2 | — |
-| R51.1 | ✓8.1 | — |
-| R51.2 | ✓8.1 | — |
-| R51.3 | ✓8.1 | Tool qualification proposal (R51); Trust-Base Analysis |
-| R51.4 | ✓8.1 | — |
-| R51.5 | ✓8.1 | Tool qualification proposal (R51) |
-| R51.6 | ✓8.1 | — |
-| R51.7 | ✓8.1 | Tool qualification proposal (R51) |
-| R57.4 | ✓2.2 | — |
-| R58.3 | ✓8.1 | — |
-| R61.1 | ✓8.3 | Reuse and Deviation Record |
-| R61.2 | ✓8.3 | Reuse and Deviation Record |
-| R61.3 | ✓8.3 | Reuse and Deviation Record |
-| R61.4 | ✓8.3 | Reuse and Deviation Record |
-| R61.5 | ✓8.3 | Reuse and Deviation Record |
-| R61.6 | ✓8.3 | Reuse and Deviation Record |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R6.5 | ✓4.1 | inspection | `crates/rsk-logic/src/logic/kernel.rs`: "pub struct Kernel<const NT: usize" | The Kernel state is one struct of const-generic arrays sized by the generated constants; nothing executable names the criterion, and the conformance cases for PR-14 are inconclusive in the store. |
+| R6.7 | ✓5.1 | test | `crates/rsk-confcheck/src/lib.rs`: "fn r6_7_an_absent_or_differing_kernel_version_symbol_is_reported" | Since 2026-11-17 the Kernel links RSK_KERNEL_VERSION, RSK_PROFILE_VERSION and RSK_PROFILE_VARIANT (kept by the generated linker script), and the Config_Checker reports each when absent from the binary or different from the Task_Model; three cases of its mutation suite alter the model. A binary without the symbols was seen reported (the first build, before the section was kept). Named by the test, so the workspace-test item lists it from the next job. |
+| R7.4 | ✓4.2 | inspection | `.kiro/specs/rsk-ravenscar-profile/design.md`: "\| DD-02 \| One Kernel-reserved NVIC level" | What may preempt a Job is the dispatch-level design (DD-02) and the entry code; the evidence document records that no proven statement carries it. |
+| R7.5 | ✓4.2 | proof | `crates/rsk-logic/src/logic/kernel.rs`: "pub fn job_return" | Partial: the stack and System_Ceiling at a Job end are proven (allocation row P-10); the register state is the stub model and the QEMU spike, not this proof. |
+| R7.6 | ✓4.2 | inspection | `crates/rsk-logic/src/hw_model.rs`: "R7.6" | The idle level is stated in the Hardware_Model and set by the boot code; shown on QEMU and the board by the dispatch spike, which does not name the criterion. |
+| R7.8 | ✓5.1 | measurement | `docs/hil/kernel_timing_nrf52840_stress.json`: ""rsk-kernel-timing/" | Δ_dispatch and Δ_complete are measured maxima in the rig's records. Δ_wake is recorded since 2026-11-17 (the edge-to-timestamp lag of the edges that found the processor idle) and is in a record from the next release-timing run on; until then no item covers the criterion. |
+| R8.8 | ✓5.6 | measurement | `docs/hil/kernel_timing_nrf52840_stress.json`: ""rsk-kernel-timing/" | Δ_lock_in and Δ_lock_out are measured maxima in the rig's records (plan 11.5); not bounds. From the next job this is the item `measure-kernel-timing-<variant>`, which is inconclusive when the record is of another binary than the job's. |
+| R9.10 | ✓7.3 | measurement | `docs/verification_plan.md`: "### 11.3 Release timing over PAR-05" | The hour-long release-timing campaign (plan 11.3), an operator run. From the next job this is the item `hil-release-timing`, which is inconclusive when the record is of another binary than the job's. |
+| R10.5 | ✓4.6 | proof | `crates/rsk-kernel/src/arch/cm4/entry.rs`: "A Release_Signal raise (R10.5, R10.7)" | The raise is the entry core `raise_core`, whose contract hands the event to `Kernel::intake` for the Task bound to the signal; the Jorvik case is Phase P5. |
+| R10.6 | ✓4.6 | measurement | `docs/hil/kernel_timing_nrf52840_stress.json`: ""rsk-kernel-timing/" | J_rel is a measured maximum in the rig's records; the Lean run takes it as a condition. From the next job this is the item `measure-kernel-timing-<variant>`, which is inconclusive when the record is of another binary than the job's. |
+| R10.8 | ✓21.2 | proof | `crates/rsk-kernel/src/arch/cm4/entry.rs`: "R10.8" | The send core keeps the message in the channel whatever the intake decides (its postcondition on the channel view); see plan 5.10. |
+| R10.9 | ✓4.6; ✓5.4 | inspection | `docs/verification_plan.md`: "R10.9 (local masking)" | Partial by the plan's own account (9.5): the Kernel applies R10.1 to R10.3 to what reaches it; the masking of the line is by inspection. |
+| R11.2 | ✓5.1 | document | `crates/rsk-logic/src/hw_model.rs`: "HW-10" | The policy is named in the design and modelled as HW-10, with a differential test on the board (item hil-dt-hw-10). |
+| R11.3 | ✓5.1 | measurement | `hil-cycles-fpu` | Δ_fp_save and Δ_fp_restore are measured by the floating-point variant of the cycle test (item hil-cycles-fpu, plan 11.11). |
+| R11.5 | ✓5.3 | proof | `crates/rsk-kernel/src/arch/cm4/entry.rs`: "in_kernel \|\| kind == EV_HARDFAULT \|\| old(k).spec_depth() == 0 ==> r.1" | The Kernel's half is the fault entry's contract (a fault taken from Handler mode or under PRIMASK, any HardFault, and a fault with no Job executing end in the safe state; the stubs' save and restore of S16 to S31 runs in Handler mode). The Partition's half has a run-time case since 2026-11-17, `fi-R11-5-fp-stack-bottom`: the FPU Task issues an SVC with its FP context in use and no room for the frame, and the fault is the Partition's (passed on QEMU; an item of the conformance step from the next job). |
+| R11.7 | ✓5.1 | proof | `crates/rsk-kernel/src/arch/cm4/entry.rs`: "R11.7" | Stricter than written: the dispatch contract grants the FPU per Job as the Task's configuration says (2026-11-17), not once at Init. |
+| R11.8 | ✓5.1 | item | `hil-dt-hw-10` | Partial until the rig runs again: the differential test of HW-10 shows that a new floating-point context takes the default status register's settings. Since 2026-11-17 the isolation suite's FPU Task leaves round-toward-zero at the end of every Job and every later Job compares what it finds with the first; the rig judges the count as a row of HW-10. |
+| R12.4 | ✓5.2 | proof | `crates/rsk-kernel/src/arch/cm4/entry.rs`: "fn boot_core" | `boot_core` returning false has enabled and pended no interrupt, armed no compare and not started the time base. |
+| R12.5 | ✓5.2 | item | `hil-boot-checks` | The boot-check suite fails the DWT presence check in turn on the board. From the next job the item's covers list names it. |
+| R14.2 | ✓5.3 | item | `fi-PR-19` | The run-time case for PR-19: a panic in a Job reaches the Kernel, which logs the event for the Partition and applies its response. From the next job the item's covers list names it. |
+| R14.4 | ✓5.3 | proof | `crates/rsk-logic/src/logic/kernel.rs`: "pub fn fault" | `Kernel::fault` with the Kernel flag logs the event and enters the safe state. |
+| R14.8 | ✓19.3; ✓4.4 | measurement | `docs/hil/kernel_timing_nrf52840_stress.json`: ""rsk-kernel-timing/" | Δ_enforce is a measured maximum in the rig's records. Δ_hm is the fault entry, which only the response suite takes: since 2026-11-17 that suite writes a record (`kernel_timing_nrf52840_response.json`) from its next run on; until then no item covers the criterion. |
+| R14.10 | ✓4.4 | measurement | `crates/rsk-analyzer/tests/rules.rs`: "R14.10" | Δ_restart is measured on the rig and Δ_stop is the entry that stops a Partition, which only the response suite takes: since 2026-11-17 that suite writes a record from its next run on. That the Analyzer includes the work has a rule test. |
+| R17.3 | — | document | `docs/verification_plan.md`: "### 11.7 Isolation" | The mechanism (the register-write service, the read-only window) is in the plan with its evidence, and the service is proven never to write a pointer register. |
+| R17.4 | ✓19.2 | measurement | `docs/verification_plan.md`: "### 11.13 Loop-bound driving" | The EasyDMA traffic scenario of the measurement configurations (plan 11.13). |
+| R17.5 | — | test | `crates/rsk/tests/dma.rs`: "/// R17.5: while a transfer has a buffer" | The lending library's test and the model check of its four operations (plan 11.7, 2026-11-16). Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R18.3 | ✓4.7 | proof | `crates/rsk-logic/src/logic/kernel.rs`: "fn budget_event" | Partial: an Overrun the Budget event finds is answered by the Partition's response, once; Δ_enforce is measured. |
+| R18.5 | ✓4.7 | test | `crates/rsk-gen/src/lib.rs`: "fn r18_5_a_lower_level_partition_may_not_let_an_overrunning_job_continue" | A lower-level Partition that lets an overrunning Job continue is rejected naming its Overrun_Response; two Partitions of the highest level may both. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R18.6 | ✓4.7 | test | `crates/rsk-gen/src/lib.rs`: "fn r18_6_the_highest_level_partition_may_record_an_overrun_and_continue" | The highest-level Partition is accepted with the response and the generated table carries it. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R18.8 | ✓7.5 | measurement | `docs/verification_plan.md`: "### 11.4 Fault injection" | The fault-injection and stress campaign (plan 11.4), an operator run. From the next job this is the item `hil-stress`, which is inconclusive when the record is of another binary than the job's. |
+| R19.3 | ✓7.5 | measurement | `docs/verification_plan.md`: "### 11.4 Fault injection" | The interrupt storm of the stress campaign (plan 11.4). From the next job this is the item `hil-stress`, which is inconclusive when the record is of another binary than the job's. |
+| R19.4 | ✓5.4 | test | `crates/rsk-gen/src/lib.rs`: "fn r19_4_an_interrupt_bound_task_may_not_declare_the_discard_policy" | The design states deferral only for every interrupt source (DD-06), and since 2026-11-17 the Generator refuses `discard` on an interrupt-bound Task and accepts it for a Release_Signal. Named by the test, so the workspace-test item lists it from the next job. |
+| R19.5 | ✓5.4 | proof | `crates/rsk-kernel/src/arch/cm4/entry.rs`: "fn unbound_core" | The boot code leaves every unbound vector disabled (`boot_vectors`) and `unbound_core` reports an exception from one as a Kernel fault. |
+| R43.1 | ✓8.1 | document | `docs/verification_plan.md`: "## 3. Property allocation" | The property allocation table. |
+| R43.2 | ✓8.1 | document | `docs/verification_plan.md`: "## 3. Property allocation" | The property allocation table. |
+| R43.3 | ✓8.1 | document | `docs/verification_plan.md`: "## 2. What the type system gives" | Section 2 of the plan. |
+| R43.4 | ✓8.1 | document | `docs/verification_plan.md`: "### Testing-only evidence (R43.4)" | The subsection on testing-only evidence. |
+| R43.5 | ✓8.1 | document | `docs/verification_plan.md`: "## 12. Criteria outside the allocation table" | Section 12 of the plan and the generated matrix, which `cargo xtask trace --check` keeps current. |
+| R44.2 | ✓4.5; ✓4.8 | proof | `crates/rsk-logic/src/logic/endpoint.rs`: "pub struct Fifo" | The slot table, the log and the Endpoint channel are proven against sequence models (allocation row P-09); the plan does not list the criterion as completely covered. |
+| R44.3 | ✓4.7 | proof | `crates/rsk-logic/src/logic/kernel.rs`: "fn budget_event" | Partial, and the evidence document says so: reported and answered once is proven, the Δ_detect bound in cycles is not (it is measured); the MIT spacing half is proven. |
+| R44.4 | ✓4.9 | proof | `crates/rsk-logic/src/hw_model.rs`: "lemma_hw_partition_isolation" | `lemma_hw_partition_isolation` over the Hardware_Model (allocation row P-16). |
+| R44.5 | ✓4.10; ✓5.7 | document | `docs/trust_base_register.toml`: "[[" | The Trust_Base_Register lists the trusted functions, checked against the sources by `cargo xtask check`; the assembly stubs are proven against a machine model only. |
+| R44.8 | ✓4.5 | proof | `crates/rsk-logic/src/logic/time.rs`: "fn advance_periodic" | Partial by the plan's own account (9.5): `advance_periodic` gives O + k·T without overflow; the single pending or deferred Release is `Sched::inv`. |
+| R45.4 | ✓6.1 | document | `docs/verification_plan.md`: "### 6.2 Stubs and the differential tests" | Section 6.2 of the plan and the stub list `docs/kani_stubs.toml`. |
+| R45.6 | ✓6.3 | document | `docs/verification_plan.md`: "### 6.1 Limitations and mitigations (R45.6)" | Section 6.1 of the plan. |
+| R49.1 | ✓3.2 | document | `crates/rsk-logic/src/hw_model.rs`: "HW-01" | The Hardware_Model's rules HW-01 to HW-15, each with a differential test on the board where one applies (items hil-dt-hw-*). |
+| R49.2 | ✓3.2 | document | `crates/rsk-logic/src/hw_model.rs`: "HW-01" | Each rule of the Hardware_Model carries its citation in the source. |
+| R49.4 | ✓3.4 | document | `docs/verification_plan.md`: "### 11.10 Errata review" | The errata table in the Hardware_Model and the review of plan 11.10. |
+| R49.5 | ✓3.2 | document | `crates/rsk-logic/src/hw_model.rs`: "spec fn" | The Hardware_Model is the Verus module `hw_model`, used by the Kernel proofs directly. |
+| R49.6 | ✓3.2 | document | `crates/rsk-logic/src/hw_model.rs`: "R49.6" | The list of behaviours not formalized, in the Hardware_Model's header. |
+| R50.1 | ✓8.2 | document | `docs/verification_plan.md`: "### HIL frequency (R50.1)" | The verification job is `cargo xtask verify`; the HIL frequency is recorded in the plan. That the job runs on every change to the main branch is not enforced by anything in the repository. |
+| R50.4 | ✓8.2 | inspection | `xtask/src/proofs.rs`: "pub fn rerun_verus" | Since 2026-11-17 the job runs the Verus proofs of one crate a second time in an empty build directory and compares the result with the first run's; from the next job this is the item `check-proof-rerun`. One crate of one proof item, on the job's own revision: not every proof item, and not a past revision's archive. |
+| R51.1 | ✓8.1 | document | `docs/verification_plan.md`: "### 8.1 Classification (R51.1, R51.2)" | Section 8.1 of the plan. |
+| R51.2 | ✓8.1 | document | `docs/verification_plan.md`: "### 8.1 Classification (R51.1, R51.2)" | Section 8.1 of the plan. |
+| R51.3 | ✓8.1 | document | `docs/verification_plan.md`: "### 8.2 The Generator needs no TQL-1 or TQL-2 (R51.3)" | Section 8.2 of the plan. |
+| R51.4 | ✓8.1 | document | `docs/verification_plan.md`: "### 8.3 Verus and Kani (R51.4)" | Section 8.3 of the plan. |
+| R51.5 | ✓8.1 | document | `docs/verification_plan.md`: "### 8.4 Analyzer (R51.5)" | Section 8.4 of the plan. |
+| R51.6 | ✓8.1 | document | `docs/verification_plan.md`: "Qualification is per project" | Stated at the end of section 8.1. |
+| R51.7 | ✓8.1 | document | `docs/verification_plan.md`: "### 8.5 Independence (R51.7)" | Section 8.5 of the plan. |
+| R57.4 | ✓2.2 | document | `docs/gap_register.toml`: ""R57.4"" | The Gap_Register entry, whose presence and links `cargo xtask check` verifies (the registers check). |
+| R58.3 | ✓8.1 | document | `docs/verification_plan.md`: "## 10. HAL and PAC strategy for Partitions" | Section 10 of the plan. |
+| R61.1 | ✓8.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "## Reuse and Deviation Record" | The Reuse and Deviation Record of the design document; not checked by any tool. |
+| R61.2 | ✓8.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "## Reuse and Deviation Record" | The Reuse and Deviation Record of the design document; not checked by any tool. |
+| R61.3 | ✓8.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "## Reuse and Deviation Record" | The Reuse and Deviation Record of the design document; not checked by any tool. |
+| R61.4 | ✓8.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "## Reuse and Deviation Record" | The Reuse and Deviation Record of the design document; not checked by any tool. |
+| R61.5 | ✓8.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "## Reuse and Deviation Record" | The Reuse and Deviation Record of the design document; not checked by any tool. |
+| R61.6 | ✓8.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "## Reuse and Deviation Record" | The Reuse and Deviation Record of the design document; not checked by any tool. |
 
 ### Phase P1 Kernel; P2 Generator: 6 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R15.1 | ✓10.2 | Design decisions |
-| R15.2 | ✓10.2 | — |
-| R15.3 | ✓10.2 | — |
-| R15.4 | ✓10.6 | — |
-| R15.5 | ✓10.5 | — |
-| R15.7 | ✓10.2 | — |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R15.1 | ✓10.2 | test | `crates/rsk-gen/src/syntax.rs`: "fn parses_the_demo_declaration" | The demo declaration states every field R15.1 lists, parses and generates. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R15.2 | ✓10.2 | item | `conf-PR-28-mc` | The Generator's rejection of an item declared twice; the grammar nests every item in one Partition, so this is the form a violation can take. From the next job the item's covers list names it. |
+| R15.3 | ✓10.2 | item | `conf-PR-30-mc` | The Generator's rejection case for PR-30, and a unit test of the same rule. From the next job the item's covers list names it. |
+| R15.4 | ✓10.6 | test | `crates/rsk-model/tests/exports.rs`: "fn r15_4_each_partition_is_exported_with_level_members_regions_threshold_and_responses" | Each Partition of the demo's committed model has its level, members, region sizes, threshold and responses; the members listed are the items that name the Partition; a model without one of these is refused. Named by the test, so the workspace-test item lists it from the next job. |
+| R15.5 | ✓10.5 | test | `crates/rsk-gen/src/lib.rs`: "fn r15_5_an_application_of_one_partition_generates_with_its_own_regions" | An Application of one Partition generates with its regions placed; the Kernel's behaviour on it is not run. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R15.7 | ✓10.2 | test | `crates/rsk-gen/src/lib.rs`: "fn r15_7_each_missing_field_and_each_response_outside_its_set_is_named" | Each missing region size and each response outside its set is rejected naming the Partition and the field, and no other Partition. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
 
 ### Phase P1 definition; P3 measurement: 3 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R13.1 | ✓19.3 | — |
-| R13.5 | ✓19.3 | — |
-| R13.6 | ✓19.3 | Kernel_Timing_Parameters added by this design (R13.6); Requirements Impact |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R13.1 | ✓19.3 | measurement | `docs/hil/kernel_timing_nrf52840_stress.json`: ""rsk-kernel-timing/" | Every row of Table 13-1 is measured or dispositioned (plan 11.5); the values are measured maxima with a margin, not upper bounds. |
+| R13.5 | ✓19.3 | item | `check-profile-lint` | The Profile_Lint bounds every loop of the Kernel crates and Verus proves each terminates (`decreases`). From the next job the item's covers list names it. |
+| R13.6 | ✓19.3 | document | `.kiro/specs/rsk-ravenscar-profile/design.md`: "### Kernel_Timing_Parameters added by this design (R13.6)" | The design section that defines the added parameters; that the Analyzer requires each has a rule test. |
 
 ### Phase P1 plan: 4 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R52.1 | ✓4.11; ✓8.1 | — |
-| R52.3 | ✓8.1 | — |
-| R52.4 | ✓8.1 | — |
-| R52.5 | ✓4.11; ✓8.1 | — |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R52.1 | ✓4.11; ✓8.1 | document | `docs/verification_plan.md`: "### 9.1 Soundness justification (R52.1)" | Section 9.1 of the plan. |
+| R52.3 | ✓8.1 | document | `docs/verification_plan.md`: "### 9.3 Property preservation to object code (R52.3, ORQ-08)" | Section 9.3 of the plan. |
+| R52.4 | ✓8.1 | document | `docs/verification_plan.md`: "### 9.4 Objectives claimed and testing that remains (R52.4)" | Section 9.4 of the plan. |
+| R52.5 | ✓4.11; ✓8.1 | document | `docs/verification_plan.md`: "### 9.5 Criteria covered by each formal analysis (R52.5)" | Section 9.5 of the plan, from which the Verus item's covers list is derived. |
 
 ### Phase P1; dual build from P5: 1 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R55.3 | ○23.1 | Tool qualification proposal (R51); Trust-Base Analysis |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R55.3 | ○23.1 | none | — | Task 23.1 (the qualified toolchain and the dual build) is open; the plan's section 9.3 describes the argument, the archive does not exist. |
 
 ### Phase P2: 22 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R3.1 | ✓10.2 | Error Handling |
-| R3.9 | ✓14.1 | Profile_Conformance_Suite and HIL_Rig |
-| R21.4 | ✓10.2 | — |
-| R21.5 | ✓10.2 | — |
-| R21.6 | ✓10.2 | — |
-| R22.3 | ✓10.2 | — |
-| R22.4 | ✓10.2 | — |
-| R22.6 | ✓10.2 | — |
-| R23.3 | ✓10.3 | — |
-| R23.5 | ✓10.3 | Task_Model (excerpt) |
-| R24.3 | ✓10.6 | App_Declaration and generation pipeline (Component C) |
-| R24.6 | ✓10.5 | Generated_Config; Memory and MPU layout (DD-07, DD-11) |
-| R25.3 | ✓10.6 | — |
-| R27.1 | ✓10.7 | — |
-| R27.4 | ✓10.7 | Trust-Base Analysis |
-| R27.5 | ✓10.7 | — |
-| R31.1 | ✓16.1 | — |
-| R31.2 | ✓16.1 | — |
-| R35.4 | ✓19.2 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
-| R47.3 | ✓17.2 | — |
-| R47.4 | — | — |
-| R59.3 | ✓1.3 | Trust-Base Analysis |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R3.1 | ✓10.2 | test | `crates/rsk-gen/src/syntax.rs`: "fn r3_1_r21_4_a_violation_is_reported_at_the_span_of_the_offending_item" | A violation resolves to the line of the offending field, with its rule, for a Task field and a Partition field; the conformance suite's MC cases check the PR identifier per restriction. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R3.9 | ✓14.1 | item | `fi-PR-12` | A run-time case passes only when the logged event carries its restriction's bit. From the next job the item's covers list names it. |
+| R21.4 | ✓10.2 | test | `crates/rsk-gen/src/syntax.rs`: "fn r3_1_r21_4_a_violation_is_reported_at_the_span_of_the_offending_item" | As R3.1: the diagnostic is at the span of the offending item and names the rule. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R21.5 | ✓10.2 | test | `crates/rsk-gen/src/lib.rs`: "fn r21_5_a_peripheral_or_interrupt_the_target_lacks_is_rejected" | An owned peripheral and a bound interrupt the Target lacks are each rejected naming the item. A peripheral without an interrupt line is not exercised. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R21.6 | ✓10.2 | test | `crates/rsk-gen/src/lib.rs`: "fn r21_6_a_task_may_bind_only_an_interrupt_of_a_peripheral_its_partition_owns" | A Task binding the interrupt of a peripheral its Partition does not own is rejected; the owner's Task may bind it. (The conformance case for PR-29 is about a Kernel-owned peripheral, which is R15.6.) Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R22.3 | ✓10.2 | item | `conf-PR-12-mc` | The Generator's rejection of a Release_Signal that releases a second Task; the interrupt and Endpoint forms have no case, and the Jorvik waiter count is Phase P5. From the next job the item's covers list names it. |
+| R22.4 | ✓10.2 | item | `conf-PR-11-mc` | The Generator's rejection of a Periodic_Task with a Release_Source; the other two forms (two sources, a Sporadic_Task with none) have no case. From the next job the item's covers list names it. |
+| R22.6 | ✓10.2 | test | `crates/rsk-gen/src/lib.rs`: "fn r22_6_times_the_kernel_time_base_cannot_hold_are_rejected" | An operating duration of zero or beyond the time base, a period over the operating duration and an offset beyond it are each rejected naming the field. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R23.3 | ✓10.3 | inspection | `crates/rsk-logic/src/logic/sched.rs`: "R23.3" | The nesting bound is used by the Kernel's scheduler proof (PR-07); no test of the Generator's computation names it. The derivation arithmetic proven on 2026-11-17 covers Ceilings and levels. |
+| R23.5 | ✓10.3 | test | `crates/rsk-model/tests/exports.rs`: "fn r23_5_every_derived_value_is_exported_with_its_marker" | Since 2026-11-17 the priority-to-hardware mapping and the Kernel-reserved levels carry the marker too (a top-level `derived` list, required by the schema and the reader, checked by the Config_Checker). Named by the test, so the workspace-test item lists it from the next job. |
+| R24.3 | ✓10.6 | test | `crates/rsk-gen/src/lib.rs`: "fn r24_3_the_summary_lists_the_generated_values" | The summary names the Target, the capacities, each Partition with its level and responses, and each Task and Resource. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R24.6 | ✓10.5 | inspection | `crates/rsk-logic/src/logic/mod.rs`: "R24.6" | Generated_Config is emitted as constants, and the layout places it in flash; the Config_Checker reads the same bytes. No test names the criterion. |
+| R25.3 | ✓10.6 | test | `crates/rsk-model/tests/exports.rs`: "fn r25_3_wcet_records_are_associated_by_the_models_task_and_site_identifiers" | Every Task has an entry point and one site per accessed Resource, and every record of the rig's committed set names one of them. A release condition carries code only in the Jorvik variant. Named by the test, so the workspace-test item lists it from the next job. |
+| R27.1 | ✓10.7 | test | `crates/rsk-model/tests/exports.rs`: "fn r27_1_the_core_fields_are_present_and_required_with_no_default" | The core fields are in the model and a model without one is refused by the reader. Named by the test, so the workspace-test item lists it from the next job. |
+| R27.4 | ✓10.7 | document | `crates/rsk-logic/src/logic/mod.rs`: "R27.4" | Stated in the header of the Kernel logic: the single core is the shape of the state every proof is over. |
+| R27.5 | ✓10.7 | test | `crates/rsk-analyzer/tests/report.rs`: "/// R30.1, and R27.5" | The demo report's test asserts the single-core statement is present. Named by the test since 2026-11-17, so the workspace-test item lists it from the next job. |
+| R31.1 | ✓16.1 | item | `check-uppaal-corpus` | The corpus run hands the exported `model.xml` and `model.q` to `verifyta`, which accepts them; the item is inconclusive on 4 of 11 models for another reason. In the item's covers list from the next job. |
+| R31.2 | ✓16.1 | inspection | `crates/rsk-analyzer/src/uppaal.rs`: "R31.2" | What the model contains is described in plan 8.7 with its approximations; the only exporter test is the round trip of R31.8, and the corpus cross-check exercises the model without checking its parts one by one. |
+| R35.4 | ✓19.2 | measurement | `docs/verification_plan.md`: "### 11.13 Loop-bound driving" | The loop-iteration report of the measurement builds (plan 11.13). |
+| R47.3 | ✓17.2 | document | `docs/verification_plan.md`: "### 6.4 Interleaving tests: Loom and Shuttle" | Section 6.4 of the plan. |
+| R47.4 | — | none | — | The multi-core extension is not built (NG-01); the criterion has no subject yet. |
+| R59.3 | ✓1.3 | inspection | `xtask/src/verify.rs`: "fn rebuild_step" | Since 2026-11-17 the comparison is a step of the verification job; from the next job this is the item `check-rebuild`, which is inconclusive when the tree has uncommitted changes. One host. |
 
 ### Phase P2 format; P3 measurement: 1 criteria
 
-| Criterion | Tasks | Design |
-|---|---|---|
-| R33.1 | ✓10.1; ✓19.3 | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness |
+| Criterion | Tasks | Disposition | Where | What it covers, and what it does not |
+|---|---|---|---|---|
+| R33.1 | ✓10.1; ✓19.3 | inspection | `crates/rsk-model/src/wcet.rs`: "KERNEL_TIMING_SYMBOLS" | The record schemas are the serde types of rsk-model, which reject unknown fields, and the rig writes and the Analyzer reads records through them; no test states the schema's required fields one by one. |
 
 ### Phase P3: 6 criteria
 
