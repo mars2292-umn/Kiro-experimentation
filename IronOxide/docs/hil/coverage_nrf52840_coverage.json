@@ -1,18 +1,18 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:48c496a4723bfb8244970260d83d36c6ccbff4719b929499b565f7f39ce9fee8",
+  "binary_hash": "sha256:dc38d3a001694dfa97cb9f1a52eab4b592b049e9d59b43414811a293282547b5",
   "threshold_percent": 50,
   "items": [
     {
       "item": "part0.control",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part07control17haa9c821be85c5ec7E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h708cb4a64ff491bcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8207c0b2955a21a0E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd218188cd5808b34E",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part07control17h26a240dd62a91c24E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1618c490890c9358E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4c3184d246377775E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h64315a5cfae0c174E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 4,
       "covered": 4,
@@ -22,12 +22,12 @@
     {
       "item": "part0.control#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part07control17haa9c821be85c5ec7E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h708cb4a64ff491bcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8207c0b2955a21a0E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd218188cd5808b34E",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part07control17h26a240dd62a91c24E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1618c490890c9358E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4c3184d246377775E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h64315a5cfae0c174E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 4,
       "covered": 4,
@@ -37,12 +37,12 @@
     {
       "item": "part0.control#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part07control17haa9c821be85c5ec7E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h708cb4a64ff491bcE",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h8207c0b2955a21a0E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hd218188cd5808b34E",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part07control17h26a240dd62a91c24E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1618c490890c9358E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h4c3184d246377775E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h64315a5cfae0c174E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 4,
       "covered": 4,
@@ -52,10 +52,10 @@
     {
       "item": "part0.echo",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part04echo17h9dc9eae2ad213a08E",
-        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17hec31436fe057e5edE",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part04echo17ha999754e2aad4974E",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17hdb61d52ec128ddc7E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 0,
       "covered": 0,
@@ -65,87 +65,87 @@
     {
       "item": "part0.sensor",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part06sensor17hb0d060fe361c1d51E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h52d87d06cd22e2c5E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h75eaaa28ae99c739E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc16c7e56fb094ea3E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hceafa4d71421a50bE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17he98facec1bfd9d60E",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part06sensor17h0e8efd52c127a6a3E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h645d6326807854f1E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h6d0813d85decd811E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha0b6f907707c3968E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hcb48f844b1e81c0dE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9a14fbe8e12a9244E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 385:80 false"
+        "p1_demo_part0::sensor::{closure}: 390:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part06sensor17hb0d060fe361c1d51E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h52d87d06cd22e2c5E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h75eaaa28ae99c739E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc16c7e56fb094ea3E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hceafa4d71421a50bE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17he98facec1bfd9d60E",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part06sensor17h0e8efd52c127a6a3E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h645d6326807854f1E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h6d0813d85decd811E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha0b6f907707c3968E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hcb48f844b1e81c0dE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9a14fbe8e12a9244E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 385:80 false"
+        "p1_demo_part0::sensor::{closure}: 390:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h02d48e907a7a3b7dE",
-        "_ZN13p1_demo_part06sensor17hb0d060fe361c1d51E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h52d87d06cd22e2c5E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h75eaaa28ae99c739E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hc16c7e56fb094ea3E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hceafa4d71421a50bE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17he98facec1bfd9d60E",
-        "_ZN13p1_demo_part012validate_rep17hc6df416dd1d7098aE"
+        "_ZN13p1_demo_part010rsk_target2ms17ha0d8b876294d65bbE",
+        "_ZN13p1_demo_part06sensor17h0e8efd52c127a6a3E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h645d6326807854f1E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h6d0813d85decd811E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17ha0b6f907707c3968E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hcb48f844b1e81c0dE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h9a14fbe8e12a9244E",
+        "_ZN13p1_demo_part012validate_rep17h893bd9277f2d5c6fE"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 385:80 false"
+        "p1_demo_part0::sensor::{closure}: 390:80 false"
       ]
     },
     {
       "item": "part1.log",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h9db33be05761f5f9E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17hbca324da784f6ceeE",
-        "_ZN13p1_demo_part112pulse_source5start17hda6500e3178361bfE",
-        "_ZN13p1_demo_part112pulse_source7respond17hf895fedeb2383116E",
-        "_ZN13p1_demo_part13log17h7ed74a7b99bc5c22E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h3174890c552c4954E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17ha80b98bb89ce46a5E"
+        "_ZN13p1_demo_part110rsk_target2ms17h4462646c95e9d056E",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h4b4a734f0ff98280E",
+        "_ZN13p1_demo_part112pulse_source5start17h6676de3a8c33d27bE",
+        "_ZN13p1_demo_part112pulse_source7respond17h6dd507f20120cdb4E",
+        "_ZN13p1_demo_part13log17hfa7f4fd1f5657241E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hacaa16c0ce74edcfE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hfc05a2469be28693E"
       ],
       "branches": 14,
       "covered": 13,
       "percent": 92,
       "uncovered": [
-        "p1_demo_part1::log: 418:72 false"
+        "p1_demo_part1::log: 424:72 false"
       ]
     },
     {
       "item": "part1.pulse",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17h9db33be05761f5f9E",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17hbca324da784f6ceeE",
-        "_ZN13p1_demo_part112pulse_source5start17hda6500e3178361bfE",
-        "_ZN13p1_demo_part112pulse_source7respond17hf895fedeb2383116E",
-        "_ZN13p1_demo_part15pulse17he6b8b183d39b373fE",
-        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h0af4a71e7b467d77E"
+        "_ZN13p1_demo_part110rsk_target2ms17h4462646c95e9d056E",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17h4b4a734f0ff98280E",
+        "_ZN13p1_demo_part112pulse_source5start17h6676de3a8c33d27bE",
+        "_ZN13p1_demo_part112pulse_source7respond17h6dd507f20120cdb4E",
+        "_ZN13p1_demo_part15pulse17hb5535c24574379eaE",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17hbb8fabe6d60e48baE"
       ],
       "branches": 6,
       "covered": 6,
@@ -155,123 +155,135 @@
     {
       "item": "part2.filter",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h5667c5b9f23da35bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h0f3d36de8dba4297E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1aa7e312b1fd29b7E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h271170da59357e66E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hda63488aa7d0f121E",
-        "_ZN13p1_demo_part25Stats6record17h931fd00cc3b28f4eE",
-        "_ZN13p1_demo_part26filter17h4ba52b38152baf82E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h77bf513251b222d1E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h921eacee68053812E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hbb3d29887e7ec3c2E",
-        "_ZN13p1_demo_part27lowpass17h7a46036448a3d016E",
-        "_ZN13p1_demo_part210rsk_target2ms17h48b4a02f4de808e9E",
-        "_ZN13p1_demo_part212validate_req17hb12f33cc5d7d9ee6E",
-        "_ZN13p1_demo_part25Stats3new17h66ee7fb657c246c0E"
+        "_ZN13p1_demo_part212traffic_step17h06041f21a31241eaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h081b819637ce8be8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33effb59708dd464E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h50aa52022e5fd535E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h58e50a7a3869a289E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17haed955d45584c0aaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdf43475d12af8ccfE",
+        "_ZN13p1_demo_part25Stats6record17hbe33634e652c05f4E",
+        "_ZN13p1_demo_part26filter17h3531c33685a6de9eE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h5ba9081c6166632cE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hab9bd3e5622a138bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he437a2d946e79ec5E",
+        "_ZN13p1_demo_part27lowpass17hac2fa8d56a8196aaE",
+        "_ZN13p1_demo_part210rsk_target2ms17h2601610271d1041dE",
+        "_ZN13p1_demo_part212validate_req17h91f39121910ebce9E",
+        "_ZN13p1_demo_part25Stats3new17h8d1c6ede8ef794e0E"
       ],
-      "branches": 12,
-      "covered": 6,
+      "branches": 14,
+      "covered": 7,
       "percent": 50,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 123:8 true",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 127:12 false",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 192:8 true",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 196:12 false",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false"
       ]
     },
     {
       "item": "part2.filter#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h5667c5b9f23da35bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h0f3d36de8dba4297E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1aa7e312b1fd29b7E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h271170da59357e66E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hda63488aa7d0f121E",
-        "_ZN13p1_demo_part25Stats6record17h931fd00cc3b28f4eE",
-        "_ZN13p1_demo_part26filter17h4ba52b38152baf82E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h77bf513251b222d1E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h921eacee68053812E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hbb3d29887e7ec3c2E",
-        "_ZN13p1_demo_part27lowpass17h7a46036448a3d016E",
-        "_ZN13p1_demo_part210rsk_target2ms17h48b4a02f4de808e9E",
-        "_ZN13p1_demo_part212validate_req17hb12f33cc5d7d9ee6E",
-        "_ZN13p1_demo_part25Stats3new17h66ee7fb657c246c0E"
+        "_ZN13p1_demo_part212traffic_step17h06041f21a31241eaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h081b819637ce8be8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33effb59708dd464E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h50aa52022e5fd535E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h58e50a7a3869a289E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17haed955d45584c0aaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdf43475d12af8ccfE",
+        "_ZN13p1_demo_part25Stats6record17hbe33634e652c05f4E",
+        "_ZN13p1_demo_part26filter17h3531c33685a6de9eE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h5ba9081c6166632cE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hab9bd3e5622a138bE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he437a2d946e79ec5E",
+        "_ZN13p1_demo_part27lowpass17hac2fa8d56a8196aaE",
+        "_ZN13p1_demo_part210rsk_target2ms17h2601610271d1041dE",
+        "_ZN13p1_demo_part212validate_req17h91f39121910ebce9E",
+        "_ZN13p1_demo_part25Stats3new17h8d1c6ede8ef794e0E"
       ],
-      "branches": 12,
-      "covered": 6,
+      "branches": 14,
+      "covered": 7,
       "percent": 50,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 123:8 true",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 127:12 false",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 192:8 true",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 196:12 false",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false"
       ]
     },
     {
       "item": "part2.sampler",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h5667c5b9f23da35bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h0f3d36de8dba4297E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1aa7e312b1fd29b7E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h271170da59357e66E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hda63488aa7d0f121E",
-        "_ZN13p1_demo_part25Stats6record17h931fd00cc3b28f4eE",
-        "_ZN13p1_demo_part27lowpass17h7a46036448a3d016E",
-        "_ZN13p1_demo_part27sampler17hfe5d7afcee66acf8E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h18fa1e6d8f7d382dE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h209a1fb82685f7c2E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hce9bf84aa5763160E",
-        "_ZN13p1_demo_part210rsk_target2ms17h48b4a02f4de808e9E",
-        "_ZN13p1_demo_part212validate_req17hb12f33cc5d7d9ee6E",
-        "_ZN13p1_demo_part25Stats3new17h66ee7fb657c246c0E"
+        "_ZN13p1_demo_part212traffic_step17h06041f21a31241eaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h081b819637ce8be8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33effb59708dd464E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h50aa52022e5fd535E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h58e50a7a3869a289E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17haed955d45584c0aaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdf43475d12af8ccfE",
+        "_ZN13p1_demo_part25Stats6record17hbe33634e652c05f4E",
+        "_ZN13p1_demo_part27lowpass17hac2fa8d56a8196aaE",
+        "_ZN13p1_demo_part27sampler17h1b9040a16e27c70eE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h67d61c2363c20d9eE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h96417eaec15b0f7cE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hd500f32c0fe10fd5E",
+        "_ZN13p1_demo_part210rsk_target2ms17h2601610271d1041dE",
+        "_ZN13p1_demo_part212validate_req17h91f39121910ebce9E",
+        "_ZN13p1_demo_part25Stats3new17h8d1c6ede8ef794e0E"
       ],
-      "branches": 14,
-      "covered": 7,
+      "branches": 16,
+      "covered": 8,
       "percent": 50,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 123:8 true",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 127:12 false",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler: 518:8 false"
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 192:8 true",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 196:12 false",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false",
+        "p1_demo_part2::sampler: 728:8 false"
       ]
     },
     {
       "item": "part2.sampler#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part212traffic_step17h5667c5b9f23da35bE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h0f3d36de8dba4297E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1aa7e312b1fd29b7E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h271170da59357e66E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hda63488aa7d0f121E",
-        "_ZN13p1_demo_part25Stats6record17h931fd00cc3b28f4eE",
-        "_ZN13p1_demo_part27lowpass17h7a46036448a3d016E",
-        "_ZN13p1_demo_part27sampler17hfe5d7afcee66acf8E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h18fa1e6d8f7d382dE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h209a1fb82685f7c2E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hce9bf84aa5763160E",
-        "_ZN13p1_demo_part210rsk_target2ms17h48b4a02f4de808e9E",
-        "_ZN13p1_demo_part212validate_req17hb12f33cc5d7d9ee6E",
-        "_ZN13p1_demo_part25Stats3new17h66ee7fb657c246c0E"
+        "_ZN13p1_demo_part212traffic_step17h06041f21a31241eaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h081b819637ce8be8E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h33effb59708dd464E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h50aa52022e5fd535E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h58e50a7a3869a289E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17haed955d45584c0aaE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hdf43475d12af8ccfE",
+        "_ZN13p1_demo_part25Stats6record17hbe33634e652c05f4E",
+        "_ZN13p1_demo_part27lowpass17hac2fa8d56a8196aaE",
+        "_ZN13p1_demo_part27sampler17h1b9040a16e27c70eE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h67d61c2363c20d9eE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h96417eaec15b0f7cE",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hd500f32c0fe10fd5E",
+        "_ZN13p1_demo_part210rsk_target2ms17h2601610271d1041dE",
+        "_ZN13p1_demo_part212validate_req17h91f39121910ebce9E",
+        "_ZN13p1_demo_part25Stats3new17h8d1c6ede8ef794e0E"
       ],
-      "branches": 14,
-      "covered": 7,
+      "branches": 16,
+      "covered": 8,
       "percent": 50,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 123:8 true",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 127:12 false",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler: 518:8 false"
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 192:8 true",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 196:12 false",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false",
+        "p1_demo_part2::sampler: 728:8 false"
       ]
     }
   ],
@@ -314,12 +326,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "817:12 true",
-        "817:12 false",
-        "819:41 true",
-        "819:41 false",
-        "824:44 true",
-        "824:44 false"
+        "826:12 true",
+        "826:12 false",
+        "828:41 true",
+        "828:41 false",
+        "833:44 true",
+        "833:44 false"
       ]
     },
     {
@@ -349,8 +361,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "854:24 true",
-        "854:24 false"
+        "863:24 true",
+        "863:24 false"
       ]
     },
     {
@@ -373,9 +385,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "415:8 true",
-        "418:8 true",
-        "421:8 true"
+        "416:8 true",
+        "419:8 true",
+        "422:8 true"
       ]
     },
     {
@@ -391,9 +403,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "391:18 true",
-        "396:22 false",
-        "398:12 false"
+        "392:18 true",
+        "397:22 false",
+        "399:12 false"
       ]
     },
     {
@@ -409,8 +421,8 @@
       "branches": 8,
       "covered": 6,
       "uncovered": [
-        "364:22 true",
-        "367:26 false"
+        "365:22 true",
+        "368:26 false"
       ]
     },
     {
@@ -440,8 +452,8 @@
       "branches": 10,
       "covered": 8,
       "uncovered": [
-        "774:19 true",
-        "790:8 false"
+        "889:19 true",
+        "905:8 false"
       ]
     },
     {
@@ -457,7 +469,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "998:12 true"
+        "1113:12 true"
       ]
     },
     {
@@ -466,7 +478,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "527:8 true"
+        "615:8 true"
       ]
     },
     {
@@ -479,13 +491,13 @@
     {
       "name": "rsk_kernel::arch::cm4::unsafe_module::stats_stamp",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
-      "branches": 10,
-      "covered": 6,
+      "branches": 14,
+      "covered": 10,
       "uncovered": [
-        "381:8 true",
-        "381:37 true",
-        "385:8 true",
-        "390:8 true"
+        "452:8 true",
+        "452:37 true",
+        "456:8 true",
+        "461:8 true"
       ]
     },
     {
@@ -508,7 +520,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "402:8 true"
+        "480:8 true"
       ]
     },
     {
@@ -538,8 +550,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "500:8 true",
-        "500:37 true"
+        "588:8 true",
+        "588:37 true"
       ]
     },
     {
@@ -548,8 +560,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "512:8 true",
-        "512:37 true"
+        "600:8 true",
+        "600:37 true"
       ]
     },
     {
@@ -558,8 +570,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "360:8 true",
-        "365:16 true"
+        "425:8 true",
+        "430:16 true"
       ]
     },
     {
@@ -568,7 +580,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "556:8 true"
+        "671:8 true"
       ]
     },
     {
@@ -584,10 +596,19 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "422:11 true",
-        "422:11 false",
-        "426:12 true",
-        "426:12 false"
+        "500:11 true",
+        "500:11 false",
+        "504:12 true",
+        "504:12 false"
+      ]
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::stats_job_start",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
+      "branches": 2,
+      "covered": 1,
+      "uncovered": [
+        "657:8 true"
       ]
     },
     {
@@ -596,19 +617,20 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "479:8 true",
-        "479:8 false",
-        "490:8 true",
-        "490:8 false"
+        "567:8 true",
+        "567:8 false",
+        "578:8 true",
+        "578:8 false"
       ]
     },
     {
       "name": "rsk_kernel::arch::cm4::unsafe_module::stats_interrupted",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
-      "branches": 2,
-      "covered": 1,
+      "branches": 4,
+      "covered": 2,
       "uncovered": [
-        "544:8 true"
+        "639:8 true",
+        "647:8 false"
       ]
     },
     {
@@ -760,7 +782,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "740:8 true"
+        "855:8 true"
       ]
     },
     {
@@ -769,7 +791,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "308:8 true"
+        "373:8 true"
       ]
     },
     {
@@ -778,7 +800,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "838:8 true"
+        "953:8 true"
       ]
     },
     {
@@ -787,7 +809,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "929:8 true"
+        "1044:8 true"
       ]
     },
     {
@@ -796,8 +818,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "635:8 true",
-        "635:8 false"
+        "750:8 true",
+        "750:8 false"
       ]
     },
     {
@@ -806,8 +828,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "803:8 true",
-        "803:8 false"
+        "918:8 true",
+        "918:8 false"
       ]
     },
     {
@@ -816,8 +838,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "702:8 true",
-        "702:8 false"
+        "817:8 true",
+        "817:8 false"
       ]
     },
     {
@@ -833,8 +855,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "635:8 true",
-        "635:8 false"
+        "644:8 true",
+        "644:8 false"
       ]
     },
     {
@@ -843,13 +865,13 @@
       "branches": 24,
       "covered": 17,
       "uncovered": [
-        "710:12 false",
-        "723:12 true",
-        "723:20 true",
-        "723:20 false",
-        "729:12 false",
-        "740:8 true",
-        "744:27 true"
+        "719:12 false",
+        "732:12 true",
+        "732:20 true",
+        "732:20 false",
+        "738:12 false",
+        "749:8 true",
+        "753:27 true"
       ]
     },
     {
@@ -914,9 +936,9 @@
       "branches": 16,
       "covered": 13,
       "uncovered": [
-        "833:48 true",
-        "879:12 true",
-        "887:12 true"
+        "852:48 true",
+        "899:12 true",
+        "907:12 true"
       ]
     },
     {
@@ -925,10 +947,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "3865:18 true",
-        "3865:18 false",
-        "3865:31 true",
-        "3865:31 false"
+        "4012:18 true",
+        "4012:18 false",
+        "4012:31 true",
+        "4012:31 false"
       ]
     },
     {
@@ -937,9 +959,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "1377:23 false",
-        "1382:17 false",
-        "1389:8 false"
+        "1476:23 false",
+        "1481:17 false",
+        "1488:8 false"
       ]
     },
     {
@@ -948,7 +970,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2295:8 false"
+        "2417:8 false"
       ]
     },
     {
@@ -964,8 +986,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "934:20 true",
-        "945:24 true"
+        "954:20 true",
+        "965:24 true"
       ]
     },
     {
@@ -974,7 +996,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "717:21 false"
+        "733:21 false"
       ]
     },
     {
@@ -983,8 +1005,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1716:8 true",
-        "1716:8 false"
+        "1815:8 true",
+        "1815:8 false"
       ]
     },
     {
@@ -993,8 +1015,8 @@
       "branches": 6,
       "covered": 4,
       "uncovered": [
-        "3236:43 false",
-        "3236:72 true"
+        "3367:43 false",
+        "3367:72 true"
       ]
     },
     {
@@ -1003,8 +1025,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1015:11 true",
-        "1015:11 false"
+        "1035:11 true",
+        "1035:11 false"
       ]
     },
     {
@@ -1013,8 +1035,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1689:8 true",
-        "1689:8 false"
+        "1788:8 true",
+        "1788:8 false"
       ]
     },
     {
@@ -1030,12 +1052,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "1473:11 true",
-        "1473:11 false",
-        "1478:12 true",
-        "1478:12 false",
-        "1478:37 true",
-        "1478:37 false"
+        "1572:11 true",
+        "1572:11 false",
+        "1577:12 true",
+        "1577:12 false",
+        "1577:37 true",
+        "1577:37 false"
       ]
     },
     {
@@ -1044,7 +1066,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2319:8 true"
+        "2441:8 true"
       ]
     },
     {
@@ -1074,38 +1096,38 @@
       "branches": 32,
       "covered": 0,
       "uncovered": [
-        "1917:8 true",
-        "1917:8 false",
-        "1917:28 true",
-        "1917:28 false",
-        "1917:60 true",
-        "1917:60 false",
-        "1917:82 true",
-        "1917:82 false",
-        "1917:103 true",
-        "1917:103 false",
-        "1917:124 true",
-        "1917:124 false",
-        "1921:8 true",
-        "1921:8 false",
-        "1921:44 true",
-        "1921:44 false",
-        "1921:73 true",
-        "1921:73 false",
-        "1926:13 true",
-        "1926:13 false",
-        "1927:20 true",
-        "1927:20 false",
-        "1928:20 true",
-        "1928:20 false",
-        "1929:20 true",
-        "1929:20 false",
-        "1930:20 true",
-        "1930:20 false",
-        "1931:20 true",
-        "1931:20 false",
-        "1936:8 true",
-        "1936:8 false"
+        "2016:8 true",
+        "2016:8 false",
+        "2016:28 true",
+        "2016:28 false",
+        "2016:60 true",
+        "2016:60 false",
+        "2016:82 true",
+        "2016:82 false",
+        "2016:103 true",
+        "2016:103 false",
+        "2016:124 true",
+        "2016:124 false",
+        "2020:8 true",
+        "2020:8 false",
+        "2020:44 true",
+        "2020:44 false",
+        "2020:73 true",
+        "2020:73 false",
+        "2025:13 true",
+        "2025:13 false",
+        "2026:20 true",
+        "2026:20 false",
+        "2027:20 true",
+        "2027:20 false",
+        "2028:20 true",
+        "2028:20 false",
+        "2029:20 true",
+        "2029:20 false",
+        "2030:20 true",
+        "2030:20 false",
+        "2035:8 true",
+        "2035:8 false"
       ]
     },
     {
@@ -1114,10 +1136,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2036:8 true",
-        "2036:8 false",
-        "2036:41 true",
-        "2036:41 false"
+        "2135:8 true",
+        "2135:8 false",
+        "2135:41 true",
+        "2135:41 false"
       ]
     },
     {
@@ -1126,17 +1148,17 @@
       "branches": 24,
       "covered": 13,
       "uncovered": [
-        "3705:8 true",
-        "3705:22 true",
-        "3722:8 false",
-        "3731:22 true",
-        "3756:8 true",
-        "3768:12 true",
-        "3768:12 false",
-        "3794:37 true",
-        "3805:16 true",
-        "3816:20 true",
-        "3816:20 false"
+        "3842:8 true",
+        "3842:22 true",
+        "3859:8 false",
+        "3868:22 true",
+        "3893:8 true",
+        "3905:12 true",
+        "3905:12 false",
+        "3931:37 true",
+        "3942:16 true",
+        "3953:20 true",
+        "3953:20 false"
       ]
     },
     {
@@ -1145,7 +1167,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "733:34 true"
+        "749:34 true"
       ]
     },
     {
@@ -1154,8 +1176,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1506:11 true",
-        "1506:11 false"
+        "1605:11 true",
+        "1605:11 false"
       ]
     },
     {
@@ -1164,9 +1186,9 @@
       "branches": 8,
       "covered": 5,
       "uncovered": [
-        "1239:12 true",
-        "1242:12 false",
-        "1242:29 true"
+        "1269:12 true",
+        "1272:12 false",
+        "1272:29 true"
       ]
     },
     {
@@ -1175,17 +1197,17 @@
       "branches": 24,
       "covered": 13,
       "uncovered": [
-        "1331:8 false",
-        "1331:17 false",
-        "1331:36 false",
-        "1349:16 false",
-        "1350:20 true",
-        "1350:36 true",
-        "1350:55 true",
-        "1350:76 true",
-        "1356:20 false",
-        "1356:29 false",
-        "1358:8 false"
+        "1421:8 false",
+        "1421:17 false",
+        "1421:36 false",
+        "1445:16 false",
+        "1446:20 true",
+        "1446:36 true",
+        "1446:55 true",
+        "1446:76 true",
+        "1452:20 false",
+        "1452:29 false",
+        "1457:8 false"
       ]
     },
     {
@@ -1194,18 +1216,18 @@
       "branches": 22,
       "covered": 10,
       "uncovered": [
-        "3332:8 false",
-        "3332:24 false",
-        "3343:16 true",
-        "3367:16 false",
-        "3397:8 false",
-        "3397:40 true",
-        "3397:56 true",
-        "3397:56 false",
-        "3397:81 true",
-        "3397:81 false",
-        "3409:12 true",
-        "3409:12 false"
+        "3465:8 false",
+        "3465:24 false",
+        "3476:16 true",
+        "3500:16 false",
+        "3530:8 false",
+        "3530:40 true",
+        "3530:56 true",
+        "3530:56 false",
+        "3530:81 true",
+        "3530:81 false",
+        "3542:12 true",
+        "3542:12 false"
       ]
     },
     {
@@ -1214,10 +1236,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1883:10 true",
-        "1883:10 false",
-        "1883:39 true",
-        "1883:39 false"
+        "1982:10 true",
+        "1982:10 false",
+        "1982:39 true",
+        "1982:39 false"
       ]
     },
     {
@@ -1226,9 +1248,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "2369:8 true",
-        "2369:31 true",
-        "2369:66 false"
+        "2491:8 true",
+        "2491:31 true",
+        "2491:66 false"
       ]
     },
     {
@@ -1237,40 +1259,40 @@
       "branches": 34,
       "covered": 0,
       "uncovered": [
-        "1822:8 true",
-        "1822:8 false",
-        "1825:12 true",
-        "1825:12 false",
-        "1825:32 true",
-        "1825:32 false",
-        "1825:64 true",
-        "1825:64 false",
-        "1825:86 true",
-        "1825:86 false",
-        "1830:12 true",
-        "1830:12 false",
-        "1830:41 true",
-        "1830:41 false",
-        "1843:8 true",
-        "1843:8 false",
-        "1843:27 true",
-        "1843:27 false",
-        "1843:47 true",
-        "1843:47 false",
-        "1843:79 true",
-        "1843:79 false",
-        "1843:101 true",
-        "1843:101 false",
-        "1843:122 true",
-        "1843:122 false",
-        "1848:8 true",
-        "1848:8 false",
-        "1848:37 true",
-        "1848:37 false",
-        "1848:66 true",
-        "1848:66 false",
-        "1848:82 true",
-        "1848:82 false"
+        "1921:8 true",
+        "1921:8 false",
+        "1924:12 true",
+        "1924:12 false",
+        "1924:32 true",
+        "1924:32 false",
+        "1924:64 true",
+        "1924:64 false",
+        "1924:86 true",
+        "1924:86 false",
+        "1929:12 true",
+        "1929:12 false",
+        "1929:41 true",
+        "1929:41 false",
+        "1942:8 true",
+        "1942:8 false",
+        "1942:27 true",
+        "1942:27 false",
+        "1942:47 true",
+        "1942:47 false",
+        "1942:79 true",
+        "1942:79 false",
+        "1942:101 true",
+        "1942:101 false",
+        "1942:122 true",
+        "1942:122 false",
+        "1947:8 true",
+        "1947:8 false",
+        "1947:37 true",
+        "1947:37 false",
+        "1947:66 true",
+        "1947:66 false",
+        "1947:82 true",
+        "1947:82 false"
       ]
     },
     {
@@ -1286,18 +1308,18 @@
       "branches": 12,
       "covered": 0,
       "uncovered": [
-        "1601:11 true",
-        "1601:11 false",
-        "1601:20 true",
-        "1601:20 false",
-        "1619:12 true",
-        "1619:12 false",
-        "1625:19 true",
-        "1625:19 false",
-        "1635:20 true",
-        "1635:20 false",
-        "1635:45 true",
-        "1635:45 false"
+        "1700:11 true",
+        "1700:11 false",
+        "1700:20 true",
+        "1700:20 false",
+        "1718:12 true",
+        "1718:12 false",
+        "1724:19 true",
+        "1724:19 false",
+        "1734:20 true",
+        "1734:20 false",
+        "1734:45 true",
+        "1734:45 false"
       ]
     },
     {
@@ -1306,10 +1328,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "148:8 true",
-        "148:8 false",
-        "153:8 true",
-        "153:8 false"
+        "149:8 true",
+        "149:8 false",
+        "154:8 true",
+        "154:8 false"
       ]
     },
     {
@@ -1325,9 +1347,9 @@
       "branches": 6,
       "covered": 3,
       "uncovered": [
-        "1287:23 false",
-        "1292:17 false",
-        "1299:8 false"
+        "1340:23 false",
+        "1345:17 false",
+        "1357:8 false"
       ]
     },
     {
@@ -1336,19 +1358,19 @@
       "branches": 26,
       "covered": 13,
       "uncovered": [
-        "3499:23 false",
-        "3500:12 false",
-        "3514:23 false",
-        "3520:15 true",
-        "3534:15 true",
-        "3534:37 true",
-        "3540:23 true",
-        "3540:23 false",
-        "3546:12 true",
-        "3546:12 false",
-        "3546:34 true",
-        "3546:34 false",
-        "3553:15 false"
+        "3636:23 false",
+        "3637:12 false",
+        "3651:23 false",
+        "3657:15 true",
+        "3671:15 true",
+        "3671:37 true",
+        "3677:23 true",
+        "3677:23 false",
+        "3683:12 true",
+        "3683:12 false",
+        "3683:34 true",
+        "3683:34 false",
+        "3690:15 false"
       ]
     },
     {
@@ -1357,11 +1379,11 @@
       "branches": 12,
       "covered": 7,
       "uncovered": [
-        "2956:38 false",
-        "2956:84 false",
-        "2975:8 true",
-        "2999:8 true",
-        "3009:8 true"
+        "3085:38 false",
+        "3085:84 false",
+        "3104:8 true",
+        "3128:8 true",
+        "3138:8 true"
       ]
     },
     {
@@ -1370,16 +1392,16 @@
       "branches": 10,
       "covered": 0,
       "uncovered": [
-        "1201:11 true",
-        "1201:11 false",
-        "1207:12 true",
-        "1207:12 false",
-        "1208:16 true",
-        "1208:16 false",
-        "1211:16 true",
-        "1211:16 false",
-        "1214:16 true",
-        "1214:16 false"
+        "1231:11 true",
+        "1231:11 false",
+        "1237:12 true",
+        "1237:12 false",
+        "1238:16 true",
+        "1238:16 false",
+        "1241:16 true",
+        "1241:16 false",
+        "1244:16 true",
+        "1244:16 false"
       ]
     },
     {
@@ -1388,10 +1410,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2232:8 true",
-        "2232:8 false",
-        "2252:16 true",
-        "2252:16 false"
+        "2354:8 true",
+        "2354:8 false",
+        "2374:16 true",
+        "2374:16 false"
       ]
     },
     {
@@ -1400,10 +1422,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2149:8 true",
-        "2149:8 false",
-        "2194:8 true",
-        "2194:8 false"
+        "2259:8 true",
+        "2259:8 false",
+        "2316:8 true",
+        "2316:8 false"
       ]
     },
     {
@@ -1412,10 +1434,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "1762:11 true",
-        "1762:11 false",
-        "1779:11 true",
-        "1779:11 false"
+        "1861:11 true",
+        "1861:11 false",
+        "1878:11 true",
+        "1878:11 false"
       ]
     },
     {
@@ -1424,25 +1446,25 @@
       "branches": 30,
       "covered": 11,
       "uncovered": [
-        "3116:8 false",
-        "3116:24 false",
-        "3116:49 true",
-        "3142:8 false",
-        "3142:24 true",
-        "3147:15 true",
-        "3147:15 false",
-        "3151:16 true",
-        "3151:16 false",
-        "3151:30 true",
-        "3151:30 false",
-        "3151:56 true",
-        "3151:56 false",
-        "3156:12 true",
-        "3156:12 false",
-        "3170:8 true",
-        "3170:18 true",
-        "3186:43 false",
-        "3186:72 true"
+        "3245:8 false",
+        "3245:24 false",
+        "3245:49 true",
+        "3271:8 false",
+        "3271:24 true",
+        "3276:15 true",
+        "3276:15 false",
+        "3280:16 true",
+        "3280:16 false",
+        "3280:30 true",
+        "3280:30 false",
+        "3280:56 true",
+        "3280:56 false",
+        "3285:12 true",
+        "3285:12 false",
+        "3299:8 true",
+        "3299:18 true",
+        "3315:43 false",
+        "3315:72 true"
       ]
     },
     {
@@ -1451,10 +1473,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2388:8 true",
-        "2388:8 false",
-        "2391:8 true",
-        "2391:8 false"
+        "2510:8 true",
+        "2510:8 false",
+        "2513:8 true",
+        "2513:8 false"
       ]
     },
     {
@@ -1470,7 +1492,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2338:8 true"
+        "2460:8 true"
       ]
     },
     {
@@ -1486,12 +1508,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "1257:11 true",
-        "1257:11 false",
-        "1261:12 true",
-        "1261:12 false",
-        "1264:12 true",
-        "1264:12 false"
+        "1287:11 true",
+        "1287:11 false",
+        "1291:12 true",
+        "1291:12 false",
+        "1294:12 true",
+        "1294:12 false"
       ]
     },
     {
@@ -1500,9 +1522,9 @@
       "branches": 12,
       "covered": 9,
       "uncovered": [
-        "3610:36 true",
-        "3614:23 false",
-        "3619:23 false"
+        "3747:36 true",
+        "3751:23 false",
+        "3756:23 false"
       ]
     },
     {
@@ -1511,18 +1533,18 @@
       "branches": 22,
       "covered": 10,
       "uncovered": [
-        "1082:8 true",
-        "1113:8 true",
-        "1116:8 true",
-        "1119:8 false",
-        "1122:8 true",
-        "1126:8 true",
-        "1134:8 true",
-        "1142:8 false",
-        "1160:11 true",
-        "1160:11 false",
-        "1160:21 true",
-        "1160:21 false"
+        "1107:8 true",
+        "1138:8 true",
+        "1141:8 true",
+        "1144:8 false",
+        "1147:8 true",
+        "1151:8 true",
+        "1159:8 true",
+        "1167:8 false",
+        "1185:11 true",
+        "1185:11 false",
+        "1185:21 true",
+        "1185:21 false"
       ]
     },
     {
@@ -1538,8 +1560,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "794:8 true",
-        "794:8 false"
+        "803:8 true",
+        "803:8 false"
       ]
     },
     {
@@ -1548,8 +1570,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "887:8 true",
-        "887:8 false"
+        "896:8 true",
+        "896:8 false"
       ]
     },
     {
@@ -1558,8 +1580,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "458:8 true",
-        "458:8 false"
+        "459:8 true",
+        "459:8 false"
       ]
     },
     {
@@ -1568,10 +1590,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "595:16 true",
-        "595:16 false",
-        "600:8 true",
-        "600:8 false"
+        "604:16 true",
+        "604:16 false",
+        "609:8 true",
+        "609:8 false"
       ]
     },
     {
@@ -1582,12 +1604,75 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_snap",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_snap",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_partition",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_seq_empty",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_seq_push_u8",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::no_job_in_progress",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_seq_drop_last",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_seq_push_usize",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_int",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::epilogue",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "771:8 true"
+        "780:8 true"
       ]
     },
     {
@@ -1596,8 +1681,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "648:8 true",
-        "648:8 false"
+        "657:8 true",
+        "657:8 false"
       ]
     },
     {
@@ -1606,18 +1691,19 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "835:23 true",
-        "835:23 false"
+        "844:23 true",
+        "844:23 false"
       ]
     },
     {
       "name": "rsk_kernel::arch::cm4::irq_entry",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
-      "branches": 20,
-      "covered": 18,
+      "branches": 24,
+      "covered": 21,
       "uncovered": [
-        "482:37 false",
-        "522:37 false"
+        "483:37 false",
+        "517:20 false",
+        "530:37 false"
       ]
     },
     {
@@ -1684,7 +1770,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "799:12 false"
+        "829:12 false"
       ]
     },
     {
@@ -1693,7 +1779,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "930:12 false"
+        "960:12 false"
       ]
     },
     {
@@ -1709,7 +1795,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "824:12 true"
+        "854:12 true"
       ]
     },
     {
@@ -1739,7 +1825,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "728:12 false"
+        "758:12 false"
       ]
     },
     {
@@ -1748,7 +1834,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "938:12 false"
+        "968:12 false"
       ]
     },
     {
@@ -1757,8 +1843,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "900:12 true",
-        "904:12 true"
+        "930:12 true",
+        "934:12 true"
       ]
     },
     {
@@ -1774,7 +1860,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "976:12 true"
+        "1006:12 true"
       ]
     },
     {
@@ -1790,8 +1876,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "736:12 true",
-        "736:12 false"
+        "766:12 true",
+        "766:12 false"
       ]
     },
     {
@@ -1800,8 +1886,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "996:12 true",
-        "996:12 false"
+        "1026:12 true",
+        "1026:12 false"
       ]
     },
     {
@@ -1810,7 +1896,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "715:12 false"
+        "745:12 false"
       ]
     },
     {
@@ -1826,7 +1912,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "966:12 true"
+        "996:12 true"
       ]
     },
     {
@@ -1835,7 +1921,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "946:12 false"
+        "976:12 false"
       ]
     },
     {
@@ -1844,7 +1930,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "891:12 false"
+        "921:12 false"
       ]
     },
     {
@@ -1853,8 +1939,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "911:12 true",
-        "915:12 true"
+        "941:12 true",
+        "945:12 true"
       ]
     },
     {
@@ -1863,7 +1949,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "895:20 false"
+        "925:20 false"
       ]
     },
     {
@@ -1893,8 +1979,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "986:12 true",
-        "986:12 false"
+        "1016:12 true",
+        "1016:12 false"
       ]
     },
     {
@@ -1903,10 +1989,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "740:12 true",
-        "740:12 false",
-        "742:13 true",
-        "742:13 false"
+        "770:12 true",
+        "770:12 false",
+        "772:13 true",
+        "772:13 false"
       ]
     },
     {
@@ -1915,7 +2001,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "962:12 false"
+        "992:12 false"
       ]
     },
     {
@@ -1952,7 +2038,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "685:12 false"
+        "711:12 false"
       ]
     },
     {
@@ -1961,11 +2047,11 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "856:12 false",
-        "857:16 false",
-        "858:16 false",
-        "859:16 false",
-        "861:31 false"
+        "886:12 false",
+        "887:16 false",
+        "888:16 false",
+        "889:16 false",
+        "891:31 false"
       ]
     },
     {
@@ -1988,7 +2074,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "724:12 false"
+        "754:12 false"
       ]
     },
     {
@@ -2011,8 +2097,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "788:12 false",
-        "788:35 false"
+        "818:12 false",
+        "818:35 false"
       ]
     },
     {
@@ -2021,10 +2107,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "774:12 true",
-        "779:9 false",
-        "780:16 false",
-        "781:16 false"
+        "804:12 true",
+        "809:9 false",
+        "810:16 false",
+        "811:16 false"
       ]
     },
     {
@@ -2033,8 +2119,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "1002:12 true",
-        "1002:12 false"
+        "1032:12 true",
+        "1032:12 false"
       ]
     },
     {
@@ -2043,7 +2129,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "699:12 false"
+        "729:12 false"
       ]
     },
     {
@@ -2052,7 +2138,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "926:12 false"
+        "956:12 false"
       ]
     },
     {
@@ -2061,7 +2147,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "934:12 false"
+        "964:12 false"
       ]
     },
     {
@@ -2070,7 +2156,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "766:12 false"
+        "796:12 false"
       ]
     },
     {
@@ -2079,8 +2165,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "805:12 true",
-        "805:44 true"
+        "835:12 true",
+        "835:44 true"
       ]
     },
     {
@@ -2089,11 +2175,11 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "659:9 false",
-        "660:16 false",
-        "661:16 false",
-        "662:16 false",
-        "663:16 false"
+        "685:9 false",
+        "686:16 false",
+        "687:16 false",
+        "688:16 false",
+        "689:16 false"
       ]
     },
     {
@@ -2109,7 +2195,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "732:12 false"
+        "762:12 false"
       ]
     },
     {
@@ -2118,7 +2204,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "770:12 false"
+        "800:12 false"
       ]
     },
     {
@@ -2803,8 +2889,10 @@
       "name": "rsk_logic::logic::sched::Sched<_$C$_$C$_>::recompute_ceiling",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/sched.rs",
       "branches": 4,
-      "covered": 3,
+      "covered": 1,
       "uncovered": [
+        "871:15 true",
+        "878:16 true",
         "878:16 false"
       ]
     },
@@ -2875,9 +2963,11 @@
       "name": "rsk_logic::logic::sched::Sched<_$C$_$C$_>::end_job",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-logic/src/logic/sched.rs",
       "branches": 4,
-      "covered": 3,
+      "covered": 1,
       "uncovered": [
-        "910:24 true"
+        "910:15 true",
+        "910:24 true",
+        "910:24 false"
       ]
     },
     {
@@ -2944,7 +3034,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "1913:21 true"
+        "1923:21 true"
       ]
     },
     {
@@ -2953,10 +3043,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "1996:12 true",
-        "1998:27 true",
-        "1998:27 false",
-        "2003:12 false"
+        "2010:12 true",
+        "2012:27 true",
+        "2012:27 false",
+        "2018:12 false"
       ]
     },
     {
@@ -2979,11 +3069,11 @@
       "branches": 20,
       "covered": 15,
       "uncovered": [
-        "2787:19 false",
-        "2790:23 true",
-        "2792:23 true",
-        "2796:23 false",
-        "2806:20 false"
+        "2802:19 false",
+        "2805:23 true",
+        "2807:23 true",
+        "2811:23 false",
+        "2821:20 false"
       ]
     },
     {
@@ -2992,8 +3082,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "2175:12 false",
-        "2187:12 true"
+        "2190:12 false",
+        "2202:12 true"
       ]
     },
     {
@@ -3002,8 +3092,8 @@
       "branches": 18,
       "covered": 16,
       "uncovered": [
-        "2575:12 true",
-        "2607:60 true"
+        "2590:12 true",
+        "2622:60 true"
       ]
     },
     {
@@ -3019,10 +3109,10 @@
       "branches": 8,
       "covered": 4,
       "uncovered": [
-        "3110:12 true",
-        "3110:37 true",
-        "3113:12 true",
-        "3116:12 true"
+        "3125:12 true",
+        "3125:37 true",
+        "3128:12 true",
+        "3131:12 true"
       ]
     },
     {
@@ -3045,8 +3135,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "2505:12 true",
-        "2505:12 false"
+        "2520:12 true",
+        "2520:12 false"
       ]
     },
     {
@@ -3055,24 +3145,24 @@
       "branches": 18,
       "covered": 0,
       "uncovered": [
-        "3234:12 true",
-        "3234:12 false",
-        "3234:44 true",
-        "3234:44 false",
-        "3240:12 true",
-        "3240:12 false",
-        "3243:16 true",
-        "3243:16 false",
-        "3245:20 true",
-        "3245:20 false",
-        "3247:24 true",
-        "3247:24 false",
-        "3269:28 true",
-        "3269:28 false",
-        "3298:12 true",
-        "3298:12 false",
-        "3302:12 true",
-        "3302:12 false"
+        "3249:12 true",
+        "3249:12 false",
+        "3249:44 true",
+        "3249:44 false",
+        "3255:12 true",
+        "3255:12 false",
+        "3258:16 true",
+        "3258:16 false",
+        "3260:20 true",
+        "3260:20 false",
+        "3262:24 true",
+        "3262:24 false",
+        "3284:28 true",
+        "3284:28 false",
+        "3313:12 true",
+        "3313:12 false",
+        "3317:12 true",
+        "3317:12 false"
       ]
     },
     {
@@ -3081,8 +3171,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "2097:12 false",
-        "2097:25 false"
+        "2112:12 false",
+        "2112:25 false"
       ]
     },
     {
@@ -3091,16 +3181,16 @@
       "branches": 16,
       "covered": 6,
       "uncovered": [
-        "2349:12 true",
-        "2349:31 true",
-        "2349:48 true",
-        "2369:12 false",
-        "2394:16 true",
-        "2394:16 false",
-        "2394:37 true",
-        "2394:37 false",
-        "2404:29 true",
-        "2404:29 false"
+        "2364:12 true",
+        "2364:31 true",
+        "2364:48 true",
+        "2384:12 false",
+        "2409:16 true",
+        "2409:16 false",
+        "2409:37 true",
+        "2409:37 false",
+        "2419:29 true",
+        "2419:29 false"
       ]
     },
     {
@@ -3116,7 +3206,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "2055:12 true"
+        "2070:12 true"
       ]
     },
     {
@@ -3125,10 +3215,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "3353:12 true",
-        "3353:12 false",
-        "3356:12 true",
-        "3356:12 false"
+        "3369:12 true",
+        "3369:12 false",
+        "3372:12 true",
+        "3372:12 false"
       ]
     },
     {
@@ -3137,12 +3227,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "2996:12 true",
-        "2996:12 false",
-        "2996:48 true",
-        "2996:48 false",
-        "3007:12 true",
-        "3007:12 false"
+        "3011:12 true",
+        "3011:12 false",
+        "3011:48 true",
+        "3011:48 false",
+        "3022:12 true",
+        "3022:12 false"
       ]
     },
     {
@@ -3158,10 +3248,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "2869:12 true",
-        "2880:12 false",
-        "2881:16 false",
-        "2882:20 true"
+        "2884:12 true",
+        "2895:12 false",
+        "2896:16 false",
+        "2897:20 true"
       ]
     },
     {
@@ -3184,10 +3274,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "3660:12 true",
-        "3660:12 false",
-        "3665:16 true",
-        "3665:16 false"
+        "3676:12 true",
+        "3676:12 false",
+        "3681:16 true",
+        "3681:16 false"
       ]
     },
     {
@@ -3196,12 +3286,12 @@
       "branches": 6,
       "covered": 0,
       "uncovered": [
-        "3518:15 true",
-        "3518:15 false",
-        "3537:16 true",
-        "3537:16 false",
-        "3537:64 true",
-        "3537:64 false"
+        "3534:15 true",
+        "3534:15 false",
+        "3553:16 true",
+        "3553:16 false",
+        "3553:64 true",
+        "3553:64 false"
       ]
     },
     {
@@ -3210,10 +3300,10 @@
       "branches": 4,
       "covered": 0,
       "uncovered": [
-        "2032:15 true",
-        "2032:15 false",
-        "2037:16 true",
-        "2037:16 false"
+        "2047:15 true",
+        "2047:15 false",
+        "2052:16 true",
+        "2052:16 false"
       ]
     },
     {
@@ -3222,18 +3312,18 @@
       "branches": 12,
       "covered": 0,
       "uncovered": [
-        "3575:15 true",
-        "3575:15 false",
-        "3586:16 true",
-        "3586:16 false",
-        "3595:20 true",
-        "3595:20 false",
-        "3595:58 true",
-        "3595:58 false",
+        "3591:15 true",
+        "3591:15 false",
+        "3602:16 true",
+        "3602:16 false",
         "3611:20 true",
         "3611:20 false",
         "3611:58 true",
-        "3611:58 false"
+        "3611:58 false",
+        "3627:20 true",
+        "3627:20 false",
+        "3627:58 true",
+        "3627:58 false"
       ]
     },
     {
@@ -3249,9 +3339,9 @@
       "branches": 4,
       "covered": 1,
       "uncovered": [
-        "3167:12 false",
-        "3167:22 true",
-        "3167:22 false"
+        "3182:12 false",
+        "3182:22 true",
+        "3182:22 false"
       ]
     },
     {
@@ -3260,7 +3350,7 @@
       "branches": 6,
       "covered": 5,
       "uncovered": [
-        "1784:24 false"
+        "1794:24 false"
       ]
     },
     {
@@ -3269,11 +3359,11 @@
       "branches": 6,
       "covered": 1,
       "uncovered": [
-        "2247:12 true",
-        "2247:23 true",
-        "2247:23 false",
-        "2247:50 true",
-        "2247:50 false"
+        "2262:12 true",
+        "2262:23 true",
+        "2262:23 false",
+        "2262:50 true",
+        "2262:50 false"
       ]
     },
     {
@@ -3282,14 +3372,14 @@
       "branches": 18,
       "covered": 10,
       "uncovered": [
-        "3934:41 true",
-        "3970:20 false",
-        "3970:36 false",
-        "3970:56 true",
-        "3971:24 true",
-        "3971:24 false",
-        "3971:69 true",
-        "3971:69 false"
+        "3950:41 true",
+        "3986:20 false",
+        "3986:36 false",
+        "3986:56 true",
+        "3987:24 true",
+        "3987:24 false",
+        "3987:69 true",
+        "3987:69 false"
       ]
     },
     {
@@ -3298,8 +3388,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "3388:12 true",
-        "3388:12 false"
+        "3404:12 true",
+        "3404:12 false"
       ]
     },
     {
@@ -3336,8 +3426,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "2136:12 false",
-        "2148:12 true"
+        "2151:12 false",
+        "2163:12 true"
       ]
     },
     {
@@ -3346,8 +3436,8 @@
       "branches": 4,
       "covered": 2,
       "uncovered": [
-        "3814:12 false",
-        "3817:12 false"
+        "3830:12 false",
+        "3833:12 false"
       ]
     },
     {
@@ -3550,20 +3640,20 @@
       "branches": 46,
       "covered": 32,
       "uncovered": [
-        "383:19 true",
-        "385:57 true",
-        "438:23 false",
-        "438:38 false",
-        "438:53 false",
-        "438:64 false",
-        "438:74 false",
-        "438:84 false",
-        "438:100 false",
-        "438:110 false",
-        "439:12 false",
-        "439:22 false",
-        "439:35 false",
-        "439:45 false"
+        "399:19 true",
+        "401:57 true",
+        "454:23 false",
+        "454:38 false",
+        "454:53 false",
+        "454:64 false",
+        "454:74 false",
+        "454:84 false",
+        "454:100 false",
+        "454:110 false",
+        "455:12 false",
+        "455:22 false",
+        "455:35 false",
+        "455:45 false"
       ]
     },
     {
@@ -3586,7 +3676,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "930:12 false"
+        "960:12 false"
       ]
     },
     {
@@ -3595,7 +3685,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "938:12 false"
+        "968:12 false"
       ]
     },
     {
@@ -3611,7 +3701,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "942:12 false"
+        "972:12 false"
       ]
     },
     {
@@ -3620,7 +3710,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "926:12 false"
+        "956:12 false"
       ]
     },
     {
@@ -3629,7 +3719,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "934:12 false"
+        "964:12 false"
       ]
     },
     {
@@ -3661,11 +3751,27 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "117:12 false",
-        "123:8 true",
-        "127:12 true",
-        "127:12 false",
-        "147:5 false"
+        "186:12 false",
+        "192:8 true",
+        "196:12 true",
+        "196:12 false",
+        "219:20 false"
+      ]
+    },
+    {
+      "name": "p1_demo_part2::traffic_step::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::traffic_step::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 2,
+      "covered": 1,
+      "uncovered": [
+        "210:16 false"
       ]
     },
     {
@@ -3702,7 +3808,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "253:12 false"
+        "423:12 false"
       ]
     },
     {
@@ -3746,7 +3852,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "518:8 false"
+        "728:8 false"
       ]
     },
     {
@@ -3839,21 +3945,21 @@
       "branches": 6,
       "covered": 5,
       "uncovered": [
-        "418:72 false"
+        "424:72 false"
       ]
-    },
-    {
-      "name": "p1_demo_part1::log::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
-      "branches": 2,
-      "covered": 2,
-      "uncovered": []
     },
     {
       "name": "p1_demo_part1::log::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
       "branches": 0,
       "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part1::log::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
+      "branches": 2,
+      "covered": 2,
       "uncovered": []
     },
     {
@@ -3964,18 +4070,18 @@
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "390:80 false"
+      ]
     },
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 4,
-      "covered": 3,
-      "uncovered": [
-        "385:80 false"
-      ]
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part0::sensor::{closure}::{closure}",
@@ -4046,8 +4152,8 @@
       "branches": 10,
       "covered": 8,
       "uncovered": [
-        "443:8 true",
-        "451:8 true"
+        "521:8 true",
+        "539:8 true"
       ]
     },
     {
@@ -4056,8 +4162,8 @@
       "branches": 2,
       "covered": 0,
       "uncovered": [
-        "822:8 true",
-        "822:8 false"
+        "937:8 true",
+        "937:8 false"
       ]
     },
     {
@@ -4073,18 +4179,18 @@
       "branches": 22,
       "covered": 10,
       "uncovered": [
-        "887:8 true",
-        "905:20 false",
-        "905:33 true",
-        "905:61 true",
-        "905:61 false",
-        "909:21 true",
-        "910:8 false",
-        "910:21 true",
-        "910:40 true",
-        "910:40 false",
-        "910:53 true",
-        "910:53 false"
+        "1002:8 true",
+        "1020:20 false",
+        "1020:33 true",
+        "1020:61 true",
+        "1020:61 false",
+        "1024:21 true",
+        "1025:8 false",
+        "1025:21 true",
+        "1025:40 true",
+        "1025:40 false",
+        "1025:53 true",
+        "1025:53 false"
       ]
     },
     {
@@ -4100,10 +4206,10 @@
       "branches": 10,
       "covered": 6,
       "uncovered": [
-        "330:8 true",
-        "333:8 true",
-        "333:23 true",
-        "333:39 true"
+        "395:8 true",
+        "398:8 true",
+        "398:23 true",
+        "398:39 true"
       ]
     },
     {
@@ -4549,6 +4655,18 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::version::version_bytes",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/version.rs",
+      "branches": 4,
+      "covered": 0,
+      "uncovered": [
+        "28:11 true",
+        "28:11 false",
+        "29:12 true",
+        "29:12 false"
+      ]
+    },
+    {
       "name": "_<rsk_kernel::arch::cm4::entry::Cm4Hw$u20$as$u20$rsk_kernel::arch::cm4::entry::KernelArch>::boot_checks",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/entry.rs",
       "branches": 0,
@@ -4561,7 +4679,7 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "606:20 true"
+        "622:20 true"
       ]
     },
     {
@@ -4663,6 +4781,13 @@
       "uncovered": []
     },
     {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::all_bytes_zero",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
       "name": "rsk_kernel::arch::cm4::unsafe_module::KernelCell<K>::get",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
       "branches": 0,
@@ -4671,6 +4796,13 @@
     },
     {
       "name": "rsk_kernel::arch::cm4::unsafe_module::KernelCell<K>::new",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::unsafe_module::ResourceCell<T>::for_static",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
       "branches": 0,
       "covered": 0,
@@ -5113,6 +5245,20 @@
     {
       "name": "rsk_kernel::arch::cm4::timer",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::ghost_snap",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "rsk_kernel::arch::cm4::ghostv::no_job_in_progress",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/ghostv.rs",
       "branches": 0,
       "covered": 0,
       "uncovered": []

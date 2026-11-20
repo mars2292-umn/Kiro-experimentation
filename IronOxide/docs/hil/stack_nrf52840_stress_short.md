@@ -1,6 +1,6 @@
 # Stack painting: `nrf52840_stress_short`
 
-Binary: `sha256:1ced71b20932ce49656dd5e7a78d36e1c11deec3128459af9be4086b5dfc798b`. Verdict: **pass**.
+Binary: `sha256:2b371e899dfccda96fe50601e7257cd1bdce41467ef36669bae2cf68cd2e053b`. Verdict: **pass**.
 
 The rig fills every stack region with the run's pattern and resets the board in one probe command, lets the Application run, and reads the regions back: the used depth is the distance from a region's top to its lowest word without the pattern. A lower bound on the deepest use, judged against the Link_Checker's bound (R37).
 
@@ -8,20 +8,21 @@ The rig fills every stack region with the run's pattern and resets the board in 
 |---|---|---|
 | stimulus running | pass | flashed in 5.5 s and reset |
 | target flashed | pass | in 8.2 s |
-| painted and reset | pass | 4 regions filled with 0xc5a5d4da and the board reset by the same command; read after 165 s: part0 0x20008000..0x20009000, part1 0x20010000..0x20011000, part2 0x20018000..0x20019000, kernel 0x2000695c..0x20008000 |
-| the Application ran | pass | 37171 periodic Releases recorded when the regions were read |
+| painted and reset | pass | 4 regions filled with 0xc5a56e00 and the board reset by the same command; read after 165 s: part0 0x20008000..0x20009000, part1 0x20010000..0x20011000, part2 0x20018000..0x20019000, kernel 0x20006a5c..0x20008000 |
+| the Application ran | pass | 37178 periodic Releases recorded when the regions were read |
+| events of the run | pass | 47 mirrored in all; the held ones by kind: deadline_miss 17, release_overlap 3, mit_violation 25, partition_restart 1, debugger 1 |
 | regions read | pass | 4 regions |
 | stack of `part0` within the Link_Checker's bound (R37) | pass | 152 bytes used of a bound of 1896 (4096 available) |
-| stack of `part1` within the Link_Checker's bound (R37) | pass | 208 bytes used of a bound of 280 (4096 available) |
-| stack of `part2` within the Link_Checker's bound (R37) | pass | 288 bytes used of a bound of 1960 (4096 available) |
-| stack of `kernel` within the Link_Checker's bound (R37) | pass | 2268 bytes used of a bound of 3896 (5796 available) |
+| stack of `part1` within the Link_Checker's bound (R37) | pass | 176 bytes used of a bound of 280 (4096 available) |
+| stack of `part2` within the Link_Checker's bound (R37) | pass | 336 bytes used of a bound of 2024 (4096 available) |
+| stack of `kernel` within the Link_Checker's bound (R37) | pass | 2268 bytes used of a bound of 3896 (5540 available) |
 
 | Region | Range | Available | Link_Checker bound | Used | Used of the bound |
 |---|---|---|---|---|---|
 | part0 | 0x20008000..0x20009000 | 4096 | 1896 | 152 | 8 % |
-| part1 | 0x20010000..0x20011000 | 4096 | 280 | 208 | 74 % |
-| part2 | 0x20018000..0x20019000 | 4096 | 1960 | 288 | 15 % |
-| kernel | 0x2000695c..0x20008000 | 5796 | 3896 | 2268 | 58 % |
+| part1 | 0x20010000..0x20011000 | 4096 | 280 | 176 | 63 % |
+| part2 | 0x20018000..0x20019000 | 4096 | 2024 | 336 | 17 % |
+| kernel | 0x20006a5c..0x20008000 | 5540 | 3896 | 2268 | 58 % |
 
 Commands:
 

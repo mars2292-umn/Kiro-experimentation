@@ -1,8 +1,10 @@
 # HIL coverage run (task 19.2, R34.4) over the release-timing run (task 7.3, R9.10)
 
-Verdict: **pass**
+Verdict: **FAIL**
 
 Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus board 1366:1061:001050279833; analyzer fx2lafw at 100000 Hz; J_rel bound 12500 cycles.
+
+Target binary: sha256:2d25c2063eda0b51431e20c2e4402cf59320c19d4eeb17865800e4824ad6b2c7
 
 ## Steps
 
@@ -11,141 +13,147 @@ Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus 
 | stimulus running | pass | flashed in 5.5 s and reset |
 | EasyDMA traffic (R17.4) | pass | SPIM0 of part2 chaining 64-byte transfers on both channels at 8 Mbps: a transfer ended before 1799 of 1800 sampler Jobs; transfers still running after the Kernel's stop at a restart: 0; ENABLE 7, SHORTS 0x20000, RXD.MAXCNT 64, TXD.MAXCNT 64, END 1, STOPPED 0 at the end |
 | loop iterations (R34.9, R35.4) | pass | 8 Application loops in the export, 7 observed: 0 reached the bound, 0 exceeded, 3 below the bound with the justification recorded, 0 below without one, 4 never completed in this configuration, 1 not observed |
-| target run | pass | RSK-OK after 192 s (operating duration 180 s) |
-| release timing (R9.10) | pass | 40487 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 9116 cycles (142.4 µs) against J_rel 12500 cycles |
-| Kernel events | pass | 57 events mirrored (57 held, 0 of them the post-detach reboot's): overrun of Task 2: 8, deadline_miss of Task 2: 19, release_overlap of Task 2: 19, mit_violation of Task 2: 8, operating_end of Task none: 1, safe_state of Task none: 1, debugger of Task none: 1; the trace never froze during the run |
+| target run | FAIL | the run ended without RSK-OK after 193 s (console attached) |
+| release timing (R9.10) | pass | 40487 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 7395 cycles (115.5 µs) against J_rel 12500 cycles |
+| Kernel events | pass | 40 events mirrored (40 held, 0 of them the post-detach reboot's): overrun of Task 2: 6, deadline_miss of Task 0: 1, deadline_miss of Task 2: 13, release_overlap of Task 2: 13, mit_violation of Task 2: 6, debugger of Task none: 1; the trace froze at event 39 (deadline_miss of Task 0 at 123040.021 ms); the deliberate overload case: 1 deadline miss(es) of Task 0 (control) after the injected late Job of Task 2 (sensor), whose 12 ms Critical_Section then blocks control for nearly its 10 ms deadline; the trace and the mirror stop at the first, so the events after it are not judged by this step |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
-| Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
+| Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch; the ring is frozen at event 39 and holds the entries leading to it |
 | dispatch deferrals (5.8a) | pass | 0 entry-window occurrence(s) handled (a dispatch vector deferred, or an unwind owed to the stub, 0x1xxxx); 0 actions recorded (0 held, 0 of them deferrals) |
-| masked span (L_kernel) | pass | the longest stretch without a Kernel-level interrupt taken: 18308 cycles (286.1 µs) over 9293010 spans, closed by a dispatch entry; against the record's L_kernel 35000 cycles |
-| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10652 rises and 10001 response edges in the capture); latency 100 to 12350 µs, median 2460 µs, 0 later than 15 ms; Δ_stamp observed 6336 cycles (99.0 µs) against the exported bound 8000 cycles; 0 unanswered inside the run |
-| dispatch timeline | pass | Tasks executing 72.7 % of the run, the Kernel 53.0 % over 3062994 entries; runs per Task [18160, 6004, 31763, 5005, 10135, 7287, 1824] |
-| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 21182 cycles (0.331 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 19840 cycles (0.310 ms at 100000 samples/s; 18160 runs for 18000 Jobs): the agent exceeds the trace beyond quantization, within a tenth |
+| masked span (L_kernel) | pass | the longest stretch without a Kernel-level interrupt taken: 21238 cycles (331.8 µs) over 9038879 spans, closed by a timer entry; against the record's L_kernel 35000 cycles |
+| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10728 rises and 10000 response edges in the capture); latency 100 to 12410 µs, median 2540 µs, 0 later than 15 ms; Δ_stamp observed 4304 cycles (67.2 µs) against the exported bound 8000 cycles; 0 unanswered inside the run |
+| dispatch timeline | pass | Tasks executing 72.8 % of the run, the Kernel 53.1 % over 3313105 entries; runs per Task [18156, 5999, 31865, 5503, 9999, 7255, 1807] |
+| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 21092 cycles (0.330 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 20480 cycles (0.320 ms at 100000 samples/s; 18156 runs for 18000 Jobs) |
 
 ## Loop iterations (R34.9, R35.4)
 
 | Loop | File:line | Bound | Observed | Verdict |
 |---|---|---|---|---|
 | `loop:part0:spin_ms:spin` | apps/p1-demo/part0/src/lib.rs:38 | 100_000_000 | 0 | not run |
-| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:385 | 10_000_000 | 901 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
-| `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:423 | 50_000_000 | 2429 | unreachable: the injected late Job's 38 ms by the time base; the 50,000,000-iteration guard is the PR-16 backstop |
+| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:390 | 10_000_000 | 876 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:428 | 50_000_000 | 2358 | unreachable: the injected late Job's 38 ms by the time base; the 50,000,000-iteration guard is the PR-16 backstop |
 | `loop:part1:spin_ms:spin` | apps/p1-demo/part1/src/lib.rs:33 | 100_000_000 | 0 | not run |
 | `loop:part1:log:drain` | apps/p1-demo/part1/src/lib.rs:216 | 4 | - | not observed |
-| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:418 | 10_000_000 | 225 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:424 | 10_000_000 | 219 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part2:spin_ms:spin` | apps/p1-demo/part2/src/lib.rs:38 | 100_000_000 | 0 | not run |
-| `loop:part2:filter:hold` | apps/p1-demo/part2/src/lib.rs:335 | 10_000_000 | 0 | not run |
+| `loop:part2:filter:hold` | apps/p1-demo/part2/src/lib.rs:534 | 10_000_000 | 0 | not run |
 
 ## The Kernel's release-timing record
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 17999 | 9116 / 142.4 | 3768 | 2^12:16015 2^13:1982 2^14:2 |
-| 2 | 8991 | 9116 / 142.4 | 3780 | 2^12:7816 2^13:1173 2^14:2 |
-| 3 | 4499 | 9116 / 142.4 | 3922 | 2^12:3467 2^13:1030 2^14:2 |
-| 5 | 7199 | 8073 / 126.1 | 3814 | 2^12:5498 2^13:1701 |
-| 6 | 1799 | 8073 / 126.1 | 4227 | 2^12:862 2^13:937 |
+| 0 | 17999 | 7395 / 115.5 | 3745 | 2^12:16242 2^13:1757 |
+| 2 | 8991 | 7395 / 115.5 | 3738 | 2^12:7994 2^13:997 |
+| 3 | 4499 | 7395 / 115.5 | 3875 | 2^12:3553 2^13:946 |
+| 5 | 7199 | 6748 / 105.4 | 3832 | 2^12:5562 2^13:1637 |
+| 6 | 1799 | 6731 / 105.2 | 4180 | 2^12:884 2^13:915 |
 
 Releases recorded: 40487; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 18000 | 9.999 | 0 | 0 | 0 |
-| 1 | 5999 | 0.259 | 0 | 0 | 0 |
-| 2 | 8992 | 54.511 | 0 | 0 | 0 |
-| 3 | 4500 | 7.050 | 0 | 0 | 0 |
-| 4 | 9999 | 12.371 | 10000 | 2285 | 2058 |
-| 5 | 7200 | 11.460 | 0 | 0 | 0 |
-| 6 | 1800 | 57.013 | 0 | 0 | 0 |
+| 0 | 18000 | 10.150 | 0 | 0 | 0 |
+| 1 | 5999 | 0.261 | 0 | 0 | 0 |
+| 2 | 8992 | 54.486 | 0 | 0 | 0 |
+| 3 | 4500 | 7.071 | 0 | 0 | 0 |
+| 4 | 9999 | 12.429 | 10000 | 2297 | 2061 |
+| 5 | 7200 | 11.430 | 0 | 0 | 0 |
+| 6 | 1800 | 56.902 | 0 | 0 | 0 |
 
 Execution from the Budget accounting (task 19.1; cycle-counter read cost 1 cycles, R34.3):
 
 | Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |
 |---|---|---|---|
-| Task 0 entry | 18000 | 21182 / 0.331 (min 10242, mean 13143) | 0 above the Budget; 2^14:15776 2^15:2224 |
-| Task 1 entry | 5999 | 7313 / 0.114 (min 3618, mean 3714) | 0 above the Budget; 2^12:5997 2^13:2 |
-| Task 2 entry | 8992 | 2940918 / 45.952 (min 784379, mean 789730) | 8 above the Budget; 2^15:8992 |
-| Task 3 entry | 4500 | 200979 / 3.140 (min 181172, mean 196383) | 0 above the Budget; 2^15:4500 |
-| Task 4 entry | 9999 | 18368 / 0.287 (min 3738, mean 4143) | 0 above the Budget; 2^12:9434 2^13:429 2^14:132 2^15:4 |
-| Task 5 entry | 7200 | 15809 / 0.247 (min 7008, mean 7433) | 0 above the Budget; 2^13:6725 2^14:475 |
-| Task 6 entry | 1800 | 23055 / 0.360 (min 8218, mean 8417) | 0 above the Budget; 2^14:1797 2^15:3 |
-| Task 0 on Resource 0 | 18000 | 7328 / 0.115 | |
-| Task 0 on Resource 1 | 18000 | 4323 / 0.068 | |
-| Task 2 on Resource 0 | 8992 | 773678 / 12.089 | |
-| Task 2 on Resource 1 | 17984 | 6933 / 0.108 | |
-| Task 5 on Resource 2 | 7200 | 5586 / 0.087 | |
-| Task 6 on Resource 2 | 1800 | 5459 / 0.085 | |
+| Task 0 entry | 18000 | 21092 / 0.330 (min 10257, mean 13265) | 0 above the Budget; 2^14:15578 2^15:2422 |
+| Task 1 entry | 5999 | 7533 / 0.118 (min 3637, mean 3751) | 0 above the Budget; 2^12:5998 2^13:1 |
+| Task 2 entry | 8992 | 2939412 / 45.928 (min 784497, mean 789903) | 8 above the Budget; 2^15:8992 |
+| Task 3 entry | 4500 | 200871 / 3.139 (min 186522, mean 195792) | 0 above the Budget; 2^15:4500 |
+| Task 4 entry | 9999 | 12041 / 0.188 (min 3728, mean 4127) | 0 above the Budget; 2^12:9348 2^13:649 2^14:2 |
+| Task 5 entry | 7200 | 14575 / 0.228 (min 7012, mean 7388) | 0 above the Budget; 2^13:6946 2^14:254 |
+| Task 6 entry | 1800 | 23257 / 0.363 (min 8221, mean 8397) | 0 above the Budget; 2^14:1798 2^15:2 |
+| Task 0 on Resource 0 | 18000 | 7845 / 0.123 | |
+| Task 0 on Resource 1 | 18000 | 4343 / 0.068 | |
+| Task 2 on Resource 0 | 8992 | 773808 / 12.091 | |
+| Task 2 on Resource 1 | 17984 | 4211 / 0.066 | |
+| Task 5 on Resource 2 | 7200 | 5646 / 0.088 | |
+| Task 6 on Resource 2 | 1800 | 4132 / 0.065 | |
 
 Kernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):
 
 | Entry | Runs | Max (cycles / µs) | Mean (cycles) |
 |---|---|---|---|
-| dispatch | 56491 | 3311 / 51.73 | 3104 |
-| timer | 50926 | 4484 / 70.06 | 3095 |
-| intake | 10000 | 2397 / 37.45 | 2169 |
-| lock | 71976 | 448 / 7.00 | 446 |
-| unlock | 71976 | 1908 / 29.81 | 1645 |
-| job_end | 56490 | 2156 / 33.69 | 1815 |
-| now | 9056937 | 224 / 3.50 | 222 |
-| raise | 6000 | 2112 / 33.00 | 1982 |
-| dma | 1808 | 823 / 12.86 | 497 |
-| epilogue | 56490 | 1236 / 19.31 | 744 |
-| enforce | 8 | 3048 / 47.62 | 3004 |
-| view | 80018 | 308 / 4.81 | 273 |
+| dispatch | 56490 | 3304 / 51.62 | 3093 |
+| timer | 50984 | 4480 / 70.00 | 3079 |
+| intake | 10000 | 2421 / 37.83 | 2189 |
+| lock | 71976 | 472 / 7.38 | 463 |
+| unlock | 71976 | 1889 / 29.52 | 1649 |
+| job_end | 56490 | 2141 / 33.45 | 1821 |
+| now | 8803381 | 239 / 3.73 | 237 |
+| raise | 6000 | 2062 / 32.22 | 1982 |
+| dma | 1808 | 841 / 13.14 | 505 |
+| epilogue | 56490 | 1243 / 19.42 | 751 |
+| enforce | 8 | 2996 / 46.81 | 2978 |
+| view | 80426 | 308 / 4.81 | 273 |
 
-Entries that interrupted an executing Job: Task 0: 9339, Task 1: 2, Task 2: 53261, Task 3: 2120, Task 4: 728, Task 5: 589, Task 6: 86
+Entries that interrupted an executing Job: Task 0: 9268, Task 1: 1, Task 2: 53375, Task 3: 2619, Task 4: 557, Task 5: 333, Task 6: 26
+
+Entries that interrupted each Task's longest Job (their Rust halves' cycles are in that Job's execution, charged in full when the entry switched nothing): Task 0: 3 (timer, intake), 8308 cycles; Task 1: 1 (timer), 3033 cycles; Task 2: 35 (dispatch, timer, intake), 105210 cycles; Task 3: 1 (timer), 2901 cycles; Task 4: 2 (dispatch, timer), 7298 cycles; Task 5: 2 (timer), 5822 cycles; Task 6: 5 (dispatch, timer), 16409 cycles
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 179940.000 ms, 3468 cycles
-- Task 2 at 179940.000 ms, 3468 cycles
-- Task 0 at 179950.000 ms, 4245 cycles
-- Task 5 at 179950.000 ms, 4245 cycles
-- Task 0 at 179960.000 ms, 3708 cycles
-- Task 2 at 179960.000 ms, 3708 cycles
-- Task 3 at 179960.000 ms, 3708 cycles
-- Task 0 at 179970.000 ms, 3385 cycles
-- Task 5 at 179975.000 ms, 3957 cycles
-- Task 0 at 179980.000 ms, 3468 cycles
-- Task 2 at 179980.000 ms, 3468 cycles
-- Task 0 at 179990.000 ms, 3381 cycles
+- Task 0 at 179940.000 ms, 3503 cycles
+- Task 2 at 179940.000 ms, 3503 cycles
+- Task 0 at 179950.000 ms, 3904 cycles
+- Task 5 at 179950.000 ms, 3904 cycles
+- Task 0 at 179960.000 ms, 3679 cycles
+- Task 2 at 179960.000 ms, 3679 cycles
+- Task 3 at 179960.000 ms, 3679 cycles
+- Task 0 at 179970.000 ms, 3820 cycles
+- Task 5 at 179975.000 ms, 3952 cycles
+- Task 0 at 179980.000 ms, 3447 cycles
+- Task 2 at 179980.000 ms, 3447 cycles
+- Task 0 at 179990.000 ms, 3836 cycles
 
 ## The Kernel's masked spans (11.13)
 
-Every stretch without a Kernel-level interrupt taken, 9293010 of them, the longest 18308 cycles (286.1 µs), closed by a dispatch entry:
+Every stretch without a Kernel-level interrupt taken, 9038879 of them, the longest 21238 cycles (331.8 µs), closed by a timer entry:
 
 | Span (cycles) | Spans |
 |---|---|
-| 256 to 511 (4.0 to 8.0 µs) | 9037003 |
-| 512 to 1023 (8.0 to 16.0 µs) | 73414 |
-| 1024 to 2047 (16.0 to 32.0 µs) | 59522 |
-| 2048 to 4095 (32.0 to 64.0 µs) | 52034 |
-| 4096 to 8191 (64.0 to 128.0 µs) | 56015 |
-| 8192 to 16383 (128.0 to 256.0 µs) | 14993 |
-| 16384 to 32767 (256.0 to 512.0 µs) | 29 |
+| 256 to 511 (4.0 to 8.0 µs) | 8782506 |
+| 512 to 1023 (8.0 to 16.0 µs) | 73552 |
+| 1024 to 2047 (16.0 to 32.0 µs) | 57621 |
+| 2048 to 4095 (32.0 to 64.0 µs) | 53085 |
+| 4096 to 8191 (64.0 to 128.0 µs) | 57004 |
+| 8192 to 16383 (128.0 to 256.0 µs) | 15108 |
+| 16384 to 32767 (256.0 to 512.0 µs) | 3 |
 
 | Closing entry | Spans | Longest (cycles / µs) |
 |---|---|---|
-| dispatch | 48598 | 18308 / 286.1 |
-| timer | 45411 | 15050 / 235.2 |
-| job_end | 9177410 | 4184 / 65.4 |
-| epilogue | 21591 | 3907 / 61.0 |
+| dispatch | 48699 | 18174 / 284.0 |
+| timer | 44723 | 21238 / 331.8 |
+| job_end | 8923028 | 4238 / 66.2 |
+| epilogue | 22429 | 3990 / 62.3 |
 
 ## The Kernel's events
 
-57 events mirrored (57 held, 0 of them the post-detach reboot's): overrun of Task 2: 8, deadline_miss of Task 2: 19, release_overlap of Task 2: 19, mit_violation of Task 2: 8, operating_end of Task none: 1, safe_state of Task none: 1, debugger of Task none: 1; the trace never froze during the run
+40 events mirrored (40 held, 0 of them the post-detach reboot's): overrun of Task 2: 6, deadline_miss of Task 0: 1, deadline_miss of Task 2: 13, release_overlap of Task 2: 13, mit_violation of Task 2: 6, debugger of Task none: 1; the trace froze at event 39 (deadline_miss of Task 0 at 123040.021 ms)
+
+| Seq | Instant (ms) | Kind | Task | Partition | Detail |
+|---|---|---|---|---|---|
+| 39 | 123040.021 | deadline_miss | 0 | 0 | 0x0 |
 
 ## Dispatch timeline (trace pins)
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 339904 | 18160 | 0.310 |
-| 1 | 25316 | 6004 | 0.100 |
-| 2 | 11202909 | 31763 | 12.250 |
-| 3 | 1374909 | 5005 | 3.120 |
-| 4 | 48049 | 10135 | 0.180 |
-| 5 | 70655 | 7287 | 0.220 |
-| 6 | 20244 | 1824 | 0.300 |
-| none | 4914511 | 32956 | 7.190 |
+| 0 | 345215 | 18156 | 0.320 |
+| 1 | 26073 | 5999 | 0.110 |
+| 2 | 11208373 | 31865 | 12.270 |
+| 3 | 1374102 | 5503 | 3.120 |
+| 4 | 47806 | 9999 | 0.160 |
+| 5 | 70598 | 7255 | 0.210 |
+| 6 | 20278 | 1807 | 0.320 |
+| none | 4903841 | 32548 | 7.200 |
 
 ## Commands
 
@@ -170,10 +178,10 @@ filter_state_bits=1120403452
 sampler=1800
 dma_ok=1800
 loop:part0:spin_ms:spin=0
-loop:part0:sensor:hold=901
-loop:part0:sensor:late=2429
+loop:part0:sensor:hold=876
+loop:part0:sensor:late=2358
 loop:part1:spin_ms:spin=0
-loop:part1:log:busy=225
+loop:part1:log:busy=219
 loop:part2:filter:hold=0
 loop:part2:spin_ms:spin=0
 dma_end=1799
@@ -187,6 +195,18 @@ spim0_events_stopped=0
 first_memmanage_cfsr=0
 first_memmanage_mmfar=0
 events=32
+event=7
+  task=0
+  at_ms=123040
+  detail=0
+  prs_lo=134217728
+  prs_hi=0
+event=8
+  task=0
+  at_ms=123040
+  detail=0
+  prs_lo=4096
+  prs_hi=0
 event=10
   task=255
   at_ms=180000
@@ -202,15 +222,33 @@ event=18
 expected_control=18000
 expected_sensor=8992
 expected_late_jobs=8
-late_events_seen=30
-RSK-OK
-Firmware exited successfully
+late_events_seen=28
+RSK-FAIL
+Firmware exited with: Application exit (Unknown exit code 1)
+Core 0
+    Frame 0: semihosting_exit @ 0xedba
+        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs:1532:17
+    Frame 1: report_and_exit @ 0xf982
+        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/system/src/lib.rs:543:5
+    Frame 2: safe_state @ 0xfee0
+        /Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/decl/src/nrf52840_timing_short.rs:26:1
+    Frame 3: safe_state<rsk_system::Sys> @ 0xd0b8 inline
+        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs:624:5
+    Frame 4: irq_entry<rsk_system::Sys> @ 0xd0b6 inline
+        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-kernel/src/arch/cm4/mod.rs:543:9
+    Frame 5: rsk_irq_entry_rust @ 0xc00e
+        /Users/mars2292/repos/Kiro-experimentation/IronOxide/crates/rsk-entry/src/lib.rs:154:16
+    Frame 6: __covrec_DDAC2460469FEC6Eu @ 0x17c
+    Frame 7: External interrupt #8 @ 0xc5a54784
+    Frame 8: _p2_ecov @ 0xc5a54784
+    Frame 9: _p2_ecov @ 0xc5a54782
      Finished in 8.44s
+Error: Application exit
 ```
 
 ## Branch coverage of the measurement inputs (R34.4)
 
-branch coverage of the measurement inputs against the 50 % threshold (R34.4): part0.control 100 % (4 of 4 branch outcomes), part0.echo 100 % (0 of 0 branch outcomes), part0.sensor 85 % (12 of 14 branch outcomes), part1.log 92 % (13 of 14 branch outcomes), part1.pulse 100 % (6 of 6 branch outcomes), part2.filter 50 % (6 of 12 branch outcomes), part2.sampler 50 % (7 of 14 branch outcomes); 0 below
+branch coverage of the measurement inputs against the 50 % threshold (R34.4): part0.control 100 % (4 of 4 branch outcomes), part0.echo 100 % (0 of 0 branch outcomes), part0.sensor 85 % (12 of 14 branch outcomes), part1.log 92 % (13 of 14 branch outcomes), part1.pulse 100 % (6 of 6 branch outcomes), part2.filter 50 % (7 of 14 branch outcomes), part2.sampler 50 % (8 of 16 branch outcomes); 0 below
 
 | Item | Functions | Branch outcomes | Covered | Percent | Verdict |
 |---|---|---|---|---|---|
@@ -223,25 +261,27 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `part0.sensor#cs:in_cs` | 9 | 14 | 12 | 85 % | pass |
 | `part1.log` | 7 | 14 | 13 | 92 % | pass |
 | `part1.pulse` | 6 | 6 | 6 | 100 % | pass |
-| `part2.filter` | 14 | 12 | 6 | 50 % | pass |
-| `part2.filter#cs:stats` | 14 | 12 | 6 | 50 % | pass |
-| `part2.sampler` | 14 | 14 | 7 | 50 % | pass |
-| `part2.sampler#cs:stats` | 14 | 14 | 7 | 50 % | pass |
+| `part2.filter` | 16 | 14 | 7 | 50 % | pass |
+| `part2.filter#cs:stats` | 16 | 14 | 7 | 50 % | pass |
+| `part2.sampler` | 16 | 16 | 8 | 50 % | pass |
+| `part2.sampler#cs:stats` | 16 | 16 | 8 | 50 % | pass |
 
 | Function | Branch outcomes | Covered | Uncovered (line:col outcome) |
 |---|---|---|---|
-| `p1_demo_part2::traffic_step` | 10 | 5 | 117:12 false, 123:8 true, 127:12 true, 127:12 false, 147:5 false |
+| `p1_demo_part2::traffic_step` | 10 | 5 | 186:12 false, 192:8 true, 196:12 true, 196:12 false, 219:20 false |
+| `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
+| `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
+| `p1_demo_part2::traffic_step::{closure}` | 2 | 1 | 210:16 false |
 | `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
-| `p1_demo_part2::traffic_step::{closure}` | 0 | 0 |  |
-| `p1_demo_part2::Stats::record` | 2 | 1 | 253:12 false |
+| `p1_demo_part2::Stats::record` | 2 | 1 | 423:12 false |
 | `p1_demo_part2::filter` | 0 | 0 |  |
 | `p1_demo_part2::filter::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::filter::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::filter::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::lowpass` | 0 | 0 |  |
-| `p1_demo_part2::sampler` | 2 | 1 | 518:8 false |
+| `p1_demo_part2::sampler` | 2 | 1 | 728:8 false |
 | `p1_demo_part2::sampler::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::sampler::{closure}` | 0 | 0 |  |
 | `p1_demo_part2::sampler::{closure}` | 0 | 0 |  |
@@ -254,9 +294,9 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `p1_demo_part1::pulse_source::acknowledge` | 0 | 0 |  |
 | `p1_demo_part1::pulse_source::start` | 0 | 0 |  |
 | `p1_demo_part1::pulse_source::respond` | 6 | 6 |  |
-| `p1_demo_part1::log` | 6 | 5 | 418:72 false |
-| `p1_demo_part1::log::{closure}` | 0 | 0 |  |
+| `p1_demo_part1::log` | 6 | 5 | 424:72 false |
 | `p1_demo_part1::log::{closure}` | 2 | 2 |  |
+| `p1_demo_part1::log::{closure}` | 0 | 0 |  |
 | `p1_demo_part1::pulse` | 0 | 0 |  |
 | `p1_demo_part1::pulse::{closure}` | 0 | 0 |  |
 | `p1_demo_part1::rsk_jobs::log` | 0 | 0 |  |
@@ -264,12 +304,12 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `p1_demo_part0::rsk_target::ms` | 0 | 0 |  |
 | `p1_demo_part0::echo` | 0 | 0 |  |
 | `p1_demo_part0::echo::{closure}` | 0 | 0 |  |
-| `p1_demo_part0::sensor` | 6 | 5 | 423:77 false |
+| `p1_demo_part0::sensor` | 6 | 5 | 428:77 false |
+| `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
+| `p1_demo_part0::sensor::{closure}` | 4 | 3 | 390:80 false |
+| `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
 | `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
 | `p1_demo_part0::sensor::{closure}` | 2 | 2 |  |
-| `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
-| `p1_demo_part0::sensor::{closure}` | 4 | 3 | 385:80 false |
-| `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
 | `p1_demo_part0::sensor::{closure}::{closure}` | 2 | 2 |  |
 | `p1_demo_part0::control` | 4 | 4 |  |
 | `p1_demo_part0::control::{closure}` | 0 | 0 |  |

@@ -1,0 +1,313 @@
+{
+  "schema": "rsk-kernel-timing/1",
+  "binary_hash": "sha256:16ef3ddeff8b449deecb26c19f66902614bdbbb3c80e2d4d29ecb9681350291e",
+  "target": "nrf52840/r0p1",
+  "clock_hz": 64000000,
+  "icache": "off",
+  "parameters": [
+    {
+      "symbol": "l_kernel",
+      "cycles": 5605,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the longest Kernel entry of the run (every entry masks preemption, DD-01): the largest Rust half of any kind (the stub's cycles outside the charge points, Δ_entry, come from the cycle configuration's record) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 64187,
+        "max_observed": 4484,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dispatch",
+      "cycles": 4103,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one dispatch entry: the Job selected, its view loaded, its frame built (the Rust half; the stub's cycles are Δ_entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 555,
+        "max_observed": 3282,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_timer",
+      "cycles": 5605,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one time-base entry: every due timed event served (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 529,
+        "max_observed": 4484,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_detect",
+      "cycles": 5605,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the time-base entry that serves a Budget or deadline event (the Rust half of a timer entry), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 529,
+        "max_observed": 4484,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_in",
+      "cycles": 580,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one lock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 715,
+        "max_observed": 464,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_lock_out",
+      "cycles": 2372,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one unlock SVC (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 714,
+        "max_observed": 1897,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_complete",
+      "cycles": 4177,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the Job-end SVC plus the unwind's epilogue (the Rust halves), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 550,
+        "max_observed": 3341,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_svc",
+      "cycles": 293,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "the now SVC, the service with the least work (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 59038,
+        "max_observed": 234,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_dma_write",
+      "cycles": 910,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one EasyDMA request SVC, validation and the register writes (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 2,
+        "max_observed": 728,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_hm",
+      "cycles": 3297,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one fault entry applying the Partition's fault response (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 3,
+        "max_observed": 2637,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_restart",
+      "cycles": 5605,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "an entry that restarted a Partition (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 3,
+        "max_observed": 4484,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_stop",
+      "cycles": 5414,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "an entry that stopped a Partition (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 1,
+        "max_observed": 4331,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_enforce",
+      "cycles": 5605,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "an entry that recorded an Overrun and applied the Overrun_Response (the Rust half, whole), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 4,
+        "max_observed": 4484,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_view",
+      "cycles": 412,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one MPU view load inside a dispatch (its own cycles; inside Δ_dispatch, exported for review, R13.6), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 706,
+        "max_observed": 329,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_send",
+      "cycles": 2947,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one Endpoint send SVC: the checks, the slot, the word copy into the channel, and the arrival release when declared (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 277,
+        "max_observed": 2357,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    },
+    {
+      "symbol": "delta_recv",
+      "cycles": 1168,
+      "method": "measured",
+      "tool": "rsk-hil release-timing record",
+      "conditions": [
+        "one Endpoint receive SVC: the checks, the oldest slot, and the word copy into the Partition (the Rust half), the Kernel's entry record (task 19.3)",
+        "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
+      ],
+      "measured": {
+        "runs": 369,
+        "max_observed": 934,
+        "margin_percent": 25,
+        "coverage_branch_percent": 0,
+        "scenarios": [
+          "nrf52840_response (2 s): one injected fault per response of R14.5"
+        ]
+      }
+    }
+  ]
+}

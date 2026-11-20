@@ -1,15 +1,15 @@
 {
   "schema": "rsk-kernel-coverage/1",
   "configuration": "nrf52840_coverage",
-  "binary_hash": "sha256:48c496a4723bfb8244970260d83d36c6ccbff4719b929499b565f7f39ce9fee8",
+  "binary_hash": "sha256:dc38d3a001694dfa97cb9f1a52eab4b592b049e9d59b43414811a293282547b5",
   "totals": {
     "file": "total",
-    "lines_covered": 3456,
-    "lines": 5617,
-    "branches_covered": 834,
-    "branches": 1648,
-    "functions_covered": 304,
-    "functions": 449
+    "lines_covered": 3513,
+    "lines": 5734,
+    "branches_covered": 840,
+    "branches": 1666,
+    "functions_covered": 312,
+    "functions": 463
   },
   "files": [
     {
@@ -32,12 +32,12 @@
     },
     {
       "file": "apps/p1-demo/part2/src/lib.rs",
-      "lines_covered": 62,
-      "lines": 77,
-      "branches_covered": 7,
-      "branches": 14,
-      "functions_covered": 14,
-      "functions": 17
+      "lines_covered": 67,
+      "lines": 83,
+      "branches_covered": 8,
+      "branches": 16,
+      "functions_covered": 16,
+      "functions": 19
     },
     {
       "file": "apps/p1-demo/system/src/lib.rs",
@@ -68,19 +68,28 @@
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/entry.rs",
-      "lines_covered": 591,
-      "lines": 1233,
+      "lines_covered": 605,
+      "lines": 1260,
       "branches_covered": 131,
       "branches": 378,
       "functions_covered": 29,
       "functions": 57
     },
     {
+      "file": "crates/rsk-kernel/src/arch/cm4/ghostv.rs",
+      "lines_covered": 10,
+      "lines": 17,
+      "branches_covered": 0,
+      "branches": 0,
+      "functions_covered": 5,
+      "functions": 8
+    },
+    {
       "file": "crates/rsk-kernel/src/arch/cm4/mod.rs",
-      "lines_covered": 274,
-      "lines": 437,
-      "branches_covered": 60,
-      "branches": 102,
+      "lines_covered": 279,
+      "lines": 444,
+      "branches_covered": 63,
+      "branches": 106,
       "functions_covered": 35,
       "functions": 50
     },
@@ -104,12 +113,12 @@
     },
     {
       "file": "crates/rsk-kernel/src/arch/cm4/unsafe_module/mod.rs",
-      "lines_covered": 251,
-      "lines": 393,
-      "branches_covered": 63,
-      "branches": 118,
-      "functions_covered": 27,
-      "functions": 42
+      "lines_covered": 278,
+      "lines": 441,
+      "branches_covered": 69,
+      "branches": 126,
+      "functions_covered": 28,
+      "functions": 45
     },
     {
       "file": "crates/rsk-kernel/src/arch/mod.rs",
@@ -119,6 +128,15 @@
       "branches": 0,
       "functions_covered": 0,
       "functions": 2
+    },
+    {
+      "file": "crates/rsk-kernel/src/version.rs",
+      "lines_covered": 0,
+      "lines": 12,
+      "branches_covered": 0,
+      "branches": 4,
+      "functions_covered": 0,
+      "functions": 1
     },
     {
       "file": "crates/rsk-logic/src/logic/budget.rs",
@@ -176,9 +194,9 @@
     },
     {
       "file": "crates/rsk-logic/src/logic/sched.rs",
-      "lines_covered": 225,
+      "lines_covered": 221,
       "lines": 260,
-      "branches_covered": 33,
+      "branches_covered": 29,
       "branches": 46,
       "functions_covered": 11,
       "functions": 13

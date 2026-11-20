@@ -1,7 +1,7 @@
 {
   "schema": "rsk-loop-iterations/1",
   "configuration": "nrf52840_timing",
-  "binary_hash": "sha256:a639b3ccc276ececf9a52686564b05910078aee2159dd6d821af6889251b16d4",
+  "binary_hash": "sha256:fc48480c2207e3330f9096198fa317caa48ebbcb0629dd9efa240e730520b2bd",
   "loops": [
     {
       "key": "loop:part0:spin_ms:spin",
@@ -23,7 +23,7 @@
       "label": "hold",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 1021,
+      "observed": 1032,
       "verdict": "unreachable",
       "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
@@ -35,7 +35,7 @@
       "label": "late",
       "bound": "50_000_000",
       "bound_value": 50000000,
-      "observed": 2803,
+      "observed": 2816,
       "verdict": "unreachable",
       "justification": "the injected late Job's 38 ms by the time base; the 50,000,000-iteration guard is the PR-16 backstop"
     },
@@ -71,7 +71,7 @@
       "label": "busy",
       "bound": "10_000_000",
       "bound_value": 10000000,
-      "observed": 256,
+      "observed": 259,
       "verdict": "unreachable",
       "justification": "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
     },
@@ -90,7 +90,7 @@
     {
       "key": "loop:part2:filter:hold",
       "file": "apps/p1-demo/part2/src/lib.rs",
-      "line": 506,
+      "line": 534,
       "function": "filter",
       "label": "hold",
       "bound": "10_000_000",

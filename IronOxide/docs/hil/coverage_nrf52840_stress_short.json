@@ -1,18 +1,18 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_stress_short",
-  "binary_hash": "sha256:c32b01380774b7849254fab07cf090b313eca8c934f9f2ea99124e85ae3fa073",
+  "binary_hash": "sha256:eecca2c699e784a2a013ce94aedba140bb883cdc057bead4f6a54395b431ff11",
   "threshold_percent": 50,
   "items": [
     {
       "item": "part0.control",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part07control17hbcb4d4db78090ca6E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h96fb400f1173c228E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc6a249e2ba774178E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hebcf5092d0424b11E",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part07control17h259e8179ba901fd4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1ecc66f803ded557E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc0325138d6a353e4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hf61c2e564c353a76E",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 4,
       "covered": 4,
@@ -22,12 +22,12 @@
     {
       "item": "part0.control#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part07control17hbcb4d4db78090ca6E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h96fb400f1173c228E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc6a249e2ba774178E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hebcf5092d0424b11E",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part07control17h259e8179ba901fd4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1ecc66f803ded557E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc0325138d6a353e4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hf61c2e564c353a76E",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 4,
       "covered": 4,
@@ -37,12 +37,12 @@
     {
       "item": "part0.control#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part07control17hbcb4d4db78090ca6E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h96fb400f1173c228E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc6a249e2ba774178E",
-        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hebcf5092d0424b11E",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part07control17h259e8179ba901fd4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17h1ecc66f803ded557E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hc0325138d6a353e4E",
+        "_ZN13p1_demo_part07control28_$u7b$$u7b$closure$u7d$$u7d$17hf61c2e564c353a76E",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 4,
       "covered": 4,
@@ -52,10 +52,10 @@
     {
       "item": "part0.echo",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part04echo17hb8fc732d48913e96E",
-        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17h4a539ccf5a9ab6d9E",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part04echo17h777978bd3173dd09E",
+        "_ZN13p1_demo_part04echo28_$u7b$$u7b$closure$u7d$$u7d$17hd33df0ee1e7505deE",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 0,
       "covered": 0,
@@ -65,91 +65,91 @@
     {
       "item": "part0.sensor",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part06sensor17h5a020673c01235e9E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h1179d87c8b4c2ef4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h16f3a9c50ba11301E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h52d6b71bf2948cf4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hae33ca3c3281c13fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17hda02eba81727dc7cE",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part06sensor17h35937a564604a0f2E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h12c2b0a369fec415E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h5cb514d1ecd979fbE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h68839248758563eaE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hd363f2b862b0262fE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h328c6cb9eb5d9ff3E",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 385:80 false"
+        "p1_demo_part0::sensor::{closure}: 390:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:state",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part06sensor17h5a020673c01235e9E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h1179d87c8b4c2ef4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h16f3a9c50ba11301E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h52d6b71bf2948cf4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hae33ca3c3281c13fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17hda02eba81727dc7cE",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part06sensor17h35937a564604a0f2E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h12c2b0a369fec415E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h5cb514d1ecd979fbE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h68839248758563eaE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hd363f2b862b0262fE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h328c6cb9eb5d9ff3E",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 385:80 false"
+        "p1_demo_part0::sensor::{closure}: 390:80 false"
       ]
     },
     {
       "item": "part0.sensor#cs:in_cs",
       "functions": [
-        "_ZN13p1_demo_part010rsk_target2ms17h3a8e686ec206c564E",
-        "_ZN13p1_demo_part06sensor17h5a020673c01235e9E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h1179d87c8b4c2ef4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h16f3a9c50ba11301E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h52d6b71bf2948cf4E",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hae33ca3c3281c13fE",
-        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17hda02eba81727dc7cE",
-        "_ZN13p1_demo_part012validate_rep17h5c9dacb9911d5ab2E"
+        "_ZN13p1_demo_part010rsk_target2ms17h2eae461e0e14d346E",
+        "_ZN13p1_demo_part06sensor17h35937a564604a0f2E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h12c2b0a369fec415E",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h5cb514d1ecd979fbE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17h68839248758563eaE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$17hd363f2b862b0262fE",
+        "_ZN13p1_demo_part06sensor28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h328c6cb9eb5d9ff3E",
+        "_ZN13p1_demo_part012validate_rep17ha956bf21af3f2feaE"
       ],
       "branches": 6,
       "covered": 5,
       "percent": 83,
       "uncovered": [
-        "p1_demo_part0::sensor::{closure}: 385:80 false"
+        "p1_demo_part0::sensor::{closure}: 390:80 false"
       ]
     },
     {
       "item": "part1.log",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17hed5acd00e7a1ce3cE",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17h6d53fb0be041381dE",
-        "_ZN13p1_demo_part112pulse_source5start17h32f610f616a34dd4E",
-        "_ZN13p1_demo_part112pulse_source7respond17ha238530ddab41f86E",
-        "_ZN13p1_demo_part13log17he1bc59b834e04f71E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h6012b353efb752eaE",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h6e35d87ea3710453E",
-        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17hb8f55aa5a448188fE",
-        "_ZN13p1_demo_part16inject7spin_ms17h67aa11f481af793eE"
+        "_ZN13p1_demo_part110rsk_target2ms17h9700cdd70c2f664cE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17hbc6cb820a82bed7cE",
+        "_ZN13p1_demo_part112pulse_source5start17h1442c6ceaf659416E",
+        "_ZN13p1_demo_part112pulse_source7respond17he43f510770c35408E",
+        "_ZN13p1_demo_part13log17hc5af6216e6bd6b30E",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h3424dfed9f43f4cbE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17h85041945c1f9ee6eE",
+        "_ZN13p1_demo_part13log28_$u7b$$u7b$closure$u7d$$u7d$17ha2000e172404ebf8E",
+        "_ZN13p1_demo_part16inject7spin_ms17hbee029da6f42610dE"
       ],
       "branches": 22,
       "covered": 20,
       "percent": 90,
       "uncovered": [
-        "p1_demo_part1::log::{closure}: 409:38 true",
-        "p1_demo_part1::log::{closure}: 409:38 false"
+        "p1_demo_part1::log::{closure}: 415:38 true",
+        "p1_demo_part1::log::{closure}: 415:38 false"
       ]
     },
     {
       "item": "part1.pulse",
       "functions": [
-        "_ZN13p1_demo_part110rsk_target2ms17hed5acd00e7a1ce3cE",
-        "_ZN13p1_demo_part112pulse_source11acknowledge17h6d53fb0be041381dE",
-        "_ZN13p1_demo_part112pulse_source5start17h32f610f616a34dd4E",
-        "_ZN13p1_demo_part112pulse_source7respond17ha238530ddab41f86E",
-        "_ZN13p1_demo_part15pulse17h61d322f57c6c9bd5E",
-        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h2b5d2cca2418c240E",
-        "_ZN13p1_demo_part16inject7spin_ms17h67aa11f481af793eE"
+        "_ZN13p1_demo_part110rsk_target2ms17h9700cdd70c2f664cE",
+        "_ZN13p1_demo_part112pulse_source11acknowledge17hbc6cb820a82bed7cE",
+        "_ZN13p1_demo_part112pulse_source5start17h1442c6ceaf659416E",
+        "_ZN13p1_demo_part112pulse_source7respond17he43f510770c35408E",
+        "_ZN13p1_demo_part15pulse17he54f20b3c0664c8cE",
+        "_ZN13p1_demo_part15pulse28_$u7b$$u7b$closure$u7d$$u7d$17h732c4a425473a5f9E",
+        "_ZN13p1_demo_part16inject7spin_ms17hbee029da6f42610dE"
       ],
       "branches": 10,
       "covered": 10,
@@ -159,135 +159,151 @@
     {
       "item": "part2.filter",
       "functions": [
-        "_ZN13p1_demo_part210rsk_target2ms17h09f9b3da6483a2f6E",
-        "_ZN13p1_demo_part212traffic_step17h925dc1b169328e0fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3a77ade57009042fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe653c6b1fbb5d81E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbf1b9338fda36cc1E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc79eb06a2c317044E",
-        "_ZN13p1_demo_part25Stats6record17h5d9ed04e5899f5a0E",
-        "_ZN13p1_demo_part26filter17h37ef41e1057b1201E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h4347a4ae5184710aE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h9512a8f9f9b10de5E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hb8d1a21fafda4f12E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he202a70de9b92b97E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h6dadb6aba80f92f2E",
-        "_ZN13p1_demo_part26inject7spin_ms17he74c09de69948159E",
-        "_ZN13p1_demo_part27lowpass17h59c2d2573f4e8d74E",
-        "_ZN13p1_demo_part212validate_req17h61f08b38cee11dffE",
-        "_ZN13p1_demo_part25Stats3new17h4d36f5e08597f885E"
+        "_ZN13p1_demo_part210rsk_target2ms17h9adce3c25a783c84E",
+        "_ZN13p1_demo_part212traffic_step17h250dd0052dcb7d60E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h10c438bd480b7228E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1f40ff43486285d3E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h74458b1cbf8db83fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17ha2c8537760db8203E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hd1a471a061f6368eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hf779a707c955a055E",
+        "_ZN13p1_demo_part25Stats6record17h9801a789b666d291E",
+        "_ZN13p1_demo_part26filter17h05d80677f45fb7e0E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h2ecb6960bd189e2dE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h6892f341e5d6f9f5E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h7719257483be6d73E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he6f63c42860e82d8E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h5f01f2c00b039454E",
+        "_ZN13p1_demo_part26inject7spin_ms17h15736e73f7dacc12E",
+        "_ZN13p1_demo_part27lowpass17he89f6ef902784591E",
+        "_ZN13p1_demo_part212validate_req17h65c10b5327b705daE",
+        "_ZN13p1_demo_part25Stats3new17hfebd2816dc08b17aE"
       ],
-      "branches": 24,
+      "branches": 26,
       "covered": 18,
-      "percent": 75,
+      "percent": 69,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 115:8 true",
-        "p1_demo_part2::traffic_step: 117:12 true",
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::traffic_step: 184:8 true",
+        "p1_demo_part2::traffic_step: 186:12 true",
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false"
       ]
     },
     {
       "item": "part2.filter#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part210rsk_target2ms17h09f9b3da6483a2f6E",
-        "_ZN13p1_demo_part212traffic_step17h925dc1b169328e0fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3a77ade57009042fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe653c6b1fbb5d81E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbf1b9338fda36cc1E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc79eb06a2c317044E",
-        "_ZN13p1_demo_part25Stats6record17h5d9ed04e5899f5a0E",
-        "_ZN13p1_demo_part26filter17h37ef41e1057b1201E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h4347a4ae5184710aE",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h9512a8f9f9b10de5E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17hb8d1a21fafda4f12E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he202a70de9b92b97E",
-        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h6dadb6aba80f92f2E",
-        "_ZN13p1_demo_part26inject7spin_ms17he74c09de69948159E",
-        "_ZN13p1_demo_part27lowpass17h59c2d2573f4e8d74E",
-        "_ZN13p1_demo_part212validate_req17h61f08b38cee11dffE",
-        "_ZN13p1_demo_part25Stats3new17h4d36f5e08597f885E"
+        "_ZN13p1_demo_part210rsk_target2ms17h9adce3c25a783c84E",
+        "_ZN13p1_demo_part212traffic_step17h250dd0052dcb7d60E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h10c438bd480b7228E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1f40ff43486285d3E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h74458b1cbf8db83fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17ha2c8537760db8203E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hd1a471a061f6368eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hf779a707c955a055E",
+        "_ZN13p1_demo_part25Stats6record17h9801a789b666d291E",
+        "_ZN13p1_demo_part26filter17h05d80677f45fb7e0E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h2ecb6960bd189e2dE",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h6892f341e5d6f9f5E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17h7719257483be6d73E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$17he6f63c42860e82d8E",
+        "_ZN13p1_demo_part26filter28_$u7b$$u7b$closure$u7d$$u7d$28_$u7b$$u7b$closure$u7d$$u7d$17h5f01f2c00b039454E",
+        "_ZN13p1_demo_part26inject7spin_ms17h15736e73f7dacc12E",
+        "_ZN13p1_demo_part27lowpass17he89f6ef902784591E",
+        "_ZN13p1_demo_part212validate_req17h65c10b5327b705daE",
+        "_ZN13p1_demo_part25Stats3new17hfebd2816dc08b17aE"
       ],
-      "branches": 24,
+      "branches": 26,
       "covered": 18,
-      "percent": 75,
+      "percent": 69,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 115:8 true",
-        "p1_demo_part2::traffic_step: 117:12 true",
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false"
+        "p1_demo_part2::traffic_step: 184:8 true",
+        "p1_demo_part2::traffic_step: 186:12 true",
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false"
       ]
     },
     {
       "item": "part2.sampler",
       "functions": [
-        "_ZN13p1_demo_part210rsk_target2ms17h09f9b3da6483a2f6E",
-        "_ZN13p1_demo_part212traffic_step17h925dc1b169328e0fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3a77ade57009042fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe653c6b1fbb5d81E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbf1b9338fda36cc1E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc79eb06a2c317044E",
-        "_ZN13p1_demo_part25Stats6record17h5d9ed04e5899f5a0E",
-        "_ZN13p1_demo_part26inject7spin_ms17he74c09de69948159E",
-        "_ZN13p1_demo_part27lowpass17h59c2d2573f4e8d74E",
-        "_ZN13p1_demo_part27sampler17h486abdb9d42f200cE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h26fc6e62f8bd66e3E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h4514b7283f363e93E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hb3fa032e863dde85E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17he3356fb78b5ba291E",
-        "_ZN13p1_demo_part212validate_req17h61f08b38cee11dffE",
-        "_ZN13p1_demo_part25Stats3new17h4d36f5e08597f885E"
+        "_ZN13p1_demo_part210rsk_target2ms17h9adce3c25a783c84E",
+        "_ZN13p1_demo_part212traffic_step17h250dd0052dcb7d60E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h10c438bd480b7228E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1f40ff43486285d3E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h74458b1cbf8db83fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17ha2c8537760db8203E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hd1a471a061f6368eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hf779a707c955a055E",
+        "_ZN13p1_demo_part25Stats6record17h9801a789b666d291E",
+        "_ZN13p1_demo_part26inject7spin_ms17h15736e73f7dacc12E",
+        "_ZN13p1_demo_part27lowpass17he89f6ef902784591E",
+        "_ZN13p1_demo_part27sampler17h00e2c3e0788a83e3E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h2d953930ea112ea5E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h6a71b3d97b0689e4E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17ha30926a1ec5cc633E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hbc3c9f355baa98e0E",
+        "_ZN13p1_demo_part212validate_req17h65c10b5327b705daE",
+        "_ZN13p1_demo_part25Stats3new17hfebd2816dc08b17aE"
       ],
-      "branches": 22,
+      "branches": 24,
       "covered": 14,
-      "percent": 63,
+      "percent": 58,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 115:8 true",
-        "p1_demo_part2::traffic_step: 117:12 true",
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler::{closure}: 483:34 true",
-        "p1_demo_part2::sampler::{closure}: 483:34 false"
+        "p1_demo_part2::traffic_step: 184:8 true",
+        "p1_demo_part2::traffic_step: 186:12 true",
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false",
+        "p1_demo_part2::sampler::{closure}: 699:34 true",
+        "p1_demo_part2::sampler::{closure}: 699:34 false"
       ]
     },
     {
       "item": "part2.sampler#cs:stats",
       "functions": [
-        "_ZN13p1_demo_part210rsk_target2ms17h09f9b3da6483a2f6E",
-        "_ZN13p1_demo_part212traffic_step17h925dc1b169328e0fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h3a77ade57009042fE",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbe653c6b1fbb5d81E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hbf1b9338fda36cc1E",
-        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hc79eb06a2c317044E",
-        "_ZN13p1_demo_part25Stats6record17h5d9ed04e5899f5a0E",
-        "_ZN13p1_demo_part26inject7spin_ms17he74c09de69948159E",
-        "_ZN13p1_demo_part27lowpass17h59c2d2573f4e8d74E",
-        "_ZN13p1_demo_part27sampler17h486abdb9d42f200cE",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h26fc6e62f8bd66e3E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h4514b7283f363e93E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hb3fa032e863dde85E",
-        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17he3356fb78b5ba291E",
-        "_ZN13p1_demo_part212validate_req17h61f08b38cee11dffE",
-        "_ZN13p1_demo_part25Stats3new17h4d36f5e08597f885E"
+        "_ZN13p1_demo_part210rsk_target2ms17h9adce3c25a783c84E",
+        "_ZN13p1_demo_part212traffic_step17h250dd0052dcb7d60E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h10c438bd480b7228E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h1f40ff43486285d3E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17h74458b1cbf8db83fE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17ha2c8537760db8203E",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hd1a471a061f6368eE",
+        "_ZN13p1_demo_part212traffic_step28_$u7b$$u7b$closure$u7d$$u7d$17hf779a707c955a055E",
+        "_ZN13p1_demo_part25Stats6record17h9801a789b666d291E",
+        "_ZN13p1_demo_part26inject7spin_ms17h15736e73f7dacc12E",
+        "_ZN13p1_demo_part27lowpass17he89f6ef902784591E",
+        "_ZN13p1_demo_part27sampler17h00e2c3e0788a83e3E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h2d953930ea112ea5E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17h6a71b3d97b0689e4E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17ha30926a1ec5cc633E",
+        "_ZN13p1_demo_part27sampler28_$u7b$$u7b$closure$u7d$$u7d$17hbc3c9f355baa98e0E",
+        "_ZN13p1_demo_part212validate_req17h65c10b5327b705daE",
+        "_ZN13p1_demo_part25Stats3new17hfebd2816dc08b17aE"
       ],
-      "branches": 22,
+      "branches": 24,
       "covered": 14,
-      "percent": 63,
+      "percent": 58,
       "uncovered": [
-        "p1_demo_part2::traffic_step: 115:8 true",
-        "p1_demo_part2::traffic_step: 117:12 true",
-        "p1_demo_part2::traffic_step: 117:12 false",
-        "p1_demo_part2::traffic_step: 127:12 true",
-        "p1_demo_part2::traffic_step: 147:5 false",
-        "p1_demo_part2::Stats::record: 253:12 false",
-        "p1_demo_part2::sampler::{closure}: 483:34 true",
-        "p1_demo_part2::sampler::{closure}: 483:34 false"
+        "p1_demo_part2::traffic_step: 184:8 true",
+        "p1_demo_part2::traffic_step: 186:12 true",
+        "p1_demo_part2::traffic_step: 186:12 false",
+        "p1_demo_part2::traffic_step: 196:12 true",
+        "p1_demo_part2::traffic_step: 219:20 false",
+        "p1_demo_part2::traffic_step::{closure}: 210:16 false",
+        "p1_demo_part2::Stats::record: 423:12 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false",
+        "p1_demo_part2::sampler::{closure}: 699:34 true",
+        "p1_demo_part2::sampler::{closure}: 699:34 false"
       ]
     }
   ],
@@ -305,11 +321,11 @@
       "branches": 10,
       "covered": 5,
       "uncovered": [
-        "115:8 true",
-        "117:12 true",
-        "117:12 false",
-        "127:12 true",
-        "147:5 false"
+        "184:8 true",
+        "186:12 true",
+        "186:12 false",
+        "196:12 true",
+        "219:20 false"
       ]
     },
     {
@@ -339,6 +355,22 @@
       "branches": 0,
       "covered": 0,
       "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::traffic_step::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::traffic_step::{closure}",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 2,
+      "covered": 1,
+      "uncovered": [
+        "210:16 false"
+      ]
     },
     {
       "name": "p1_demo_part2::Stats::record",
@@ -346,11 +378,18 @@
       "branches": 2,
       "covered": 1,
       "uncovered": [
-        "253:12 false"
+        "423:12 false"
       ]
     },
     {
       "name": "p1_demo_part2::filter",
+      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
+    },
+    {
+      "name": "p1_demo_part2::filter::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 0,
       "covered": 0,
@@ -378,13 +417,6 @@
       "uncovered": []
     },
     {
-      "name": "p1_demo_part2::filter::{closure}",
-      "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
-    },
-    {
       "name": "p1_demo_part2::filter::{closure}::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 2,
@@ -395,8 +427,10 @@
       "name": "p1_demo_part2::inject::spin_ms",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
       "branches": 4,
-      "covered": 4,
-      "uncovered": []
+      "covered": 3,
+      "uncovered": [
+        "38:84 false"
+      ]
     },
     {
       "name": "p1_demo_part2::lowpass",
@@ -422,19 +456,19 @@
     {
       "name": "p1_demo_part2::sampler::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
-      "branches": 2,
+      "branches": 0,
       "covered": 0,
-      "uncovered": [
-        "483:34 true",
-        "483:34 false"
-      ]
+      "uncovered": []
     },
     {
       "name": "p1_demo_part2::sampler::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part2/src/lib.rs",
-      "branches": 0,
+      "branches": 2,
       "covered": 0,
-      "uncovered": []
+      "uncovered": [
+        "699:34 true",
+        "699:34 false"
+      ]
     },
     {
       "name": "p1_demo_part2::sampler::{closure}",
@@ -509,19 +543,19 @@
     {
       "name": "p1_demo_part1::log::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
-      "branches": 0,
+      "branches": 2,
       "covered": 0,
-      "uncovered": []
+      "uncovered": [
+        "415:38 true",
+        "415:38 false"
+      ]
     },
     {
       "name": "p1_demo_part1::log::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part1/src/lib.rs",
-      "branches": 2,
+      "branches": 0,
       "covered": 0,
-      "uncovered": [
-        "409:38 true",
-        "409:38 false"
-      ]
+      "uncovered": []
     },
     {
       "name": "p1_demo_part1::log::{closure}",
@@ -596,18 +630,18 @@
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 0,
-      "covered": 0,
-      "uncovered": []
+      "branches": 4,
+      "covered": 3,
+      "uncovered": [
+        "390:80 false"
+      ]
     },
     {
       "name": "p1_demo_part0::sensor::{closure}",
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/p1-demo/part0/src/lib.rs",
-      "branches": 4,
-      "covered": 3,
-      "uncovered": [
-        "385:80 false"
-      ]
+      "branches": 0,
+      "covered": 0,
+      "uncovered": []
     },
     {
       "name": "p1_demo_part0::sensor::{closure}",
