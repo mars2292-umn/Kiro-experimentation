@@ -1868,3 +1868,53 @@ What was already there and is used: the run's invariant `Wf` (`reach_wf`: the lo
 A mutant in Verus: with the re-entry check of `Sched::lock` removed, `rsk-logic` fails (345 verified, 1 error; 346 restored). The same mutant was not run against Lean: it changes `Sched/Kernel.lean`, which rebuilds the whole library, and restoring rebuilds it again.
 
 Not in Lean yet of the Kernel's properties: 1 (the start condition: the run takes the dispatched Task from `Sched::select`, and `select_some` states its choice, but the property is not stated as one theorem), 2 (context preservation: the stubs, outside the extraction), 5, 6, 10, 11, 12 and 21.
+
+**Properties 1, 6 and 12 in Lean, on the Kernel's code (2026-11-19).** Two files, no `sorry`; the `Sched` library built with them (1,825 jobs).
+
+`Sched/Start.lean` (13 theorems):
+
+| Property | Lean | Statement |
+|---|---|---|
+| 1, the start condition | `dispatch_starts_selected` | in a reached state, the Task `Kernel::dispatch` is given, the one `Sched::select` returns, is eligible (released, no Job, a Priority above the System_Ceiling and above every Job in progress, the last from the stack's order in the run's invariant), no eligible Task has a higher Priority, and after the dispatch its Job is in progress on top of the stack |
+| 1, nothing else starts a Job | `start_only_eligible` | in the run every Kernel run is (`ksim`), a Job comes to be in progress by the dispatch transition alone; with `none_elig` (no Task eligible when `select` returns none) this is R7.1 to R7.3 |
+| 6, a forced end releases | `finish_top_releases`, `job_return_releases`, `end_top_releases` | the end of the Job on top (`Sched::finish_top`; reached from `Kernel::job_return` and `Kernel::end_top`) removes from the lock stack exactly that Job's entries, leaves the others as they were with their holders on the stack, and the System_Ceiling is the greatest Ceiling of what remains |
+| 6, a killed Job | `kill_keeps_locks` | `Sched::kill` (a Partition's stop or restart, a Job below the top) changes neither the lock stack nor the System_Ceiling: the killed Job's Resources are released when it is unwound, by `finish_top`. This is the code's behaviour and Verus's statement of it; until the unwind the System_Ceiling still counts them |
+
+Not stated in Lean of Property 1: the order among equal Priorities (DD-03, which is the vectors' order in the Hardware_Model, outside the extraction). Not stated of Property 6: that each released Resource is reported in the log.
+
+`Sched/Isolation.lean` (12 theorems), of `Layout::view` as extracted:
+
+| Property 12 | Lean | Statement |
+|---|---|---|
+| what a view is | `view_ok` (`view_loop_ok`) | the Partition exists and every region of the view is disabled or is the shared code (not writable), the Partition's code (not writable), its RAM (not executable), or one of its windows (not executable, writable only where the layout does not say read-only); the loop over the windows by induction |
+| (a) within the layout | `view_within_layout` | an address the view grants lies in the shared code or one of the Partition's intervals; a writable one in its RAM or a window; an executable one in the shared code or its code |
+| (b) no two views | `views_disjoint` | no address is writable in one Partition's view and accessible in another's |
+| (b) no Kernel memory | `view_no_kernel_memory` | no view grants an address of the Kernel's flash or RAM |
+| (d) no Kernel peripheral | `view_no_kernel_window` | nor of a Kernel peripheral interval |
+| read-only windows (DD-08) | `ro_window_not_writable` | an address of a read-only window is writable in no view, its own Partition's included |
+| the stack (R16.5) | `stack_overflow_faults` | the word below a Partition's RAM is not writable in its view |
+
+The MPU's region decision is `covers` (enabled, the address in the interval, its subregion not disabled); the theorems use only that a covering region contains the address, so they hold whatever the subregion bits. The layout's disjointness is a hypothesis, `LayoutOk`: the disjointness clauses of Verus's `Layout::wf`, not its size and alignment rules, which these statements do not need. That a booted layout satisfies them is `Layout::validate`, which Verus proves and Aeneas does not translate (its loops), so in Lean it stays a hypothesis. Weaker than Verus's `is_view_of` in one respect: `view_ok` says what each region may be, not which index holds which.
+
+Mutants in Verus on `rsk-logic` (346 verified): a read-only window made writable in the view, and `select` admitting a Task at the System_Ceiling, each 345 verified, 1 error. Not run against Lean: each changes `Sched/Kernel.lean` and costs two builds of the library.
+
+
+**Property 5 in Lean, on the Kernel's code (2026-11-19).** `Sched/Blocking.lean` (20 theorems; `lake build Sched.Blocking`, 1,805 jobs, no `sorry`), over the run of `Sched/Run.lean`, whose scheduler state changes only through the extracted `make_pending`, `defer`, `start`, `lock`, `unlock`, `finish_top`, `kill` and `clear_release`.
+
+| Verus lemma | Lean theorem | Statement |
+|---|---|---|
+| `lemma_blocked_by_one_holder` | `waiting_blocked` | a waiting Task the eligibility test refuses, with no Job of its Priority or above executing, has a lock entry whose Ceiling is at least its Priority and whose holder's Priority is lower |
+| `lemma_one_low_blocker` | `one_low_blocker` | the entries that block a Task are all held by one Job |
+| `lemma_low_locker_nested` | `low_locker_nested` | a Job of lower Priority on top, under a System_Ceiling at least the Task's Priority, itself holds a blocking entry |
+| `lemma_no_lower_dispatch_while_waiting` | `dispatch_not_lower` | the Task a dispatch starts has at least the Priority of every waiting Task |
+| `lemma_no_new_blocking_section` | `blocking_step` | an entry that blocks a waiting Task after a step blocked it before the step, or is a lock of the Job that already held a blocking entry |
+| (the argument of 5.1, in prose) | `single_section` | over any stretch of a run during which the Task waits: whenever an entry blocks it, the outermost entry that blocked it at the beginning is still on the lock stack (the same Resource, the same holder), and the blocking entry is that one or one above it, held by the same Job |
+| (the same) | `one_interval` | once no entry blocks the waiting Task, none does for as long as it waits |
+
+Two differences from Verus. The promptness premise of A4 ("never eligible before its dispatch") is not a premise here: it is the run's rule that a Job locks only when the eligibility test accepts no Task (`Step.lock`'s `hne`), which is what `blocking_step` uses. And the five lemmas are joined: Verus leaves the composition to the argument of 5.1, `single_section` and `one_interval` state it. `release_keeps_blocking` adds that a Release changes no blocking entry, so the stretch may begin at the Release.
+
+Not stated in this file: the length in time of the blocking Critical_Section. That is `Blk` in `Sched/Stage.lean`, which Property 18's proof carries. As for every theorem over this run, `Wf` (the Stack Resource Policy's structure of the stack and the lock stack) is proven of every reachable state (`reach_wf`), and the run itself is the model `KRun.lean` ties to the Kernel's entry functions.
+
+Checked by two wrong variants of the file, each rejected by Lean: `blocking_step` without its second case (no lock ever adds a blocking entry), and `single_section` without the minimality of the first entry. No mutant of the Kernel's code was run against it (each costs two builds of the library).
+
+Of the Kernel's properties, not in Lean now: 2 (the stubs), 10, 11 and 21.
