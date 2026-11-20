@@ -403,10 +403,18 @@ theorem spec_of_total {α} {x : Result α} {P : α → Prop} (ht : x ⦃ _ => Tr
   rw [hr]
   exact (WP.spec_ok r).mpr (h r hr)
 
-/-- The configuration names slots of the table. -/
+/-- The configuration names slots of the table: a Budget and a deadline
+slot for every Task, a release slot for every Task that has one (a
+Periodic_Task, or a Sporadic_Task whose MIT policy defers; a discarding
+Sporadic_Task has none, `NO_SLOT`). 2026-11-20: the release clause was
+unconditional, which no configuration with a discarding Sporadic_Task
+satisfies (`Config::slot_ok`). -/
 def CfgOk (cfg : logic.Config NT NR NP) (NS : Usize) : Prop :=
   ∀ t, t < NT.val → (cfg.slot_budget.val[t]!).val < NS.val ∧
-    (cfg.slot_deadline.val[t]!).val < NS.val ∧ (cfg.slot_release.val[t]!).val < NS.val
+    (cfg.slot_deadline.val[t]!).val < NS.val ∧
+    ∀ tc, cfg.tasks.val[t]? = some tc →
+      (tc.kind = logic.KIND_PERIODIC ∨ tc.mit_policy = logic.MIT_DEFER) →
+      (cfg.slot_release.val[t]!).val < NS.val
 
 /-- `Kernel::push_event`: the log takes the event. -/
 theorem push_event_total (k : logic.kernel.Kernel NT NR NP NL NS NE)

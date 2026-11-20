@@ -168,7 +168,7 @@ I='{impl crate::arch::bound::KernelOps for _}'
 E='crate::arch::cm4::entry'
 G='crate::arch::cm4::ghostv'
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core" \
+    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$I::top,$I::boot_failed,$I::boot_info,$I::validate,$I::safe_state,$I::task_count,$I::partition_count,$I::source_masked,$I::started,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core" \
     --include 'rsk_logic::logic::kernel' --include 'rsk_logic::logic::sched' \
     --include 'rsk_logic::logic::time' --include 'rsk_logic::logic::budget' \
     --include 'rsk_logic::logic::log' --include 'rsk_logic::logic::mpu' \
@@ -186,7 +186,8 @@ Since 2026-11-17 the start set also names the entry cores of
 `arch/cm4/entry.rs` (the Endpoint operations, the SVC, timer, interrupt,
 unwind, fault, start and boot cores, and through them the dispatch,
 intake, EasyDMA and channel functions) and the rest of `KernelOps` they
-call: 315 functions, none without a body. The cores are generic over
+call: 315 functions on 2026-11-17, none without a body (363 definitions on
+2026-11-20, `Layout::validate` the one function among them without a body). The cores are generic over
 `KernelOps`, `KernelArch` and `Tables`, which Aeneas translates as
 structures of functions. A `Ghost(..)` value built in executable code is
 a closure in the build without Verus, which Aeneas rejects in the function
@@ -204,9 +205,18 @@ dependency's items and the erased ghost types (without them Aeneas
 declares axioms); an inherent method is named `crate::module::_::name`, a
 trait method `{impl Trait for _}::name`, and a `--start-from` must name an
 item of the crate being compiled (Charon panics on a dependency's). Aeneas
-reports errors for `Config::validate`, `Layout::validate` and their
-helpers, which the include pattern names and nothing extracted calls
-(breaks and continues to outer loops); they are not in the output.
+reports errors for `Layout::validate` and its helpers (returns from inside
+a loop, breaks and continues to outer loops); `Layout::validate` is in the
+output as an `axiom`, that is, a function the proofs know nothing of.
+Since 2026-11-20 `Config::validate`, `validate_partitions` and
+`validate_slots` are translated: their loops run to a verdict and the
+functions return after them (`lean/Sched/Boot.lean` derives the
+configuration's bounds from `Config::validate` returning `true`). Two
+things Aeneas needs of such code: no `return` inside a loop, and no
+`let x = a == B || c == D;` (the term it emits is typed as a proposition
+by Lean; write `if a == B || c == D { true } else { false }`). The start
+set also names `top`, `boot_failed`, `boot_info`, `validate` and five
+read-only methods of `KernelOps` since that date.
 `no_history` (the empty ghost history of `Kernel::new`) is kept opaque: its
 body constructs a `Ghost` value, which the erased build turns into a
 closure that Aeneas does not translate. It is the one `axiom` of the file;

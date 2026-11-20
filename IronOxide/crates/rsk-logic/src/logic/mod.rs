@@ -244,18 +244,25 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
         {
             return false;
         }
+        // 2026-11-20: every loop of the three validation functions runs to a
+        // verdict (`good`, `fine`) and the function returns after it. No
+        // `return` leaves a loop, so that Aeneas translates the bodies and
+        // the Lean library derives its configuration bounds from this
+        // function's result (Verification_Plan, Property 21 in Lean).
+        let mut good = true;
         let mut t: usize = 0;
-        while t < NT
+        while t < NT && good
             invariant
                 t <= NT,
                 0 < NT <= 255, NR <= 255, 0 < NP <= 255, 0 < self.operating_duration < 0x4000_0000_0000_0000,
-                forall|i: int| 0 <= i < t ==> self.task_ok(i),
-                forall|i: int| 0 <= i < t ==> self.tasks[i].offset <= self.operating_duration,
-                forall|i: int| 0 <= i < t ==> self.tasks[i].period <= self.operating_duration,
+                good ==> forall|i: int| 0 <= i < t ==> self.task_ok(i),
+                good ==> forall|i: int| 0 <= i < t ==> self.tasks[i].offset <= self.operating_duration,
+                good ==> forall|i: int| 0 <= i < t ==> self.tasks[i].period <= self.operating_duration,
+                !good ==> !self.wf(),
             decreases NT - t,
         {
             let task = self.tasks[t];
-            let ok = 1 <= task.priority && task.priority <= MAX_PRIORITY
+            let task_good = 1 <= task.priority && task.priority <= MAX_PRIORITY
                 && (task.partition as usize) < NP
                 && (task.kind == KIND_PERIODIC || task.kind == KIND_SPORADIC)
                 && task.period > 0
@@ -264,82 +271,94 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
                 && (task.mit_policy == MIT_DEFER || task.mit_policy == MIT_DISCARD)
                 && task.offset <= self.operating_duration
                 && task.period <= self.operating_duration;
-            if !ok {
+            if !task_good {
                 proof {
                     assert(!self.task_ok(t as int) || self.tasks[t as int].offset > self.operating_duration
                         || self.tasks[t as int].period > self.operating_duration);
+                    assert(!self.wf());
                 }
-                return false;
+                good = false;
             }
             t = t + 1;
         }
+        if !good {
+            return false;
+        }
         let mut r: usize = 0;
-        while r < NR
+        while r < NR && good
             invariant
                 r <= NR,
                 0 < NT <= 255, NR <= 255, 0 < NP <= 255, 0 < self.operating_duration < 0x4000_0000_0000_0000,
                 forall|i: int| 0 <= i < NT ==> self.task_ok(i),
                 forall|i: int| 0 <= i < NT ==> self.tasks[i].offset <= self.operating_duration,
                 forall|i: int| 0 <= i < NT ==> self.tasks[i].period <= self.operating_duration,
-                forall|i: int| 0 <= i < r ==> self.resource_ok(i),
+                good ==> forall|i: int| 0 <= i < r ==> self.resource_ok(i),
+                !good ==> !self.wf(),
             decreases NR - r,
         {
             let res = self.resources[r];
             if !((res.partition as usize) < NP && 1 <= res.ceiling && res.ceiling <= MAX_PRIORITY) {
                 proof {
                     assert(!self.resource_ok(r as int));
+                    assert(!self.wf());
                 }
-                return false;
-            }
-            // Every accessor is at or below the ceiling and in the
-            // Resource's Partition; some accessor attains the ceiling.
-            let mut t: usize = 0;
-            let mut attained = false;
-            while t < NT
-                invariant
-                    t <= NT, r < NR,
-                    res == self.resources[r as int],
-                    0 < NT <= 255, NR <= 255, 0 < NP <= 255,
-                    forall|i: int| 0 <= i < NT ==> self.task_ok(i),
-                    forall|i: int| 0 <= i < t && self.access[i][r as int] ==> self.tasks[i].priority <= self.resources[r as int].ceiling,
-                    forall|i: int| 0 <= i < t && self.access[i][r as int] ==> self.tasks[i].partition == self.resources[r as int].partition,
-                    attained == exists|i: int| 0 <= i < t && self.access[i][r as int] && self.tasks[i].priority == self.resources[r as int].ceiling,
-                decreases NT - t,
-            {
-                if self.access[t][r] {
-                    let task = self.tasks[t];
-                    if task.priority > res.ceiling || task.partition != res.partition {
-                        proof {
-                            assert(!self.resource_ok(r as int));
-                        }
-                        return false;
-                    }
-                    if task.priority == res.ceiling {
-                        attained = true;
-                        proof {
-                            assert(self.access[t as int][r as int] && self.tasks[t as int].priority == self.resources[r as int].ceiling);
-                        }
-                    }
-                }
-                proof {
-                    // The existential over [0, t + 1) is the one over [0, t) or the witness t.
-                    if !attained {
-                        assert forall|i: int| 0 <= i < t + 1 implies !(self.access[i][r as int] && self.tasks[i].priority == self.resources[r as int].ceiling) by {
-                            if i < t {
-                                assert(!(exists|k: int| 0 <= k < t && self.access[k][r as int] && self.tasks[k].priority == self.resources[r as int].ceiling));
+                good = false;
+            } else {
+                // Every accessor is at or below the ceiling and in the
+                // Resource's Partition; some accessor attains the ceiling.
+                let mut t: usize = 0;
+                let mut attained = false;
+                let mut fine = true;
+                while t < NT && fine
+                    invariant
+                        t <= NT, r < NR,
+                        res == self.resources[r as int],
+                        0 < NT <= 255, NR <= 255, 0 < NP <= 255,
+                        forall|i: int| 0 <= i < NT ==> self.task_ok(i),
+                        fine ==> forall|i: int| 0 <= i < t && self.access[i][r as int] ==> self.tasks[i].priority <= self.resources[r as int].ceiling,
+                        fine ==> forall|i: int| 0 <= i < t && self.access[i][r as int] ==> self.tasks[i].partition == self.resources[r as int].partition,
+                        fine ==> attained == exists|i: int| 0 <= i < t && self.access[i][r as int] && self.tasks[i].priority == self.resources[r as int].ceiling,
+                        !fine ==> !self.resource_ok(r as int),
+                    decreases NT - t,
+                {
+                    if self.access[t][r] {
+                        let task = self.tasks[t];
+                        if task.priority > res.ceiling || task.partition != res.partition {
+                            proof {
+                                assert(!self.resource_ok(r as int));
+                            }
+                            fine = false;
+                        } else if task.priority == res.ceiling {
+                            attained = true;
+                            proof {
+                                assert(self.access[t as int][r as int] && self.tasks[t as int].priority == self.resources[r as int].ceiling);
                             }
                         }
                     }
+                    proof {
+                        // The existential over [0, t + 1) is the one over [0, t) or the witness t.
+                        if fine && !attained {
+                            assert forall|i: int| 0 <= i < t + 1 implies !(self.access[i][r as int] && self.tasks[i].priority == self.resources[r as int].ceiling) by {
+                                if i < t {
+                                    assert(!(exists|k: int| 0 <= k < t && self.access[k][r as int] && self.tasks[k].priority == self.resources[r as int].ceiling));
+                                }
+                            }
+                        }
+                    }
+                    t = t + 1;
                 }
-                t = t + 1;
-            }
-            if !attained {
-                proof {
-                    assert(!self.resource_ok(r as int));
+                if !(fine && attained) {
+                    proof {
+                        assert(!self.resource_ok(r as int));
+                        assert(!self.wf());
+                    }
+                    good = false;
                 }
-                return false;
             }
             r = r + 1;
+        }
+        if !good {
+            return false;
         }
         if !self.validate_partitions() {
             return false;
@@ -355,51 +374,62 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
         requires 0 < NP <= 255,
         ensures ok == forall|p: int| 0 <= p < NP ==> self.partition_ok(p),
     {
+        let mut good = true;
         let mut p: usize = 0;
-        while p < NP
+        while p < NP && good
             invariant p <= NP, 0 < NP <= 255,
-                forall|i: int| 0 <= i < p ==> self.partition_ok(i),
+                good ==> forall|i: int| 0 <= i < p ==> self.partition_ok(i),
+                !good ==> exists|i: int| 0 <= i < NP && !self.partition_ok(i),
             decreases NP - p,
         {
             let pc = self.partitions[p];
-            let fault_ok = pc.fault_response == RESP_END_JOB || pc.fault_response == RESP_RESTART_PARTITION
-                || pc.fault_response == RESP_STOP_PARTITION || pc.fault_response == RESP_SAFE_STATE;
-            let overrun_ok = pc.overrun_response == RESP_END_JOB || pc.overrun_response == RESP_RESTART_PARTITION
+            // Written with explicit branches: for `let x = a == B || c == D;`
+            // Aeneas emits a term Lean types as a proposition (2026-11-20).
+            let fault_ok = if pc.fault_response == RESP_END_JOB || pc.fault_response == RESP_RESTART_PARTITION
+                || pc.fault_response == RESP_STOP_PARTITION || pc.fault_response == RESP_SAFE_STATE { true } else { false };
+            let overrun_ok = if pc.overrun_response == RESP_END_JOB || pc.overrun_response == RESP_RESTART_PARTITION
                 || pc.overrun_response == RESP_STOP_PARTITION || pc.overrun_response == RESP_SAFE_STATE
-                || pc.overrun_response == RESP_RECORD_AND_CONTINUE;
-            let deadline_ok = pc.deadline_response == RESP_RESTART_PARTITION || pc.deadline_response == RESP_STOP_PARTITION
-                || pc.deadline_response == RESP_SAFE_STATE || pc.deadline_response == RESP_RECORD_ONLY;
+                || pc.overrun_response == RESP_RECORD_AND_CONTINUE { true } else { false };
+            let deadline_ok = if pc.deadline_response == RESP_RESTART_PARTITION || pc.deadline_response == RESP_STOP_PARTITION
+                || pc.deadline_response == RESP_SAFE_STATE || pc.deadline_response == RESP_RECORD_ONLY { true } else { false };
             if !(pc.level <= 4 && fault_ok && overrun_ok && deadline_ok) {
                 proof {
                     assert(!self.partition_ok(p as int));
                 }
-                return false;
-            }
-            if pc.overrun_response == RESP_RECORD_AND_CONTINUE {
-                // Every other Partition must be at the same or a lower Criticality_Level.
-                let mut q: usize = 0;
-                while q < NP
-                    invariant q <= NP, p < NP, pc == self.partitions[p as int],
-                        pc.overrun_response == RESP_RECORD_AND_CONTINUE,
-                        forall|j: int| 0 <= j < q ==> self.partitions[j].level >= pc.level,
-                    decreases NP - q,
-                {
-                    if self.partitions[q].level < pc.level {
-                        proof {
-                            assert(self.partitions[q as int].level < self.partitions[p as int].level);
-                            assert(!self.partition_ok(p as int));
+                good = false;
+            } else {
+                let mut fine = true;
+                if pc.overrun_response == RESP_RECORD_AND_CONTINUE {
+                    // Every other Partition must be at the same or a lower Criticality_Level.
+                    let mut q: usize = 0;
+                    while q < NP && fine
+                        invariant q <= NP, p < NP, pc == self.partitions[p as int],
+                            pc.overrun_response == RESP_RECORD_AND_CONTINUE,
+                            fine ==> forall|j: int| 0 <= j < q ==> self.partitions[j].level >= pc.level,
+                            !fine ==> !self.partition_ok(p as int),
+                        decreases NP - q,
+                    {
+                        if self.partitions[q].level < pc.level {
+                            proof {
+                                assert(self.partitions[q as int].level < self.partitions[p as int].level);
+                                assert(!self.partition_ok(p as int));
+                            }
+                            fine = false;
                         }
-                        return false;
+                        q = q + 1;
                     }
-                    q = q + 1;
                 }
-            }
-            proof {
-                assert(self.partition_ok(p as int));
+                if fine {
+                    proof {
+                        assert(self.partition_ok(p as int));
+                    }
+                } else {
+                    good = false;
+                }
             }
             p = p + 1;
         }
-        true
+        good
     }
 
     /// Executable check of the slot tables.
@@ -413,53 +443,63 @@ impl<const NT: usize, const NR: usize, const NP: usize> Config<NT, NR, NP> {
             return false;
         }
         let limit = (self.slot_count - 2) as usize;
+        let mut good = true;
         let mut t: usize = 0;
-        while t < NT
+        while t < NT && good
             invariant t <= NT, 0 < NT <= 255, self.slot_count >= 2, limit == self.slot_count - 2,
-                forall|i: int| 0 <= i < t ==> self.slot_ok(i),
-                forall|i: int, u: int| 0 <= i < t && 0 <= u < NT && i != u ==> self.slots_distinct(i, u),
+                good ==> forall|i: int| 0 <= i < t ==> self.slot_ok(i),
+                good ==> forall|i: int, u: int| 0 <= i < t && 0 <= u < NT && i != u ==> self.slots_distinct(i, u),
+                !good ==> ((exists|i: int| 0 <= i < NT && !self.slot_ok(i))
+                    || (exists|i: int, u: int| 0 <= i < NT && 0 <= u < NT && i != u && !self.slots_distinct(i, u))),
             decreases NT - t,
         {
             let task = self.tasks[t];
             let d = self.slot_deadline[t];
             let b = self.slot_budget[t];
             let r = self.slot_release[t];
-            let needs_release = task.kind == KIND_PERIODIC || task.mit_policy == MIT_DEFER;
-            let discard = task.kind == KIND_SPORADIC && task.mit_policy == MIT_DISCARD;
-            let ok = (d as usize) < limit && (b as usize) < limit && d != b
+            // Explicit branches, as in `validate_partitions`.
+            let needs_release = if task.kind == KIND_PERIODIC || task.mit_policy == MIT_DEFER { true } else { false };
+            let discard = if task.kind == KIND_SPORADIC && task.mit_policy == MIT_DISCARD { true } else { false };
+            let row = (d as usize) < limit && (b as usize) < limit && d != b
                 && (!needs_release || ((r as usize) < limit && r != d && r != b))
                 && (!discard || r == NO_SLOT);
-            if !ok {
+            if !row {
                 proof {
                     assert(!self.slot_ok(t as int));
                 }
-                return false;
-            }
-            let mut u: usize = 0;
-            while u < NT
-                invariant u <= NT, t < NT, 0 < NT <= 255,
-                    d == self.slot_deadline[t as int], b == self.slot_budget[t as int], r == self.slot_release[t as int],
-                    forall|j: int| 0 <= j < u && j != t ==> self.slots_distinct(t as int, j),
-                decreases NT - u,
-            {
-                if u != t {
-                    let du = self.slot_deadline[u];
-                    let bu = self.slot_budget[u];
-                    let ru = self.slot_release[u];
-                    let distinct = d != du && b != bu && d != bu
-                        && (r == NO_SLOT || (r != du && r != bu && r != ru));
-                    if !distinct {
-                        proof {
-                            assert(!self.slots_distinct(t as int, u as int));
+                good = false;
+            } else {
+                let mut fine = true;
+                let mut u: usize = 0;
+                while u < NT && fine
+                    invariant u <= NT, t < NT, 0 < NT <= 255,
+                        d == self.slot_deadline[t as int], b == self.slot_budget[t as int], r == self.slot_release[t as int],
+                        fine ==> forall|j: int| 0 <= j < u && j != t ==> self.slots_distinct(t as int, j),
+                        !fine ==> exists|j: int| 0 <= j < NT && j != t && !self.slots_distinct(t as int, j),
+                    decreases NT - u,
+                {
+                    if u != t {
+                        let du = self.slot_deadline[u];
+                        let bu = self.slot_budget[u];
+                        let ru = self.slot_release[u];
+                        let distinct = d != du && b != bu && d != bu
+                            && (r == NO_SLOT || (r != du && r != bu && r != ru));
+                        if !distinct {
+                            proof {
+                                assert(!self.slots_distinct(t as int, u as int));
+                            }
+                            fine = false;
                         }
-                        return false;
                     }
+                    u = u + 1;
                 }
-                u = u + 1;
+                if !fine {
+                    good = false;
+                }
             }
             t = t + 1;
         }
-        true
+        good
     }
 }
 

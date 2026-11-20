@@ -1986,3 +1986,55 @@ Every Kernel property of the design now has a Lean statement on the Kernel's cod
 | `Sched/ArchDispatch.lean` | 2 | `dispatch_job_core_keeps`: a dispatch that starts a Job leaves the invariant with the record it wrote on top |
 
 `lake build Sched`: 3,496 jobs, no `sorry`. Not yet done: `svc_core` and `svc_service_core` (they need that a granted service leaves the stack as deep as it was), `dispatch_vector_core`, `irq_entry_core`, `start_core` and `boot_core`; that the Kernel as linked (`Bound`) satisfies `KSpec`; and the join with the stub model (the main stack holds one register record per active level). Until those are done the hypotheses of `unwind_returns_dispatched_context` and `dispatch_unwind_restores` stand as recorded above.
+
+**The stack and record invariant in Lean, second part (2026-11-20).** The entry cores left open on 2026-11-19 are done, and the contract they are proven against is discharged for the Kernel as extracted.
+
+| File | Theorems | What it holds |
+|---|---|---|
+| `Sched/ArchSvcKeep.lean` | 21 | `KE` (the stack is the same Jobs) and `KSpecD`, the four depth clauses of the trait's contract `KSpec` does not carry (lock, unlock, start, a fault attributed to the Kernel); `apply_core` ends no Job; a granted DMA service and a receive that is not refused leave the Kernel as it was; `svc_service_core_keeps`, `svc_core_keeps` |
+| `Sched/ArchVector.lean` | 10 | `dispatch_job_core_all` (every exit, the refused dispatches included), `pend_take` (the owed unwind handed to the stub at its entry instruction), `dispatch_vector_core_keeps` |
+| `Sched/ArchIrq.lean` | 11 | `irq_entry_core_keeps` (an unwind planned while the interrupt had preempted a handler is left owed: `defer_set`, `defer_kept`), `start_core_keeps`, `boot_core_establishes` (a boot that passes its checks leaves no record active, no Job on the stack, nothing owed; for a Kernel whose `validate` and `init` satisfy `KBoot`) |
+| `Sched/ArchBound.lean` | 51 | `bound_kspec`: a trait instance whose methods are those of `impl KernelOps for Bound` as extracted satisfies `KSpecD`, for the view `kvB` and the invariant `okB` (the stack holds Task identifiers in strictly rising Priority; Priorities are levels 1 to 7, Partitions identifiers). Every method but `dispatch` leaves the stack a prefix (`SP`) or the same (`SS`); `dispatch` pushes an eligible Task, one of higher Priority than the Job on top (`push_ok`) |
+
+Every entry core of `entry.rs` now has its `_keeps` theorem. What stays open for Property 2 in Lean:
+
+- `IsBound` takes three methods as hypotheses with their clauses, because the extraction does not hold them: `top`, `boot_failed`, `boot_info`. `KBoot` (what `validate` and `init` give) is likewise assumed: `validate` is not extracted. Extending the `--start-from` list of `proofs/aeneas/README.md` by those methods regenerates `Sched/Kernel.lean` and was not done.
+- The join with the stub model: that the main stack holds one register record per active level across every entry (`world` in Verus). The hypotheses of `unwind_returns_dispatched_context` and `dispatch_unwind_restores` stand until it is done.
+- `epilogue_core_keeps` covers the exits without the safe state.
+
+**Property 21 in Lean, the Kernel's entries (2026-11-20).** `Sched/Total.lean` (2026-11-19) proved that `dispatch`, `job_return`, `svc_lock`, `svc_unlock` and `settle` return. The remaining entries of `rsk-logic` are added, each with the invariant it keeps, so that the statement is closed: from a state satisfying `KT`, under a configuration satisfying `CT`, every entry returns a state satisfying `KT`.
+
+| File | Theorems | What it holds |
+|---|---|---|
+| `Sched/TotalResp.lean` | 37 | `KI` (scheduler state within its bounds, log well formed, instant below 2^62) and `CI` (slots exist, NT fits a Task identifier, every Task's Partition is one of the configuration's); the responses return and keep `KI`: `enter_safe_state`, `kill_partition_jobs`, `clear_partition_releases`, `end_top`, `stop_partition`, `restart_partition`, `apply_response`; and `fault`, `fault_of`, `deadline_miss`, `budget_event`, `mit_violation` |
+| `Sched/TotalFrame.lean` | 22 | the responses and their events do not write the three arrays of instants the time arithmetic reads (`TF`) |
+| `Sched/TotalTime.lean` | 34 | `TmI` (nominal and last-due instants at most 2^62, deferral instants at most 2^63: Verus's `Timing::inv` as far as overflow needs it), `CT` (operating duration below 2^62, periods and deadlines at most 2^62), `KT`; the `Timing` functions; `intake_release`, `intake`, `deferred_release`, `periodic_release`, `serve_slot`, `timer_event` return and keep `KT` |
+| `Sched/TotalAll.lean` | 39 | `dispatch`, `job_return`, `svc_lock`, `svc_unlock`, `settle`, `fault`, `fault_of`, `record_event`, the two acknowledgements and `Kernel::start` return and keep `KT`; `Layout::view` returns |
+
+`lake build Sched`: 3,504 jobs, no `sorry`; `cargo xtask check` passes. Not covered: `Kernel::new` and `Timing::new` (that the initial state satisfies `KT`), the entry cores of `rsk-kernel` (they return only if the hardware trait's methods do), `Config::wf` implying `CI` and `CT` (they are stated as the hypotheses the proofs use, not derived from the validated configuration), and the bound `now ≤ 2^62` on the instant Kernel_Arch passes in (Verus: `now <= operating_duration`, clamped by `Bound::timer_event`; `Bound::intake` checks it). No mutant of the Kernel's code was run against the new files, `cargo xtask verify` was not run, and nothing was run on the rig.
+
+**The gaps of 2026-11-20 filled (same day, later).** Both lists of open points above are taken up. What changed outside Lean first, because the rest depends on it:
+
+- **`Config::validate`, `validate_partitions`, `validate_slots` rewritten** (`crates/rsk-logic/src/logic/mod.rs`): every loop runs to a verdict (`good`, `fine`) and the function returns after it; five `let x = a == B || ...;` are written with explicit `true`/`false` branches. The contracts are unchanged (`ensures ok == self.wf()` and the two helpers' `ensures`). Reason: Aeneas translates neither a `return` inside a loop nor a break to an outer loop, and types the plain `||` form as a proposition. `cargo verus verify -p rsk-logic`: 346 verified, 0 errors; `cargo test -p rsk-logic -p rsk-loom` passes. Not rerun: Verus on `rsk-kernel`, the Kani harnesses of `validate`, `cargo xtask verify`; the flight binaries change, so the rig's records are older than the code.
+- **The extraction's start set extended** by `top`, `boot_failed`, `boot_info`, `validate`, `safe_state`, `task_count`, `partition_count`, `source_masked`, `started` (`proofs/aeneas/README.md`). The regenerated `Sched/Kernel.lean` differs from the previous one by additions only. `Layout::validate` is in it as an `axiom` (its loops return from inside; not rewritten).
+- **A wrong precondition found and corrected**: `CfgOk` (2026-11-19) asked for a release slot below `NS` for every Task. `Config::slot_ok` gives a discarding Sporadic_Task `NO_SLOT` (255), so no configuration with one satisfied it. The clause is now conditional on the Task being periodic or deferring, and its three uses were re-proven with that (`clear_partition_releases`, the deferral path of `intake_release` through `intake_decision_defer_policy`, `Kernel::start`).
+
+| File | Theorems | What it holds |
+|---|---|---|
+| `Sched/Boot.lean` | 19 | `validate_ok`: `Config::validate = ok true` gives `CfgW` (Task bounds, slot bounds), through its extracted loops; `cfgw_ci`, `cfgw_ct`: `CI` and `CT` follow; `bound_validate_ok`; `new_ok`: the state `Kernel::new` builds satisfies `KT` with an empty stack; `bound_kboot`: the Kernel's `validate` and `init` satisfy `KBoot` |
+| `Sched/ArchBound.lean` | 56 | `IsBound` is now only equations between the trait instance's methods and the extracted ones (`bound_top`, `bound_boot_failed_bs`, `bound_boot_info_bs` added) |
+| `Sched/ArchUnwindAll.lean` | 9 | `epilogue_core_keeps_all`: every exit, the safe state included. Under the invariant, called with the plan it was handed, the core takes none of its defensive Kernel-fault exits (`epi_level0`, `epi_mismatch`, `epi_idle_depth`, `epi_next0`, `epi_killed0`) |
+| `Sched/ArchRel.lean` | 10 | `irq_entry_core_ir`: with no dispatch the level records are unchanged; a dispatch writes one record above every active one, keeping the stub's EXC_RETURN, and only on an entry from Thread mode; an unwind is planned only on such an entry. `epilogue_core_pop`: the unwind core clears the topmost record and no other |
+| `Sched/World.lean` | 20 | `World`: the register records on the main stack matched one to one with the active level records (Verus: `world`). `timer_stub_world`, `fault_stub_world`, `svc_stub_world`, `irq_stub_world` (dispatch, return as entered, branch to `rsk_unwind`), `unwind_round_world`: each stub with its extracted core keeps it; a dispatch pushes `entryFrame s g` for its level, and the round that clears a level's record pops that level's register record and returns its contents |
+| `Sched/TotalBound.lean` | 25 | `BT`; every extracted method of `impl KernelOps for Bound` that changes the Kernel returns from a state satisfying `BT`, for any argument, and keeps `BT` (`bdispatch_total` by a pigeonhole on the stack, `elig_depth_lt`); `top`, `job_info`, `select`, `partition_stopped`, `eligible` return |
+
+`lake build Sched`: 3,509 jobs, no error, no `sorry`; `cargo xtask check` passes.
+
+With `World`, the two hypotheses recorded for Property 2 are discharged in this sense: the record a dispatch pushes stays matched with its level through every later stub, and is the one `rsk_unwind` pops when `epilogue_core` clears that level. What is still not covered, stated exactly:
+
+- **Entry cores' totality** (`rsk-kernel/src/arch/cm4/entry.rs` returns): not done. It needs the hardware and table traits' methods to return and the Endpoint and EasyDMA index arithmetic within the tables' bounds, that is, a port of Verus's panic-freedom of the whole file. Closed instead: the boundary the cores call through (`TotalBound.lean`).
+- **`Layout::validate`** and so `LayoutOk`, `view_total`'s bound on the window count, and `KBoot` for a layout: still hypotheses.
+- **`Kernel::new` returns**: cannot be stated, its ghost history is an opaque function of the translation; `new_ok` is "if it returns".
+- **`basepri_now`, `message_permitted`, `next_compare`, `source_masked`** of `Bound`: no totality theorem (`basepri_now` needs the System_Ceiling within the Priority levels, which `KT` does not carry).
+- **In `World`**: the MemManage stub (`mm_to_call`) has no theorem of its own; the loop of `rsk_unwind` is covered round by round, not as one statement over `unwind_loop`; the nested-interrupt theorems of `stub_model.rs` (`theorem_nested_irq`, `theorem_nested_fault`) are not ported; that the stub passes its registers as the core's arguments is a hypothesis of each theorem (`hlr`), as is the exception model (`hwEntry`).
+- No mutant of the Kernel's code was run against the new Lean files.
