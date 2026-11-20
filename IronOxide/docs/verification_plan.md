@@ -1945,4 +1945,31 @@ Weaker than Verus in one respect, stated as hypotheses in Lean: Verus proves tha
 
 Checked by two wrong variants of the Lean stub model, each rejected: `pop {r3-r11, lr}` reading LR from the wrong word (the proofs fail), and `rsk_unwind` popping the registers before S16 to S31 (the proofs fail and the static check names the line). No mutant of the Kernel's code was run against these files.
 
-Of the Kernel's properties, not in Lean now: 11 and 21.
+**Properties 11 and 21 in Lean (2026-11-19).** Two files of the `Sched` library (`lake build Sched`, 3,488 jobs, no `sorry`): `Sched/Refine.lean` (12 theorems) and `Sched/Total.lean` (42). Both are in the total form (`f args ⦃ post ⦄`: for the inputs the precondition admits the extracted function returns a value, and the value satisfies the postcondition), where the earlier files of this library state "if the function returns, then ...".
+
+*Property 11* (`Sched/Refine.lean`):
+
+| Structure | Verus | Lean theorems | Statement |
+|---|---|---|---|
+| Timed-event slots | `Slots::arm`, `disarm`, `next` | `arm_spec`, `disarm_spec`, `next_spec` | the table as a map from slot to armed instant (`sview`): `arm` sets one entry, `disarm` removes one, the others are untouched; `next` returns an armed slot of least instant, the lowest index among equals, and none exactly when no slot is armed |
+| Endpoint buffer | `Fifo::is_wf`, `push`, `pop`, `clear` | `is_wf_spec`, `push_spec`, `pop_spec`, `clear_spec` | the occupied slots oldest first (`fview`): `push` appends the next free slot or leaves a full channel as it is, `pop` takes the first or leaves an empty channel as it is, the count stays within the capacity |
+| Event log | `Log::push` | `log_push_spec` | entry by entry (`lget`): the event is appended; a full log drops its oldest entry, shifts the rest by one and counts the loss, saturating |
+
+*Property 21*, the part of it Verus proves of `rsk-logic` (`Sched/Total.lean`). In Aeneas's translation an overflow, an index out of bounds and a panic are each a monadic step that fails, so "no runtime error" is "the function returns". Proven to return, under the bounds named:
+
+| Layer | Functions | Precondition |
+|---|---|---|
+| Budget accounts | `reset`, `charge`, `report`, `overrun`, `remaining` | the Task identifier within the Task count |
+| Level encoding | `encode_level`, `basepri_for` | a level of at most 8 |
+| Slots, Endpoint buffer, log | as in Property 11 | the slot within the table; `Fifo::wf`; `Log::wf` |
+| Scheduler state | `make_pending`, `defer`, `clear_release`, `start`, `lock` and its loop, `unlock`, `recompute_ceiling`, `complete`, `end_job` and its loop, `finish_top`, `kill`, `select` and its loop | `SInv`: the stack within the Task count and holding Task identifiers, the lock stack within its capacity and holding Resource identifiers; a Job in progress where one is ended or locks; at most 256 Tasks for `select` |
+| Kernel entries of a Job | `Kernel::push_event`, `arm_budget`, `dispatch`, `job_return`, `svc_lock`, `svc_unlock`, `end_mit_window`, `unmask_instant` | `SInv`, `CfgOk` (the configuration's slot numbers within the table), `Lwf` of the log, the instant at most 2^62 (`MAX_INSTANT`) |
+| Steps every entry shares | `Kernel::observe`, `select`, `settle`, `record_event`, `kill_at` | the same |
+
+`job_return_total` carries the scheduler bounds across the Job end (from `finish_top_views`) to the re-arming of the resumed Job's Budget event.
+
+Not proven to return in Lean, and so still Verus's alone for Property 21: `Kernel::timer_event` with `serve_slot`, `periodic_release`, `deferred_release`, `deadline_miss` and `budget_event`; `intake`; `fault`; the Health_Monitor responses (`apply_response`, `stop_partition`, `restart_partition`, `enter_safe_state` and their loops); `Kernel::start`; the `Timing` arithmetic these use (which needs `Config::wf`'s bounds on periods and offsets); `Layout::view`; and the entry cores of `rsk-kernel`, which are generic over the Kernel, hardware and tables traits and return only if those do. The Kernel_Unsafe_Module half of Property 21 is Kani's; of it, the register drivers are total in Lean already (`Hw/Model.lean`).
+
+Checked by two wrong variants, each rejected: `arm_budget_total` without the bound on the instant (the addition can overflow), and `next` breaking ties to the highest slot.
+
+Every Kernel property of the design now has a Lean statement on the Kernel's code or, for the assembly, on a model tied to it: 1 to 12, 18 and 21, with the limits recorded above for 2 (the stack and record invariant) and 21 (the timer, intake, fault and response entries).
