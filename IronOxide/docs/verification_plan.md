@@ -1973,3 +1973,16 @@ Not proven to return in Lean, and so still Verus's alone for Property 21: `Kerne
 Checked by two wrong variants, each rejected: `arm_budget_total` without the bound on the instant (the addition can overflow), and `next` breaking ties to the highest slot.
 
 Every Kernel property of the design now has a Lean statement on the Kernel's code or, for the assembly, on a model tied to it: 1 to 12, 18 and 21, with the limits recorded above for 2 (the stack and record invariant) and 21 (the timer, intake, fault and response entries).
+
+**The stack and record invariant in Lean, first part (2026-11-19; in progress).** The invariant of Kernel_Arch's entry cores (`entry::arch_inv`), which the Lean proof of Property 2 took as hypotheses, is being proven in Lean. Verus states it over two ghost fields of `ArchState` (`chain`, `chain_levels`) that the extraction erases; in Lean it is restated over the level records alone (`Sched/ArchInv.lean`, `AInv`): the chain is the active levels in rising order, each naming the next one below as the Job it preempted, and the Kernel's stack is a prefix of it. No ghost state is needed.
+
+| File | Theorems | What it holds |
+|---|---|---|
+| `Sched/LoopInv.lean` | 3 | `loop_inv`: an invariant rule for extracted loops that needs no termination measure (by the induction principle of Aeneas's `loop`), for statements of the form "if the function returns" |
+| `Sched/ArchInv.lean` | 18 | the invariant on plain functions and its structural lemmas: a Kernel entry that only ends Jobs (`AInv.entry`), a dispatch (`ChainOk.push`), an unwind (`ChainOk.pop`) and the four outcomes after it (`Popped.idle`, `resume`, `next`, `killed`) |
+| `Sched/ArchCores.lean`, `ArchSvc.lean`, `ArchEntry.lean` | 60 | `KSpec`, the `KernelOps` trait's contract as far as the records depend on it; for `apply_core`, the Endpoint, DMA and signal services and the Kernel-level entry cores: the level records, the Partition taken as executing and the owed unwind are untouched (`Frame`) and the Kernel's stack only loses Jobs from the top (`KR`) |
+| `Sched/ArchKeep.lean` | 12 | `end_plan_core` computes the plan of `ended_plan`; `timer_core`, `fault_core`, `stack_violation_core`, `intake_core` and `unbound_core` keep the invariant |
+| `Sched/ArchUnwind.lean` | 10 | `epilogue_core_keeps`: the unwind core, over its 126 exits, leaves the invariant with the plan it returns |
+| `Sched/ArchDispatch.lean` | 2 | `dispatch_job_core_keeps`: a dispatch that starts a Job leaves the invariant with the record it wrote on top |
+
+`lake build Sched`: 3,496 jobs, no `sorry`. Not yet done: `svc_core` and `svc_service_core` (they need that a granted service leaves the stack as deep as it was), `dispatch_vector_core`, `irq_entry_core`, `start_core` and `boot_core`; that the Kernel as linked (`Bound`) satisfies `KSpec`; and the join with the stub model (the main stack holds one register record per active level). Until those are done the hypotheses of `unwind_returns_dispatched_context` and `dispatch_unwind_restores` stand as recorded above.
