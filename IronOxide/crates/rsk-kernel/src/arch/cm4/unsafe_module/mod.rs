@@ -915,12 +915,45 @@ pub fn span_reset() {
     s[0] = ACTIONS_MAGIC;
 }
 
-/// A Kernel entry's Rust half begins: opens a span unless one is open
-/// (a tail-chained or unwinding continuation).
+/// The hold (2026-11-20): the stretch during which a pending Kernel-level
+/// interrupt cannot be taken, which is one handler from its Rust half's
+/// beginning to its end, with the epilogues of the unwind it runs before it
+/// returns. Unlike the span it closes at every return that is not followed
+/// by that handler's own unwind: at an exception return the processor
+/// takes the highest pending exception, so a Kernel-level interrupt that
+/// pended meanwhile is served there, before any tail-chained dispatch.
+/// `ARCH_HOLD`: the layout of `ARCH_SPAN`.
 #[cfg(feature = "trace-ram")]
-pub fn span_enter() {
-    let now = hw::dwt_cyccnt();
-    let s = span();
+struct HoldCell(UnsafeCell<[u32; SPAN_WORDS]>);
+// SAFETY (UJ-005h): as UJ-005.
+#[cfg(feature = "trace-ram")]
+unsafe impl Sync for HoldCell {}
+#[cfg(feature = "trace-ram")]
+#[no_mangle]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
+static ARCH_HOLD: HoldCell = HoldCell(UnsafeCell::new([0; SPAN_WORDS]));
+
+#[cfg(feature = "trace-ram")]
+fn hold() -> &'static mut [u32; SPAN_WORDS] {
+    // SAFETY (UJ-006h): as UJ-006.
+    let s = unsafe { &mut *ARCH_HOLD.0.get() };
+    if s[0] != ACTIONS_MAGIC {
+        *s = [0; SPAN_WORDS];
+        s[0] = ACTIONS_MAGIC;
+    }
+    s
+}
+
+/// Clears the hold record (at instant 0).
+#[cfg(feature = "trace-ram")]
+pub fn hold_reset() {
+    let s = hold();
+    *s = [0; SPAN_WORDS];
+    s[0] = ACTIONS_MAGIC;
+}
+
+#[cfg(feature = "trace-ram")]
+fn record_enter(s: &mut [u32; SPAN_WORDS], now: u32) {
     if s[4] == 0 {
         s[3] = now;
         s[4] = 1;
@@ -932,13 +965,8 @@ pub fn span_enter() {
     }
 }
 
-/// A Kernel entry's Rust half ends: closes the span unless `chained` (the
-/// return does not reach a Thread-mode context in which a Kernel-level
-/// interrupt is taken).
 #[cfg(feature = "trace-ram")]
-pub fn span_leave(kind: u8, chained: bool, what: u32) {
-    let now = hw::dwt_cyccnt();
-    let s = span();
+fn record_leave(s: &mut [u32; SPAN_WORDS], now: u32, kind: u8, chained: bool, what: u32) {
     if s[4] == 0 {
         return;
     }
@@ -963,7 +991,7 @@ pub fn span_leave(kind: u8, chained: bool, what: u32) {
             i += 1;
         }
     }
-    // The histogram: bucket b holds the spans of 2^(b+6) to 2^(b+7)-1
+    // The histogram: bucket b holds the stretches of 2^(b+6) to 2^(b+7)-1
     // cycles, the first everything below 2^7, the last everything from
     // 2^21 on.
     let order = 32 - len.leading_zeros() as usize;
@@ -976,6 +1004,26 @@ pub fn span_leave(kind: u8, chained: bool, what: u32) {
             s[k + 1] = len;
         }
     }
+}
+
+/// A Kernel entry's Rust half begins: opens a span, and a hold, unless
+/// one is open (a tail-chained or unwinding continuation).
+#[cfg(feature = "trace-ram")]
+pub fn span_enter() {
+    let now = hw::dwt_cyccnt();
+    record_enter(span(), now);
+    record_enter(hold(), now);
+}
+
+/// A Kernel entry's Rust half ends: closes the span unless `chained` (the
+/// return does not reach a Thread-mode context in which a Kernel-level
+/// interrupt is taken), and the hold unless `unwind` (the handler goes on
+/// into its own unwind).
+#[cfg(feature = "trace-ram")]
+pub fn span_leave(kind: u8, chained: bool, unwind: bool, what: u32) {
+    let now = hw::dwt_cyccnt();
+    record_leave(span(), now, kind, chained, what);
+    record_leave(hold(), now, kind, unwind, what);
 }
 
 #[cfg(feature = "trace-ram")]

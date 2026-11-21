@@ -469,6 +469,8 @@ pub fn start<S: System>() {
     unsafe_module::actions_reset();
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_reset();
+    #[cfg(feature = "trace-ram")]
+    unsafe_module::hold_reset();
     // The coverage build (task 19.2): the Partitions' counters are a run's own.
     #[cfg(feature = "coverage")]
     unsafe_module::hw::coverage_reset();
@@ -595,7 +597,7 @@ fn span_close<S: System>(k: &S::K, kind: u8, chained: bool, what: u32) {
         | if chained { SPAN_UNWIND } else { 0 }
         | if pending { SPAN_PENDING } else { 0 }
         | ((v as u32 & 0x1FF) << 16);
-    unsafe_module::span_leave(kind, chained || pending, what);
+    unsafe_module::span_leave(kind, chained || pending, chained, what);
 }
 
 /// Trace pins (feature `trace-pins`): a Kernel handler begins.

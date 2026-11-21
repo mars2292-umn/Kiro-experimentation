@@ -111,6 +111,10 @@ pub struct Outcome {
     /// in cycles during which a Kernel-level interrupt could not be taken,
     /// the spans counted, and the entry kind that closed the longest.
     pub span: Option<Span>,
+    /// The hold record (`ARCH_HOLD`, 2026-11-20): the longest stretch
+    /// during which a pending Kernel-level interrupt could not be taken
+    /// (one handler and the unwind it runs), in the span's layout.
+    pub hold: Option<Span>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -180,7 +184,7 @@ impl Span {
             s.push_str(&format!("| {} | {n} | {max} / {:.1} |\n", crate::stats::ENTRY_NAMES.get(k).copied().unwrap_or("?"), us(*max)));
         }
         if !self.longest.is_empty() {
-            s.push_str(&format!("\nThe longest span's {} entries, in order (cycles from the span's start; the gap is the time since the entry before ended: stubs, unwinding, exception entry):\n\n| # | Entry | Begins | Ends | Rust half (cycles / µs) | Gap before (cycles / µs) |\n|---|---|---|---|---|---|\n", self.longest_entries));
+            s.push_str(&format!("\nThe longest one's {} entries, in order (cycles from its start; the gap is the time since the entry before ended: stubs, unwinding, exception entry):\n\n| # | Entry | Begins | Ends | Rust half (cycles / µs) | Gap before (cycles / µs) |\n|---|---|---|---|---|---|\n", self.longest_entries));
             let mut prev = 0u32;
             for (i, e) in self.longest.iter().enumerate() {
                 let half = e.end.saturating_sub(e.begin);
@@ -520,17 +524,23 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     }
 
     // The masked span (11.13; the basis of L_kernel since 2026-11-07).
-    match target.read_words(inputs.target_elf, "ARCH_SPAN", &scratch) {
-        Ok(Some(w)) if w.len() >= 6 && w[0] == 0x5253_4b41 => {
-            let histogram: Vec<u32> = w.get(6..22).map(|h| h.to_vec()).unwrap_or_default();
-            let by_kind: Vec<(u32, u32)> = w.get(22..22 + 2 * crate::stats::ENTRY_KINDS).map(|k| k.chunks(2).map(|c| (c[0], c[1])).collect()).unwrap_or_default();
-            // The composition of the longest span: after the current
-            // span's 1 + 3 * 16 words.
-            let (longest, longest_entries) = match w.get(22 + 2 * crate::stats::ENTRY_KINDS + 49..22 + 2 * crate::stats::ENTRY_KINDS + 98) {
-                Some(l) => (l[1..].chunks(3).take((l[0] as usize).min(16)).map(|c| SpanEntry { what: c[0], begin: c[1], end: c[2] }).collect(), l[0]),
-                None => (Vec::new(), 0),
-            };
-            let span = Span { max_cycles: w[1], count: w[2], kind: w[5] as u8, histogram, by_kind, longest, longest_entries };
+    let decode = |w: &[u32]| -> Option<Span> {
+        if w.len() < 6 || w[0] != 0x5253_4b41 {
+            return None;
+        }
+        let kinds = 22 + 2 * crate::stats::ENTRY_KINDS;
+        let histogram: Vec<u32> = w.get(6..22).map(|h| h.to_vec()).unwrap_or_default();
+        let by_kind: Vec<(u32, u32)> = w.get(22..kinds).map(|k| k.chunks(2).map(|c| (c[0], c[1])).collect()).unwrap_or_default();
+        // The composition of the longest stretch: after the current
+        // one's 1 + 3 * 16 words.
+        let (longest, longest_entries) = match w.get(kinds + 49..kinds + 98) {
+            Some(l) => (l[1..].chunks(3).take((l[0] as usize).min(16)).map(|c| SpanEntry { what: c[0], begin: c[1], end: c[2] }).collect(), l[0]),
+            None => (Vec::new(), 0),
+        };
+        Some(Span { max_cycles: w[1], count: w[2], kind: w[5] as u8, histogram, by_kind, longest, longest_entries })
+    };
+    if let Ok(Some(w)) = target.read_words(inputs.target_elf, "ARCH_SPAN", &scratch) {
+        if let Some(span) = decode(&w) {
             out.span = Some(span.clone());
             let name = crate::stats::ENTRY_NAMES.get(span.kind as usize).copied().unwrap_or("?");
             out.step(
@@ -539,7 +549,17 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
                 format!("the longest stretch without a Kernel-level interrupt taken: {} cycles ({:.1} µs) over {} spans, closed by a {name} entry; against the record's L_kernel {} cycles", span.max_cycles, span.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, span.count, rig.expect.l_kernel_cycles),
             );
         }
-        _ => {}
+    }
+    if let Ok(Some(w)) = target.read_words(inputs.target_elf, "ARCH_HOLD", &scratch) {
+        if let Some(hold) = decode(&w) {
+            out.hold = Some(hold.clone());
+            let name = crate::stats::ENTRY_NAMES.get(hold.kind as usize).copied().unwrap_or("?");
+            out.step(
+                "hold (one handler and its unwind)",
+                true,
+                format!("the longest stretch in which a pending Kernel-level interrupt could not be taken: {} cycles ({:.1} µs) over {} holds, closed by a {name} entry", hold.max_cycles, hold.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, hold.count),
+            );
+        }
     }
 
     // The analyzer over the whole run.
@@ -723,6 +743,11 @@ pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome) -> String {
         s.push_str("\n## The Kernel's masked spans (11.13)\n\n");
         s.push_str(&format!("Every stretch without a Kernel-level interrupt taken, {} of them, the longest {} cycles ({:.1} µs), closed by a {} entry:\n\n", sp.count, sp.max_cycles, sp.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, crate::stats::ENTRY_NAMES.get(sp.kind as usize).copied().unwrap_or("?")));
         s.push_str(&sp.render(inputs.cpu_hz));
+    }
+    if let Some(h) = &out.hold {
+        s.push_str("\n## The Kernel's holds\n\n");
+        s.push_str(&format!("Every stretch in which a pending Kernel-level interrupt could not be taken (one handler from its Rust half's beginning to its end, with the unwind it runs before it returns), {} of them, the longest {} cycles ({:.1} µs), closed by a {} entry:\n\n", h.count, h.max_cycles, h.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, crate::stats::ENTRY_NAMES.get(h.kind as usize).copied().unwrap_or("?")));
+        s.push_str(&h.render(inputs.cpu_hz));
     }
     if let Some(f) = &out.faults {
         if f.written > 0 {
