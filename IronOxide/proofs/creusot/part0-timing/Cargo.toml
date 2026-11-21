@@ -24,8 +24,10 @@ check-cfg = ["cfg(creusot)"]
 # (`cargo creusot -- -p <member>`): the declaration's variant features are
 # exclusive, and a whole-workspace build would unify them.
 [features]
-default = ["timing", "measure"]
+default = ["timing-long", "measure"]
 timing = []
+# The hour-long configuration's late-Job schedule (`LATE_FROM` past the first counter wrap).
+timing-long = ["timing"]
 response = []
 isolation = []
 cycles = []

@@ -137,7 +137,9 @@ evidence = "vstd's specification of `str::chars` (the iterator's remaining eleme
 # are verified against a register file's specification (`RegState`,
 # `write_step`). `Mmio`, the memory-mapped registers as that file, is the
 # trusted surface below them: three volatile accesses. `Clock::extend` is
-# the Kernel_Arch state's wrap count and carries no specification.
+# the Kernel_Arch state's wrap count; the trait method carries no
+# specification, the rule behind it is proven since 2026-11-21
+# (`ArchState::extend`, plan.rs).
 
 [[assumption]]
 file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
@@ -164,5 +166,5 @@ evidence = "Kani harnesses uj_001_mmio_addresses_valid (the address is a byte of
 file = "crates/rsk-kernel/src/arch/cm4/drivers.rs"
 construct = "#[verifier::external_body]"
 item = "extend"
-why = "The extension of the 32-bit counter reading to 64 bits reads and writes the Kernel_Arch state through unsafe_module::extend (UJ-006). It has no specification: the drivers' postconditions hold for whatever instant it returns."
-evidence = "`arm` and `rearm` state their pending decision on the returned instant, whatever it is; the extension's own rule (a reading below the last means one wrap) is exercised by the hour-long rig runs across the counter's wrap (R9.5)."
+why = "The extension of the 32-bit counter reading to 64 bits reads and writes the Kernel_Arch state through unsafe_module::extend (UJ-006), which since 2026-11-21 only calls the verified `ArchState::extend` (plan.rs) on that state. The trait method itself still has no specification: the drivers' postconditions hold for whatever instant it returns, and the link from the static state to the verified method is the one-line body."
+evidence = "`ArchState::extend`'s contract (Verus): a reading taken less than one counter period after the previous one yields the true instant, across the wrap (`counter_reads`; mutants time-base-wrap-not-counted and time-base-wrap-counted-on-an-equal-reading). Its premise, consecutive readings less than a period apart, rests on the housekeeping slot (`lemma_housekeeping_within_a_period` for the numbers) and on the timer entry running, which the hour-long rig runs exercise across 13 wraps (R9.5). `arm` and `rearm` state their pending decision on the returned instant, whatever it is."

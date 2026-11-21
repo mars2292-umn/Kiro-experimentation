@@ -570,7 +570,9 @@ pub fn report_and_exit() -> ! {
     let ok = {
         let duration = CONFIG.operating_duration;
         let jobs = |t: usize| (duration / CONFIG.tasks[t].period) as u32;
-        let late = jobs(2) / 1024;
+        // The late Jobs: one per 1024 Jobs from `LATE_FROM` on (the multiples
+        // below it, 13 in the hour-long configuration, are not injected).
+        let late = jobs(2) / 1024 - (p1_demo_part0::LATE_FROM / 1024).saturating_sub(1);
         print_kv(b"expected_control", jobs(0));
         print_kv(b"expected_sensor", jobs(2) - late);
         print_kv(b"expected_late_jobs", late);

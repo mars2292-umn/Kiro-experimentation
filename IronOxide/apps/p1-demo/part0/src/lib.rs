@@ -362,6 +362,21 @@ const CS_MS: u64 = 6;
 #[cfg(feature = "timing")]
 const CS_MS: u64 = 12;
 
+/// The first `sensor` Job count at which the release-timing test's late
+/// Job is injected (every 1024th Job from there on). The hour-long
+/// configuration starts at the 14th multiple, 286.7 s into the run: past
+/// the time base's first 32-bit wrap (268 s at 16 MHz). A late Job can
+/// make `control` miss its deadline (the deliberate overload case), and
+/// the first such miss freezes the Kernel trace; the rig's counter-wrap
+/// step reads the wrap count from the trace's last tick, so a freeze
+/// before the first wrap left it nothing to judge (the run of 2026-11-21
+/// froze at 246 s; 13 of the 178 late Jobs fell before the wrap). The
+/// 3-minute configuration never wraps and injects from the first multiple.
+#[cfg(feature = "timing-long")]
+pub const LATE_FROM: u32 = 14 * 1024;
+#[cfg(not(feature = "timing-long"))]
+pub const LATE_FROM: u32 = 0;
+
 #[cfg_attr(creusot, rsk::creusot_std::macros::requires(rsk_spec::sensor_pre(&cx)))]
 // The loops' labels name them in the loop report (task 19.2) and the
 // Profile_Lint's export; nothing breaks to them.
@@ -420,7 +435,7 @@ pub fn sensor(mut cx: rsk_ctx::Sensor) {
         let _ = n;
     }
     #[cfg(feature = "timing")]
-    if cx.count.get() % 1024 == 0 {
+    if cx.count.get() % 1024 == 0 && cx.count.get() >= LATE_FROM {
         let start = rsk::now();
         let mut i = 0u32;
         #[cfg_attr(creusot, rsk::creusot_std::macros::invariant(i@ <= 50_000_000))]

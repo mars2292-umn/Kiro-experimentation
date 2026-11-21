@@ -1195,16 +1195,11 @@ pub fn arch_state() -> &'static mut ArchState {
 }
 
 /// Extends a 32-bit counter reading to the 64-bit time base (HW-12,
-/// DD-05): a reading below the previous one means the counter wrapped.
-/// Readings happen at least once per housekeeping period, which is far
-/// shorter than a wrap.
+/// DD-05): the verified `ArchState::extend` (plan.rs) on the Kernel_Arch
+/// state. Readings happen at least once per housekeeping period, which is
+/// far shorter than a wrap.
 pub fn extend(low: u32) -> u64 {
-    let s = arch_state();
-    if low < s.time_last_lo {
-        s.time_hi = s.time_hi.wrapping_add(1);
-    }
-    s.time_last_lo = low;
-    ((s.time_hi as u64) << 32) | low as u64
+    arch_state().extend(low)
 }
 
 /// The initial exception frame of a Job (HW-06): R0-R3 and R12 zero, LR

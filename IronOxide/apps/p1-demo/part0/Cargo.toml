@@ -19,6 +19,9 @@ rsk = { path = "../../../crates/rsk" }
 [features]
 # The release-timing test (task 7.3): every 1024th `sensor` Job runs 50 ms.
 timing = []
+# The hour-long release-timing configuration: the late Jobs begin after the
+# time base's first 32-bit wrap (`LATE_FROM`).
+timing-long = ["timing"]
 # Task 21.2: the `telemetry` Endpoint of the QEMU configuration (`control` sends).
 telemetry = []
 # Task 21.4: the QEMU configuration's injected Endpoint faults (the dropped role state of task 21.3 and the rejected reply of task 21.4), never in a HIL build.

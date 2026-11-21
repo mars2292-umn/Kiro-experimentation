@@ -245,7 +245,76 @@ pub fn top_active(levels: &[LevelRecord; 8]) -> (level: usize)
     level
 }
 
+/// Ticks in one period of the 32-bit time-base counter (268 s at 16 MHz).
+pub open spec fn counter_period() -> int {
+    0x1_0000_0000
+}
+
+/// The counter reads `low` at the true instant `at`, less than one counter
+/// period after the instant `previous` of the reading before it (and inside
+/// the 64-bit time base).
+pub open spec fn counter_reads(previous: int, low: u32, at: int) -> bool {
+    previous <= at < previous + counter_period()
+        && at < 0x1_0000_0000_0000_0000
+        && low as int == at % counter_period()
+}
+
 impl ArchState {
+    /// The instant of the last counter reading, as the wrap count and the
+    /// reading stand for it (DD-05).
+    pub open spec fn time(&self) -> int {
+        self.time_hi as int * counter_period() + self.time_last_lo as int
+    }
+
+    /// Extends a 32-bit counter reading to the 64-bit time base (HW-12,
+    /// DD-05, R9.5): a reading below the previous one means the counter
+    /// wrapped.
+    ///
+    /// The contract: whatever the true instant `at` of this reading is,
+    /// if it lies less than one counter period after the previous reading's
+    /// instant and `low` is its low 32 bits, the result is `at`, and the
+    /// state stands for `at` afterwards. So by induction over the
+    /// readings the time base equals the true count of ticks across every
+    /// wrap, as long as two consecutive readings are less than a period
+    /// apart (assumed, not proven here: every timer entry reads the
+    /// counter and the housekeeping slot is due every
+    /// `HOUSEKEEPING_PERIOD` ticks, `lemma_housekeeping_within_a_period`).
+    pub fn extend(&mut self, low: u32) -> (t: u64)
+        ensures
+            *final(self) == (ArchState { time_hi: final(self).time_hi, time_last_lo: low, ..*old(self) }),
+            forall|at: int| #[trigger] counter_reads(old(self).time(), low, at)
+                ==> t as int == at && final(self).time() == at,
+    {
+        let ghost before = self.time();
+        let ghost hi0 = self.time_hi;
+        let ghost last = self.time_last_lo;
+        if low < self.time_last_lo {
+            self.time_hi = self.time_hi.wrapping_add(1);
+        }
+        self.time_last_lo = low;
+        let h = self.time_hi as u64;
+        let l = low as u64;
+        let t = (h << 32) | l;
+        proof {
+            assert((h << 32) | l == h * 0x1_0000_0000 + l) by (bit_vector)
+                requires h <= 0xFFFF_FFFF, l <= 0xFFFF_FFFF;
+            assert forall|at: int| #[trigger] counter_reads(before, low, at)
+                implies t as int == at && self.time() == at by {
+                // `at` and the candidate agree modulo the period and lie
+                // less than a period apart.
+                let q = at / 0x1_0000_0000;
+                assert(at == q * 0x1_0000_0000 + low as int);
+                if low < last {
+                    assert(q == hi0 as int + 1);
+                    assert(hi0 < 0xFFFF_FFFF);
+                } else {
+                    assert(q == hi0 as int);
+                }
+            }
+        }
+        t
+    }
+
     pub const fn new() -> ArchState {
         ArchState {
             levels: [LevelRecord {
@@ -337,6 +406,18 @@ pub fn compare_target(now: u64, at: u64) -> (target: u64)
         target >= at,
 {
     if at < now + MIN_COMPARE_DISTANCE { now + MIN_COMPARE_DISTANCE } else { at }
+}
+
+/// The premise of `ArchState::extend`, in the Kernel's own numbers: the
+/// housekeeping slot recurs every `HOUSEKEEPING_PERIOD` ticks (125 ms), so
+/// a reading that follows the previous one by that period and any service
+/// latency up to 4,290,000,000 ticks (268.1 s) is still less than one
+/// counter period after it. That a timer entry does run within that
+/// latency is the rig's evidence, not this lemma's.
+pub proof fn lemma_housekeeping_within_a_period(latency: int)
+    requires 0 <= latency <= 4_290_000_000,
+    ensures crate::logic::kernel::HOUSEKEEPING_PERIOD as int + latency < counter_period(),
+{
 }
 
 } // verus!

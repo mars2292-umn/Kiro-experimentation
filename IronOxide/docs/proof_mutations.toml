@@ -2231,3 +2231,19 @@ find = "          let b1 ← rsk_logic.logic.mpu.Interval.check_disjoint a.code 
 replace = "          let b1 ← rsk_logic.logic.mpu.Interval.check_disjoint a.code b.code\n          if true\n"
 expect = ["Sched/LayoutTotal.lean"]
 prover = "lean"
+
+[[mutation]]
+id = "time-base-wrap-not-counted"
+kills = "ArchState::extend's contract (R9.5, DD-05): a counter reading below the previous one counts a wrap, so the 64-bit time base equals the true instant across the 32-bit wrap"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "        if low < self.time_last_lo {\n"
+replace = "        if false {\n"
+expect = ["plan.rs", "assertion failed"]
+
+[[mutation]]
+id = "time-base-wrap-counted-on-an-equal-reading"
+kills = "ArchState::extend's contract (R9.5, DD-05): two readings of the same counter value at the same instant count no wrap"
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+find = "        if low < self.time_last_lo {\n"
+replace = "        if low <= self.time_last_lo {\n"
+expect = ["plan.rs", "assertion failed"]

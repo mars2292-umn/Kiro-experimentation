@@ -62,12 +62,18 @@ pub fn clean_copy(root: &Path, dest: &Path, report: &mut Report) -> Result<(), S
         } else {
             format!("HEAD:{}", prefix.trim_end_matches('/'))
         };
+        // Run from the repository's top level: inside a subdirectory git
+        // limits the archive to the current directory's path within the named
+        // tree, and `HEAD:<prefix>` has no such path, so the archive is empty.
+        let top = stdout_of(&Cmd::new("git").args(["rev-parse", "--show-toplevel"]).cwd(root))?
+            .trim()
+            .to_string();
         let archive = dest.with_extension("tar");
         let ok = Cmd::new("git")
             .args(["archive", "--format=tar", "-o"])
             .arg(&archive)
             .arg(&tree)
-            .cwd(root)
+            .cwd(Path::new(&top))
             .status(None)
             .map_err(|e| e.to_string())?;
         if !ok {

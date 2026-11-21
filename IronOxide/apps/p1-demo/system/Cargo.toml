@@ -24,7 +24,7 @@ gating = ["p1-demo-part0/gating", "p1-demo-part1/gating", "p1-demo-part2/gating"
 nrf52840 = ["rsk-kernel/board-nrf52840", "p1-demo-decl/nrf52840", "p1-demo-part1/nrf52840"]
 # The release-timing configurations of task 7.3 (with `nrf52840`): the
 # declaration variant, Partition 0's late Jobs, and this crate's report.
-timing = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing", "p1-demo-part0/timing"]
+timing = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing", "p1-demo-part0/timing-long"]
 timing-short = ["nrf52840", "measure", "p1-demo-decl/nrf52840_timing_short", "p1-demo-part0/timing"]
 # The fault-injection configurations of task 7.5 (Verification_Plan 11.4).
 response = ["nrf52840", "endpoints", "p1-demo-decl/nrf52840_response", "p1-demo-part0/response", "p1-demo-part1/response", "p1-demo-part2/response"]
