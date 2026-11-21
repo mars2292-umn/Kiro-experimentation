@@ -857,8 +857,9 @@ fn windows() -> &'static mut [u32; 2] {
 }
 
 /// The masked span (Verification_Plan 11.13, 2026-11-07; the basis of
-/// L_kernel): the longest stretch during which a Kernel-level interrupt
-/// cannot be taken, measured end to end from the first Rust half of a
+/// L_kernel until 2026-11-21, when the hold below took its place): the
+/// longest run of Kernel entries with no return to a Job between them,
+/// measured end to end from the first Rust half of a
 /// Kernel entry to the last one that returns to Thread mode with nothing
 /// pending that will tail-chain: a handler whose return is followed by a
 /// pending Kernel-level exception, a dispatch vector the resumed BASEPRI

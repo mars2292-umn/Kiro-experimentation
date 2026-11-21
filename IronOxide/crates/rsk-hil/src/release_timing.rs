@@ -580,9 +580,9 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             out.span = Some(span.clone());
             let name = crate::stats::ENTRY_NAMES.get(span.kind as usize).copied().unwrap_or("?");
             out.step(
-                "masked span (L_kernel)",
+                "masked span (entries back to back)",
                 true,
-                format!("the longest stretch without a Kernel-level interrupt taken: {} cycles ({:.1} µs) over {} spans, closed by a {name} entry; against the record's L_kernel {} cycles", span.max_cycles, span.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, span.count, rig.expect.l_kernel_cycles),
+                format!("the longest run of Kernel entries with no return to a Job between them: {} cycles ({:.1} µs) over {} spans, closed by a {name} entry (not L_kernel since 2026-11-21: each entry is taken at an exception return)", span.max_cycles, span.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, span.count),
             );
         }
     }
@@ -592,9 +592,9 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
             out.hold = Some(hold.clone());
             let name = crate::stats::ENTRY_NAMES.get(hold.kind as usize).copied().unwrap_or("?");
             out.step(
-                "hold (one handler and its unwind)",
+                "hold (L_kernel)",
                 true,
-                format!("the longest stretch in which a pending Kernel-level interrupt could not be taken: {} cycles ({:.1} µs) over {} holds, closed by a {name} entry", hold.max_cycles, hold.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, hold.count),
+                format!("the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler and its unwind: {} cycles ({:.1} µs) over {} holds, closed by a {name} entry; against the record's L_kernel {} cycles", hold.max_cycles, hold.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, hold.count, rig.expect.l_kernel_cycles),
             );
         }
     }
@@ -778,11 +778,11 @@ pub fn render(rig: &Rig, inputs: &Inputs<'_>, out: &Outcome) -> String {
     }
     if let Some(sp) = &out.span {
         s.push_str("\n## The Kernel's masked spans (11.13)\n\n");
-        s.push_str(&format!("Every stretch without a Kernel-level interrupt taken, {} of them, the longest {} cycles ({:.1} µs), closed by a {} entry:\n\n", sp.count, sp.max_cycles, sp.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, crate::stats::ENTRY_NAMES.get(sp.kind as usize).copied().unwrap_or("?")));
+        s.push_str(&format!("Every run of Kernel entries with no return to a Job between them (a pending Kernel-level interrupt is taken at each entry's return), {} of them, the longest {} cycles ({:.1} µs), closed by a {} entry:\n\n", sp.count, sp.max_cycles, sp.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, crate::stats::ENTRY_NAMES.get(sp.kind as usize).copied().unwrap_or("?")));
         s.push_str(&sp.render(inputs.cpu_hz));
     }
     if let Some(h) = &out.hold {
-        s.push_str("\n## The Kernel's holds\n\n");
+        s.push_str("\n## The Kernel's holds (L_kernel)\n\n");
         s.push_str(&format!("Every stretch in which a pending Kernel-level interrupt could not be taken (one handler from its Rust half's beginning to its end, with the unwind it runs before it returns), {} of them, the longest {} cycles ({:.1} µs), closed by a {} entry:\n\n", h.count, h.max_cycles, h.max_cycles as f64 * 1e6 / inputs.cpu_hz as f64, crate::stats::ENTRY_NAMES.get(h.kind as usize).copied().unwrap_or("?")));
         s.push_str(&h.render(inputs.cpu_hz));
     }

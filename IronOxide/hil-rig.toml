@@ -95,7 +95,18 @@ delta_irq_cycles = 2600
 # edge to the Kernel's timestamp (Δ_stamp): the loopback step allows a wire
 # latency later than the deadline by at most this lag when the Kernel
 # logged no deadline miss.
-l_kernel_cycles = 35000
+#
+# 2026-11-21: L_kernel is the longest hold (`ARCH_HOLD`): one handler from
+# its Rust half's beginning to its end with the unwind it runs before it
+# returns, the stretch in which a pending Kernel-level interrupt cannot be
+# taken. The entries that follow it back to back in a span are each taken
+# at an exception return, where a pending Kernel-level interrupt is served
+# first, and the Analyzer charges each as its own event's interference, so
+# the span counted them twice. Observed: 6,312 to 6,945 cycles in the
+# short stress runs (a timer entry that enforces an Overrun and restarts
+# the Partition, with the epilogue of the Job it ended), plus Δ_entry,
+# with the margin. The span is still recorded and reported.
+l_kernel_cycles = 11000
 # Δ_stamp (Table 13-1), measured since 2026-11-06 by the probe (PPI routes
 # the stimulus edge to a TIMER0 capture; the intake handler records the lag
 # to its timestamp): 3,112 cycles (48.6 µs) over 10,000 edges of the plain

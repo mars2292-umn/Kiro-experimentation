@@ -241,13 +241,13 @@ A fault inside the Kernel itself always leads to the safe state.
 
 The Kernel cannot allocate memory, cannot run floating-point arithmetic, and has no call through a function pointer: all three are excluded by build-time checks.
 
-## 11. How Kernel entries queue into one masked stretch
+## 11. How Kernel entries queue back to back, and what stays masked
 
-Each Kernel entry is short: 25 to 66 µs in the measured build. The longest time during which no Kernel-level interrupt can be taken is much longer, 330 to 380 µs in three-minute stress runs, because entries run back to back with no gap in which a new interrupt could be taken. Sections 11.1 and 11.2 show what happens today. Section 11.3 shows two changes that have been proposed and not made.
+Each Kernel entry is short: 25 to 66 µs in the measured build. The longest time the Kernel runs without returning to a Job is much longer, 330 to 380 µs in three-minute stress runs, because entries run back to back. Sections 11.1 and 11.2 show how the chain forms. Section 11.3 shows what it does and does not block, and what was changed.
 
 ### 11.1 Why one entry is followed by another
 
-When an entry returns, the processor does not go back to the Job if something is waiting. It goes straight into the next handler, still with Kernel-level interrupts held off.
+When an entry returns, the processor does not go back to the Job if something is waiting. It goes straight into the highest pending handler.
 
 ```mermaid
 flowchart TB
@@ -272,7 +272,7 @@ One stretch of 382 µs from a stress run (measured build, 64 MHz). Nine entries 
 ```mermaid
 sequenceDiagram
     participant J as Jobs (Thread mode)
-    participant K as Kernel level (interrupts held off)
+    participant K as Kernel level
     participant D as Dispatch stubs
 
     J->>K: supervisor call "now" (7 µs)
@@ -306,39 +306,40 @@ Where the 382 µs went:
 | Supervisor call | 1 | 7 µs |
 | Between entries (stubs, exception entry) | | 24 µs |
 
-### 11.3 Two proposed changes
+### 11.3 What the chain does and does not block (measured 2026-11-21)
 
-Neither is implemented. The times are estimates from the stretch above, not measurements.
+The chain is how long the Kernel can run back to back. It is not how long an interrupt can be kept waiting. At every arrow below the processor picks the highest pending exception, so a Kernel-level interrupt that arrived during one entry is served at that entry's return, ahead of any queued dispatch. What cannot be interrupted is one handler together with the unwind it runs before it returns: the **hold**.
 
 ```mermaid
-flowchart TB
-    subgraph NOW["Today: about 380 µs masked"]
+flowchart LR
+    subgraph CH["The chain: about 330 to 380 µs of Kernel entries back to back"]
         direction LR
-        N1["timer"] --> N2["timer +<br/>unwind"] --> N3["timer"] --> N4["intake"] --> N5["dispatch"] --> N6["timer"] --> N7["dispatch"]
+        H1["timer"] --> H2["timer + unwind"] --> H3["timer"] --> H4["intake"] --> H5["dispatch"] --> H6["timer"] --> H7["dispatch"]
     end
-    subgraph C1["Change 1: one timer entry serves every slot that comes due while it runs"]
+    subgraph HO["One hold: at most about 100 µs"]
         direction LR
-        A1["timer + unwind<br/>(one entry, longer)"] --> A4["intake"] --> A5["dispatch"] --> A7["dispatch"]
+        G1["timer entry that ends a Job<br/>and restarts its Partition"] --> G2["unwind of the ended Job"]
     end
-    subgraph C2["Change 2: queued intake and dispatch entries no longer extend the masked stretch"]
-        direction LR
-        B1["timer"] --> B2["timer +<br/>unwind"] --> B3["timer"] --> BG(["interrupts can<br/>be taken here"]) --> B4["intake"] --> BH(["and here"]) --> B5["dispatch"]
-    end
-    subgraph BOTH["Both: about 65 to 85 µs masked"]
-        direction LR
-        X1["timer + unwind<br/>(one entry)"] --> XG(["interrupts can<br/>be taken here"]) --> X4["intake"] --> XH(["and here"]) --> X5["dispatch"]
-    end
-    NOW --> C1
-    NOW --> C2
-    C1 --> BOTH
-    C2 --> BOTH
+    P(["a pending Kernel-level interrupt<br/>is taken at each arrow of the chain"]) -.-> CH
+    Q(["nothing is taken<br/>inside a hold"]) -.-> HO
 ```
 
-| | What changes | Estimated longest stretch | What it costs |
-|---|---|---|---|
-| Today | | 330 to 380 µs | |
-| Change 1 | A timer entry keeps serving slots that come due while it runs, so several timer entries become one | 200 to 250 µs | A Release that comes due during the entry takes effect in that entry, not in the next one: the release-timing rule and its proofs change |
-| Change 2 | After the timer work, the processor returns to a level where Kernel-level interrupts are taken before it runs a queued intake or dispatch | 200 to 250 µs | The dispatch stubs and the rule for the Kernel's stack change |
-| Both | | 65 to 85 µs | Both of the above; the merged timer entry is longer than today's and must be measured |
+The Kernel now records both. Three-minute stress runs on the board:
 
-Running the unwind at the ended Job's own level was also considered. It would remove 8 to 34 µs of the stretch, so it does not reach the 50 to 100 µs target by itself.
+| | Chain (entries back to back) | Hold (cannot be interrupted) |
+|---|---|---|
+| Measured build | 332 µs | 99 µs |
+| Instrumented build | 327 to 328 µs | 107 to 109 µs |
+
+The longest hold in every run was a timer entry that ended an overrunning Job and restarted its Partition, followed by that Job's unwind.
+
+The analysis charges every Kernel entry to the event that caused it: each Task's releases, deadlines, Budget events and interrupts, including those of lower-Priority Tasks. Its blocking term, L_kernel, only has to cover the one section already in progress when an event arrives. L_kernel was the chain from 2026-11-07; it is the hold since 2026-11-21, because the chain's entries were being counted twice.
+
+Two changes were tried on a branch:
+
+| Change | Result | Kept |
+|---|---|---|
+| Let one timer entry also serve the slots that come due while it runs | The timer entry grew from 76 to 110 µs at most and the hold from 108 to 131 µs; the chain did not get shorter | No |
+| Record the hold and use it as L_kernel | L_kernel's measured basis fell from about 330 µs to about 100 µs | Yes |
+
+Running the unwind at the ended Job's own level was also considered. It would take the unwind (8 to 34 µs) out of the hold.
