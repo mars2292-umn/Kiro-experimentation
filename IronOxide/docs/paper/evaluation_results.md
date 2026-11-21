@@ -2,6 +2,8 @@
 
 Status on 2026-11-12: items 1 and 2 complete; items 3 to 8 not started (waiting for the check-in after item 2). Every number below was obtained from a run in the session of 2026-11-12 on the machine named in item 2, and the raw logs are in `docs/paper/logs/`.
 
+Added 2026-11-21: section 9, the Kernel masking time on `main`. It is a different revision and a different session from items 1 to 8; its sources are named there.
+
 Revisions used throughout:
 
 | Name | Commit | What it is |
@@ -123,6 +125,43 @@ Not started.
 ## 8. Stub preemption windows
 
 Not started.
+
+## 9. Kernel masking time on `main` (added 2026-11-21)
+
+This section is not about the evaluated tag. Revision: `main` at `44df784c` (2026-11-21), which differs from `ironoxide-eval-v1` in the Kernel crates. Every number is from a run of 2026-11-21 on the rig (nRF52840-DK, 64 MHz, 64 cycles = 1 µs); the reports are `docs/hil/stress_nrf52840_stress.md` and `docs/hil/release_timing_nrf52840_timing.md`, the exported parameters `docs/hil/kernel_timing_nrf52840_{stress,timing}.json`.
+
+What is measured. The *hold* is the longest stretch in which a pending Kernel-level interrupt cannot be taken: one Kernel handler from the beginning of its Rust half to its end, with the unwind it runs before it returns. It replaces the *masked span* that item 1 names as the basis of L_kernel at the tag. The span is the longest run of Kernel entries back to back with no return to a Job; it is not a masked stretch, because the processor takes a pending Kernel-level interrupt at each exception return, and the Analyzer already charges each entry of such a run to the event that caused it.
+
+Commands: `cargo xtask hil --stress` and `cargo xtask hil --release-timing` (3,660 s each); `cargo xtask hil --stress --short [--lean]` (180 s).
+
+| Run | Build | Hold, worst case | As a rate (1 / hold) | Entries back to back (not masked) | Release lag, worst case |
+|---|---|---:|---:|---:|---:|
+| Stress, 3,660 s | instrumented | 7,044 cycles (110.1 µs) | 9.1 kHz | 26,010 cycles (406.4 µs) | 9,236 cycles (144.3 µs) |
+| Release timing, 3,660 s | instrumented | 6,496 cycles (101.5 µs) | 9.9 kHz | 21,659 cycles (338.4 µs) | 8,573 cycles (134.0 µs) |
+| Stress, 180 s | lean (no trace instrumentation) | 6,312 cycles (98.6 µs) | 10.1 kHz | 332.2 µs | not recorded here |
+
+L_kernel as exported to the Analyzer (the hold with the 25 % margin of R34.6):
+
+| Record | L_kernel | In time | As a rate |
+|---|---:|---:|---:|
+| Stress, 3,660 s | 8,805 cycles | 137.6 µs | 7.3 kHz |
+| Release timing, 3,660 s | 8,120 cycles | 126.9 µs | 7.9 kHz |
+| At the span basis, before the change (180 s stress run of 2026-11-21) | 28,700 cycles | 448.4 µs | 2.2 kHz |
+
+The rate column is the reciprocal of the time: a Kernel-level interrupt can be delayed by up to one hold, so it bounds the event rate for which the Kernel can promise a response within one period of that rate. It is not a measured throughput.
+
+What the numbers show. The worst hold is about 0.11 ms, 1.1 % of `control`'s 10 ms deadline. In the stress run it is a timer entry that enforces a Budget overrun and restarts the Partition, followed by the ended Job's unwind (2 entries); in the release-timing run it is one timer entry. The stated goal of 50 to 100 µs is met only at its upper edge and only in the lean build.
+
+Caveats a reviewer needs:
+
+| Caveat | Effect |
+|---|---|
+| The holds are measured maxima under the demo's stress and release-timing workloads, not a static bound | A longer hold on another workload or another interleaving is not excluded |
+| The hour-long figures are from HIL builds with `trace-ram` and `trace-pins`; the instrumentation's cost is inside the hold | The lean figure (98.6 µs) is from a 180 s run only; no hour-long lean run exists |
+| The change of basis made no Kernel path shorter | The drop from 28,700 to 8,805 cycles is a correction of what is counted, not a speed-up |
+| No dedicated probe fires a Kernel-level interrupt into the middle of a run of entries | That a pending interrupt is taken between chained entries rests on the exception model, the handlers' code and the recorded composition of the longest runs |
+| The stress run's Analyzer step rejects its inputs: `part2.filter`'s WCET with margin (51,239 cycles) exceeds its Budget (51,200), R28.4 | The observed response times of that run are not judged against measured WCRTs |
+| `cargo xtask verify` was not rerun at `44df784c` | The job of the same day at `00d3c1fb` ended with 3 violations, none in the Kernel (two from a clean-checkout tooling defect since fixed, one from an expired UPPAAL licence lease since renewed) |
 
 ## Not completed, and why
 
