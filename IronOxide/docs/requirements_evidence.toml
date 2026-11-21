@@ -178,7 +178,7 @@ requirement = 16
 sentence = "No Partition can write another Partition's or the Kernel's memory, touch a peripheral it does not own, or run code that is not its own or shared; a stack overflow is caught before it damages anything outside the stack."
 implemented = "Each Partition runs unprivileged under a memory-protection (MPU) view computed from the generated layout: its own code, its own RAM, its own peripheral windows and the shared code, nothing else (crates/rsk-logic/src/logic/mpu.rs). The Kernel loads the view at every dispatch (crates/rsk-kernel/src/arch/cm4/entry.rs). The model of what the MPU grants is crates/rsk-logic/src/hw_model.rs."
 strength = "weaker"
-strength_note = "For R16.6, which asks for exactly this proof, yes: for every well-formed layout and the view computed for a Partition, the model of the MPU grants unprivileged access only to the Partition's own regions, and nothing of the Kernel or of another Partition. For R16.1 to R16.5 as statements about the board, weaker: the proof is about a model of the MPU's decision, and that the processor decides as the model does, and that the Kernel has loaded the right view whenever a Partition runs, are outside these statements. On the stack (R16.5): a write outside the Partition's own RAM and windows is refused, which covers an overflow off the bottom of the stack, but not one that jumps far enough to land in the Partition's own peripheral window; the Link_Checker's stack bounds are what excludes that."
+strength_note = "For R16.6, which asks for exactly this proof, yes: for every well-formed layout and the view computed for a Partition, the model of the MPU grants unprivileged access only to the Partition's own regions, and nothing of the Kernel or of another Partition. For R16.1 to R16.5 as statements about the board, weaker: the proof is about a model of the MPU's decision, and that the processor decides as the model does is outside these statements. That the right view is loaded whenever a Partition runs is proven of the entry code against the hardware model: while a Job is dispatched and not yet unwound, the loaded view is the view of the Partition of the Kernel's executing Job (`lemma_executing_partition`, an invariant every entry core keeps); that the register writes realise the model's view is the drivers' and the board's. On the stack (R16.5): a write outside the Partition's own RAM and windows is refused, which covers an overflow off the bottom of the stack, but not one that jumps far enough to land in the Partition's own peripheral window; the Link_Checker's stack bounds are what excludes that."
 closed = "2026-11-05: the Kernel's own peripherals and the processor's private peripheral bus were not intervals of the layout, so the proof did not cover them; they are now (`lemma_view_no_kernel_window`). 2026-11-13 (audit findings 8 and 9): a stack pointer that a Job moved outside its stack region is now checked by the Kernel at entry."
 gaps = "That the hardware behaves as the model says is by citation of the architecture manual and differential tests on the board (ASM-02, the HW rules). The register encoding of a region is checked at field level only (Kani). The Kernel's own stack check at entry is not cited in this row. R16.10 (no forbidden instruction in privileged-level Partition code) is the Link_Checker's."
 
@@ -305,6 +305,21 @@ kind = "assumed"
 ref = "ASM-02"
 note = "the MPU's region rules as the manual states them"
 
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "view_matches"
+tool = "verus"
+body = true
+says = "Whenever at least one Job is dispatched and not yet unwound, the hardware model's loaded MPU view is that of the Partition the Kernel_Arch state records as executing. It says nothing while no Job is dispatched (the idle activity runs privileged)."
+reviewed = "33b3b66922c44864"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "lemma_executing_partition"
+tool = "verus"
+says = "Given the Kernel's invariant, the entry code's invariant with no unwind owed, and the view property above: with no Job in progress no Partition is recorded as executing; with a Job in progress the recorded Partition is the Partition of the Task on top of the Kernel's Job stack, and the loaded view is that Partition's."
+reviewed = "084b35881870bb2d"
+
 # ---------------------------------------------------------------- R17
 
 [[row]]
@@ -314,7 +329,7 @@ implemented = "A Partition cannot write its DMA peripheral's pointer and count r
 strength = "weaker"
 strength_note = "Close on every criterion the Kernel is responsible for, with what remains stated. R17.1 and R17.2: the request function is proven to accept a request exactly when the channel belongs to the executing Job's Partition and the buffer passes the test; an accepted request programs that channel's two registers with that buffer and nothing else, a refused one programs nothing; the register write behind it is checked to write those two registers only; and every byte of a permitted buffer is proven to lie in the Partition's own RAM above its stack, given the hardware rule HW-15. R17.3: the register-write service is proven never to write a pointer, count or list-mode register and never to program a transfer. R17.5: the lending library is model-checked for every sequence of four operations, with arbitrary register values, to hand out a buffer's bytes only when no transfer of it is outstanding. Still weaker than the requirement's words in two places. HW-15 is an assumption about the peripheral, cited to the vendor's specification and checked on the board by guard bytes at three transfer rates, not proven. And the model check of the library is bounded (four operations, a two-read wait, the host doubles of the supervisor calls) and is about the library's own bookkeeping: that the peripheral has truly stopped when it reports STOPPED is again the vendor's."
 closed = "2026-11-06: a peripheral shortcut restarted a transfer after the Kernel had stopped it at a restart (one in ninety on the board); the stop now clears the shortcut first. 2026-11-13 (audit findings 1 and 10): the claim is limited to the SPIM class, and the read-only window is proven and checked at boot. 2026-11-16: the contract of `dma_request_core` did not state the refusal rule (found when this row was first written from the contract's text); it is now a postcondition, with three mutants killed. 2026-11-16: nothing addressed R17.5 (the request borrowed the buffer only for the call and the transfer ran on after it); the request now goes through a buffer that is out of reach while lent. 2026-11-16: `dma_write_core` gained its postcondition (two mutants killed); the peripheral's address is no longer the Task's argument (the Generator emits each Partition's channels as constants)."
-gaps = "HW-15 and the meaning of the STOPPED event rest on the vendor's documentation and the footprint test on one peripheral (SPIM0). The library's check is bounded model checking, not an unbounded proof. A transfer that is dropped leaves its buffer out of reach until the Partition restarts. Other peripheral classes are out of scope in this version. The hour-long configurations were not run on this build."
+gaps = "HW-15 and the meaning of the STOPPED event rest on the vendor's documentation and the footprint test on one peripheral (SPIM0). The library's check is bounded model checking, not an unbounded proof. A transfer that is dropped leaves its buffer out of reach until the Partition restarts. Other peripheral classes are out of scope in this version. The hour-long configurations ran on 2026-11-21 (the release-timing run with SPIM0 chaining transfers throughout: a transfer ended before 36,599 of 36,600 sampler Jobs, none still running after a stop)."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/mpu.rs"
@@ -716,9 +731,9 @@ requirement = 9
 sentence = "Each periodic Task is released at its offset plus a whole number of periods, computed from the offset and period alone so that it never drifts; a Release that falls due while the previous one is still pending is discarded and counted; a Job not finished by its deadline is reported; and at the end of the declared operating duration the system enters its safe state."
 implemented = "The Kernel keeps one timer slot per timed event and a nominal instant per periodic Task; the timer entry serves every slot that is due (`Kernel::timer_event`, `periodic_release`, `deadline_miss` in crates/rsk-logic/src/logic/kernel.rs; the instants in logic/time.rs). One hardware timer compare is armed for the earliest slot (crates/rsk-kernel/src/arch/cm4/entry.rs)."
 strength = "weaker"
-strength_note = "R9.3 is proven as stated: the next nominal instant is the offset plus (k+1) periods, whatever else happened, or there is none within the operating duration. R9.1's 'released at the nominal instant' is proven in the sense that every periodic Task whose nominal instant is at or before the reading the timer entry is given has its Release served in that entry. Weaker: 'no later than J_rel after the instant' (R9.2) and 'within Δ_detect' (R9.6) are about real time between the instant and the entry, which is measured on the board, not proven; and the reading itself comes from hardware the proof models only as a number."
-closed = "2026-11-02: one unanswered stimulus pulse in the first hour-long run (still open against the fault-injection task). 2026-11-05: the link from armed slots to the Releases the entry makes was a comment; it is now a postcondition of `timer_event`. 2026-11-16: on the code as extracted, a periodic Task's nominal instant is shown to move by exactly its period (Sched/Time.lean), and the run Property 18 is proven over takes periodic arrivals at those instants with their spacing derived (Sched/Arrive.lean). 2026-11-17 (R9.6): a Job of a sporadic Task that ended before its deadline was logged as a Deadline miss, and the Partition's deadline response applied, when a deferred Release of the Task was held at the Job's end (the Job-end code kept the deadline event whenever a Release was held, and a deferred one has not armed its own); the Job-end code now disarms it unless the held Release is pending, with the postcondition changed to say so and a test (crates/rsk-loom/tests/deadline_after_deferral.rs)."
-gaps = "J_rel and Δ_detect are measured over an hour with a margin. The hardware timer's compare rule has a near-counter exception found by test (HW-12, ASM-19). R9.10 is the rig's hour-long run, on one Application."
+strength_note = "R9.3 is proven as stated: the next nominal instant is the offset plus (k+1) periods, whatever else happened, or there is none within the operating duration. R9.1's 'released at the nominal instant' is proven in the sense that every periodic Task whose nominal instant is at or before the reading the timer entry is given has its Release served in that entry. Weaker: 'no later than J_rel after the instant' (R9.2) and 'within Δ_detect' (R9.6) are about real time between the instant and the entry, which is measured on the board, not proven. The reading: since 2026-11-21 the step that extends the hardware's 32-bit counter to the 64-bit instant is proven to return the true instant across the counter's wrap, provided two consecutive readings are less than one counter period (268 s) apart; that the counter counts ticks and that readings are that close (the housekeeping event is due every 125 ms) are the hardware's and the rig's."
+closed = "2026-11-02: one unanswered stimulus pulse in the first hour-long run (still open against the fault-injection task). 2026-11-05: the link from armed slots to the Releases the entry makes was a comment; it is now a postcondition of `timer_event`. 2026-11-16: on the code as extracted, a periodic Task's nominal instant is shown to move by exactly its period (Sched/Time.lean), and the run Property 18 is proven over takes periodic arrivals at those instants with their spacing derived (Sched/Arrive.lean). 2026-11-17 (R9.6): a Job of a sporadic Task that ended before its deadline was logged as a Deadline miss, and the Partition's deadline response applied, when a deferred Release of the Task was held at the Job's end (the Job-end code kept the deadline event whenever a Release was held, and a deferred one has not armed its own); the Job-end code now disarms it unless the held Release is pending, with the postcondition changed to say so and a test (crates/rsk-loom/tests/deadline_after_deferral.rs). 2026-11-21: the counter's extension to 64 bits (R9.5) was hand-written code with no statement, shown only by the hour-long runs; it is now `ArchState::extend` with a contract (two mutants killed). The same day the hour-long run's check of the wraps failed with nothing wrong in the Kernel: the trace it reads had frozen, at the deliberate overload's deadline miss, before the first wrap; that configuration now injects its late Jobs only after the first wrap."
+gaps = "J_rel and Δ_detect are measured over an hour with a margin. The hardware timer's compare rule has a near-counter exception found by test (HW-12, ASM-19). R9.10 is the rig's hour-long run, on one Application. The premise of the extension's contract (consecutive readings less than a counter period apart) is argued from the housekeeping period, not proven of the running system. After the trace freezes at the overload's first deadline miss, the rest of the hour is judged by the release-timing record and the target's own counts, not by the trace."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/time.rs"
@@ -764,6 +779,21 @@ note = "823,317 periodic Releases at their nominal instants over an hour, lag wi
 kind = "assumed"
 ref = "ASM-19"
 note = "the timer's near-counter compare rule, revised from the board's behaviour"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+name = "extend"
+tool = "verus"
+says = "Given a 32-bit counter reading, the function changes only the wrap count and the last reading of the Kernel_Arch state. For every true instant that lies at or after the instant the state stood for, less than one counter period (2^32 ticks) after it and below 2^64, and whose low 32 bits are the reading, the result is that instant and the state stands for it afterwards."
+reviewed = "cde9f8794a42703b"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
+name = "counter_reads"
+tool = "verus"
+body = true
+says = "The premise of the extension: the true instant is no earlier than the previous reading's instant, less than 2^32 ticks after it, below 2^64, and the reading is its remainder modulo 2^32."
+reviewed = "98818cf7d76576fc"
 
 # ---------------------------------------------------------------- R11
 
@@ -865,7 +895,7 @@ implemented = "Every outcome of an intake masks the source for one MIT (`Kernel:
 strength = "weaker"
 strength_note = "The count is proven: in any run, the intakes of one source inside any window number at most one per MIT (plus one). The requirement is about processor time, which is that count times Δ_irq, and Δ_irq is a measured maximum. The proof is also about intakes the Kernel's logic sees; that a masked line raises no interrupt is the hardware's and is inspected."
 closed = "2026-11-05: a discarded event left its source unmasked, so the bound did not hold for a source whose events were discarded; every outcome now masks."
-gaps = "Δ_irq is measured (2,291 cycles observed under an hour-long storm, exported with a margin). The interrupt line's mask in hardware is by inspection (A13). R19.4 and R19.5 are the Generator's and the boot's."
+gaps = "Δ_irq is measured (2,202 cycles observed under the hour-long storm of 2026-11-21, 2,291 in an earlier one; exported with a margin). The interrupt line's mask in hardware is by inspection (A13). R19.4 and R19.5 are the Generator's and the boot's."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/history.rs"
@@ -1227,7 +1257,7 @@ requirement = 13
 sentence = "Every Kernel overhead that the timing analysis charges is defined, exported as a record with its provenance, and bounded."
 implemented = "The Kernel's instrumented build records each entry's duration; the rig writes them as Kernel_Timing_Parameter records (docs/hil/kernel_timing_*.json) which the Analyzer reads."
 strength = "weaker"
-strength_note = "R13.1 asks for upper bounds. What exists are measured maxima with a 25 % margin, each bound to the binary it was measured on, from runs of three minutes to an hour. A measured maximum is not a bound. R13.5 (bounded loops in the Kernel) is proven. The Analyzer does include every parameter and rejects an input without one, which has tests."
+strength_note = "R13.1 asks for upper bounds. What exists are measured maxima with a 25 % margin, each bound to the binary it was measured on, from runs of three minutes to an hour. A measured maximum is not a bound. R13.5 (bounded loops in the Kernel) is proven. The Analyzer does include every parameter and rejects an input without one, which has tests. Since 2026-11-21 L_kernel is taken from the longest hold (one handler from the beginning of its Rust half to its end, with the unwind it runs: the stretch in which a pending Kernel-level interrupt cannot be taken), 7,044 cycles in the hour-long stress run, not from the longest run of entries back to back (26,010 cycles in the same run): the processor takes a pending Kernel-level interrupt at each exception return and the Analyzer charges each such entry to its own event. That reading rests on the exception model and the handlers' code; no probe fires an interrupt into the middle of such a run."
 closed = ""
 gaps = "Static bounds for the Kernel's entries do not exist. The records are of the instrumented build, which is slower than the flight build by a measured share."
 
@@ -1646,7 +1676,7 @@ requirement = 52
 sentence = "Each formal analysis meets the avionics formal-methods supplement's expectations: soundness, validated models, and preservation of the proven properties down to the object code."
 implemented = "Section 9 of the Verification_Plan; the mutation register for model validation; the Lean proofs over the compiled code for preservation."
 strength = "weaker"
-strength_note = "Partly evidence and partly argument. Model validation has real evidence: 208 registered mutations, each of which must make a proof fail. Preservation to object code is argued, and for the scheduler and the analysis is supported by proofs on the code as the compiler produced it. Soundness of the provers is assumed."
+strength_note = "Partly evidence and partly argument. Model validation has real evidence: 241 registered mutations (2026-11-21), each of which must make a proof fail. Preservation to object code is argued, and for the scheduler and the analysis is supported by proofs on the code as the compiler produced it. Soundness of the provers is assumed."
 closed = ""
 gaps = "The provers' soundness; the compiler below the extraction point."
 
