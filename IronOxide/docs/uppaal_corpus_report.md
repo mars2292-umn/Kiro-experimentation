@@ -5,14 +5,16 @@
 
 Verifier: verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023.
 
+Inputs: `sha256:26682d9da0b658f0e93b89afce8fcaf98b3d4d98a35daa6e5e5fedeeb58212c6` (a digest of the sources this report depends on: the Analyzer, the Generator, the Task_Model crate, this corpus generator and the dispositions). The verification job does not run the corpus; it compares this digest with the tree's and reports the Evidence_Item `inconclusive` when they differ.
+
 ## Summary
 
 | Cross-check status | Models |
 |---|---|
-| `agree` | 40 |
-| `discrepancy` | 2 |
-| `inconclusive` | 6 |
-| `pessimism` | 2 |
+| `agree` | 42 |
+| `discrepancy` | 1 |
+| `inconclusive` | 4 |
+| `pessimism` | 3 |
 
 RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 
@@ -20,8 +22,8 @@ RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 
 | Model | Tasks | Sporadic | Resources | Utilization % | RTA | Cross-check | Detail |
 |---|---|---|---|---|---|---|---|
-| m00 | 2 | 0 | 2 | 102 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
-| m01 | 4 | 1 | 4 | 71 | PASS | `discrepancy` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); REQUIRES CONFIRMATION (R31.5) |
+| m00 | 2 | 0 | 2 | 102 | FAIL | `pessimism` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: no deadline miss reachable while RTA reports FAIL (analysis pessimism, R31.6) |
+| m01 | 4 | 1 | 4 | 71 | PASS | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable in the stopwatch over-approximation; none is reachable in the stopwatch-free over-approximation, which is checked exactly (the confirmation model, R31.5); RTA PASS |
 | m02 | 6 | 1 | 1 | 42 | PASS | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: no deadline miss reachable; RTA PASS |
 | m03 | 2 | 0 | 0 | 41 | FAIL | `pessimism` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: no deadline miss reachable while RTA reports FAIL (analysis pessimism, R31.6) |
 | m04 | 2 | 0 | 2 | 61 | PASS | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: no deadline miss reachable; RTA PASS |
@@ -30,7 +32,7 @@ RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 | m07 | 2 | 0 | 2 | 61 | PASS | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: no deadline miss reachable; RTA PASS |
 | m08 | 4 | 1 | 1 | 27 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m09 | 6 | 1 | 3 | 42 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
-| m10 | 2 | 0 | 4 | 62 | FAIL | `inconclusive` | verifyta exceeded the 120s limit (memory limit 4096 MiB; ORQ-22, R31.9) |
+| m10 | 2 | 0 | 4 | 62 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss is reachable; RTA FAIL |
 | m11 | 4 | 1 | 4 | 81 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m12 | 6 | 2 | 2 | 44 | PASS | `inconclusive` | verifyta exceeded the 120s limit (memory limit 4096 MiB; ORQ-22, R31.9) |
 | m13 | 2 | 0 | 4 | 41 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss is reachable; RTA FAIL |
@@ -45,7 +47,7 @@ RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 | m22 | 6 | 1 | 4 | 131 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m23 | 2 | 0 | 2 | 130 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss is reachable; RTA FAIL |
 | m24 | 4 | 0 | 1 | 109 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
-| m25 | 6 | 1 | 2 | 107 | FAIL | `inconclusive` | verifyta exceeded the 120s limit (memory limit 4096 MiB; ORQ-22, R31.9) |
+| m25 | 6 | 1 | 2 | 107 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m26 | 2 | 0 | 0 | 86 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m27 | 4 | 0 | 2 | 143 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss is reachable; RTA FAIL |
 | m28 | 6 | 0 | 2 | 130 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
@@ -69,11 +71,10 @@ RTA verdicts: 11 PASS, 39 FAIL, 0 other.
 | m46 | 4 | 0 | 2 | 76 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m47 | 6 | 1 | 2 | 56 | FAIL | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL |
 | m48 | 2 | 0 | 2 | 76 | PASS | `agree` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: no deadline miss reachable; RTA PASS |
-| m49 | 4 | 1 | 2 | 84 | PASS | `discrepancy` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); REQUIRES CONFIRMATION (R31.5) |
+| m49 | 4 | 1 | 2 | 84 | PASS | `discrepancy` | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); the stopwatch-free over-approximation reaches a miss too (trace: `verifyta -t0` on the confirmation model), which may be an artefact of either approximation; REQUIRES CONFIRMATION (R31.5) |
 
 ## Discrepancies and dispositions (R32.6)
 
 | Model | Verifier detail | Disposition |
 |---|---|---|
-| m01 | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); REQUIRES CONFIRMATION (R31.5) | OPEN (2026-11-14): verifyta reports that a miss may be reachable, found in the stopwatch over-approximation, with no trace. Not confirmed and not refuted. Candidate explanations: a spurious state of the over-approximation; pessimism of the export, which delays every Job by up to its own B_i where the Analyzer charges blocking once per busy period (two higher-Priority Tasks of m01 have B of about 320,000 cycles); an optimism of the Analyzer. |
-| m49 | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); REQUIRES CONFIRMATION (R31.5) | OPEN (2026-11-14): as m01; a possible miss in the stopwatch over-approximation, no trace, neither confirmed nor refuted. |
+| m49 | verifyta UPPAAL 5.0.0 (rev. 714BA9DB36F49691), June 2023: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); the stopwatch-free over-approximation reaches a miss too (trace: `verifyta -t0` on the confirmation model), which may be an artefact of either approximation; REQUIRES CONFIRMATION (R31.5) | NOT CONFIRMED, NOT REFUTED BY THE VERIFIER (2026-11-21). What was found: (1) under rsk-uppaal/3 the miss was real in the exported model and was the export's error, not the Analyzer's: Task 1 (part1.t1, deadline 320,000 cycles) was released behind one Job of Task 2 (132,200), spent its blocking interval (128,000) and was judged against E = 68,200, 328,900 cycles in all with the jitter; its own demand C + O is 35,600, which gives 296,300 against the Analyzer's R of 297,800. The export now judges a Job by its own demand. (2) After that correction verifyta still reports a possible miss in the stopwatch over-approximation, and the stopwatch-free confirmation model reaches a miss as well. A trace of the confirmation model was read: it judges Task 0 (part0.t0, deadline 640,000, own demand 67,600) missed in a run in which that Job had already executed for 128,000 cycles; the confirmation model does not track executed time and counts the full E of Jobs that completed at once, so the trace is an artefact of that model, not a behaviour of the export. (3) A tighter stopwatch-free model, exact about the Job directly above at the deadline, did not finish within 170 s on this model and is not used. (4) By hand, with every Job above at its E and one blocking interval, Task 0's own demand is served by about 597,800 cycles, below its deadline and in line with the Analyzer's R of 603,100: an argument, not a tool's verdict. No trace of a miss in the export itself exists. |

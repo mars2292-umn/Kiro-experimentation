@@ -7,7 +7,8 @@
 //!              [--prefer measured|static] [--uppaal [--uppaal-timeout <s>] [--uppaal-memory <MiB>]]
 //! ```
 //!
-//! Writes `report.json`, `report.txt`, `model.xml` and `model.q` into the
+//! Writes `report.json`, `report.txt`, `model.xml` and `model.q` (and the
+//! confirmation model `model_confirm.xml`, `model_confirm.q`) into the
 //! output directory. Exit status (R30.4): 0 PASS, 1 FAIL, 2 rejected
 //! input, 3 internal error.
 #![forbid(unsafe_code)]
@@ -196,8 +197,22 @@ fn main() -> ExitCode {
     if !analysis.uppaal_xml.is_empty() {
         let _ = std::fs::write(&xml_path, &analysis.uppaal_xml);
         let _ = std::fs::write(&q_path, &analysis.uppaal_query);
+        // The confirmation model (R31.5): written beside the export, run by
+        // the cross-check only on a possible miss while the RTA reports PASS.
+        let confirm_paths = (out.join("model_confirm.xml"), out.join("model_confirm.q"));
+        let confirm = match rsk_analyzer::uppaal::confirmation_of(&analysis.uppaal_xml, &analysis.uppaal_query) {
+            Some((cx, cq)) => std::fs::write(&confirm_paths.0, cx).is_ok() && std::fs::write(&confirm_paths.1, cq).is_ok(),
+            None => false,
+        };
         if run_uppaal {
-            let cc = rsk_analyzer::uppaal::cross_check(&xml_path, &q_path, analysis.report.result == "PASS", uppaal_timeout, uppaal_memory);
+            let cc = rsk_analyzer::uppaal::cross_check(
+                &xml_path,
+                &q_path,
+                confirm.then_some((confirm_paths.0.as_path(), confirm_paths.1.as_path())),
+                analysis.report.result == "PASS",
+                uppaal_timeout,
+                uppaal_memory,
+            );
             analysis.report.cross_check = rsk_model::report::CrossCheck {
                 status: cc.status.to_string(),
                 detail: cc.detail,

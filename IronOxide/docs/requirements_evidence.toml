@@ -1437,11 +1437,11 @@ note = "a Task on another core is rejected"
 [[row]]
 requirement = 31
 sentence = "The task set can be exported as timed automata for the UPPAAL model checker, as an independent cross-check of the response-time analysis."
-implemented = "crates/rsk-analyzer/src/uppaal.rs writes the model and the query; a corpus of task sets is checked both ways."
+implemented = "crates/rsk-analyzer/src/uppaal.rs writes the model and the query; a corpus of 50 generated task sets is checked both ways by `cargo xtask uppaal-corpus`, run on demand; since 2026-11-21 the verification job reads that command's committed report and does not run the corpus."
 strength = "weaker"
-strength_note = "This is a cross-check, not a proof, and the requirement asks for no more. Its reach is limited: the exported model leaves out the ceiling protocol, so it checks the analysis on task sets without shared Resources, and it needs the external tool."
-closed = ""
-gaps = "Ceilings are not modelled. The cross-check runs on a corpus, not on every analysis."
+strength_note = "This is a cross-check, not a proof, and the requirement asks for no more. Its reach is limited: the exported model leaves out the ceiling protocol (blocking is an interval before each Job starts), it takes the terms the Analyzer computed as its parameters, so it can show a wrong fixed point but not a missing term, the corpus runs on placeholder timing, and it needs the external tool, which checks a model with stopwatches by over-approximation. It is a sanity check beside the proofs of R29 and R32, not the evidence for the Analyzer. Of the 50 models on 2026-11-21: 42 agree, 3 are pessimism of the analysis, 4 exceed the verifier's limits, 1 (m49) stays a possible miss that the verifier neither confirms nor refutes."
+closed = "2026-11-14: the first run with a verifier corrected the export twice (an eligible Task could wait with the processor idle; a clock type the checker crashes on). 2026-11-21: the two possible misses against an RTA PASS were examined. Both models showed the export wrong, not the analysis: a running Job was judged at its deadline by the interference bound E instead of its own demand C + O (m49, a real miss of the model as exported); corrected. A possible miss found only in the over-approximation is now put to a second model without stopwatches, which the verifier checks exactly; it refuted m01."
+gaps = "Ceilings are not modelled. The cross-check runs on a corpus, not on every analysis, and on demand, not in the verification job: the job marks the item inconclusive when the report is older than the sources it depends on. m49 is open (docs/uppaal_dispositions.toml): no trace of a miss in the export exists, the one trace read is an artefact of the confirmation model, and the hand calculation agrees with the analysis, but no tool has refuted the possible miss."
 
 [[row.other]]
 kind = "tested-host"
@@ -1643,9 +1643,9 @@ requirement = 50
 sentence = "Proofs and tests run automatically, assumptions are gated, and every result is archived with the versions of the tools that produced it."
 implemented = "`cargo xtask verify` and the evidence store; the mutation register checks that proofs fail when the code is broken."
 strength = "weaker"
-strength_note = "The job does what is asked when it is run in full. The qualification is practical: the last full run predates several changes (since 2026-11-16 changes are checked piece by piece and the full job has not been rerun), so the store's items are older than the tree."
-closed = ""
-gaps = "A full run on the present tree."
+strength_note = "The job does what is asked when it is run in full. The last full run is of 2026-11-21 on commit bdd582b8: 0 violations, the rebuild from a clean checkout byte-identical. The qualification is practical and recurs: changes after a full run are checked piece by piece, so the store's items are as old as that run (the UPPAAL export's correction of the same day came after it)."
+closed = "2026-11-21: the full run of that morning failed two rules with nothing wrong in the tree: the clean checkout was an empty archive (git archive of a subdirectory's tree run from inside the subdirectory), fixed in the job; and the UPPAAL licence lease had expired, renewed outside the job's network sandbox. The run after both passed."
+gaps = "A full run after each change is not the practice (about 100 minutes); the items are of the last full run."
 
 [[row.other]]
 kind = "checked"

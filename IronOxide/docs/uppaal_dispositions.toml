@@ -5,17 +5,17 @@
 # the confirmation found (a real RTA defect, fixed in ...; a spurious trace
 # of the over-approximation; a modelling approximation of the export).
 #
-# [[discrepancy]]
-# model = "m07"
-# disposition = "..."
+# 
 #
-# First run with a verifier: 2026-11-14, UPPAAL 5.0.0, model rsk-uppaal/3
-# (Verification_Plan 8.7).
-
-[[discrepancy]]
-model = "m01"
-disposition = "OPEN (2026-11-14): verifyta reports that a miss may be reachable, found in the stopwatch over-approximation, with no trace. Not confirmed and not refuted. Candidate explanations: a spurious state of the over-approximation; pessimism of the export, which delays every Job by up to its own B_i where the Analyzer charges blocking once per busy period (two higher-Priority Tasks of m01 have B of about 320,000 cycles); an optimism of the Analyzer."
+# 2026-11-21, model rsk-uppaal/4: the export judged a running Job at its
+# deadline by E_i, the interference bound, not by the Job's own demand
+# C_i + O_i (corrected); and a possible miss found only in the stopwatch
+# over-approximation is now put to a stopwatch-free confirmation model
+# first (`rsk_analyzer::uppaal::confirmation_of`), which refutes it when it
+# reaches no miss. m01 was refuted that way and is no longer a discrepancy
+# (its entry of 2026-11-14 is removed). Since the same day the verification
+# job reads the committed report and does not run the corpus.
 
 [[discrepancy]]
 model = "m49"
-disposition = "OPEN (2026-11-14): as m01; a possible miss in the stopwatch over-approximation, no trace, neither confirmed nor refuted."
+disposition = "NOT CONFIRMED, NOT REFUTED BY THE VERIFIER (2026-11-21). What was found: (1) under rsk-uppaal/3 the miss was real in the exported model and was the export's error, not the Analyzer's: Task 1 (part1.t1, deadline 320,000 cycles) was released behind one Job of Task 2 (132,200), spent its blocking interval (128,000) and was judged against E = 68,200, 328,900 cycles in all with the jitter; its own demand C + O is 35,600, which gives 296,300 against the Analyzer's R of 297,800. The export now judges a Job by its own demand. (2) After that correction verifyta still reports a possible miss in the stopwatch over-approximation, and the stopwatch-free confirmation model reaches a miss as well. A trace of the confirmation model was read: it judges Task 0 (part0.t0, deadline 640,000, own demand 67,600) missed in a run in which that Job had already executed for 128,000 cycles; the confirmation model does not track executed time and counts the full E of Jobs that completed at once, so the trace is an artefact of that model, not a behaviour of the export. (3) A tighter stopwatch-free model, exact about the Job directly above at the deadline, did not finish within 170 s on this model and is not used. (4) By hand, with every Job above at its E and one blocking interval, Task 0's own demand is served by about 597,800 cycles, below its deadline and in line with the Analyzer's R of 603,100: an argument, not a tool's verdict. No trace of a miss in the export itself exists."

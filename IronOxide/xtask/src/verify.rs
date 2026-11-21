@@ -584,7 +584,7 @@ pub fn run(root: &Path, options: Options) -> bool {
 
     // ------------------------------------------- 8c'. UPPAAL cross-check corpus
     job.heading("UPPAAL cross-check corpus (R32.6, PAR-03)");
-    let corpus_cmds = uppaal_corpus(&ws, &target_dir, &sandbox, &mut store, &manifest_id, &mut report);
+    let corpus_cmds = uppaal_corpus(&ws, &mut store, &manifest_id, &mut report);
     job.flush(&mut report, "check-uppaal-corpus-step", "UPPAAL corpus step", &["R32.6"], corpus_cmds);
 
     // --------------------------------------------------- 8d. Profile_Lint
@@ -2045,85 +2045,67 @@ fn aeneas_evaluation(ws: &Workspace, sandbox: &Sandbox, store: &mut Store, manif
     vec![command]
 }
 
-/// What verifyta prints when its licence lease does not cover the verifier.
-const UPPAAL_UNLICENSED: &str = "License does not cover verifier";
-
-/// The corpus models whose Analyzer report carries verifyta's licence refusal.
-fn uppaal_unlicensed(work: &Path) -> usize {
-    let Ok(dir) = std::fs::read_dir(work) else { return 0 };
-    dir.flatten()
-        .filter(|e| std::fs::read_to_string(e.path().join("report.json")).is_ok_and(|t| t.contains(UPPAAL_UNLICENSED)))
-        .count()
-}
-
-/// R32.6, PAR-03: the UPPAAL cross-check corpus (`corpus.rs`): 50 generated
-/// Task_Models analysed and, where `verifyta` is installed, cross-checked.
-/// Evidence_Item `check-uppaal-corpus`: pass when no cross-check is a
-/// discrepancy without a disposition, inconclusive when the verifier is
-/// absent or a run hit its limits, fail on an undisposed discrepancy. The
-/// committed report `docs/uppaal_corpus_report.md` must equal the
-/// regenerated one.
-fn uppaal_corpus(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
-    let work = crate::corpus::work_dir(target_dir);
-    let outcome = match crate::corpus::run(ws, target_dir, &work, Some(sandbox), report) {
-        Ok(o) => o,
-        Err(e) => {
-            report.error(Rule::Step, None, format!("UPPAAL corpus: {e}"));
-            return vec![];
-        }
-    };
-    let _ = store.write_artifact("uppaal-corpus-report.md", &outcome.report);
+/// R32.6, PAR-03: the UPPAAL cross-check corpus (`corpus.rs`), read from
+/// the committed report `docs/uppaal_corpus_report.md`. Since 2026-11-21
+/// the job does not run the corpus (`cargo xtask uppaal-corpus` does, on
+/// demand): it took about 14 minutes of every job and needs a licensed
+/// external tool. Evidence_Item `check-uppaal-corpus`: pass when no
+/// cross-check is a discrepancy without a disposition, inconclusive when
+/// the verifier was absent, a run hit its limits, or the report's inputs
+/// are not the tree's (the report is older than a source it depends on),
+/// fail on an undisposed discrepancy or a missing report.
+fn uppaal_corpus(ws: &Workspace, store: &mut Store, manifest_id: &str, report: &mut Report) -> Vec<String> {
     let committed = crate::corpus::report_path(&ws.root);
-    // 2026-11-17: an expired licence lease gave every cross-check "no
-    // verdict", which the comparison below reported as a report that
-    // differs. The lease is renewed over the network, which the job's
-    // sandbox denies, so the remedy is a run outside the job.
-    let unlicensed = uppaal_unlicensed(&work);
-    match std::fs::read_to_string(&committed) {
-        Ok(text) if text == outcome.report => {}
-        Ok(_) if unlicensed > 0 => report.error(
-            Rule::Step,
-            None,
-            format!(
-                "UPPAAL corpus: verifyta refused {unlicensed} cross-check(s) with `{UPPAAL_UNLICENSED}`: its licence lease has expired and cannot be \
-                 renewed inside the job's network sandbox. Run `cargo xtask uppaal-corpus` once outside the job (it renews the lease and should leave \
-                 the committed report unchanged), then run the job again"
-            ),
-        ),
-        Ok(_) => report.error(Rule::Step, Some(ws.rel(&committed)), "differs from the regenerated UPPAAL corpus report; run `cargo xtask uppaal-corpus`"),
-        Err(_) => report.error(Rule::Step, Some(ws.rel(&committed)), "missing; run `cargo xtask uppaal-corpus`"),
-    }
+    let Ok(text) = std::fs::read_to_string(&committed) else {
+        report.error(Rule::Step, Some(ws.rel(&committed)), "missing; run `cargo xtask uppaal-corpus`");
+        return vec![];
+    };
+    let _ = store.write_artifact("uppaal-corpus-report.md", &text);
+    let outcome = crate::corpus::read_committed(&text);
+    let current = outcome.fingerprint.as_deref() == Some(crate::corpus::fingerprint(&ws.root).as_str());
     let not_run = outcome.by_status.get("not_run").copied().unwrap_or(0);
     let inconclusive = outcome.by_status.get("inconclusive").copied().unwrap_or(0);
+    report.note("UPPAAL corpus: read from the committed report; the job does not run the corpus (`cargo xtask uppaal-corpus` does)");
     let verdict = if !outcome.undisposed.is_empty() {
         report.error(Rule::Step, None, format!("UPPAAL corpus: discrepancy without a disposition in {} (R31.5, R32.6)", outcome.undisposed.join(", ")));
         Verdict::Fail
+    } else if outcome.models == 0 {
+        report.error(Rule::Step, Some(ws.rel(&committed)), "lists no cross-check; run `cargo xtask uppaal-corpus`");
+        Verdict::Fail
+    } else if !current {
+        report.warn("UPPAAL corpus: the committed report was written from other sources than this tree's (its `Inputs` digest differs): the item is inconclusive until `cargo xtask uppaal-corpus` is run");
+        Verdict::Inconclusive
     } else if outcome.verifier.is_none() {
-        report.warn(format!("UPPAAL corpus: verifyta is not installed; {} models exported, no cross-check run (ORQ-22): the item is inconclusive", outcome.rows.len()));
+        report.warn(format!("UPPAAL corpus: verifyta was not installed where the report was written; {} models exported, no cross-check run (ORQ-22): the item is inconclusive", outcome.models));
         Verdict::Inconclusive
     } else if not_run + inconclusive > 0 {
-        report.warn(format!("UPPAAL corpus: {} of {} cross-checks not run or inconclusive (R31.9)", not_run + inconclusive, outcome.rows.len()));
+        report.warn(format!("UPPAAL corpus: {} of {} cross-checks not run or inconclusive (R31.9)", not_run + inconclusive, outcome.models));
         Verdict::Inconclusive
     } else {
-        report.note(format!("R32.6: UPPAAL corpus: {} models, statuses {:?} ({})", outcome.rows.len(), outcome.by_status, outcome.verifier.clone().unwrap_or_default()));
+        report.note(format!("R32.6: UPPAAL corpus: {} models, statuses {:?} ({})", outcome.models, outcome.by_status, outcome.verifier.clone().unwrap_or_default()));
         Verdict::Pass
     };
     let mut item = Item::new(
         "check-uppaal-corpus",
         Kind::Analysis,
-        "UPPAAL cross-check corpus (PAR-03): generated Task_Models analysed with placeholder timing and cross-checked against their exported timed automata where verifyta is installed",
+        "UPPAAL cross-check corpus (PAR-03): generated Task_Models analysed with placeholder timing and cross-checked against their exported timed automata where verifyta is installed; read from the committed report, which `cargo xtask uppaal-corpus` writes (the job does not run the corpus)",
         Tool { name: "rsk-analyzer".to_string(), version: format!("{} ({})", env!("CARGO_PKG_VERSION"), outcome.verifier.clone().unwrap_or_else(|| "verifyta absent".into())), solvers: vec![] },
         verdict,
     )
     .covers(&["R32.6", "R31.1", "R31.4", "R31.5", "R31.6", "R31.9"]);
     item.command_lines = vec!["cargo xtask uppaal-corpus".to_string()];
-    item.notes = vec![format!("{} models; cross-check statuses {:?}; dispositions in docs/uppaal_dispositions.toml", outcome.rows.len(), outcome.by_status)];
+    item.notes = vec![format!(
+        "{} models; cross-check statuses {:?}; dispositions in docs/uppaal_dispositions.toml; the report's inputs are {} the tree's",
+        outcome.models,
+        outcome.by_status,
+        if current { "those of" } else { "NOT those of" }
+    )];
     item.build_manifest = Some(manifest_id.to_string());
     item.artifacts = vec!["uppaal-corpus-report.md".to_string()];
     if let Err(e) = store.write(&item) {
         report.error(Rule::Evidence, None, e);
     }
-    vec!["cargo xtask uppaal-corpus".to_string()]
+    vec!["cargo xtask uppaal-corpus (run on demand; the job reads its committed report)".to_string()]
 }
 
 /// R29: the Analyzer on every Flight_Build binary with a Task_Model, with
@@ -3071,20 +3053,3 @@ mod step_tests {
     }
 }
 
-#[cfg(test)]
-mod licence_tests {
-    /// The corpus step counts the models whose report carries verifyta's
-    /// licence refusal, and none where the reports carry verdicts.
-    #[test]
-    fn a_licence_refusal_in_a_corpus_report_is_counted() {
-        let work = std::env::temp_dir().join(format!("rsk-uppaal-licence-{}", std::process::id()));
-        for (name, text) in [("m00", "\"detail\": \"gave no verdict:\\nLicense does not cover verifier.\\n\""), ("m01", "\"detail\": \"agree\"")] {
-            std::fs::create_dir_all(work.join(name)).unwrap();
-            std::fs::write(work.join(name).join("report.json"), text).unwrap();
-        }
-        assert_eq!(super::uppaal_unlicensed(&work), 1);
-        std::fs::remove_file(work.join("m00").join("report.json")).unwrap();
-        assert_eq!(super::uppaal_unlicensed(&work), 0);
-        let _ = std::fs::remove_dir_all(&work);
-    }
-}

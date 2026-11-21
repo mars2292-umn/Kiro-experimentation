@@ -16,6 +16,10 @@
 //! no miss is reachable), discrepancy (a reachable miss while RTA PASS;
 //! the trace is attached and marked as requiring confirmation, because
 //! stopwatch models are verified by over-approximation), or inconclusive.
+//! A possible miss found only in the stopwatch over-approximation is put to
+//! a second model first ([`confirmation_of`], 2026-11-21): a stopwatch-free
+//! over-approximation that verifyta checks exactly; no miss there refutes
+//! the possible miss.
 
 use crate::inputs::AnalysedTask;
 
@@ -40,8 +44,11 @@ fn xml_escape(s: &str) -> String {
 ///
 /// The declaration carries the Task parameters as arrays indexed by Task
 /// (`PRIO`, `PERIOD` (the MIT for a Sporadic_Task), `DEADLINE`, `EXEC` (the
-/// execution-time bound E_i of R29.1, Budget plus overheads), `JITTER`,
-/// `BLOCK` (the SRP blocking term B_i), `SPORADIC`) and the Task_Model
+/// execution-time bound E_i of R29.4: what a Job of the Task can take
+/// from the Jobs it preempts, its Budget and overheads and, where its
+/// Partition stops an overrunning Job, the overrun up to the stop), `OWN`
+/// (the demand C_i + O_i of the Task's own Job in R29.1, at most `EXEC`),
+/// `JITTER`, `BLOCK` (the SRP blocking term B_i), `SPORADIC`) and the Task_Model
 /// identifier of each automaton as a comment (R31.7). Two templates:
 ///
 /// - `Gen(i)`: the release generator. Periodic: exactly every `PERIOD[i]`.
@@ -55,8 +62,14 @@ fn xml_escape(s: &str) -> String {
 ///   blocking interval is over and another Job took the processor in it),
 ///   `Running` (a stopwatch `exec[i]` that progresses only while the Task
 ///   executes; the Job completes at any point of the interval up to
-///   `EXEC[i]`), and `Missed`, entered from any busy location once the
-///   deadline has passed.
+///   `EXEC[i]`), and `Missed`, entered from a waiting location once the
+///   deadline has passed, and from `Running` when at the deadline the Job
+///   has executed for less than `OWN[i]`. `rsk-uppaal/3` judged a running
+///   Job by `EXEC[i]`: a Job that had its whole demand C_i + O_i before
+///   its deadline and went on into the overrun allowance of E_i counted as
+///   a miss, which the RTA does not claim to exclude (R18.9: its bound is
+///   for a Job that keeps to its Budget). Found on corpus model m49
+///   (2026-11-21): a Job of 35,600 cycles of demand judged against 68,200.
 ///
 /// Dispatch is urgent (`rsk-uppaal/3`, 2026-11-14): the steps out of
 /// `Pending` and `Ready` synchronise on the urgent broadcast channel `go`,
@@ -84,7 +97,7 @@ fn xml_escape(s: &str) -> String {
 pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
     let n = tasks.len();
     let mut decl = String::new();
-    decl.push_str("// rsk UPPAAL export (rsk-uppaal/3). Times in CPU cycles.\n");
+    decl.push_str("// rsk UPPAAL export (rsk-uppaal/4). Times in CPU cycles.\n");
     decl.push_str(&format!("const int N = {n};\n"));
     decl.push_str("typedef int[0,N-1] task_t;\n");
     let col = |name: &str, f: &dyn Fn(&AnalysedTask) -> u64| {
@@ -94,6 +107,7 @@ pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
     decl.push_str(&col("PERIOD", &|t| t.period_cycles));
     decl.push_str(&col("DEADLINE", &|t| t.deadline_cycles));
     decl.push_str(&col("EXEC", &|t| t.e));
+    decl.push_str(&col("OWN", &|t| t.c.saturating_add(t.o).min(t.e)));
     decl.push_str(&col("JITTER", &|t| t.j));
     decl.push_str(&col("BLOCK", &|t| t.b));
     decl.push_str(&format!("const bool SPORADIC[N] = {{ {} }};\n", tasks.iter().map(|t| t.sporadic.to_string()).collect::<Vec<_>>().join(", ")));
@@ -129,9 +143,10 @@ pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
 "#,
     );
     // Task automaton: Idle -> Pending -> Blocked -> (Ready ->) Running ->
-    // Idle; Missed at the deadline, from Running only while the Job still
-    // needs execution (a Job that has executed for EXEC at its deadline
-    // completes at it and has not missed).
+    // Idle; Missed at the deadline, from Running only while the Job has had
+    // less than its own demand OWN (a Job that has executed for OWN at its
+    // deadline has not missed: what it does past OWN is an overrun, which
+    // the model keeps as interference up to EXEC).
     templates.push_str(
         r#"<template><name>Task</name><parameter>const task_t i</parameter>
 <declaration>clock b;</declaration>
@@ -151,7 +166,7 @@ pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
 <transition><source ref="t1"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
 <transition><source ref="t2"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
 <transition><source ref="t5"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i]</label></transition>
-<transition><source ref="t3"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i] &amp;&amp; exec[i] &lt; EXEC[i]</label></transition>
+<transition><source ref="t3"/><target ref="t4"/><label kind="guard">dl[i] &gt;= DEADLINE[i] &amp;&amp; exec[i] &lt; OWN[i]</label></transition>
 </template>
 "#,
     );
@@ -174,6 +189,81 @@ pub fn export(tasks: &[AnalysedTask]) -> (String, String) {
         (0..n).map(|i| format!("T{i}.Missed")).collect::<Vec<_>>().join(" || ")
     ));
     (xml, query)
+}
+
+/// Replaces exactly `n` occurrences of `from`; false, with `s` untouched,
+/// when the count differs.
+fn swap(s: &mut String, from: &str, to: &str, n: usize) -> bool {
+    if s.matches(from).count() != n {
+        return false;
+    }
+    *s = s.replace(from, to);
+    true
+}
+
+/// The confirmation model of an export (R31.5, 2026-11-21): the same
+/// automata without stopwatches, and its two queries. `None` when the text
+/// is not an export of this version.
+///
+/// verifyta checks a model with stopwatches by over-approximation, so a
+/// miss it finds there "may" be reachable and comes without a trace. This
+/// model has ordinary clocks only, which verifyta checks exactly, and it
+/// admits every behaviour of the export:
+///
+/// - `c[i]` is the wall clock since the Job of Task `i` started. `W[i]` is
+///   `EXEC[i]` plus `EXEC[j]` for every Job that started while the Job of
+///   `i` was started (`begin`). A started Job is delayed only by the Jobs
+///   that start above it, each for at most its `EXEC`, so at its
+///   completion in the export `c[i] <= W[i]`: the model lets the Job
+///   complete at any instant it is the executing one, within `c[i] <=
+///   W[i]`.
+/// - A Job the export judges missed while `Running` has executed for less
+///   than `OWN[i]`, so its `c[i]` is below `OWN[i]` plus the same sum,
+///   `W[i] - EXEC[i] + OWN[i]`: the model's guard.
+/// - `W` is capped at one above the largest value either comparison can
+///   tell from a larger one (`c[i]` never exceeds `DEADLINE[i]` in
+///   `Running`), which bounds the state space and changes no comparison.
+///
+/// What the model adds to the export's behaviours is a Job running on in
+/// time a Job above it left unused. So no miss here means no miss in the
+/// export; a miss here may be that addition's. The second query checks
+/// that the model's invariants never stop time short of a miss, without
+/// which "no miss" could be an artefact of a blocked state.
+pub fn confirmation_of(xml: &str, query: &str) -> Option<(String, String)> {
+    let tasks = read_export(xml).ok()?;
+    let dmax = tasks.iter().map(|t| t.deadline_cycles).max()?;
+    let emax = tasks.iter().map(|t| t.exec_cycles).max()?;
+    let wmax = dmax.checked_add(emax)?.checked_add(1)?;
+    let big = wmax.checked_mul(2)?;
+    if big > i32::MAX as u64 {
+        return None;
+    }
+    let mut x = xml.to_string();
+    let line_start = x.find("clock exec[N];")?;
+    let line_end = line_start + x[line_start..].find('\n')?;
+    let decl = format!(
+        "clock c[N];               // wall clock since the Job started\n\
+         typedef int[0,{big}] big_t;\n\
+         int[0,{wmax}] W[N];       // bound on c[i] at completion (EXEC of the Job and of every Job started while it was started), capped\n\
+         big_t cap(task_t k, big_t v) {{ return v &gt; DEADLINE[k] + EXEC[k] - OWN[k] ? DEADLINE[k] + 1 + EXEC[k] - OWN[k] : v; }}\n\
+         void begin(task_t i) {{ for (k : task_t) {{ if (started[k] &amp;&amp; k != i) {{ W[k] = cap(k, W[k] + EXEC[i]); }} }} W[i] = cap(i, EXEC[i]); running = i; started[i] = true; }}"
+    );
+    x.replace_range(line_start..line_end, &decl);
+    let ok = swap(&mut x, "rsk UPPAAL export (rsk-uppaal/4).", "rsk UPPAAL confirmation model (rsk-uppaal/4, stopwatch-free over-approximation of the export).", 1)
+        && swap(&mut x, "exec[i]' == (running == i) &amp;&amp; exec[i] &lt;= EXEC[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]", "c[i] &lt;= W[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]", 1)
+        && swap(&mut x, "running = i, started[i] = true, exec[i] = 0", "begin(i), c[i] = 0", 2)
+        && swap(&mut x, "<label kind=\"guard\">exec[i] &lt;= EXEC[i] &amp;&amp; running == i</label>", "<label kind=\"guard\">running == i</label>", 1)
+        && swap(&mut x, "dl[i] &gt;= DEADLINE[i] &amp;&amp; exec[i] &lt; OWN[i]", "dl[i] &gt;= DEADLINE[i] &amp;&amp; c[i] &lt; W[i] - (EXEC[i] - OWN[i])", 1);
+    if !ok || x.contains("exec[") {
+        return None;
+    }
+    let start = query.find("A[] not (")? + "A[] not (".len();
+    let end = start + query[start..].find(")\n")?;
+    let missed = &query[start..end];
+    let q = format!(
+        "// rsk confirmation queries (R31.5): no deadline-miss location is reachable in the stopwatch-free over-approximation,\n// and its invariants stop time only after a miss.\nA[] not ({missed})\nA[] (deadlock imply ({missed}))\n"
+    );
+    Some((x, q))
 }
 
 /// The approximations of the exported model, for the report's omitted
@@ -244,8 +334,10 @@ pub struct CrossCheck {
 /// Runs `verifyta` when installed, under a time limit and, on Unix, an
 /// address-space limit of `memory_mib` (R31.9; `ulimit -v`). `rta_pass`
 /// is the RTA verdict; the verifier's version is recorded in the detail
-/// (R31.4).
-pub fn cross_check(xml_path: &std::path::Path, q_path: &std::path::Path, rta_pass: bool, timeout_secs: u64, memory_mib: u64) -> CrossCheck {
+/// (R31.4). `confirm` is the confirmation model and its queries
+/// ([`confirmation_of`]), run only when the export's check ends in a
+/// possible miss while the RTA reports PASS.
+pub fn cross_check(xml_path: &std::path::Path, q_path: &std::path::Path, confirm: Option<(&std::path::Path, &std::path::Path)>, rta_pass: bool, timeout_secs: u64, memory_mib: u64) -> CrossCheck {
     let Some(verifyta) = ["verifyta", "verifyta.sh"].iter().find_map(|name| which(name)) else {
         return CrossCheck {
             status: "not_run",
@@ -253,52 +345,10 @@ pub fn cross_check(xml_path: &std::path::Path, q_path: &std::path::Path, rta_pas
         };
     };
     let version = std::process::Command::new(&verifyta).arg("-v").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").to_string()).unwrap_or_default();
-    let start = std::time::Instant::now();
-    // `-t0`: the shortest trace on a reachable miss (R31.5). The memory
-    // limit is applied by the shell's `ulimit -v` (kibibytes) where a
-    // POSIX shell exists; elsewhere only the time limit applies.
-    let mut command = if cfg!(unix) {
-        let mut c = std::process::Command::new("/bin/sh");
-        c.arg("-c").arg(format!("ulimit -v {} 2>/dev/null; exec \"$0\" -t0 \"$1\" \"$2\"", memory_mib.saturating_mul(1024))).arg(&verifyta).arg(xml_path).arg(q_path);
-        c
-    } else {
-        let mut c = std::process::Command::new(&verifyta);
-        c.arg("-t0").arg(xml_path).arg(q_path);
-        c
+    let out = match run_verifyta(&verifyta, xml_path, q_path, timeout_secs, memory_mib) {
+        Ok(out) => out,
+        Err(detail) => return CrossCheck { status: "inconclusive", detail },
     };
-    let mut child = match command
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            return CrossCheck {
-                status: "inconclusive",
-                detail: format!("cannot run verifyta: {e}"),
-            }
-        }
-    };
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if start.elapsed().as_secs() > timeout_secs => {
-                let _ = child.kill();
-                return CrossCheck {
-                    status: "inconclusive",
-                    detail: format!("verifyta exceeded the {timeout_secs}s limit (memory limit {memory_mib} MiB; ORQ-22, R31.9)"),
-                };
-            }
-            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
-            Err(e) => {
-                return CrossCheck {
-                    status: "inconclusive",
-                    detail: format!("verifyta failed: {e}"),
-                }
-            }
-        }
-    }
-    let out = child.wait_with_output().map(|o| format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))).unwrap_or_default();
     let satisfied = out.contains("is satisfied");
     let not_satisfied = out.contains("NOT satisfied");
     // With stopwatches verifyta checks an over-approximation: a property it
@@ -307,9 +357,32 @@ pub fn cross_check(xml_path: &std::path::Path, q_path: &std::path::Path, rta_pas
     let may_not = out.contains("MAY NOT be satisfied");
     if may_not && !satisfied && !not_satisfied {
         return if rta_pass {
+            // The possible miss is put to the stopwatch-free model, which
+            // verifyta checks exactly: no miss there, with time never
+            // stopped short of one, refutes it.
+            let confirmation = match confirm {
+                None => "no confirmation model was given".to_string(),
+                Some((cx, cq)) => match run_verifyta(&verifyta, cx, cq, timeout_secs, memory_mib) {
+                    Err(detail) => format!("the confirmation model gave no verdict ({detail})"),
+                    Ok(out) => {
+                        let holds = out.matches("Formula is satisfied").count();
+                        if holds == 2 && !out.contains("NOT") {
+                            return CrossCheck {
+                                status: "agree",
+                                detail: format!("verifyta {version}: a deadline miss may be reachable in the stopwatch over-approximation; none is reachable in the stopwatch-free over-approximation, which is checked exactly (the confirmation model, R31.5); RTA PASS"),
+                            };
+                        }
+                        if out.contains("Formula is NOT satisfied") {
+                            "the stopwatch-free over-approximation reaches a miss too (trace: `verifyta -t0` on the confirmation model), which may be an artefact of either approximation".to_string()
+                        } else {
+                            "the confirmation model gave no verdict".to_string()
+                        }
+                    }
+                },
+            };
             CrossCheck {
                 status: "discrepancy",
-                detail: format!("verifyta {version}: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); REQUIRES CONFIRMATION (R31.5)"),
+                detail: format!("verifyta {version}: a deadline miss may be reachable while RTA reports PASS (found in the stopwatch over-approximation, no trace given); {confirmation}; REQUIRES CONFIRMATION (R31.5)"),
             }
         } else {
             CrossCheck { status: "agree", detail: format!("verifyta {version}: a deadline miss may be reachable (found in the stopwatch over-approximation); RTA FAIL") }
@@ -325,6 +398,52 @@ pub fn cross_check(xml_path: &std::path::Path, q_path: &std::path::Path, rta_pas
         },
         _ => CrossCheck { status: "inconclusive", detail: format!("verifyta {version} gave no verdict (a memory limit of {memory_mib} MiB applied; R31.9):\n{out}") },
     }
+}
+
+/// One run of `verifyta -t0` under the limits: its output, or why there is
+/// none.
+fn run_verifyta(verifyta: &std::path::Path, xml_path: &std::path::Path, q_path: &std::path::Path, timeout_secs: u64, memory_mib: u64) -> Result<String, String> {
+    let start = std::time::Instant::now();
+    // `-t0`: the shortest trace on a reachable miss (R31.5). The memory
+    // limit is applied by the shell's `ulimit -v` (kibibytes) where a
+    // POSIX shell exists; elsewhere only the time limit applies.
+    let mut command = if cfg!(unix) {
+        let mut c = std::process::Command::new("/bin/sh");
+        c.arg("-c").arg(format!("ulimit -v {} 2>/dev/null; exec \"$0\" -t0 \"$1\" \"$2\"", memory_mib.saturating_mul(1024))).arg(verifyta).arg(xml_path).arg(q_path);
+        c
+    } else {
+        let mut c = std::process::Command::new(verifyta);
+        c.arg("-t0").arg(xml_path).arg(q_path);
+        c
+    };
+    let mut child = command.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().map_err(|e| format!("cannot run verifyta: {e}"))?;
+    // The pipes are drained while the verifier runs: a trace can exceed a
+    // pipe's buffer, and a full pipe would stall the verifier until the
+    // time limit.
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+    let read = |pipe: Option<&mut dyn std::io::Read>| -> String {
+        let mut text = Vec::new();
+        if let Some(p) = pipe {
+            let _ = p.read_to_end(&mut text);
+        }
+        String::from_utf8_lossy(&text).into_owned()
+    };
+    let out_thread = std::thread::spawn(move || read(stdout.as_mut().map(|p| p as &mut dyn std::io::Read)));
+    let err_thread = std::thread::spawn(move || read(stderr.as_mut().map(|p| p as &mut dyn std::io::Read)));
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if start.elapsed().as_secs() > timeout_secs => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("verifyta exceeded the {timeout_secs}s limit (memory limit {memory_mib} MiB; ORQ-22, R31.9)"));
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+            Err(e) => return Err(format!("verifyta failed: {e}")),
+        }
+    }
+    Ok(format!("{}{}", out_thread.join().unwrap_or_default(), err_thread.join().unwrap_or_default()))
 }
 
 fn which(name: &str) -> Option<std::path::PathBuf> {
@@ -361,5 +480,34 @@ mod tests {
         assert!(xml.contains("exec[i] &lt;= EXEC[i] &amp;&amp; running == i") && xml.contains("b &lt;= BLOCK[i] &amp;&amp; preempts(i, running)"));
         assert!(xml.contains("// 0: p.a") && xml.contains("// 1: p.b"));
         assert_eq!(omissions().len(), 2);
+        // 2026-11-21: a running Job is judged at its deadline by its own
+        // demand C + O (here 105 and 305, equal to E), not by E.
+        assert!(xml.contains("const int OWN[N] = { 105, 305 };") && xml.contains("exec[i] &lt; OWN[i]"));
+    }
+
+    /// The Task's own demand is C + O even where E carries an overrun
+    /// allowance, and never above E.
+    #[test]
+    fn own_demand_is_the_budget_and_overhead_below_e() {
+        let task = |c: u64, o: u64, e: u64| AnalysedTask { id: "p.a".into(), partition: "p".into(), level: "A".into(), priority: 7, period_cycles: 1000, deadline_cycles: 900, c, b: 0, b_source: "L_kernel".into(), o, j: 0, e, intake: 0, events: 0, hk_period: 1, hk_cost: 0, stops_overruns: true, sporadic: false, longest_cs: 0, endpoint_cost: 0, source_interrupt: false, source_endpoint: None, defer: false, wcet_provenance: vec![], wcet: 0 };
+        let (xml, _) = export(&[task(320, 36, 682), task(100, 5, 90)]);
+        assert!(xml.contains("const int EXEC[N] = { 682, 90 };") && xml.contains("const int OWN[N] = { 356, 90 };"), "{xml}");
+    }
+
+    /// R31.5: the confirmation model has no stopwatch, keeps the export's
+    /// parameters and asks both queries; a text that is not an export has
+    /// none.
+    #[test]
+    fn the_confirmation_model_is_stopwatch_free() {
+        let task = |id: &str, priority: u8, e: u64| AnalysedTask { id: id.into(), partition: "p".into(), level: "A".into(), priority, period_cycles: 1000, deadline_cycles: 900, c: 100, b: 20, b_source: "L_kernel".into(), o: 5, j: 3, e, intake: 0, events: 0, hk_period: 1, hk_cost: 0, stops_overruns: true, sporadic: false, longest_cs: 10, endpoint_cost: 0, source_interrupt: false, source_endpoint: None, defer: false, wcet_provenance: vec![], wcet: 90 };
+        let (xml, q) = export(&[task("p.a", 7, 150), task("p.b", 5, 105)]);
+        let (cx, cq) = confirmation_of(&xml, &q).expect("an export has a confirmation model");
+        assert!(!cx.contains("exec[") && !cx.contains("' =="), "{cx}");
+        assert!(cx.contains("int[0,1051] W[N];") && cx.contains("typedef int[0,2102] big_t;"));
+        assert!(cx.contains("begin(i), c[i] = 0") && cx.contains("c[i] &lt; W[i] - (EXEC[i] - OWN[i])") && cx.contains("c[i] &lt;= W[i] &amp;&amp; dl[i] &lt;= DEADLINE[i]"));
+        assert_eq!(read_export(&cx).unwrap(), read_export(&xml).unwrap());
+        assert!(cq.contains("A[] not (T0.Missed || T1.Missed)\n") && cq.contains("A[] (deadlock imply (T0.Missed || T1.Missed))\n"));
+        assert!(confirmation_of("<nta></nta>", &q).is_none());
+        assert!(confirmation_of(&cx, &q).is_none(), "a confirmation model is not an export");
     }
 }

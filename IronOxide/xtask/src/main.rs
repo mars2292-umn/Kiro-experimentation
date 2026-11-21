@@ -401,7 +401,10 @@ fn gen_command(args: &[String]) -> ExitCode {
 }
 
 /// `cargo xtask uppaal-corpus`: regenerates `docs/uppaal_corpus_report.md`
-/// (R32.6, PAR-03), running UPPAAL's verifier where installed.
+/// (R32.6, PAR-03), running UPPAAL's verifier where installed. Run on
+/// demand, after a change to the Analyzer, the Generator or the corpus:
+/// the verification job reads the committed report and does not run the
+/// corpus (2026-11-21).
 fn uppaal_corpus_command(args: &[String]) -> ExitCode {
     if !args.is_empty() {
         return usage_error("uppaal-corpus takes no arguments");
@@ -415,7 +418,17 @@ fn uppaal_corpus_command(args: &[String]) -> ExitCode {
     match xtask::corpus::run(&ws, &target_dir, &xtask::corpus::work_dir(&target_dir), None, &mut report) {
         Ok(outcome) => {
             let path = xtask::corpus::report_path(&root);
-            if let Err(e) = std::fs::write(&path, &outcome.report) {
+            let unlicensed = xtask::corpus::unlicensed(&xtask::corpus::work_dir(&target_dir));
+            if unlicensed > 0 {
+                report.error(
+                    xtask::diag::Rule::Step,
+                    None,
+                    format!(
+                        "verifyta refused {unlicensed} cross-check(s) with `{}`: its licence lease has expired and was not renewed (the renewal needs the network); the report is not written",
+                        xtask::corpus::UPPAAL_UNLICENSED
+                    ),
+                );
+            } else if let Err(e) = std::fs::write(&path, &outcome.report) {
                 report.error(xtask::diag::Rule::Step, None, format!("cannot write {}: {e}", path.display()));
             } else {
                 report.note(format!("{} models; statuses {:?}; report written to docs/uppaal_corpus_report.md", outcome.rows.len(), outcome.by_status));
