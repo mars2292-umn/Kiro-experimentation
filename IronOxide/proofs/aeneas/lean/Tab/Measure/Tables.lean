@@ -168,14 +168,6 @@ def rsk_logic.logic.RESP_END_JOB : Std.U8 := 0#u8
   "rsk_logic::logic::RESP_RESTART_PARTITION"]
 def rsk_logic.logic.RESP_RESTART_PARTITION : Std.U8 := 1#u8
 
-/-- [rsk_logic::logic::RESP_STOP_PARTITION]
-    Source: 'crates/rsk-logic/src/logic/mod.rs', lines 65:0-65:33
-    Name pattern: [rsk_logic::logic::RESP_STOP_PARTITION]
-    Visibility: public -/
-@[global_simps, irreducible, rust_const
-  "rsk_logic::logic::RESP_STOP_PARTITION"]
-def rsk_logic.logic.RESP_STOP_PARTITION : Std.U8 := 2#u8
-
 /-- [rsk_logic::logic::RESP_RECORD_ONLY]
     Source: 'crates/rsk-logic/src/logic/mod.rs', lines 67:0-67:30
     Name pattern: [rsk_logic::logic::RESP_RECORD_ONLY]
@@ -305,7 +297,7 @@ structure rsk_logic.logic.mpu.Layout (NP1 : Std.Usize) where
   partitions : Array rsk_logic.logic.mpu.PartitionLayout NP1
 
 /-- [rsk_system::NO_DMA]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def NO_DMA : rsk_kernel.arch.cm4.plan.DmaCfg :=
   let a := Array.repeat 2#usize 0#u32
@@ -320,65 +312,88 @@ def NO_DMA : rsk_kernel.arch.cm4.plan.DmaCfg :=
   }
 
 /-- [rsk_system::DMA]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible]
-def DMA : Array rsk_kernel.arch.cm4.plan.DmaCfg 1#usize :=
-  let a := Array.repeat 2#usize 0#u32
-  Array.make 1#usize [
+def DMA : Array rsk_kernel.arch.cm4.plan.DmaCfg 4#usize :=
+  Array.make 4#usize [
     {
       partition := 2#u8,
-      ptr := 1073807364#u32,
-      maxcnt := 1073807376#u32,
-      stops := (Array.make 2#usize [ 1073807380#u32, 0#u32 ]),
-      lists := a,
-      shorts := 0#u32
+      ptr := 1073755444#u32,
+      maxcnt := 1073755448#u32,
+      stops := (Array.make 2#usize [ 1073754132#u32, 0#u32 ]),
+      lists := (Array.make 2#usize [ 1073755456#u32, 1073755472#u32 ]),
+      shorts := 1073754624#u32
+    },
+    {
+      partition := 2#u8,
+      ptr := 1073755460#u32,
+      maxcnt := 1073755464#u32,
+      stops := (Array.make 2#usize [ 1073754132#u32, 0#u32 ]),
+      lists := (Array.make 2#usize [ 1073755456#u32, 1073755472#u32 ]),
+      shorts := 1073754624#u32
+    },
+    {
+      partition := 2#u8,
+      ptr := 1073759540#u32,
+      maxcnt := 1073759544#u32,
+      stops := (Array.make 2#usize [ 1073758228#u32, 0#u32 ]),
+      lists := (Array.make 2#usize [ 1073759552#u32, 1073759568#u32 ]),
+      shorts := 1073758720#u32
+    },
+    {
+      partition := 2#u8,
+      ptr := 1073759556#u32,
+      maxcnt := 1073759560#u32,
+      stops := (Array.make 2#usize [ 1073758228#u32, 0#u32 ]),
+      lists := (Array.make 2#usize [ 1073759552#u32, 1073759568#u32 ]),
+      shorts := 1073758720#u32
     }
     ]
 
 /-- [rsk_system::ND]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-@[global_simps, irreducible] def ND : Std.Usize := 1#usize
+@[global_simps, irreducible] def ND : Std.Usize := 4#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::dma]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::dma]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.dma
+def Sys.Insts.Rsk_kernelArchSystemTables.dma
   (i : Std.Usize) : Result rsk_kernel.arch.cm4.plan.DmaCfg := do
   if i < ND
   then Array.index_usize DMA i
   else ok NO_DMA
 
 /-- [rsk_system::NO_SIGNAL]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def NO_SIGNAL : rsk_kernel.arch.cm4.plan.SignalCfg :=
   { partition := 255#u8, task := 255#u8 }
 
 /-- [rsk_system::SIGNALS]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible]
 def SIGNALS : Array rsk_kernel.arch.cm4.plan.SignalCfg 1#usize :=
   Array.make 1#usize [ { partition := 0#u8, task := 1#u8 } ]
 
 /-- [rsk_system::NSIG]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible] def NSIG : Std.Usize := 1#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::signal]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::signal]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.signal
+def Sys.Insts.Rsk_kernelArchSystemTables.signal
   (i : Std.Usize) : Result rsk_kernel.arch.cm4.plan.SignalCfg := do
   if i < NSIG
   then Array.index_usize SIGNALS i
   else ok NO_SIGNAL
 
 /-- [rsk_system::NO_ENDPOINT]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def NO_ENDPOINT : rsk_kernel.arch.cm4.plan.EndpointCfg :=
   let a := Array.repeat 4#usize 255#u8
@@ -398,19 +413,19 @@ def NO_ENDPOINT : rsk_kernel.arch.cm4.plan.EndpointCfg :=
   }
 
 /-- [rsk_system::ENDPOINTS]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 axiom ENDPOINTS : Result (Array rsk_kernel.arch.cm4.plan.EndpointCfg 5#usize)
 
 /-- [rsk_system::NEP]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible] def NEP : Std.Usize := 5#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::endpoint]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::endpoint]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint
+def Sys.Insts.Rsk_kernelArchSystemTables.endpoint
   (i : Std.Usize) : Result rsk_kernel.arch.cm4.plan.EndpointCfg := do
   if i < NEP
   then let a ← ENDPOINTS
@@ -418,16 +433,16 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint
   else ok NO_ENDPOINT
 
 /-- [rsk_system::ENDPOINT_STORAGE]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def ENDPOINT_STORAGE
   : Result (rsk_kernel.arch.cm4.unsafe_module.hw.EndpointStorage 232#usize) :=
   rsk_kernel.arch.cm4.unsafe_module.hw.EndpointStorage.new 232#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::endpoint_storage]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::endpoint_storage]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint_storage
+def Sys.Insts.Rsk_kernelArchSystemTables.endpoint_storage
   : Result (Std.U32 × Std.U32) := do
   let es ← ENDPOINT_STORAGE
   let i ← rsk_kernel.arch.cm4.unsafe_module.hw.EndpointStorage.base es
@@ -435,12 +450,12 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint_storage
   ok (i, i1)
 
 /-- [rsk_system::NS]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible] def NS : Std.Usize := 23#usize
 
 /-- [rsk_system::CONFIG]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible]
 def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
@@ -458,9 +473,9 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             partition := 0#u8,
             kind := rsk_logic.logic.KIND_PERIODIC,
             offset := 0#u64,
-            period := 250000#u64,
-            deadline := 250000#u64,
-            budget := 25000#u32,
+            period := 160000#u64,
+            deadline := 160000#u64,
+            budget := 64000#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := false
           },
@@ -469,9 +484,9 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             partition := 0#u8,
             kind := rsk_logic.logic.KIND_SPORADIC,
             offset := 0#u64,
-            period := 500000#u64,
-            deadline := 500000#u64,
-            budget := 7500#u32,
+            period := 320000#u64,
+            deadline := 320000#u64,
+            budget := 19200#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := false
           },
@@ -479,10 +494,10 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             priority := 5#u8,
             partition := 0#u8,
             kind := rsk_logic.logic.KIND_PERIODIC,
-            offset := 125000#u64,
-            period := 500000#u64,
-            deadline := 500000#u64,
-            budget := 212500#u32,
+            offset := 80000#u64,
+            period := 320000#u64,
+            deadline := 320000#u64,
+            budget := 448000#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := false
           },
@@ -491,9 +506,9 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             partition := 1#u8,
             kind := rsk_logic.logic.KIND_PERIODIC,
             offset := 0#u64,
-            period := 1000000#u64,
-            deadline := 1000000#u64,
-            budget := 150000#u32,
+            period := 640000#u64,
+            deadline := 640000#u64,
+            budget := 384000#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := false
           },
@@ -502,9 +517,9 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             partition := 1#u8,
             kind := rsk_logic.logic.KIND_SPORADIC,
             offset := 0#u64,
-            period := 375000#u64,
-            deadline := 375000#u64,
-            budget := 12500#u32,
+            period := 240000#u64,
+            deadline := 240000#u64,
+            budget := 32000#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := false
           },
@@ -513,9 +528,9 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             partition := 2#u8,
             kind := rsk_logic.logic.KIND_PERIODIC,
             offset := 0#u64,
-            period := 625000#u64,
-            deadline := 625000#u64,
-            budget := 20000#u32,
+            period := 400000#u64,
+            deadline := 400000#u64,
+            budget := 51200#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := true
           },
@@ -524,9 +539,9 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             partition := 2#u8,
             kind := rsk_logic.logic.KIND_PERIODIC,
             offset := 0#u64,
-            period := 2500000#u64,
-            deadline := 2500000#u64,
-            budget := 12500#u32,
+            period := 1600000#u64,
+            deadline := 1600000#u64,
+            budget := 38400#u32,
             mit_policy := rsk_logic.logic.MIT_DEFER,
             fpu := false
           }
@@ -555,7 +570,7 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
           },
           {
             level := 2#u8,
-            fault_response := rsk_logic.logic.RESP_STOP_PARTITION,
+            fault_response := rsk_logic.logic.RESP_RESTART_PARTITION,
             overrun_response := rsk_logic.logic.RESP_END_JOB,
             deadline_response := rsk_logic.logic.RESP_RECORD_ONLY,
             mit_threshold := 10#u32
@@ -568,7 +583,7 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
             mit_threshold := 10#u32
           }
           ]),
-      operating_duration := 5000000#u64,
+      operating_duration := 2880000000#u64,
       slot_release :=
         (Array.make 7#usize [ 0#u8, 3#u8, 6#u8, 9#u8, 12#u8, 15#u8, 18#u8 ]),
       slot_deadline :=
@@ -579,37 +594,36 @@ def CONFIG : Result (rsk_logic.logic.Config 7#usize 3#usize 3#usize) :=
     }
 
 /-- [rsk_system::INTAKE_IRQ]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def INTAKE_IRQ : Array Std.U16 7#usize :=
   Array.make 7#usize [
-    65535#u16, 65535#u16, 65535#u16, 65535#u16, 10#u16, 65535#u16, 65535#u16
+    65535#u16, 65535#u16, 65535#u16, 65535#u16, 6#u16, 65535#u16, 65535#u16
     ]
 
 /-- [rsk_system::DISPATCH_IRQ]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def DISPATCH_IRQ : Array Std.U16 7#usize :=
-  Array.make 7#usize [ 20#u16, 21#u16, 22#u16, 23#u16, 24#u16, 25#u16, 26#u16 ]
+  Array.make 7#usize [ 20#u16, 21#u16, 22#u16, 23#u16, 24#u16, 25#u16, 40#u16 ]
 
 /-- [rsk_system::NT]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible] def NT : Std.Usize := 7#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::TIMER_VECTOR]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::TIMER_VECTOR]
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible]
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.TIMER_VECTOR
-  : Result Std.U16 :=
-  16#u16 + 9#u16
+def Sys.Insts.Rsk_kernelArchSystemTables.TIMER_VECTOR : Result Std.U16 :=
+  16#u16 + 8#u16
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::binding]: loop body 0:
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::binding]: loop body 0:
     Source: 'apps/p1-demo/system/src/lib.rs', lines 1:0-24:27
     Visibility: public -/
 @[rust_loop_body]
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop.body
+def Sys.Insts.Rsk_kernelArchSystemTables.binding_loop.body
   (n : Std.U16) (t : Std.Usize) :
   Result (ControlFlow Std.Usize rsk_kernel.arch.cm4.entry.Binding)
   := do
@@ -638,33 +652,32 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop.body
            ok (cont t1)
   else ok (done rsk_kernel.arch.cm4.entry.Binding.Unbound)
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::binding]: loop 0:
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::binding]: loop 0:
     Source: 'apps/p1-demo/system/src/lib.rs', lines 1:0-24:27
     Visibility: public -/
 @[rust_loop]
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop
+def Sys.Insts.Rsk_kernelArchSystemTables.binding_loop
   (n : Std.U16) (t : Std.Usize) :
   Result rsk_kernel.arch.cm4.entry.Binding
   := do
   loop
-    (fun t1 => Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop.body n
-      t1)
+    (fun t1 => Sys.Insts.Rsk_kernelArchSystemTables.binding_loop.body n t1)
     t
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::binding]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::binding]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.binding
+def Sys.Insts.Rsk_kernelArchSystemTables.binding
   (n : Std.U16) : Result rsk_kernel.arch.cm4.entry.Binding := do
-  let i ← Sys.Insts.Rsk_kernelArchSystemBound73362332.TIMER_VECTOR
+  let i ← Sys.Insts.Rsk_kernelArchSystemTables.TIMER_VECTOR
   if n = i
   then ok rsk_kernel.arch.cm4.entry.Binding.Kernel
-  else Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop n 0#usize
+  else Sys.Insts.Rsk_kernelArchSystemTables.binding_loop n 0#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::dispatch_vector]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::dispatch_vector]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.dispatch_vector
+def Sys.Insts.Rsk_kernelArchSystemTables.dispatch_vector
   (t : Std.U8) : Result Std.U16 := do
   let i ← lift (UScalar.cast .Usize t)
   if i < NT
@@ -674,10 +687,10 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.dispatch_vector
     16#u16 + i2
   else ok 0#u16
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::intake_vector]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::intake_vector]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.intake_vector
+def Sys.Insts.Rsk_kernelArchSystemTables.intake_vector
   (t : Std.U8) : Result (Option Std.U16) := do
   let i ← lift (UScalar.cast .Usize t)
   if i < NT
@@ -694,13 +707,13 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.intake_vector
   else ok none
 
 /-- [rsk_system::NO_WINDOW]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
 @[global_simps, irreducible]
 def NO_WINDOW : rsk_logic.logic.mpu.Interval :=
   { base := 0#u32, size_log2 := 5#u8 }
 
 /-- [rsk_system::LAYOUT]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible]
 def LAYOUT : rsk_logic.logic.mpu.Layout 3#usize :=
@@ -708,21 +721,23 @@ def LAYOUT : rsk_logic.logic.mpu.Layout 3#usize :=
   let a1 := Array.repeat 5#usize false
   let a2 := Array.repeat 5#usize false
   {
-    shared_code := { base := 65536#u32, size_log2 := 16#u8 },
-    kernel_flash := { base := 0#u32, size_log2 := 16#u8 },
+    shared_code := { base := 131072#u32, size_log2 := 16#u8 },
+    kernel_flash := { base := 0#u32, size_log2 := 17#u8 },
     kernel_ram := { base := 536870912#u32, size_log2 := 15#u8 },
     kernel_windows :=
       (Array.make 8#usize [
         { base := 3758096384#u32, size_log2 := 20#u8 },
         { base := 1073741824#u32, size_log2 := 12#u8 },
-        { base := 1073745920#u32, size_log2 := 12#u8 }, NO_WINDOW, NO_WINDOW,
-        NO_WINDOW, NO_WINDOW, NO_WINDOW
+        { base := 1073774592#u32, size_log2 := 12#u8 },
+        { base := 1073807360#u32, size_log2 := 12#u8 },
+        { base := 1073868800#u32, size_log2 := 12#u8 }, NO_WINDOW, NO_WINDOW,
+        NO_WINDOW
         ]),
-    kernel_window_count := 3#u8,
+    kernel_window_count := 5#u8,
     partitions :=
       (Array.make 3#usize [
         {
-          code := { base := 131072#u32, size_log2 := 15#u8 },
+          code := { base := 196608#u32, size_log2 := 15#u8 },
           code_srd := 0#u8,
           ram := { base := 536903680#u32, size_log2 := 15#u8 },
           ram_srd := 0#u8,
@@ -732,46 +747,48 @@ def LAYOUT : rsk_logic.logic.mpu.Layout 3#usize :=
           windows_ro := a1
         },
         {
-          code := { base := 163840#u32, size_log2 := 15#u8 },
+          code := { base := 229376#u32, size_log2 := 15#u8 },
           code_srd := 0#u8,
           ram := { base := 536936448#u32, size_log2 := 15#u8 },
           ram_srd := 0#u8,
           stack_size := 4096#u32,
           windows :=
             (Array.make 5#usize [
-              { base := 1073750016#u32, size_log2 := 12#u8 }, NO_WINDOW,
-              NO_WINDOW, NO_WINDOW, NO_WINDOW
+              { base := 1073766400#u32, size_log2 := 12#u8 },
+              { base := 1342177280#u32, size_log2 := 12#u8 }, NO_WINDOW,
+              NO_WINDOW, NO_WINDOW
               ]),
-          window_count := 1#u8,
+          window_count := 2#u8,
           windows_ro := a2
         },
         {
-          code := { base := 196608#u32, size_log2 := 15#u8 },
+          code := { base := 262144#u32, size_log2 := 15#u8 },
           code_srd := 0#u8,
           ram := { base := 536969216#u32, size_log2 := 15#u8 },
           ram_srd := 0#u8,
           stack_size := 4096#u32,
           windows :=
             (Array.make 5#usize [
-              { base := 1073807360#u32, size_log2 := 12#u8 }, NO_WINDOW,
-              NO_WINDOW, NO_WINDOW, NO_WINDOW
+              { base := 1073754112#u32, size_log2 := 12#u8 },
+              { base := 1073758208#u32, size_log2 := 12#u8 }, NO_WINDOW,
+              NO_WINDOW, NO_WINDOW
               ]),
-          window_count := 1#u8,
+          window_count := 2#u8,
           windows_ro :=
-            (Array.make 5#usize [ true, false, false, false, false ])
+            (Array.make 5#usize [ true, true, false, false, false ])
         }
         ])
   }
 
 /-- [rsk_system::NP]
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 @[global_simps, irreducible] def NP : Std.Usize := 3#usize
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::stack_top]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::stack_top]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_top
+def Sys.Insts.Rsk_kernelArchSystemTables.stack_top
   (p : Std.U8) : Result Std.U32 := do
   let i ← lift (UScalar.cast .Usize p)
   if i < NP
@@ -781,10 +798,10 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_top
     pl.ram.base + pl.stack_size
   else ok 0#u32
 
-/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::stack_bottom]:
-    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+/-- [rsk_system::{impl rsk_kernel::arch::SystemTables for rsk_system::Sys}::stack_bottom]:
+    Source: 'apps/p1-demo/decl/src/nrf52840_measure.rs', lines 10:0-185:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
-def Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_bottom
+def Sys.Insts.Rsk_kernelArchSystemTables.stack_bottom
   (p : Std.U8) : Result Std.U32 := do
   let i ← lift (UScalar.cast .Usize p)
   if i < NP

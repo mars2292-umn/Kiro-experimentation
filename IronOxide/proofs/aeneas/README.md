@@ -166,8 +166,9 @@ Regenerating the translation:
 cd crates/rsk-kernel
 I='{impl crate::arch::bound::KernelOps for _}'
 E='crate::arch::cm4::entry'
+T='{impl crate::arch::cm4::entry::Tables for _}'
 ../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$I::top,$I::boot_failed,$I::boot_info,$I::validate,$I::safe_state,$I::task_count,$I::partition_count,$I::source_masked,$I::started,$I::stack_at,$I::is_killed,$I::partition_view,$I::dma_permitted,$I::in_ro_window,$I::config_checksum,$I::layout_checksum,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core" \
+    --start-from "$I::init,$I::start,$I::eligible,$I::select,$I::dispatch,$I::job_return,$I::svc_lock,$I::svc_unlock,$I::intake,$I::timer_event,$I::fault,$I::fault_of,$I::record_event,$I::settle,$I::job_info,$I::depth,$I::message_permitted,$I::partition_stopped,$I::take_reinit,$I::take_stop_dma,$I::next_compare,$I::basepri_now,$I::top,$I::boot_failed,$I::boot_info,$I::validate,$I::safe_state,$I::task_count,$I::partition_count,$I::source_masked,$I::started,$I::stack_at,$I::is_killed,$I::partition_view,$I::dma_permitted,$I::in_ro_window,$I::config_checksum,$I::layout_checksum,$E::endpoint_send_core,$E::endpoint_recv_core,$E::svc_core,$E::timer_core,$E::irq_entry_core,$E::epilogue_core,$E::fault_core,$E::start_core,$E::boot_core,$E::apply_core,$T::binding,$T::dispatch_vector,$T::intake_vector,$T::stack_top,$T::stack_bottom,$T::task_entry_address,$T::irq_count,$T::config_checksum,$T::layout_checksum,$T::timer_vector,$T::priority_bits,$T::boot_expect,$T::fp_flush_to_zero,$T::tick_hz,$T::dma_count,$T::dma,$T::endpoint_count,$T::endpoint,$T::endpoint_storage,$T::signal_count,$T::signal" \
     --include 'rsk_logic::logic::kernel' --include 'rsk_logic::logic::sched' \
     --include 'rsk_logic::logic::time' --include 'rsk_logic::logic::budget' \
     --include 'rsk_logic::logic::log' --include 'rsk_logic::logic::mpu' \
@@ -345,37 +346,67 @@ option and includes `assume_new`'s body; `Sched/Kernel.lean` declares no
 costs: for these eight functions the compiled text is not the verified
 text. Both produce the same zero-sized value.
 
-## The generated tables (`Tab`)
+## The generated tables (`Tab`) and their adapter
 
-`Tab/Tables.lean` is the translation of the table accessors of the P1
-demo's system crate (the QEMU configuration):
+Kernel_Arch reads the generated tables through `SysTables`
+(`arch/cm4/mod.rs`), which forwards each method of `Tables` to the system
+crate. Since 2026-11-20 the system crate's contract is two traits:
+`SystemTables` (the constants and the accessors, pure functions of their
+argument) and `System: SystemTables` (the Kernel static, the Task entry
+functions, the safe state). `SysTables` depends on `SystemTables` alone, so
+that it involves no function-pointer type (Aeneas: "Arrow types are not
+supported yet") and is part of `Sched/Kernel.lean` (`$T` in the start set
+above). `Sched/TablesAdapter.lean` proves that every method of the adapter
+returns when the `SystemTables` under it does (`STabT`), and
+`Sched/CoreSys.lean` states the entry cores' theorems with that.
+
+`Tab/<Configuration>/Tables.lean` is the translation of `impl SystemTables
+for Sys` of one configuration's system crate, one directory for each of the
+P1 demo's thirteen configurations and one for the HIL stimulus application:
 
 ```sh
-cd apps/p1-demo/system
-I='{impl rsk_kernel::arch::System for _}'
+cd apps/p1-demo/system          # or apps/hil-stimulus/system
+I='{impl rsk_kernel::arch::SystemTables for _}'
 ../../../../aeneas/charon/bin/charon cargo --preset=aeneas \
     --start-from "$I::dma,$I::signal,$I::endpoint,$I::endpoint_storage,$I::binding,$I::dispatch_vector,$I::intake_vector,$I::stack_top,$I::stack_bottom" \
     --include 'rsk_kernel::arch::_' --include 'rsk_logic::logic::_' \
     --opaque 'rsk_kernel::arch::cm4::unsafe_module::hw::_::base' --opaque 'crate::ENDPOINTS' \
-    --dest-file /tmp/tables.llbc -- --lib
-../../../../aeneas/bin/aeneas -backend lean -dest ../../../proofs/aeneas/lean/Tab /tmp/tables.llbc
+    --dest-file /tmp/tables.llbc -- --lib <features>
+../../../../aeneas/bin/aeneas -backend lean -dest ../../../proofs/aeneas/lean/Tab/<Configuration> /tmp/tables.llbc
 ```
 
-The Endpoint table `ENDPOINTS` (five Endpoints of nested arrays) is kept
-opaque: with its content, Lean took more than 17 minutes and 11 GB to
-elaborate the file. `EndpointStorage::base` is a pointer cast of the
-Kernel_Unsafe_Module and stays opaque. `Tab/Proofs.lean` proves that every
-translated accessor returns for every argument (`endpoint` given that its
-table constant evaluates). Until 2026-11-20 `dispatch_vector`,
-`intake_vector`, `stack_top` and `stack_bottom` indexed their table with
-the argument and failed outside its range; the Generator now emits a test
-of the argument, as it did for `dma`, `signal` and `endpoint`.
-`Sched/CoreTotal.lean` assumes of the tables only that those four return in
-range (`TabT`) and proves the entry cores call them in range.
+`<features>` is empty for `Qemu` and `Stimulus`, and `--no-default-features
+--features <f>` otherwise, with `<f>` = `qemu-flood` (`QemuFlood`),
+`nrf52840`, `timing`, `timing-short`, `response`, `stress`, `stress-short`,
+`isolation`, `cycles`, `cycles-fpu`, `plain-measure` (`Measure`),
+`coverage-kernel` (`Coverage`).
 
-The adapter between Kernel_Arch's `Tables` and the generated `System`
-(`SysTables`, `arch/cm4/mod.rs`) is not translated, so no theorem joins
-`TabT` to `Tab/Proofs.lean`: it is generic over `System`, one of whose
-methods returns a function pointer (`task_entry`), and Aeneas stops on the
-trait ("Arrow types are not supported yet"), also with that method
-excluded from the extraction.
+The Endpoint table `ENDPOINTS` is kept opaque: with its content, Lean took
+more than 17 minutes and 11 GB to elaborate the QEMU configuration's file.
+`EndpointStorage::base` is a pointer cast of the Kernel_Unsafe_Module and
+stays opaque. `Tab/<Configuration>/Proofs.lean` (one template, the table
+sizes and the case splits over them differ) proves that every translated
+accessor returns for every argument (`endpoint` given that its table
+constant evaluates). Until 2026-11-20 `dispatch_vector`, `intake_vector`,
+`stack_top` and `stack_bottom` indexed their table with the argument and
+failed outside its range; the Generator now emits a test of the argument.
+
+Each `Tab` file is a translation of a system crate, in that crate's
+namespace with its own copy of the Kernel's types. No theorem identifies
+its functions with the fields of the `SystemTables` that
+`Sched/TablesAdapter.lean` speaks of: `STabT` states of an abstract
+`SystemTables` what `Tab/<Configuration>/Proofs.lean` proves of the
+generated functions, and the two meet by name. A single translation holding
+both would need the adapter reachable from an item of the system crate.
+
+## The register drivers return (`Hw/Total.lean`)
+
+`Hw/Total.lean` proves that each driver of `arch/cm4/drivers.rs` returns
+for every argument, over a register file whose reads and writes return
+(`RegsT`) and a time extension that returns (`ExtendT`). The real
+`KernelArch` implementation (`Cm4Hw`, `entry.rs`) and the functions between
+it and the drivers (`unsafe_module/hw.rs`) are not translated: Aeneas stops
+on raw-pointer dereferences, a function pointer and a ghost closure in
+them. `HwT` (`Sched/CoreTotal.lean`) therefore remains an assumption, with
+this file as the part of it that is Kernel code outside the
+Kernel_Unsafe_Module.

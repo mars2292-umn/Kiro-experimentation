@@ -92,14 +92,12 @@ pub const fn placeholder_view() -> View {
     View { regions: [DISABLED_REGION; crate::logic::mpu::MPU_REGIONS] }
 }
 
-/// The system crate's contract with Kernel_Arch.
-pub trait System: 'static {
-    type K: KernelOps + 'static;
-    /// The Kernel static. Kernel_Arch touches it only at the Kernel level
-    /// or with PRIMASK held (DD-02), which is what makes the cell sound.
-    fn kernel() -> &'static cm4::KernelCell<Self::K>;
-    /// The Job entry function of Task `t` (the generated Job wrapper).
-    fn task_entry(t: u8) -> fn();
+/// The generated tables of the system crate: constants and accessors that
+/// are pure functions of their argument. Apart from `System` since
+/// 2026-11-20, so that the adapter Kernel_Arch reads them through
+/// (`cm4::SysTables`) depends on no function-pointer type and the Lean
+/// translation covers it (proofs/aeneas/README.md).
+pub trait SystemTables: 'static {
     /// The binding of exception number `n` (16 + IRQ number).
     fn binding(n: u16) -> Binding;
     /// The exception number of Task `t`'s dispatch vector.
@@ -111,9 +109,6 @@ pub trait System: 'static {
     fn stack_top(p: u8) -> u32;
     /// The lowest address of Partition `p`'s stack region.
     fn stack_bottom(p: u8) -> u32;
-    /// The declared system safe state (R14.4): applied by Kernel_Arch and
-    /// never returned from.
-    fn safe_state() -> !;
     /// The number of interrupt lines of the Target.
     const IRQ_COUNT: u16;
     /// CRC-32 over the Generated_Config tables, recorded by the Generator
@@ -147,4 +142,20 @@ pub trait System: 'static {
     const ENDPOINT_COUNT: usize;
     fn endpoint(i: usize) -> EndpointCfg;
     fn endpoint_storage() -> (u32, u32);
+    /// The address of Task `t`'s Job wrapper (`System::task_entry` as a
+    /// word).
+    fn task_entry_address(t: u8) -> u32;
+}
+
+/// The system crate's contract with Kernel_Arch.
+pub trait System: SystemTables {
+    type K: KernelOps + 'static;
+    /// The Kernel static. Kernel_Arch touches it only at the Kernel level
+    /// or with PRIMASK held (DD-02), which is what makes the cell sound.
+    fn kernel() -> &'static cm4::KernelCell<Self::K>;
+    /// The Job entry function of Task `t` (the generated Job wrapper).
+    fn task_entry(t: u8) -> fn();
+    /// The declared system safe state (R14.4): applied by Kernel_Arch and
+    /// never returned from.
+    fn safe_state() -> !;
 }

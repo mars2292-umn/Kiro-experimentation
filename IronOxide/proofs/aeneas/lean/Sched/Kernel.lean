@@ -452,7 +452,7 @@ structure verus_builtin.Ghost (A : Type _) where
   phantom : core.marker.PhantomData A
 
 /-- [rsk_logic::logic::time::Timing]
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 157:0-157:34
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 161:0-161:34
     Name pattern: [rsk_logic::logic::time::Timing]
     Visibility: public -/
 @[rust_type "rsk_logic::logic::time::Timing"]
@@ -571,7 +571,7 @@ def rsk_logic.logic.kernel.Kernel.no_history
   verus_builtin.Ghost.assume_new (vstd.seq.Seq rsk_logic.logic.history.Step)
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::new]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 213:8-222:9
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 217:8-226:9
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::new]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -591,7 +591,7 @@ def rsk_logic.logic.time.Timing.new_loop.body
   else ok (done a)
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::new]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 213:8-222:9
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 217:8-226:9
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::new]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -607,7 +607,7 @@ def rsk_logic.logic.time.Timing.new_loop
     (a, t)
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::new]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 196:4-196:86
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 200:4-200:86
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::new]
     Visibility: public -/
 @[rust_fun
@@ -1032,7 +1032,7 @@ def rsk_logic.logic.kernel.Kernel.start
   ok { self1 with slots := s1, started := true }
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::job_started]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 404:4-404:100
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 408:4-408:100
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::job_started]
     Visibility: public -/
 @[rust_fun
@@ -1357,7 +1357,7 @@ def rsk_logic.logic.log.EV_API_MISUSE : Std.U8 := 22#u8
 def rsk_logic.logic.log.EV_RESOURCE_RELEASED : Std.U8 := 11#u8
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::try_unmask]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 472:4-472:145
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 476:4-476:145
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::try_unmask]
     Visibility: public -/
 @[rust_fun
@@ -2395,7 +2395,7 @@ def rsk_logic.logic.kernel.Kernel.deadline_miss
     pc.deadline_response rsk_logic.logic.log.EV_DEADLINE_MISS t
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::mask]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 441:4-441:103
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 445:4-445:103
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::mask]
     Visibility: public -/
 @[rust_fun
@@ -2416,7 +2416,7 @@ def rsk_logic.logic.time.Timing.mask
   ok { self with masked := a, mask_until := a1 }
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::defer]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 330:4-330:116
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 334:4-334:116
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::defer]
     Visibility: public -/
 @[rust_fun
@@ -2445,7 +2445,7 @@ def rsk_logic.logic.time.Timing.defer
     { self with deferred_until := a, masked := a1, mask_until := a2 })
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::accept]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 306:4-306:105
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 310:4-310:105
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::accept]
     Visibility: public -/
 @[rust_fun
@@ -2504,7 +2504,7 @@ def rsk_logic.logic.time.INTAKE_DEFER : Std.U8 := 1#u8
 def rsk_logic.logic.time.INTAKE_ACCEPT : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::intake_decision]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 279:4-279:140
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 283:4-283:140
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::intake_decision]
     Visibility: public -/
 @[rust_fun
@@ -2756,7 +2756,7 @@ def rsk_logic.logic.kernel.Kernel.intake
     offender
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::unmask]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 422:4-422:95
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 426:4-426:95
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::unmask]
     Visibility: public -/
 @[rust_fun
@@ -2834,7 +2834,7 @@ def rsk_logic.logic.kernel.Kernel.budget_event
             t
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::deferred_due_clamped]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 375:4-375:118
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 379:4-379:118
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::deferred_due_clamped]
     Visibility: public -/
 @[rust_fun
@@ -2904,7 +2904,7 @@ def rsk_logic.logic.kernel.Kernel.deferred_release
         ok { self with sched := s1, timing := t1, slots := s2 }
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::periodic_due]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 390:4-390:110
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 394:4-394:110
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::periodic_due]
     Visibility: public -/
 @[rust_fun
@@ -2920,7 +2920,7 @@ def rsk_logic.logic.time.Timing.periodic_due
   ok { self with due := a }
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<NT>}::advance_periodic]:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 235:4-235:127
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 239:4-239:127
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Timing<@NT>}::advance_periodic]
     Visibility: public -/
 @[rust_fun
@@ -5506,53 +5506,51 @@ def rsk_logic.logic.mpu.Layout.view
   ok { regions := regions3 }
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<NS>}::next]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 132:8-151:9
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 138:8-155:9
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next]
     Visibility: public -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next"]
 def rsk_logic.logic.time.Slots.next_loop.body
   {NS : Std.Usize} (self : rsk_logic.logic.time.Slots NS)
-  (best : Option Std.Usize) (i : Std.Usize) :
-  Result (ControlFlow ((Option Std.Usize) × Std.Usize) (Option Std.Usize))
+  (best : Option Std.Usize) («have» : Bool) (best_at : Std.U64)
+  (i : Std.Usize) :
+  Result (ControlFlow ((Option Std.Usize) × Bool × Std.U64 × Std.Usize)
+    (Option Std.Usize))
   := do
   if i < NS
   then
     let s ← Array.index_usize self.slots i
-    let best1 ←
+    let (best1, have1, best_at1) ←
       if s.armed
       then
-        do
-        let i1 ←
-          match best with
-          | none => ok i
-          | some b =>
-            do
-            let s1 ← Array.index_usize self.slots b
-            if s.at < s1.at
-            then ok i
-            else ok b
-        ok (some i1)
-      else ok best
+        if «have»
+        then
+          if s.at < best_at
+          then ok (some i, true, s.at)
+          else ok (best, «have», best_at)
+        else ok (some i, true, s.at)
+      else ok (best, «have», best_at)
     let i1 ← i + 1#usize
-    ok (cont (best1, i1))
+    ok (cont (best1, have1, best_at1, i1))
   else ok (done best)
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<NS>}::next]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/time.rs', lines 132:8-151:9
+    Source: 'crates/rsk-logic/src/logic/time.rs', lines 138:8-155:9
     Name pattern: [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next]
     Visibility: public -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::time::{rsk_logic::logic::time::Slots<@NS>}::next"]
 def rsk_logic.logic.time.Slots.next_loop
   {NS : Std.Usize} (self : rsk_logic.logic.time.Slots NS)
-  (best : Option Std.Usize) (i : Std.Usize) :
+  (best : Option Std.Usize) («have» : Bool) (best_at : Std.U64)
+  (i : Std.Usize) :
   Result (Option Std.Usize)
   := do
   loop
-    (fun (best1, i1) => rsk_logic.logic.time.Slots.next_loop.body self best1
-      i1)
-    (best, i)
+    (fun (best1, have1, best_at1, i1) =>
+      rsk_logic.logic.time.Slots.next_loop.body self best1 have1 best_at1 i1)
+    (best, «have», best_at, i)
 
 /-- [rsk_logic::logic::time::{rsk_logic::logic::time::Slots<NS>}::next]:
     Source: 'crates/rsk-logic/src/logic/time.rs', lines 123:4-123:43
@@ -5564,7 +5562,7 @@ def rsk_logic.logic.time.Slots.next
   {NS : Std.Usize} (self : rsk_logic.logic.time.Slots NS) :
   Result (Option Std.Usize)
   := do
-  rsk_logic.logic.time.Slots.next_loop self none 0#usize
+  rsk_logic.logic.time.Slots.next_loop self none false 0#u64 0#usize
 
 /-- [rsk_kernel::arch::bound::encode_level]:
     Source: 'crates/rsk-kernel/src/arch/bound.rs', lines 51:0-56:1
@@ -10870,5 +10868,252 @@ def arch.cm4.entry.fault_core
     arch.cm4.entry.svc_of_ended_job_core boundKernelOpsInst KernelArchInst k2
       hw2 depth_before
   ok ((hop, safe), k2, hw3, state1)
+
+/-- [rsk_kernel::arch::cm4::SysTables]
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 178:0-178:50 -/
+@[reducible]
+def arch.cm4.SysTables (S : Type _) := core.marker.PhantomData S
+
+/-- Trait declaration: [rsk_kernel::arch::SystemTables]
+    Source: 'crates/rsk-kernel/src/arch/mod.rs', lines 100:0-148:1
+    Visibility: public -/
+structure arch.SystemTables (Self : Type _) where
+  IRQ_COUNT : Result Std.U16
+  CONFIG_CHECKSUM : Result Std.U32
+  LAYOUT_CHECKSUM : Result Std.U32
+  TIMER_VECTOR : Result Std.U16
+  PRIORITY_BITS : Result Std.U8
+  CPUID : Result Std.U32
+  HFCLK_XTAL : Result Bool
+  FPU_NEEDED : Result Bool
+  FP_FLUSH_TO_ZERO : Result Bool
+  TICK_HZ : Result Std.U64
+  DMA_COUNT : Result Std.Usize
+  SIGNAL_COUNT : Result Std.Usize
+  ENDPOINT_COUNT : Result Std.Usize
+  binding : Std.U16 → Result arch.cm4.entry.Binding
+  dispatch_vector : Std.U8 → Result Std.U16
+  intake_vector : Std.U8 → Result (Option Std.U16)
+  stack_top : Std.U8 → Result Std.U32
+  stack_bottom : Std.U8 → Result Std.U32
+  dma : Std.Usize → Result arch.cm4.plan.DmaCfg
+  signal : Std.Usize → Result arch.cm4.plan.SignalCfg
+  endpoint : Std.Usize → Result arch.cm4.plan.EndpointCfg
+  endpoint_storage : Result (Std.U32 × Std.U32)
+  task_entry_address : Std.U8 → Result Std.U32
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::binding]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 181:4-183:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.binding
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (n : Std.U16) :
+  Result arch.cm4.entry.Binding
+  := do
+  SystemTablesInst.binding n
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::dispatch_vector]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 184:4-186:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dispatch_vector
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (t : Std.U8) :
+  Result Std.U16
+  := do
+  SystemTablesInst.dispatch_vector t
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::intake_vector]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 187:4-189:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.intake_vector
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (t : Std.U8) :
+  Result (Option Std.U16)
+  := do
+  SystemTablesInst.intake_vector t
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::stack_top]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 190:4-192:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.stack_top
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (p : Std.U8) :
+  Result Std.U32
+  := do
+  SystemTablesInst.stack_top p
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::stack_bottom]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 193:4-195:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.stack_bottom
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (p : Std.U8) :
+  Result Std.U32
+  := do
+  SystemTablesInst.stack_bottom p
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::task_entry_address]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 196:4-198:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.task_entry_address
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (t : Std.U8) :
+  Result Std.U32
+  := do
+  SystemTablesInst.task_entry_address t
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::irq_count]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 199:4-205:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.irq_count
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.U16
+  := do
+  SystemTablesInst.IRQ_COUNT
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::config_checksum]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 206:4-212:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.config_checksum
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.U32
+  := do
+  SystemTablesInst.CONFIG_CHECKSUM
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::layout_checksum]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 213:4-219:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.layout_checksum
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.U32
+  := do
+  SystemTablesInst.LAYOUT_CHECKSUM
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::timer_vector]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 220:4-222:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.timer_vector
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.U16
+  := do
+  SystemTablesInst.TIMER_VECTOR
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::priority_bits]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 223:4-225:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.priority_bits
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.U8
+  := do
+  SystemTablesInst.PRIORITY_BITS
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::boot_expect]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 226:4-237:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.boot_expect
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result arch.cm4.plan.BootExpect
+  := do
+  let i ← SystemTablesInst.PRIORITY_BITS
+  let i1 ← SystemTablesInst.CPUID
+  let b ← SystemTablesInst.HFCLK_XTAL
+  let b1 ← SystemTablesInst.FPU_NEEDED
+  ok { priority_bits := i, cpuid := i1, hfclk_xtal := b, fpu_needed := b1 }
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::tick_hz]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 238:4-240:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.tick_hz
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.U64
+  := do
+  SystemTablesInst.TICK_HZ
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::fp_flush_to_zero]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 241:4-243:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.fp_flush_to_zero
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Bool
+  := do
+  SystemTablesInst.FP_FLUSH_TO_ZERO
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::dma_count]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 244:4-246:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dma_count
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.Usize
+  := do
+  SystemTablesInst.DMA_COUNT
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::dma]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 247:4-249:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.dma
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (i : Std.Usize) :
+  Result arch.cm4.plan.DmaCfg
+  := do
+  SystemTablesInst.dma i
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::signal_count]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 250:4-252:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.signal_count
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.Usize
+  := do
+  SystemTablesInst.SIGNAL_COUNT
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::signal]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 253:4-255:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.signal
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (i : Std.Usize) :
+  Result arch.cm4.plan.SignalCfg
+  := do
+  SystemTablesInst.signal i
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::endpoint_count]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 256:4-258:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint_count
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result Std.Usize
+  := do
+  SystemTablesInst.ENDPOINT_COUNT
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::endpoint]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 259:4-261:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) (i : Std.Usize) :
+  Result arch.cm4.plan.EndpointCfg
+  := do
+  SystemTablesInst.endpoint i
+
+/-- [rsk_kernel::arch::cm4::{impl rsk_kernel::arch::cm4::entry::Tables for rsk_kernel::arch::cm4::SysTables<S>}::endpoint_storage]:
+    Source: 'crates/rsk-kernel/src/arch/cm4/mod.rs', lines 262:4-264:5
+    Visibility: public -/
+def arch.cm4.SysTables.Insts.Rsk_kernelArchCm4EntryTables.endpoint_storage
+  {S : Type _} (SystemTablesInst : arch.SystemTables S)
+  (self : arch.cm4.SysTables S) :
+  Result (Std.U32 × Std.U32)
+  := do
+  SystemTablesInst.endpoint_storage
 
 end rsk_kernel

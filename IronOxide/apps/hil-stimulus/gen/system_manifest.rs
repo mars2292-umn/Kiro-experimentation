@@ -85,8 +85,7 @@ pub static RSK_ENDPOINT_IMAGE: [u8; 8] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x
 #[no_mangle]
 pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x6522df69;
 pub struct Sys;
-impl ::rsk_kernel::arch::System for Sys {
-    type K = K;
+impl ::rsk_kernel::arch::SystemTables for Sys {
     const IRQ_COUNT: u16 = 48;
     const TIMER_VECTOR: u16 = 16 + 8;
     const PRIORITY_BITS: u8 = 3;
@@ -104,13 +103,6 @@ impl ::rsk_kernel::arch::System for Sys {
     fn endpoint_storage() -> (u32, u32) { (ENDPOINT_STORAGE.base(), ENDPOINT_STORAGE.len()) }
     const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;
     const LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;
-    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> { &KERNEL }
-    fn task_entry(t: u8) -> fn() {
-        match t {
-            0 => ::hil_stimulus_part::rsk_jobs::pulse,
-            _ => ::hil_stimulus_part::rsk_jobs::pulse,
-        }
-    }
     fn binding(n: u16) -> ::rsk_kernel::arch::Binding {
         if n == Self::TIMER_VECTOR { return ::rsk_kernel::arch::Binding::Kernel; }
         let mut t = 0;
@@ -125,5 +117,16 @@ impl ::rsk_kernel::arch::System for Sys {
     fn intake_vector(t: u8) -> Option<u16> { if (t as usize) < NT { if INTAKE_IRQ[t as usize] == 0xFFFF { None } else { Some(16 + INTAKE_IRQ[t as usize]) } } else { None } }
     fn stack_top(p: u8) -> u32 { if (p as usize) < NP { let pl = LAYOUT.partitions[p as usize]; pl.ram.base + pl.stack_size } else { 0 } }
     fn stack_bottom(p: u8) -> u32 { if (p as usize) < NP { LAYOUT.partitions[p as usize].ram.base } else { 0 } }
+    fn task_entry_address(t: u8) -> u32 { <Sys as ::rsk_kernel::arch::System>::task_entry(t) as usize as u32 }
+}
+impl ::rsk_kernel::arch::System for Sys {
+    type K = K;
+    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> { &KERNEL }
+    fn task_entry(t: u8) -> fn() {
+        match t {
+            0 => ::hil_stimulus_part::rsk_jobs::pulse,
+            _ => ::hil_stimulus_part::rsk_jobs::pulse,
+        }
+    }
     fn safe_state() -> ! { crate::halt() }
 }

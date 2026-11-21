@@ -277,8 +277,9 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "#[no_mangle]");
     let _ = writeln!(s, "pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x{:08x};", crate::derive::crc32(&eimage));
     let _ = writeln!(s, "pub struct Sys;");
-    let _ = writeln!(s, "impl ::rsk_kernel::arch::System for Sys {{");
-    let _ = writeln!(s, "    type K = K;");
+    // Two impl blocks since 2026-11-20: the tables (`SystemTables`) and
+    // what holds the Kernel static and the Task entry functions (`System`).
+    let _ = writeln!(s, "impl ::rsk_kernel::arch::SystemTables for Sys {{");
     let _ = writeln!(s, "    const IRQ_COUNT: u16 = {};", g.target.irq_count);
     let _ = writeln!(s, "    const TIMER_VECTOR: u16 = 16 + {};", g.target.timer_irq);
     let _ = writeln!(s, "    const PRIORITY_BITS: u8 = {};", g.target.priority_bits);
@@ -296,15 +297,6 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    fn endpoint_storage() -> (u32, u32) {{ (ENDPOINT_STORAGE.base(), ENDPOINT_STORAGE.len()) }}");
     let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
     let _ = writeln!(s, "    const LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;");
-    let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
-    let _ = writeln!(s, "    fn task_entry(t: u8) -> fn() {{");
-    let _ = writeln!(s, "        match t {{");
-    for t in &g.tasks {
-        let _ = writeln!(s, "            {} => {},", t.index, t.entry_path);
-    }
-    let _ = writeln!(s, "            _ => {},", g.tasks[0].entry_path);
-    let _ = writeln!(s, "        }}");
-    let _ = writeln!(s, "    }}");
     let _ = writeln!(s, "    fn binding(n: u16) -> ::rsk_kernel::arch::Binding {{");
     let _ = writeln!(s, "        if n == Self::TIMER_VECTOR {{ return ::rsk_kernel::arch::Binding::Kernel; }}");
     let _ = writeln!(s, "        let mut t = 0;");
@@ -324,6 +316,19 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    fn intake_vector(t: u8) -> Option<u16> {{ if (t as usize) < NT {{ if INTAKE_IRQ[t as usize] == 0xFFFF {{ None }} else {{ Some(16 + INTAKE_IRQ[t as usize]) }} }} else {{ None }} }}");
     let _ = writeln!(s, "    fn stack_top(p: u8) -> u32 {{ if (p as usize) < NP {{ let pl = LAYOUT.partitions[p as usize]; pl.ram.base + pl.stack_size }} else {{ 0 }} }}");
     let _ = writeln!(s, "    fn stack_bottom(p: u8) -> u32 {{ if (p as usize) < NP {{ LAYOUT.partitions[p as usize].ram.base }} else {{ 0 }} }}");
+    let _ = writeln!(s, "    fn task_entry_address(t: u8) -> u32 {{ <Sys as ::rsk_kernel::arch::System>::task_entry(t) as usize as u32 }}");
+    let _ = writeln!(s, "}}");
+    let _ = writeln!(s, "impl ::rsk_kernel::arch::System for Sys {{");
+    let _ = writeln!(s, "    type K = K;");
+    let _ = writeln!(s, "    fn kernel() -> &'static ::rsk_kernel::arch::cm4::KernelCell<K> {{ &KERNEL }}");
+    let _ = writeln!(s, "    fn task_entry(t: u8) -> fn() {{");
+    let _ = writeln!(s, "        match t {{");
+    for t in &g.tasks {
+        let _ = writeln!(s, "            {} => {},", t.index, t.entry_path);
+    }
+    let _ = writeln!(s, "            _ => {},", g.tasks[0].entry_path);
+    let _ = writeln!(s, "        }}");
+    let _ = writeln!(s, "    }}");
     let _ = writeln!(s, "    fn safe_state() -> ! {{ {}() }}", g.safe_state);
     let _ = writeln!(s, "}}");
     s

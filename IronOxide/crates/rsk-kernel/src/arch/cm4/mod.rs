@@ -76,7 +76,7 @@ pub use entry::{
 pub use plan::{compare_target, plan_frame, top_active, ArchState, EndpointCfg, LevelRecord, FRAME_BYTES, MAX_INSTANT, MAX_ENDPOINTS};
 pub use unsafe_module::KernelCell;
 
-use crate::arch::{KernelOps, System};
+use crate::arch::{KernelOps, System, SystemTables};
 use crate::logic::log::{EV_BUSFAULT, EV_HARDFAULT, EV_MEMMANAGE, EV_PANIC, EV_USAGEFAULT};
 use unsafe_module::hw;
 
@@ -175,9 +175,9 @@ pub use crate::arch::bound::{basepri_for, basepri_for_ceiling, encode_level};
 
 /// The `System` trait of the generated system crate, seen as the
 /// `Tables` the verified cores consume.
-struct SysTables<S: System>(PhantomData<S>);
+struct SysTables<S: SystemTables>(PhantomData<S>);
 
-impl<S: System> Tables for SysTables<S> {
+impl<S: SystemTables> Tables for SysTables<S> {
     fn binding(&self, n: u16) -> Binding {
         S::binding(n)
     }
@@ -194,7 +194,7 @@ impl<S: System> Tables for SysTables<S> {
         S::stack_bottom(p)
     }
     fn task_entry_address(&self, t: u8) -> u32 {
-        S::task_entry(t) as usize as u32
+        S::task_entry_address(t)
     }
     fn irq_count(&self) -> u16 {
         #[cfg(feature = "boot-mutation")]

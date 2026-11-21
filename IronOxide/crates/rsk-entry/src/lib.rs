@@ -17,7 +17,7 @@
 
 use rsk_kernel::arch::cm4 as arch;
 use rsk_kernel::arch::cm4::unsafe_module::{hw, stubs};
-use rsk_kernel::arch::System;
+use rsk_kernel::arch::{System, SystemTables};
 #[cfg(feature = "app-p1-demo")]
 use rsk_system::Sys;
 #[cfg(feature = "app-hil-stimulus")]

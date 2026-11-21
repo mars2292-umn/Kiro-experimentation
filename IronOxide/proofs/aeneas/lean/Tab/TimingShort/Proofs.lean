@@ -1,30 +1,24 @@
-import Tab.Tables
+import Tab.TimingShort.Tables
 open Aeneas Aeneas.Std Result
 
-/-! # For which arguments the generated table accessors return (2026-11-20)
+/-! # The generated table accessors return: `nrf52840_timing_short` (2026-11-20)
 
-`Tab/Tables.lean` is the P1 demo's `impl System for Sys` as rustc compiles
-it (the QEMU configuration). Kernel_Arch reaches it through `Tables`
-(`SysTables`, `arch/cm4/mod.rs`), whose methods Verus trusts.
-
-Every accessor translated here returns for every argument: `dma`, `signal`,
+`Tab/TimingShort/Tables.lean` is the translation of `impl SystemTables for Sys`
+of this configuration's system crate, as rustc compiles it. Every accessor
+translated returns for every argument: `dma`, `signal`, `endpoint`,
 `dispatch_vector`, `intake_vector`, `stack_top` and `stack_bottom` test
 their argument against the table's length, and `binding` walks the Tasks.
-Until 2026-11-20 the last four of those six indexed their table with the
-argument and failed outside its range (the Generator now emits the test);
-`Sched/CoreTotal.lean` proves besides that the entry cores call them in
-range.
 
-Not here: the content of the Endpoint table (five Endpoints of nested
-arrays, which Lean does not elaborate in reasonable time or memory; the
-constant is opaque in the translation and `endpoint_t` assumes only that
-it evaluates), and `endpoint_storage`, which reads an address through a
-pointer cast of the Kernel_Unsafe_Module (opaque too). -/
+Not here: the content of the Endpoint table (opaque in the translation;
+`endpoint_t` assumes only that the constant evaluates), and
+`endpoint_storage`, which reads an address through a pointer cast of the
+Kernel_Unsafe_Module. This file is generated from one template for every
+configuration (the table sizes and the case splits over them differ). -/
 
 namespace rsk_system
 
-theorem dirq_le (j : Nat) (h : j < DISPATCH_IRQ.val.length) : (DISPATCH_IRQ.val[j]).val ≤ 26 := by
-  have h7 : j < 7 := by have := DISPATCH_IRQ.property; scalar_tac
+theorem dirq_le (j : Nat) (h : j < DISPATCH_IRQ.val.length) : (DISPATCH_IRQ.val[j]).val ≤ 60000 := by
+  have hN : j < 7 := by have := DISPATCH_IRQ.property; scalar_tac
   revert h
   unfold DISPATCH_IRQ
   intro h
@@ -33,8 +27,8 @@ theorem dirq_le (j : Nat) (h : j < DISPATCH_IRQ.val.length) : (DISPATCH_IRQ.val[
   all_goals simp [Array.make]
 
 theorem iirq_le (j : Nat) (h : j < INTAKE_IRQ.val.length) :
-    INTAKE_IRQ.val[j] = 65535#u16 ∨ (INTAKE_IRQ.val[j]).val ≤ 26 := by
-  have h7 : j < 7 := by have := INTAKE_IRQ.property; scalar_tac
+    INTAKE_IRQ.val[j] = 65535#u16 ∨ (INTAKE_IRQ.val[j]).val ≤ 60000 := by
+  have hN : j < 7 := by have := INTAKE_IRQ.property; scalar_tac
   revert h
   unfold INTAKE_IRQ
   intro h
@@ -45,19 +39,20 @@ theorem iirq_le (j : Nat) (h : j < INTAKE_IRQ.val.length) :
 theorem stack_le (j : Nat) (h : j < LAYOUT.partitions.val.length) :
     (LAYOUT.partitions.val[j]).ram.base.val + (LAYOUT.partitions.val[j]).stack_size.val
       ≤ 4294967295 := by
-  have h3 : j < 3 := by have := LAYOUT.partitions.property; scalar_tac
+  have hN : j < 3 := by have := LAYOUT.partitions.property; scalar_tac
   revert h
   unfold LAYOUT
   intro h
-  obtain rfl | rfl | rfl : j = 0 ∨ j = 1 ∨ j = 2 := by omega
+  obtain rfl | rfl | rfl : j = 0 ∨ j = 1 ∨ j = 2 := by
+    omega
   all_goals simp [Array.make]
 
 theorem nt_eq : NT = 7#usize := by unfold NT; rfl
-theorem nd_eq : ND = 1#usize := by unfold ND; rfl
+theorem nd_eq : ND = 2#usize := by unfold ND; rfl
 theorem nsig_eq : NSIG = 1#usize := by unfold NSIG; rfl
 
-theorem timer_vector_eq : Sys.Insts.Rsk_kernelArchSystemBound73362332.TIMER_VECTOR = ok 25#u16 := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.TIMER_VECTOR
+theorem timer_vector_eq : Sys.Insts.Rsk_kernelArchSystemTables.TIMER_VECTOR = ok 24#u16 := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.TIMER_VECTOR
   rfl
 
 theorem config_returns : ∃ c, CONFIG = ok c := by
@@ -66,16 +61,16 @@ theorem config_returns : ∃ c, CONFIG = ok c := by
   exact ⟨_, rfl⟩
 
 /-- `dma` returns for every index. -/
-theorem dma_t (i : Usize) : Sys.Insts.Rsk_kernelArchSystemBound73362332.dma i ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.dma
+theorem dma_t (i : Usize) : Sys.Insts.Rsk_kernelArchSystemTables.dma i ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.dma
   simp only [nd_eq]
   split
   · step*
   · step*
 
 /-- `signal` returns for every index. -/
-theorem signal_t (i : Usize) : Sys.Insts.Rsk_kernelArchSystemBound73362332.signal i ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.signal
+theorem signal_t (i : Usize) : Sys.Insts.Rsk_kernelArchSystemTables.signal i ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.signal
   simp only [nsig_eq]
   split
   · step*
@@ -85,8 +80,8 @@ theorem np_eq : NP = 3#usize := by unfold NP; rfl
 
 /-- `dispatch_vector` returns for every Task identifier (0 for one that is
 not a Task's). -/
-theorem dispatch_vector_t (t : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332.dispatch_vector t ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.dispatch_vector
+theorem dispatch_vector_t (t : U8) : Sys.Insts.Rsk_kernelArchSystemTables.dispatch_vector t ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.dispatch_vector
   simp only [nt_eq]
   step as ⟨i, hi⟩
   split
@@ -99,8 +94,8 @@ theorem dispatch_vector_t (t : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332
   · step*
 
 /-- `intake_vector` returns for every Task identifier. -/
-theorem intake_vector_t (t : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332.intake_vector t ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.intake_vector
+theorem intake_vector_t (t : U8) : Sys.Insts.Rsk_kernelArchSystemTables.intake_vector t ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.intake_vector
   simp only [nt_eq]
   step as ⟨i, hi⟩
   split
@@ -122,8 +117,8 @@ theorem intake_vector_t (t : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332.i
   · step*
 
 /-- `stack_top` returns for every Partition identifier. -/
-theorem stack_top_t (p : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_top p ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_top
+theorem stack_top_t (p : U8) : Sys.Insts.Rsk_kernelArchSystemTables.stack_top p ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.stack_top
   simp only [np_eq]
   step as ⟨i, hi⟩
   split
@@ -136,21 +131,21 @@ theorem stack_top_t (p : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332.stack
   · step*
 
 /-- `stack_bottom` returns for every Partition identifier. -/
-theorem stack_bottom_t (p : U8) : Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_bottom p ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_bottom
+theorem stack_bottom_t (p : U8) : Sys.Insts.Rsk_kernelArchSystemTables.stack_bottom p ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.stack_bottom
   simp only [np_eq]
   step as ⟨i, hi⟩
   split
   · step*
   · step*
 
-theorem nep_eq : NEP = 5#usize := by unfold NEP; rfl
+theorem nep_eq : NEP = 0#usize := by unfold NEP; rfl
 
 /-- `endpoint` returns for every index, given that the table constant
 evaluates (it is opaque here). -/
-theorem endpoint_t (h : ∃ a, ENDPOINTS = ok a) (i : Usize) : Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint i ⦃ _ => True ⦄ := by
+theorem endpoint_t (h : ∃ a, ENDPOINTS = ok a) (i : Usize) : Sys.Insts.Rsk_kernelArchSystemTables.endpoint i ⦃ _ => True ⦄ := by
   obtain ⟨a, ha⟩ := h
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.endpoint
   simp only [nep_eq]
   split
   · rw [ha]
@@ -159,16 +154,16 @@ theorem endpoint_t (h : ∃ a, ENDPOINTS = ok a) (i : Usize) : Sys.Insts.Rsk_ker
   · step*
 
 /-- `binding` returns for every exception number. -/
-theorem binding_t (n : U16) : Sys.Insts.Rsk_kernelArchSystemBound73362332.binding n ⦃ _ => True ⦄ := by
-  unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.binding
+theorem binding_t (n : U16) : Sys.Insts.Rsk_kernelArchSystemTables.binding n ⦃ _ => True ⦄ := by
+  unfold Sys.Insts.Rsk_kernelArchSystemTables.binding
   rw [timer_vector_eq]
   simp only [bind_ok]
   split
   · step*
-  · unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop
+  · unfold Sys.Insts.Rsk_kernelArchSystemTables.binding_loop
     apply loop.spec_decr_nat (fun (x : Usize) => 7 - x.val) (fun _ => True)
     · intro t _
-      unfold Sys.Insts.Rsk_kernelArchSystemBound73362332.binding_loop.body
+      unfold Sys.Insts.Rsk_kernelArchSystemTables.binding_loop.body
       simp only [nt_eq]
       split
       · rename_i hlt
@@ -183,7 +178,7 @@ theorem binding_t (n : U16) : Sys.Insts.Rsk_kernelArchSystemBound73362332.bindin
           rw [← hi2] at h2
           split
           · rename_i hne
-            have h2' : i2.val ≤ 26 := by
+            have h2' : i2.val ≤ 60000 := by
               rcases h2 with h | h
               · exact absurd h (by simpa using hne)
               · exact h

@@ -2195,3 +2195,39 @@ find = "      if e >= arch.cm4.plan.MAX_ENDPOINTS\n      then ok none\n"
 replace = "      if false\n      then ok none\n"
 expect = ["Sched/CoreTotal.lean"]
 prover = "lean"
+
+[[mutation]]
+id = "lean-dma-buffer-at-stack-end-refused"
+kills = "dma_permitted_exec_v (Sched/LayoutReads.lean): the extracted check must answer `DmaPermitted`, which admits a buffer that starts exactly at the end of the stack region; refusing it (`<=` for `<`) still returns and breaks no older proof, so only the value-level statement catches it; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "    if p < i2\n    then ok false\n"
+replace = "    if p <= i2\n    then ok false\n"
+expect = ["Sched/LayoutReads.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-message-buffer-end-excluded"
+kills = "message_permitted_exec_v (Sched/LayoutReads.lean): a message buffer that ends exactly at the end of the RAM interval is permitted (R42.2); with `<` for `<=` the check refuses it; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "         let i2 ← base + size\n         ok (i1 <= i2)\n"
+replace = "         let i2 ← base + size\n         ok (i1 < i2)\n"
+expect = ["Sched/LayoutReads.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-dma-request-partition-check-dropped"
+kills = "dma_request_core_iff (Sched/IsolationBoot.lean): R17.1 on the extracted core, a request for a channel of another Partition than the executing Job's must be refused; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "        if info.partition = d.partition\n        then boundKernelOpsInst.dma_permitted k d.partition ptr len\n"
+replace = "        if true\n        then boundKernelOpsInst.dma_permitted k d.partition ptr len\n"
+expect = ["Sched/IsolationBoot.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-pair-code-overlap-check-dropped"
+kills = "validate_pair_t and layout_validate_wf (Sched/LayoutTotal.lean): two Partitions whose code intervals overlap must fail the boot validation, else `LWf`'s `PairWf` and the isolation theorems' `LayoutOk` (`views_disjoint_boot`) do not follow; 2026-11-20"
+file = "proofs/aeneas/lean/Sched/Kernel.lean"
+find = "          let b1 ← rsk_logic.logic.mpu.Interval.check_disjoint a.code b.code\n          if b1\n"
+replace = "          let b1 ← rsk_logic.logic.mpu.Interval.check_disjoint a.code b.code\n          if true\n"
+expect = ["Sched/LayoutTotal.lean"]
+prover = "lean"

@@ -127,25 +127,29 @@ impl<const NS: usize> Slots<NS> {
                 && forall|j: int| 0 <= j < NS && self.armed(j) && self.slots[j].at == self.slots[n.unwrap() as int].at ==> n.unwrap() as int <= j,
             n.is_none() ==> forall|j: int| 0 <= j < NS ==> !self.armed(j),
     {
+        // The instant of the best slot so far is kept beside its index
+        // (2026-11-20): the scan runs on every Kernel entry, and reading
+        // the instant back through the index cost a third of it on the
+        // board (387 against 607 cycles for 23 slots).
         let mut best: Option<usize> = None;
+        let mut have = false;
+        let mut best_at: u64 = 0;
         let mut i: usize = 0;
         while i < NS
             invariant i <= NS,
-                best.is_some() ==> best.unwrap() < i && self.armed(best.unwrap() as int),
+                have == best.is_some(),
+                best.is_some() ==> best.unwrap() < i && self.armed(best.unwrap() as int)
+                    && best_at == self.slots[best.unwrap() as int].at,
                 best.is_some() ==> forall|j: int| 0 <= j < i && self.armed(j) ==> self.slots[j].at >= self.slots[best.unwrap() as int].at,
                 best.is_some() ==> forall|j: int| 0 <= j < i && self.armed(j) && self.slots[j].at == self.slots[best.unwrap() as int].at ==> best.unwrap() as int <= j,
                 best.is_none() ==> forall|j: int| 0 <= j < i ==> !self.armed(j),
             decreases NS - i,
         {
-            if self.slots[i].armed {
-                match best {
-                    None => { best = Some(i); }
-                    Some(b) => {
-                        if self.slots[i].at < self.slots[b].at {
-                            best = Some(i);
-                        }
-                    }
-                }
+            let s = &self.slots[i];
+            if s.armed && (!have || s.at < best_at) {
+                have = true;
+                best_at = s.at;
+                best = Some(i);
             }
             i = i + 1;
         }

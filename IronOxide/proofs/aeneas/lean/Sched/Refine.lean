@@ -82,16 +82,82 @@ def NextOk (s : logic.time.Slots NS) (n : Nat) : Option Usize → Prop
         (s.slots.val[j]!).«at».val = (s.slots.val[b.val]!).«at».val → b.val ≤ j)
   | none => ∀ j, j < n → (s.slots.val[j]!).armed = false
 
-/-- `Slots::next`: the minimum of the map, ties to the lowest slot. -/
+/-- A slot that is not armed changes nothing. -/
+theorem nextok_skip {s : logic.time.Slots NS} {i : Nat} {best : Option Usize}
+    (h : NextOk s i best) (hna : (s.slots.val[i]!).armed = false) : NextOk s (i + 1) best := by
+  cases best with
+  | none =>
+    simp only [NextOk] at h ⊢
+    intro j hj
+    by_cases hji : j = i
+    · subst hji; exact hna
+    · exact h j (by omega)
+  | some b =>
+    obtain ⟨hb1, hb2, hb3, hb4⟩ := h
+    simp only [NextOk]
+    refine ⟨by omega, hb2, fun j hj ha => ?_, fun j hj ha he => ?_⟩
+    · by_cases hji : j = i
+      · subst hji; rw [hna] at ha; cases ha
+      · exact hb3 j (by omega) ha
+    · by_cases hji : j = i
+      · subst hji; rw [hna] at ha; cases ha
+      · exact hb4 j (by omega) ha he
+
+/-- The first armed slot becomes the best. -/
+theorem nextok_first {s : logic.time.Slots NS} {i : Usize} (h : NextOk s i.val none)
+    (harm : (s.slots.val[i.val]!).armed = true) : NextOk s (i.val + 1) (some i) := by
+  simp only [NextOk] at h ⊢
+  refine ⟨by omega, harm, fun j hj ha => ?_, fun j hj ha he => ?_⟩
+  · by_cases hji : j = i.val
+    · subst hji; exact Nat.le_refl _
+    · have := h j (by omega); rw [this] at ha; cases ha
+  · by_cases hji : j = i.val
+    · omega
+    · have := h j (by omega); rw [this] at ha; cases ha
+
+/-- An armed slot strictly earlier than the best replaces it. -/
+theorem nextok_less {s : logic.time.Slots NS} {i b : Usize} (h : NextOk s i.val (some b))
+    (harm : (s.slots.val[i.val]!).armed = true)
+    (hl : (s.slots.val[i.val]!).«at».val < (s.slots.val[b.val]!).«at».val) :
+    NextOk s (i.val + 1) (some i) := by
+  obtain ⟨hb1, hb2, hb3, hb4⟩ := h
+  simp only [NextOk]
+  refine ⟨by omega, harm, fun j hj ha => ?_, fun j hj ha he => ?_⟩
+  · by_cases hji : j = i.val
+    · subst hji; exact Nat.le_refl _
+    · have := hb3 j (by omega) ha
+      omega
+  · by_cases hji : j = i.val
+    · omega
+    · have := hb3 j (by omega) ha
+      omega
+
+/-- An armed slot not earlier than the best leaves it. -/
+theorem nextok_keep {s : logic.time.Slots NS} {i b : Usize} (h : NextOk s i.val (some b))
+    (hle : (s.slots.val[b.val]!).«at».val ≤ (s.slots.val[i.val]!).«at».val) :
+    NextOk s (i.val + 1) (some b) := by
+  obtain ⟨hb1, hb2, hb3, hb4⟩ := h
+  simp only [NextOk]
+  refine ⟨by omega, hb2, fun j hj ha => ?_, fun j hj ha he => ?_⟩
+  · by_cases hji : j = i.val
+    · subst hji; exact hle
+    · exact hb3 j (by omega) ha
+  · by_cases hji : j = i.val
+    · omega
+    · exact hb4 j (by omega) ha he
+
+/-- `Slots::next`: the minimum of the map, ties to the lowest slot. The
+loop keeps the best slot's instant beside its index (2026-11-20). -/
 theorem next_spec (s : logic.time.Slots NS) :
     logic.time.Slots.next s ⦃ r => NextOk s NS.val r ⦄ := by
   unfold logic.time.Slots.next logic.time.Slots.next_loop
-  apply loop.spec_decr_nat (fun (x : Option Usize × Usize) => NS.val - x.2.val)
-    (fun x => x.2.val ≤ NS.val ∧ NextOk s x.2.val x.1)
+  apply loop.spec_decr_nat (fun (x : Option Usize × Bool × U64 × Usize) => NS.val - x.2.2.2.val)
+    (fun x => x.2.2.2.val ≤ NS.val ∧ NextOk s x.2.2.2.val x.1 ∧ (x.2.1 = true ↔ x.1.isSome = true) ∧
+      ∀ b, x.1 = some b → x.2.2.1 = (s.slots.val[b.val]!).«at»)
   · intro x hx
-    obtain ⟨best, i⟩ := x
-    obtain ⟨h1, h2⟩ := hx
-    try dsimp only at h1 h2 ⊢
+    obtain ⟨best, hv, bat, i⟩ := x
+    obtain ⟨h1, h2, h3, h4⟩ := hx
+    try dsimp only at h1 h2 h3 h4 ⊢
     unfold logic.time.Slots.next_loop.body
     try dsimp only
     split
@@ -102,89 +168,67 @@ theorem next_spec (s : logic.time.Slots NS) :
       have hsl' : s.slots.val[i.val]! = sl := by rw [hsl]; exact getElem!_pos s.slots.val i.val hlen
       split
       · rename_i harm
-        cases best with
-        | none =>
+        have harm' : (s.slots.val[i.val]!).armed = true := by rw [hsl']; exact harm
+        split
+        · rename_i hhave
+          obtain ⟨b, hb⟩ : ∃ b, best = some b := by
+            have := h3.mp hhave
+            cases best with
+            | none => simp at this
+            | some b => exact ⟨b, rfl⟩
+          subst hb
+          have hbat := h4 b rfl
+          split
+          · rename_i hless
+            have hless' : (s.slots.val[i.val]!).«at».val < (s.slots.val[b.val]!).«at».val := by
+              rw [hsl', ← hbat]; scalar_tac
+            simp only [bind_ok]
+            step as ⟨ i1, hi1 ⟩
+            have e1 : i1.val = i.val + 1 := by scalar_tac
+            refine ⟨by scalar_tac, ?_, ?_, ?_, by scalar_tac⟩
+            · rw [e1]; exact nextok_less h2 harm' hless'
+            · simp
+            · intro b' hb'
+              have : b' = i := (Option.some.inj hb').symm
+              rw [this, hsl']
+          · rename_i hnl
+            have hnl' : (s.slots.val[b.val]!).«at».val ≤ (s.slots.val[i.val]!).«at».val := by
+              rw [hsl', ← hbat]; scalar_tac
+            simp only [bind_ok]
+            step as ⟨ i1, hi1 ⟩
+            have e1 : i1.val = i.val + 1 := by scalar_tac
+            refine ⟨by scalar_tac, ?_, h3, h4, by scalar_tac⟩
+            rw [e1]; exact nextok_keep h2 hnl'
+        · rename_i hnh
+          have hnone : best = none := by
+            cases best with
+            | none => rfl
+            | some b => exact absurd (h3.mpr rfl) hnh
+          subst hnone
           simp only [bind_ok]
           step as ⟨ i1, hi1 ⟩
           have e1 : i1.val = i.val + 1 := by scalar_tac
-          refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-          simp only [NextOk] at h2 ⊢
-          refine ⟨by omega, by rw [hsl']; exact harm, fun j hj ha => ?_, fun j hj ha he => ?_⟩
-          · by_cases hji : j = i.val
-            · subst hji; exact Nat.le_refl _
-            · have := h2 j (by omega); rw [this] at ha; cases ha
-          · by_cases hji : j = i.val
-            · omega
-            · have := h2 j (by omega); rw [this] at ha; cases ha
-        | some b =>
-          obtain ⟨hb1, hb2, hb3, hb4⟩ := h2
-          have hblen : b.val < s.slots.val.length := by have := s.slots.property; scalar_tac
-          try dsimp only
-          step as ⟨ s1, hs1 ⟩
-          have hs1' : s.slots.val[b.val]! = s1 := by
-            rw [hs1]; exact getElem!_pos s.slots.val b.val hblen
-          split
-          · rename_i hless
-            have hless' : sl.«at».val < s1.«at».val := by scalar_tac
-            simp only [bind_ok]
-            step as ⟨ i1, hi1 ⟩
-            have e1 : i1.val = i.val + 1 := by scalar_tac
-            refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-            simp only [NextOk]
-            refine ⟨by omega, by rw [hsl']; exact harm, fun j hj ha => ?_, fun j hj ha he => ?_⟩
-            · by_cases hji : j = i.val
-              · subst hji; exact Nat.le_refl _
-              · have := hb3 j (by omega) ha
-                rw [hsl']; rw [hs1'] at this; omega
-            · by_cases hji : j = i.val
-              · omega
-              · have := hb3 j (by omega) ha
-                rw [hsl'] at he; rw [hs1'] at this; omega
-          · rename_i hnl
-            have hnl' : s1.«at».val ≤ sl.«at».val := by scalar_tac
-            simp only [bind_ok]
-            step as ⟨ i1, hi1 ⟩
-            have e1 : i1.val = i.val + 1 := by scalar_tac
-            refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-            simp only [NextOk]
-            refine ⟨by omega, hb2, fun j hj ha => ?_, fun j hj ha he => ?_⟩
-            · by_cases hji : j = i.val
-              · subst hji; rw [hsl', hs1']; exact hnl'
-              · exact hb3 j (by omega) ha
-            · by_cases hji : j = i.val
-              · omega
-              · exact hb4 j (by omega) ha he
+          refine ⟨by scalar_tac, ?_, ?_, ?_, by scalar_tac⟩
+          · rw [e1]; exact nextok_first h2 harm'
+          · simp
+          · intro b' hb'
+            have : b' = i := (Option.some.inj hb').symm
+            rw [this, hsl']
       · rename_i harm
+        have hna : (s.slots.val[i.val]!).armed = false := by
+          rw [hsl']; simpa using harm
         simp only [bind_ok]
         step as ⟨ i1, hi1 ⟩
         have e1 : i1.val = i.val + 1 := by scalar_tac
-        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
-        have hna : (s.slots.val[i.val]!).armed = false := by
-          rw [hsl']; simpa using harm
-        cases best with
-        | none =>
-          simp only [NextOk] at h2 ⊢
-          intro j hj
-          by_cases hji : j = i.val
-          · subst hji; exact hna
-          · exact h2 j (by omega)
-        | some b =>
-          obtain ⟨hb1, hb2, hb3, hb4⟩ := h2
-          simp only [NextOk]
-          refine ⟨by omega, hb2, fun j hj ha => ?_, fun j hj ha he => ?_⟩
-          · by_cases hji : j = i.val
-            · subst hji; rw [hna] at ha; cases ha
-            · exact hb3 j (by omega) ha
-          · by_cases hji : j = i.val
-            · subst hji; rw [hna] at ha; cases ha
-            · exact hb4 j (by omega) ha he
+        refine ⟨by scalar_tac, ?_, h3, h4, by scalar_tac⟩
+        rw [e1]; exact nextok_skip h2 hna
     · rename_i hge
       have heq : i.val = NS.val := by scalar_tac
       refine (WP.spec_ok _).mpr ?_
       show NextOk s NS.val best
       rw [← heq]
       exact h2
-  · exact ⟨by scalar_tac, by simp [NextOk]⟩
+  · exact ⟨by scalar_tac, by simp [NextOk], by simp, fun b hb => by cases hb⟩
 
 /-! ## An Endpoint buffer as a FIFO of its capacity -/
 

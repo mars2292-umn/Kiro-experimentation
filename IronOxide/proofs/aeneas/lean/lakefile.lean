@@ -68,12 +68,13 @@ compiled (Verification_Plan, 2026-11-18). -/
   globs := #[.submodules `Tools]
 }
 
-/-- `Tab/Tables.lean`: the Aeneas translation of the table accessors of the
-P1 demo's system crate (`impl System for Sys` in `apps/p1-demo/system`, the
-QEMU configuration: `dma`, `signal`, `endpoint`, `endpoint_storage`,
-`binding`, `dispatch_vector`, `intake_vector`, `stack_top`, `stack_bottom`
-and the constants they read), generated and committed; `Tab/Proofs.lean`:
-for which arguments each returns. -/
+/-- `Tab/<Configuration>/Tables.lean`: the Aeneas translation of the table
+accessors of one configuration's system crate (`impl SystemTables for Sys`:
+`dma`, `signal`, `endpoint`, `endpoint_storage`, `binding`,
+`dispatch_vector`, `intake_vector`, `stack_top`, `stack_bottom` and the
+constants they read), generated and committed, for the P1 demo's thirteen
+configurations and the HIL stimulus application;
+`Tab/<Configuration>/Proofs.lean`: each returns for every argument. -/
 @[default_target] lean_lib «Tab» {
   globs := #[.submodules `Tab]
 }

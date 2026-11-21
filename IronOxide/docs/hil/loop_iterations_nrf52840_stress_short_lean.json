@@ -1,0 +1,103 @@
+{
+  "schema": "rsk-loop-iterations/1",
+  "configuration": "nrf52840_stress_short_lean",
+  "binary_hash": "sha256:747f11bb4f0b33a87c7352d3593d0e3462e4a7511bb20d73caedd7a996fe6206",
+  "loops": [
+    {
+      "key": "loop:part0:spin_ms:spin",
+      "file": "apps/p1-demo/part0/src/lib.rs",
+      "line": 38,
+      "function": "spin_ms",
+      "label": "spin",
+      "bound": "100_000_000",
+      "bound_value": 100000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part0:sensor:hold",
+      "file": "apps/p1-demo/part0/src/lib.rs",
+      "line": 390,
+      "function": "sensor",
+      "label": "hold",
+      "bound": "10_000_000",
+      "bound_value": 10000000,
+      "observed": 494,
+      "verdict": "unreachable",
+      "justification": "the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
+    },
+    {
+      "key": "loop:part0:sensor:late",
+      "file": "apps/p1-demo/part0/src/lib.rs",
+      "line": 428,
+      "function": "sensor",
+      "label": "late",
+      "bound": "50_000_000",
+      "bound_value": 50000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part1:spin_ms:spin",
+      "file": "apps/p1-demo/part1/src/lib.rs",
+      "line": 33,
+      "function": "spin_ms",
+      "label": "spin",
+      "bound": "100_000_000",
+      "bound_value": 100000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part1:log:drain",
+      "file": "apps/p1-demo/part1/src/lib.rs",
+      "line": 216,
+      "function": "log",
+      "label": "drain",
+      "bound": "4",
+      "bound_value": 4,
+      "observed": null,
+      "verdict": "not observed",
+      "justification": null
+    },
+    {
+      "key": "loop:part1:log:busy",
+      "file": "apps/p1-demo/part1/src/lib.rs",
+      "line": 424,
+      "function": "log",
+      "label": "busy",
+      "bound": "10_000_000",
+      "bound_value": 10000000,
+      "observed": 300,
+      "verdict": "unreachable",
+      "justification": "3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop"
+    },
+    {
+      "key": "loop:part2:spin_ms:spin",
+      "file": "apps/p1-demo/part2/src/lib.rs",
+      "line": 38,
+      "function": "spin_ms",
+      "label": "spin",
+      "bound": "100_000_000",
+      "bound_value": 100000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    },
+    {
+      "key": "loop:part2:filter:hold",
+      "file": "apps/p1-demo/part2/src/lib.rs",
+      "line": 534,
+      "function": "filter",
+      "label": "hold",
+      "bound": "10_000_000",
+      "bound_value": 10000000,
+      "observed": 0,
+      "verdict": "not run",
+      "justification": null
+    }
+  ]
+}
