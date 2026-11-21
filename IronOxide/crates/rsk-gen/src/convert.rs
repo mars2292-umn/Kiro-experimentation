@@ -28,38 +28,16 @@ fn scale(value: u64, num: u128, den: u128, rounding: Rounding) -> Option<(u64, b
     if den == 0 {
         return None;
     }
-    // Down and up are verified (`derive_v::scale`: the result is within
-    // one unit of the exact value, on the side asked for; R29.8, Property
-    // 14). Rounding to nearest (a Task's offset) is not verified.
+    // All three are verified: down and up by `derive_v::scale` (the result
+    // is within one unit of the exact value, on the side asked for; R29.8,
+    // Property 14), and to the nearest, a half upward, by
+    // `derive_v::scale_nearest` (R21.2: a Task's offset; 2026-11-21, until
+    // then computed here outside `verus!`).
     match rounding {
-        Rounding::Down => return crate::derive_v::scale(value, num, den, false),
-        Rounding::Up => return crate::derive_v::scale(value, num, den, true),
-        Rounding::Nearest => {}
+        Rounding::Down => crate::derive_v::scale(value, num, den, false),
+        Rounding::Up => crate::derive_v::scale(value, num, den, true),
+        Rounding::Nearest => crate::derive_v::scale_nearest(value, num, den),
     }
-    let v = (value as u128).checked_mul(num)?;
-    let q = v / den;
-    let r = v % den;
-    let result = match rounding {
-        Rounding::Down => q,
-        Rounding::Up => {
-            if r == 0 {
-                q
-            } else {
-                q + 1
-            }
-        }
-        Rounding::Nearest => {
-            if r * 2 >= den {
-                q + 1
-            } else {
-                q
-            }
-        }
-    };
-    if result > u64::MAX as u128 {
-        return None;
-    }
-    Some((result as u64, r != 0))
 }
 
 /// Converts `t` to time-base ticks at `tick_hz`. Cycles are converted

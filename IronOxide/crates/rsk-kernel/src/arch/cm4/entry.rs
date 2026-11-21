@@ -411,6 +411,10 @@ pub uninterp spec fn spec_storage_base_of<T: ?Sized>(t: &T) -> int;
 /// The Endpoint storage's length in bytes, and the number of Endpoints.
 pub uninterp spec fn spec_storage_len_of<T: ?Sized>(t: &T) -> int;
 pub uninterp spec fn spec_endpoint_count_of<T: ?Sized>(t: &T) -> int;
+/// The Release_Signal table as a specification (as `spec_endpoint_of`;
+/// 2026-11-21, for `raise_core`'s acceptance rule).
+pub uninterp spec fn spec_signal_of<T: ?Sized>(t: &T, i: int) -> SignalCfg;
+pub uninterp spec fn spec_signal_count_of<T: ?Sized>(t: &T) -> int;
 /// The stack region `[bottom, top)` of Partition `p` of a `Tables`, as a specification.
 pub uninterp spec fn spec_stack_bottom_of<T: ?Sized>(t: &T, p: int) -> int;
 pub uninterp spec fn spec_stack_top_of<T: ?Sized>(t: &T, p: int) -> int;
@@ -485,8 +489,10 @@ pub trait Tables {
     fn endpoint_storage(&self) -> (r: (u32, u32))
         ensures r.0 as int == spec_storage_base_of(self), r.1 as int == spec_storage_len_of(self);
     /// The Release_Signals (R10.5).
-    fn signal_count(&self) -> usize;
-    fn signal(&self, i: usize) -> SignalCfg;
+    fn signal_count(&self) -> (n: usize)
+        ensures n as int == spec_signal_count_of(self);
+    fn signal(&self, i: usize) -> (c: SignalCfg)
+        ensures c == spec_signal_of(self, i as int);
 }
 
 // ------------------------------------------------ the Cortex-M4F hardware
@@ -1102,6 +1108,12 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
         // base: nothing that can cause a Release is live when it returns.
         !ok ==> final(hw).hw().enabled == old(hw).hw().enabled && final(hw).hw().pending == old(hw).hw().pending
             && final(hw).hw().compare == old(hw).hw().compare && final(hw).hw().timebase_running == old(hw).hw().timebase_running,
+        // R12.2 (2026-11-21): a boot that fails leaves the Kernel in its
+        // safe state (the failed checks' identifiers went to the log with
+        // it, `boot_check_failed`), or, when the tables themselves were
+        // refused, has not touched the Kernel's state at all: the shell
+        // then enters the safe state the tables name without it.
+        !ok ==> final(k).spec_safe() || *final(k) == *old(k),
 {
     hw.apply(Action::Trace(TR_BOOT, 0));
     if !k.validate() {
@@ -1472,6 +1484,13 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
         final(hw).hw().primask == old(hw).hw().primask,
+        // R10.5, R10.7 (2026-11-21): a raise is taken as an event exactly
+        // when a Job executes, the signal is one of the table, it is
+        // declared by the executing Job's Partition, and it is bound to a
+        // Task of the configuration (`raise_accepts`). The event is then
+        // `KernelOps::intake` for that one Task, charged to that Partition:
+        // the call below, which this contract does not state.
+        ok == raise_accepts(old(k), tables, i as int),
 {
     let accepted = if i < tables.signal_count() {
         let sg = tables.signal(i);
@@ -1485,6 +1504,11 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     } else {
         false
     };
+    proof {
+        // The depth is not negative (a fact of the Kernel's invariant).
+        k.lemma_stack_rising();
+        assert(accepted == raise_accepts(k, tables, i as int));
+    }
     if accepted {
         let sg = tables.signal(i);
         let now = hw.now();
@@ -3816,6 +3840,12 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
                 == old(state).levels[old(state).chain_levels@.last()].previous_task as int
             && final(state).pending_unwind == 0
             && arch_matches(final(k), *final(state)),
+        // R11.7, R11.1 (2026-11-21): the Job the unwind resumes can execute
+        // floating-point instructions exactly when its Task is declared
+        // FPU-using, as a dispatched Job can (`dispatch_job_core`): the
+        // access is restored with the view, from the same table.
+        r.0.3 == 0 && !r.1 && final(k).spec_depth() > 0
+            ==> final(hw).hw().fpu_access == final(k).spec_fpu()[crate::arch::bound::top_task(final(k))],
         // The unwound level's record is no longer active; no other record changes.
         forall|l: int| 0 <= l < 8 ==> #[trigger] final(state).levels[l].task == old(state).levels[l].task
             && final(state).levels[l].previous_task == old(state).levels[l].previous_task
@@ -4019,6 +4049,36 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     }
     svc_of_ended_job_core(k, hw, depth_before);
     (hop, safe)
+}
+
+/// The acceptance rule of a Release_Signal raise (R10.5, R10.7, PR-06):
+/// a Job executes, the signal is one of the table, it is declared by the
+/// executing Job's Partition, and it is bound to a Task of the
+/// configuration. (Kept at the end of the file: declared beside
+/// `raise_core`, it changed the solver's search enough to lose
+/// `lemma_reinit_round`, a proof that has nothing to do with it.)
+pub open spec fn raise_accepts<K: KernelOps, T: Tables>(k: &K, tables: &T, i: int) -> bool {
+    &&& 0 <= i < spec_signal_count_of(tables)
+    &&& k.spec_depth() > 0
+    &&& k.spec_part()[crate::arch::bound::top_task(k)] == spec_signal_of(tables, i).partition as int
+    &&& (spec_signal_of(tables, i).task as int) < k.task_count_spec()
+}
+
+/// The premise of `ArchState::extend` (R9.5; 2026-11-21) as the Target
+/// enforces it: the watchdog is started at boot (`boot_core`) and fed only
+/// at the end of a time-base entry (`timer_core`), which is also where the
+/// counter is read; its timeout is `WATCHDOG_HOUSEKEEPING_PERIODS`
+/// housekeeping periods of the time base (`watchdog_reload`). So in a
+/// system that keeps running, two consecutive readings of the counter in
+/// time-base entries are less than that timeout apart, or the Target has
+/// been reset. The timeout is below a five-hundredth of the counter's
+/// period, so such readings are always less than one period apart. What
+/// stays assumed: that the watchdog fires as loaded (nRF52840 WDT; the
+/// rig's boot-check suite runs a case that is never fed and resets).
+pub proof fn lemma_watchdog_timeout_within_a_counter_period()
+    ensures
+        (HOUSEKEEPING_PERIOD as int) * (WATCHDOG_HOUSEKEEPING_PERIODS as int) * 500 < super::plan::counter_period(),
+{
 }
 
 } // verus!

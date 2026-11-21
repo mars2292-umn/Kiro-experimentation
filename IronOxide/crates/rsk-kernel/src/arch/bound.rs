@@ -387,7 +387,11 @@ pub trait KernelOps: Sized {
         requires self.inv(),
         ensures p as int == self.top_level();
     /// The Task at stack position `i`.
-    fn stack_at(&self, i: usize) -> u8;
+    /// 2026-11-21: with its contract (it had none, and the Task whose
+    /// floating-point access `epilogue_core` restores was read through it).
+    fn stack_at(&self, i: usize) -> (t: u8)
+        requires self.inv(),
+        ensures (i as int) < self.spec_depth() ==> t as int == self.spec_stack(i as int);
     fn is_killed(&self, t: u8) -> bool;
     /// R7.1: whether Task `t` may start now; the dispatch stub rejects a
     /// stale pending bit with it (A4).
@@ -520,7 +524,10 @@ pub trait KernelOps: Sized {
     /// R12.2: records the failed boot checks (bit set) before the safe state.
     fn boot_failed(&mut self, failed: u32)
         requires old(self).inv(),
-        ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
+        ensures final(self).inv(),
+            // R12.2 (2026-11-21): the Kernel is in its safe state.
+            final(self).spec_safe(),
+            final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
             && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
     /// Logs the debug state and a watchdog reset at boot (ORQ-30, ORQ-31).
     fn boot_info(&mut self, debugger: bool, watchdog_reset: bool)
@@ -792,7 +799,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         }
     }
 
-    fn stack_at(&self, i: usize) -> u8 {
+    fn stack_at(&self, i: usize) -> (t: u8) {
+        proof {
+            self.lemma_stack_rising();
+        }
         if i < NT { self.kernel.sched.stack[i] } else { 0 }
     }
 

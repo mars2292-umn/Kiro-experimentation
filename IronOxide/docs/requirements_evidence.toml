@@ -33,9 +33,9 @@ requirement = 10
 sentence = "When an event arrives for a sporadic Task, the Kernel releases the Task only if no Release is waiting and at least one minimum inter-arrival time (MIT) has passed since the last one; otherwise it holds the event to the end of the MIT or drops it, records a violation, and applies the Partition's fault response once the violations pass a declared threshold."
 implemented = "The Kernel's intake function decides accept, defer or discard from the Task's last accepted instant and its MIT, counts the violation against the source's Partition, and masks the source for one MIT after every outcome (crates/rsk-logic/src/logic/kernel.rs, `Kernel::intake`; the timing record in logic/time.rs). The interrupt handler that calls it, and which Partition it names as the source, are in crates/rsk-kernel/src/arch/cm4/entry.rs and the generated tables."
 strength = "weaker"
-strength_note = "The statements cover R10.1 to R10.4 on the Kernel's state machine, with one difference in each direction. Weaker: time is the reading the Kernel takes when its handler runs, so a Release becomes due at that reading and not at 'the instant of the event' as R10.1 says; the two differ by the handler's latency, which is measured on the board and not proven. The Partition a violation is charged to is an argument of the function, so R10.7's choice of Partition is decided by the caller and the generated tables, not by these statements. Nothing cited here states R10.5 (Release_Signals), R10.6 (effective within J_rel) or R10.8 (messages kept in the Endpoint buffer). Narrower by decision: an event whose Job could not finish within the operating duration is not released; the requirement's note of 2026-11-13 says so."
-closed = "2026-11-05: a discarded event left its interrupt source unmasked, so a source could fire again inside the MIT; every outcome now masks the source, and the count of intakes in any window is proven (`lemma_intake_count_bound`)."
-gaps = "The handler's latency from the event to the reading (J_rel, Δ_stamp) is measured, not bounded statically. Attribution of a violation to the right Partition rests on the generated tables and inspection of the entry code. The hardware half of masking an interrupt source is by inspection (ASM-10). R10.5 and R10.8 have tests and no proof cited here. Since 2026-11-17 the Lean run derives the MIT spacing from the extracted intake code (`property18_sporadic`): what stays a condition there is that the instant the Kernel records for an accepted event is the run's instant of the arrival, which is the Kernel's reading when its handler runs and not the instant of the event itself."
+strength_note = "The statements cover R10.1 to R10.4 on the Kernel's state machine, with one difference in each direction. Weaker: time is the reading the Kernel takes when its handler runs, so a Release becomes due at that reading and not at 'the instant of the event' as R10.1 says; the two differ by the handler's latency, which is measured on the board and not proven. The Partition a violation is charged to is an argument of the function, so R10.7's choice of Partition is decided by the caller and the generated tables, not by these statements. R10.5: since 2026-11-21 the raise of a Release_Signal has its acceptance rule as a postcondition: it is taken as an event exactly when a Job executes, the signal is one of the table, the executing Job's Partition declares it, and it is bound to a Task; that the event then is the intake of that one Task, charged to that Partition, is the two lines after the test, read and not stated. R10.8 is the Endpoint send's contract (see R40: an accepted message stays in the channel whatever becomes of the Release it causes). Nothing cited here states R10.6 (effective within J_rel), which is measured. Narrower by decision: an event whose Job could not finish within the operating duration is not released; the requirement's note of 2026-11-13 says so."
+closed = "2026-11-05: a discarded event left its interrupt source unmasked, so a source could fire again inside the MIT; every outcome now masks the source, and the count of intakes in any window is proven (`lemma_intake_count_bound`). 2026-11-21: the signal raise had no contract beyond keeping the invariant; its acceptance rule is now a postcondition (one mutant killed: a signal of another Partition accepted)."
+gaps = "The handler's latency from the event to the reading (J_rel, Δ_stamp) is measured, not bounded statically. Attribution of a violation to the right Partition rests on the generated tables and inspection of the entry code. The hardware half of masking an interrupt source is by inspection (ASM-10). R10.5's acceptance rule is proven and its effect read (`raise_core`); R10.8 is cited under R40. Since 2026-11-17 the Lean run derives the MIT spacing from the extracted intake code (`property18_sporadic`): what stays a condition there is that the instant the Kernel records for an accepted event is the run's instant of the arrival, which is the Kernel's reading when its handler runs and not the instant of the event itself."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -120,6 +120,23 @@ tool = "lean"
 says = "Every state reached by the run with sporadic arrivals is a state of the run Property 18 is proven over, and two invariants hold in it. In that run a sporadic Task's Job arrives either with the transition that makes its Release pending from none held, at the instant the Kernel records as that Release's due instant, or, when the Kernel deferred the event, at the instant it deferred it to; no spacing between arrivals is assumed. So the spacing of one MIT that the other run takes as a condition is a consequence of the extracted intake and deferred-release code. A transition modelled by hand must leave the sporadic timing fields, as a condition."
 reviewed = "d5d734bea6be08e2"
 
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "raise_core"
+tool = "verus"
+says = "The function keeps the Kernel's invariant and the Jobs in progress, leaves the priority mask, the interrupt mask and the loaded view as they were, and returns true exactly when `raise_accepts` holds of the state before it."
+reviewed = "b115180ab43c02a8"
+
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "raise_accepts"
+tool = "verus"
+body = true
+says = "A raise is accepted when the signal's index is inside the table, a Job is executing, the Partition of the executing Job is the Partition that declares the signal, and the Task the signal is bound to is a Task of the configuration."
+reviewed = "1bbbc5910408d6d3"
+
+
 # ---------------------------------------------------------------- R14
 
 [[row]]
@@ -127,9 +144,9 @@ requirement = 14
 sentence = "Every fault, panic and violation goes to the Health_Monitor, which applies the response the Partition declared (end the Job, restart or stop the Partition) or, for a fault of the Kernel itself, puts the system in its safe state; other Partitions are left as they were."
 implemented = "`Kernel::fault` picks the response from the executing Job's Partition and `Kernel::apply_response` carries it out: ending the Job on top, or ending every Job and Release of the Partition and marking it for re-initialization or as stopped (crates/rsk-logic/src/logic/kernel.rs). The fault handlers that decide whether a fault was the Kernel's or a Job's are the assembly stubs and their Rust halves in crates/rsk-kernel/src/arch/cm4/."
 strength = "weaker"
-strength_note = "The statements say what each response does to the Kernel's state and that other Partitions' Tasks, stack entries, held Resources and flags are unchanged, which is R14.4, the state part of R14.5 and R14.9. They say less than the requirement in four places. Whether a fault is the Kernel's is an input (`kernel`), so R14.3's attribution of each hardware fault class is outside them. R14.9's exception for Endpoints (the peer sees the state change) is not in `others_unchanged`. No statement bounds the time a response takes (R14.8, R14.10): those are measured. The statements describe the model's state, not the registers; re-initializing memory and stopping DMA are flags here that the entry code acts on. One thing is stricter than a reader might expect: 'end the Job' on a Job that holds a Resource is carried out as a restart of the Partition."
+strength_note = "The statements say what each response does to the Kernel's state and that other Partitions' Tasks, stack entries, held Resources and flags are unchanged, which is R14.4, the state part of R14.5 and R14.9. They say less than the requirement in four places. Whether a fault is the Kernel's is an input (`kernel`), so R14.3's attribution of each hardware fault class is outside them. R14.9's exception for Endpoints is not in `others_unchanged`, which is about the Kernel's logic; it is a postcondition of the entry code's `endpoint_reinit`, cited since 2026-11-21: for every Endpoint with a role of the stopped or restarted Partition the channels are emptied, the delivery latches cleared and the roles of other Partitions marked to be told, and no channel of any other Endpoint changes. That this function runs for each such Partition is the body of `apply_core`, read, not stated in its contract. No statement bounds the time a response takes (R14.8, R14.10): those are measured. The statements describe the model's state, not the registers; re-initializing memory and stopping DMA are flags here that the entry code acts on. One thing is stricter than a reader might expect: 'end the Job' on a Job that holds a Resource is carried out as a restart of the Partition."
 closed = "2026-11-02: the response suite on the board found four defects (a restart that did not re-initialize, a stale supervisor call served after its Job ended, an Overrun reported more than once, a deadline event served after other events); each was fixed and is covered by the suite."
-gaps = "Fault attribution (R14.3) is by inspection of the stubs, since 2026-11-13 backed by a machine model of the stubs' instruction sequence, and by the rig's injected faults. Response times are measured figures with a margin, not static bounds. R14.1 (abort, one panic handler) is the Link_Checker's check and R14.6 to R14.7 (the event log) have a proof that is not cited in this row. A Partition's stop or restart seen from an Endpoint peer is an assumption with test evidence (A-P6)."
+gaps = "Fault attribution (R14.3) is by inspection of the stubs, since 2026-11-13 backed by a machine model of the stubs' instruction sequence, and by the rig's injected faults. Response times are measured figures with a margin, not static bounds. R14.1 (abort, one panic handler) is the Link_Checker's check. R14.6 to R14.7: the log's own behaviour is proven and cited since 2026-11-21 (`Log::push`); that every fault and violation reaches it with the right fields is stated where a contract names the logged event (the full-buffer report, R40.5) and otherwise shown by the rig's response suite. A Partition's stop or restart as it reaches the Endpoints is proven of the re-initialization function (A-P6's Kernel half, a contract since 2026-11-13, cited here since 2026-11-21); that the peer's next operation reports it is the role operation's check of the flag, with the rig's response suite."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -171,6 +188,30 @@ kind = "inspected"
 ref = "UJ-026"
 note = "the fault entry stub that tells a Kernel fault from a Job's"
 
+[[row.statement]]
+file = "crates/rsk-logic/src/logic/log.rs"
+name = "push"
+tool = "verus"
+says = "Recording an event on a well-formed log leaves it well formed. With room, the logged sequence (oldest first) gains the event at its end and the overflow counter is unchanged; when full, the oldest event is dropped, the new one appended, and the overflow counter goes up by one unless it is already at its maximum. The count of events ever recorded goes up by one, saturating. This is R14.6 and R14.7 for the log itself."
+reviewed = "d47ec6af6aa2271c"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "endpoint_reinit"
+tool = "verus"
+says = "For every Endpoint of the table, `reinit_done` holds between the state before and after; the level records and the charge point are untouched."
+reviewed = "aa946795c89db714"
+
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "reinit_done"
+tool = "verus"
+body = true
+says = "For one Endpoint and one Partition: if the Partition holds a role of the Endpoint, every channel of the Endpoint is empty with its delivery latch clear and every role held by another Partition has its peer-state flag set; otherwise the Endpoint's channels and latches are as they were."
+reviewed = "873158935c56bd2d"
+
+
 # ---------------------------------------------------------------- R16
 
 [[row]]
@@ -180,7 +221,7 @@ implemented = "Each Partition runs unprivileged under a memory-protection (MPU) 
 strength = "weaker"
 strength_note = "For R16.6, which asks for exactly this proof, yes: for every well-formed layout and the view computed for a Partition, the model of the MPU grants unprivileged access only to the Partition's own regions, and nothing of the Kernel or of another Partition. For R16.1 to R16.5 as statements about the board, weaker: the proof is about a model of the MPU's decision, and that the processor decides as the model does is outside these statements. That the right view is loaded whenever a Partition runs is proven of the entry code against the hardware model: while a Job is dispatched and not yet unwound, the loaded view is the view of the Partition of the Kernel's executing Job (`lemma_executing_partition`, an invariant every entry core keeps); that the register writes realise the model's view is the drivers' and the board's. On the stack (R16.5): a write outside the Partition's own RAM and windows is refused, which covers an overflow off the bottom of the stack, but not one that jumps far enough to land in the Partition's own peripheral window; the Link_Checker's stack bounds are what excludes that."
 closed = "2026-11-05: the Kernel's own peripherals and the processor's private peripheral bus were not intervals of the layout, so the proof did not cover them; they are now (`lemma_view_no_kernel_window`). 2026-11-13 (audit findings 8 and 9): a stack pointer that a Job moved outside its stack region is now checked by the Kernel at entry."
-gaps = "That the hardware behaves as the model says is by citation of the architecture manual and differential tests on the board (ASM-02, the HW rules). The register encoding of a region is checked at field level only (Kani). The Kernel's own stack check at entry is not cited in this row. R16.10 (no forbidden instruction in privileged-level Partition code) is the Link_Checker's."
+gaps = "That the hardware behaves as the model says is by citation of the architecture manual and differential tests on the board (ASM-02, the HW rules). The register encoding of a region is checked at field level only (Kani). The Kernel's own stack check at entry is cited since 2026-11-21 (`svc_check_core`; the same test guards the fault record, `fault_frame_readable`). R16.10 (no forbidden instruction in privileged-level Partition code) is the Link_Checker's."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/hw_model.rs"
@@ -319,6 +360,14 @@ name = "lemma_executing_partition"
 tool = "verus"
 says = "Given the Kernel's invariant, the entry code's invariant with no unwind owed, and the view property above: with no Job in progress no Partition is recorded as executing; with a Job in progress the recorded Partition is the Partition of the Task on top of the Kernel's Job stack, and the loaded view is that Partition's."
 reviewed = "084b35881870bb2d"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "svc_check_core"
+tool = "verus"
+says = "At a supervisor call the Kernel either changes nothing and serves the call, in which case, if the call came from a Job, the frame on the process stack lies inside the stack region of the executing Job's Partition; or it treats the stack pointer as a stack violation: the Partition's fault response is applied, the loaded view is unchanged and the pending stacking fault is discarded. So the Kernel reads a Job's frame only inside that Job's Partition's stack region."
+reviewed = "8e06c7370b715fff"
+
 
 # ---------------------------------------------------------------- R17
 
@@ -534,7 +583,7 @@ implemented = "The recurrence's terms are derived from the Task_Model and the me
 strength = "weaker"
 strength_note = "The computation is proven to be what it claims: the iteration returns the least fixed point of the terms it is given, or says 'not schedulable' with a value no fixed point is below. The term list is proven equal to a specification of the list, and that specification is the project's own formalization of R29.1's formula, so their agreement is by reading, with one test per term. Soundness (Property 18) is proven for a run with its own notion of time, every transition of which that changes the Kernel's state takes the extracted function's result since 2026-11-17, under listed conditions, one of which (one Budget event per Job) is a condition and not a consequence of the code. And the inputs are measurements: R29.1 takes C_i as the Budget, which R28.4 keeps above a measured maximum with a margin, not above a static bound."
 closed = "2026-11-14 and 15: the Lean work found two terms the analysis lacked (timer entries of lower-Priority Tasks, and housekeeping) and one case the blocking term did not cover (a Budget event ahead of a pending dispatch); the terms were added and the Kernel changed. 2026-11-15: the utilization check of R29.9 was proven over the rationals."
-gaps = "Not cited in this row, though proven: the derivation of each term from the model (`derive_all`), the rounding of R29.8, the overflow report of R29.6 and the utilization check of R29.9. Open: the reading's distance from real time in the run (periodic arrivals are joined to the Kernel's nominal instants since 2026-11-16, `property18_timed`; sporadic arrivals to the instants the Kernel records for their Releases since 2026-11-17, `property18_sporadic`, with no spacing assumed for either), the model's choices that are not derived (a Kernel section per served slot, each transition's model-side conditions; no transition is hand-written since 2026-11-17), static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
+gaps = "Cited since 2026-11-21: the derivation of each term (`derive_all`), the rounding of R29.8 and the overflow report of R29.6 for the time conversions (`ticks_to_cycles_down`), and the utilization check of R29.9 (`utilization_exceeds_one`). Open: the reading's distance from real time in the run (periodic arrivals are joined to the Kernel's nominal instants since 2026-11-16, `property18_timed`; sporadic arrivals to the instants the Kernel records for their Releases since 2026-11-17, `property18_sporadic`, with no spacing assumed for either), the model's choices that are not derived (a Kernel section per served slot, each transition's model-side conditions; no transition is hand-written since 2026-11-17), static worst-case execution times, and that the measured Kernel timing parameters are maxima and not bounds."
 
 [[row.statement]]
 file = "crates/rsk-analyzer/src/rta.rs"
@@ -572,6 +621,30 @@ kind = "assumed"
 ref = "ASM-11"
 note = "a measured maximum is not a worst case"
 
+[[row.statement]]
+file = "crates/rsk-analyzer/src/terms.rs"
+name = "derive_all"
+tool = "verus"
+says = "Given well-formed Critical_Section sites, the function either returns one set of terms per Task, each satisfying the specification of that Task's terms (`derived_ok`: blocking, own overhead and interference bound, R29.2 to R29.4), or returns nothing, and then some Task has a term that does not fit 64 bits (R29.6)."
+reviewed = "0791633a3855907a"
+
+
+[[row.statement]]
+file = "crates/rsk-analyzer/src/terms.rs"
+name = "ticks_to_cycles_down"
+tool = "verus"
+says = "A count of ticks is converted to processor cycles as the exact product with the clock ratio divided and rounded down (R29.8, for periods, MITs and deadlines), and the function returns nothing exactly when that value does not fit 64 bits (R29.6)."
+reviewed = "7344226f02872601"
+
+
+[[row.statement]]
+file = "crates/rsk-analyzer/src/terms.rs"
+name = "utilization_exceeds_one"
+tool = "verus"
+says = "The function returns true exactly when the sum of each Task's load, scaled up and rounded up per Task, exceeds the scale; and whenever the exact sum of E_j / T_j over the rationals exceeds one it returns true. So a Task set over full utilization is always failed (R29.9); the rounding can also fail a set just below full utilization."
+reviewed = "1759195d16d21f9e"
+
+
 # ---------------------------------------------------------------- R41
 
 [[row]]
@@ -581,7 +654,7 @@ implemented = "The Protocol_Checker explores each Protocol's reachable configura
 strength = "weaker"
 strength_note = "R41.3 asks for a proof about every Application that satisfies the Profile. What is proven is about a Protocol: if the checker accepts it, no reachable configuration of its roles and channels is a deadlock, and (two parties) no channel exceeds its capacity. That is proven of the specification in Verus and again of the checker as compiled in Lean. The step from 'the Protocol's model cannot deadlock' to 'the Application's Tasks cannot' goes through assumptions the plan lists (each role is played by one Task that follows its role type; a Task waiting on a message holds no Resource; gating across Endpoints is as declared), some enforced by the Generator or the Kernel and some by test. R41.3 also asks that those assumptions be listed, and they are."
 closed = "2026-11-08: the first certificate was per Endpoint; the argument across Endpoints was added under declared gating. 2026-11-09 and 2026-11-15: the multiparty theorem, then the same theorem on the compiled checker."
-gaps = "The assumptions that remain with reasons and not proofs (A-P1, the message half of A-P2, A-P4, the body half of A-P8, A-P9, A-P10), and A-P6 for a Partition's stop or restart, which is an assumption with test evidence. R41.2 is partly at compile time and partly a run-time report. R41.4 (end-to-end latency) is the Analyzer's, with tests and no proof cited here."
+gaps = "The assumptions that remain with reasons and not proofs (A-P1, the message half of A-P2, A-P4, the body half of A-P8, A-P9, A-P10), and A-P6 for a Partition's stop or restart, whose Kernel half is proven (`endpoint_reinit`, see R14) and whose Task half, the role value returning to its initial state when its Partition is re-initialized or told of its peer, is generated code under the Application prover and the rig's response suite. R41.2 is partly at compile time and partly a run-time report. R41.4 (end-to-end latency) is the Analyzer's, with tests and no proof cited here."
 
 [[row.statement]]
 file = "crates/rsk-protocol/src/progress.rs"
@@ -733,7 +806,7 @@ implemented = "The Kernel keeps one timer slot per timed event and a nominal ins
 strength = "weaker"
 strength_note = "R9.3 is proven as stated: the next nominal instant is the offset plus (k+1) periods, whatever else happened, or there is none within the operating duration. R9.1's 'released at the nominal instant' is proven in the sense that every periodic Task whose nominal instant is at or before the reading the timer entry is given has its Release served in that entry. Weaker: 'no later than J_rel after the instant' (R9.2) and 'within Δ_detect' (R9.6) are about real time between the instant and the entry, which is measured on the board, not proven. The reading: since 2026-11-21 the step that extends the hardware's 32-bit counter to the 64-bit instant is proven to return the true instant across the counter's wrap, provided two consecutive readings are less than one counter period (268 s) apart; that the counter counts ticks and that readings are that close (the housekeeping event is due every 125 ms) are the hardware's and the rig's."
 closed = "2026-11-02: one unanswered stimulus pulse in the first hour-long run (still open against the fault-injection task). 2026-11-05: the link from armed slots to the Releases the entry makes was a comment; it is now a postcondition of `timer_event`. 2026-11-16: on the code as extracted, a periodic Task's nominal instant is shown to move by exactly its period (Sched/Time.lean), and the run Property 18 is proven over takes periodic arrivals at those instants with their spacing derived (Sched/Arrive.lean). 2026-11-17 (R9.6): a Job of a sporadic Task that ended before its deadline was logged as a Deadline miss, and the Partition's deadline response applied, when a deferred Release of the Task was held at the Job's end (the Job-end code kept the deadline event whenever a Release was held, and a deferred one has not armed its own); the Job-end code now disarms it unless the held Release is pending, with the postcondition changed to say so and a test (crates/rsk-loom/tests/deadline_after_deferral.rs). 2026-11-21: the counter's extension to 64 bits (R9.5) was hand-written code with no statement, shown only by the hour-long runs; it is now `ArchState::extend` with a contract (two mutants killed). The same day the hour-long run's check of the wraps failed with nothing wrong in the Kernel: the trace it reads had frozen, at the deliberate overload's deadline miss, before the first wrap; that configuration now injects its late Jobs only after the first wrap."
-gaps = "J_rel and Δ_detect are measured over an hour with a margin. The hardware timer's compare rule has a near-counter exception found by test (HW-12, ASM-19). R9.10 is the rig's hour-long run, on one Application. The premise of the extension's contract (consecutive readings less than a counter period apart) is argued from the housekeeping period, not proven of the running system. After the trace freezes at the overload's first deadline miss, the rest of the hour is judged by the release-timing record and the target's own counts, not by the trace."
+gaps = "J_rel and Δ_detect are measured over an hour with a margin. The hardware timer's compare rule has a near-counter exception found by test (HW-12, ASM-19). R9.10 is the rig's hour-long run, on one Application. The premise of the extension's contract (consecutive readings less than a counter period apart) is enforced by the watchdog, not proven: it is started at boot and fed only at the end of a time-base entry, where the counter is read, and its timeout of four housekeeping periods (half a second) is proven below a five-hundredth of the counter's period (`lemma_watchdog_timeout_within_a_counter_period`); a system whose time-base entries stop for longer is reset. That the watchdog fires as loaded is the hardware's, exercised by the rig's unfed-watchdog boot case. After the trace freezes at the overload's first deadline miss, the rest of the hour is judged by the release-timing record and the target's own counts, not by the trace."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/time.rs"
@@ -795,6 +868,14 @@ body = true
 says = "The premise of the extension: the true instant is no earlier than the previous reading's instant, less than 2^32 ticks after it, below 2^64, and the reading is its remainder modulo 2^32."
 reviewed = "98818cf7d76576fc"
 
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "lemma_watchdog_timeout_within_a_counter_period"
+tool = "verus"
+says = "The watchdog's timeout, four housekeeping periods of the time base, taken five hundred times is still less than one period of the 32-bit counter. Nothing else: that the watchdog is fed only by the time-base entry and resets the Target when it is not are the entry code's and the hardware's."
+reviewed = "b6793ba76b9c466d"
+
+
 # ---------------------------------------------------------------- R11
 
 [[row]]
@@ -802,9 +883,9 @@ requirement = 11
 sentence = "A Job that uses floating point finds its floating-point registers exactly as it left them after any preemption, starts each Job with the declared control settings, and the cost and stack space of saving that state are accounted for."
 implemented = "The processor stacks half of the floating-point registers and the status register itself on every exception entry (the Kernel sets eager stacking at boot) and the dispatch stubs push and pop the other half in assembly (crates/rsk-kernel/src/arch/cm4/unsafe_module/stubs.rs). A Job may execute floating-point instructions only if its Task is declared FPU-using: the Kernel sets the coprocessor access at every dispatch and on every return to a preempted Job. The control settings of a new Job come from Generated_Config through the default status register."
 strength = "weaker"
-strength_note = "Three statements now bear on R11.1, R11.2 and R11.7, all on models. The stub theorem says a handler interrupted by a Kernel interrupt resumes with S16 to S31, every core register and its stack as it left them, on a model of the stub's instructions. Boot's contract includes the eager-stacking flag of the hardware model. The dispatch contract says the dispatched Job has floating-point access exactly when its Task is declared FPU-using, so a Task that is not cannot change another Job's registers. Weaker than the requirement because: S0 to S15 and the status register are saved by the processor, which the model assumes (HW-10) and does not prove; the stub model is of the instruction sequence, compared with the assembly line by line by a build check, while what each instruction does is the model's own definition; the access statement is proven for a dispatch but not for the return to a preempted Job, where the same table is read; R11.8's settings for a new Job, R11.3's costs and R11.4's stack space are tested, measured and computed, not stated formally; R11.7 as written says the FPU is enabled during Init, while the Kernel enables it per Job, which is stricter."
-closed = "2026-11-17: the dispatch contract states the floating-point access rule (before, no statement mentioned it). 2026-11-16: the rig's check of the status register a new floating-point context starts with compared against a record that read zero whether or not the probe had run; the record now carries a written flag."
-gaps = "The processor's own stacking is an assumption about hardware, supported by the board's register-pattern probe across preemptions. Floating-point access after a return to a preempted Job is by inspection and that probe. Δ_fp_save and Δ_fp_restore are measured at the method's resolution. One erratum's workaround (flush-to-zero) is a declaration option."
+strength_note = "Three statements now bear on R11.1, R11.2 and R11.7, all on models. The stub theorem says a handler interrupted by a Kernel interrupt resumes with S16 to S31, every core register and its stack as it left them, on a model of the stub's instructions. Boot's contract includes the eager-stacking flag of the hardware model. The dispatch contract says the dispatched Job has floating-point access exactly when its Task is declared FPU-using, so a Task that is not cannot change another Job's registers. Weaker than the requirement because: S0 to S15 and the status register are saved by the processor, which the model assumes (HW-10) and does not prove; the stub model is of the instruction sequence, compared with the assembly line by line by a build check, while what each instruction does is the model's own definition; the access statement is proven for a dispatch and, since 2026-11-21, for the Job an unwind resumes (`epilogue_core`: when the unwind stops at a Job, floating-point access is that Job's Task's declared use); R11.8's settings for a new Job, R11.3's costs and R11.4's stack space are tested, measured and computed, not stated formally; R11.7 as written says the FPU is enabled during Init, while the Kernel enables it per Job, which is stricter."
+closed = "2026-11-17: the dispatch contract states the floating-point access rule (before, no statement mentioned it). 2026-11-16: the rig's check of the status register a new floating-point context starts with compared against a record that read zero whether or not the probe had run; the record now carries a written flag. 2026-11-21: the unwind restored floating-point access through an accessor that had no contract (`stack_at`), so nothing said whose access it was; the accessor has its contract and the unwind its postcondition."
+gaps = "The processor's own stacking is an assumption about hardware, supported by the board's register-pattern probe across preemptions. Floating-point access after a return to a preempted Job is a postcondition since 2026-11-21 (two mutants killed); it is about the hardware model's access flag, and that the register write realises it is the drivers' and the board's. Δ_fp_save and Δ_fp_restore are measured at the method's resolution. One erratum's workaround (flush-to-zero) is a declaration option."
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
@@ -856,6 +937,14 @@ kind = "inspected"
 ref = "UJ-022"
 note = "the dispatch stub's save and restore of S16 to S31"
 
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "epilogue_core"
+tool = "verus"
+says = "Among its postconditions: when the unwind stops (no further level to unwind, no safe state) and a Job is in progress, the hardware model's floating-point access flag equals the declared floating-point use of the Task on top of the Kernel's Job stack, the Job being resumed. The others concern the view, the priority mask, the level records and the invariant of the entry code."
+reviewed = "dddb6475a55af7c9"
+
+
 # ---------------------------------------------------------------- R12
 
 [[row]]
@@ -863,9 +952,9 @@ requirement = 12
 sentence = "Before the first Task is released the Kernel checks that the processor is the one the configuration was generated for and that its configuration tables are intact, and goes to the safe state if anything differs."
 implemented = "`boot_core` runs the hardware checks, the table validation (`Config::validate`, `Layout::validate`) and the checksums before it enables any interrupt (crates/rsk-kernel/src/arch/cm4/entry.rs; the validators in crates/rsk-logic/src/logic/mod.rs and mpu.rs)."
 strength = "weaker"
-strength_note = "The table validation is proven exactly: the function returns true if and only if the configuration is well-formed, which is the property every other Kernel proof assumes. Boot's contract says that if it succeeds the Kernel's invariant holds, the hardware model is in its booted state and every vector has its priority and enable; and, since 2026-11-16, that if it fails nothing that could cause a Release is live (no interrupt enabled or pended, no compare armed, the time base not started), which is R12.2 and R12.4 in the terms of the Kernel's model. Weaker: the hardware checks of R12.1 are not stated one by one (they are the body's, shown on the board by failing each in turn), and 'enters the safe state' after a failed boot is the entry crate's loop, outside the contract."
-closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each. 2026-11-16: a failed boot leaving nothing live became a postcondition (one mutant killed); the same validation now also runs in the compiler on the generated tables (see R24)."
-gaps = "The hardware reads behind the checks are trusted register accesses. The safe state after a failed boot is the entry crate's. The checksum is CRC-32, an error-detecting code, not a proof of integrity."
+strength_note = "The table validation is proven exactly: the function returns true if and only if the configuration is well-formed, which is the property every other Kernel proof assumes. Boot's contract says that if it succeeds the Kernel's invariant holds, the hardware model is in its booted state and every vector has its priority and enable; and, since 2026-11-16, that if it fails nothing that could cause a Release is live (no interrupt enabled or pended, no compare armed, the time base not started), which is R12.2 and R12.4 in the terms of the Kernel's model. The hardware checks of R12.1 are stated one by one by a Kani harness, cited since 2026-11-21: for any register contents and any expected values, each failure bit is set exactly when its check fails (bounded only in that the registers are a host double). And since that day the contract says a boot that fails leaves the Kernel in its safe state, or has not touched the Kernel's state at all (the tables themselves were refused before initialization). Weaker: in that second case 'enters the safe state' is the entry crate's, which reads the safe state from the tables; and that the failed checks' identifiers are in the log is `boot_check_failed`'s body."
+closed = "2026-11-04: every check of R12.1, both checksums and the watchdog-reset case shown on the board to fail into the safe state, one bit each. 2026-11-16: a failed boot leaving nothing live became a postcondition (one mutant killed); the same validation now also runs in the compiler on the generated tables (see R24). 2026-11-21: 'a failed boot leaves the Kernel in its safe state' became a postcondition (one mutant killed: a failed check that does not record it)."
+gaps = "The hardware reads behind the checks are trusted register accesses. The safe state after a boot whose tables are refused is the entry crate's; after a failed check it is the Kernel's, by contract. The checksum is CRC-32, an error-detecting code, not a proof of integrity."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/mod.rs"
@@ -878,13 +967,21 @@ reviewed = "c5f501ec02a7b23f"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "boot_core"
 tool = "verus"
-says = "If boot reports success: the Kernel's invariant holds, the hardware model has every boot setting made, the entry code's own invariant holds with no Job in progress, the loaded MPU view matches the record, the vector tables are consistent, and every interrupt vector has its priority and its enable as the tables say. If it reports failure: no interrupt has been enabled or pended, no timer compare armed, and the time base not started."
-reviewed = "a495ca6d00050273"
+says = "If boot reports success: the Kernel's invariant holds, the hardware model has every boot setting made, the entry code's own invariant holds with no Job in progress, the loaded MPU view matches the record, the vector tables are consistent, and every interrupt vector has its priority and its enable as the tables say. If it reports failure: no interrupt has been enabled or pended, no timer compare armed, and the time base not started; and (since 2026-11-21) either the Kernel is in its safe state or the Kernel's state is exactly what it was before the call."
+reviewed = "8aa65d90d070b4e2"
 
 [[row.other]]
 kind = "tested-rig"
 ref = "hil-boot-checks"
 note = "one mutated check per run, each ending in the safe state"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/unsafe_module/kani.rs"
+name = "boot_checks_report_each_failed_check"
+tool = "kani"
+says = "For arbitrary contents of the identification, MPU, cycle-counter, priority-grouping, floating-point, clock, cache and PPI registers and arbitrary expected values, the function's result has each failure bit set exactly when the corresponding check fails: implementer, part number, MPU region count, cycle counter, priority bits, core revision, priority grouping, clock source, instruction cache, a PPI channel left enabled, a needed FPU absent. The clock is assumed already switched to the crystal, so the bounded start-up wait is not taken."
+reviewed = "817ff9b3798d2904"
+
 
 # ---------------------------------------------------------------- R19
 
@@ -1132,9 +1229,9 @@ requirement = 42
 sentence = "A message between Partitions carries only plain data, is copied so that neither side can write the other's memory, is validated by the receiver when it comes from a lower-criticality Partition, and a stopped or restarted peer is reported to the other side."
 implemented = "Payload types must derive `rsk::Plain` (no references or pointers), checked by the derive and the Generator; the Kernel copies each message word by word between the Partition and Kernel-owned storage (crates/rsk-kernel/src/arch/cm4/entry.rs); receiver-side validation functions are declared in the App_Declaration and proven total by the Application prover; peer state is recorded by the Kernel at a stop or restart."
 strength = "weaker"
-strength_note = "No single formal statement covers this requirement. R42.1 is the type system's (a payload with a reference or a bool does not compile). R42.2 follows from isolation (R16: neither Partition can write the Kernel's storage or the other's memory) plus the copy, which is bounded-checked to stay in bounds and round-trip its words. R42.4's validation functions are proven free of run-time errors, which is totality, not that they reject every bad message. R42.3 (the peer-state error) is in the entry code and the role API, with tests, and is an assumption of the deadlock-freedom argument for a stop or restart."
+strength_note = "No single formal statement covers this requirement. R42.1 is the type system's (a payload with a reference or a bool does not compile). R42.2 follows from isolation (R16: neither Partition can write the Kernel's storage or the other's memory) plus the copy, which is bounded-checked to stay in bounds and round-trip its words. R42.4's validation functions are proven free of run-time errors, which is totality, not that they reject every bad message. R42.3 (the peer-state error): the flag is set for every role of another Partition by a proven function when a Partition is stopped or restarted (see R14); the report itself is the role operation's and the role API's, with tests."
 closed = ""
-gaps = "The peer-state report after a Partition's stop or restart (A-P6) has test evidence only. What a validation function accepts is the Application's choice."
+gaps = "The peer-state flag after a Partition's stop or restart is set by a proven function (`endpoint_reinit`, see R14); that the next operation of the peer reports it is the role operation's check of that flag, tested. What a validation function accepts is the Application's choice."
 
 [[row.other]]
 kind = "checked"
@@ -1190,9 +1287,9 @@ requirement = 3
 sentence = "Every violation of a rule is reported when the program is built, by whichever tool enforces that rule, with the rule's identifier; and for every rule there is a deliberately wrong program that must be rejected."
 implemented = "Four enforcers: the Generator (declaration rules), the Profile_Lint (source rules, crates/rsk-lint), the Link_Checker (binary rules, crates/rsk-link) and the Kernel at run time; the conformance suite holds one rejected case per rule and category."
 strength = "weaker"
-strength_note = "No formal statement. The evidence is the conformance suite: each restriction and category has a case that must fail with the right identifier, and the verification job runs them. That shows each enforcer fires on its example; it does not show an enforcer catches every violation of its rule."
+strength_note = "No formal statement. The conformance register (docs/conformance_suite.toml, read 2026-11-21) has 75 cases, one for every active restriction and each of its categories, which the runner checks against the Profile (`check_coverage`). 46 of them are programs or builds the job runs and requires to fail with the restriction's identifier: 14 declarations the Generator rejects, 7 lint cases, 4 compile-fail cases, 8 mutated binaries and 4 build checks for the Link_Checker, and 9 run-time fault injections on QEMU whose event must carry the identifier. The other 29 are written reasons, not programs: 14 of the type-system category, 10 of the Generator's, 3 of the lint's, 1 of the Link_Checker's and 1 run-time, each saying why no violating program can be written or which other case covers it (for PR-01: the declaration grammar has no construct that creates a Task after build time). R3.6 asks for a rejected program per restriction and category; a reason is weaker than that and is read, not run. Where a case is run, it shows the enforcer fires on that example; it does not show the enforcer catches every violation of its rule."
 closed = ""
-gaps = "The enforcers are tools without proofs of completeness. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+gaps = "The enforcers are tools without proofs of completeness. 29 of the 75 cases are reasons a person has to accept. The coverage check passes silently if the Profile's source cannot be read (the Profile check of R1 fails in that case). R3.8 and R3.10 (each proof-obligation restriction names a proof artifact that exists and passed) are checked by name against the verified crates' items."
 
 [[row.other]]
 kind = "checked"
@@ -1257,7 +1354,7 @@ requirement = 13
 sentence = "Every Kernel overhead that the timing analysis charges is defined, exported as a record with its provenance, and bounded."
 implemented = "The Kernel's instrumented build records each entry's duration; the rig writes them as Kernel_Timing_Parameter records (docs/hil/kernel_timing_*.json) which the Analyzer reads."
 strength = "weaker"
-strength_note = "R13.1 asks for upper bounds. What exists are measured maxima with a 25 % margin, each bound to the binary it was measured on, from runs of three minutes to an hour. A measured maximum is not a bound. R13.5 (bounded loops in the Kernel) is proven. The Analyzer does include every parameter and rejects an input without one, which has tests. Since 2026-11-21 L_kernel is taken from the longest hold (one handler from the beginning of its Rust half to its end, with the unwind it runs: the stretch in which a pending Kernel-level interrupt cannot be taken), 7,044 cycles in the hour-long stress run, not from the longest run of entries back to back (26,010 cycles in the same run): the processor takes a pending Kernel-level interrupt at each exception return and the Analyzer charges each such entry to its own event. That reading rests on the exception model and the handlers' code; no probe fires an interrupt into the middle of such a run."
+strength_note = "R13.1 asks for upper bounds. What exists are measured maxima with a 25 % margin, each bound to the binary it was measured on, from runs of three minutes to an hour. A measured maximum is not a bound. R13.5 (bounded loops in the Kernel) is proven. The Analyzer does include every parameter and rejects an input without one, which has tests. Since 2026-11-21 L_kernel is taken from the longest hold (one handler from the beginning of its Rust half to its end, with the unwind it runs: the stretch in which a pending Kernel-level interrupt cannot be taken), 7,044 cycles in the hour-long stress run, not from the longest run of entries back to back (26,010 cycles in the same run): the processor takes a pending Kernel-level interrupt at each exception return and the Analyzer charges each such entry to its own event. That reading rests on the exception model and the handlers' code, and on one direct measurement: the release-timing configuration latches each stimulus edge's instant in hardware and the intake handler records the lag to its own timestamp; over the 203,333 edges of the hour-long run of 2026-11-21, which arrive from another board at every phase of the Kernel's activity, the largest lag was 6,648 cycles, close to the longest hold of that run (6,496) and a third of its longest run of entries (21,659). Had a run of entries masked the source, lags of that length would have been recorded. The measurement is of asynchronous edges, not of an edge aimed into a run."
 closed = ""
 gaps = "Static bounds for the Kernel's entries do not exist. The records are of the instrumented build, which is slower than the flight build by a measured share."
 
@@ -1276,9 +1373,9 @@ requirement = 15
 sentence = "The integrator declares Partitions with a criticality level, memory sizes, owned items and fault responses, and the Generator refuses a declaration in which anything is shared across Partitions or left out."
 implemented = "The declaration grammar and its validation are in crates/rsk-gen (decl.rs, validate.rs); each rejection is a compile error at the offending item."
 strength = "weaker"
-strength_note = "No formal statement. Each rejection rule is the Generator's, with conformance cases that must be rejected. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+strength_note = "No formal statement. Read in crates/rsk-gen/src/validate.rs on 2026-11-21: one pass over the declaration, each rule a diagnostic with its identifier and the item it concerns. R15.7: a region size of zero or a stack larger than the RAM region or not a multiple of 8 is refused per field, and each of the three responses is tested against its closed set by a predicate of the response type. R15.2 (PR-28): duplicate Partitions, Tasks, Resources, signals, Endpoints and peripherals, and a peripheral listed by two Partitions, are refused; a Task or Resource belongs to one Partition by the grammar, which nests it. R15.3 (PR-30): a Task naming a Resource of another Partition is refused. R15.6 (PR-29): a peripheral the Target table marks Kernel-owned is refused by name. R15.3, R15.5, R15.6 and R15.7 have unit tests in crates/rsk-gen/src/lib.rs named after them, and the restrictions have conformance cases. What the rules do not show is that they are all the rules: an omitted size is caught as the value zero, and an omitted level or threshold only by the parser."
 closed = ""
-gaps = "The Generator is not proven; its output is re-checked by the Config_Checker (see R26) and at boot (see R12)."
+gaps = "The Generator is not proven; its output is re-checked by the Config_Checker (see R26), by the Kernel's validators at compile time (see R24) and at boot (see R12). Which peripherals are Kernel-owned is the Target table's statement, by review. R15.4 (the export) and R15.5 (a single Partition) are tests."
 
 [[row.other]]
 kind = "tested-host"
@@ -1304,9 +1401,9 @@ requirement = 21
 sentence = "The whole system is declared in one block, with explicit units for every time, and every error is reported at the place in the declaration that caused it."
 implemented = "The `rsk::app!` macro (crates/rsk-macros, crates/rsk-gen)."
 strength = "weaker"
-strength_note = "No formal statement; the Generator's acceptance and rejection are shown by the demo's thirteen declarations and by rejected cases. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+strength_note = "No formal statement for acceptance. Read on 2026-11-21 (crates/rsk-gen/src/syntax.rs, convert.rs, validate.rs; crates/rsk-macros/src/lib.rs). R21.2: a time is written `N.unit()` and nothing else parses as a time, so a quantity without a unit is a syntax error at its span; the conversion arithmetic is the verified `scale` of the Generator (rounded down, or up for Budgets; see R23), and since 2026-11-21 the rounding of an offset to the nearest tick is verified as well. R21.4: every diagnostic carries an item reference that the macro resolves to the source span recorded when the declaration was parsed, and all are reported at once. R21.3, R21.5 and R21.6 are rules of the validation pass with their identifiers, each with a unit test. Acceptance (R21.1) is shown by the fourteen declarations the job generates from and by the conformance suite's accepted Application."
 closed = ""
-gaps = "Not proven; downstream checks (R26, R12) catch a wrong output, not a wrongly accepted declaration."
+gaps = "Not proven; downstream checks (R26, R12, and the Kernel's validators at compile time, R24) catch a wrong output, not a wrongly accepted declaration. That a diagnostic's span is the offending item's is the span table's, exercised by the compile-fail cases."
 
 [[row.other]]
 kind = "tested-host"
@@ -1337,8 +1434,8 @@ requirement = 23
 sentence = "Ceilings, priority encodings, table sizes and the other derived values are computed from the declaration, never written by hand, and exported."
 implemented = "crates/rsk-gen/src/derive.rs reads the declaration and names things; the arithmetic it needs is in crates/rsk-gen/src/derive_v.rs, verified since 2026-11-16: Ceilings, priority bytes, the timed-event slot plan, time conversions and region sizes. The values go into the generated configuration and the Task_Model."
 strength = "weaker"
-strength_note = "The arithmetic is now proven against definitions written in the Generator's own crate: a Ceiling is an upper bound of the accessors' Priorities that one of them attains; no timed-event slot is given twice and all are below the count less the Kernel's two; a converted time is within one unit of the exact value on the side asked for. The Config_Checker still recomputes every value from separately written and separately proven arithmetic and compares (see R26), so two independent proofs now stand behind each derived number. Weaker than the requirement in what surrounds the arithmetic: which Tasks access a Resource, the nesting depths and the lock-stack capacity are read and summed in ordinary code, and rounding to nearest (used for a Task's offset) is not verified."
-closed = "2026-11-16: the derivation arithmetic moved into Verus (17 items, five mutants killed). Doing so removed two latent faults the old code had outside its tested range: the priority byte underflowed for a level above 8, and the slot counter was an 8-bit value checked against its limit only after it could have wrapped."
+strength_note = "The arithmetic is now proven against definitions written in the Generator's own crate: a Ceiling is an upper bound of the accessors' Priorities that one of them attains; no timed-event slot is given twice and all are below the count less the Kernel's two; a converted time is within one unit of the exact value on the side asked for. The Config_Checker still recomputes every value from separately written and separately proven arithmetic and compares (see R26), so two independent proofs now stand behind each derived number. Weaker than the requirement in what surrounds the arithmetic: which Tasks access a Resource, the nesting depths and the lock-stack capacity are read and summed in ordinary code, (rounding to the nearest, used for a Task's offset, is verified since 2026-11-21: within half a unit of the exact value, a half upward)."
+closed = "2026-11-16: the derivation arithmetic moved into Verus (17 items, five mutants killed). Doing so removed two latent faults the old code had outside its tested range: the priority byte underflowed for a level above 8, and the slot counter was an 8-bit value checked against its limit only after it could have wrapped. 2026-11-21: the one rounding outside the verified code, to the nearest tick, moved into it (`scale_nearest`, two mutants killed); the old code computed twice the remainder, which could overflow for a divisor above 2^127, a value no clock ratio reaches."
 gaps = "The reading of the declaration into the arithmetic's inputs is tested, not proven. Both tools read the same requirements; a shared misreading would pass both proofs."
 
 [[row.statement]]
@@ -1380,14 +1477,22 @@ kind = "checked"
 ref = "check-config"
 note = "the independent recomputation"
 
+[[row.statement]]
+file = "crates/rsk-gen/src/derive_v.rs"
+name = "scale_nearest"
+tool = "verus"
+says = "When it returns a value x for a quantity, a numerator and a positive divisor, x is the exact quotient rounded to the nearest whole number with a half rounded upward (twice x times the divisor is at most twice the product plus the divisor, and that is below twice x plus one times the divisor), and the flag says whether the division left a remainder. It returns nothing only when the product does not fit 128 bits or the quotient plus one does not fit 64."
+reviewed = "5d2ac62cc2806483"
+
+
 [[row]]
 requirement = 24
 sentence = "The Kernel's configuration tables are generated from the declaration, with a checksum, so that what runs and what was analysed cannot differ."
 implemented = "crates/rsk-gen/src/emit.rs writes the tables. Since 2026-11-16 the emitted table is read back and compared with the derived values before it is handed out (crates/rsk-gen/src/readback.rs), and the generated code asserts, at compile time, that the tables pass the Kernel's own validation. A drift check compares the committed generated files with a fresh generation; the Kernel verifies the checksums at boot."
 strength = "weaker"
 strength_note = "Four mechanical checks now stand around the unproven printer. The printed table is read back by a separate reader and compared with the derivation. The generated crate will not compile unless `Config::validate` and `Layout::validate`, the Kernel's own validators, accept the tables: `Config::validate` is proven to be true exactly for a well-formed configuration, which is the premise of every Kernel proof, so a build that succeeds has tables the proofs apply to. The Config_Checker compares the tables in the linked binary with the model. And the Kernel repeats the validation and checks the checksums at boot. This is validation of each build's output, not a proof about the Generator for all declarations; for the property the requirement is after (what runs and what was analysed cannot differ) it is the stronger of the two kinds, because it checks the actual output."
-closed = "2026-11-16: well-formedness of the generated tables was established only at boot, on the board; it is now a condition of compiling. The read-back was added the same day. 2026-11-17: the read-back extended to the layout table, so a printed layout that is well-formed but not the derived one fails the generation."
-gaps = "The read-back covers the numbers of the configuration table and, since 2026-11-17, the layout table (every interval, subregion mask, stack size, window and read-only flag); it does not cover the DMA and Endpoint tables or the access matrix (the Config_Checker covers those from the binary). The checksum is CRC-32."
+closed = "2026-11-16: well-formedness of the generated tables was established only at boot, on the board; it is now a condition of compiling. The read-back was added the same day. 2026-11-17: the read-back extended to the layout table, so a printed layout that is well-formed but not the derived one fails the generation. 2026-11-21: the read-back extended to the EasyDMA channels, the Endpoints and each Partition's memory map and channel constants; all fourteen declarations read back, and tests refuse an altered owner, register, role binding, validation edge, region, window flag, stack and channel index."
+gaps = "The read-back covers the numbers of the configuration table and, since 2026-11-17, the layout table (every interval, subregion mask, stack size, window and read-only flag); since 2026-11-21 it also covers the EasyDMA channel table (the owning Partition and every register address of each channel), the Endpoint table (capacity, payload, roles with their Tasks and Partitions, release flags, storage, validation edges) and the memory map each Partition's source carries, from which the HIL suite builds its access matrix; it does not cover the Release_Signal table or the per-Task vector arrays (the Config_Checker reads the binary's images). The checksum is CRC-32."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/mod.rs"
@@ -1425,9 +1530,9 @@ requirement = 27
 sentence = "The task model already carries core assignments, and every tool of this version refuses a model that uses more than one core."
 implemented = "A core field in the Task_Model; a rejection rule in the Analyzer and the Generator."
 strength = "weaker"
-strength_note = "A small requirement met by a rejection rule with a test named after it (a Task on another core is rejected). Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
-closed = ""
-gaps = "Multi-core is out of scope by decision."
+strength_note = "A small requirement, read against the three tools on 2026-11-21. R27.1: the Task_Model's Task, Resource and Endpoint records carry a core field, a core-or-global field and a core pair, required with no default (a test named after the criterion). R27.2: the Generator refuses a Task or Resource on another core and a global Resource (its grammar gives an Endpoint no core, and it writes the pair as core 0 twice); the Config_Checker refuses all three; the Analyzer refused a Task and a Resource but not an Endpoint whose pair names another core, which was added that day with a test. R27.3: three identifiers are reserved and inactive in the Profile. R27.5: the report's single-core statement is in the golden report. R27.4 asks that the proofs state the single-core assumption as an explicit precondition: they do not; it is the shape of the state they are about (one preemption stack, one System_Ceiling), said in the module's documentation, so a reader finds it and a tool does not."
+closed = "2026-11-21: the Analyzer accepted a Task_Model whose Endpoint spans cores (found when this row was read against the source); it now rejects it citing NG-01, with a test (`r27_2_a_global_resource_and_an_endpoint_on_another_core_are_rejected_citing_ng_01`)."
+gaps = "Multi-core is out of scope by decision. R27.4 is met by documentation, not by a precondition a proof names."
 
 [[row.other]]
 kind = "tested-host"
@@ -1486,7 +1591,7 @@ requirement = 34
 sentence = "Execution times of every Task, critical section and Kernel operation are measured automatically on the real board, under the worst interference the Application can produce."
 implemented = "The instrumented Kernel is the measuring agent; the rig (crates/rsk-hil) runs the configurations, reads the records and writes them with their scenarios and coverage."
 strength = "weaker"
-strength_note = "The pipeline exists and runs, with the interference scenarios the requirement lists and branch coverage of the measured code. The requirement's limit is its own: measurement gives estimates. Most Task records have fewer runs than the stated ten thousand in the short configurations, which each record says."
+strength_note = "The pipeline exists and runs, with the interference scenarios the requirement lists and branch coverage of the measured code. The requirement's limit is its own: measurement gives estimates. R34.2 asks for at least ten thousand executions per item (PAR-02). The hour-long stress records of 2026-11-21 meet it for every item: all 13 execution-time records and all 14 Kernel timing parameters. The hour-long release-timing records meet it for the 13 execution-time records and 13 of 14 parameters (the enforcement of an Overrun ran 165 times). The three-minute configurations cannot: 7 to 9 of their 13 execution-time records are short, a Task of 200 ms period running 900 times. Since 2026-11-21 each record's Evidence_Item names its short entries with their counts."
 closed = ""
 gaps = "Measurement is not a bound (ASM-11). 2026-11-16: the records now say how many Kernel entries interrupted the longest Job, since the accounting charges them to it."
 
@@ -1544,9 +1649,9 @@ requirement = 43
 sentence = "A table assigns every guarantee to the tool that establishes it and the evidence it produces."
 implemented = "Section 3 of the Verification_Plan (25 rows) and the traceability matrix."
 strength = "weaker"
-strength_note = "The table exists and the matrix is generated from it and checked on every run. A document requirement; what makes it weaker is that the table's status column is prose kept by hand, and this file found places where it said 'proven' of a function whose contract did not state the property (the EasyDMA request, before 2026-11-16)."
+strength_note = "The table exists and the matrix is generated from it and checked on every run. A document requirement; what makes it weaker is that the table's status column is prose kept by hand, and this file found places where it said 'proven' of a function whose contract did not state the property (the EasyDMA request, before 2026-11-16). Since 2026-11-21 a static check ties the table's names to the sources: each of the 81 functions, lemmas and theorems its rows name must be defined in the workspace, so a renamed or removed item fails the checks until the row is read again. The check is of names, not of what the items say."
 closed = ""
-gaps = "The table's prose can drift from the contracts; this file's hashes guard the rows it covers."
+gaps = "The table's prose can drift from the contracts' meaning; its names cannot drift from the sources (`cargo xtask check`), and this file's hashes guard the statements it cites."
 
 [[row.other]]
 kind = "checked"
@@ -1781,9 +1886,9 @@ requirement = 58
 sentence = "Every dependency is pinned, vendored and assessed for `unsafe` code."
 implemented = "Vendored dependencies, a lockfile check and a dependency report in the static checks."
 strength = "weaker"
-strength_note = "Mechanical checks of pinning and vendoring; the assessment of third-party `unsafe` code is a report read by a person. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+strength_note = "Mechanical for four of five criteria, read in xtask on 2026-11-21. R58.1: every Cargo command the job runs carries the locked and offline flags and resolves from the vendored directory; a missing or uncommitted lock file fails the job. R58.4: the job runs builds inside a network-denying sandbox, first proves the sandbox denies a connection, and builds a fixture whose build script and proc-macro each try the network and must fail. R58.2 and R58.5: after the Target build the job lists every third-party crate compiled into the Flight_Build graph, for the Target or for the host as a proc-macro or build script, counts its `unsafe` keywords and assembly macros, notes a build script or proc-macro, and fails unless the Trust_Base_Register has an entry for that exact version with its trusted-for, evidence and residual-risk fields; a new crate or version therefore cannot enter without an entry. The count is of tokens over all sources, including code a cfg leaves out, so it over-approximates. What an entry says is a person's assessment. R58.3 is a statement of the plan."
 closed = ""
-gaps = "The assessment's depth."
+gaps = "The depth of each register entry's assessment: the gate checks that an entry exists and has its fields, not that the `unsafe` code was reviewed. The sandbox is macOS's; another host needs its own."
 
 [[row.other]]
 kind = "checked"
@@ -1830,8 +1935,8 @@ reviewed = "35e65081982f82d7"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "boot_core"
 tool = "verus"
-says = "Stated for any Kernel binding, any implementor of the hardware interface and any tables: a successful boot leaves the Kernel's invariant, the boot flags of the model, the entry invariant, matching vector tables and every vector with its priority and enable; a failed boot has enabled or pended no interrupt, armed no compare and not started the time base."
-reviewed = "a495ca6d00050273"
+says = "Stated for any Kernel binding, any implementor of the hardware interface and any tables: a successful boot leaves the Kernel's invariant, the boot flags of the model, the entry invariant, matching vector tables and every vector with its priority and enable; a failed boot has enabled or pended no interrupt, armed no compare and not started the time base, and leaves the Kernel in its safe state or untouched."
+reviewed = "8aa65d90d070b4e2"
 
 [[row.other]]
 kind = "checked"
@@ -1848,9 +1953,9 @@ requirement = 61
 sentence = "Each reused project's contribution and each deviation from it is recorded with its reason."
 implemented = "The design document's reuse section."
 strength = "weaker"
-strength_note = "A documentation requirement; the record exists. Written from the requirement's text, the plan and the matrix's facts; the tool's source was not read for this row."
+strength_note = "A documentation requirement. Read on 2026-11-21: the design document's section 'Reuse and Deviation Record' has a table that names each of the sixteen projects R61.1 lists with what is reused, the integration point and the deviation with the requirement that forces it, the versions reviewed, and a paragraph for each of R61.2 to R61.6 (RTIC's macro, ceiling and BASEPRI lock; Hubris; the four soundness fixes of RTIC's change log mapped to rsk evidence; Embassy). No tool checks the section: that every listed project has a row was checked by hand for this row, and that each statement about another project is right is the author's reading of that project."
 closed = ""
-gaps = "By review."
+gaps = "By review; nothing fails if the section falls behind the code. The versions reviewed are of 2026-10-23."
 
 [[row.other]]
 kind = "inspected"

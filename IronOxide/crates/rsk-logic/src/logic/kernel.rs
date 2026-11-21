@@ -1104,7 +1104,9 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     /// (`task_unchanged`), the stack positions of its Jobs in progress, every
     /// lock entry its Jobs hold (Resource and holder), so every Ceiling it
     /// imposes is still in force (`lemma_others_ceilings_in_force`), and its
-    /// Partition flags. Endpoint roles do not exist yet (Phase 4).
+    /// Partition flags. The Endpoint roles are Kernel_Arch's state, not this
+    /// one's: what a stop or restart does to them is `endpoint_reinit`'s
+    /// contract (`arch::cm4::entry`, R14.9's exception, R42.3).
     pub open spec fn others_unchanged(&self, old: &Self, cfg: &Config<NT, NR, NP>, p: int) -> bool {
         &&& forall|u: int| 0 <= u < NT && (#[trigger] cfg.tasks[u].partition as int) != p ==> self.task_unchanged(old, cfg, u)
         &&& forall|i: int| 0 <= i < old.sched.depth && (cfg.tasks[old.sched.stack[i] as int].partition as int) != p

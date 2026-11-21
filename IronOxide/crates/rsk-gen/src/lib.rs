@@ -72,6 +72,17 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
     if let Err(difference) = readback::check_layout(&system_source, &generated) {
         return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted layout does not match the derived memory plan: {difference}"))]);
     }
+    // And for the tables the read-back did not reach until 2026-11-21: the
+    // EasyDMA channels, the Endpoints, and each Partition's memory map.
+    if let Err(difference) = readback::check_dma(&system_source, &generated).and_then(|()| readback::check_endpoints(&system_source, &generated)) {
+        return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted tables do not match the derived values: {difference}"))]);
+    }
+    let partition_sources: Vec<(String, String)> = partition_sources;
+    for (index, (_, source)) in partition_sources.iter().enumerate() {
+        if let Err(difference) = readback::check_partition_map(source, &generated, generated.partitions[index].index) {
+            return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("a Partition's emitted memory map does not match the derived memory plan: {difference}"))]);
+        }
+    }
     Ok(Outputs {
         system_source,
         partition_sources,

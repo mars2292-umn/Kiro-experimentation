@@ -86,6 +86,47 @@ fn manifest_hashes(manifest: &serde_json::Value) -> Vec<String> {
     hashes
 }
 
+/// PAR-02: the minimum measured executions per WCET item (R34.2).
+pub const PAR_02_RUNS: u64 = 10_000;
+
+/// The measured entries of a record (`records` of a WCET_Record file,
+/// `parameters` of a Kernel_Timing_Parameter file) with fewer than PAR-02
+/// executions (R34.2), by name with their run counts, and the number of
+/// measured entries in all. An entry that states no run count counts as
+/// short, with 0.
+pub fn below_par_02(text: &str) -> (Vec<(String, u64)>, usize) {
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(text) else { return (Vec::new(), 0) };
+    let entries = json.get("records").or_else(|| json.get("parameters")).and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let mut short = Vec::new();
+    let mut measured = 0usize;
+    for e in &entries {
+        if e.get("method").and_then(|m| m.as_str()) != Some("measured") {
+            continue;
+        }
+        measured += 1;
+        let runs = e.pointer("/measured/runs").and_then(|r| r.as_u64()).unwrap_or(0);
+        if runs < PAR_02_RUNS {
+            let name = e.get("item").or_else(|| e.get("symbol")).and_then(|n| n.as_str()).unwrap_or("?").to_string();
+            short.push((name, runs));
+        }
+    }
+    (short, measured)
+}
+
+/// The sentence of an Evidence_Item's notes on PAR-02 for one record.
+fn par_02_note(what: &str, text: &str) -> String {
+    let (short, measured) = below_par_02(text);
+    if short.is_empty() {
+        format!("PAR-02 (R34.2): each of the {measured} measured {what} has at least {PAR_02_RUNS} executions")
+    } else {
+        format!(
+            "PAR-02 (R34.2): {} of the {measured} measured {what} have fewer than {PAR_02_RUNS} executions: {}",
+            short.len(),
+            short.iter().map(|(n, r)| format!("{n} {r}")).collect::<Vec<_>>().join(", ")
+        )
+    }
+}
+
 /// The items of the records committed under `docs/hil/`, for the
 /// measurement configurations the rig knows.
 pub fn items(root: &Path, manifest: &serde_json::Value) -> Vec<RigItem> {
@@ -117,6 +158,12 @@ pub fn items(root: &Path, manifest: &serde_json::Value) -> Vec<RigItem> {
             format!("measured maxima with the rig's margin of {} % (R34.6), in cycles: {}", crate::hil::MARGIN_PERCENT, measured.join(", ")),
             "a measured maximum is not a static bound (ORQ-13); the criteria listed are those whose parameters are all measured values of this record".to_string(),
         ];
+        // PAR-02 (2026-11-21): which entries of this record and of the
+        // configuration's WCET_Records fall short of the stated executions.
+        notes.push(par_02_note("Kernel_Timing_Parameters", &text));
+        if let Ok(wcet) = std::fs::read_to_string(root.join("docs").join("hil").join(format!("wcet_{variant}.json"))) {
+            notes.push(par_02_note(&format!("WCET_Records (docs/hil/wcet_{variant}.json)"), &wcet));
+        }
         if !fresh {
             notes.insert(0, stale_note.clone());
         }
@@ -274,4 +321,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         assert_eq!(got.iter().find(|i| i.id == "hil-stress").map(|i| i.verdict), Some(Verdict::Fail));
     }
+    /// R34.2, PAR-02: the entries of a record with fewer than 10,000
+    /// measured executions are named with their counts; placeholders are
+    /// not counted.
+    #[test]
+    fn par_02_names_the_entries_measured_fewer_than_ten_thousand_times() {
+        let text = r#"{"records": [
+            {"item": "a", "method": "measured", "measured": {"runs": 366000}},
+            {"item": "b", "method": "measured", "measured": {"runs": 900}},
+            {"item": "c", "method": "measured"},
+            {"item": "d", "method": "placeholder"}]}"#;
+        assert_eq!(below_par_02(text), (vec![("b".to_string(), 900), ("c".to_string(), 0)], 3));
+        let params = r#"{"parameters": [{"symbol": "delta_irq", "method": "measured", "measured": {"runs": 10000}}]}"#;
+        assert_eq!(below_par_02(params), (vec![], 1));
+        assert!(par_02_note("x", text).contains("2 of the 3 measured x have fewer than 10000 executions: b 900, c 0"));
+        assert!(par_02_note("x", params).contains("each of the 1 measured x has at least 10000 executions"));
+    }
+
 }

@@ -2247,3 +2247,53 @@ file = "crates/rsk-kernel/src/arch/cm4/plan.rs"
 find = "        if low < self.time_last_lo {\n"
 replace = "        if low <= self.time_last_lo {\n"
 expect = ["plan.rs", "assertion failed"]
+
+[[mutation]]
+id = "unwind-leaves-the-fpu-access-of-the-ended-job"
+kills = "epilogue_core's floating-point clause (R11.1, R11.7; 2026-11-21): the Job an unwind resumes has floating-point access exactly when its Task is declared FPU-using"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        hw.apply(Action::FpuAccess(k.job_info(k.stack_at(idx)).fpu));\n"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "unwind-takes-the-fpu-access-of-the-bottom-job"
+kills = "epilogue_core's floating-point clause with stack_at's contract (R11.1, R11.7; 2026-11-21): the access restored is the resumed Job's, the top of the stack, not another Job's in progress"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        hw.apply(Action::FpuAccess(k.job_info(k.stack_at(idx)).fpu));\n"
+replace = "        hw.apply(Action::FpuAccess(k.job_info(k.stack_at(0)).fpu));\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "offset-half-rounds-down"
+kills = "scale_nearest's contract (R21.2; 2026-11-21): a Task's offset is converted to the nearest tick, a half upward"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "    let half_up = rem >= den - rem;\n"
+replace = "    let half_up = rem > den - rem;\n"
+expect = ["derive_v.rs", "requires not satisfied"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "offset-truncated"
+kills = "scale_nearest's contract (R21.2; 2026-11-21): the nearest tick, not the tick below"
+file = "crates/rsk-gen/src/derive_v.rs"
+find = "    let x: u128 = if half_up { q + 1 } else { q };\n"
+replace = "    let x: u128 = q;\n"
+expect = ["derive_v.rs", "requires not satisfied"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "failed-boot-check-without-the-safe-state"
+kills = "boot_core's failed-boot clause (R12.2; 2026-11-21): a boot whose checks fail leaves the Kernel in its safe state, with the failed checks logged"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if failed != 0 {\n        hw.apply(Action::Trace(TR_BOOTFAIL, failed));\n        k.boot_failed(failed);\n        return false;\n    }\n"
+replace = "    if failed != 0 {\n        hw.apply(Action::Trace(TR_BOOTFAIL, failed));\n        return false;\n    }\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "signal-of-another-partition-accepted"
+kills = "raise_core's acceptance rule (R10.5, R10.7, PR-06; 2026-11-21): a Release_Signal is taken as an event only when the executing Job's Partition declares it"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                info.partition == sg.partition && (sg.task as usize) < k.task_count()\n"
+replace = "                (sg.task as usize) < k.task_count()\n"
+expect = ["entry.rs", "assertion failed"]

@@ -10,6 +10,7 @@ pub mod stub_model;
 pub mod kernel_size;
 pub mod kernel_std;
 pub mod lockfile;
+pub mod plan_items;
 pub mod registers;
 pub mod toolchain;
 pub mod unsafe_code;
@@ -45,6 +46,8 @@ pub fn repository(root: &Path, report: &mut Report) -> Option<Workspace> {
     config::check_alias(root, report);
     // R48, R54: the Trust_Base_Register and the Gap_Register.
     registers::check(root, report);
+    // R43: the items the property allocation table names exist.
+    plan_items::check(root, report);
     // R45.8: the Kani harness bounds against the demo's Generated_Config.
     kani_bounds::check(root, report);
     // Verification_Plan 5.17: the stub model against the assembly.

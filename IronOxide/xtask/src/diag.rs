@@ -55,6 +55,9 @@ pub enum Rule {
     /// R54: the Gap_Register covers the DO-178C Annex A objectives, the
     /// gaps of R54.2, and the current ORQ statuses.
     GapRegister,
+    /// R43: every item the Verification_Plan's property allocation table
+    /// names is defined in the sources.
+    PlanTable,
 }
 
 impl Rule {
@@ -81,6 +84,7 @@ impl Rule {
             Rule::Generator => "GENERATOR",
             Rule::TrustBaseRegister => "R48",
             Rule::GapRegister => "R54",
+            Rule::PlanTable => "R43",
         }
     }
 }

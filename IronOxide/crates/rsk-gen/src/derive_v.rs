@@ -16,6 +16,7 @@
 //! | Ceiling (R23.1) | `ceiling` | an upper bound of the accessors' Priorities that one of them attains; 0 for none |
 //! | Timed-event slots (R9.4, R23.4) | `slot_plan` | every Task has a deadline and a Budget slot, and a release slot when asked; all slots given are different, below the count less the Kernel's two; the count is at most 253; `None` exactly when it would not be |
 //! | Time conversion (R21.2, R29.8, Property 14) | `scale` | the result is the quotient rounded down, or up, as asked: within one unit of the exact value on the stated side, and exact when the flag says so; `None` exactly when the product or the result does not fit |
+//! | Time conversion to the nearest (R21.2: a Task's offset; 2026-11-21) | `scale_nearest` | the result is within half a unit of the exact value, a half rounded upward; exact when the flag says unchanged |
 //! | Region size (DD-07, R16.6) | `region_log2` | the smallest power of two, not below the minimum, that holds the bytes; `None` when none below 2^32 does |
 
 use vstd::prelude::*;
@@ -223,6 +224,58 @@ pub fn scale(value: u64, num: u128, den: u128, up: bool) -> (r: Option<(u64, boo
         } else {
             assert(xi * di <= vi && vi < (xi + 1) * di) by (nonlinear_arith)
                 requires vi == di * qi + ri, 0 <= ri < di, xi == qi;
+        }
+    }
+    Some((x as u64, rem != 0))
+}
+
+/// R21.2: `x` is `value * num / den` rounded to the nearest whole number,
+/// a half upward: `x - 1/2 <= value * num / den < x + 1/2`, written without
+/// division.
+pub open spec fn rounded_nearest(value: int, num: int, den: int, x: int) -> bool {
+    2 * (x * den) <= 2 * (value * num) + den && 2 * (value * num) + den < 2 * ((x + 1) * den)
+}
+
+/// The conversion of a quantity by the ratio `num / den`, rounded to the
+/// nearest whole number, a half upward (R21.2: a Task's offset; verified
+/// 2026-11-21, until then the one rounding of the Generator outside
+/// `verus!`). Returns the rounded value and whether rounding changed it;
+/// `None` when the product does not fit 128 bits or the result does not
+/// fit 64.
+pub fn scale_nearest(value: u64, num: u128, den: u128) -> (r: Option<(u64, bool)>)
+    requires den > 0,
+    ensures
+        r is Some ==> rounded_nearest(value as int, num as int, den as int, r.unwrap().0 as int)
+            && (r.unwrap().1 <==> (value as int * num as int) % (den as int) != 0),
+        r is None ==> value as int * num as int > u128::MAX
+            || (value as int * num as int) / (den as int) + 1 > u64::MAX,
+{
+    let v = match (value as u128).checked_mul(num) {
+        Some(v) => v,
+        None => return None,
+    };
+    let q = v / den;
+    let rem = v % den;
+    proof {
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(v as int, den as int);
+        assert(v as int == den as int * q as int + rem as int);
+        assert(0 <= rem < den);
+    }
+    // The remainder is at least half the divisor: `2 * rem >= den`, written
+    // so that it cannot overflow.
+    let half_up = rem >= den - rem;
+    if q >= u64::MAX as u128 && (half_up || q > u64::MAX as u128) {
+        return None;
+    }
+    let x: u128 = if half_up { q + 1 } else { q };
+    proof {
+        let (vi, di, qi, ri, xi) = (v as int, den as int, q as int, rem as int, x as int);
+        if half_up {
+            assert(2 * (xi * di) <= 2 * vi + di && 2 * vi + di < 2 * ((xi + 1) * di)) by (nonlinear_arith)
+                requires vi == di * qi + ri, 0 <= ri < di, 2 * ri >= di, xi == qi + 1;
+        } else {
+            assert(2 * (xi * di) <= 2 * vi + di && 2 * vi + di < 2 * ((xi + 1) * di)) by (nonlinear_arith)
+                requires vi == di * qi + ri, 0 <= ri < di, 2 * ri < di, xi == qi;
         }
     }
     Some((x as u64, rem != 0))

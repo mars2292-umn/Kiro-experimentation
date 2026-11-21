@@ -140,6 +140,24 @@ fn r28_5_a_task_on_another_core_is_rejected_citing_ng_01() {
     assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "NG-01", "part0.control");
 }
 
+/// R27.2: a Resource marked global, and an Endpoint whose core pair names
+/// a core other than 0, are rejected citing NG-01 and naming the item
+/// (the Endpoint rule was missing until 2026-11-21).
+#[test]
+fn r27_2_a_global_resource_and_an_endpoint_on_another_core_are_rejected_citing_ng_01() {
+    let mut m: TaskModel = rsk_model::read_task_model(DEMO).unwrap();
+    let resource = m.resources[0].id.clone();
+    m.resources[0].core = serde_json::json!("global");
+    let (w, t) = placeholders::make(&m, HASH, "off");
+    assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "NG-01", &resource);
+
+    let mut m: TaskModel = rsk_model::read_task_model(DEMO).unwrap();
+    let endpoint = m.endpoints[0].id.clone();
+    m.endpoints[0].cores = vec![0, 1];
+    let (w, t) = placeholders::make(&m, HASH, "off");
+    assert_rejects(&rejections_of(&m, &w, &t, &manifest(&m), &dev()), "NG-01", &endpoint);
+}
+
 // ------------------------------------------------------------- R28.6
 
 #[test]

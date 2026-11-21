@@ -181,6 +181,13 @@ pub fn prepare(
             rejections.push(reject("NG-01", format!("Resource `{}` is not on core 0 (R27.2)", r.id)));
         }
     }
+    // 2026-11-21: an Endpoint's core pair as well (R27.2 names every item;
+    // until then only the Config_Checker refused one).
+    for e in &model.endpoints {
+        if e.cores.iter().any(|&c| c != 0) {
+            rejections.push(reject("NG-01", format!("Endpoint `{}` spans cores {:?} (R27.2)", e.id, e.cores)));
+        }
+    }
     // R28.8: the model's checksum is the binary's.
     let binaries = manifest.get("binaries").and_then(|b| b.as_array()).cloned().unwrap_or_default();
     let manifest_checksum = manifest.get("generated_config_checksum").and_then(|c| c.as_str()).map(str::to_string);
