@@ -922,23 +922,32 @@ pub fn span_reset() {
 /// by that handler's own unwind: at an exception return the processor
 /// takes the highest pending exception, so a Kernel-level interrupt that
 /// pended meanwhile is served there, before any tail-chained dispatch.
-/// `ARCH_HOLD`: the layout of `ARCH_SPAN`.
+/// `ARCH_HOLD` is kept small, a few stores an entry, so that the record
+/// does not lengthen what it measures: magic, max cycles, holds counted,
+/// the hold's start, its entries so far (0: closed), the entry kind that
+/// closed the longest, that hold's entries, its first entry's descriptor
+/// and its last one's (`span_close`), the open hold's first descriptor;
+/// then the maximum per closing entry kind (`ENTRY_KINDS`).
 #[cfg(feature = "trace-ram")]
-struct HoldCell(UnsafeCell<[u32; SPAN_WORDS]>);
+const HOLD_HEADER: usize = 10;
+#[cfg(feature = "trace-ram")]
+const HOLD_WORDS: usize = HOLD_HEADER + ENTRY_KINDS;
+#[cfg(feature = "trace-ram")]
+struct HoldCell(UnsafeCell<[u32; HOLD_WORDS]>);
 // SAFETY (UJ-005h): as UJ-005.
 #[cfg(feature = "trace-ram")]
 unsafe impl Sync for HoldCell {}
 #[cfg(feature = "trace-ram")]
 #[no_mangle]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), link_section = ".rsk.noinit")]
-static ARCH_HOLD: HoldCell = HoldCell(UnsafeCell::new([0; SPAN_WORDS]));
+static ARCH_HOLD: HoldCell = HoldCell(UnsafeCell::new([0; HOLD_WORDS]));
 
 #[cfg(feature = "trace-ram")]
-fn hold() -> &'static mut [u32; SPAN_WORDS] {
+fn hold() -> &'static mut [u32; HOLD_WORDS] {
     // SAFETY (UJ-006h): as UJ-006.
     let s = unsafe { &mut *ARCH_HOLD.0.get() };
     if s[0] != ACTIONS_MAGIC {
-        *s = [0; SPAN_WORDS];
+        *s = [0; HOLD_WORDS];
         s[0] = ACTIONS_MAGIC;
     }
     s
@@ -948,8 +957,42 @@ fn hold() -> &'static mut [u32; SPAN_WORDS] {
 #[cfg(feature = "trace-ram")]
 pub fn hold_reset() {
     let s = hold();
-    *s = [0; SPAN_WORDS];
+    *s = [0; HOLD_WORDS];
     s[0] = ACTIONS_MAGIC;
+}
+
+#[cfg(feature = "trace-ram")]
+fn hold_enter(now: u32) {
+    let s = hold();
+    if s[4] == 0 {
+        s[3] = now;
+    }
+}
+
+#[cfg(feature = "trace-ram")]
+fn hold_leave(now: u32, kind: u8, unwind: bool, what: u32) {
+    let s = hold();
+    if s[4] == 0 {
+        s[9] = what;
+    }
+    s[4] += 1;
+    if unwind {
+        return;
+    }
+    let len = now.wrapping_sub(s[3]);
+    let entries = s[4];
+    s[4] = 0;
+    s[2] = s[2].wrapping_add(1);
+    if len > s[1] {
+        s[1] = len;
+        s[5] = kind as u32;
+        s[6] = entries;
+        s[7] = s[9];
+        s[8] = what;
+    }
+    if (kind as usize) < ENTRY_KINDS && len > s[HOLD_HEADER + kind as usize] {
+        s[HOLD_HEADER + kind as usize] = len;
+    }
 }
 
 #[cfg(feature = "trace-ram")]
@@ -1012,7 +1055,7 @@ fn record_leave(s: &mut [u32; SPAN_WORDS], now: u32, kind: u8, chained: bool, wh
 pub fn span_enter() {
     let now = hw::dwt_cyccnt();
     record_enter(span(), now);
-    record_enter(hold(), now);
+    hold_enter(now);
 }
 
 /// A Kernel entry's Rust half ends: closes the span unless `chained` (the
@@ -1023,7 +1066,7 @@ pub fn span_enter() {
 pub fn span_leave(kind: u8, chained: bool, unwind: bool, what: u32) {
     let now = hw::dwt_cyccnt();
     record_leave(span(), now, kind, chained, what);
-    record_leave(hold(), now, kind, unwind, what);
+    hold_leave(now, kind, unwind, what);
 }
 
 #[cfg(feature = "trace-ram")]

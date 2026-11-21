@@ -113,8 +113,44 @@ pub struct Outcome {
     pub span: Option<Span>,
     /// The hold record (`ARCH_HOLD`, 2026-11-20): the longest stretch
     /// during which a pending Kernel-level interrupt could not be taken
-    /// (one handler and the unwind it runs), in the span's layout.
-    pub hold: Option<Span>,
+    /// (one handler and the unwind it runs).
+    pub hold: Option<Hold>,
+}
+
+/// The hold record: the longest stretch in which a pending Kernel-level
+/// interrupt could not be taken.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Hold {
+    pub max_cycles: u32,
+    pub count: u32,
+    /// The entry kind that closed the longest hold, its entries, and its
+    /// first and last entries' descriptors (`SpanEntry::what`).
+    pub kind: u8,
+    pub entries: u32,
+    pub first: u32,
+    pub last: u32,
+    /// The maximum per closing entry kind (`stats::ENTRY_NAMES`).
+    pub by_kind: Vec<u32>,
+}
+
+impl Hold {
+    pub fn render(&self, cpu_hz: u64) -> String {
+        let us = |c: u32| c as f64 * 1e6 / cpu_hz as f64;
+        let first = SpanEntry { what: self.first, begin: 0, end: 0 }.describe();
+        let mut s = if self.entries > 1 {
+            format!("The longest had {} entries: it began with: {first}; it ended with: {}.\n", self.entries, SpanEntry { what: self.last, begin: 0, end: 0 }.describe())
+        } else {
+            format!("The longest was one entry: {first}.\n")
+        };
+        s.push_str("\n| Closing entry | Longest (cycles / µs) |\n|---|---|\n");
+        for (k, max) in self.by_kind.iter().enumerate() {
+            if *max == 0 {
+                continue;
+            }
+            s.push_str(&format!("| {} | {max} / {:.1} |\n", crate::stats::ENTRY_NAMES.get(k).copied().unwrap_or("?"), us(*max)));
+        }
+        s
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -551,7 +587,8 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
         }
     }
     if let Ok(Some(w)) = target.read_words(inputs.target_elf, "ARCH_HOLD", &scratch) {
-        if let Some(hold) = decode(&w) {
+        if w.len() >= 10 && w[0] == 0x5253_4b41 {
+            let hold = Hold { max_cycles: w[1], count: w[2], kind: w[5] as u8, entries: w[6], first: w[7], last: w[8], by_kind: w[10..].to_vec() };
             out.hold = Some(hold.clone());
             let name = crate::stats::ENTRY_NAMES.get(hold.kind as usize).copied().unwrap_or("?");
             out.step(
