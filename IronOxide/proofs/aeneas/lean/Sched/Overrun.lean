@@ -670,8 +670,7 @@ theorem timer_event_budget {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     exact ⟨k.budget, Or.inl rfl, Kept.of_eq hbud⟩
   · simp only [bind_eq_ok] at h
     obtain ⟨b, hb, k2, hl0, hl1⟩ := h
-    have hch := ((timer_loop0_served _ _ _ _ rfl hl0).trans
-      (timer_loop1_served _ _ _ _ rfl hl1)).kept
+    have hch := (timer_loops_served hl0 hl1).kept
     dsimp only at hch
     refine ⟨b, ?_, hch⟩
     split at hb

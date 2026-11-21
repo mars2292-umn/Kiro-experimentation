@@ -1767,8 +1767,8 @@ prover = "lean"
 id = "lean-code-timer-serves-a-disarmed-deadline-slot"
 kills = "timer_loop0_served (Kernel::timer_event as extracted serves a deadline slot ahead of the others only when it is armed)"
 file = "proofs/aeneas/lean/Sched/Kernel.lean"
-find = "      if slot.armed\n      then\n        if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE\n        then\n          if slot.at <= self.now\n          then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i\n          else ok self\n        else ok self\n      else ok self\n"
-replace = "      if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE\n      then\n        if slot.at <= self.now\n        then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i\n        else ok self\n      else ok self\n"
+find = "      if slot.armed\n      then\n        if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE\n        then\n          if slot.at <= self.now\n          then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i1\n          else ok self\n        else ok self\n      else ok self\n"
+replace = "      if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE\n      then\n        if slot.at <= self.now\n        then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i1\n        else ok self\n      else ok self\n"
 expect = ["Sched/Timer.lean"]
 prover = "lean"
 

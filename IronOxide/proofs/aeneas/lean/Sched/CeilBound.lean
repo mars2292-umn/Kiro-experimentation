@@ -480,23 +480,25 @@ theorem serve_slot_cl {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg : logi
 macro_rules
   | `(tactic| cl_step) => `(tactic| refine cl_trans ?_ (serve_slot_cl (by assumption) (by assumption)))
 
-theorem timer_event_loop0_cl {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg : logic.Config NT NR NP} {i : Usize}
-    (hrc : RC cfg) (h : logic.kernel.Kernel.timer_event_loop0 k cfg i = ok k') : CLK k k' := by
+theorem timer_event_loop0_cl {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg c' : logic.Config NT NR NP} {i : Usize}
+    (hrc : RC cfg) (h : logic.kernel.Kernel.timer_event_loop0 k cfg i = ok (k', c')) :
+    CLK k k' ∧ c' = cfg := by
   unfold logic.kernel.Kernel.timer_event_loop0 at h
-  refine loop_inv _ (fun x => CLK k x.1) (fun r => CLK k r) ?_ ?_ _ k' (fun h => h) h
+  refine loop_inv _ (fun x => CLK k x.1) (fun r => CLK k r.1 ∧ r.2 = cfg) ?_ ?_ _ (k', c')
+    (fun h => h) h
   · rintro ⟨k1, t1⟩ ⟨k2, t2⟩ hinv hb
     dsimp only at hinv hb ⊢
     unfold logic.kernel.Kernel.timer_event_loop0.body at hb
     peel hb
     all_goals (refine cl_trans hinv ?_; cl_close)
-  · rintro ⟨k1, t1⟩ y hinv hb
+  · rintro ⟨k1, t1⟩ ⟨k2, c2⟩ hinv hb
     dsimp only at hinv hb ⊢
     unfold logic.kernel.Kernel.timer_event_loop0.body at hb
     peel hb
-    exact hinv
+    exact ⟨hinv, rfl⟩
 
 macro_rules
-  | `(tactic| cl_step) => `(tactic| refine cl_trans ?_ (timer_event_loop0_cl (by assumption) (by assumption)))
+  | `(tactic| cl_step) => `(tactic| refine cl_trans ?_ (timer_event_loop0_cl (by assumption) (by assumption)).1)
 
 theorem timer_event_loop1_cl {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg : logic.Config NT NR NP} {i : Usize}
     (hrc : RC cfg) (h : logic.kernel.Kernel.timer_event_loop1 k cfg i = ok k') : CLK k k' := by
@@ -515,6 +517,18 @@ theorem timer_event_loop1_cl {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg
 
 macro_rules
   | `(tactic| cl_step) => `(tactic| refine cl_trans ?_ (timer_event_loop1_cl (by assumption) (by assumption)))
+
+/-- Both loops of `timer_event`: the first hands the configuration it was
+given on to the second. -/
+theorem timer_loops_cl {k k2 k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg c2 : logic.Config NT NR NP}
+    (hrc : RC cfg) (h0 : logic.kernel.Kernel.timer_event_loop0 k cfg 0#usize = ok (k2, c2))
+    (h1 : logic.kernel.Kernel.timer_event_loop1 k2 c2 0#usize = ok k') : CLK k k' := by
+  obtain ⟨h01, hc⟩ := timer_event_loop0_cl hrc h0
+  subst hc
+  exact cl_trans h01 (timer_event_loop1_cl hrc h1)
+
+macro_rules
+  | `(tactic| cl_step) => `(tactic| refine cl_trans ?_ (timer_loops_cl (by assumption) (by assumption) (by assumption)))
 
 set_option maxHeartbeats 16000000 in
 theorem timer_event_cl {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {cfg : logic.Config NT NR NP} {now : U64} {running_cycles : U32}

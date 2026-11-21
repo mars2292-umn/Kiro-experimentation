@@ -1828,7 +1828,7 @@ def rsk_logic.logic.sched.Sched.clear_release
 def rsk_logic.logic.log.EV_SAFE_STATE : Std.U8 := 18#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3810:8-3823:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3817:8-3830:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -1849,7 +1849,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop.body
   else ok (done s)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3810:8-3823:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3817:8-3830:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -1866,7 +1866,7 @@ def rsk_logic.logic.kernel.Kernel.enter_safe_state_loop
     (s, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::enter_safe_state]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3793:4-3793:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3800:4-3800:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::enter_safe_state]
     Visibility: public -/
 @[rust_fun
@@ -1904,7 +1904,7 @@ def rsk_logic.logic.log.EV_PARTITION_STOP : Std.U8 := 17#u8
 def rsk_logic.logic.MIT_DEFER : Std.U8 := 0#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3603:8-3667:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3610:8-3674:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1975,7 +1975,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3603:8-3667:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3610:8-3674:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -1994,7 +1994,7 @@ def rsk_logic.logic.kernel.Kernel.clear_partition_releases_loop
     (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::clear_partition_releases]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3588:4-3588:83
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3595:4-3595:83
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::clear_partition_releases"]
@@ -2030,7 +2030,7 @@ def rsk_logic.logic.sched.Sched.kill
   ok { self with job := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_at]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3482:4-3482:61
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3489:4-3489:61
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_at"]
@@ -2046,7 +2046,7 @@ def rsk_logic.logic.kernel.Kernel.kill_at
   ok { self with sched := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3546:8-3569:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3553:8-3576:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop_body, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2090,7 +2090,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop.body
       self.safe_state, self.started, self.now, self.history))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3546:8-3569:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3553:8-3576:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_loop, rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2115,7 +2115,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs_loop
     (self, i)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::kill_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3534:4-3534:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3541:4-3541:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::kill_partition_jobs"]
@@ -2159,7 +2159,7 @@ def rsk_logic.logic.kernel.Kernel.kill_partition_jobs
     }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3341:4-3341:59
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3348:4-3348:59
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top_release"]
@@ -2201,7 +2201,7 @@ def rsk_logic.logic.kernel.Kernel.end_top_release
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_top]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3393:4-3393:51
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3400:4-3400:51
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_top"]
@@ -2223,7 +2223,7 @@ def rsk_logic.logic.kernel.Kernel.end_top
   else ok self1
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::end_partition_jobs]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3674:4-3674:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3681:4-3681:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::end_partition_jobs"]
@@ -2253,7 +2253,7 @@ def rsk_logic.logic.kernel.Kernel.end_partition_jobs
   rsk_logic.logic.kernel.Kernel.clear_partition_releases self2 cfg1 partition
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::stop_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3762:4-3762:84
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3769:4-3769:84
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::stop_partition"]
@@ -2284,7 +2284,7 @@ def rsk_logic.logic.kernel.Kernel.stop_partition
 def rsk_logic.logic.log.EV_PARTITION_RESTART : Std.U8 := 16#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::restart_partition]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3719:4-3719:87
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3726:4-3726:87
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::restart_partition"]
@@ -2309,7 +2309,7 @@ def rsk_logic.logic.kernel.Kernel.restart_partition
   ok { self2 with mit_violations := a, reinit_partition := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::apply_response]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3249:4-3249:105
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3256:4-3256:105
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::apply_response"]
@@ -2371,7 +2371,7 @@ def rsk_logic.logic.kernel.Kernel.apply_response
           else rsk_logic.logic.kernel.Kernel.enter_safe_state self cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deadline_miss]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3075:4-3075:74
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3082:4-3082:74
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deadline_miss"]
@@ -2787,7 +2787,7 @@ def rsk_logic.logic.log.EV_OPERATING_END : Std.U8 := 10#u8
 def rsk_logic.logic.log.EV_OVERRUN : Std.U8 := 6#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::budget_event]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3115:4-3115:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3122:4-3122:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::budget_event"]
@@ -2854,7 +2854,7 @@ def rsk_logic.logic.time.Timing.deferred_due_clamped
   ok { self with has_last := a2, last_due := a, due := a1 }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::deferred_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2985:4-2985:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2992:4-2992:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::deferred_release"]
@@ -2965,7 +2965,7 @@ def rsk_logic.logic.time.Timing.advance_periodic
 def rsk_logic.logic.log.EV_RELEASE_OVERLAP : Std.U8 := 8#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::periodic_release]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2864:4-2864:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2871:4-2871:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::periodic_release"]
@@ -3046,7 +3046,7 @@ def rsk_logic.logic.kernel.Kernel.periodic_release
       ok { self1 with timing := t1, slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::serve_slot]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2771:4-2771:64
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2778:4-2778:64
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot] -/
 @[rust_fun
   "rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::serve_slot"]
@@ -3118,7 +3118,7 @@ def rsk_logic.logic.kernel.Kernel.serve_slot
         ok { self with slots := s }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2624:8-2648:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2627:8-2655:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -3126,29 +3126,32 @@ def rsk_logic.logic.kernel.Kernel.serve_slot
 def rsk_logic.logic.kernel.Kernel.timer_event_loop0.body
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
   Std.Usize} {NE : Std.Usize} (cfg : rsk_logic.logic.Config NT NR NP)
-  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE) (i : Std.Usize) :
+  (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE) (t : Std.Usize) :
   Result (ControlFlow ((rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE) ×
-    Std.Usize) (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE))
+    Std.Usize) ((rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE) ×
+    (rsk_logic.logic.Config NT NR NP)))
   := do
-  if i < NS
+  if t < NT
   then
-    let slot ← Array.index_usize self.slots.slots i
+    let i ← Array.index_usize cfg.slot_deadline t
+    let i1 ← lift (UScalar.cast .Usize i)
+    let slot ← Array.index_usize self.slots.slots i1
     let self1 ←
       if slot.armed
       then
         if slot.kind = rsk_logic.logic.time.SLOT_DEADLINE
         then
           if slot.at <= self.now
-          then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i
+          then rsk_logic.logic.kernel.Kernel.serve_slot self cfg i1
           else ok self
         else ok self
       else ok self
-    let i1 ← i + 1#usize
-    ok (cont (self1, i1))
-  else ok (done self)
+    let t1 ← t + 1#usize
+    ok (cont (self1, t1))
+  else ok (done (self, cfg))
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 0:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2624:8-2648:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2627:8-2655:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3157,16 +3160,17 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop0
   {NT : Std.Usize} {NR : Std.Usize} {NP : Std.Usize} {NL : Std.Usize} {NS :
   Std.Usize} {NE : Std.Usize}
   (self : rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
-  (cfg : rsk_logic.logic.Config NT NR NP) (i : Std.Usize) :
-  Result (rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE)
+  (cfg : rsk_logic.logic.Config NT NR NP) (t : Std.Usize) :
+  Result ((rsk_logic.logic.kernel.Kernel NT NR NP NL NS NE) ×
+    (rsk_logic.logic.Config NT NR NP))
   := do
   loop
-    (fun (self1, i1) => rsk_logic.logic.kernel.Kernel.timer_event_loop0.body
-      cfg self1 i1)
-    (self, i)
+    (fun (self1, t1) => rsk_logic.logic.kernel.Kernel.timer_event_loop0.body
+      cfg self1 t1)
+    (self, t)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop body 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2650:8-2726:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2657:8-2733:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop_body, rust_fun
@@ -3193,7 +3197,7 @@ def rsk_logic.logic.kernel.Kernel.timer_event_loop1.body
   else ok (done self)
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::timer_event]: loop 1:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2650:8-2726:9
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 2657:8-2733:9
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::timer_event]
     Visibility: public -/
 @[rust_loop, rust_fun
@@ -3236,13 +3240,13 @@ def rsk_logic.logic.kernel.Kernel.timer_event
         let t ← Array.index_usize self1.sched.stack i
         rsk_logic.logic.budget.Budget.charge self1.budget t running_cycles
       else ok self1.budget
-    let self2 ←
+    let (self2, cfg1) ←
       rsk_logic.logic.kernel.Kernel.timer_event_loop0
         { self1 with budget := b } cfg 0#usize
-    rsk_logic.logic.kernel.Kernel.timer_event_loop1 self2 cfg 0#usize
+    rsk_logic.logic.kernel.Kernel.timer_event_loop1 self2 cfg1 0#usize
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3176:4-3176:77
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3183:4-3183:77
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault]
     Visibility: public -/
 @[rust_fun
@@ -3282,7 +3286,7 @@ def rsk_logic.logic.kernel.Kernel.fault
         pc.fault_response kind t
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::fault_of]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3222:4-3222:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3229:4-3229:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::fault_of]
     Visibility: public -/
 @[rust_fun
@@ -3321,7 +3325,7 @@ def rsk_logic.logic.log.EV_DEBUGGER : Std.U8 := 23#u8
 def rsk_logic.logic.log.EV_WATCHDOG_RESET : Std.U8 := 15#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::boot_info]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3835:4-3835:95
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3842:4-3842:95
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::boot_info]
     Visibility: public -/
 @[rust_fun
@@ -3354,7 +3358,7 @@ def rsk_logic.logic.kernel.Kernel.boot_info
 def rsk_logic.logic.log.EV_BOOT_CHECK : Std.U8 := 14#u8
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::boot_check_failed]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3850:4-3850:78
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3857:4-3857:78
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::boot_check_failed]
     Visibility: public -/
 @[rust_fun
@@ -3372,7 +3376,7 @@ def rsk_logic.logic.kernel.Kernel.boot_check_failed
   rsk_logic.logic.kernel.Kernel.enter_safe_state self1 cfg
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_reinit]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3862:4-3862:73
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3869:4-3869:73
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_reinit]
     Visibility: public -/
 @[rust_fun
@@ -3389,7 +3393,7 @@ def rsk_logic.logic.kernel.Kernel.ack_reinit
   ok { self with reinit_partition := a }
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::ack_stop_dma]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3874:4-3874:75
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3881:4-3881:75
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::ack_stop_dma]
     Visibility: public -/
 @[rust_fun
@@ -3507,7 +3511,7 @@ def rsk_logic.logic.sched.Sched.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::select]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3889:4-3889:70
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3896:4-3896:70
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::select]
     Visibility: public -/
 @[rust_fun
@@ -3527,7 +3531,7 @@ def rsk_logic.logic.kernel.Kernel.select
     else ok none
 
 /-- [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<NT, NR, NP, NL, NS, NE>}::settle]:
-    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3933:4-3933:80
+    Source: 'crates/rsk-logic/src/logic/kernel.rs', lines 3940:4-3940:80
     Name pattern: [rsk_logic::logic::kernel::{rsk_logic::logic::kernel::Kernel<@NT, @NR, @NP, @NL, @NS, @NE>}::settle]
     Visibility: public -/
 @[rust_fun

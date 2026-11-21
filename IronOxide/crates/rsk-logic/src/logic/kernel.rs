@@ -2620,16 +2620,23 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         // release state the served slots are judged from.
         let ghost entry = *self;
         let ghost now_obs = self.now;
-        let mut i: usize = 0;
-        while i < NS
-            invariant self.inv(cfg), self.history_extends(old(self)), i <= NS, (cfg.slot_count as int) == NS,
+        // The deadline slots are the Tasks' `slot_deadline` (the only
+        // slots armed with `SLOT_DEADLINE`): the first pass visits those,
+        // one per Task, not the whole table (2026-11-20).
+        let mut t: usize = 0;
+        while t < NT
+            invariant self.inv(cfg), self.history_extends(old(self)), t <= NT, (cfg.slot_count as int) == NS,
                 self.stack_prefix_of(old(self)),
                 self.mit_spaced(old(self), cfg), self.budget.only_reset_from(&charged),
                 self.now == now_obs, self.history_extends(&entry),
                 // Deadline slots only: no Periodic_Task's release slot is served.
                 self.periodic_env(&entry, cfg, -1),
-            decreases NS - i,
+            decreases NT - t,
         {
+            proof {
+                assert(cfg.slot_ok(t as int));
+            }
+            let i = cfg.slot_deadline[t] as usize;
             let slot = self.slots.slots[i];
             if slot.armed && slot.kind == SLOT_DEADLINE && slot.at <= self.now {
                 let ghost before = *self;
@@ -2644,7 +2651,7 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                     Self::lemma_kept_trans(&entry, &before, self, cfg, -1, -1);
                 }
             }
-            i = i + 1;
+            t = t + 1;
         }
         let mut i: usize = 0;
         while i < NS

@@ -868,12 +868,24 @@ fn windows() -> &'static mut [u32; 2] {
 /// a histogram of the spans' lengths by their binary order of magnitude
 /// (`SPAN_BUCKETS` buckets from 2^6 cycles, the last one open-ended) and,
 /// per closing entry kind (`ENTRY_KINDS`), the spans' count and maximum.
+///
+/// The composition (2026-11-20): after those, the entries of the span now
+/// open and the entries of the longest span, each a count (which may
+/// exceed `SPAN_ENTRIES`; the first `SPAN_ENTRIES` are kept) and per entry
+/// three words: what it was (`span_close`'s descriptor), and the cycles
+/// from the span's start to the entry's Rust half beginning and ending.
 #[cfg(feature = "trace-ram")]
 pub const SPAN_BUCKETS: usize = 16;
 #[cfg(feature = "trace-ram")]
+pub const SPAN_ENTRIES: usize = 16;
+#[cfg(feature = "trace-ram")]
+const SPAN_CUR: usize = SPAN_HEADER + SPAN_BUCKETS + 2 * ENTRY_KINDS;
+#[cfg(feature = "trace-ram")]
+const SPAN_LONG: usize = SPAN_CUR + 1 + 3 * SPAN_ENTRIES;
+#[cfg(feature = "trace-ram")]
 const SPAN_HEADER: usize = 6;
 #[cfg(feature = "trace-ram")]
-const SPAN_WORDS: usize = SPAN_HEADER + SPAN_BUCKETS + 2 * ENTRY_KINDS;
+const SPAN_WORDS: usize = SPAN_LONG + 1 + 3 * SPAN_ENTRIES;
 #[cfg(feature = "trace-ram")]
 struct SpanCell(UnsafeCell<[u32; SPAN_WORDS]>);
 // SAFETY (UJ-005g): as UJ-005.
@@ -912,6 +924,11 @@ pub fn span_enter() {
     if s[4] == 0 {
         s[3] = now;
         s[4] = 1;
+        s[SPAN_CUR] = 0;
+    }
+    let n = s[SPAN_CUR] as usize;
+    if n < SPAN_ENTRIES {
+        s[SPAN_CUR + 1 + 3 * n + 1] = now.wrapping_sub(s[3]);
     }
 }
 
@@ -919,18 +936,32 @@ pub fn span_enter() {
 /// return does not reach a Thread-mode context in which a Kernel-level
 /// interrupt is taken).
 #[cfg(feature = "trace-ram")]
-pub fn span_leave(kind: u8, chained: bool) {
+pub fn span_leave(kind: u8, chained: bool, what: u32) {
     let now = hw::dwt_cyccnt();
     let s = span();
-    if chained || s[4] == 0 {
+    if s[4] == 0 {
         return;
     }
     let len = now.wrapping_sub(s[3]);
+    let n = s[SPAN_CUR] as usize;
+    if n < SPAN_ENTRIES {
+        s[SPAN_CUR + 1 + 3 * n] = what;
+        s[SPAN_CUR + 1 + 3 * n + 2] = len;
+    }
+    s[SPAN_CUR] = s[SPAN_CUR].saturating_add(1);
+    if chained {
+        return;
+    }
     s[4] = 0;
     s[2] = s[2].saturating_add(1);
     if len > s[1] {
         s[1] = len;
         s[5] = kind as u32;
+        let mut i = 0;
+        while i < 1 + 3 * SPAN_ENTRIES {
+            s[SPAN_LONG + i] = s[SPAN_CUR + i];
+            i += 1;
+        }
     }
     // The histogram: bucket b holds the spans of 2^(b+6) to 2^(b+7)-1
     // cycles, the first everything below 2^7, the last everything from

@@ -410,20 +410,42 @@ fn pushed_kinds<K: KernelOps>(k: &K, seq_before: u32) -> u32 {
 /// began at `start` (DWT cycles) and, when the entry applied a response,
 /// the response's kinds too (Table 13-1: Δ_restart, Δ_stop, Δ_enforce).
 #[cfg(feature = "trace-ram")]
-fn entry_record<K: KernelOps>(k: &K, kind: u8, start: u32, seq_before: u32) {
+fn entry_record<K: KernelOps>(k: &K, kind: u8, start: u32, seq_before: u32) -> u32 {
     let cycles = hw::dwt_cyccnt().wrapping_sub(start);
     unsafe_module::stats_entry(kind, cycles);
     let pushed = pushed_kinds(k, seq_before);
+    let mut what = kind as u32;
     if pushed & (1 << crate::logic::log::EV_PARTITION_RESTART) != 0 {
         unsafe_module::stats_entry(unsafe_module::ENTRY_RESTART, cycles);
+        what |= SPAN_RESTART;
     }
     if pushed & (1 << crate::logic::log::EV_PARTITION_STOP) != 0 {
         unsafe_module::stats_entry(unsafe_module::ENTRY_STOP, cycles);
+        what |= SPAN_STOP;
     }
     if pushed & (1 << crate::logic::log::EV_OVERRUN) != 0 {
         unsafe_module::stats_entry(unsafe_module::ENTRY_ENFORCE, cycles);
+        what |= SPAN_ENFORCE;
     }
+    what
 }
+
+/// The descriptor of one entry in the masked span's composition (11.13):
+/// bits 0-7 the entry's kind (`ENTRY_*`), then what it did and why the
+/// span stayed open after it; bits 16-24 the highest pending exception at
+/// its return (0: none).
+#[cfg(feature = "trace-ram")]
+const SPAN_STARTED: u32 = 1 << 8;
+#[cfg(feature = "trace-ram")]
+const SPAN_UNWIND: u32 = 1 << 9;
+#[cfg(feature = "trace-ram")]
+const SPAN_PENDING: u32 = 1 << 10;
+#[cfg(feature = "trace-ram")]
+const SPAN_RESTART: u32 = 1 << 11;
+#[cfg(feature = "trace-ram")]
+const SPAN_STOP: u32 = 1 << 12;
+#[cfg(feature = "trace-ram")]
+const SPAN_ENFORCE: u32 = 1 << 13;
 
 /// Instant 0: enables Releases (PR-34) and the compare of the first event.
 pub fn start<S: System>() {
@@ -489,6 +511,8 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
     };
     #[cfg(feature = "trace-ram")]
     let (seq_before, top_before) = (k.log_seq(), k.top());
+    #[cfg(feature = "trace-ram")]
+    let mut span_what = 0u32;
     let (plan, safe) = entry::irq_entry_core(
         k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), ipsr, psp, control, exc_return,
     );
@@ -509,7 +533,7 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
             _ => unsafe_module::ENTRY_TIMER,
         };
         let interrupting_cycles = hw::dwt_cyccnt().wrapping_sub(entry_cycles);
-        entry_record(k, kind, entry_cycles, seq_before);
+        span_what = entry_record(k, kind, entry_cycles, seq_before) | if plan.psp != 0 { SPAN_STARTED } else { 0 };
         if let Some(t) = top_before {
             unsafe_module::stats_interrupted(t, kind, interrupting_cycles);
         }
@@ -544,7 +568,7 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
         safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0);
+    span_close::<S>(k, if plan.psp != 0 { unsafe_module::ENTRY_DISPATCH } else { unsafe_module::ENTRY_TIMER }, plan.hop != 0, span_what);
     pins_running(k.top());
     plan
 }
@@ -557,19 +581,21 @@ pub fn irq_entry<S: System>(ipsr: u32, psp: u32, control: u32, exc_return: u32) 
 /// stub under PRIMASK). A pending dispatch vector BASEPRI masks, or
 /// nothing pending, closes it: the Job resumes and an intake is taken.
 #[cfg(feature = "trace-ram")]
-fn span_close<S: System>(k: &S::K, kind: u8, chained: bool) {
-    let chained = chained || {
-        let v = hw::vectpending();
-        v != 0
-            && match S::binding(v) {
-                crate::arch::Binding::Dispatch(t) => {
-                    let b = k.basepri_now();
-                    b == 0 || encode_level(k.job_info(t).priority) < b
-                }
-                _ => true,
+fn span_close<S: System>(k: &S::K, kind: u8, chained: bool, what: u32) {
+    let v = hw::vectpending();
+    let pending = v != 0
+        && match S::binding(v) {
+            crate::arch::Binding::Dispatch(t) => {
+                let b = k.basepri_now();
+                b == 0 || encode_level(k.job_info(t).priority) < b
             }
-    };
-    unsafe_module::span_leave(kind, chained);
+            _ => true,
+        };
+    let what = what
+        | if chained { SPAN_UNWIND } else { 0 }
+        | if pending { SPAN_PENDING } else { 0 }
+        | ((v as u32 & 0x1FF) << 16);
+    unsafe_module::span_leave(kind, chained || pending, what);
 }
 
 /// Trace pins (feature `trace-pins`): a Kernel handler begins.
@@ -597,11 +623,13 @@ pub fn timer<S: System>() -> ReturnPlan {
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
     let (start, seq_before, top_before) = (hw::dwt_cyccnt(), k.log_seq(), k.top());
+    #[cfg(feature = "trace-ram")]
+    let span_what;
     let (hop, safe) = entry::timer_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
     #[cfg(feature = "trace-ram")]
     {
         let interrupting_cycles = hw::dwt_cyccnt().wrapping_sub(start);
-        entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
+        span_what = entry_record(k, unsafe_module::ENTRY_TIMER, start, seq_before);
         if let Some(t) = top_before {
             unsafe_module::stats_interrupted(t, unsafe_module::ENTRY_TIMER, interrupting_cycles);
         }
@@ -611,7 +639,7 @@ pub fn timer<S: System>() -> ReturnPlan {
         safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0);
+    span_close::<S>(k, unsafe_module::ENTRY_TIMER, hop != 0, span_what);
     pins_running(k.top());
     hop
 }
@@ -640,13 +668,13 @@ pub fn svc_frame_check<S: System>(psp: u32, exc_return: u32) -> Option<ReturnPla
     #[cfg(feature = "trace-ram")]
     unsafe_module::span_enter();
     #[cfg(feature = "trace-ram")]
-    entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
+    let span_what = entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
         safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
+    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0, span_what);
     pins_running(k.top());
     Some(hop)
 }
@@ -700,6 +728,8 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
     let section = if number == entry::SVC_LOCK || number == entry::SVC_UNLOCK { k.top().map(|t| (t, frame[0] as u8, consumed_now(k, t))) } else { None };
     #[cfg(feature = "trace-ram")]
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
+    #[cfg(feature = "trace-ram")]
+    let mut span_what = unsafe_module::ENTRY_PANIC as u32;
     let (hop, safe) =
         entry::svc_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), frame, number);
     #[cfg(feature = "trace-ram")]
@@ -718,7 +748,7 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
             _ => unsafe_module::ENTRY_PANIC,
         };
         if !stale {
-            entry_record(k, kind, start, seq_before);
+            span_what = entry_record(k, kind, start, seq_before);
         }
     }
     #[cfg(feature = "trace-ram")]
@@ -751,7 +781,7 @@ pub fn svc<S: System>(frame: &mut [u32; 8]) -> ReturnPlan {
         safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, if stale { unsafe_module::ENTRY_PANIC } else { unsafe_module::ENTRY_JOB_END }, hop != 0);
+    span_close::<S>(k, if stale { unsafe_module::ENTRY_PANIC } else { unsafe_module::ENTRY_JOB_END }, hop != 0, span_what);
     pins_running(k.top());
     hop
 }
@@ -776,13 +806,13 @@ pub fn epilogue<S: System>(n: u32) -> (u32, u32, u32, ReturnPlan) {
     let (start, seq_before) = (hw::dwt_cyccnt(), k.log_seq());
     let (r, safe) = entry::epilogue_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), n);
     #[cfg(feature = "trace-ram")]
-    entry_record(k, unsafe_module::ENTRY_EPILOGUE, start, seq_before);
+    let span_what = entry_record(k, unsafe_module::ENTRY_EPILOGUE, start, seq_before);
     mirror_events(k);
     if safe {
         safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_EPILOGUE, r.3 != 0);
+    span_close::<S>(k, unsafe_module::ENTRY_EPILOGUE, r.3 != 0, span_what);
     pins_running(k.top());
     r
 }
@@ -799,13 +829,13 @@ pub fn fault<S: System>(kind: u8, in_kernel: bool) -> ReturnPlan {
     let (hop, safe) =
         entry::fault_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state(), kind, in_kernel);
     #[cfg(feature = "trace-ram")]
-    entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
+    let span_what = entry_record(k, unsafe_module::ENTRY_FAULT, start, seq_before);
     mirror_events(k);
     if safe {
         safe_state::<S>();
     }
     #[cfg(feature = "trace-ram")]
-    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0);
+    span_close::<S>(k, unsafe_module::ENTRY_FAULT, hop != 0, span_what);
     pins_running(k.top());
     hop
 }

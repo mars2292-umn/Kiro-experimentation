@@ -124,6 +124,39 @@ pub struct Span {
     pub histogram: Vec<u32>,
     /// Per closing entry kind (`stats::ENTRY_NAMES`): count and maximum.
     pub by_kind: Vec<(u32, u32)>,
+    /// The entries of the longest span, in order (2026-11-20); empty for
+    /// a build without the composition record.
+    pub longest: Vec<SpanEntry>,
+    /// How many entries the longest span had (`longest` keeps the first 16).
+    pub longest_entries: u32,
+}
+
+/// One Kernel entry inside the longest masked span.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SpanEntry {
+    /// The Kernel's descriptor: bits 0-7 the kind, 8 a Job started, 9 an
+    /// unwind follows, 10 a pending exception kept the span open, 11 a
+    /// Partition restarted, 12 stopped, 13 an Overrun enforced; bits
+    /// 16-24 the highest pending exception at the return.
+    pub what: u32,
+    /// Cycles from the span's start to the Rust half's begin and end.
+    pub begin: u32,
+    pub end: u32,
+}
+
+impl SpanEntry {
+    pub fn describe(&self) -> String {
+        let mut s = crate::stats::ENTRY_NAMES.get((self.what & 0xFF) as usize).copied().unwrap_or("?").to_string();
+        for (bit, name) in [(8, "started a Job"), (11, "restarted a Partition"), (12, "stopped a Partition"), (13, "enforced an Overrun"), (9, "an unwind follows")] {
+            if self.what & (1 << bit) != 0 {
+                s.push_str(&format!(", {name}"));
+            }
+        }
+        if self.what & (1 << 10) != 0 {
+            s.push_str(&format!(", exception {} pending", (self.what >> 16) & 0x1FF));
+        }
+        s
+    }
 }
 
 impl Span {
@@ -145,6 +178,18 @@ impl Span {
                 continue;
             }
             s.push_str(&format!("| {} | {n} | {max} / {:.1} |\n", crate::stats::ENTRY_NAMES.get(k).copied().unwrap_or("?"), us(*max)));
+        }
+        if !self.longest.is_empty() {
+            s.push_str(&format!("\nThe longest span's {} entries, in order (cycles from the span's start; the gap is the time since the entry before ended: stubs, unwinding, exception entry):\n\n| # | Entry | Begins | Ends | Rust half (cycles / µs) | Gap before (cycles / µs) |\n|---|---|---|---|---|---|\n", self.longest_entries));
+            let mut prev = 0u32;
+            for (i, e) in self.longest.iter().enumerate() {
+                let half = e.end.saturating_sub(e.begin);
+                let gap = e.begin.saturating_sub(prev);
+                s.push_str(&format!("| {} | {} | {} | {} | {half} / {:.1} | {gap} / {:.1} |\n", i + 1, e.describe(), e.begin, e.end, us(half), us(gap)));
+                prev = e.end;
+            }
+            let halves: u32 = self.longest.iter().map(|e| e.end.saturating_sub(e.begin)).sum();
+            s.push_str(&format!("\nRust halves {halves} cycles ({:.1} µs), between them {} cycles ({:.1} µs).\n", us(halves), prev.saturating_sub(halves), us(prev.saturating_sub(halves))));
         }
         s
     }
@@ -478,8 +523,14 @@ pub fn run(inputs: &Inputs<'_>) -> Outcome {
     match target.read_words(inputs.target_elf, "ARCH_SPAN", &scratch) {
         Ok(Some(w)) if w.len() >= 6 && w[0] == 0x5253_4b41 => {
             let histogram: Vec<u32> = w.get(6..22).map(|h| h.to_vec()).unwrap_or_default();
-            let by_kind: Vec<(u32, u32)> = w.get(22..54).map(|k| k.chunks(2).map(|c| (c[0], c[1])).collect()).unwrap_or_default();
-            let span = Span { max_cycles: w[1], count: w[2], kind: w[5] as u8, histogram, by_kind };
+            let by_kind: Vec<(u32, u32)> = w.get(22..22 + 2 * crate::stats::ENTRY_KINDS).map(|k| k.chunks(2).map(|c| (c[0], c[1])).collect()).unwrap_or_default();
+            // The composition of the longest span: after the current
+            // span's 1 + 3 * 16 words.
+            let (longest, longest_entries) = match w.get(22 + 2 * crate::stats::ENTRY_KINDS + 49..22 + 2 * crate::stats::ENTRY_KINDS + 98) {
+                Some(l) => (l[1..].chunks(3).take((l[0] as usize).min(16)).map(|c| SpanEntry { what: c[0], begin: c[1], end: c[2] }).collect(), l[0]),
+                None => (Vec::new(), 0),
+            };
+            let span = Span { max_cycles: w[1], count: w[2], kind: w[5] as u8, histogram, by_kind, longest, longest_entries };
             out.span = Some(span.clone());
             let name = crate::stats::ENTRY_NAMES.get(span.kind as usize).copied().unwrap_or("?");
             out.step(

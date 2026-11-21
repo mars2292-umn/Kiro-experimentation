@@ -240,3 +240,105 @@ A fault inside the Kernel itself always leads to the safe state.
 | Copies messages between Partitions | It is the only writer of Endpoint storage |
 
 The Kernel cannot allocate memory, cannot run floating-point arithmetic, and has no call through a function pointer: all three are excluded by build-time checks.
+
+## 11. How Kernel entries queue into one masked stretch
+
+Each Kernel entry is short: 25 to 66 µs in the measured build. The longest time during which no Kernel-level interrupt can be taken is much longer, 330 to 380 µs in three-minute stress runs, because entries run back to back with no gap in which a new interrupt could be taken. Sections 11.1 and 11.2 show what happens today. Section 11.3 shows two changes that have been proposed and not made.
+
+### 11.1 Why one entry is followed by another
+
+When an entry returns, the processor does not go back to the Job if something is waiting. It goes straight into the next handler, still with Kernel-level interrupts held off.
+
+```mermaid
+flowchart TB
+    E["A Kernel entry finishes<br/>(timer, intake, supervisor call, dispatch)"] --> U{"Did it end a Job<br/>that was preempted?"}
+    U -- "yes" --> EP["Unwind that Job's level<br/>(inside the same handler)"]
+    EP --> P
+    U -- "no" --> P{"Is a Kernel-level interrupt<br/>already pending?"}
+    P -- "yes: the time base<br/>or an intake" --> NEXT["Run that entry next<br/>(no return to a Job)"]
+    NEXT --> E
+    P -- "no" --> D{"Is a dispatch pending<br/>that the resumed Job<br/>does not mask?"}
+    D -- "yes" --> DSP["Run the dispatch stub next"]
+    DSP --> E
+    D -- "no" --> END["Return to the Job or to idle:<br/>the masked stretch ends"]
+```
+
+The time base is pending again so often because of how long a timer entry takes. The timer is armed for the next due slot when the entry finishes. If that slot comes due within the 45 to 65 µs the entry itself needs, the timer has already fired by the time the entry returns.
+
+### 11.2 The longest stretch measured
+
+One stretch of 382 µs from a stress run (measured build, 64 MHz). Nine entries ran without a return to a Job. The timer was pending again after each of the first four timer-related entries.
+
+```mermaid
+sequenceDiagram
+    participant J as Jobs (Thread mode)
+    participant K as Kernel level (interrupts held off)
+    participant D as Dispatch stubs
+
+    J->>K: supervisor call "now" (7 µs)
+    Note over K: time base pending
+    K->>K: timer entry (45 µs)
+    Note over K: time base pending again
+    K->>K: timer entry: Budget overrun, Job ended (57 µs)
+    K->>K: unwind the ended Job's level (8 µs)
+    Note over K: time base pending again
+    K->>K: timer entry (42 µs)
+    Note over K: an intake interrupt pending
+    K->>K: intake entry (38 µs)
+    K->>D: dispatch pending
+    D->>D: dispatch: start a Job (47 µs)
+    Note over K: time base pending again
+    D->>K: timer entry (64 µs)
+    K->>D: dispatch pending
+    D->>D: dispatch: start a Job (51 µs)
+    D->>J: the new Job runs: the stretch ends
+    Note over J,D: 358 µs in the entries, 24 µs between them
+```
+
+Where the 382 µs went:
+
+| Part of the stretch | Entries | Time |
+|---|---|---|
+| Timer entries | 4 | 208 µs |
+| Dispatches | 2 | 97 µs |
+| Intake | 1 | 38 µs |
+| Unwind | 1 | 8 µs |
+| Supervisor call | 1 | 7 µs |
+| Between entries (stubs, exception entry) | | 24 µs |
+
+### 11.3 Two proposed changes
+
+Neither is implemented. The times are estimates from the stretch above, not measurements.
+
+```mermaid
+flowchart TB
+    subgraph NOW["Today: about 380 µs masked"]
+        direction LR
+        N1["timer"] --> N2["timer +<br/>unwind"] --> N3["timer"] --> N4["intake"] --> N5["dispatch"] --> N6["timer"] --> N7["dispatch"]
+    end
+    subgraph C1["Change 1: one timer entry serves every slot that comes due while it runs"]
+        direction LR
+        A1["timer + unwind<br/>(one entry, longer)"] --> A4["intake"] --> A5["dispatch"] --> A7["dispatch"]
+    end
+    subgraph C2["Change 2: queued intake and dispatch entries no longer extend the masked stretch"]
+        direction LR
+        B1["timer"] --> B2["timer +<br/>unwind"] --> B3["timer"] --> BG(["interrupts can<br/>be taken here"]) --> B4["intake"] --> BH(["and here"]) --> B5["dispatch"]
+    end
+    subgraph BOTH["Both: about 65 to 85 µs masked"]
+        direction LR
+        X1["timer + unwind<br/>(one entry)"] --> XG(["interrupts can<br/>be taken here"]) --> X4["intake"] --> XH(["and here"]) --> X5["dispatch"]
+    end
+    NOW --> C1
+    NOW --> C2
+    C1 --> BOTH
+    C2 --> BOTH
+```
+
+| | What changes | Estimated longest stretch | What it costs |
+|---|---|---|---|
+| Today | | 330 to 380 µs | |
+| Change 1 | A timer entry keeps serving slots that come due while it runs, so several timer entries become one | 200 to 250 µs | A Release that comes due during the entry takes effect in that entry, not in the next one: the release-timing rule and its proofs change |
+| Change 2 | After the timer work, the processor returns to a level where Kernel-level interrupts are taken before it runs a queued intake or dispatch | 200 to 250 µs | The dispatch stubs and the rule for the Kernel's stack change |
+| Both | | 65 to 85 µs | Both of the above; the merged timer entry is longer than today's and must be measured |
+
+Running the unwind at the ended Job's own level was also considered. It would remove 8 to 34 µs of the stretch, so it does not reach the 50 to 100 µs target by itself.

@@ -515,7 +515,7 @@ theorem timer_event_reading {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
     exact ⟨hnow, k0, hsch, ServedAt.done _⟩
   · simp only [bind_eq_ok] at h
     obtain ⟨b, _, k2, hl0, hl1⟩ := h
-    have hch := (timer_loop0_served _ _ _ _ rfl hl0).trans (timer_loop1_served _ _ _ _ rfl hl1)
+    have hch := timer_loops_served hl0 hl1
     have hat := served_chain_at hch
     have hk := served_chain_now hch
     dsimp only at hat hk

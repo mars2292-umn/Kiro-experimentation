@@ -632,14 +632,14 @@ theorem serve_slot_kt (i : Usize) (hk : KT k) (hc : CT cfg NS) (hi : i.val < NS.
       · refine WP.spec_bind (disarm_spec k.slots i hi) (fun s _ => ?_)
         exact (WP.spec_ok _).mpr (hkk s)
 
-theorem timer_loop0_kt (hc : CT cfg NS) (i : Usize) (hk : KT k) (hi : i.val ≤ NS.val) :
-    logic.kernel.Kernel.timer_event_loop0 k cfg i ⦃ k' => KT k' ⦄ := by
+theorem timer_loop0_kt (hc : CT cfg NS) (i : Usize) (hk : KT k) (hi : i.val ≤ NT.val) :
+    logic.kernel.Kernel.timer_event_loop0 k cfg i ⦃ r => KT r.1 ∧ r.2 = cfg ⦄ := by
   unfold logic.kernel.Kernel.timer_event_loop0
   apply loop.spec_decr_nat
-    (fun (x : logic.kernel.Kernel NT NR NP NL NS NE × Usize) => NS.val - x.2.val)
-    (fun x => KT x.1 ∧ x.2.val ≤ NS.val)
+    (fun (x : logic.kernel.Kernel NT NR NP NL NS NE × Usize) => NT.val - x.2.val)
+    (fun x => KT x.1 ∧ x.2.val ≤ NT.val)
   · intro x hx
-    obtain ⟨k1, i1⟩ := x
+    obtain ⟨k1, t1⟩ := x
     obtain ⟨hk1, h2⟩ := hx
     try dsimp only at hk1
     try dsimp only at h2
@@ -648,8 +648,17 @@ theorem timer_loop0_kt (hc : CT cfg NS) (i : Usize) (hk : KT k) (hi : i.val ≤ 
     try dsimp only
     split
     · rename_i hlt
-      have hlt' : i1.val < NS.val := by scalar_tac
-      have hlen : i1.val < k1.slots.slots.val.length := by
+      have hlt' : t1.val < NT.val := by scalar_tac
+      have hld : t1.val < cfg.slot_deadline.val.length := by
+        have := cfg.slot_deadline.property; omega
+      step as ⟨ i0, hi0 ⟩
+      have hi0' : cfg.slot_deadline.val[t1.val]! = i0 := by
+        rw [hi0]; exact getElem!_pos cfg.slot_deadline.val t1.val hld
+      have hsl := (hc.ci.ok t1.val hlt').2.1
+      rw [hi0'] at hsl
+      simp only [lift, bind_ok]
+      have hcv : (UScalar.cast .Usize i0).val = i0.val := U8.cast_Usize_val_eq _
+      have hlen : (UScalar.cast .Usize i0).val < k1.slots.slots.val.length := by
         have := k1.slots.slots.property; omega
       step as ⟨ slot, hslot ⟩
       refine WP.spec_bind
@@ -658,13 +667,13 @@ theorem timer_loop0_kt (hc : CT cfg NS) (i : Usize) (hk : KT k) (hi : i.val ≤ 
       · split
         · split
           · split
-            · exact serve_slot_kt k1 cfg i1 hk1 hc hlt'
+            · exact serve_slot_kt k1 cfg _ hk1 hc (by omega)
             · exact (WP.spec_ok _).mpr hk1
           · exact (WP.spec_ok _).mpr hk1
         · exact (WP.spec_ok _).mpr hk1
       · step as ⟨ i2, hi2 ⟩
         exact ⟨h1, by scalar_tac, by scalar_tac⟩
-    · exact (WP.spec_ok _).mpr hk1
+    · exact (WP.spec_ok _).mpr ⟨hk1, rfl⟩
   · exact ⟨hk, hi⟩
 
 theorem timer_loop1_kt (hc : CT cfg NS) (i : Usize) (hk : KT k) (hi : i.val ≤ NS.val) :
@@ -723,7 +732,11 @@ theorem timer_event_kt (now : U64) (rc : U32) (hk : KT k) (hc : CT cfg NS)
         exact WP.spec_mono (charge_total self1.budget t rc hst) (fun _ _ => trivial)
       · exact (WP.spec_ok _).mpr trivial
     · refine WP.spec_bind (timer_loop0_kt _ cfg hc 0#usize
-        ⟨⟨h1.ki.s, h1.ki.l, h1.ki.n⟩, h1.tm⟩ (by scalar_tac)) (fun self2 h2 => ?_)
-      exact timer_loop1_kt self2 cfg hc 0#usize h2 (by scalar_tac)
+        ⟨⟨h1.ki.s, h1.ki.l, h1.ki.n⟩, h1.tm⟩ (by scalar_tac)) (fun r2 h2 => ?_)
+      obtain ⟨self2, cfg2⟩ := r2
+      obtain ⟨h2, hc2⟩ := h2
+      dsimp only at h2 hc2 ⊢
+      subst hc2
+      exact timer_loop1_kt self2 _ hc 0#usize h2 (by scalar_tac)
 
 end P18

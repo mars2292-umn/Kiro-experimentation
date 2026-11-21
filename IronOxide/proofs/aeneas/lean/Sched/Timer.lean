@@ -150,48 +150,51 @@ theorem ServedChain.trans {cfg : logic.Config NT NR NP}
   | done => exact h2
   | serve k k1 k' i hdue hs _ ih => exact ServedChain.serve k k1 _ i hdue hs (ih h2)
 
-/-- The first loop of `timer_event` (the deadline slots, KD-R9.6). -/
+/-- The first loop of `timer_event` (the deadline slots, KD-R9.6): one
+slot per Task, the Task's `slot_deadline` (2026-11-20). -/
 theorem timer_loop0_served {cfg : logic.Config NT NR NP} :
-    ∀ (n : Nat) (k : logic.kernel.Kernel NT NR NP NL NS NE) (i : Usize)
-      (k' : logic.kernel.Kernel NT NR NP NL NS NE),
-      NS.val - i.val = n →
-      logic.kernel.Kernel.timer_event_loop0 k cfg i = ok k' → ServedChain cfg k k' := by
+    ∀ (n : Nat) (k : logic.kernel.Kernel NT NR NP NL NS NE) (t : Usize)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE) (c' : logic.Config NT NR NP),
+      NT.val - t.val = n →
+      logic.kernel.Kernel.timer_event_loop0 k cfg t = ok (k', c') →
+      c' = cfg ∧ ServedChain cfg k k' := by
   intro n
   induction n with
   | zero =>
-    intro k i k' hn h
+    intro k t k' c' hn h
     unfold logic.kernel.Kernel.timer_event_loop0 loop at h
     simp only [logic.kernel.Kernel.timer_event_loop0.body] at h
-    have hlt : ¬ i < NS := by scalar_tac
+    have hlt : ¬ t < NT := by scalar_tac
     simp only [hlt, ite_false, bind_ok] at h
     have h := ok_inj h
-    subst h
-    exact ServedChain.done _
+    cases h
+    exact ⟨rfl, ServedChain.done _⟩
   | succ n ih =>
-    intro k i k' hn h
+    intro k t k' c' hn h
     unfold logic.kernel.Kernel.timer_event_loop0 loop at h
     simp only [logic.kernel.Kernel.timer_event_loop0.body] at h
-    have hlt : i < NS := by scalar_tac
-    simp only [hlt, ite_true, bind_eq_ok] at h
-    obtain ⟨cf, ⟨slot, hslot, k1, hk1, i1, hi1, hcf⟩, hloop⟩ := h
+    have hlt : t < NT := by scalar_tac
+    simp only [hlt, ite_true, bind_eq_ok, lift, bind_ok] at h
+    obtain ⟨cf, ⟨i0, hi0, slot, hslot, k1, hk1, t1, ht1, hcf⟩, hloop⟩ := h
     have hcf := ok_inj hcf
     subst hcf
-    have hi1 := usize_add_ok hi1
+    have ht1 := usize_add_ok ht1
     have h1 : (1#usize).val = 1 := rfl
-    rw [h1] at hi1
-    have hrec : logic.kernel.Kernel.timer_event_loop0 k1 cfg i1 = ok k' := by
+    rw [h1] at ht1
+    have hrec : logic.kernel.Kernel.timer_event_loop0 k1 cfg t1 = ok (k', c') := by
       unfold logic.kernel.Kernel.timer_event_loop0
-      simp only [logic.kernel.Kernel.timer_event_loop0.body]
+      simp only [logic.kernel.Kernel.timer_event_loop0.body, lift, bind_ok]
       exact hloop
-    have hrest := ih k1 i1 k' (by omega) hrec
+    obtain ⟨hc, hrest⟩ := ih k1 t1 k' c' (by omega) hrec
+    refine ⟨hc, ?_⟩
     obtain ⟨hin, hsl⟩ := index_ok hslot
-    have hsl : slotOf k i = slot := hsl.symm
+    have hsl : slotOf k (UScalar.cast .Usize i0) = slot := hsl.symm
     split at hk1
     · rename_i harm
       split at hk1
       · split at hk1
         · rename_i hat
-          refine ServedChain.serve k k1 k' i ⟨hin, by rw [hsl]; exact harm, ?_⟩ hk1 hrest
+          refine ServedChain.serve k k1 k' _ ⟨hin, by rw [hsl]; exact harm, ?_⟩ hk1 hrest
           rw [hsl]; exact hat
         · have hk1 := ok_inj hk1; subst hk1; exact hrest
       · have hk1 := ok_inj hk1; subst hk1; exact hrest
@@ -242,6 +245,18 @@ theorem timer_loop1_served {cfg : logic.Config NT NR NP} :
       · have hk1 := ok_inj hk1; subst hk1; exact hrest
     · have hk1 := ok_inj hk1; subst hk1; exact hrest
 
+/-- Both loops of `timer_event`, the second run on what the first returns. -/
+theorem timer_loops_served {cfg : logic.Config NT NR NP}
+    {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
+    {r : logic.kernel.Kernel NT NR NP NL NS NE × logic.Config NT NR NP}
+    (hl0 : logic.kernel.Kernel.timer_event_loop0 k cfg 0#usize = ok r)
+    (hl1 : logic.kernel.Kernel.timer_event_loop1 r.1 r.2 0#usize = ok k') :
+    ServedChain cfg k k' := by
+  obtain ⟨k2, c2⟩ := r
+  obtain ⟨hc2, hch0⟩ := timer_loop0_served _ _ _ _ _ rfl hl0
+  subst hc2
+  exact hch0.trans (timer_loop1_served _ _ _ _ rfl hl1)
+
 /-- `timer_event`: after the reading of the time base and the charge of
 the Job on top, which leave the scheduler state as it is, the Kernel's
 state changes only by slots served, each armed and due when served. -/
@@ -258,9 +273,8 @@ theorem timer_event_served {k k' : logic.kernel.Kernel NT NR NP NL NS NE}
   · have h := ok_inj h; subst h
     exact ⟨k0, hsch, ServedChain.done _⟩
   · simp only [bind_eq_ok] at h
-    obtain ⟨b, _, k2, hl0, hl1⟩ := h
-    exact ⟨{ k0 with budget := b }, hsch,
-      (timer_loop0_served _ _ _ _ rfl hl0).trans (timer_loop1_served _ _ _ _ rfl hl1)⟩
+    obtain ⟨b, _, r, hl0, hl1⟩ := h
+    exact ⟨{ k0 with budget := b }, hsch, timer_loops_served hl0 hl1⟩
 
 /-! ## The handler of a slot that names a Task -/
 
