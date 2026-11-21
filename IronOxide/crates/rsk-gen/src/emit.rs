@@ -315,10 +315,15 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "        }}");
     let _ = writeln!(s, "        ::rsk_kernel::arch::Binding::Unbound");
     let _ = writeln!(s, "    }}");
-    let _ = writeln!(s, "    fn dispatch_vector(t: u8) -> u16 {{ 16 + DISPATCH_IRQ[t as usize] }}");
-    let _ = writeln!(s, "    fn intake_vector(t: u8) -> Option<u16> {{ if INTAKE_IRQ[t as usize] == 0xFFFF {{ None }} else {{ Some(16 + INTAKE_IRQ[t as usize]) }} }}");
-    let _ = writeln!(s, "    fn stack_top(p: u8) -> u32 {{ let pl = LAYOUT.partitions[p as usize]; pl.ram.base + pl.stack_size }}");
-    let _ = writeln!(s, "    fn stack_bottom(p: u8) -> u32 {{ LAYOUT.partitions[p as usize].ram.base }}");
+    // The four accessors below test their argument against the table's
+    // length, as `dma`, `signal` and `endpoint` do (2026-11-20): Kernel_Arch
+    // calls them in range (proven in Lean, Sched/CoreTotal.lean), and a call
+    // out of range answers a value no caller acts on (vector 0, no intake
+    // vector, an empty stack region) instead of panicking.
+    let _ = writeln!(s, "    fn dispatch_vector(t: u8) -> u16 {{ if (t as usize) < NT {{ 16 + DISPATCH_IRQ[t as usize] }} else {{ 0 }} }}");
+    let _ = writeln!(s, "    fn intake_vector(t: u8) -> Option<u16> {{ if (t as usize) < NT {{ if INTAKE_IRQ[t as usize] == 0xFFFF {{ None }} else {{ Some(16 + INTAKE_IRQ[t as usize]) }} }} else {{ None }} }}");
+    let _ = writeln!(s, "    fn stack_top(p: u8) -> u32 {{ if (p as usize) < NP {{ let pl = LAYOUT.partitions[p as usize]; pl.ram.base + pl.stack_size }} else {{ 0 }} }}");
+    let _ = writeln!(s, "    fn stack_bottom(p: u8) -> u32 {{ if (p as usize) < NP {{ LAYOUT.partitions[p as usize].ram.base }} else {{ 0 }} }}");
     let _ = writeln!(s, "    fn safe_state() -> ! {{ {}() }}", g.safe_state);
     let _ = writeln!(s, "}}");
     s

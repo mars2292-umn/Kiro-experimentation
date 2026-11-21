@@ -332,6 +332,28 @@ says = "The function the Kernel runs returns true exactly when the buffer is per
 reviewed = "f2d2c03e0f72268f"
 
 [[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutReads.lean"
+name = "DmaPermitted"
+tool = "lean"
+body = true
+says = "The Lean statement of dma_permitted over the extracted types: the length positive, the buffer at or above the end of the stack, ending within the RAM, and every eighth of the RAM it overlaps enabled."
+reviewed = "878008a12f6efd4a"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/LayoutReads.lean"
+name = "dma_permitted_exec_v"
+tool = "lean"
+says = "For a RAM size exponent of at most 31, the extracted dma_permitted_exec returns, and returns true exactly when DmaPermitted holds of the buffer."
+reviewed = "8b5a5f0a9729032e"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/IsolationBoot.lean"
+name = "dma_request_core_iff"
+tool = "lean"
+says = "Whenever the extracted dma_request_core returns, its answer is true exactly when the channel index is below the table's count, a Job is executing, that Job's Partition is the channel's, and the Kernel's dma_permitted returned true for that Partition and buffer. About the answer only, not about the registers written."
+reviewed = "e979b6a713f9f514"
+
+[[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "dma_request_core"
 tool = "verus"

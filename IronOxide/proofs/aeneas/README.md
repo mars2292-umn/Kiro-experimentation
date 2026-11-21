@@ -354,19 +354,28 @@ demo's system crate (the QEMU configuration):
 cd apps/p1-demo/system
 I='{impl rsk_kernel::arch::System for _}'
 ../../../../aeneas/charon/bin/charon cargo --preset=aeneas \
-    --start-from "$I::dma,$I::signal,$I::endpoint_storage,$I::binding,$I::dispatch_vector,$I::intake_vector,$I::stack_top,$I::stack_bottom" \
+    --start-from "$I::dma,$I::signal,$I::endpoint,$I::endpoint_storage,$I::binding,$I::dispatch_vector,$I::intake_vector,$I::stack_top,$I::stack_bottom" \
     --include 'rsk_kernel::arch::_' --include 'rsk_logic::logic::_' \
-    --opaque 'rsk_kernel::arch::cm4::unsafe_module::hw::_::base' \
+    --opaque 'rsk_kernel::arch::cm4::unsafe_module::hw::_::base' --opaque 'crate::ENDPOINTS' \
     --dest-file /tmp/tables.llbc -- --lib
 ../../../../aeneas/bin/aeneas -backend lean -dest ../../../proofs/aeneas/lean/Tab /tmp/tables.llbc
 ```
 
-`endpoint` is not in the start set: its table (five Endpoints of nested
-arrays) takes Lean more than 17 minutes and 11 GB to elaborate.
-`EndpointStorage::base` is a pointer cast of the Kernel_Unsafe_Module and
-stays opaque. `Tab/Proofs.lean` proves for which arguments each accessor
-returns: `dma`, `signal` and `binding` for every argument; `dispatch_vector`
-and `intake_vector` only for a Task below `NT`, `stack_top` and
-`stack_bottom` only for a Partition below `NP` (they index their table with
-the argument). `Sched/CoreTotal.lean` assumes exactly that of the tables
-(`TabT`) and proves the entry cores call them in range.
+The Endpoint table `ENDPOINTS` (five Endpoints of nested arrays) is kept
+opaque: with its content, Lean took more than 17 minutes and 11 GB to
+elaborate the file. `EndpointStorage::base` is a pointer cast of the
+Kernel_Unsafe_Module and stays opaque. `Tab/Proofs.lean` proves that every
+translated accessor returns for every argument (`endpoint` given that its
+table constant evaluates). Until 2026-11-20 `dispatch_vector`,
+`intake_vector`, `stack_top` and `stack_bottom` indexed their table with
+the argument and failed outside its range; the Generator now emits a test
+of the argument, as it did for `dma`, `signal` and `endpoint`.
+`Sched/CoreTotal.lean` assumes of the tables only that those four return in
+range (`TabT`) and proves the entry cores call them in range.
+
+The adapter between Kernel_Arch's `Tables` and the generated `System`
+(`SysTables`, `arch/cm4/mod.rs`) is not translated, so no theorem joins
+`TabT` to `Tab/Proofs.lean`: it is generic over `System`, one of whose
+methods returns a function pointer (`task_entry`), and Aeneas stops on the
+trait ("Arrow types are not supported yet"), also with that method
+excluded from the extraction.

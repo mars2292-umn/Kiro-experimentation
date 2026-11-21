@@ -149,9 +149,9 @@ impl ::rsk_kernel::arch::System for Sys {
         }
         ::rsk_kernel::arch::Binding::Unbound
     }
-    fn dispatch_vector(t: u8) -> u16 { 16 + DISPATCH_IRQ[t as usize] }
-    fn intake_vector(t: u8) -> Option<u16> { if INTAKE_IRQ[t as usize] == 0xFFFF { None } else { Some(16 + INTAKE_IRQ[t as usize]) } }
-    fn stack_top(p: u8) -> u32 { let pl = LAYOUT.partitions[p as usize]; pl.ram.base + pl.stack_size }
-    fn stack_bottom(p: u8) -> u32 { LAYOUT.partitions[p as usize].ram.base }
+    fn dispatch_vector(t: u8) -> u16 { if (t as usize) < NT { 16 + DISPATCH_IRQ[t as usize] } else { 0 } }
+    fn intake_vector(t: u8) -> Option<u16> { if (t as usize) < NT { if INTAKE_IRQ[t as usize] == 0xFFFF { None } else { Some(16 + INTAKE_IRQ[t as usize]) } } else { None } }
+    fn stack_top(p: u8) -> u32 { if (p as usize) < NP { let pl = LAYOUT.partitions[p as usize]; pl.ram.base + pl.stack_size } else { 0 } }
+    fn stack_bottom(p: u8) -> u32 { if (p as usize) < NP { LAYOUT.partitions[p as usize].ram.base } else { 0 } }
     fn safe_state() -> ! { crate::report_and_exit() }
 }

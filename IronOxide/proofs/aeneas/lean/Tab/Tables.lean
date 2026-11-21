@@ -71,6 +71,21 @@ structure rsk_kernel.arch.cm4.plan.SignalCfg where
   partition : Std.U8
   task : Std.U8
 
+/-- [rsk_kernel::arch::cm4::plan::EndpointCfg]
+    Source: 'crates/rsk-kernel/src/arch/cm4/plan.rs', lines 123:0-123:22
+    Name pattern: [rsk_kernel::arch::cm4::plan::EndpointCfg]
+    Visibility: public -/
+@[rust_type "rsk_kernel::arch::cm4::plan::EndpointCfg"]
+structure rsk_kernel.arch.cm4.plan.EndpointCfg where
+  capacity : Std.U8
+  payload : Std.U16
+  roles : Std.U8
+  tasks : Array Std.U8 4#usize
+  partitions : Array Std.U8 4#usize
+  release : Array Bool 4#usize
+  storage : Std.U32
+  validates : Array (Array Bool 4#usize) 4#usize
+
 /-- [rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage]
     Source: 'crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs', lines 508:0-508:42
     Name pattern: [rsk_kernel::arch::cm4::unsafe_module::hw::EndpointStorage]
@@ -218,12 +233,12 @@ structure rsk_logic.logic.PartitionCfg where
     Name pattern: [rsk_logic::logic::Config]
     Visibility: public -/
 @[rust_type "rsk_logic::logic::Config"]
-structure rsk_logic.logic.Config (NT1 : Std.Usize) (NR : Std.Usize) (NP :
+structure rsk_logic.logic.Config (NT1 : Std.Usize) (NR : Std.Usize) (NP1 :
   Std.Usize) where
   tasks : Array rsk_logic.logic.TaskCfg NT1
   resources : Array rsk_logic.logic.ResourceCfg NR
   access : Array (Array Bool NR) NT1
-  partitions : Array rsk_logic.logic.PartitionCfg NP
+  partitions : Array rsk_logic.logic.PartitionCfg NP1
   operating_duration : Std.U64
   slot_release : Array Std.U8 NT1
   slot_deadline : Array Std.U8 NT1
@@ -281,13 +296,13 @@ structure rsk_logic.logic.mpu.PartitionLayout where
     Name pattern: [rsk_logic::logic::mpu::Layout]
     Visibility: public -/
 @[rust_type "rsk_logic::logic::mpu::Layout"]
-structure rsk_logic.logic.mpu.Layout (NP : Std.Usize) where
+structure rsk_logic.logic.mpu.Layout (NP1 : Std.Usize) where
   shared_code : rsk_logic.logic.mpu.Interval
   kernel_flash : rsk_logic.logic.mpu.Interval
   kernel_ram : rsk_logic.logic.mpu.Interval
   kernel_windows : Array rsk_logic.logic.mpu.Interval 8#usize
   kernel_window_count : Std.U8
-  partitions : Array rsk_logic.logic.mpu.PartitionLayout NP
+  partitions : Array rsk_logic.logic.mpu.PartitionLayout NP1
 
 /-- [rsk_system::NO_DMA]
     Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
@@ -361,6 +376,46 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.signal
   if i < NSIG
   then Array.index_usize SIGNALS i
   else ok NO_SIGNAL
+
+/-- [rsk_system::NO_ENDPOINT]
+    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
+@[global_simps, irreducible]
+def NO_ENDPOINT : rsk_kernel.arch.cm4.plan.EndpointCfg :=
+  let a := Array.repeat 4#usize 255#u8
+  let a1 := Array.repeat 4#usize 255#u8
+  let a2 := Array.repeat 4#usize false
+  let a3 := Array.repeat 4#usize false
+  let a4 := Array.repeat 4#usize a3
+  {
+    capacity := 0#u8,
+    payload := 0#u16,
+    roles := 0#u8,
+    tasks := a,
+    partitions := a1,
+    release := a2,
+    storage := 0#u32,
+    validates := a4
+  }
+
+/-- [rsk_system::ENDPOINTS]
+    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Visibility: public -/
+axiom ENDPOINTS : Result (Array rsk_kernel.arch.cm4.plan.EndpointCfg 5#usize)
+
+/-- [rsk_system::NEP]
+    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Visibility: public -/
+@[global_simps, irreducible] def NEP : Std.Usize := 5#usize
+
+/-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::endpoint]:
+    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Visibility: public -/
+def Sys.Insts.Rsk_kernelArchSystemBound73362332.endpoint
+  (i : Std.Usize) : Result rsk_kernel.arch.cm4.plan.EndpointCfg := do
+  if i < NEP
+  then let a ← ENDPOINTS
+       Array.index_usize a i
+  else ok NO_ENDPOINT
 
 /-- [rsk_system::ENDPOINT_STORAGE]
     Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
@@ -612,8 +667,12 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.binding
 def Sys.Insts.Rsk_kernelArchSystemBound73362332.dispatch_vector
   (t : Std.U8) : Result Std.U16 := do
   let i ← lift (UScalar.cast .Usize t)
-  let i1 ← Array.index_usize DISPATCH_IRQ i
-  16#u16 + i1
+  if i < NT
+  then
+    let i1 ← lift (UScalar.cast .Usize t)
+    let i2 ← Array.index_usize DISPATCH_IRQ i1
+    16#u16 + i2
+  else ok 0#u16
 
 /-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::intake_vector]:
     Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
@@ -621,14 +680,18 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.dispatch_vector
 def Sys.Insts.Rsk_kernelArchSystemBound73362332.intake_vector
   (t : Std.U8) : Result (Option Std.U16) := do
   let i ← lift (UScalar.cast .Usize t)
-  let i1 ← Array.index_usize INTAKE_IRQ i
-  if i1 = 65535#u16
-  then ok none
-  else
-    let i2 ← lift (UScalar.cast .Usize t)
-    let i3 ← Array.index_usize INTAKE_IRQ i2
-    let i4 ← 16#u16 + i3
-    ok (some i4)
+  if i < NT
+  then
+    let i1 ← lift (UScalar.cast .Usize t)
+    let i2 ← Array.index_usize INTAKE_IRQ i1
+    if i2 = 65535#u16
+    then ok none
+    else
+      let i3 ← lift (UScalar.cast .Usize t)
+      let i4 ← Array.index_usize INTAKE_IRQ i3
+      let i5 ← 16#u16 + i4
+      ok (some i5)
+  else ok none
 
 /-- [rsk_system::NO_WINDOW]
     Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27 -/
@@ -700,14 +763,23 @@ def LAYOUT : rsk_logic.logic.mpu.Layout 3#usize :=
         ])
   }
 
+/-- [rsk_system::NP]
+    Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
+    Visibility: public -/
+@[global_simps, irreducible] def NP : Std.Usize := 3#usize
+
 /-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::stack_top]:
     Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
     Visibility: public -/
 def Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_top
   (p : Std.U8) : Result Std.U32 := do
   let i ← lift (UScalar.cast .Usize p)
-  let pl ← Array.index_usize LAYOUT.partitions i
-  pl.ram.base + pl.stack_size
+  if i < NP
+  then
+    let i1 ← lift (UScalar.cast .Usize p)
+    let pl ← Array.index_usize LAYOUT.partitions i1
+    pl.ram.base + pl.stack_size
+  else ok 0#u32
 
 /-- [rsk_system::{impl rsk_kernel::arch::System<rsk_kernel::arch::bound::Bound<7usize, 3usize, 3usize, 6usize, 23usize, 32usize>> for rsk_system::Sys}::stack_bottom]:
     Source: 'apps/p1-demo/decl/src/lib.rs', lines 99:0-274:1; this code is generated from a macro invocation at: 'apps/p1-demo/system/src/lib.rs', lines 24:0-24:27
@@ -715,7 +787,11 @@ def Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_top
 def Sys.Insts.Rsk_kernelArchSystemBound73362332.stack_bottom
   (p : Std.U8) : Result Std.U32 := do
   let i ← lift (UScalar.cast .Usize p)
-  let pl ← Array.index_usize LAYOUT.partitions i
-  ok pl.ram.base
+  if i < NP
+  then
+    let i1 ← lift (UScalar.cast .Usize p)
+    let pl ← Array.index_usize LAYOUT.partitions i1
+    ok pl.ram.base
+  else ok 0#u32
 
 end rsk_system
