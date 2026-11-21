@@ -3550,6 +3550,10 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     r
 }
 
+/// The readings of the time base one timer entry takes at most: the first
+/// and the rounds that serve what came due while the entry ran.
+pub const TIMER_ROUNDS: u8 = 4;
+
 /// The Kernel-level timer handler body. Returns the unwind plan when the
 /// executing Job was ended by a response, and the safe-state flag.
 pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState) -> (r: (ReturnPlan, bool))
@@ -3580,6 +3584,36 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     let running = charge_point(hw, state);
     let depth_before = k.depth();
     k.timer_event(now, running);
+    // 2026-11-20: a slot that came due while this entry ran is served in
+    // this entry, not in an entry of its own that the time base would pend
+    // at this one's return: up to `TIMER_ROUNDS` readings of the time base
+    // in all. The Job on top was charged at the first; a later round
+    // charges nothing.
+    let mut round: u8 = 1;
+    let mut more = true;
+    while more && round < TIMER_ROUNDS
+        invariant
+            k.inv(), round <= TIMER_ROUNDS,
+            k.spec_prio() == k0.spec_prio(), k.spec_part() == k0.spec_part(),
+            k.task_count_spec() == k0.task_count_spec(),
+            k.spec_depth() <= k0.spec_depth(),
+            forall|i: int| 0 <= i < k.spec_depth() ==> k.spec_stack(i) == k0.spec_stack(i),
+            hw.hw().view == old(hw).hw().view,
+        decreases TIMER_ROUNDS - round,
+    {
+        more = false;
+        match k.next_compare() {
+            Some(at) => {
+                let again = hw.now();
+                if at <= again {
+                    k.timer_event(again, 0);
+                    more = true;
+                }
+            }
+            None => {}
+        }
+        round = round + 1;
+    }
     let safe = apply_core(k, hw, tables, state);
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
