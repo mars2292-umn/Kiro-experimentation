@@ -398,6 +398,20 @@ impl CallGraph {
         // The panic path: the deepest panic-path function, with panic edges
         // cut inside it as well (a second panic would be recursion, PR-17).
         let panic_usage: u32 = (0..n).filter(|&i| Self::is_panic_path(&self.functions[i].name)).map(|i| usage[i].unwrap_or(0)).max().unwrap_or(0);
+        // 2026-11-22: the walk above is unverified; its result is checked
+        // by the verified certificate (`cert::check`), under which every
+        // chain of calls from a bounded function stays within its usage
+        // (`cert::theorem_walk_within_usage`,
+        // `theorem_one_panic_within_total`). A refused certificate is a
+        // defect of the walk: no function keeps a bound.
+        let refused = !crate::cert::check(&self.certificate(&usage, &reason, &panics), panic_usage);
+        if refused {
+            for r in reason.iter_mut() {
+                if r.is_none() {
+                    *r = Some("the stack-usage certificate was refused (a defect of the Link_Checker's walk)".to_string());
+                }
+            }
+        }
         (0..n)
             .map(|i| {
                 let f = &self.functions[i];
@@ -405,6 +419,29 @@ impl CallGraph {
                 let own = usage[i].unwrap_or(f.frame);
                 let total = if panics[i] && !Self::is_panic_path(&f.name) { own.saturating_add(panic_usage) } else { own };
                 FunctionReport { name: f.name.clone(), address: f.address, frame: f.frame, usage: total, calls, unbounded: reason[i].clone() }
+            })
+            .collect()
+    }
+
+    /// The walk's result as the certificate's nodes: for each function its
+    /// frame, the usage and the bound the walk gave it, whether it was
+    /// found able to panic, and its calls split as the walk splits them
+    /// (followed, or a panic edge). Written from `callees` and
+    /// `is_panic_path`, apart from `visit`.
+    fn certificate(&self, usage: &[Option<u32>], reason: &[Option<String>], panics: &[bool]) -> Vec<crate::cert::Node> {
+        (0..self.functions.len())
+            .map(|i| {
+                let f = &self.functions[i];
+                let outside = !Self::is_panic_path(&f.name);
+                let (mut walked, mut cut) = (Vec::new(), Vec::new());
+                for c in self.callees(i).unwrap_or_default() {
+                    if outside && Self::is_panic_path(&self.functions[c].name) {
+                        cut.push(c);
+                    } else {
+                        walked.push(c);
+                    }
+                }
+                crate::cert::Node { frame: f.frame, own: usage[i].unwrap_or(f.frame), bounded: reason[i].is_none(), panics: panics[i], walked, cut }
             })
             .collect()
     }
@@ -515,6 +552,52 @@ mod tests {
     /// declaration covers that function only (another unresolved indirect
     /// call is still PR-18), and one that does not match the binary (no
     /// such function, two call sites, no call site) is refused.
+    /// R37.1 (2026-11-22): the walk's result passes the verified
+    /// certificate, and a usage that does not cover a callee, a bound
+    /// claimed over an unbounded callee, an unmarked panic edge, or a
+    /// panic charge below the panic path's usage is refused.
+    #[test]
+    fn the_usage_certificate_accepts_the_walk_and_refuses_an_altered_result() {
+        use crate::cert::{check, Node};
+        let node = |frame, own, bounded, panics, walked: &[usize], cut: &[usize]| Node { frame, own, bounded, panics, walked: walked.to_vec(), cut: cut.to_vec() };
+        // 0 calls 1 and 2; 2 has a panic edge to 3 (the panic path), which calls 4.
+        let good = || vec![
+            node(16, 16 + 40, true, true, &[1, 2], &[]),
+            node(24, 24, true, false, &[], &[]),
+            node(8, 40, true, true, &[1], &[3]),
+            node(32, 32 + 12, true, false, &[4], &[]),
+            node(12, 12, true, false, &[], &[]),
+        ];
+        assert!(check(&good(), 44));
+        // The usage of 0 one byte short of its frame and its deepest callee.
+        let mut g = good();
+        g[0].own -= 1;
+        assert!(!check(&g, 44));
+        // A bound claimed over a callee that has none.
+        let mut g = good();
+        g[1].bounded = false;
+        assert!(!check(&g, 44));
+        // A panic edge whose caller is not marked as able to panic.
+        let mut g = good();
+        g[2].panics = false;
+        assert!(!check(&g, 44));
+        // A caller of a function that can panic, not marked itself.
+        let mut g = good();
+        g[0].panics = false;
+        assert!(!check(&g, 44));
+        // The panic path charged less than its deepest function uses.
+        assert!(!check(&good(), 43));
+        // A callee index outside the graph.
+        let mut g = good();
+        g[4].walked.push(9);
+        assert!(!check(&g, 44));
+        // A function without a bound is asked nothing.
+        let mut g = good();
+        g[4] = node(12, 0, false, false, &[4], &[]);
+        g[3].bounded = false;
+        assert!(check(&g, 44));
+    }
+
     #[test]
     fn a_fetch_probe_is_one_named_function_with_one_indirect_call() {
         let funcs = || {

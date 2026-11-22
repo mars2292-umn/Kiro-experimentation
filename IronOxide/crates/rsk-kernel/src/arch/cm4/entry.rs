@@ -283,6 +283,12 @@ pub struct HwModel {
     pub view: Option<int>,
     pub fpu_access: bool,
     pub primask: bool,
+    /// Whether an action has cleared PRIMASK since this model was created
+    /// (one model per entry point; 2026-11-22, R40.6). Only
+    /// `Action::PrimaskClear` sets it and nothing resets it, so an entry
+    /// that leaves it as it was applied no such action at any point, not
+    /// only none on balance.
+    pub primask_cleared: bool,
     pub prigroup_all_preempt: bool,
     pub nonbasethrdena: bool,
     pub disdefwbuf: bool,
@@ -333,7 +339,7 @@ pub open spec fn step(h: HwModel, a: Action) -> HwModel {
         Action::FpuAccess(b) => HwModel { fpu_access: b, ..h },
         Action::WriteFrame(_, _) => h,
         Action::PrimaskSet => HwModel { primask: true, ..h },
-        Action::PrimaskClear => HwModel { primask: false, ..h },
+        Action::PrimaskClear => HwModel { primask: false, primask_cleared: true, ..h },
         Action::PrigroupAllPreempt => HwModel { prigroup_all_preempt: true, ..h },
         Action::Nonbasethrdena(b) => HwModel { nonbasethrdena: b, ..h },
         Action::Disdefwbuf(b) => HwModel { disdefwbuf: b, ..h },
@@ -757,8 +763,10 @@ pub ghost struct EntryStep<K> {
 ///
 /// The second and third of these are the trust base of the composition and
 /// are not proven here: the cores run one at a time (each with PRIMASK
-/// held, and an entry preempted in a stub's window has not called its core
-/// yet: `stub_model::theorem_nested_irq`); what executes between two cores
+/// held or, the supervisor call's, at the Kernel level, where no
+/// configurable exception is taken: `theorem_svc_not_preempted`; and an
+/// entry preempted in a stub's window has not called its core yet:
+/// `stub_model::theorem_nested_irq`); what executes between two cores
 /// is a Job, unprivileged, which can write neither the Kernel's memory
 /// (R16.1, the MPU views) nor BASEPRI (HW-03), a shell of `arch/cm4/mod.rs`
 /// (safe Rust that calls its core once), or a stub, none of whose
@@ -839,7 +847,7 @@ fn charge_point<A: KernelArch>(hw: &A, state: &mut ArchState) -> u32
 fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
     ensures final(hw).hw().basepri == old(hw).hw().basepri,
         final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
         final(hw).hw().compare.is_some(),
 {
@@ -855,7 +863,7 @@ fn arm_compare<A: KernelArch>(hw: &mut A, at: u64)
 fn rearm_compare<A: KernelArch>(hw: &mut A, at: u64)
     ensures final(hw).hw().basepri == old(hw).hw().basepri,
         final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
         final(hw).hw().compare.is_some(),
 {
@@ -887,7 +895,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         !safe ==> basepri_matches(final(k), final(hw)),
         safe ==> final(hw).hw().basepri == 0,
         final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // The Kernel's stack, the level records and the owed unwind are untouched.
         final(k).spec_depth() == old(k).spec_depth(),
         forall|i: int| 0 <= i < old(k).spec_depth() ==> final(k).spec_stack(i) == old(k).spec_stack(i),
@@ -946,7 +954,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             state.last_switch == old(state).last_switch,
             k.inv(), *k == k1, n <= 255, t <= n, n as int == k1.task_count_spec(),
             tables_wf(tables, k1.task_count_spec()),
-            hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
+            hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask && hw.hw().primask_cleared == h1.primask_cleared && hw.hw().watchdog_fed == h1.watchdog_fed && hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt,
             forall|v: int| #[trigger] hw.hw().pending.contains(v) ==> h1.pending.contains(v),
             forall|u: int| 0 <= u < t ==> #[trigger] intake_done(&k1, tables, hw.hw(), u),
         decreases n - t,
@@ -1002,7 +1010,7 @@ pub fn apply_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
             k.spec_safe() == k1.spec_safe(),
             super::plan::arch_frame(*state, *old(state)),
             hw.hw().pending == h2.pending, hw.hw().enabled == h2.enabled,
-            hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask,
+            hw.hw().basepri == h1.basepri, hw.hw().view == h1.view, hw.hw().primask == h1.primask && hw.hw().primask_cleared == h1.primask_cleared && hw.hw().watchdog_fed == h1.watchdog_fed && hw.hw().kernel_exceptions_level0 == h1.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h1.prigroup_all_preempt,
         decreases np - p,
     {
         // R17.6: a stopped or restarted Partition's EasyDMA transfers are
@@ -1342,14 +1350,14 @@ pub fn boot_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, 
 fn dma_stop_partition<A: KernelArch, T: Tables>(hw: &mut A, tables: &T, p: u8)
     ensures
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         final(hw).hw().pending == old(hw).hw().pending, final(hw).hw().enabled == old(hw).hw().enabled,
 {
     let ghost h0 = hw.hw();
     let n = tables.dma_count();
     let mut i: usize = 0;
     while i < n
-        invariant hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
+        invariant hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask && hw.hw().primask_cleared == h0.primask_cleared && hw.hw().watchdog_fed == h0.watchdog_fed && hw.hw().kernel_exceptions_level0 == h0.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h0.prigroup_all_preempt,
             hw.hw().pending == h0.pending, hw.hw().enabled == h0.enabled,
         decreases n - i,
     {
@@ -1455,7 +1463,7 @@ fn dma_request_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut 
         !ok ==> final(hw).hw().dma == old(hw).hw().dma,
         final(hw).hw().dma_writes == old(hw).hw().dma_writes,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
 {
     let accepted = if i < tables.dma_count() {
         let d = tables.dma(i);
@@ -1533,7 +1541,7 @@ fn dma_write_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
         !ok ==> final(hw).hw().dma_writes == old(hw).hw().dma_writes,
         final(hw).hw().dma == old(hw).hw().dma,
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
 {
     let n = tables.dma_count();
     let mut accepted = false;
@@ -1591,7 +1599,7 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
     requires old(k).inv(),
     ensures final(k).inv(), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // R10.5, R10.7 (2026-11-21): a raise is taken as an event exactly
         // when a Job executes, the signal is one of the table, it is
         // declared by the executing Job's Partition, and it is bound to a
@@ -2296,6 +2304,46 @@ fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -
     }
 }
 
+/// What one supervisor call leaves of the exception masking (R40.6,
+/// 2026-11-22). The call's handler runs at the Kernel level, the most
+/// urgent configurable level, without PRIMASK: `boot_core` programs SVCall,
+/// the fault handlers, the time base and every intake line at
+/// `encode_level(0)` with no sub-priority bits (`booted`), and every
+/// dispatch line below it (`boot_vector_ok`). The service changes neither
+/// of the two boot settings that make that so, and it neither sets nor
+/// clears PRIMASK at any point: `primask_cleared` is set by
+/// `Action::PrimaskClear` only and never reset, so its being unchanged
+/// excludes a clear followed by a set. While the handler is active no
+/// configurable exception is taken
+/// (`hw_model::lemma_kernel_level_not_preempted`), so a send, a receive,
+/// or any other service is one uninterrupted Kernel entry; NMI and
+/// HardFault, the two levels above, are Kernel handlers that end in the
+/// safe state (R14.4).
+pub open spec fn mask_untouched(h0: HwModel, h1: HwModel) -> bool {
+    &&& h1.primask == h0.primask
+    &&& h1.primask_cleared == h0.primask_cleared
+    &&& h1.kernel_exceptions_level0 == h0.kernel_exceptions_level0
+    &&& h1.prigroup_all_preempt == h0.prigroup_all_preempt
+}
+
+/// R40.6 (2026-11-22) on the Kernel's hardware model: with the boot
+/// settings in force and the supervisor call's handler active (its group
+/// priority is the Kernel level's, which is what the two settings mean),
+/// the NVIC selects no pending configurable exception, whatever BASEPRI
+/// and PRIMASK are and whatever else is active.
+pub proof fn theorem_svc_not_preempted(h: HwModel, active: Set<int>, pending: Set<int>, n: int)
+    requires
+        h.kernel_exceptions_level0 && h.prigroup_all_preempt,
+        active.contains(hw_model::group_priority(0)),
+        forall|g: int| active.contains(g) ==> g >= hw_model::group_priority(0),
+        // Configurable exceptions: their priority fields are unsigned.
+        forall|m: int| pending.contains(m) ==> h.priority.contains_key(m) && h.priority[m] >= 0,
+    ensures
+        !hw_model::nvic_selects(pending, |m: int| h.priority[m], hw_model::execution_priority(active, h.basepri, h.primask), n),
+{
+    hw_model::lemma_kernel_level_not_preempted(active, h.basepri, h.primask, pending, |m: int| h.priority[m], n);
+}
+
 /// The send service (task 21.2; R40.4, R40.5, R42.2): takes the next free
 /// slot of the role's outgoing channel, copies the message from the
 /// Partition into it, and, when the arriving message is the receiving
@@ -2303,8 +2351,9 @@ fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -
 /// Partition (R40.3; MIT enforcement may discard the event, never the
 /// message, R10.8). A full channel returns `ENDPOINT_FULL` with the event
 /// recorded against the sender (R40.5); misuse is a fault of the Partition.
-/// The whole operation runs inside the SVC at the Kernel level with PRIMASK
-/// held, so no Job end can interrupt it (R40.6).
+/// The whole operation runs inside the SVC at the Kernel level, which no
+/// configurable exception preempts, so no Job end can interrupt it (R40.6;
+/// `mask_untouched`, `theorem_svc_not_preempted`).
 /// An accepted send's effect on its channel (A-P2): the decoded Endpoint,
 /// role, and peer of `arg`; the channel's slots gain the next free slot
 /// and its label sequence gains the stored first word.
@@ -2386,11 +2435,36 @@ proof fn lemma_recv_labels(base: int, cfg: EndpointCfg, d: int, before: crate::l
     assert(channel_labels(h, base, cfg, d, after) =~= channel_labels(h, base, cfg, d, before).drop_first());
 }
 
+/// R40.3 with R10.5 and R10.8 (2026-11-22): what an accepted send does to
+/// the Kernel's state. When the arriving message is the receiving role's
+/// Task's Release_Source (the Endpoint's `release` flag of that role), it
+/// is that Task's one Release_Source event, attributed to the sending
+/// role's Partition, a threshold response being for the sending Job
+/// (DD-10): `KernelOps::spec_intake_of`, the outcome the Kernel logic
+/// proves of its intake, whichever it is (accepted, deferred or discarded;
+/// the message stays in the channel either way, `send_message_ok`).
+/// Otherwise the Kernel's state is left as it was.
+pub open spec fn send_release<K: KernelOps, T: Tables>(k0: &K, k1: &K, tables: &T, arg: u32) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let peer = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    &&& cfg.release[peer] ==> exists|now: u64| #[trigger] k1.spec_intake_of(k0, cfg.tasks[peer] as int, cfg.partitions[role] as int,
+            send_offender(k0, cfg.tasks[peer] as int), now)
+    &&& !cfg.release[peer] ==> *k1 == *k0
+}
+
+/// DD-10: the Task a threshold response of a send's Release is for: the
+/// executing Job's, which is the sender's (`endpoint_args`).
+pub open spec fn send_offender<K: KernelOps>(k0: &K, receiver: int) -> int {
+    if k0.spec_depth() == 0 { receiver } else { crate::arch::bound::top_task(k0) }
+}
+
 fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (code: u32)
     requires old(k).inv(),
     ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // A-P2 (2026-11-09): an accepted send appends the message's first
         // word, its label, to the channel's label sequence.
         code == ENDPOINT_OK ==> send_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg),
@@ -2407,6 +2481,10 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             == (EV_ENDPOINT_FULL as int, crate::arch::bound::top_task(old(k)), old(k).spec_part()[crate::arch::bound::top_task(old(k))]),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
+        // R40.3, R10.5 (2026-11-22): the Release an accepted send causes is
+        // the receiving Task's Release_Source event, and nothing else is
+        // done to the Kernel's state.
+        code == ENDPOINT_OK ==> send_release(old(k), final(k), tables, arg),
         // R39.4, R40.3 (2026-11-21): an accepted send appends the whole
         // message, every word of it as it stood in the sender's memory,
         // to the channel's messages (`send_message_ok`, under its premise).
@@ -2513,6 +2591,10 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return ENDPOINT_REFUSED;
         }
     }
+    proof {
+        assert(*k == *old(k));
+        k.lemma_stack_rising();
+    }
     if cfg.release[peer] {
         let now = hw.now();
         // DD-10 (audit finding 11): a threshold response is for the sending Job.
@@ -2521,6 +2603,28 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             None => cfg.tasks[peer],
         };
         k.intake(cfg.tasks[peer], cfg.partitions[role], now, offender);
+        proof {
+            let off = if old(k).spec_depth() == 0 { cfg.tasks[peer as int] as int } else { crate::arch::bound::top_task(old(k)) };
+            assert(offender as int == off);
+            assert(k.spec_intake_of(old(k), cfg.tasks[peer as int] as int, cfg.partitions[role as int] as int, off, now));
+            assert(e as int == (arg & 0xFF) as int && role as int == ((arg >> 8) & 0xF) as int && peer as int == ((arg >> 12) & 0xF) as int);
+            assert(cfg == spec_endpoint_of(tables, (arg & 0xFF) as int));
+            let ps = ((arg >> 12) & 0xF) as int;
+            let rs = ((arg >> 8) & 0xF) as int;
+            let cs = spec_endpoint_of(tables, (arg & 0xFF) as int);
+            assert(cs.release[ps]);
+            let offs = if old(k).spec_depth() == 0 { cs.tasks[ps] as int } else { crate::arch::bound::top_task(old(k)) };
+            assert(offs == off);
+            assert(offs == send_offender(old(k), cs.tasks[ps] as int));
+            assert(k.spec_intake_of(old(k), cs.tasks[ps] as int, cs.partitions[rs] as int, send_offender(old(k), cs.tasks[ps] as int), now));
+            assert(send_release(old(k), k, tables, arg));
+        }
+    } else {
+        proof {
+            assert(e as int == (arg & 0xFF) as int && role as int == ((arg >> 8) & 0xF) as int && peer as int == ((arg >> 12) & 0xF) as int);
+            assert(cfg == spec_endpoint_of(tables, (arg & 0xFF) as int));
+            assert(send_release(old(k), k, tables, arg));
+        }
     }
     ENDPOINT_OK
 }
@@ -2528,6 +2632,7 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
 /// The receive service (task 21.2; R40.4, R42.2): takes the oldest message
 /// of the role's incoming channel, the other role's outgoing one, and
 /// copies it into the Partition; an empty channel returns `ENDPOINT_EMPTY`.
+#[verifier::spinoff_prover]
 fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tables: &T, state: &mut ArchState, arg: u32, ptr: u32, len: u32) -> (r: (u32, Ghost<int>))
     requires old(k).inv(),
     ensures final(k).inv(), super::plan::arch_frame(*final(state), *old(state)), crate::arch::bound::stack_prefix(final(k), old(k)),
@@ -2536,7 +2641,7 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         // 2026-11-15: and the Kernel's state with it.
         r.0 != ENDPOINT_REFUSED ==> *final(k) == *old(k),
         final(hw).hw().basepri == old(hw).hw().basepri, final(hw).hw().view == old(hw).hw().view,
-        final(hw).hw().primask == old(hw).hw().primask,
+        final(hw).hw().primask == old(hw).hw().primask && final(hw).hw().primask_cleared == old(hw).hw().primask_cleared && final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed && final(hw).hw().kernel_exceptions_level0 == old(hw).hw().kernel_exceptions_level0 && final(hw).hw().prigroup_all_preempt == old(hw).hw().prigroup_all_preempt,
         // A-P2 (2026-11-09): an accepted receive takes the oldest label of
         // the channel's label sequence and delivers that word first.
         r.0 == ENDPOINT_OK ==> recv_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, r.1@),
@@ -2688,6 +2793,7 @@ pub fn svc_of_ended_job_core<K: KernelOps, A: KernelArch>(k: &K, hw: &mut A, dep
         final(hw).stacking_discarded() == old(hw).stacking_discarded(),
         k.spec_depth() < depth_before as int ==> final(hw).svc_dropped(),
         k.spec_depth() >= depth_before as int ==> final(hw).svc_dropped() == old(hw).svc_dropped(),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     if k.depth() < depth_before {
         hw.svc_clear_pending();
@@ -2771,6 +2877,7 @@ pub fn stack_violation_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, h
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3318,6 +3425,7 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
         r.0.psp == 0 ==> r.0.hop == 0 && kentry_rel(final(k), *old(state), *final(state), 0)
             && final(state).pending_unwind == 0
             && final(hw).hw().view == old(hw).hw().view,
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3479,6 +3587,7 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
         old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3577,6 +3686,38 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
     dispatch_job_core(k, hw, tables, state, n, t, psp, control, exc_return)
 }
 
+/// What `apply_core` leaves of the Kernel's state it starts from: the Jobs
+/// in progress, the Tasks' Priorities and Partitions, the two levels BASEPRI
+/// is computed from, and whether the Kernel is in the safe state.
+pub open spec fn applied_from<K: KernelOps>(k1: &K, b: &K) -> bool {
+    &&& k1.spec_depth() == b.spec_depth()
+    &&& forall|i: int| 0 <= i < b.spec_depth() ==> k1.spec_stack(i) == b.spec_stack(i)
+    &&& k1.spec_prio() == b.spec_prio() && k1.spec_part() == b.spec_part()
+    &&& k1.top_level() == b.top_level() && k1.ceiling_level() == b.ceiling_level()
+    &&& k1.spec_safe() == b.spec_safe()
+}
+
+/// The interrupted Job's stack pointer is outside its stack region
+/// (R16.5): the one thing an intake entry does to the Kernel's state
+/// before the event is taken in.
+pub open spec fn intake_stack_violation<T: Tables>(tables: &T, s0: ArchState, psp: u32, exc_return: u32) -> bool {
+    s0.current_partition != 0xFF && (exc_return & 0xC) == 0xC && !spec_psp_in_stack(tables, s0.current_partition as int, psp as int)
+}
+
+/// R10.5, R10.1 to R10.3 at the interrupt's entry (2026-11-22): the entry
+/// of an intake vector is the Release_Source event of the Task the vector
+/// is bound to, attributed to the Partition the binding names, a threshold
+/// response being for that Task (DD-10): `KernelOps::spec_intake_of`, the
+/// outcome the Kernel logic proves of its intake. It is taken on the
+/// state the entry found, unless the interrupted Job's stack pointer was
+/// out of its region, in which case that fault is reported first; and what
+/// the entry returns is that outcome after `apply_core`, which changes
+/// none of what `applied_from` lists.
+pub open spec fn intake_entry<K: KernelOps>(k0: &K, k1: &K, task: int, partition: int, violation: bool) -> bool {
+    exists|a: K, b: K, now: u64| #[trigger] b.spec_intake_of(&a, task, partition, task, now)
+        && (!violation ==> a == *k0) && applied_from(k1, &b)
+}
+
 /// An intake vector's entry (the `Binding::Intake` arm of
 /// `irq_entry_core`, DD-06): the source's vector is disabled, a stack
 /// violation of the interrupted Job is reported (R16.5, the audit's finding
@@ -3601,6 +3742,9 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(hw).hw().view == old(hw).hw().view,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        // R10.5 (2026-11-22): the entry is that Task's Release_Source event.
+        intake_entry(old(k), final(k), task as int, partition as int, intake_stack_violation(tables, *old(state), psp, exc_return)),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3617,13 +3761,21 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         hw.apply(Action::Trace(TR_INVALID, 2));
         k.fault(EV_STACK_VIOLATION, false);
     }
+    let ghost ka = *k;
     k.intake(task, partition, now, task);
+    let ghost kb = *k;
     let safe = apply_core(k, hw, tables, state);
+    let ghost kc = *k;
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
     svc_of_ended_job_core(k, hw, depth_before);
+    proof {
+        assert(*k == kc);
+        assert(kb.spec_intake_of(&ka, task as int, partition as int, task as int, now));
+        assert(applied_from(k, &kb));
+    }
     (hop, safe)
 }
 
@@ -3645,6 +3797,7 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
         final(hw).hw().view == old(hw).hw().view,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3710,6 +3863,15 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         old(state).pending_unwind != 0 ==> final(state).pending_unwind == old(state).pending_unwind || final(state).pending_unwind == 0,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        // R10.5 (2026-11-22): the entry of an intake vector is the
+        // Release_Source event of the Task the vector is bound to.
+        match spec_binding_of(tables, (ipsr & 0x1FF) as int) {
+            Binding::Intake { task, partition } => intake_entry(old(k), final(k), task as int, partition as int,
+                intake_stack_violation(tables, *old(state), psp, exc_return)),
+            _ => true,
+        },        // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
+        // A dispatch, an intake and an unbound vector leave it as it was.
+        !(spec_binding_of(tables, (ipsr & 0x1FF) as int) is Kernel) ==> final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -3728,7 +3890,7 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             invariant
                 k.inv(), i <= 8,
                 super::plan::arch_frame(*state, s0),
-                hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask,
+                hw.hw().basepri == h0.basepri, hw.hw().view == h0.view, hw.hw().primask == h0.primask && hw.hw().primask_cleared == h0.primask_cleared && hw.hw().watchdog_fed == h0.watchdog_fed && hw.hw().kernel_exceptions_level0 == h0.kernel_exceptions_level0 && hw.hw().prigroup_all_preempt == h0.prigroup_all_preempt,
             decreases 8 - i,
         {
             let v = state.deferred[i];
@@ -3740,6 +3902,10 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             i += 1;
         }
     }
+    proof {
+        assert(ipsr & 0x1FF <= 0x1FF) by (bit_vector);
+        assert(n as int == (ipsr & 0x1FF) as int);
+    }
     let r: (DispatchPlan, bool) = match tables.binding(n) {
         Binding::Dispatch(t) => {
             proof {
@@ -3750,9 +3916,15 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
         }
         Binding::Intake { task, partition } => {
             proof {
+                assert(ipsr & 0x1FF <= 0x1FF) by (bit_vector);
+                assert(state.current_partition == s0.current_partition);
+                assert(*k == k0);
                 lemma_kernel_entry(k, &k0, *state, s0, 0);
             }
             let (hop, safe) = intake_core(k, hw, tables, state, n, task, partition, psp, exc_return);
+            proof {
+                assert(intake_entry(&k0, k, task as int, partition as int, intake_stack_violation(tables, s0, psp, exc_return)));
+            }
             (DispatchPlan { psp: 0, control, exc_return, hop }, safe)
         }
         Binding::Kernel => {
@@ -3875,6 +4047,9 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         super::plan::arch_frame(*final(state), *old(state)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
         final(hw).hw().view == old(hw).hw().view,
+        // R40.6 (2026-11-22): PRIMASK is not cleared at any point.
+        mask_untouched(old(hw).hw(), final(hw).hw()),
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
         // HW-13 (2026-11-15): only the Job-end service takes a charge point.
         number != SVC_JOB_END ==> final(state).last_switch == old(state).last_switch,
 {
@@ -4003,6 +4178,11 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
+        // R40.6 (2026-11-22): no service touches PRIMASK or the Kernel
+        // level's settings at any point of the call.
+        mask_untouched(old(hw).hw(), final(hw).hw()),
+        // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
         // HW-13 (2026-11-15; Verification_Plan 7.3): the executing Job's cycle
         // segment runs through its own lock, unlock, time-base, Endpoint,
         // Release_Signal and EasyDMA calls: no charge point is taken and the
@@ -4101,6 +4281,8 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         forall|l: int| 0 <= l < 8 ==> #[trigger] final(state).levels[l].task == old(state).levels[l].task
             && final(state).levels[l].previous_task == old(state).levels[l].previous_task
             && (final(state).levels[l].active ==> old(state).levels[l].active),
+        // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost n_arg = n;
     let ghost s0 = *old(state);
@@ -4255,6 +4437,17 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
     ((rec.psp, rec.control, rec.exc_return, 0), false)
 }
 
+/// R14.3, R14.6 at the fault handlers' entry (2026-11-22): see `fault_core`.
+pub open spec fn fault_entry<K: KernelOps>(k0: &K, k1: &K, kind: u8, in_kernel: bool) -> bool {
+    let kernel = fault_is_kernels(k0, kind, in_kernel);
+    exists|b: K| #[trigger] b.spec_fault_of(k0, kind, kernel) && applied_from(k1, &b)
+}
+
+/// R14.3, R14.4: the faults attributed to the Kernel.
+pub open spec fn fault_is_kernels<K: KernelOps>(k0: &K, kind: u8, in_kernel: bool) -> bool {
+    in_kernel || kind == EV_HARDFAULT || k0.spec_depth() == 0
+}
+
 /// Fault handlers (R14.3): a fault while a Job executes is attributed to
 /// its Partition, a fault at the Kernel level or with PRIMASK held, or any
 /// HardFault, to the Kernel.
@@ -4286,6 +4479,17 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
         final(hw).hw().view == old(hw).hw().view,
         // Audit finding 4: an entry that ended a Job dropped a pending SVCall.
         final(k).spec_depth() < old(k).spec_depth() ==> final(hw).svc_dropped(),
+        // R14.3, R14.6 (2026-11-22): the entry is that fault on the state it
+        // found: attributed to the Kernel exactly when the stub reports the
+        // Kernel's context (`in_kernel`: Handler mode or PRIMASK held,
+        // `stub_model::theorem_memmanage_stub`, `theorem_fault_stub`), the
+        // fault is a HardFault, or no Job executes; otherwise recorded
+        // against the executing Job's Task and its Partition
+        // (`KernelOps::spec_fault_of`). What the entry returns is that
+        // outcome after `apply_core` (`applied_from`).
+        fault_entry(old(k), final(k), kind, in_kernel),
+        // R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog.
+        final(hw).hw().watchdog_fed == old(hw).hw().watchdog_fed,
 {
     let ghost k0 = *old(k);
     let ghost s0 = *old(state);
@@ -4295,12 +4499,24 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     let kernel = in_kernel || kind == EV_HARDFAULT || no_job_in_progress(k);
     let depth_before = k.depth();
     k.fault(kind, kernel);
+    let ghost kb = *k;
+    proof {
+        assert(kernel == fault_is_kernels(&k0, kind, in_kernel));
+        assert(kb.spec_fault_of(&k0, kind, kernel));
+    }
     let safe = apply_core(k, hw, tables, state);
+    let ghost kc = *k;
+    proof {
+        assert(applied_from(&kc, &kb));
+    }
     let hop = end_plan_core(k, state, depth_before, gk0, gs0);
     proof {
         lemma_kernel_entry(k, &k0, *state, s0, hop as int);
     }
     svc_of_ended_job_core(k, hw, depth_before);
+    proof {
+        assert(*k == kc);
+    }
     (hop, safe)
 }
 
@@ -4420,6 +4636,37 @@ pub open spec fn storage_placed<K: KernelOps, T: Tables>(k: &K, tables: &T) -> b
     &&& forall|e: int| 0 <= e < spec_endpoint_count_of(tables) ==> endpoint_placed(#[trigger] spec_endpoint_of(tables, e), total)
     &&& forall|p: int, ptr: int, len: int| 0 <= p < k.partition_count_spec() && #[trigger] k.message_permitted_spec(p, ptr, len)
         ==> ptr + len <= 0xFFFF_FFFF && (ptr + len <= base || base + total <= ptr)
+}
+
+/// R16.1 for R39 between two Kernel entries (2026-11-22): the Endpoint
+/// storage keeps every word while a Job executes. `h1` is the hardware
+/// state an entry left and `h2` the one the next entry finds; between them
+/// a Job of Partition `p` ran unprivileged under its view, so a word
+/// changed only if the MPU let it write one of the word's bytes
+/// (`hw_model::job_writes_only`, HW-09). The storage lies in the Kernel's
+/// RAM interval, which the Config_Checker checks of every binary
+/// (`image_v::storage_in_kernel_ram_ok`), and no view grants a write
+/// there (`hw_model::lemma_hw_partition_isolation`). So a message a send
+/// stored is the message a later receive copies out, whatever Jobs ran in
+/// between: `send_message_ok` and `recv_message_ok` speak of the same
+/// words.
+pub proof fn theorem_storage_kept_between_entries<T: Tables, const NP: usize>(
+    tables: &T, layout: &crate::logic::mpu::Layout<NP>, p: int, vp: &crate::logic::mpu::View, h1: HwModel, h2: HwModel,
+)
+    requires
+        layout.wf(), 0 <= p < NP, layout.is_view_of(p, vp),
+        hw_model::job_writes_only(vp, h1.mem, h2.mem),
+        // The storage lies in the Kernel's RAM.
+        layout.kernel_ram.base as int <= spec_storage_base_of(tables),
+        spec_storage_base_of(tables) + spec_storage_len_of(tables) <= layout.kernel_ram.end(),
+    ensures
+        forall|a: int| spec_storage_base_of(tables) <= a && a + 4 <= spec_storage_base_of(tables) + spec_storage_len_of(tables)
+            ==> #[trigger] h2.mem[a] == h1.mem[a],
+{
+    assert forall|a: int| spec_storage_base_of(tables) <= a && a + 4 <= spec_storage_base_of(tables) + spec_storage_len_of(tables)
+        implies #[trigger] h2.mem[a] == h1.mem[a] by {
+        hw_model::lemma_kernel_ram_kept_between_entries(layout, p, vp, h1.mem, h2.mem, a);
+    }
 }
 
 /// The premise of the message statements for the operation `arg` decodes:

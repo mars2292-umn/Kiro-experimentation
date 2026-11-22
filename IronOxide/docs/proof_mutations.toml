@@ -2556,8 +2556,8 @@ package = "rsk-kernel"
 id = "intake-leaves-basepri-of-the-state-before"
 kills = "intake_core's A1 clause (R7): the entry ends with BASEPRI rewritten from the state after the intake and its responses; with the value read before them written last, a Job ended by a response leaves its level's mask in force"
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
-find = "    k.intake(task, partition, now, task);\n    let safe = apply_core(k, hw, tables, state);\n"
-replace = "    let stale = k.basepri_now();\n    k.intake(task, partition, now, task);\n    let safe = apply_core(k, hw, tables, state);\n    hw.apply(Action::SetBasepri(stale));\n"
+find = "    k.intake(task, partition, now, task);\n    let ghost kb = *k;\n    let safe = apply_core(k, hw, tables, state);\n"
+replace = "    let stale = k.basepri_now();\n    k.intake(task, partition, now, task);\n    let ghost kb = *k;\n    let safe = apply_core(k, hw, tables, state);\n    hw.apply(Action::SetBasepri(stale));\n"
 expect = ["entry.rs", "postcondition not satisfied"]
 package = "rsk-kernel"
 
@@ -2686,3 +2686,189 @@ find = "        basepri: h.basepri,\n"
 replace = ""
 expect = ["stub_model.rs", "postcondition not satisfied"]
 package = "rsk-kernel"
+
+# R40.6 (2026-11-22): one supervisor call is one uninterrupted Kernel
+# entry. `svc_core` touches neither PRIMASK nor the Kernel level's two boot
+# settings at any point (`mask_untouched`), and the Hardware_Model takes no
+# configurable exception while a Kernel-level handler is active
+# (`hw_model::lemma_kernel_level_not_preempted`).
+[[mutation]]
+id = "svc-clears-primask-on-the-way"
+kills = "svc_core's `mask_untouched` (R40.6; 2026-11-22): a service that clears PRIMASK during the call is excluded"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    hw.apply(Action::Trace(TR_SVC, number as u32));\n"
+replace = "    hw.apply(Action::Trace(TR_SVC, number as u32));\n    hw.apply(Action::PrimaskClear);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "kernel-level-not-preempted-without-an-active-kernel-handler"
+kills = "lemma_kernel_level_not_preempted (R40.6): nothing configurable is taken only because a Kernel-level exception is active; with Task-level exceptions alone active a Kernel-level one is taken"
+file = "crates/rsk-logic/src/hw_model.rs"
+find = "        active.contains(group_priority(0)),\n        forall|g: int| active.contains(g) ==> g >= group_priority(0),\n        forall|m: int| pending.contains(m) ==> group(m) >= group_priority(0),\n"
+replace = "        forall|g: int| active.contains(g) ==> g >= group_priority(0),\n        forall|m: int| pending.contains(m) ==> group(m) >= group_priority(0),\n"
+expect = ["hw_model.rs", "assertion failed"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "kernel-level-not-preempted-by-a-level-above-it"
+kills = "lemma_kernel_level_not_preempted (R40.6): the statement is about configurable exceptions, whose group priorities are not more urgent than the Kernel level's; an exception above that level (NMI, HardFault) is taken"
+file = "crates/rsk-logic/src/hw_model.rs"
+find = "        forall|g: int| active.contains(g) ==> g >= group_priority(0),\n        forall|m: int| pending.contains(m) ==> group(m) >= group_priority(0),\n    ensures\n        execution_priority(active, basepri, primask) <= group_priority(0),\n"
+replace = "        forall|g: int| active.contains(g) ==> g >= group_priority(0),\n    ensures\n        execution_priority(active, basepri, primask) <= group_priority(0),\n"
+expect = ["hw_model.rs", "postcondition not satisfied"]
+package = "rsk-logic"
+
+# R42.3 (2026-11-22): the library's reading of the Kernel's result codes,
+# checked for every 32-bit code against the Kernel's own constants.
+[[mutation]]
+id = "kani-send-refusal-read-as-the-peer-report"
+kills = "the_send_result_is_the_kernels_answer_for_every_code (R42.3; 2026-11-22): the peer-state error is returned for the Kernel's peer-state report and for no other code"
+file = "crates/rsk/src/lib.rs"
+find = "        Err(SendError::PeerChanged)\n    } else {\n        Err(SendError::Refused)\n"
+replace = "        Err(SendError::PeerChanged)\n    } else {\n        Err(SendError::PeerChanged)\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk"
+prover = "kani"
+harness = "the_send_result_is_the_kernels_answer_for_every_code"
+
+[[mutation]]
+id = "kani-receive-peer-report-read-as-empty"
+kills = "the_receive_answer_is_the_kernels_answer_for_every_code (R42.3; 2026-11-22): the Kernel's peer-state report reaches the role as the peer-state error, not as an empty channel"
+file = "crates/rsk/src/lib.rs"
+find = "    } else if code == ENDPOINT_PEER {\n        RecvAnswer::PeerChanged\n"
+replace = "    } else if code == ENDPOINT_PEER && code == ENDPOINT_OK {\n        RecvAnswer::PeerChanged\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk"
+prover = "kani"
+harness = "the_receive_answer_is_the_kernels_answer_for_every_code"
+
+# R10.5 at the two entries that had no such statement (2026-11-22): an
+# intake vector's entry and an accepted Endpoint send are the bound Task's
+# one Release_Source event (`intake_entry`, `send_release`).
+[[mutation]]
+id = "intake-entry-threshold-response-for-another-task"
+kills = "intake_core's `intake_entry` (R10.5, DD-10; 2026-11-22): the entry is the event of the Task the vector is bound to, a threshold response being for that Task"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    k.intake(task, partition, now, task);\n"
+replace = "    k.intake(task, partition, now, 0);\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "send-release-charged-to-the-receivers-partition"
+kills = "endpoint_send_core's `send_release` (R40.3, R10.5; 2026-11-22): the Release a send causes is attributed to the sending role's Partition, not the receiver's"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        k.intake(cfg.tasks[peer], cfg.partitions[role], now, offender);\n"
+replace = "        k.intake(cfg.tasks[peer], cfg.partitions[peer], now, offender);\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+# R14.3, R14.6 (2026-11-22): a fault's event is recorded first, on the
+# state as found, against the executing Job's Task and Partition or the
+# Kernel (`Kernel::fault_recorded`, `fault_entry`).
+[[mutation]]
+id = "kernel-fault-recorded-against-a-task"
+kills = "Kernel::fault's `fault_recorded` (R14.4, R14.6; 2026-11-22): a fault of the Kernel is recorded against no Task"
+file = "crates/rsk-logic/src/logic/kernel.rs"
+find = "            self.push_event(cfg, kind, 0xFF, 0xFF, prs, 0);\n            let ghost mid0 = *self;\n"
+replace = "            self.push_event(cfg, kind, 0, 0xFF, prs, 0);\n            let ghost mid0 = *self;\n"
+expect = ["kernel.rs", "assertion failed"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "fault-entry-hardfault-attributed-to-the-partition"
+kills = "fault_core's `fault_entry` and R14.4 (2026-11-22): a HardFault is the Kernel's whatever context it was taken from"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    let kernel = in_kernel || kind == EV_HARDFAULT || no_job_in_progress(k);\n"
+replace = "    let kernel = in_kernel || no_job_in_progress(k);\n"
+expect = ["entry.rs", "failed"]
+package = "rsk-kernel"
+
+# R9, ORQ-31 (2026-11-22): only the time-base entry feeds the watchdog; the
+# supervisor call, the fault handlers, the epilogue and every interrupt
+# entry but a Kernel vector's leave `watchdog_fed` as they found it.
+[[mutation]]
+id = "svc-feeds-the-watchdog"
+kills = "svc_core's watchdog frame (R9, ORQ-31; 2026-11-22): a supervisor call does not feed the watchdog, so a system whose time-base entries have stopped is not kept alive by its Jobs' calls"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    hw.apply(Action::Trace(TR_SVC, number as u32));\n"
+replace = "    hw.apply(Action::Trace(TR_SVC, number as u32));\n    hw.apply(Action::WatchdogFeed);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+# R16 (2026-11-22): the MPU register pair the Kernel writes for a region
+# decodes, by the manual's definition of the registers, to that region.
+[[mutation]]
+id = "kani-mpu-normal-memory-marked-shareable"
+kills = "mpu_register_pair_decodes_to_the_region (R16; 2026-11-22): the memory-type bits of RASR are exactly the ones the model's region means; a stray bit outside the fields the older harnesses read is excluded"
+file = "crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs"
+find = "    let attrs = if r.device { 0 } else { (1 << 17) | (1 << 16) };\n"
+replace = "    let attrs = if r.device { 0 } else { (1 << 18) | (1 << 17) | (1 << 16) };\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk-kernel"
+prover = "kani"
+harness = "mpu_register_pair_decodes_to_the_region"
+
+# R37.1 (2026-11-22): the Link_Checker's stack-usage certificate
+# (`rsk-link::cert`): the unverified walk's result is checked by a verified
+# function whose acceptance implies that every chain of calls stays within
+# the reported usage.
+[[mutation]]
+id = "stack-certificate-ignores-the-callers-frame"
+kills = "cert::check (R37.1; 2026-11-22): a function's usage must cover its own frame on top of each followed callee's usage"
+file = "crates/rsk-link/src/cert.rs"
+find = "node.frame as u64 + callee.own as u64 > node.own as u64"
+replace = "callee.own as u64 > node.own as u64"
+expect = ["cert.rs", "invariant not satisfied"]
+package = "rsk-link"
+
+[[mutation]]
+id = "stack-certificate-accepts-an-unbounded-callee"
+kills = "cert::check and theorem_walk_within_usage (R37.3): a bounded function follows only bounded callees, or a chain of calls could leave the certified part of the graph"
+file = "crates/rsk-link/src/cert.rs"
+find = "if !callee.bounded || node.frame as u64"
+replace = "if node.frame as u64"
+expect = ["cert.rs", "invariant not satisfied"]
+package = "rsk-link"
+
+[[mutation]]
+id = "stack-certificate-panic-charge-unchecked"
+kills = "cert::check and theorem_one_panic_within_total (R37.1): the panic path's charge covers the usage of every function a panic edge enters"
+file = "crates/rsk-link/src/cert.rs"
+find = "                if callee.bounded && callee.own > panic_usage {\n                    return false;\n                }\n"
+replace = ""
+expect = ["cert.rs", "invariant not satisfied"]
+package = "rsk-link"
+
+# R16.1 between entries (2026-11-22): the Kernel's RAM, and the Endpoint
+# storage in it, keeps its words while a Job runs
+# (`hw_model::lemma_kernel_ram_kept_between_entries`,
+# `entry::theorem_storage_kept_between_entries`), the storage's place in
+# the Kernel's RAM being the Config_Checker's check.
+[[mutation]]
+id = "kernel-ram-kept-for-a-word-that-leaves-the-interval"
+kills = "lemma_kernel_ram_kept_between_entries (R16.1): a word is kept only when all four of its bytes are in the Kernel's RAM; one that straddles its end may be written through a Partition's region"
+file = "crates/rsk-logic/src/hw_model.rs"
+find = "        layout.kernel_ram.contains(a) && layout.kernel_ram.contains(a + 3),\n"
+replace = "        layout.kernel_ram.contains(a),\n"
+expect = ["hw_model.rs", "assertion failed"]
+package = "rsk-logic"
+
+[[mutation]]
+id = "storage-kept-without-being-in-the-kernels-ram"
+kills = "theorem_storage_kept_between_entries (R39, R16.1): the storage keeps its words because it lies in the interval no view grants; without that premise nothing holds of it"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        spec_storage_base_of(tables) + spec_storage_len_of(tables) <= layout.kernel_ram.end(),\n    ensures\n"
+replace = "    ensures\n"
+expect = ["precondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "confcheck-storage-may-start-below-the-kernels-ram"
+kills = "storage_in_kernel_ram_ok (R16.1; 2026-11-22): the Endpoint storage starts inside the Kernel's RAM interval"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    kernel_ram.base <= base && base as u64 + total as u64 <= end\n"
+replace = "    base as u64 + total as u64 <= end\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"

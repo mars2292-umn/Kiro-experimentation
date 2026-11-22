@@ -561,6 +561,32 @@ pub proof fn lemma_kernel_level_wins_arbitration(
 {
 }
 
+/// HW-02, HW-05 with DD-02 (R40.6, 2026-11-22): while a Kernel-level
+/// exception is active, the NVIC selects no configurable exception,
+/// whatever is pending, whatever BASEPRI and PRIMASK are and whatever else
+/// is active. The execution priority is then the Kernel level's or more
+/// urgent, and a configurable exception's group priority is never more
+/// urgent than the Kernel level's. So a Kernel-level handler (the
+/// supervisor call, the time base, an intake, a configurable fault) runs to
+/// its exception return without another configurable exception's handler in
+/// between; only NMI and HardFault, fixed above every configurable level,
+/// are taken.
+pub proof fn lemma_kernel_level_not_preempted(
+    active: Set<int>, basepri: int, primask: bool, pending: Set<int>, group: spec_fn(int) -> int, n: int,
+)
+    requires
+        active.contains(group_priority(0)),
+        forall|g: int| active.contains(g) ==> g >= group_priority(0),
+        forall|m: int| pending.contains(m) ==> group(m) >= group_priority(0),
+    ensures
+        execution_priority(active, basepri, primask) <= group_priority(0),
+        !nvic_selects(pending, group, execution_priority(active, basepri, primask), n),
+{
+    assert(!active.is_empty());
+    lemma_finite_set_has_min(active);
+    assert(min_of(active) == group_priority(0));
+}
+
 // ------------------------------------------------------------------ HW-09
 
 /// Access kinds for the MPU decision.
@@ -754,6 +780,44 @@ pub proof fn lemma_hw_partition_isolation<const NP: usize>(layout: &Layout<NP>, 
             assert(pl.windows[i - 3].rules_ok());
         }
     }
+}
+
+/// Whether the MPU lets an unprivileged write reach any byte of the word
+/// at `a` under `view` (HW-09).
+pub open spec fn word_writable(view: &View, a: int) -> bool {
+    mpu_grants_unprivileged(view, a, ACCESS_WRITE) || mpu_grants_unprivileged(view, a + 1, ACCESS_WRITE)
+        || mpu_grants_unprivileged(view, a + 2, ACCESS_WRITE) || mpu_grants_unprivileged(view, a + 3, ACCESS_WRITE)
+}
+
+/// What a Job, executing unprivileged under `view`, can have done to the
+/// words of memory between two instants (HW-09, DD-01): a word none of
+/// whose bytes the MPU lets it write is as it was. `m1` and `m2` map a
+/// word's address to its value.
+pub open spec fn job_writes_only(view: &View, m1: Map<int, int>, m2: Map<int, int>) -> bool {
+    forall|a: int| !(#[trigger] word_writable(view, a)) ==> m2[a] == m1[a]
+}
+
+/// R16.1 between two Kernel entries (2026-11-22): while a Job of
+/// Partition `p` executes under the view `Layout::view` computes for it,
+/// every word of the Kernel's RAM keeps its value. This is the fact the
+/// Kernel's statements about its own memory need between entries (the
+/// Endpoint storage, R39; the Kernel static), derived from the MPU's
+/// decision rule and not assumed.
+pub proof fn lemma_kernel_ram_kept_between_entries<const NP: usize>(
+    layout: &Layout<NP>, p: int, vp: &View, m1: Map<int, int>, m2: Map<int, int>, a: int,
+)
+    requires
+        layout.wf(), 0 <= p < NP, layout.is_view_of(p, vp),
+        job_writes_only(vp, m1, m2),
+        layout.kernel_ram.contains(a) && layout.kernel_ram.contains(a + 3),
+    ensures
+        m2[a] == m1[a],
+{
+    lemma_hw_partition_isolation(layout, p, vp, a, ACCESS_WRITE);
+    lemma_hw_partition_isolation(layout, p, vp, a + 1, ACCESS_WRITE);
+    lemma_hw_partition_isolation(layout, p, vp, a + 2, ACCESS_WRITE);
+    lemma_hw_partition_isolation(layout, p, vp, a + 3, ACCESS_WRITE);
+    assert(!word_writable(vp, a));
 }
 
 /// Property 12 over the Hardware_Model, pairwise (R16.1, R16.6): no address

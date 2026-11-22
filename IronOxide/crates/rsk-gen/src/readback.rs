@@ -8,8 +8,10 @@
 //! (`check_layout`, 2026-11-17), and since 2026-11-21 for the EasyDMA
 //! channel table (`check_dma`), the Endpoint table (`check_endpoints`) and
 //! the memory map and channel constants each Partition's source carries
-//! (`check_partition_map`, the basis of the HIL suite's access matrix).
-//! Not read back: the Release_Signal table and the per-Task vector arrays.
+//! (`check_partition_map`, the basis of the HIL suite's access matrix),
+//! and since 2026-11-22 for the Release_Signal table and the per-Task
+//! vector arrays (`check_vectors`). With that every table of numbers the
+//! system source carries is read back.
 //!
 //! This closes the one unverified step between the derivation (whose
 //! arithmetic is proven, `derive_v`) and the source the compiler sees: the
@@ -482,6 +484,83 @@ pub fn check_partition_map(text: &str, g: &Generated, partition: usize) -> Resul
     Ok(())
 }
 
+/// The numbers of the one-line array `const NAME: [u16; NT] = [..];`.
+fn line_array(text: &str, name: &str) -> Result<Vec<u64>, String> {
+    let needle = format!("const {name}: [u16; NT] = [");
+    let at = text.find(&needle).ok_or_else(|| format!("no `{name}` array in the emitted source"))?;
+    let rest = &text[at + needle.len()..];
+    let end = rest.find("];").ok_or_else(|| format!("`{name}` is not closed"))?;
+    rest[..end].split(',').map(str::trim).filter(|s| !s.is_empty()).map(value).collect()
+}
+
+/// The Release_Signals the derivation implies, in the table's order
+/// (Partition, then declaration): (declaring Partition, bound Task or 0xFF).
+/// Written here from the derived Partitions and Tasks, apart from the
+/// emitter.
+fn derived_signals(g: &Generated) -> Vec<(String, u64, u64)> {
+    let mut out = Vec::new();
+    for (p, part) in g.partitions.iter().enumerate() {
+        for name in &part.signals {
+            let mut bound = 0xFFu64;
+            for t in &g.tasks {
+                if let Some(crate::derive::ReleaseSource::Signal(of)) = &t.source {
+                    if of == name && bound == 0xFF {
+                        bound = t.index as u64;
+                    }
+                }
+            }
+            out.push((format!("{}.{name}", part.name), p as u64, bound));
+        }
+    }
+    out
+}
+
+/// Compares the per-Task vector arrays and the Release_Signal table with
+/// the derivation (2026-11-22, R24.1, R10.5, R7): each Task's dispatch
+/// line is the one the Target description gives its index, its intake line
+/// is its interrupt source's (the "none" value for every other Task), and
+/// each signal is its declaring Partition's and releases the Task bound to
+/// it. A dispatch line printed for another Task would run that Task's Jobs
+/// at another Priority's exception; a signal printed for another Partition
+/// would let that Partition raise it.
+pub fn check_vectors(text: &str, g: &Generated) -> Result<(), String> {
+    let dispatch = line_array(text, "DISPATCH_IRQ")?;
+    let intake = line_array(text, "INTAKE_IRQ")?;
+    if dispatch.len() != g.tasks.len() || intake.len() != g.tasks.len() {
+        return Err(format!("the vector arrays have {} and {} entries for {} Tasks", dispatch.len(), intake.len(), g.tasks.len()));
+    }
+    for (i, t) in g.tasks.iter().enumerate() {
+        let line = *g.target.dispatch_irqs.get(i).ok_or_else(|| format!("{}: the Target has no dispatch line for Task {i}", t.id))? as u64;
+        same(&format!("{}: dispatch line", t.id), dispatch[i], line)?;
+        let source = match &t.source {
+            Some(crate::derive::ReleaseSource::Interrupt { irq, .. }) => *irq as u64,
+            _ => 0xFFFF,
+        };
+        same(&format!("{}: intake line", t.id), intake[i], source)?;
+    }
+    let derived = derived_signals(g);
+    let needle = "pub const NSIG: usize = ";
+    let at = text.find(needle).ok_or("no constant `NSIG` in the emitted source")?;
+    let digits: String = text[at + needle.len()..].chars().take_while(|c| c.is_ascii_digit()).collect();
+    same("NSIG (Release_Signals)", digits.parse().map_err(|_| "constant `NSIG` is not a number".to_string())?, derived.len() as u64)?;
+    let read = rows(text, "pub const SIGNALS:", "SignalCfg")?;
+    if read.len() != derived.len() {
+        return Err(format!("the emitted signal table has {} signals, the derivation {}", read.len(), derived.len()));
+    }
+    for (line, (name, partition, task)) in read.iter().zip(&derived) {
+        let fields = line.split("//").next().unwrap_or("");
+        let field = |key: &str| -> Result<u64, String> {
+            let needle = format!("{key}: ");
+            let at = fields.find(&needle).ok_or_else(|| format!("no field `{key}` in `{}`", line.trim()))?;
+            let rest = &fields[at + needle.len()..];
+            value(rest[..rest.find([',', ' ', '}']).unwrap_or(rest.len())].trim())
+        };
+        same(&format!("signal {name}: partition"), field("partition")?, *partition)?;
+        same(&format!("signal {name}: task"), field("task")?, *task)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -646,6 +725,74 @@ mod tests {
         // A channel index of the system's table that is not this Partition's.
         assert!(text.contains("::rsk::DmaChannel::generated(0, 0x40003000)"));
         assert!(check_partition_map(&text.replacen("generated(0, 0x40003000)", "generated(3, 0x40003000)", 1), &g, 1).unwrap_err().contains("DMA"));
+    }
+
+    /// R24.1, R10.5, R7 (2026-11-22): the emitted vector arrays and the
+    /// Release_Signal table read back as derived, and a dispatch line, an
+    /// intake line, a signal's Partition or its bound Task printed otherwise
+    /// is refused naming the item.
+    #[test]
+    fn r24_1_the_emitted_vectors_and_signals_read_back_and_altered_ones_are_refused() {
+        use crate::decl::{MitPolicy, Release, SignalDecl, Source};
+        let ms = |value: u64| crate::decl::Time { value, unit: crate::decl::TimeUnit::Ms };
+        // The demo with one Task released by an interrupt.
+        let mut d = crate::tests::demo();
+        d.partitions[0].peripherals.push("CMSDK_DUALTIMER".into());
+        d.partitions[0].tasks.last_mut().unwrap().release = Release::Sporadic { mit: ms(40), policy: MitPolicy::Defer, source: Source::Interrupt("CMSDK_DUALTIMER".into()) };
+        let g = crate::generate(&d).unwrap_or_else(|e| panic!("the declaration is valid: {e:?}"));
+        let text = crate::emit::system_source(&g);
+        check_vectors(&text, &g).expect("the emitted arrays match the derivation");
+        // Two Tasks' dispatch lines exchanged.
+        let lines: Vec<String> = g.tasks.iter().map(|t| t.dispatch_irq.to_string()).collect();
+        let printed = format!("const DISPATCH_IRQ: [u16; NT] = [{}];", lines.join(", "));
+        assert!(text.contains(&printed), "{printed}");
+        let mut swapped = lines.clone();
+        swapped.swap(0, 1);
+        let e = check_vectors(&text.replacen(&printed, &format!("const DISPATCH_IRQ: [u16; NT] = [{}];", swapped.join(", ")), 1), &g).unwrap_err();
+        assert!(e.contains(&g.tasks[0].id) && e.contains("dispatch line"), "{e}");
+        // An intake line where the derivation has none, and none where it has one.
+        let at = text.find("const INTAKE_IRQ: [u16; NT] = [").expect("the intake array");
+        let row = text[at..].lines().next().unwrap();
+        let with = g.tasks.iter().position(|t| matches!(t.source, Some(crate::derive::ReleaseSource::Interrupt { .. }))).expect("the Task bound above");
+        let without = g.tasks.iter().position(|t| t.source.is_none()).expect("a periodic Task");
+        let cells: Vec<String> = row.trim_start_matches("const INTAKE_IRQ: [u16; NT] = [").trim_end_matches("];").split(", ").map(str::to_string).collect();
+        assert_ne!(cells[with], "0xFFFF");
+        let altered = |at: usize, to: &str| {
+            let mut c = cells.clone();
+            c[at] = to.into();
+            check_vectors(&text.replacen(row, &format!("const INTAKE_IRQ: [u16; NT] = [{}];", c.join(", ")), 1), &g).unwrap_err()
+        };
+        let e = altered(without, &cells[with]);
+        assert!(e.contains(&g.tasks[without].id) && e.contains("intake line"), "{e}");
+        let e = altered(with, "0xFFFF");
+        assert!(e.contains(&g.tasks[with].id) && e.contains("intake line"), "{e}");
+        // An entry dropped.
+        assert!(check_vectors(&text.replacen(row, &format!("const INTAKE_IRQ: [u16; NT] = [{}];", cells[1..].join(", ")), 1), &g).unwrap_err().contains("entries"));
+        // The demo with a Release_Signal that releases a sporadic Task of
+        // its Partition (a signal bound to no Task is refused, R22.5).
+        let mut d = crate::tests::demo();
+        d.partitions[1].signals = vec![SignalDecl { name: "tick".into() }];
+        d.partitions[0].tasks[0].raises.push("tick".into());
+        d.partitions[1].tasks[0].release = Release::Sporadic { mit: ms(40), policy: MitPolicy::Defer, source: Source::Signal("tick".into()) };
+        let g = crate::generate(&d).unwrap_or_else(|e| panic!("the declaration is valid: {e:?}"));
+        let text = crate::emit::system_source(&g);
+        check_vectors(&text, &g).expect("the emitted signal table matches the derivation");
+        let signals = derived_signals(&g);
+        if let Some((name, partition, task)) = signals.iter().find(|s| s.2 != 0xFF) {
+            let row = text.lines().find(|l| l.contains("SignalCfg {") && l.ends_with(&format!("// {name}"))).expect("the signal's row");
+            let fields = format!("partition: {partition}, task: {task} }}");
+            assert!(row.contains(&fields), "{row}");
+            // The signal given to another Partition.
+            let e = check_vectors(&text.replacen(row, &row.replacen(&fields, &format!("partition: {}, task: {task} }}", partition + 1), 1), 1), &g).unwrap_err();
+            assert!(e.contains(name) && e.contains("partition"), "{e}");
+            // The signal bound to another Task.
+            let e = check_vectors(&text.replacen(row, &row.replacen(&fields, &format!("partition: {partition}, task: {} }}", task + 1), 1), 1), &g).unwrap_err();
+            assert!(e.contains(name) && e.contains("task"), "{e}");
+            // The signal left out of the table.
+            assert!(check_vectors(&text.replacen(row, "", 1), &g).unwrap_err().contains("signals"));
+        } else {
+            panic!("the demo declares no bound Release_Signal: the signal cases were not exercised");
+        }
     }
 
 }

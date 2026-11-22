@@ -99,6 +99,11 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
     if let Err(difference) = readback::check_dma(&system_source, &generated).and_then(|()| readback::check_endpoints(&system_source, &generated)) {
         return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted tables do not match the derived values: {difference}"))]);
     }
+    // And the last two (2026-11-22): the per-Task vector arrays and the
+    // Release_Signal table.
+    if let Err(difference) = readback::check_vectors(&system_source, &generated) {
+        return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted vector arrays or signal table do not match the derived values: {difference}"))]);
+    }
     let partition_sources: Vec<(String, String)> = partition_sources;
     for (index, (_, source)) in partition_sources.iter().enumerate() {
         if let Err(difference) = readback::check_partition_map(source, &generated, generated.partitions[index].index) {

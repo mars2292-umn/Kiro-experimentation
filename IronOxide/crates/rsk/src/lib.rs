@@ -245,6 +245,83 @@ pub enum RecvError {
     Rejected,
 }
 
+/// The Kernel's answer to a send as this library's result (R42.3, R40.5;
+/// 2026-11-22). The codes are the Kernel's own constants, not copies of
+/// their values, and the reading is checked for every code by a
+/// Kani_Harness (`answers_kani`): the peer-state error is returned for the
+/// Kernel's peer-state report and for nothing else, `Ok` for an accepted
+/// send only, `Full` for a full channel only.
+#[inline]
+fn send_result(code: u32) -> Result<(), SendError> {
+    use rsk_kernel::arch::cm4::entry::{ENDPOINT_FULL, ENDPOINT_OK, ENDPOINT_PEER};
+    if code == ENDPOINT_OK {
+        Ok(())
+    } else if code == ENDPOINT_FULL {
+        Err(SendError::Full)
+    } else if code == ENDPOINT_PEER {
+        Err(SendError::PeerChanged)
+    } else {
+        Err(SendError::Refused)
+    }
+}
+
+/// The Kernel's answer to a receive (R42.3, R40.4; 2026-11-22): a message
+/// was copied out, the peer-state report, or nothing (an empty channel, or
+/// a refusal the Kernel has recorded).
+enum RecvAnswer {
+    Message,
+    PeerChanged,
+    Nothing,
+}
+
+/// Reads the Kernel's code for a receive; checked for every code by the
+/// same Kani_Harness module.
+#[inline]
+fn recv_answer(code: u32) -> RecvAnswer {
+    use rsk_kernel::arch::cm4::entry::{ENDPOINT_OK, ENDPOINT_PEER};
+    if code == ENDPOINT_OK {
+        RecvAnswer::Message
+    } else if code == ENDPOINT_PEER {
+        RecvAnswer::PeerChanged
+    } else {
+        RecvAnswer::Nothing
+    }
+}
+
+/// R42.3 (2026-11-22): the two readings above against the Kernel's result
+/// codes, for every 32-bit code. The peer-state error is the Kernel's
+/// peer-state report and only that; a message is delivered or a send
+/// reported accepted for `ENDPOINT_OK` only; the four codes the Kernel
+/// returns are told apart.
+#[cfg(kani)]
+mod answers_kani {
+    use super::*;
+    use rsk_kernel::arch::cm4::entry::{ENDPOINT_EMPTY, ENDPOINT_FULL, ENDPOINT_OK, ENDPOINT_PEER, ENDPOINT_REFUSED};
+
+    #[kani::proof]
+    fn the_send_result_is_the_kernels_answer_for_every_code() {
+        let code: u32 = kani::any();
+        let r = send_result(code);
+        assert!(matches!(r, Ok(())) == (code == ENDPOINT_OK));
+        assert!(matches!(r, Err(SendError::Full)) == (code == ENDPOINT_FULL));
+        assert!(matches!(r, Err(SendError::PeerChanged)) == (code == ENDPOINT_PEER));
+        assert!(matches!(r, Err(SendError::Refused)) == (code != ENDPOINT_OK && code != ENDPOINT_FULL && code != ENDPOINT_PEER));
+        // The Kernel's refusal is read as a refusal.
+        assert!(code != ENDPOINT_REFUSED || matches!(r, Err(SendError::Refused)));
+    }
+
+    #[kani::proof]
+    fn the_receive_answer_is_the_kernels_answer_for_every_code() {
+        let code: u32 = kani::any();
+        let a = recv_answer(code);
+        assert!(matches!(a, RecvAnswer::Message) == (code == ENDPOINT_OK));
+        assert!(matches!(a, RecvAnswer::PeerChanged) == (code == ENDPOINT_PEER));
+        assert!(matches!(a, RecvAnswer::Nothing) == (code != ENDPOINT_OK && code != ENDPOINT_PEER));
+        // An empty channel and a refusal deliver nothing.
+        assert!((code != ENDPOINT_EMPTY && code != ENDPOINT_REFUSED) || matches!(a, RecvAnswer::Nothing));
+    }
+}
+
 /// A receiver-side validation function (R42.4, task 21.4): the Generator
 /// requires one for each role that receives messages from a Partition of
 /// lower Criticality_Level and binds it through this trait, so that the
@@ -311,12 +388,7 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     pub fn send_to(&self, peer: u8, m: &T) -> Result<(), SendError> {
         let () = Self::FITS;
         let words = message_to_words::<T, W>(m);
-        match stubs::svc_send(self.arg(peer), words.0.as_ptr() as usize as u32, (4 * W) as u32) {
-            0 => Ok(()),
-            1 => Err(SendError::Full),
-            3 => Err(SendError::PeerChanged),
-            _ => Err(SendError::Refused),
-        }
+        send_result(stubs::svc_send(self.arg(peer), words.0.as_ptr() as usize as u32, (4 * W) as u32))
     }
 
     /// Receives the oldest message role `peer` sent to this role (task
@@ -325,8 +397,8 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
     pub fn recv_from(&self, peer: u8) -> Result<Option<T>, RecvError> {
         let () = Self::FITS;
         let mut words = Words::<W>::zero();
-        match stubs::svc_recv(self.arg(peer), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32) {
-            0 => {
+        match recv_answer(stubs::svc_recv(self.arg(peer), words.0.as_mut_ptr() as usize as u32, (4 * W) as u32)) {
+            RecvAnswer::Message => {
                 let m = message_from_words::<T, W>(&words);
                 if V::accept(&m) {
                     Ok(Some(m))
@@ -335,8 +407,8 @@ impl<T: Plain, const W: usize, V: Validate<T>> Endpoint<T, W, V> {
                     Err(RecvError::Rejected)
                 }
             }
-            3 => Err(RecvError::PeerChanged),
-            _ => Ok(None),
+            RecvAnswer::PeerChanged => Err(RecvError::PeerChanged),
+            RecvAnswer::Nothing => Ok(None),
         }
     }
 

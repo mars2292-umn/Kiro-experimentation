@@ -17,6 +17,7 @@
 //! no resolvable target is unbounded and fails the build (R37.3).
 #![forbid(unsafe_code)]
 
+pub mod cert;
 pub mod demangle;
 pub mod graph;
 pub mod scan;

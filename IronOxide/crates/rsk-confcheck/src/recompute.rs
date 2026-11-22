@@ -590,6 +590,16 @@ pub fn check_storage_placement(layout: &LayoutImg, table: &[image::EndpointCfg],
         "not so (the items that follow name the part)",
     );
     out.require("ENDPOINT_STORAGE address % 4", base % 4 == 0, 0, base % 4);
+    // 2026-11-22: inside the Kernel's RAM interval, which no Partition's
+    // MPU view lets a Job write (the premise of the Kernel's statement that
+    // the storage keeps its words between entries).
+    let (klo, khi) = (u64::from(layout.kernel_ram.base), u64::from(layout.kernel_ram.base) + (1u64 << layout.kernel_ram.size_log2.min(63)));
+    out.require(
+        "ENDPOINT_STORAGE inside LAYOUT.kernel_ram",
+        crate::image_v::storage_in_kernel_ram_ok(&layout.kernel_ram, base, storage_bytes),
+        format!("inside [0x{klo:08x}, 0x{khi:08x})"),
+        format!("[0x{base:08x}, 0x{:08x})", u64::from(base) + u64::from(storage_bytes)),
+    );
     for (i, c) in table.iter().enumerate() {
         let bytes = u64::from(c.roles) * u64::from(c.roles) * u64::from(c.capacity) * u64::from(c.payload);
         out.require(format!("ENDPOINTS[{i}].storage % 4"), c.storage % 4 == 0, 0, c.storage % 4);
@@ -683,6 +693,15 @@ mod tests {
         top.partitions[0].ram = image::IntervalImg { base: 0xFFFF_F000, size_log2: 12, srd: 0 };
         let end = run(&top, &table, Some((base, bytes)));
         assert!(whole(&end) && end.iter().any(|i| i.contains("ends below")), "{end:?}");
+        // Below the Kernel's RAM: apart from every Partition's RAM (the
+        // check as a whole passes), but not in the interval no view grants.
+        let below = base - 0x1000;
+        assert!(layout.partitions.iter().all(|p| p.ram.base >= base));
+        let outside = run(&layout, &table, Some((below, bytes)));
+        assert!(outside.iter().any(|i| i.contains("inside LAYOUT.kernel_ram")) && !whole(&outside), "{outside:?}");
+        let kend = base + (1u32 << layout.kernel_ram.size_log2);
+        let straddle = run(&layout, &table, Some((kend - 4, bytes)));
+        assert!(straddle.iter().any(|i| i.contains("inside LAYOUT.kernel_ram")), "{straddle:?}");
         let size = run(&layout, &table, Some((base, bytes + 4)));
         assert!(size.iter().any(|i| i.contains("symbol size")), "{size:?}");
         assert!(whole(&run(&layout, &table, None)));

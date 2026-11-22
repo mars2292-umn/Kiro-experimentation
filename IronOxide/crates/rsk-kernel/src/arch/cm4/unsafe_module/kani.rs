@@ -132,6 +132,89 @@ fn rbar_encoding_fields() {
     assert!(v & !0x1F == base & !0x1F);
 }
 
+/// The region an MPU_RBAR/MPU_RASR pair describes, read as B3.5.8 and
+/// B3.5.9 of the Armv7-M manual define the registers, independently of the
+/// encoder: (enabled, base, size_log2, srd, unprivileged write, execute
+/// never, strongly-ordered), `None` when the pair is one the Kernel's
+/// model has no region for (a reserved bit set, an access permission or a
+/// memory type other than the ones DD-07 and DD-12 use, or a size below 32
+/// bytes).
+fn mpu_pair_decodes(rbar: u32, rasr: u32) -> Option<(bool, u32, u8, u8, bool, bool, bool)> {
+    if rasr & 1 == 0 {
+        return Some((false, 0, 0, 0, false, false, false));
+    }
+    // RASR: XN [28], AP [26:24], TEX [21:19], S [18], C [17], B [16],
+    // SRD [15:8], SIZE [5:1], ENABLE [0]; every other bit is reserved.
+    if rasr & !((1 << 28) | (0x7 << 24) | (0x3F << 16) | (0xFF << 8) | (0x1F << 1) | 1) != 0 {
+        return None;
+    }
+    let size = (rasr >> 1) & 0x1F;
+    if size < 4 {
+        return None;
+    }
+    let size_log2 = (size + 1) as u8;
+    // The region's base is ADDR with the bits below the size ignored.
+    let low: u64 = (1u64 << size_log2) - 1;
+    let base = ((rbar as u64) & !low & !0x1F) as u32;
+    let write = match (rasr >> 24) & 0x7 {
+        0b011 => true,
+        0b010 => false,
+        _ => return None,
+    };
+    let device = match (rasr >> 16) & 0x3F {
+        // TEX = 0, C = 0, B = 0, S = 0: Strongly-ordered.
+        0b000000 => true,
+        // TEX = 0, C = 1, B = 1, S = 0: Normal, write-back.
+        0b000011 => false,
+        _ => return None,
+    };
+    Some((true, base, size_log2, ((rasr >> 8) & 0xFF) as u8, write, (rasr >> 28) & 1 == 1, device))
+}
+
+/// R16 (2026-11-22): the register pair the Kernel writes for a region of a
+/// view is, read by the manual's definition of the two registers, exactly
+/// that region: enabled or not, its base and size, its subregion-disable
+/// bits, the unprivileged write permission, execute-never and the memory
+/// type; and RBAR carries VALID and the region's number, so the pair is
+/// written to that region and no other. For every region that satisfies
+/// the Armv7-M size and alignment rules (`Interval::rules_ok`, which
+/// `hw_model::lemma_hw_partition_isolation` proves of every enabled region
+/// of a view), every base, every flag and every region number. Before this
+/// harness the two encoders were checked field by field
+/// (`rasr_encoding_fields`, `rbar_encoding_fields`), which did not exclude
+/// a stray bit elsewhere in the word.
+#[kani::proof]
+fn mpu_register_pair_decodes_to_the_region() {
+    let enabled: bool = kani::any();
+    let size_log2: u8 = kani::any();
+    kani::assume(size_log2 >= 5 && size_log2 <= 31);
+    let base: u32 = kani::any();
+    // `Interval::rules_ok`: the base is a multiple of the size, and the
+    // region ends inside the address space.
+    kani::assume((base as u64) % (1u64 << size_log2) == 0);
+    kani::assume(base as u64 + (1u64 << size_log2) <= 0x1_0000_0000);
+    let srd: u8 = kani::any();
+    let write: bool = kani::any();
+    let xn: bool = kani::any();
+    let device: bool = kani::any();
+    let number: u32 = kani::any();
+    kani::assume(number < MPU_REGIONS as u32);
+    let r = Region { enabled, interval: Interval { base, size_log2 }, srd, write, xn, device };
+    let rbar = hw::rbar_encode(number, &r);
+    let rasr = hw::rasr_encode(&r);
+    // The pair is addressed to region `number` (VALID with REGION).
+    assert!(rbar & (1 << 4) != 0 && rbar & 0xF == number);
+    match mpu_pair_decodes(rbar, rasr) {
+        None => assert!(false, "the pair is one the model has no region for"),
+        Some((e, b, s, d, w, x, dev)) => {
+            assert!(e == enabled);
+            if enabled {
+                assert!(b == base && s == size_log2 && d == srd && w == write && x == xn && dev == device);
+            }
+        }
+    }
+}
+
 /// UJ-010: the BASEPRI value for every ceiling is the HW-01/HW-03 encoding
 /// and never masks the Kernel level (R18.2).
 #[kani::proof]

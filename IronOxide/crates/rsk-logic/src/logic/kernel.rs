@@ -3180,6 +3180,36 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     // ------------------------------------------------------- Health_Monitor
 
+    /// `self` is `old` with one event pushed, the log's newest: its kind,
+    /// Task and Partition as given, and nothing else of the state changed.
+    pub open spec fn event_pushed(&self, old: &Self, kind: u8, task: int, partition: int) -> bool {
+        &&& self.log.view().len() > 0
+        &&& self.log.view().last().kind == kind && self.log.view().last().task as int == task
+            && self.log.view().last().partition as int == partition
+        &&& self.sched == old.sched && self.timing == old.timing && self.slots == old.slots && self.budget == old.budget
+        &&& self.stopped == old.stopped && self.safe_state == old.safe_state && self.started == old.started && self.now == old.now
+    }
+
+    /// R14.3, R14.4, R14.6 (2026-11-22): what a fault of kind `kind` does,
+    /// in its order. First its event is recorded on the state as found:
+    /// against the executing Job's Task and that Task's Partition, or
+    /// against no Task and the Kernel (0xFF, 0xFF) when the fault is the
+    /// Kernel's or no Job executes. Then, on that state, the Partition's
+    /// declared fault response is applied, or the safe state entered. The
+    /// response may log events of its own after the fault's; whether an
+    /// event is later overwritten is the ring's (`Log::push`, R14.7).
+    pub open spec fn fault_recorded(&self, old: &Self, cfg: &Config<NT, NR, NP>, kind: u8, kernel: bool) -> bool {
+        if kernel || old.sched.depth == 0 {
+            exists|mid: Self| #[trigger] mid.event_pushed(old, kind, 0xFF, 0xFF)
+                && self.safe_state && self.jobs_eq(&mid) && self.history_extends(&mid)
+        } else {
+            let t = old.sched.top();
+            let p = cfg.tasks[t].partition as int;
+            exists|mid: Self| #[trigger] mid.event_pushed(old, kind, t, p)
+                && self.response_applied(&mid, cfg, p, cfg.partitions[p].fault_response, t)
+        }
+    }
+
     /// A fault attributed to the executing Job's Partition (R14.3), or to
     /// the Kernel when `kernel` is set (R14.4).
     pub fn fault(&mut self, cfg: &Config<NT, NR, NP>, kind: u8, kernel: bool)
@@ -3198,11 +3228,18 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
                 old(self).sched.top()),
             // Every response keeps the MIT history (R14.5).
             final(self).timing.unmasked_only(&old(self).timing), final(self).mit_spaced(old(self), cfg),
+            // R14.3, R14.6 (2026-11-22): the fault's event is recorded first,
+            // against the executing Job's Task and Partition or the Kernel.
+            final(self).fault_recorded(old(self), cfg, kind, kernel),
     {
         let prs = fault_prs(kind);
         if kernel || self.sched.depth == 0 {
             self.push_event(cfg, kind, 0xFF, 0xFF, prs, 0);
+            let ghost mid0 = *self;
             self.enter_safe_state(cfg);
+            proof {
+                assert(mid0.event_pushed(old(self), kind, 0xFF, 0xFF));
+            }
             return;
         }
         let t = self.sched.stack[self.sched.depth - 1];
@@ -3215,6 +3252,8 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
         let response = cfg.partitions[partition as usize].fault_response;
         self.apply_response(cfg, partition, response, kind, t);
         proof {
+            assert(mid.event_pushed(old(self), kind, t as int, partition as int));
+            assert(self.response_applied(&mid, cfg, partition as int, response, t as int));
             self.lemma_same_but_log(&mid, old(self), cfg, partition as int, response, t as int);
             self.lemma_response_keeps_timing(&mid, cfg, partition as int, response, t as int);
         }

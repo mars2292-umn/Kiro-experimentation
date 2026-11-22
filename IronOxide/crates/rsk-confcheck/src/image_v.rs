@@ -1341,6 +1341,26 @@ fn ram_apart_ok(ram: &IntervalImg, base: u32, total: u32) -> (r: bool)
     end <= 0xFFFF_FFFF && (end <= base as u64 || base as u64 + total as u64 <= ram.base as u64)
 }
 
+/// The Endpoint storage lies inside the Kernel's RAM interval of the
+/// `LAYOUT` image (R16.1, 2026-11-22): the premise under which the Kernel
+/// proves that the storage keeps its words while Jobs run
+/// (`entry::theorem_storage_kept_between_entries`), since no Partition's
+/// MPU view grants a write in that interval.
+pub open spec fn storage_in_kernel_ram(kernel_ram: IntervalImg, base: int, total: int) -> bool {
+    kernel_ram.base as int <= base && base + total <= interval_end(kernel_ram)
+}
+
+/// `true` only when `storage_in_kernel_ram` holds.
+pub fn storage_in_kernel_ram_ok(kernel_ram: &IntervalImg, base: u32, total: u32) -> (r: bool)
+    ensures r ==> storage_in_kernel_ram(*kernel_ram, base as int, total as int),
+{
+    if kernel_ram.size_log2 > 32 {
+        return false;
+    }
+    let end: u64 = kernel_ram.base as u64 + pow2_u64(kernel_ram.size_log2);
+    kernel_ram.base <= base && base as u64 + total as u64 <= end
+}
+
 /// R16.1 for the Endpoint storage of a binary: `true` only when
 /// `storage_placed` holds of the decoded `LAYOUT` image, the decoded
 /// Endpoint table and the storage's address and size.

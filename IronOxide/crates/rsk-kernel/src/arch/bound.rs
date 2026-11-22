@@ -487,7 +487,18 @@ pub trait KernelOps: Sized {
             kernel ==> final(self).spec_depth() == old(self).spec_depth(),
             // R14.4, R11.5: a fault attributed to the Kernel, or one with no
             // Job executing, enters the safe state.
-            kernel || old(self).spec_depth() == 0 ==> final(self).spec_safe();
+            kernel || old(self).spec_depth() == 0 ==> final(self).spec_safe(),
+            // R14.3, R14.6 (2026-11-22): the state left is that fault's
+            // outcome, its event recorded first.
+            final(self).spec_fault_of(old(self), kind, kernel);
+    /// `self` is `old` after a fault of kind `kind`, the Kernel's when
+    /// `kernel` is set: the outcome the Kernel logic proves of its fault
+    /// (`Kernel::fault_recorded`). The fault's event is recorded on the
+    /// state as found, against the executing Job's Task and that Task's
+    /// Partition, or against no Task and the Kernel when the fault is the
+    /// Kernel's or no Job executes; then the Partition's declared fault
+    /// response is applied, or the safe state entered.
+    spec fn spec_fault_of(&self, old: &Self, kind: u8, kernel: bool) -> bool;
     fn next_compare(&self) -> Option<u64>
         requires self.inv();
     /// DD-06: the source of Task `t` is masked for the rest of its MIT window.
@@ -927,6 +938,10 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
     fn timer_event(&mut self, now: u64, running_cycles: u32) {
         let now = if now > self.cfg.operating_duration { self.cfg.operating_duration } else { now };
         self.kernel.timer_event(&self.cfg, now, running_cycles);
+    }
+
+    open spec fn spec_fault_of(&self, old: &Self, kind: u8, kernel: bool) -> bool {
+        self.cfg == old.cfg && self.kernel.fault_recorded(&old.kernel, &old.cfg, kind, kernel)
     }
 
     fn fault(&mut self, kind: u8, kernel: bool) {

@@ -9,6 +9,18 @@ publish.workspace = true
 # Host tool of the Build_System (R51: criterion 2 for the stack bounds). It
 # reads the linked binary with the shared ELF reader and the Task_Model with
 # a plain JSON parser; it shares no derivation code with the Generator.
+# The stack-usage certificate (`cert`, 2026-11-22) is verified:
+# `cargo verus verify -p rsk-link` in the verification job. The Verus
+# library is the proof tool's, not Generator or Kernel code.
+[package.metadata.verus]
+verify = true
+
 [dependencies]
 serde_json.workspace = true
 rsk-elf.workspace = true
+vstd = { workspace = true, features = ["std"] }
+verus_builtin = { workspace = true }
+verus_builtin_macros = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(verus_keep_ghost)"] }
