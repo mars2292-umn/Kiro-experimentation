@@ -721,6 +721,93 @@ pub open spec fn basepri_matches<K: KernelOps, A: KernelArch>(k: &K, hw: &A) -> 
     hw.hw().basepri == hw_model::basepri_for(k.top_level(), k.ceiling_level())
 }
 
+/// A1 of a Kernel state and a Hardware_Model state (`basepri_matches`
+/// without the `KernelArch` value around the model).
+pub open spec fn a1_holds<K: KernelOps>(k: &K, h: HwModel) -> bool {
+    h.basepri == hw_model::basepri_for(k.top_level(), k.ceiling_level())
+}
+
+/// What every entry of the Kernel does to A1 (2026-11-21): unless it takes
+/// the Target to the safe state, an entry that finds BASEPRI at the value
+/// the Kernel's state calls for leaves it at the value the state it leaves
+/// calls for. Each core the shells call ensures it of its own call
+/// (`start_core`, `irq_entry_core`, `timer_core`, `svc_check_core`,
+/// `svc_core`, `epilogue_core`, `fault_core`), so the run theorem below is
+/// about those contracts and nothing weaker.
+pub open spec fn a1_step<K: KernelOps>(k0: &K, h0: HwModel, k1: &K, h1: HwModel, safe: bool) -> bool {
+    !safe && a1_holds(k0, h0) ==> a1_holds(k1, h1)
+}
+
+/// One Kernel entry of a run: the Kernel state and the model at the call
+/// of its core and at the core's return, and whether it ended in the safe
+/// state.
+pub ghost struct EntryStep<K> {
+    pub k0: K,
+    pub h0: HwModel,
+    pub k1: K,
+    pub h1: HwModel,
+    pub safe: bool,
+}
+
+/// A run of Kernel entries from the start of the system: every entry is a
+/// call of a core (`a1_step`), the first is `start_core`'s (it establishes
+/// A1 unless it ends in the safe state), between two entries neither the
+/// Kernel's state nor BASEPRI changes, and no entry follows one that ended
+/// in the safe state.
+///
+/// The second and third of these are the trust base of the composition and
+/// are not proven here: the cores run one at a time (each with PRIMASK
+/// held, and an entry preempted in a stub's window has not called its core
+/// yet: `stub_model::theorem_nested_irq`); what executes between two cores
+/// is a Job, unprivileged, which can write neither the Kernel's memory
+/// (R16.1, the MPU views) nor BASEPRI (HW-03), a shell of `arch/cm4/mod.rs`
+/// (safe Rust that calls its core once), or a stub, none of whose
+/// instructions writes BASEPRI (`stub_model::lemma_stubs_keep_basepri`,
+/// over the model the static check holds to the assembly); the register
+/// keeps its value across an exception entry and return (Armv7-M B1.5);
+/// and the safe state does not return.
+pub open spec fn a1_run<K: KernelOps>(es: Seq<EntryStep<K>>) -> bool {
+    &&& es.len() > 0
+    &&& !es[0].safe ==> a1_holds(&es[0].k1, es[0].h1)
+    &&& forall|i: int| 0 <= i < es.len() ==> a1_step(&(#[trigger] es[i]).k0, es[i].h0, &es[i].k1, es[i].h1, es[i].safe)
+    &&& forall|i: int| 0 < i < es.len() ==> (#[trigger] es[i]).k0 == es[i - 1].k1 && es[i].h0.basepri == es[i - 1].h1.basepri
+    &&& forall|i: int| 0 <= i < es.len() - 1 ==> !(#[trigger] es[i]).safe
+}
+
+/// **A1 across entries (R7; 2026-11-21).** In a run of Kernel entries from
+/// the start of the system, BASEPRI is the value the Kernel's state calls
+/// for at the return of every entry that does not end in the safe state,
+/// and so at the call of every entry after the first: whatever executes
+/// between two entries, a Job included, executes under the mask of the
+/// Kernel state the entry before it left.
+pub proof fn theorem_a1_run<K: KernelOps>(es: Seq<EntryStep<K>>)
+    requires a1_run(es),
+    ensures
+        forall|i: int| 0 <= i < es.len() && !(#[trigger] es[i]).safe ==> a1_holds(&es[i].k1, es[i].h1),
+        forall|i: int| 0 < i < es.len() ==> a1_holds(&(#[trigger] es[i]).k0, es[i].h0),
+{
+    assert forall|i: int| 0 <= i < es.len() implies (!(#[trigger] es[i]).safe ==> a1_holds(&es[i].k1, es[i].h1))
+        && (0 < i ==> a1_holds(&es[i].k0, es[i].h0)) by {
+        lemma_a1_run_upto(es, i);
+    }
+}
+
+proof fn lemma_a1_run_upto<K: KernelOps>(es: Seq<EntryStep<K>>, i: int)
+    requires a1_run(es), 0 <= i < es.len(),
+    ensures
+        !es[i].safe ==> a1_holds(&es[i].k1, es[i].h1),
+        0 < i ==> a1_holds(&es[i].k0, es[i].h0),
+    decreases i,
+{
+    if i > 0 {
+        lemma_a1_run_upto(es, i - 1);
+        assert(!es[i - 1].safe);
+        assert(es[i].k0 == es[i - 1].k1 && es[i].h0.basepri == es[i - 1].h1.basepri);
+        assert(a1_holds(&es[i].k0, es[i].h0));
+        assert(a1_step(&es[i].k0, es[i].h0, &es[i].k1, es[i].h1, es[i].safe));
+    }
+}
+
 /// The boot flags `boot_core` establishes (A3 and DD-02, DD-04, DD-07, DD-12).
 pub open spec fn booted(h: HwModel) -> bool {
     &&& h.prigroup_all_preempt
@@ -2063,6 +2150,7 @@ fn endpoint_args<K: KernelOps, T: Tables>(k: &K, tables: &T, arg: u32, ptr: u32,
         && r.unwrap().3.capacity >= 1 && r.unwrap().3.payload >= 4 && r.unwrap().3.payload % 4 == 0
         && r.unwrap().0 as int == (arg & 0xFF) as int && r.unwrap().1 as int == ((arg >> 8) & 0xF) as int && r.unwrap().2 as int == ((arg >> 12) & 0xF) as int
         && r.unwrap().3 == spec_endpoint_of(tables, (arg & 0xFF) as int)
+        && (r.unwrap().0 as int) < spec_endpoint_count_of(tables)
         // R42.2 (audit finding 13): the message is word-aligned, of the
         // Endpoint's payload length, and inside the RAM interval of the
         // Partition of the role, which is the executing Job's Task's.
@@ -2323,6 +2411,9 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         // message, every word of it as it stood in the sender's memory,
         // to the channel's messages (`send_message_ok`, under its premise).
         code == ENDPOINT_OK ==> send_message_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, ptr as int),
+        // And its premise is a fact of the configuration (2026-11-21):
+        // under `storage_placed` it holds of every accepted send.
+        code == ENDPOINT_OK && storage_placed(old(k), tables) ==> send_premise(tables, arg, ptr as int),
         // A-P6, R42.3 (2026-11-21): the peer-state flag of the role. An
         // operation that reports it found it set, clears that one flag and
         // changes nothing else: no channel, no stored word, nothing of the
@@ -2344,6 +2435,11 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return ENDPOINT_REFUSED;
         }
     };
+    proof {
+        if storage_placed(&*k, tables) {
+            lemma_placed_premise(&*k, tables, e as int, role as int, peer as int, cfg.partitions[role as int] as int, ptr as int);
+        }
+    }
     let rs = role_slot(e, role);
     if state.peer_changed[rs] {
         state.peer_changed[rs] = false;
@@ -2450,6 +2546,9 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         // whole of the channel's oldest message into the receiver's memory
         // and leaves the others as they were (`recv_message_ok`).
         r.0 == ENDPOINT_OK ==> recv_message_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, ptr as int),
+        // As for a send: under `storage_placed` the premise holds of every
+        // accepted receive.
+        r.0 == ENDPOINT_OK && storage_placed(old(k), tables) ==> recv_premise(tables, arg, ptr as int),
         // A-P6, R42.3 (2026-11-21): the peer-state flag of the role. An
         // operation that reports it found it set, clears that one flag and
         // changes nothing else: no channel, no stored word, nothing of the
@@ -2471,6 +2570,11 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             return (ENDPOINT_REFUSED, ghost_int(0));
         }
     };
+    proof {
+        if storage_placed(&*k, tables) {
+            lemma_placed_premise(&*k, tables, e as int, from as int, role as int, cfg.partitions[role as int] as int, ptr as int);
+        }
+    }
     let rs = role_slot(e, role);
     if state.peer_changed[rs] {
         state.peer_changed[rs] = false;
@@ -2522,6 +2626,8 @@ pub fn start_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), safe),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
         !safe ==> basepri_matches(final(k), final(hw)) && !final(hw).hw().primask,
@@ -2604,6 +2710,9 @@ pub fn svc_check_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step, for
+        // the check that passes (nothing written) and the one that reports.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r is Some && r.unwrap().1),
         r is None ==> *final(k) == *old(k) && *final(state) == *old(state) && final(hw).hw() == old(hw).hw(),
         // A frame on the process stack is read only inside the stack region
         // of the executing Job's Partition.
@@ -3566,6 +3675,8 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0), view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         // The MPU view loaded is the view of the Partition of the last Job
@@ -3704,6 +3815,8 @@ pub fn timer_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A,
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -3876,6 +3989,8 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -3953,6 +4068,8 @@ pub fn epilogue_core<K: KernelOps, A: KernelArch, T: Tables>(
         view_matches(*old(state), old(hw)),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         // The MPU view loaded is the resumed Job's Partition's (A6).
@@ -4147,6 +4264,8 @@ pub fn fault_core<K: KernelOps, A: KernelArch, T: Tables>(
     requires old(k).inv(), tables_wf(tables, old(k).task_count_spec()), arch_inv(old(k), *old(state), 0),
     ensures
         final(k).inv(),
+        // A1 across entries (R7, 2026-11-21): the run theorem's step.
+        a1_step(old(k), old(hw).hw(), final(k), final(hw).hw(), r.1),
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
         !r.1 ==> basepri_matches(final(k), final(hw)),
@@ -4273,6 +4392,81 @@ pub open spec fn message_premise<T: Tables>(tables: &T, e: int, d: int, ptr: int
     &&& base % 4 == 0 && cfg.storage as int % 4 == 0
     &&& ptr + len <= 0xFFFF_FFFF
     &&& (ptr + len <= slot_addr(base, cfg, d, 0) || slot_addr(base, cfg, d, cfg.capacity as int) <= ptr)
+}
+
+/// An Endpoint's slots lie in the Endpoint storage at a word-aligned offset:
+/// all `roles * roles` channels of `capacity` slots of `payload` bytes.
+pub open spec fn endpoint_placed(cfg: EndpointCfg, total: int) -> bool {
+    &&& cfg.storage as int % 4 == 0
+    &&& cfg.storage as int + (cfg.roles as int * cfg.roles as int) * cfg.capacity as int * cfg.payload as int <= total
+}
+
+/// R16.1 for the Endpoint storage, as a fact of the linked configuration
+/// (2026-11-21): the storage starts at a word, every Endpoint's slots lie
+/// inside it at a word-aligned offset, and no buffer a Partition may hand
+/// to an Endpoint operation (`message_permitted`: a range of that
+/// Partition's RAM interval) shares a byte with the storage or reaches the
+/// last byte of the address space. No Kernel code tests it: the
+/// Config_Checker establishes it of each binary from the storage's symbol
+/// and the two images (`image_v::storage_placed_ok`; assumption A14 of the
+/// Verification_Plan). Under it
+/// `message_premise` holds of every operation `endpoint_args` admits
+/// (`lemma_placed_premise`), so the message statements depend on the
+/// configuration alone and on nothing of the call.
+pub open spec fn storage_placed<K: KernelOps, T: Tables>(k: &K, tables: &T) -> bool {
+    let base = spec_storage_base_of(tables);
+    let total = spec_storage_len_of(tables);
+    &&& base % 4 == 0
+    &&& forall|e: int| 0 <= e < spec_endpoint_count_of(tables) ==> endpoint_placed(#[trigger] spec_endpoint_of(tables, e), total)
+    &&& forall|p: int, ptr: int, len: int| 0 <= p < k.partition_count_spec() && #[trigger] k.message_permitted_spec(p, ptr, len)
+        ==> ptr + len <= 0xFFFF_FFFF && (ptr + len <= base || base + total <= ptr)
+}
+
+/// The premise of the message statements for the operation `arg` decodes:
+/// a send by `role` to `peer` writes the channel `role * roles + peer`.
+pub open spec fn send_premise<T: Tables>(tables: &T, arg: u32, ptr: int) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let peer = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    message_premise(tables, e, role * cfg.roles as int + peer, ptr, cfg.payload as int)
+}
+
+/// As `send_premise`: a receive by `role` from `from` reads the channel
+/// `from * roles + role`.
+pub open spec fn recv_premise<T: Tables>(tables: &T, arg: u32, ptr: int) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let from = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    message_premise(tables, e, from * cfg.roles as int + role, ptr, cfg.payload as int)
+}
+
+/// Under `storage_placed` the premise holds of every buffer a Partition
+/// may hand over and every channel of an Endpoint of the table.
+proof fn lemma_placed_premise<K: KernelOps, T: Tables>(k: &K, tables: &T, e: int, a: int, b: int, p: int, ptr: int)
+    requires
+        storage_placed(k, tables), 0 <= e < spec_endpoint_count_of(tables),
+        0 <= a < spec_endpoint_of(tables, e).roles as int, 0 <= b < spec_endpoint_of(tables, e).roles as int,
+        0 <= p < k.partition_count_spec(),
+        k.message_permitted_spec(p, ptr, spec_endpoint_of(tables, e).payload as int),
+    ensures message_premise(tables, e, a * spec_endpoint_of(tables, e).roles as int + b, ptr, spec_endpoint_of(tables, e).payload as int),
+{
+    let cfg = spec_endpoint_of(tables, e);
+    let base = spec_storage_base_of(tables);
+    let total = spec_storage_len_of(tables);
+    let n = cfg.roles as int;
+    let cap = cfg.capacity as int;
+    let pl = cfg.payload as int;
+    let d = a * n + b;
+    assert(endpoint_placed(cfg, total));
+    assert(0 <= d && d + 1 <= n * n) by (nonlinear_arith)
+        requires 0 <= a < n, 0 <= b < n, d == a * n + b;
+    assert((d * cap + 0) * pl == d * (cap * pl) && (d * cap + cap) * pl == (d + 1) * (cap * pl)) by (nonlinear_arith);
+    assert(0 <= d * (cap * pl) && (d + 1) * (cap * pl) <= (n * n) * cap * pl) by (nonlinear_arith)
+        requires 0 <= d, d + 1 <= n * n, 0 <= cap, 0 <= pl;
+    assert(slot_addr(base, cfg, d, 0) >= base);
+    assert(slot_addr(base, cfg, d, cap) <= base + total);
 }
 
 /// An accepted send's effect on its channel's messages (R39.4, R40.3):

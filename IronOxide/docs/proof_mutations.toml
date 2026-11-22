@@ -2569,3 +2569,120 @@ find = "        if number == SVC_RECV && code != ENDPOINT_REFUSED {\n"
 replace = "        if number == SVC_RECV {\n"
 expect = ["entry.rs", "postcondition not satisfied"]
 package = "rsk-kernel"
+
+[[mutation]]
+id = "storage-placed-without-the-word-alignment"
+kills = "lemma_placed_premise (R39.4, R40.3; 2026-11-21): the message premise's alignment half follows from `storage_placed` only while that states the storage starts at a word"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    &&& base % 4 == 0\n    &&& forall|e: int| 0 <= e < spec_endpoint_count_of(tables) ==> endpoint_placed("
+replace = "    &&& forall|e: int| 0 <= e < spec_endpoint_count_of(tables) ==> endpoint_placed("
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "endpoint-placed-without-its-extent"
+kills = "lemma_placed_premise: a channel's slots lie inside the Endpoint storage, apart from every admitted buffer, only while each Endpoint's `roles * roles * capacity * payload` bytes end inside the storage"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    &&& cfg.storage as int + (cfg.roles as int * cfg.roles as int) * cfg.capacity as int * cfg.payload as int <= total\n"
+replace = "    &&& cfg.storage as int <= total\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "send-premise-of-another-partition"
+kills = "endpoint_send_core's premise clause: the buffer shown apart from the storage is the one `endpoint_args` admitted for the sending role's Partition"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            lemma_placed_premise(&*k, tables, e as int, role as int, peer as int, cfg.partitions[role as int] as int, ptr as int);\n"
+replace = "            lemma_placed_premise(&*k, tables, e as int, role as int, peer as int, cfg.partitions[peer as int] as int, ptr as int);\n"
+expect = ["entry.rs", "precondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "confcheck-storage-alignment-not-checked"
+kills = "storage_placed_ok's contract (R16.1): the Endpoint storage of the binary starts at a word"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    if base % 4 != 0 {\n        return false;\n    }\n    let mut e: usize = 0;\n"
+replace = "    let mut e: usize = 0;\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-storage-ram-may-reach-the-top"
+kills = "ram_apart_ok's contract (R16.1): no Partition's RAM interval reaches the last byte of the address space, so an admitted buffer's end is a 32-bit value"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    end <= 0xFFFF_FFFF && (end <= base as u64 || base as u64 + total as u64 <= ram.base as u64)\n"
+replace = "    end <= base as u64 || base as u64 + total as u64 <= ram.base as u64\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-storage-overlap-one-side-only"
+kills = "ram_apart_ok's contract (R16.1): a Partition's RAM interval that starts inside the Endpoint storage is refused, as one that ends inside it"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    end <= 0xFFFF_FFFF && (end <= base as u64 || base as u64 + total as u64 <= ram.base as u64)\n"
+replace = "    end <= 0xFFFF_FFFF && (end <= base as u64 || base as u64 <= ram.base as u64)\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-endpoint-offset-alignment-not-checked"
+kills = "endpoint_in_storage_ok's contract (R16.1): an Endpoint's offset in the storage is a word's, so every slot address is"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    e.storage % 4 == 0 && e.storage as u64 + bytes <= total as u64\n"
+replace = "    e.storage as u64 + bytes <= total as u64\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "lean-select-raised-with-any-ceiling"
+kills = "select_raised (Sched/Quiet.lean, 2026-11-21): `Sched::select` returns none on the state after a lock only because the System_Ceiling there is at least the one before; with a lower ceiling a Task could be admitted"
+file = "proofs/aeneas/lean/Sched/Quiet.lean"
+find = "(hc : s.ceiling.val ≤ s'.ceiling.val)"
+replace = "(hc : True)"
+expect = ["Sched/Quiet.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-receive-kept-even-when-refused"
+kills = "endpoint_recv_core_kept: a receive returns the Kernel it was given only when it is not refused (a refused one records the fault and applies the response); without the premise the SVC entry's quieted state does not follow"
+file = "proofs/aeneas/lean/Sched/Quiet.lean"
+find = "(hr : r.1 ≠ _root_.rsk_kernel.arch.cm4.entry.ENDPOINT_REFUSED) : k' = k := by"
+replace = "(hr : True) : k' = k := by"
+expect = ["Sched/Quiet.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-lock-quieted-from-any-state"
+kills = "svc_lock_quieted: the lock service keeps a quieted Kernel quieted, it does not make one (it does not settle); the state before must be quieted"
+file = "proofs/aeneas/lean/Sched/Quiet.lean"
+find = "(h : logic.kernel.Kernel.svc_lock k cfg r = ok (b, k')) (hq : Quieted cfg k) :"
+replace = "(h : logic.kernel.Kernel.svc_lock k cfg r = ok (b, k')) (hq : True) :"
+expect = ["Sched/Quiet.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "a1-run-basepri-not-carried-between-entries"
+kills = "theorem_a1_run (R7, A1 across entries; 2026-11-21): the mask holds at the next entry only because BASEPRI keeps between two entries the value the entry before left"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "(#[trigger] es[i]).k0 == es[i - 1].k1 && es[i].h0.basepri == es[i - 1].h1.basepri\n"
+replace = "(#[trigger] es[i]).k0 == es[i - 1].k1\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "a1-run-start-does-not-establish-the-mask"
+kills = "theorem_a1_run: every later entry keeps A1, none but the start of the system is assumed to establish it; without the start's clause nothing holds of the first entry"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    &&& !es[0].safe ==> a1_holds(&es[0].k1, es[0].h1)\n"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "stub-call-keeps-the-callers-basepri"
+kills = "lemma_stubs_keep_basepri and the whole-stub lemmas: a Rust half leaves in BASEPRI what its core wrote; a model in which the call restores the caller's value would hide a stub that saves and restores the mask around its call"
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+find = "        basepri: h.basepri,\n"
+replace = ""
+expect = ["stub_model.rs", "postcondition not satisfied"]
+package = "rsk-kernel"

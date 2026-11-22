@@ -98,6 +98,21 @@ pub fn extract_endpoints(elf_bytes: &[u8]) -> Result<Option<Image>, String> {
     }
 }
 
+/// The address and size of the Endpoint storage static of the generated
+/// system crate (`rsk_system::ENDPOINT_STORAGE`, found by the path in its
+/// mangled name: the static is not exported), `None` when the binary has
+/// no such symbol. More than one match is an unusable input.
+pub fn endpoint_storage_symbol(elf_bytes: &[u8]) -> Result<Option<(u32, u32)>, String> {
+    let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
+    let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
+    let mut found = symbols.iter().filter(|s| s.is_object() && s.name.contains("10rsk_system16ENDPOINT_STORAGE"));
+    match (found.next(), found.next()) {
+        (None, _) => Ok(None),
+        (Some(s), None) => Ok(Some((s.address(), s.size))),
+        (Some(_), Some(_)) => Err("binary: more than one rsk_system::ENDPOINT_STORAGE symbol".to_string()),
+    }
+}
+
 /// Decodes the Endpoint image: the count, the entries, the storage bytes
 /// (`image_v::decode_endpoint_image`, proven to accept exactly the
 /// encoding of what it returns).

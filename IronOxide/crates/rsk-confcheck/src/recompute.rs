@@ -561,6 +561,53 @@ pub fn check_endpoints(m: &Model, img: &Image, table: &[image::EndpointCfg], sto
     out.mismatch("ENDPOINT_STORAGE_BYTES", offset, storage_bytes);
 }
 
+/// R16.1 for the Endpoint storage (2026-11-21): the Kernel's statements
+/// about whole messages (`send_message_ok`, `recv_message_ok`) hold under
+/// `storage_placed`, a fact of the linked configuration that no Kernel
+/// code tests. It is established here, of each binary: the storage static
+/// has the size the Endpoint image states, starts at a word, holds every
+/// Endpoint's slots at a word-aligned offset, and shares no byte with any
+/// Partition's RAM interval of the `LAYOUT` image, none of which reaches
+/// the last byte of the address space (`image_v::storage_placed_ok`,
+/// proven). The items after the verdict name the parts for the reader.
+/// A binary without Endpoints has no operation the fact is needed for.
+pub fn check_storage_placement(layout: &LayoutImg, table: &[image::EndpointCfg], storage_bytes: u32, symbol: Option<(u32, u32)>, out: &mut Outcome) {
+    if table.is_empty() {
+        out.notes.push("binary: no Endpoints, the Endpoint storage's placement is not needed (R16.1)".to_string());
+        return;
+    }
+    let whole = "Endpoint storage placement as a whole (R16.1)";
+    let Some((base, size)) = symbol else {
+        out.require(whole, false, "the symbol rsk_system::ENDPOINT_STORAGE", "absent from the binary");
+        return;
+    };
+    out.notes.push(format!("binary: rsk_system::ENDPOINT_STORAGE {size} bytes at 0x{base:08x}"));
+    out.mismatch("ENDPOINT_STORAGE symbol size against ENDPOINT_STORAGE_BYTES", storage_bytes, size);
+    out.require(
+        whole,
+        crate::image_v::storage_placed_ok(layout, &table.to_vec(), base, storage_bytes),
+        "word-aligned, every Endpoint's slots inside it, apart from every Partition's RAM",
+        "not so (the items that follow name the part)",
+    );
+    out.require("ENDPOINT_STORAGE address % 4", base % 4 == 0, 0, base % 4);
+    for (i, c) in table.iter().enumerate() {
+        let bytes = u64::from(c.roles) * u64::from(c.roles) * u64::from(c.capacity) * u64::from(c.payload);
+        out.require(format!("ENDPOINTS[{i}].storage % 4"), c.storage % 4 == 0, 0, c.storage % 4);
+        out.require(format!("ENDPOINTS[{i}] slots end inside the storage"), u64::from(c.storage) + bytes <= u64::from(storage_bytes), format!("at most {storage_bytes}"), u64::from(c.storage) + bytes);
+    }
+    let (lo, hi) = (u64::from(base), u64::from(base) + u64::from(storage_bytes));
+    for (p, pl) in layout.partitions.iter().enumerate() {
+        let (rlo, rhi) = (u64::from(pl.ram.base), u64::from(pl.ram.base) + (1u64 << pl.ram.size_log2.min(63)));
+        out.require(format!("LAYOUT.partitions[{p}].ram ends below 0xffffffff"), rhi <= 0xFFFF_FFFF, "at most 0xffffffff", format!("0x{rhi:x}"));
+        out.require(
+            format!("LAYOUT.partitions[{p}].ram apart from the Endpoint storage"),
+            rhi <= lo || hi <= rlo,
+            format!("no byte of [0x{lo:08x}, 0x{hi:08x})"),
+            format!("[0x{rlo:08x}, 0x{rhi:08x})"),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -596,6 +643,51 @@ mod tests {
         let global = format!("{head}{}", tail.replacen("\"core\": 0", "\"core\": \"global\"", 1));
         let e = crate::check(&global, None).err().expect("rejected");
         assert!(e.starts_with("NG-01") && e.contains("global"), "{e}");
+    }
+
+    /// R16.1: the Endpoint storage's placement is accepted for the demo's
+    /// layout with the storage in the Kernel's RAM, and each way of
+    /// breaking it is reported: an address that is not a word's, a storage
+    /// inside a Partition's RAM, an Endpoint whose slots run past the
+    /// storage, an offset that is not a word's, a Partition RAM interval
+    /// that reaches the end of the address space, a size other than the
+    /// image's, and no symbol at all.
+    #[test]
+    fn the_endpoint_storage_placement_is_checked_r16_1() {
+        let m = demo();
+        let layout = expected_layout(&m).unwrap();
+        let (table, bytes) = expected_endpoints(&m).unwrap();
+        assert!(!table.is_empty() && bytes > 0);
+        let base = layout.kernel_ram.base;
+        let run = |layout: &LayoutImg, table: &[image::EndpointCfg], symbol: Option<(u32, u32)>| {
+            let mut out = Outcome::default();
+            check_storage_placement(layout, table, bytes, symbol, &mut out);
+            out.discrepancies.iter().map(|d| d.item.clone()).collect::<Vec<_>>()
+        };
+        assert!(run(&layout, &table, Some((base, bytes))).is_empty());
+        let whole = |items: &[String]| items.iter().any(|i| i.contains("as a whole"));
+        let odd = run(&layout, &table, Some((base + 2, bytes)));
+        assert!(whole(&odd) && odd.iter().any(|i| i.contains("address % 4")), "{odd:?}");
+        let inside = run(&layout, &table, Some((layout.partitions[0].ram.base + 64, bytes)));
+        assert!(whole(&inside) && inside.iter().any(|i| i.contains("partitions[0].ram apart")), "{inside:?}");
+        let mut long = table.clone();
+        let last = long.len() - 1;
+        long[last].capacity += 1;
+        let past = run(&layout, &long, Some((base, bytes)));
+        assert!(whole(&past) && past.iter().any(|i| i.contains("slots end inside")), "{past:?}");
+        let mut skew = table.clone();
+        skew[0].storage += 2;
+        let off = run(&layout, &skew, Some((base, bytes)));
+        assert!(whole(&off) && off.iter().any(|i| i.contains("ENDPOINTS[0].storage % 4")), "{off:?}");
+        let mut top = layout.clone();
+        top.partitions[0].ram = image::IntervalImg { base: 0xFFFF_F000, size_log2: 12, srd: 0 };
+        let end = run(&top, &table, Some((base, bytes)));
+        assert!(whole(&end) && end.iter().any(|i| i.contains("ends below")), "{end:?}");
+        let size = run(&layout, &table, Some((base, bytes + 4)));
+        assert!(size.iter().any(|i| i.contains("symbol size")), "{size:?}");
+        assert!(whole(&run(&layout, &table, None)));
+        // Without Endpoints nothing is asked of the binary.
+        assert!(run(&layout, &[], None).is_empty());
     }
 
     /// Altered derived values are reported with the item, the expected and

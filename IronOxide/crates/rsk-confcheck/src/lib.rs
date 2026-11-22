@@ -175,6 +175,9 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
                     out.notes.push(format!("binary: RSK_ENDPOINT_IMAGE {} bytes at 0x{:08x}, RSK_ENDPOINT_CHECKSUM 0x{:08x}", eimg.bytes.len(), eimg.address, eimg.stored_checksum));
                     let (table, storage_bytes) = image::decode_endpoints(&eimg.bytes)?;
                     recompute::check_endpoints(&model, &eimg, &table, storage_bytes, &mut out);
+                    // R16.1 (2026-11-21): where the Endpoint storage lies,
+                    // the fact the Kernel's message statements rest on.
+                    recompute::check_storage_placement(&layout, &table, storage_bytes, image::endpoint_storage_symbol(bytes)?, &mut out);
                 }
                 None => out.require("RSK_ENDPOINT_IMAGE", model.endpoints.is_empty(), "present when the Task_Model declares Endpoints", "absent from the binary"),
             }

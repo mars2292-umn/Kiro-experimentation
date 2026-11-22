@@ -1228,4 +1228,149 @@ pub fn endpoint_image_is(bytes: &[u8], expected: &Vec<EndpointCfg>, storage_byte
     true
 }
 
+// ================================================= storage placement ==
+
+/// 2^n.
+pub open spec fn pow2(n: nat) -> nat
+    decreases n,
+{
+    if n == 0 { 1 } else { 2 * pow2((n - 1) as nat) }
+}
+
+/// One past the last byte of an interval of the `LAYOUT` image.
+pub open spec fn interval_end(i: IntervalImg) -> int {
+    i.base as int + pow2(i.size_log2 as nat) as int
+}
+
+/// An Endpoint's slots lie in the Endpoint storage at a word-aligned
+/// offset: `roles * roles` channels of `capacity` slots of `payload` bytes.
+pub open spec fn endpoint_in_storage(e: EndpointV, total: int) -> bool {
+    &&& e.storage as int % 4 == 0
+    &&& e.storage as int + (e.roles as int * e.roles as int) * e.capacity as int * e.payload as int <= total
+}
+
+/// A Partition's RAM interval does not reach the last byte of the address
+/// space and shares no byte with the storage `[base, base + total)`.
+pub open spec fn ram_apart(ram: IntervalImg, base: int, total: int) -> bool {
+    &&& interval_end(ram) <= 0xFFFF_FFFF
+    &&& (interval_end(ram) <= base || base + total <= ram.base as int)
+}
+
+/// Where the Endpoint storage of a binary lies (R16.1, R39.2; 2026-11-21):
+/// it starts at a word, every Endpoint's slots lie inside it at a
+/// word-aligned offset, and it shares no byte with any Partition's RAM
+/// interval, none of which reaches the last byte of the address space.
+/// This is the Kernel's `storage_placed` (`rsk-kernel`, `entry.rs`) read
+/// off the images: a message buffer the Kernel admits is a range of the
+/// calling Partition's RAM interval, so under this no admitted buffer
+/// shares a byte with the storage. The statement is this crate's own
+/// (R26.1); that it is the Kernel's is by reading the two side by side.
+pub open spec fn storage_placed(layout: LayoutV, endpoints: Seq<EndpointV>, base: int, total: int) -> bool {
+    &&& base % 4 == 0
+    &&& forall|e: int| 0 <= e < endpoints.len() ==> endpoint_in_storage(#[trigger] endpoints[e], total)
+    &&& forall|p: int| 0 <= p < layout.partitions.len() ==> ram_apart((#[trigger] layout.partitions[p]).ram, base, total)
+}
+
+proof fn lemma_pow2_32()
+    ensures pow2(32) == 0x1_0000_0000,
+{
+    assert(pow2(32) == 0x1_0000_0000) by (compute);
+}
+
+proof fn lemma_pow2_mono(a: nat, b: nat)
+    requires a <= b,
+    ensures pow2(a) <= pow2(b),
+    decreases b,
+{
+    if a < b {
+        lemma_pow2_mono(a, (b - 1) as nat);
+    }
+}
+
+/// 2^k for k up to 32, by a bounded loop.
+fn pow2_u64(k: u8) -> (r: u64)
+    requires k <= 32,
+    ensures r == pow2(k as nat), r <= 0x1_0000_0000,
+{
+    let mut r: u64 = 1;
+    let mut i: u8 = 0;
+    proof {
+        lemma_pow2_32();
+    }
+    while i < k
+        invariant i <= k, k <= 32, r == pow2(i as nat), pow2(32) == 0x1_0000_0000,
+        decreases k - i,
+    {
+        proof {
+            lemma_pow2_mono((i + 1) as nat, 32);
+        }
+        r = r * 2;
+        i = i + 1;
+    }
+    proof {
+        lemma_pow2_mono(k as nat, 32);
+    }
+    r
+}
+
+fn endpoint_in_storage_ok(e: &EndpointCfg, total: u32) -> (r: bool)
+    ensures r ==> endpoint_in_storage(e@, total as int),
+{
+    let n = e.roles as u64;
+    let cap = e.capacity as u64;
+    let pl = e.payload as u64;
+    assert(n * n <= 255 * 255) by (nonlinear_arith)
+        requires n <= 255;
+    let channels: u64 = n * n;
+    assert(channels * cap <= 255 * 255 * 255) by (nonlinear_arith)
+        requires channels <= 255 * 255, cap <= 255;
+    let slots: u64 = channels * cap;
+    assert(slots * pl <= 255 * 255 * 255 * 65535) by (nonlinear_arith)
+        requires slots <= 255 * 255 * 255, pl <= 65535;
+    let bytes: u64 = slots * pl;
+    e.storage % 4 == 0 && e.storage as u64 + bytes <= total as u64
+}
+
+fn ram_apart_ok(ram: &IntervalImg, base: u32, total: u32) -> (r: bool)
+    ensures r ==> ram_apart(*ram, base as int, total as int),
+{
+    if ram.size_log2 > 32 {
+        return false;
+    }
+    let end: u64 = ram.base as u64 + pow2_u64(ram.size_log2);
+    end <= 0xFFFF_FFFF && (end <= base as u64 || base as u64 + total as u64 <= ram.base as u64)
+}
+
+/// R16.1 for the Endpoint storage of a binary: `true` only when
+/// `storage_placed` holds of the decoded `LAYOUT` image, the decoded
+/// Endpoint table and the storage's address and size.
+pub fn storage_placed_ok(layout: &LayoutImg, endpoints: &Vec<EndpointCfg>, base: u32, total: u32) -> (r: bool)
+    ensures r ==> storage_placed(layout@, endpoints_view(endpoints@), base as int, total as int),
+{
+    if base % 4 != 0 {
+        return false;
+    }
+    let mut e: usize = 0;
+    while e < endpoints.len()
+        invariant e <= endpoints@.len(), forall|k: int| 0 <= k < e ==> endpoint_in_storage(#[trigger] endpoints_view(endpoints@)[k], total as int),
+        decreases endpoints@.len() - e,
+    {
+        if !endpoint_in_storage_ok(&endpoints[e], total) {
+            return false;
+        }
+        e += 1;
+    }
+    let mut p: usize = 0;
+    while p < layout.partitions.len()
+        invariant p <= layout.partitions@.len(), forall|k: int| 0 <= k < p ==> ram_apart((#[trigger] layout@.partitions[k]).ram, base as int, total as int),
+        decreases layout.partitions@.len() - p,
+    {
+        if !ram_apart_ok(&layout.partitions[p].ram, base, total) {
+            return false;
+        }
+        p += 1;
+    }
+    true
+}
+
 } // verus!

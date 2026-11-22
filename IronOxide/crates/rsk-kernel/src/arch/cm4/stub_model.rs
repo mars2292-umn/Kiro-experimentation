@@ -69,6 +69,9 @@ pub ghost struct M {
     pub ipsr: int,
     pub primask: bool,
     pub faultmask: bool,
+    /// BASEPRI (2026-11-21). No instruction form below writes it; a Rust
+    /// half leaves in it what its core wrote (`call`).
+    pub basepri: int,
     /// The Z flag.
     pub z: bool,
     /// S16 to S31.
@@ -198,13 +201,15 @@ pub open spec fn i_cmp_imm(s: M, rn: int, v: int) -> M { M { z: s.r[rn] == v, ..
 
 /// AAPCS: the callee returns with R4 to R11, SP, S16 to S31 and the memory
 /// at and above SP as they were; R0 to R3, R12, LR, the flags and the memory
-/// below SP are arbitrary (`h`). The Rust halves write neither mask, PSP
-/// nor CONTROL.
+/// below SP are arbitrary (`h`). The Rust halves write neither PRIMASK,
+/// FAULTMASK, PSP nor CONTROL; BASEPRI is what the half's core left in it
+/// (`h`: the cores write it, `Action::SetBasepri`).
 pub open spec fn call(s: M, h: M) -> M {
     M {
         r: Seq::new(13, |i: int| if 4 <= i <= 11 { s.r[i] } else { h.r[i] }),
         lr: h.lr,
         z: h.z,
+        basepri: h.basepri,
         mem: |x: int| if x >= s.sp { (s.mem)(x) } else { (h.mem)(x) },
         ..s
     }
@@ -719,6 +724,107 @@ pub proof fn theorem_irq_stub<K: KernelOps>(s: M, h: M, k1: &K, s0: ArchState, s
             assert(g == 0);
             lemma_frames_ext(s.mem, w.mem, s.sp, fs);
         }
+    }
+}
+
+// ---- BASEPRI through the stubs (A1 across entries; 2026-11-21).
+
+/// No instruction of a stub writes BASEPRI: every sequence of the model,
+/// which the static check holds to the assembly line by line, leaves it as
+/// it found it, and a call of a Rust half leaves what the half's core
+/// wrote. The exception entry and return of the model leave it too (the
+/// model's reading of Armv7-M B1.5: assumed, as the rest of the exception
+/// model). With the cores' `a1_step` this is the stubs' share of
+/// `entry::a1_run`: between the return of one core and the call of the
+/// next, no stub instruction changes the mask.
+pub proof fn lemma_stubs_keep_basepri(s: M, h: M, out: int, v: (int, int, int, int), frame: int, on_msp: bool, n: int, g: int)
+    ensures
+        irq_to_call(s).basepri == s.basepri, irq_after_call(s).basepri == s.basepri,
+        irq_dispatch(s).basepri == s.basepri, irq_restore(s).basepri == s.basepri,
+        irq_return(s).basepri == s.basepri, irq_to_unwind(s).basepri == s.basepri,
+        unwind_entry(s).basepri == s.basepri, unwind_to_call(s).basepri == s.basepri,
+        unwind_after_call(s).basepri == s.basepri, unwind_exit(s).basepri == s.basepri,
+        unwind_again(s).basepri == s.basepri,
+        svc_to_call(s).basepri == s.basepri, kentry_after_call(s).basepri == s.basepri,
+        kentry_return(s).basepri == s.basepri, timer_to_call(s).basepri == s.basepri,
+        mm_to_call(s).basepri == s.basepri, fault_to_call(s).basepri == s.basepri,
+        call(s, h).basepri == h.basepri, call_ret(s, h, v.0).basepri == h.basepri,
+        call_out4(s, h, out, v.0, v.1, v.2, v.3).basepri == h.basepri,
+        call_svc(s, h, frame, on_msp, v.0).basepri == h.basepri,
+        exc_enter_handler(s, n, g, h).basepri == s.basepri,
+        exc_return_handler(s, g, n).basepri == s.basepri,
+{
+}
+
+/// The interrupt stub, whole: on each of its three ways out (the dispatch,
+/// the return as entered, the branch to `rsk_unwind`) BASEPRI is what
+/// `irq_entry_core` left.
+pub proof fn lemma_irq_stub_basepri(s: M, h: M, p: (int, int, int, int))
+    ensures
+        irq_dispatch(irq_called(s, h, p)).basepri == h.basepri,
+        irq_return(irq_restore(irq_called(s, h, p))).basepri == h.basepri,
+        unwind_entry(irq_to_unwind(irq_restore(irq_called(s, h, p)))).basepri == h.basepri,
+{
+    let c = irq_to_call(s);
+    lemma_stubs_keep_basepri(c, h, (c.mem)(c.sp), p, 0, false, 0, 0);
+}
+
+/// A Kernel-level stub, whole (the SVC's; the timer's and the faults' have
+/// the same tail): returning as entered or reaching `rsk_unwind`, BASEPRI is
+/// what the Rust half's core left.
+pub proof fn lemma_svc_stub_basepri(s: M, h: M, hop: int)
+    ensures ({
+        let c = svc_to_call(s);
+        let u = kentry_after_call(call_svc(c, h, c.r[0], !has_bit(s.lr, 0x4), hop));
+        kentry_return(u).basepri == h.basepri && unwind_entry(u).basepri == h.basepri
+    }),
+{
+}
+
+/// A round's test is of the plan the Rust half answered, and the round
+/// leaves BASEPRI as the half's core left it.
+proof fn lemma_unwind_round_plan(m: M, h: M, e: (u32, u32, u32, u32))
+    requires wf(m), wf(h),
+    ensures
+        unwind_round(m, h, e).z == (e.3 == 0),
+        unwind_round(m, h, e).basepri == h.basepri,
+        wf(unwind_round(m, h, e)), wf(unwind_again(unwind_round(m, h, e))),
+{
+    let a = unwind_to_call(m);
+    assert(a.r[1] == a.sp);
+    let c = call_out4(a, h, a.r[1], e.0 as int, e.1 as int, e.2 as int, e.3 as int);
+    assert(c.sp == a.sp);
+    assert((c.mem)(c.sp + 12) == e.3 as int);
+    let s1 = i_ldr_sp(i_ldr_sp(i_ldr_sp(i_ldr_sp(c, 0, 0), 1, 4), 2, 8), 12, 12);
+    assert(s1.r[12] == e.3 as int);
+    let s2 = i_vpop_eq(i_tst_r(i_add_sp(s1, 16), 2, 0x10));
+    assert(s2.r[12] == e.3 as int);
+    let s3 = i_pop_r3_r11_lr(s2);
+    assert(s3.r[12] == e.3 as int);
+}
+
+/// `rsk_unwind`, whole: after its rounds BASEPRI is what the last call of
+/// `epilogue_core` left.
+pub proof fn lemma_unwind_basepri(m: M, hs: Seq<M>, es: Seq<(u32, u32, u32, u32)>)
+    requires es.len() > 0, hs.len() == es.len(), wf(m), forall|i: int| 0 <= i < hs.len() ==> wf(#[trigger] hs[i]),
+        // The loop ends: the last round's plan is 0 and no earlier one is.
+        forall|i: int| 0 <= i < es.len() ==> ((#[trigger] es[i]).3 == 0 <==> i == es.len() - 1),
+    ensures unwind_loop(m, hs, es).basepri == hs.last().basepri,
+    decreases es.len(),
+{
+    let t = unwind_round(m, hs[0], es[0]);
+    lemma_unwind_round_plan(m, hs[0], es[0]);
+    if es.len() == 1 {
+        assert(es[0].3 == 0);
+    } else {
+        assert(es[0].3 != 0);
+        let es1 = es.drop_first();
+        let hs1 = hs.drop_first();
+        assert forall|i: int| 0 <= i < es1.len() implies ((#[trigger] es1[i]).3 == 0 <==> i == es1.len() - 1) by {
+            assert(es1[i] == es[i + 1]);
+        }
+        lemma_unwind_basepri(unwind_again(t), hs1, es1);
+        assert(hs1.last() == hs.last());
     }
 }
 

@@ -384,7 +384,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_check_core"
 tool = "verus"
 says = "At a supervisor call the Kernel either changes nothing and serves the call, in which case, if the call came from a Job, the frame on the process stack lies inside the stack region of the executing Job's Partition; or it treats the stack pointer as a stack violation: the Partition's fault response is applied, the loaded view is unchanged and the pending stacking fault is discarded. So the Kernel reads a Job's frame only inside that Job's Partition's stack region."
-reviewed = "11b765b0ae0afac1"
+reviewed = "00de91bc26def708"
 
 
 # ---------------------------------------------------------------- R17
@@ -563,7 +563,7 @@ implemented = "The Kernel charges the executing Job the processor cycles between
 strength = "weaker"
 strength_note = "R18.1: the statement is that a timer entry charges the executing Job exactly the cycles it is given and no other Task anything. The cycles it is given are wall-clock cycles since the last switch, so the Kernel's own work during an interrupting entry is charged to the interrupted Job; the requirement's note of 2026-11-13 accepts this within Δ_entry per entry, and it is why measured maxima move by a whole entry. R18.2 and R18.3: an Overrun that the Budget event finds is reported and answered, once; no statement bounds how soon (Δ_detect, Δ_enforce are measured). R18.7: the Lean theorem bounds the response of every Job of a Task the analysis calls schedulable, but in a run whose instants are its own and with four kinds of transition still written by hand; and it bounds response by the computed R, which is the requirement, only under the conditions the run lists."
 closed = "2026-11-02: timed events served for other Tasks were charged to the executing Job's account; found by measurement, closed by the contract of `timer_event`. 2026-11-05: an account that passed its Budget at a preemption was taken as already reported and the Job ran on; `Budget::reported` now records the report itself. 2026-11-15: a Budget event could be served ahead of a pending dispatch, a delay the blocking term did not cover; `settle` disarms the event when a dispatch is admitted."
-gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. Since 2026-11-16 the Lean run is joined to the Kernel's time base for periodic arrivals (Sched/Arrive.lean: an arrival is the Kernel's nominal instant and its spacing is derived); since 2026-11-17 for sporadic arrivals too (Sched/Sporadic.lean: an arrival is the instant the Kernel records for the accepted or deferred Release, its spacing derived from the extracted intake code); since 2026-11-17 no transition of the run is modelled by hand (every one that changes the Kernel's state carries the extracted function's result, so the nominal instants and the sporadic timing fields are the code's throughout); one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application."
+gaps = "Δ_detect and Δ_enforce are measured with a margin, not bounded statically. Since 2026-11-16 the Lean run is joined to the Kernel's time base for periodic arrivals (Sched/Arrive.lean: an arrival is the Kernel's nominal instant and its spacing is derived); since 2026-11-17 for sporadic arrivals too (Sched/Sporadic.lean: an arrival is the instant the Kernel records for the accepted or deferred Release, its spacing derived from the extracted intake code); since 2026-11-17 no transition of the run is modelled by hand (every one that changes the Kernel's state carries the extracted function's result, so the nominal instants and the sporadic timing fields are the code's throughout); one unanswered pulse in an early hour-long run stays open. R18.5 and R18.6 are Generator rules with tests. The rig's demonstration (R18.8) is on one Application. The run's four Budget-event transitions ask that the state they start from is quieted (the executing Job's Budget event is not armed while a Task is admitted). Until 2026-11-21 that was proven only of entries ending in the Kernel's common last step; since then it is proven of every entry of the linked Kernel (Sched/Quiet.lean): each returns a quieted state when it was given one. The run itself has no entry boundaries, so its transitions still state the premise; the theorems are what discharges it for a run cut into entries."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/kernel.rs"
@@ -609,6 +609,27 @@ ref = "ASM-06"
 note = "the cycle counter's rate"
 
 # ---------------------------------------------------------------- R29
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Quiet.lean"
+name = "svc_core_quieted"
+tool = "lean"
+says = "On the extracted code, for a Kernel interface whose settle, two acknowledgements, dispatch and lock are the linked Kernel's: if the supervisor-call entry returns, and the Kernel state it was given is quieted, the state it returns is quieted."
+reviewed = "8c39192b94bf4c2c"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Quiet.lean"
+name = "irq_entry_core_quieted"
+tool = "lean"
+says = "The same for the interrupt entry (the timer, an intake, a dispatch, an unbound vector, the stack check): given a quieted state it returns a quieted state."
+reviewed = "1287b67ae0834b55"
+
+[[row.statement]]
+file = "proofs/aeneas/lean/Sched/Quiet.lean"
+name = "select_raised"
+tool = "lean"
+says = "If the selection function returns no Task on a scheduler state, it returns no Task on any state with the same release marks, Job marks, stack and depth and a System_Ceiling at least as high."
+reviewed = "236dcf6090f88afd"
 
 [[row]]
 requirement = 29
@@ -740,7 +761,7 @@ requirement = 7
 sentence = "The Kernel starts a released Job only when its Priority is above both the system ceiling and every Job in progress, always picks the highest-Priority such Job (lowest Task number on a tie), and when a Job ends resumes the one it preempted, last in, first out."
 implemented = "Each Task has its own interrupt vector whose hardware priority is its Task Priority; the Kernel pends a vector when its Task's Job may start and sets the processor's priority mask (BASEPRI) from the ceiling, so the interrupt controller itself does the selection (crates/rsk-kernel/src/arch/cm4/entry.rs, `apply_core`). The rule the controller must realise is `Sched::eligible` and `Sched::select` in crates/rsk-logic/src/logic/sched.rs; the model of the controller is crates/rsk-logic/src/hw_model.rs."
 strength = "weaker"
-strength_note = "R7.1 to R7.3 are proven as a statement about a model of the interrupt controller: given the Kernel's state, vectors mapped as generated, no stale pending vector and the selected Task's vector pending, the controller takes that vector and no other. The definition of 'eligible' matches R7.1 word for word (pending Release, no Job in progress, Priority above the ceiling and above the Job on top). Weaker: the tie-break is 'lowest Task index', which is one fixed order and meets R7.3 only because the design records it as the chosen order; R7.4 (what may preempt), the register state of R7.5 and the timing of R7.8 are not in these statements (registers are restored by assembly, timing is measured); and 'no stale pending vector' is a premise the entry code is trusted to establish. Since 2026-11-21 every entry of the Kernel states what it does to the priority mask: each ends with BASEPRI equal to the value the Kernel's state after the entry calls for, either because it rewrote it after its transition or because it changed neither the mask nor the state; until then five of the entries (the services of the supervisor call other than lock and unlock, the interrupt intake, an unbound vector, a vector that does not dispatch, the stack check) said so only for the safe state."
+strength_note = "R7.1 to R7.3 are proven as a statement about a model of the interrupt controller: given the Kernel's state, vectors mapped as generated, no stale pending vector and the selected Task's vector pending, the controller takes that vector and no other. The definition of 'eligible' matches R7.1 word for word (pending Release, no Job in progress, Priority above the ceiling and above the Job on top). Weaker: the tie-break is 'lowest Task index', which is one fixed order and meets R7.3 only because the design records it as the chosen order; R7.4 (what may preempt), the register state of R7.5 and the timing of R7.8 are not in these statements (registers are restored by assembly, timing is measured); and 'no stale pending vector' is a premise the entry code is trusted to establish. Since 2026-11-21 every entry of the Kernel states what it does to the priority mask: each ends with BASEPRI equal to the value the Kernel's state after the entry calls for, either because it rewrote it after its transition or because it changed neither the mask nor the state; until then five of the entries (the services of the supervisor call other than lock and unlock, the interrupt intake, an unbound vector, a vector that does not dispatch, the stack check) said so only for the safe state. Later on 2026-11-21 the per-entry statements were composed: in a run of entries from the start of the system, in which nothing between two entries changes the Kernel's state or the mask, the mask is right at the return of every entry and so throughout whatever executes until the next. Every entry the hardware-facing shells call states the step the composition uses, and the model of the assembly stubs, which a static check holds to the assembly line by line, is proven to leave the mask as each call of the Kernel left it. What stays assumed is what happens outside the Kernel's code: an unprivileged Job cannot write the mask or the Kernel's memory, the processor keeps the mask across exception entry and return, and the entries run one at a time."
 closed = "2026-11-06: a dispatch vector taken inside another handler's return window raised a UsageFault on the board; a fence and a deferral close the two windows (Verification_Plan 5.8a). 2026-11-13: the assembly stubs' instruction sequences are proven against a machine model."
 gaps = "That the processor's interrupt controller behaves as the model (HW-01 to HW-05, HW-14) is by citation and differential tests. The stale-vector premise (A4) is a property of the entry code, inspected. That BASEPRI is the state's value after every entry is proven over the model of the processor, entry by entry; that the entries compose (the mask holds between entries because a Job cannot write it, HW-03) is argued, not a theorem, and the write itself (`Cm4Hw::apply` to `MSR BASEPRI`) is trusted. Δ_dispatch, Δ_wake and Δ_complete are measured."
 
@@ -749,14 +770,14 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "irq_entry_core"
 tool = "verus"
 says = "Whatever interrupt vector is taken, if the Kernel does not enter the safe state and the priority mask held the value the Kernel's state called for at the entry, it holds the value the state calls for at the end; a vector that dispatches a Job ends so unconditionally."
-reviewed = "2f5c942d2e64eaa6"
+reviewed = "eba0a07aa9a9a751"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "svc_core"
 tool = "verus"
 says = "Whatever service a supervisor call asks for, if the Kernel does not enter the safe state and the priority mask held the value the Kernel's state called for at the entry, it holds the value the state calls for at the end; lock and unlock end so unconditionally."
-reviewed = "086012919eb8d521"
+reviewed = "071fffdb1e3d9762"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/sched.rs"
@@ -797,6 +818,36 @@ ref = "A4"
 note = "no stale pending dispatch vector"
 
 # ---------------------------------------------------------------- R8
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "a1_step"
+tool = "verus"
+body = true
+says = "One entry's effect on the mask: unless the entry ends in the safe state, if the mask was the value the Kernel's state called for when the entry began, it is the value the state calls for when the entry returns."
+reviewed = "952734efa5c41d2a"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "a1_run"
+tool = "verus"
+body = true
+says = "A run of entries: there is at least one; the first, unless it ends in the safe state, returns with the mask right; every entry satisfies the per-entry step; each entry after the first begins with the Kernel state and the mask the previous one returned; and only the last may end in the safe state."
+reviewed = "ffd24c9c0291a1b9"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "theorem_a1_run"
+tool = "verus"
+says = "In such a run the mask is right at the return of every entry that does not end in the safe state, and at the beginning of every entry after the first."
+reviewed = "52aab4abc2ffc6e8"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/stub_model.rs"
+name = "lemma_stubs_keep_basepri"
+tool = "verus"
+says = "Every instruction sequence of the stub model leaves BASEPRI as it found it; a call of a Rust half leaves the value the half left; and the model's exception entry and return leave it."
+reviewed = "970b3c179a0b38dd"
 
 [[row]]
 requirement = 8
@@ -990,7 +1041,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "epilogue_core"
 tool = "verus"
 says = "Among its postconditions: when the unwind stops (no further level to unwind, no safe state) and a Job is in progress, the hardware model's floating-point access flag equals the declared floating-point use of the Task on top of the Kernel's Job stack, the Job being resumed. The others concern the view, the priority mask, the level records and the invariant of the entry code."
-reviewed = "dddb6475a55af7c9"
+reviewed = "7442c8f83a3eb3ec"
 
 
 # ---------------------------------------------------------------- R12
@@ -1066,9 +1117,9 @@ requirement = 39
 sentence = "Message passing between Tasks uses fixed, statically allocated buffers with no heap and no async runtime, each operation has a bounded execution time, and a buffer behaves as a first-in, first-out queue of its declared capacity."
 implemented = "Each Endpoint channel is a ring of fixed-size slots in Kernel-owned storage; the index arithmetic is `endpoint::Fifo` (crates/rsk-logic/src/logic/endpoint.rs) and the copies in and out are word copies by the Kernel (crates/rsk-kernel/src/arch/cm4/entry.rs)."
 strength = "weaker"
-strength_note = "The queue of slot indices is proven to be a first-in, first-out sequence: a push appends the next slot unless the queue is full, a pop removes the oldest unless it is empty, and a refused operation changes nothing. R39.4 asks this of messages, and since 2026-11-21 it is stated of messages: an accepted send appends every word of the message, as it stood in the sender's buffer, to the channel's sequence of messages and leaves the messages before it as they were; an accepted receive puts every word of the oldest message into the receiver's buffer, removes that message and leaves the rest in order. The copy behind both is proven for every length (before: a bounded check of an unverified loop), over one trusted word read and one trusted word write. Still weaker than the requirement in three ways. The message statements hold under a premise about the generated layout (the Endpoint storage and the Endpoint's offset in it are word-aligned, the caller's buffer ends inside the address space, and the buffer lies outside the channel's slots): true by R16.1, which keeps the Kernel's storage out of every Partition's RAM, but no check in the send or receive code states it and it is not proven here. The model is one Kernel entry: that the storage keeps its words between the entry of a send and the entry of a later receive is again R16.1, as it was for the labels. And a message here is its words; the step from a typed payload to words and back is the word encoding, which is checked for four types and not proven."
-closed = "2026-11-21: the message copy was a loop outside the proofs, checked for lengths up to 32 bytes; it is now proven for every length, and the send and the receive state what they do to whole messages. Reading the old loop for the proof showed that it copies nothing, silently, when an address is not word-aligned; the proof's premise names that case."
-gaps = "The premise of the message statements (alignment of the storage, the buffer outside the channel's slots) rests on R16.1 and the generated layout, with no executable check and no proof. Persistence of the storage between Kernel entries rests on R16.1. The typed payload's encoding to words is bounded-checked (`uj_058_059_message_words_round_trip`). R39.3's execution-time bounds are measured. R39.1 (no heap, no executor) is the Link_Checker's and the lint's. The Kernel's flight image changed in the receive's copy only (the slot's first word is read before the copy and not after: one load moved, the same size), so the measured records for the Endpoint operations predate the change."
+strength_note = "The queue of slot indices is proven to be a first-in, first-out sequence: a push appends the next slot unless the queue is full, a pop removes the oldest unless it is empty, and a refused operation changes nothing. R39.4 asks this of messages, and since 2026-11-21 it is stated of messages: an accepted send appends every word of the message, as it stood in the sender's buffer, to the channel's sequence of messages and leaves the messages before it as they were; an accepted receive puts every word of the oldest message into the receiver's buffer, removes that message and leaves the rest in order. The copy behind both is proven for every length (before: a bounded check of an unverified loop), over one trusted word read and one trusted word write. Still weaker than the requirement in three ways. The message statements hold under a premise about the generated layout (the Endpoint storage and the Endpoint's offset in it are word-aligned, the caller's buffer ends inside the address space, and the buffer lies outside the channel's slots): true by R16.1, which keeps the Kernel's storage out of every Partition's RAM, but no check in the send or receive code states it and it is not proven here. The model is one Kernel entry: that the storage keeps its words between the entry of a send and the entry of a later receive is again R16.1, as it was for the labels. And a message here is its words; the step from a typed payload to words and back is the word encoding, which is checked for four types and not proven. Later on 2026-11-21 the premise stopped being about the call: under one fact of the linked configuration (`storage_placed`: the storage starts at a word, every Endpoint's slots lie inside it at a word-aligned offset, and no buffer the Kernel admits shares a byte with it or reaches the last byte of the address space) the premise is proven of every operation the Kernel accepts. That fact is still not established by Kernel code. The Config_Checker establishes it of each binary, by a proven function, from the storage's symbol and the two images; that the checker's reading of the images is the Kernel's is by reading the two statements side by side."
+closed = "2026-11-21: the message copy was a loop outside the proofs, checked for lengths up to 32 bytes; it is now proven for every length, and the send and the receive state what they do to whole messages. Reading the old loop for the proof showed that it copies nothing, silently, when an address is not word-aligned; the proof's premise names that case. 2026-11-21 (later): the premise of the message statements follows, for every accepted operation, from a fact of the configuration that the Config_Checker checks on each binary."
+gaps = "The premise of the message statements (alignment of the storage, the buffer outside the channel's slots) rests on R16.1 and the generated layout, with no executable check and no proof. Persistence of the storage between Kernel entries rests on R16.1. The typed payload's encoding to words is bounded-checked (`uj_058_059_message_words_round_trip`). R39.3's execution-time bounds are measured. R39.1 (no heap, no executor) is the Link_Checker's and the lint's. The Kernel's flight image changed in the receive's copy only (the slot's first word is read before the copy and not after: one load moved, the same size), so the measured records for the Endpoint operations predate the change. Since the later round of 2026-11-21 the premise is reduced to `storage_placed`, checked per binary by the Config_Checker and not by the Kernel at boot: a binary that was not run through the checker has no such evidence."
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/endpoint.rs"
@@ -1145,6 +1196,36 @@ reviewed = "4af6d44e324ce045"
 
 # ---------------------------------------------------------------- R40
 
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "storage_placed"
+tool = "verus"
+body = true
+says = "The fact of the configuration the message statements rest on: the Endpoint storage's base is a multiple of four; every Endpoint of the table has an offset that is a multiple of four and all its channels' slots end inside the storage; and every buffer the Kernel's permission rule admits for any Partition ends at or below 0xFFFFFFFF and lies wholly below or wholly above the storage."
+reviewed = "4ff4921c8c1e7b90"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "lemma_placed_premise"
+tool = "verus"
+says = "If that fact holds, then for any Endpoint of the table, any two of its roles and any buffer of the Endpoint's payload length that the permission rule admits for some Partition, the premise of the message statements holds for the channel between those roles."
+reviewed = "2591647f9871d851"
+
+[[row.statement]]
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+name = "send_premise"
+tool = "verus"
+body = true
+says = "The premise of the message statements written for the Endpoint, role and peer that a send's argument word decodes to."
+reviewed = "0e07db64d8fe473a"
+
+[[row.statement]]
+file = "crates/rsk-confcheck/src/image_v.rs"
+name = "storage_placed_ok"
+tool = "verus"
+says = "When it answers yes for a decoded layout, a decoded Endpoint table, an address and a size: the address is a multiple of four, every Endpoint's offset is a multiple of four with all its slots inside the size, and every Partition's RAM interval ends at or below 0xFFFFFFFF and shares no byte with the range from the address over the size."
+reviewed = "a25d8e8a6f6d0808"
+
 [[row]]
 requirement = 40
 sentence = "Endpoint buffers are Kernel-owned Resources under the ceiling protocol, a message can release a sporadic Task subject to its MIT, send and receive never wait, and a full buffer is an error reported to the Health_Monitor."
@@ -1159,14 +1240,14 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
 says = "The Kernel's and the entry code's invariants are preserved and the Job stack does not grow; the interrupt mask level, MPU view and global mask are unchanged. If the send is accepted, the message's first word is appended to the channel's label sequence, and (2026-11-21) under the layout premise the whole message is appended to the channel's messages (`send_message_ok`, see R39). If it is not accepted, nothing is written into the Endpoint storage and every channel's queue is as it was. If the buffer was full and a Job is executing, the newest entry of the event log is the buffer-full event against that Job's Task and that Task's Partition. The executing Job's charge point is not moved. The peer-state flag of the role (2026-11-21): a send that reports it found it set, clears that one flag and changes no channel, no stored word and nothing of the Kernel; a send with any result but that report and a refusal found the flag clear; and the flags are unchanged unless reported."
-reviewed = "700226d1fbda9c49"
+reviewed = "4a7ee8b72a1ee6b9"
 
 [[row.statement]]
 file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_recv_core"
 tool = "verus"
 says = "The invariants are preserved; a receive that is not refused leaves the Kernel's state exactly as it was; if it succeeds, it takes the oldest label of the channel's sequence and delivers that word first, and (2026-11-21) changes no word outside the receiver's buffer and, under the layout premise, delivers every word of the oldest message and leaves the other messages in order (`recv_message_ok`, see R39); the charge point is not moved. The peer-state flag of the role is treated as in the send: reported only when set, cleared by the report, and a receive that goes ahead found it clear."
-reviewed = "ebbe67ab503d099d"
+reviewed = "1a313ff2516cc7ce"
 
 [[row.statement]]
 file = "crates/rsk-logic/src/logic/endpoint.rs"
@@ -1403,7 +1484,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_send_core"
 tool = "verus"
 says = "For the peer-state error: a send that returns the report found the role's flag set, clears that flag alone and changes no channel, no stored word and nothing of the Kernel; a send that returns anything but the report and a refusal found the flag clear; unless the report is returned the flags are unchanged. For the copy: see R39 and R40."
-reviewed = "700226d1fbda9c49"
+reviewed = "4a7ee8b72a1ee6b9"
 
 
 [[row.statement]]
@@ -1411,7 +1492,7 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 name = "endpoint_recv_core"
 tool = "verus"
 says = "The same three clauses for a receive: the report only when the role's flag was set, with that flag cleared and nothing else changed; no message delivered to a role whose flag is set; the flags unchanged unless reported."
-reviewed = "ebbe67ab503d099d"
+reviewed = "1a313ff2516cc7ce"
 
 
 [[row.statement]]
