@@ -41,6 +41,33 @@ pub struct TaskModel {
     #[serde(default)]
     pub chains: Vec<Chain>,
     pub conversions: Vec<Conversion>,
+    /// Fixed PPI channels (docs/pacemaker PM33.1); absent when none is declared.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ppi: Vec<PpiChannel>,
+}
+
+/// A fixed PPI channel: one event register triggers one task register and,
+/// with a fork, a second one. Written by the Kernel at Init only.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PpiChannel {
+    pub id: String,
+    /// The channel number (derived: the position in the declaration).
+    pub channel: u8,
+    pub event: PpiRegister,
+    pub task: PpiRegister,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fork: Option<PpiRegister>,
+    pub derived: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PpiRegister {
+    pub peripheral: String,
+    pub offset: u32,
+    /// The register's address in hexadecimal with `0x` (derived).
+    pub address: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

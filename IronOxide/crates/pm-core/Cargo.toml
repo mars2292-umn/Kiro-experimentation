@@ -1,0 +1,9 @@
+[package]
+name = "pm-core"
+description = "PACEMAKER experiment: the therapy's types, parameters and (from task 6.3) the step function; no_std, no rsk, no hardware (docs/pacemaker/design.md PD-05)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

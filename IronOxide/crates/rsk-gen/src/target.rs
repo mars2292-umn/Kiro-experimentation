@@ -82,6 +82,9 @@ pub struct Target {
     pub mpu_regions: u8,
     /// Number of interrupt lines of the NVIC.
     pub irq_count: u16,
+    /// Programmable PPI channels (docs/pacemaker PM33.1); 0 when the Target
+    /// has no PPI. nRF52840: CH[0] to CH[19], each with a fork.
+    pub ppi_channels: u16,
     /// The Kernel time-base interrupt line.
     pub timer_irq: u16,
     /// Interrupt lines free for dispatch vectors, in assignment order.
@@ -132,6 +135,7 @@ pub const NRF52840: Target = Target {
     priority_bits: 3,
     mpu_regions: 8,
     irq_count: 48,
+    ppi_channels: 20,
     timer_irq: 8,
     dispatch_irqs: &[20, 21, 22, 23, 24, 25, 40],
     peripherals: NRF52840_PERIPHERALS,
@@ -158,6 +162,7 @@ pub const NRF52840_COVERAGE: Target = Target {
     priority_bits: 3,
     mpu_regions: 8,
     irq_count: 48,
+    ppi_channels: 20,
     timer_irq: 8,
     dispatch_irqs: &[20, 21, 22, 23, 24, 25, 40],
     peripherals: NRF52840_PERIPHERALS,
@@ -203,6 +208,7 @@ pub const QEMU_MPS2_AN386: Target = Target {
     priority_bits: 8,
     mpu_regions: 8,
     irq_count: 32,
+    ppi_channels: 0,
     timer_irq: 9,
     dispatch_irqs: &[20, 21, 22, 23, 24, 25, 26],
     peripherals: MPS2_PERIPHERALS,

@@ -27,6 +27,12 @@ pub const MAX_ROLES: usize = 4;
 /// quarter of the smallest Kernel RAM region of the Target table.
 pub const MAX_ENDPOINT_STORAGE: u64 = 8 * 1024;
 
+/// The offsets of task and of event registers in a peripheral's window
+/// (nRF52840 PS, "Peripheral interface": tasks from 0x000, events from
+/// 0x100). The Targets with a PPI are nRF52840s.
+pub const PPI_TASK_OFFSETS: std::ops::Range<u32> = 0x000..0x100;
+pub const PPI_EVENT_OFFSETS: std::ops::Range<u32> = 0x100..0x200;
+
 pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> {
     let mut d = Vec::new();
     let Some(target) = Target::by_name(&decl.target) else {
@@ -657,6 +663,51 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
         }
         if let Some(first) = remaining.first() {
             d.push(Diagnostic::new("R41.3", ItemRef::Endpoint(first.clone()), format!("the gating of Endpoints is cyclic among {}: a Task's operations on each wait for receives on another, which the deadlock-freedom proof cannot order (Verification_Plan 5.15, A-P8); declare `after` so that the relation is acyclic", remaining.iter().map(|n| format!("`{n}`")).collect::<Vec<_>>().join(", "))));
+        }
+    }
+    // Fixed PPI channels (docs/pacemaker PM33.1): unique names, no more
+    // than the Target has, and every register a 4-byte-aligned event or
+    // task register inside the window of a peripheral of the Target table.
+    // Which Partition owns the peripherals is the rule of PM33.2.
+    let mut ppi_names = BTreeSet::new();
+    if decl.ppi.len() > target.ppi_channels as usize {
+        d.push(Diagnostic::new(
+            "PM33.1",
+            ItemRef::Declaration,
+            if target.ppi_channels == 0 {
+                format!("the Target `{}` has no PPI: no channel can be declared", target.name)
+            } else {
+                format!("{} PPI channels declared; the Target `{}` has {}", decl.ppi.len(), target.name, target.ppi_channels)
+            },
+        ));
+    }
+    for c in &decl.ppi {
+        let cref = || ItemRef::Ppi(c.name.clone());
+        if !ppi_names.insert(c.name.as_str()) {
+            d.push(Diagnostic::new("PR-28", cref(), format!("ppi channel `{}` is declared twice", c.name)));
+        }
+        let mut reg = |what: &str, r: &crate::decl::PpiRef, range: std::ops::Range<u32>| match target.peripheral(&r.peripheral) {
+            None => d.push(Diagnostic::new("R21.5", cref(), format!("the Target `{}` has no peripheral `{}` ({what} of ppi channel `{}`)", target.name, r.peripheral, c.name))),
+            Some(p) => {
+                if r.offset % 4 != 0 || r.offset >= p.window_size || !range.contains(&r.offset) {
+                    d.push(Diagnostic::new(
+                        "PM33.1",
+                        cref(),
+                        format!(
+                            "`{}[0x{:03x}]` is not {what} register: one lies at a multiple of 4 from 0x{:03x} to 0x{:03x} of the peripheral",
+                            r.peripheral,
+                            r.offset,
+                            range.start,
+                            range.end - 4
+                        ),
+                    ));
+                }
+            }
+        };
+        reg("an event", &c.event, PPI_EVENT_OFFSETS);
+        reg("a task", &c.task, PPI_TASK_OFFSETS);
+        if let Some(f) = &c.fork {
+            reg("a task", f, PPI_TASK_OFFSETS);
         }
     }
     // Chains (task 21.5; R41.4): unique names, at least two Tasks, each a

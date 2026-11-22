@@ -1,0 +1,125 @@
+{
+ "capture": "sigrok-cli -d fx2lafw -c samplerate=4000000 --time 15000 -O binary (2026-11-22; the capture itself is not kept)",
+ "samplerate_hz": 4000000,
+ "samples": 60000000,
+ "sample_period_us": 0.25,
+ "pins": {
+  "atrial (D0)": {
+   "widths": [
+    {
+     "programmed_us": 50,
+     "pulses": 578,
+     "min_us": 50.0,
+     "max_us": 50.25,
+     "mean_us": 50.003460207612456,
+     "worst_error_us": 0.25,
+     "tolerance_us": 200.0,
+     "within": true
+    },
+    {
+     "programmed_us": 400,
+     "pulses": 600,
+     "min_us": 400.0,
+     "max_us": 400.25,
+     "mean_us": 400.00166666666667,
+     "worst_error_us": 0.25,
+     "tolerance_us": 200.0,
+     "within": true
+    },
+    {
+     "programmed_us": 500,
+     "pulses": 600,
+     "min_us": 500.0,
+     "max_us": 500.25,
+     "mean_us": 500.0029166666667,
+     "worst_error_us": 0.25,
+     "tolerance_us": 20.0,
+     "within": true
+    },
+    {
+     "programmed_us": 1000,
+     "pulses": 585,
+     "min_us": 1000.0,
+     "max_us": 1000.25,
+     "mean_us": 1000.0004273504273,
+     "worst_error_us": 0.25,
+     "tolerance_us": 20.0,
+     "within": true
+    },
+    {
+     "programmed_us": 1900,
+     "pulses": 400,
+     "min_us": 1899.75,
+     "max_us": 1900.0,
+     "mean_us": 1899.99875,
+     "worst_error_us": 0.25,
+     "tolerance_us": 200.0,
+     "within": true
+    }
+   ],
+   "unassigned": []
+  },
+  "ventricular (D1)": {
+   "widths": [
+    {
+     "programmed_us": 50,
+     "pulses": 579,
+     "min_us": 50.0,
+     "max_us": 50.25,
+     "mean_us": 50.002158894645945,
+     "worst_error_us": 0.25,
+     "tolerance_us": 200.0,
+     "within": true
+    },
+    {
+     "programmed_us": 400,
+     "pulses": 600,
+     "min_us": 400.0,
+     "max_us": 400.25,
+     "mean_us": 400.0004166666667,
+     "worst_error_us": 0.25,
+     "tolerance_us": 200.0,
+     "within": true
+    },
+    {
+     "programmed_us": 500,
+     "pulses": 600,
+     "min_us": 499.75,
+     "max_us": 500.0,
+     "mean_us": 499.9995833333333,
+     "worst_error_us": 0.25,
+     "tolerance_us": 20.0,
+     "within": true
+    },
+    {
+     "programmed_us": 1000,
+     "pulses": 585,
+     "min_us": 999.75,
+     "max_us": 1000.0,
+     "mean_us": 999.9995726495727,
+     "worst_error_us": 0.25,
+     "tolerance_us": 20.0,
+     "within": true
+    },
+    {
+     "programmed_us": 1900,
+     "pulses": 400,
+     "min_us": 1899.75,
+     "max_us": 1900.0,
+     "mean_us": 1899.99625,
+     "worst_error_us": 0.25,
+     "tolerance_us": 200.0,
+     "within": true
+    }
+   ],
+   "unassigned": []
+  }
+ },
+ "pass": true,
+ "binary_sha256": "1e30d5086533886b322c31d1e30dadd2f67ee0dd7054513d00fbdb7cba183169",
+ "binary": "spikes/pm-timer, cargo build --release, rustc 1.95.0",
+ "tools": {
+  "sigrok-cli": "0.7.2",
+  "probe-rs": "0.32.0"
+ }
+}

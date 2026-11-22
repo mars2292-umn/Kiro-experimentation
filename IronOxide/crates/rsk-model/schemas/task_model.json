@@ -62,6 +62,21 @@
     "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
     "signals": { "type": "array", "items": { "$ref": "#/$defs/signal" } },
     "endpoints": { "type": "array", "items": { "$ref": "#/$defs/endpoint" } },
+    "ppi": {
+      "description": "Fixed PPI channels (docs/pacemaker PM33.1); absent when none is declared.",
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "channel", "event", "task", "derived"],
+        "properties": {
+          "id": { "type": "string" },
+          "channel": { "type": "integer", "minimum": 0 },
+          "event": { "$ref": "#/$defs/ppi_register" },
+          "task": { "$ref": "#/$defs/ppi_register" },
+          "fork": { "$ref": "#/$defs/ppi_register" },
+          "derived": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "chains": {
       "type": "array",
       "items": {
@@ -83,6 +98,14 @@
     "conversions": { "type": "array", "items": { "$ref": "#/$defs/conversion" } }
   },
   "$defs": {
+    "ppi_register": {
+      "type": "object", "additionalProperties": false, "required": ["peripheral", "offset", "address"],
+      "properties": {
+        "peripheral": { "type": "string" },
+        "offset": { "type": "integer", "minimum": 0 },
+        "address": { "type": "string", "pattern": "^0x" }
+      }
+    },
     "region": {
       "type": "object", "additionalProperties": false, "required": ["base", "size_log2", "srd", "usable_bytes"],
       "properties": {

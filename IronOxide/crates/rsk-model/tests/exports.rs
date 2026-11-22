@@ -144,3 +144,48 @@ fn r27_1_the_core_fields_are_present_and_required_with_no_default() {
         assert!(read_task_model(&without(&m, items, field)).is_err(), "a model whose first of `{items}` lacks `{field}` was accepted");
     }
 }
+
+/// docs/pacemaker PM33.1: the Task_Model's optional `ppi` list. The text is
+/// what the Generator prints for two channels (rsk-gen, `syntax::tests`,
+/// `PPI_MODEL`: the same literal). The reader accepts it with the schema
+/// and the typed model; a model without the key reads as no channels; and
+/// the schema refuses a channel without its task, an unknown key, and an
+/// address that is not written in hexadecimal.
+#[test]
+fn ppi_channels_parse_and_meet_the_schema() {
+    const PPI_MODEL: &str = r#"[{"id":"compare_sets_pin","channel":0,"event":{"peripheral":"TIMER1","offset":320,"address":"0x40009140"},"task":{"peripheral":"GPIOTE","offset":48,"address":"0x40006030"},"derived":["channel","address"]},{"id":"edge_captures","channel":1,"event":{"peripheral":"GPIOTE","offset":256,"address":"0x40006100"},"task":{"peripheral":"TIMER1","offset":64,"address":"0x40009040"},"fork":{"peripheral":"TIMER1","offset":8,"address":"0x40009008"},"derived":["channel","address"]}]"#;
+    let base = model("apps/p1-demo/gen-nrf52840");
+    assert!(base.get("ppi").is_none(), "the demo declares no channel");
+    let plain = read_task_model(&serde_json::to_string(&base).unwrap()).unwrap();
+    assert!(plain.ppi.is_empty());
+    // Printing a model without channels adds no key.
+    assert!(!serde_json::to_string(&plain).unwrap().contains("\"ppi\""));
+
+    let with = |ppi: Value| {
+        let mut m = base.clone();
+        m.as_object_mut().unwrap().insert("ppi".into(), ppi);
+        serde_json::to_string(&m).unwrap()
+    };
+    let channels: Value = serde_json::from_str(PPI_MODEL).unwrap();
+    let read = read_task_model(&with(channels.clone())).unwrap_or_else(|e| panic!("{e:?}"));
+    assert_eq!(read.ppi.len(), 2);
+    assert_eq!((read.ppi[0].id.as_str(), read.ppi[0].channel), ("compare_sets_pin", 0));
+    assert_eq!(read.ppi[0].event.address, "0x40009140");
+    assert!(read.ppi[0].fork.is_none());
+    assert_eq!(read.ppi[1].fork.as_ref().unwrap().offset, 8);
+    // R25.5: the typed model prints back to an equal `ppi` value.
+    let printed: Value = serde_json::to_value(&read).unwrap();
+    assert_eq!(printed["ppi"], channels);
+
+    let mut no_task = channels.clone();
+    no_task[0].as_object_mut().unwrap().remove("task");
+    assert!(read_task_model(&with(no_task)).is_err());
+    let mut extra = channels.clone();
+    extra[0].as_object_mut().unwrap().insert("enable".into(), Value::Bool(true));
+    assert!(read_task_model(&with(extra)).is_err());
+    let mut address = channels.clone();
+    address[1]["fork"]["address"] = Value::String("1073778696".into());
+    assert!(read_task_model(&with(address)).is_err());
+    // An empty list is not written by the Generator and is not a model.
+    assert!(read_task_model(&with(Value::Array(vec![]))).is_err());
+}

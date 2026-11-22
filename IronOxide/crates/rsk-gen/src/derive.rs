@@ -198,6 +198,8 @@ pub struct Generated {
     pub endpoint_storage_bytes: u32,
     /// End-to-end chains (task 21.5; R41.4).
     pub chains: Vec<GenChain>,
+    /// Fixed PPI channels (docs/pacemaker PM33.1), by channel number.
+    pub ppi: Vec<GenPpi>,
     pub plan: Plan,
     /// Capacities (PR-14): lock stack, timed-event slots, event log.
     pub lock_capacity: usize,
@@ -211,6 +213,26 @@ pub struct Generated {
     pub changes: Vec<Change>,
     /// CRC-32 over the Generated_Config tables (R24.1, R12.3).
     pub checksum: u32,
+}
+
+/// One register of a fixed PPI channel, resolved.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenPpiReg {
+    pub peripheral: String,
+    pub offset: u32,
+    /// The register's address: what the Kernel writes to the channel's
+    /// end-point register.
+    pub address: u32,
+}
+
+/// A fixed PPI channel (docs/pacemaker PM33.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GenPpi {
+    pub name: String,
+    pub channel: u8,
+    pub event: GenPpiReg,
+    pub task: GenPpiReg,
+    pub fork: Option<GenPpiReg>,
 }
 
 /// The labels of a global Protocol in order of first appearance (the label
@@ -491,6 +513,19 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         note(format!("chain.{}.deadline", c.name), c.deadline, deadline_ticks, "ticks", rd);
         chains.push(GenChain { name: c.name.clone(), tasks: task_ix, endpoints: hops, deadline_ticks });
     }
+    // Fixed PPI channels (docs/pacemaker PM33.1): the channel number is the
+    // position in the declaration; each register resolved to its address.
+    let resolve = |r: &crate::decl::PpiRef| GenPpiReg {
+        peripheral: r.peripheral.clone(),
+        offset: r.offset,
+        address: target.peripheral(&r.peripheral).expect("validated").window_base + r.offset,
+    };
+    let ppi: Vec<GenPpi> = decl
+        .ppi
+        .iter()
+        .enumerate()
+        .map(|(i, c)| GenPpi { name: c.name.clone(), channel: i as u8, event: resolve(&c.event), task: resolve(&c.task), fork: c.fork.as_ref().map(resolve) })
+        .collect();
     // Ceilings (R23.1): the maximum Priority over the accessor set, a
     // function of the set alone (R23.2).
     for r in &mut resources {
@@ -539,6 +574,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         endpoints,
         endpoint_storage_bytes,
         chains,
+        ppi,
         plan,
         lock_capacity,
         slot_count,

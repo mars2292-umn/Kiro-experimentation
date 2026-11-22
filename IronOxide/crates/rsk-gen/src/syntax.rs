@@ -328,8 +328,54 @@ impl Parse for Parsed {
         let mut endpoints = Vec::new();
         let mut protocols = Vec::new();
         let mut chains = Vec::new();
+        let mut ppi = Vec::new();
         while !input.is_empty() {
             let kw: Ident = input.parse()?;
+            if kw == "ppi" {
+                // docs/pacemaker PM33.1: `ppi NAME (event = P[OFF], task =
+                // P[OFF], fork = P[OFF]);`, a fixed PPI channel.
+                let name: Ident = input.parse()?;
+                let cname = name.to_string();
+                spans.add(ItemRef::Ppi(cname.clone()), name.span());
+                let content;
+                parenthesized!(content in input);
+                let (mut event, mut task, mut fork) = (None, None, None);
+                while !content.is_empty() {
+                    let key: Ident = content.parse()?;
+                    content.parse::<Token![=]>()?;
+                    let peripheral: Ident = content.parse()?;
+                    let index;
+                    bracketed!(index in content);
+                    let lit: LitInt = index.parse()?;
+                    if !index.is_empty() {
+                        return err(index.span(), "a register is `PERIPHERAL[OFFSET]` with one integer offset");
+                    }
+                    let offset: u32 = lit.base10_parse()?;
+                    let reg = PpiRef { peripheral: peripheral.to_string(), offset };
+                    let slot = match key.to_string().as_str() {
+                        "event" => &mut event,
+                        "task" => &mut task,
+                        "fork" => &mut fork,
+                        other => return err(key.span(), format!("unknown attribute `{other}` of a ppi channel (event, task, fork)")),
+                    };
+                    if slot.replace(reg).is_some() {
+                        return err(key.span(), format!("`{key}` is given twice"));
+                    }
+                    if content.peek(Token![,]) {
+                        content.parse::<Token![,]>()?;
+                    } else {
+                        break;
+                    }
+                }
+                if !content.is_empty() {
+                    return err(content.span(), "expected `,` between the attributes of a ppi channel");
+                }
+                let Some(event) = event else { return err(name.span(), format!("ppi channel `{cname}` requires `event = PERIPHERAL[OFFSET]`")) };
+                let Some(task) = task else { return err(name.span(), format!("ppi channel `{cname}` requires `task = PERIPHERAL[OFFSET]`")) };
+                input.parse::<Token![;]>()?;
+                ppi.push(PpiDecl { name: cname, event, task, fork });
+                continue;
+            }
             if kw == "protocol" {
                 // Task 21.1: `protocol NAME { <global type> }`, the body in the
                 // Protocol_Checker's syntax, kept as text.
@@ -702,6 +748,7 @@ impl Parse for Parsed {
                 endpoints,
                 protocols,
                 chains,
+                ppi,
             },
             spans,
         })
@@ -776,6 +823,116 @@ mod tests {
         if let Err(errs) = crate::generate(&d) {
             panic!("{}", errs.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n"));
         }
+    }
+
+    /// The demo on the nRF52840 with two peripherals a channel can connect.
+    fn ppi_demo(channels: &str) -> String {
+        let src = DEMO.replace("target = qemu_mps2_an386", "target = nrf52840").replace("peripherals = [];", "peripherals = [TIMER1, GPIOTE];");
+        assert_ne!(src, DEMO);
+        format!("{src}\n{channels}")
+    }
+
+    fn rules(src: &str) -> Vec<(String, String)> {
+        let parsed = parse_app(src.parse().unwrap()).unwrap();
+        match crate::generate(&parsed.decl) {
+            Ok(_) => vec![],
+            Err(errs) => errs.iter().map(|e| (e.rule.clone(), e.item.to_string())).collect(),
+        }
+    }
+
+    /// The Task_Model's `ppi` value for the two channels of the test below,
+    /// as the Generator prints it. `rsk-model`'s test
+    /// `ppi_channels_parse_and_meet_the_schema` reads the same text.
+    const PPI_MODEL: &str = r#"[{"id":"compare_sets_pin","channel":0,"event":{"peripheral":"TIMER1","offset":320,"address":"0x40009140"},"task":{"peripheral":"GPIOTE","offset":48,"address":"0x40006030"},"derived":["channel","address"]},{"id":"edge_captures","channel":1,"event":{"peripheral":"GPIOTE","offset":256,"address":"0x40006100"},"task":{"peripheral":"TIMER1","offset":64,"address":"0x40009040"},"fork":{"peripheral":"TIMER1","offset":8,"address":"0x40009008"},"derived":["channel","address"]}]"#;
+
+    /// PM33.1 (docs/pacemaker): a fixed PPI channel names one event of a
+    /// peripheral, one task of a peripheral and optionally a fork; the
+    /// channel number is the position, each register is resolved to its
+    /// address, and the Task_Model records the channels.
+    #[test]
+    fn pm33_1_parses_ppi_channels_and_records_them_in_the_task_model() {
+        let src = ppi_demo(
+            "ppi compare_sets_pin (event = TIMER1[0x140], task = GPIOTE[0x030]);
+             ppi edge_captures (event = GPIOTE[0x100], task = TIMER1[0x040], fork = TIMER1[0x008]);",
+        );
+        let parsed = parse_app(src.parse().unwrap()).unwrap();
+        assert_eq!(parsed.decl.ppi.len(), 2);
+        assert_eq!(parsed.decl.ppi[0], PpiDecl { name: "compare_sets_pin".into(), event: PpiRef { peripheral: "TIMER1".into(), offset: 0x140 }, task: PpiRef { peripheral: "GPIOTE".into(), offset: 0x030 }, fork: None });
+        assert_eq!(parsed.decl.ppi[1].fork, Some(PpiRef { peripheral: "TIMER1".into(), offset: 0x008 }));
+        // The name's span is recorded for diagnostics.
+        let line = src.lines().position(|l| l.contains("ppi edge_captures")).unwrap() + 1;
+        assert_eq!(parsed.spans.span_of(&ItemRef::Ppi("edge_captures".into())).start().line, line);
+
+        let g = match crate::generate(&parsed.decl) {
+            Ok(g) => g,
+            Err(errs) => panic!("{}", errs.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n")),
+        };
+        assert_eq!(g.ppi.len(), 2);
+        assert_eq!((g.ppi[0].channel, g.ppi[1].channel), (0, 1));
+        assert_eq!(g.ppi[0].event.address, 0x4000_9140);
+        assert_eq!(g.ppi[0].task.address, 0x4000_6030);
+        assert_eq!(g.ppi[1].fork.as_ref().unwrap().address, 0x4000_9008);
+
+        let model = crate::model::task_model(&g).render();
+        let compact: String = model.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(compact.contains(&format!("\"ppi\":{PPI_MODEL}")), "{model}");
+    }
+
+    /// A declaration without channels has no `ppi` key: the Task_Model of
+    /// every existing Application is unchanged.
+    #[test]
+    fn pm33_1_no_channel_no_key() {
+        let parsed = parse_app(DEMO.parse().unwrap()).unwrap();
+        let g = crate::generate(&parsed.decl).unwrap();
+        assert!(g.ppi.is_empty());
+        assert!(!crate::model::task_model(&g).render().contains("\"ppi\""));
+    }
+
+    /// PM33.1: what a channel may name. Each rejection carries the channel.
+    #[test]
+    fn pm33_1_rejects_malformed_channels() {
+        let item = |n: &str| format!("ppi {n}");
+        // An unknown peripheral.
+        assert_eq!(rules(&ppi_demo("ppi c (event = NOSUCH[0x140], task = GPIOTE[0x030]);")), vec![("R21.5".to_string(), item("c"))]);
+        // An event offset in the task range, and a task offset in the event range.
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER1[0x040], task = GPIOTE[0x030]);")), vec![("PM33.1".to_string(), item("c"))]);
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER1[0x140], task = GPIOTE[0x100]);")), vec![("PM33.1".to_string(), item("c"))]);
+        // A fork that is not a task register, and an offset that is not a multiple of 4.
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030], fork = TIMER1[0x504]);")), vec![("PM33.1".to_string(), item("c"))]);
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER1[0x142], task = GPIOTE[0x030]);")), vec![("PM33.1".to_string(), item("c"))]);
+        // A name used twice.
+        assert_eq!(
+            rules(&ppi_demo("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030]); ppi c (event = TIMER1[0x144], task = GPIOTE[0x034]);")),
+            vec![("PR-28".to_string(), item("c"))]
+        );
+        // More channels than the Target has.
+        let many: String = (0..21).map(|i| format!("ppi c{i} (event = TIMER1[0x140], task = GPIOTE[0x030]);")).collect();
+        assert_eq!(rules(&ppi_demo(&many)), vec![("PM33.1".to_string(), "app".to_string())]);
+        // A Target without a PPI.
+        assert_eq!(rules(&format!("{DEMO}\nppi c (event = CMSDK_DUALTIMER[0x140], task = CMSDK_DUALTIMER[0x030]);")), vec![("PM33.1".to_string(), "app".to_string())]);
+    }
+
+    /// PM33.1: the surface errors of a channel are reported by the parser.
+    #[test]
+    fn pm33_1_surface_errors() {
+        let bad = |c: &str| parse_app(ppi_demo(c).parse().unwrap()).err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(bad("ppi c (task = GPIOTE[0x030]);").contains("requires `event"));
+        assert!(bad("ppi c (event = TIMER1[0x140]);").contains("requires `task"));
+        assert!(bad("ppi c (event = TIMER1[0x140], event = TIMER1[0x144], task = GPIOTE[0x030]);").contains("given twice"));
+        assert!(bad("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030], shortcut = TIMER1[0x008]);").contains("unknown attribute `shortcut`"));
+        assert!(!bad("ppi c (event = TIMER1[0x140], task = GPIOTE);").is_empty());
+    }
+
+    /// Until the Kernel writes the channels (docs/pacemaker tasks 3.2 and
+    /// 3.3), nothing is emitted for a declaration that has one.
+    #[test]
+    fn pm33_3_no_output_for_channels_the_kernel_does_not_write_yet() {
+        let src = ppi_demo("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030]);");
+        let parsed = parse_app(src.parse().unwrap()).unwrap();
+        assert!(crate::generate(&parsed.decl).is_ok());
+        let Err(errs) = crate::outputs(&parsed.decl, "sys") else { panic!("outputs were emitted") };
+        assert_eq!(errs.iter().map(|e| (e.rule.as_str(), e.item.to_string())).collect::<Vec<_>>(), vec![("PM33.3", "ppi c".to_string())]);
+        assert!(!crate::PPI_KERNEL_SUPPORT, "when the Kernel writes the channels, this test goes and `outputs` emits them");
     }
 
     /// R3.1, R21.4: a Generator diagnostic is reported at the source span of

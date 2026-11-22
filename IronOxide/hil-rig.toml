@@ -50,6 +50,31 @@ stimulus_spare = "stimulus P1.06 (D5) -> analyzer D7"
 response_line = "target P1.10 (D8) -> analyzer D0, toggled by every `pulse` Job"
 target_spares = ["P1.11 (D9) -> D1", "P1.12 (D10) -> D2", "P1.13 (D11) -> D3", "P1.14 (D12) -> D4", "P1.15 (D13) -> D5"]
 ground = "common ground across both boards and the analyzer"
+# The PACEMAKER experiment (docs/pacemaker/tasks.md, task 4.1; PM29.5).
+# Measured 2026-11-22 without rewiring. The pace pins: the spike
+# (spikes/pm-timer) delivered pulses on both and the analyzer measured them
+# (docs/pacemaker/spike/report.md). The board-to-board lines: each of P1.01
+# to P1.04 driven high and low from one board through its debug probe while
+# the other board's input register was read, in both directions; each line
+# reached its own pin and no other.
+pacemaker_pace_atrial = "target P1.10 (D8) -> analyzer D0"
+pacemaker_pace_ventricular = "target P1.11 (D9) -> analyzer D1"
+pacemaker_sense_atrial = "P1.01 (D0): stimulus -> target"
+pacemaker_sense_ventricular = "P1.02 (D1): stimulus -> target"
+# Proposal, not yet exercised: the pace pulses reach the Heart_Simulator on
+# the two remaining board-to-board lines, driven by a second GPIOTE channel
+# per Chamber from the same compare events (a fork of each pace channel),
+# since the analyzer cannot see the board-to-board wires and the pace pins
+# the analyzer sees do not reach the stimulus board.
+pacemaker_pace_atrial_to_simulator = "P1.03 (D2): target -> stimulus (line measured; the fork is a proposal)"
+pacemaker_pace_ventricular_to_simulator = "P1.04 (D3): target -> stimulus (line measured; the fork is a proposal)"
+# Needed from stage E3.
+# Measured 2026-11-22 after the wire was added: P1.07 driven high and low
+# from each board through its debug probe while the other board read its
+# input register under a pull-down and under a pull-up; the bit followed the
+# driver in both directions and no other bit of the reader changed.
+pacemaker_magnet = "P1.07 (D6): stimulus -> target"
+pacemaker_link = "not wired: the spare board as the bridge on the target's SPIM1 pins"
 
 # What the self-test's loopback expects: the stimulus period and pulse
 # width (apps/hil-stimulus), the target's `pulse` deadline (15 ms) as the

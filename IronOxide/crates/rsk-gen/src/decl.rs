@@ -382,6 +382,9 @@ pub struct Declaration {
     pub protocols: Vec<ProtocolDecl>,
     /// End-to-end chains (task 21.5; R41.4).
     pub chains: Vec<ChainDecl>,
+    /// Fixed PPI channels (docs/pacemaker PM33.1), in declaration order;
+    /// the channel number is the position.
+    pub ppi: Vec<PpiDecl>,
 }
 
 /// An end-to-end chain (task 21.5; R41.4): `chain NAME { PART.TASK ->
@@ -393,6 +396,28 @@ pub struct ChainDecl {
     /// `(partition, task)` in order.
     pub tasks: Vec<(String, String)>,
     pub deadline: Time,
+}
+
+/// One register of a peripheral, as `PERIPHERAL[OFFSET]`: an event or a task
+/// register of a fixed PPI channel.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PpiRef {
+    pub peripheral: String,
+    pub offset: u32,
+}
+
+/// A fixed PPI channel (docs/pacemaker PM33.1): `ppi NAME (event =
+/// PERIPHERAL[OFFSET], task = PERIPHERAL[OFFSET], fork =
+/// PERIPHERAL[OFFSET]);`. One event of a peripheral triggers one task of a
+/// peripheral and, with `fork`, a second task. The Kernel writes the
+/// channel at Init and never again (PM33.3); no Job is involved when the
+/// event fires.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PpiDecl {
+    pub name: String,
+    pub event: PpiRef,
+    pub task: PpiRef,
+    pub fork: Option<PpiRef>,
 }
 
 /// Where a diagnostic points (the front end maps it to a span).
@@ -410,6 +435,7 @@ pub enum ItemRef {
     Endpoint(String),
     Protocol(String),
     Chain(String),
+    Ppi(String),
 }
 
 impl std::fmt::Display for ItemRef {
@@ -420,6 +446,7 @@ impl std::fmt::Display for ItemRef {
             ItemRef::Endpoint(e) => write!(f, "endpoint {e}"),
             ItemRef::Protocol(p) => write!(f, "protocol {p}"),
             ItemRef::Chain(c) => write!(f, "chain {c}"),
+            ItemRef::Ppi(c) => write!(f, "ppi {c}"),
             ItemRef::Partition(p) => write!(f, "partition {p}"),
             ItemRef::PartitionField(p, x) => write!(f, "partition {p}.{x}"),
             ItemRef::Task(p, t) => write!(f, "task {p}.{t}"),

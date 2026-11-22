@@ -1,0 +1,420 @@
+# Design Document
+
+**PACEMAKER on rsk: an experimental Application**
+
+Status: Draft 0.2 (design phase; nothing implemented, nothing measured; 0.2 closes PD-O7: `pace` is released by the end of a pulse, and a Chamber's compares have one write order). Implements `requirements.md` Draft 0.4 of this folder. Requirement references `PMn.m`, `PM-PAR-nn`, `PM-NG-nn`, `PM-ASM-nn`, `PM-ORQ-nn` point into that document; `Rn.m`, `PR-nn`, `DD-nn` into the rsk requirements and design; design decisions of this document are numbered `PD-nn`.
+
+Every number in this document that is not quoted from the source or from an rsk record is a **proposal** to be replaced by a measurement (PM21.3, PM31.3). The nRF52840 register facts it relies on (TIMER3's six compare registers and interrupt line, counter mode, PPI forks, GPIOTE tasks) are from the product specification as the author recalls it and are the first thing the spike of "Stages" checks.
+
+## Overview
+
+The pulse generator is an rsk Application of three Partitions and six Tasks. Three ideas shape it:
+
+1. **Hardware makes every edge; Jobs only arm it.** A pace's rising and falling edges are timer compares acting on the pin through fixed PPI channels, and a sense's instant is a timer capture. A Job decides *when* and writes compare registers ahead of time; no edge waits for a Job. Pulse width and every interval between hardware-timed events are then exact to the timer's tick, and what scheduling must guarantee is only that each arming Job finishes before the instant it arms (PD-01, PD-02).
+2. **The therapy is one pure step function.** Given the parameters, the timing state and one event, it returns the new state and the instants to arm. The Tasks are thin: read the hardware, call the step, write the hardware. The step is what the App_Prover proves and what host tests exercise, on every Target (PD-05).
+3. **Therapy is alone at the top.** The Therapy_Partition (level A) holds the three sporadic Tasks that the hardware releases and one periodic Task for everything slow. Telemetry and history are lower Partitions that reach it only through Endpoints, the programming one validated (PD-07).
+
+The design found three places where the requirements as written could not be kept, and one finding about rsk; they are in "Requirements Impact" and were applied to `requirements.md` (Draft 0.4).
+
+### Design decisions
+
+| ID | Decision | Resolves | Main requirements |
+|---|---|---|---|
+| PD-01 | One therapy timer, TIMER3 at 1 MHz with six compare registers, owned by the Therapy_Partition: CC0 and CC1 are the next atrial and ventricular Pace instants, CC4 and CC5 the ends of their pulses, CC2 and CC3 capture the atrial and ventricular Sense instants. Fixed PPI channels carry compares to GPIOTE set and clear tasks and GPIOTE input events to the captures. The interrupt of CC4 and CC5, the end of a pulse, is the Release_Source of the Task `pace`, so that Job never runs while its pulse is high. | PM-ORQ-01, PM-ORQ-23 | PM27, PM28, PM33 |
+| PD-02 | A Job writes a Chamber's compares in one order: it disarms the start, checks that no Pace of the Chamber fired, and only then writes the end and after it the start. An end compare is therefore never written while its pulse is high or can begin. The Job then checks that the start is still ahead of the present by a lead; if not, it re-arms one lead ahead, at most twice more, and otherwise raises the pin itself and reports it. A compare written in the past would not fire until the counter wraps (71.6 minutes). | — | PM9.1, PM24, PM28.2 |
+| PD-03 | Each Chamber's sense line also clocks a timer in counter mode (TIMER1 atrial, TIMER2 ventricular) whose compare interrupt is the Release_Source of that Chamber's sense Task. GPIOTE has one interrupt line for all its channels, and rsk masks a source for one MIT after each event (DD-06): with both Chambers on GPIOTE a Sense in one would hold back the handling of the other. The counters give each Chamber its own line, its own MIT, and a count of edges for noise detection. | PM-ORQ-12 | PM4, PM13, PM22.6, PM29.1 |
+| PD-04 | A Sense is acted on by its sense Job, so a Sense that precedes a pending Pace by less than the sense Task's response time does not inhibit it: both occur, the Sense first. The window is PM-PAR-15 and is measured. | — | PM5.5, PM24 |
+| PD-05 | The therapy decision is a pure function `step(params, state, event) -> (state, arming)` in a `no_std` crate with no rsk dependency; time is the therapy timer's count in microseconds, 32 bits, compared modulo 2^32. | PM-ORQ-21 | PM25 |
+| PD-06 | Timing is ventricular-based in the Modes that pace the ventricle: every escape interval starts at a ventricular event, and the atrial Pace of a dual-chamber Mode is due one LRL (or sensor) interval less the AV delay after it. | — | PM9.2, PM11 |
+| PD-07 | Three Partitions: `therapy` (level A), `comms` (level C), `diag` (level D). Six Tasks (Table 2). Parameters and commands reach `therapy` over one validated Endpoint; events leave it in batches over another. | PM-ORQ-22 | PM22, PM32 |
+| PD-08 | The Therapy_Partition's three responses are RESTART_PARTITION; its statics, zero at start, are the Power-On Reset State, so a restart *is* a power-on reset of the therapy. Pulse ends are hardware compares, so a pin cannot stay high across a restart, a stop, or the safe state. | PM-ORQ-20 | PM7, PM23, PM28.4, PM30.4 |
+| PD-09 | The battery level and the activity value arrive in link frames from the DCM_Stub; the magnet is a pin; sense edges are the Heart_Simulator's. No analog peripheral is used. | PM-ORQ-24 | PM2, PM29 |
+| PD-10 | A hardware layer `Hw` with two implementations: the nRF52840 one of PD-01 to PD-03, and a QEMU one in which a Partition-owned timer stands for the pacing compare and a scripted Task for the sense lines. The step function and the Tasks' logic are the same code on both. | — | PM26.2 |
+| PD-11 | The DCM link is a Periodic_Task polling SPIM1 with fixed-size frames; three unanswered polls are the loss of the link. | PM-ORQ-19, PM-ORQ-25 | PM20, PM29.4 |
+| PD-12 | rsk changes: fixed PPI channels with an optional fork (Requirement 33), and TIMER3 added to the Target table. Nothing else; in particular no Kernel one-shot event and no new EasyDMA class. | — | PM33 |
+
+## Architecture
+
+### Hardware signal flow (nRF52840)
+
+```
+ Heart_Simulator (board B)                PG (board A, Therapy_Partition)
+   A sense line ───────────► GPIOTE IN[0] ──PPI──► TIMER3.CAPTURE[2]      (instant of the atrial Sense)
+                                          └─fork─► TIMER1.COUNT ─► COMPARE[0] irq ─► Task sense_a
+   V sense line ───────────► GPIOTE IN[1] ──PPI──► TIMER3.CAPTURE[3]      (instant of the ventricular Sense)
+                                          └─fork─► TIMER2.COUNT ─► COMPARE[0] irq ─► Task sense_v
+
+   TIMER3 (1 MHz, free-running, 32 bit)
+     COMPARE[0] ──PPI──► GPIOTE SET[2]  (A pace pin high)
+     COMPARE[1] ──PPI──► GPIOTE SET[3]  (V pace pin high)
+     COMPARE[4] ──PPI──► GPIOTE CLR[2]  (A pace pin low)    ┐ irq ─► Task pace
+     COMPARE[5] ──PPI──► GPIOTE CLR[3]  (V pace pin low)    ┘
+
+   A pace pin, V pace pin ─► Heart_Simulator inputs and the logic analyzer
+```
+
+Six PPI channels, two of them with a fork. All six connect peripherals of one Partition (PM33.2). The Kernel writes them at Init from Generated_Config and never again (PM33.3).
+
+What each requirement gets from this:
+
+- **Pulse width (PM3.3, PM28.2).** The width is CC4 − CC0 (or CC5 − CC1), written by one Job in one Critical_Section. Its error is the timer's tick, 1 µs, against tolerances of 200 µs and 20 µs.
+- **Interval accuracy (PM9 to PM12).** An interval from a Pace to the next Pace is a difference of two compare values; from a Sense to a Pace, of a capture and a compare. Both are exact to 1 µs, plus the rounding of a rate to microseconds (under 1 µs). The ±8 ms and ±1 ms tolerances are then a matter of the arming Job being in time (next section), not of jitter.
+- **Marker times (PM18.6).** Event instants are captures and compares, so a Marker's time is exact to 1 µs whenever its Job runs.
+- **No pin left high (PM28.4).** Whenever a start compare is armed, the end compare of its Chamber is its start plus the width, and it is not written again until the pulse has ended (next section).
+
+### Arming and the lead (PD-02)
+
+Two hazards decide how a Chamber's compares are written. A compare register written with a value the counter has already passed does not fire until the counter wraps. And an end compare rewritten while its pulse is high, or just before a start that is still armed fires, leaves the pin high until the new value: up to a whole escape interval.
+
+The rule against the second: **a Chamber's end compare is written only while its start compare is disarmed and no Pace of the Chamber is unaccounted.** A Pace is unaccounted from the instant its start compare fires until the `pace` Job that its pulse's end releases has cleared the start's event flag; the pulse lies inside that span.
+
+The sequence for one Chamber, inside the Critical_Section on the Resource `timing`, used for arming, moving and withdrawing alike:
+
+1. write the start compare to the far side of the counter (present − 1): nothing of this Chamber can fire now;
+2. read the start's event flag. If it is set, a Pace fired, before this Job or as it began: write nothing more and return `TooLate`. The end compare in force is that pulse's own, the pending instant stays in the step's state, and the `pace` Job arms from it when the pulse has ended;
+3. if the Pace is withdrawn, done;
+4. write the end compare (start + width), then the start compare;
+5. read the present (`rsk::now()` converted by the offset of "The two clocks"); if start − present, as a signed 32-bit difference, is at least `LEAD`, done;
+6. otherwise repeat from 1 with start set to present + `LEAD`, at most twice more. If step 2 then finds the flag set, the Pace was delivered at the instant asked for, with its own end in force, and the sequence ends;
+7. if the third check fails, write the end compare to present + `LEAD` + width, write the GPIOTE set task directly, and record a late-arm event; if the end compare is no longer ahead of the present after that, write the clear task as well and record the pulse as not timed.
+
+Because the end is written before the start and only with the start disarmed, a start that fires always has its own end in force. Because of step 2, no Job writes an end compare under a pulse.
+
+`LEAD` (proposal: 500 µs) has to exceed what can interrupt the Job between the check of step 5 and the compare being in force: one Kernel hold (rsk's L_kernel, 8,805 cycles or 138 µs in the hour-long stress record) plus, for a sense Job, the response of `pace`. Step 7 should be unreachable; it is there because the alternative is a missed Pace. A Pace moved by step 6 is late by at most `LEAD`, far inside PM-PAR-01; whether it ever happens is a rig result.
+
+The loop has a constant bound of three (PR-16).
+
+**`pace` runs after the pulse.** The end compares (4 and 5) raise TIMER3's interrupt and the start compares do not, so the `pace` Job of a Pace is released when the pin has gone low. It finds which Chambers paced by their start flags (an event flag is set whether or not its interrupt is enabled), clears them, gives the step a `Paced` event for each, and arms each from the pending instant in the state. It runs up to one pulse width (1.9 ms at most) later than a Job released by the start would; the tightest chain it is in has 30 ms ("Timing Design").
+
+**Events in the order they happened.** A sense Job can run between a Pace and that Pace's `pace` Job. The step therefore accounts for a pending Pace itself: given an event at or after the instant of a pending Pace that was not withdrawn, it first applies that Pace (its refractory and blanking periods, the next pending instants), then the event. The armed compare fires without software, so the Pace is a fact once its instant has passed. The `Paced` event that arrives later is then a confirmation and changes nothing but the arming of step 4.
+
+### The two clocks
+
+`rsk::now()` is the Kernel time base (TIMER0, 16 MHz, 64 bits). The therapy timer is TIMER3 at 1 MHz, 32 bits, started by the first Job of `control`. Both run from the crystal oscillator, so they do not drift against each other; they differ by a constant offset. `control`'s first Job measures the offset once: it triggers a TIMER3 capture between two readings of `rsk::now()` and takes their midpoint; if the readings are more than `OFFSET_SPREAD` (proposal: 64 µs) apart it repeats, at most eight times, and faults otherwise. The offset's error is half the spread and enters only the comparison of step 3 above (covered by `LEAD`) and the time stamps of events that have no capture.
+
+All therapy instants are TIMER3 microseconds, 32 bits, compared by signed difference; every interval the therapy uses is under 2.1 s, far below half the wrap of 71.6 minutes.
+
+### Sense intake, MIT and noise (PD-03)
+
+rsk's intake (DD-06) masks an interrupt line in the NVIC from an event until the later of one MIT after it and the end of the Job, and events that arrive meanwhile stay latched in the peripheral and are delivered at the unmask. Three consequences decide the design:
+
+- **One line per Chamber.** With one line for both, an atrial Sense would delay the handling of a ventricular Sense by up to the MIT. With TIMER1 and TIMER2 as edge counters, each Chamber's line is masked only by its own events.
+- **The MIT can be long without hurting therapy.** A Sense that follows another Sense of its Chamber within `MIT_SENSE` (proposal: 50 ms) is handled up to 50 ms late. Every Mode that acts on a Sense has a refractory period of at least 150 ms after an event of that Chamber (Table 19-1), so such a Sense is a Refractory sense and changes no Pace. Its instant is still exact (the capture), and the count says how many edges came.
+- **A storm cannot restart the Partition.** While the line is masked, edges are latched and counted, not delivered: each costs nothing, and the next delivery is one intake at the unmask. No MIT_Violation is recorded for them (R10.2 and R10.3 concern events that reach the Kernel), so the Partition's `mit_threshold` is not approached and no Health_Monitor response follows. This answers the point PM22.6 left to be shown, on paper; the rig's storm scenario is the demonstration.
+
+The sense Job's service, for its Chamber, inside the Critical_Section on `timing`:
+
+1. capture the counter (`n` edges since the last service) and read the Chamber's TIMER3 capture (the instant of the latest edge);
+2. set the counter's compare to `n + 1`, so the next edge raises the interrupt; capture again, and if the count has already reached it, take that edge now (once: a constant bound);
+3. clear the compare event;
+4. give the step function `Sense { chamber, at, edges }`.
+
+The counter is never cleared, so no edge between a read and a clear is lost. It is 32 bits and counts heartbeats: it does not wrap in any run.
+
+**Noise (PM13.1).** The step function marks a Chamber noisy for the cycle when every service since the end of its refractory period reported edges no further apart than PM-PAR-12 (100 ms): with `MIT_SENSE` at 50 ms, a continuous disturbance shows as a service at every unmask with `edges > 1` or an inter-service time under 100 ms. In a noisy cycle the pending Pace is left armed, which is asynchronous pacing.
+
+### The inhibition window (PD-04)
+
+A pending Pace is a compare already armed. A Sense cancels it only when its sense Job runs and disarms the compare. So a non-refractory Sense at instant s does not inhibit a Pace due before s + R_sense, where R_sense is the sense Task's worst response time: the pin goes high, and the `pace` Job that follows finds a Sense captured before its Pace. The step function records both (the Sense, then the Pace, with the fusion noted in the Marker), and starts the next interval from the Pace.
+
+This is a deviation from PM5.5 ("a Sense SHALL cancel the pending Pace") of bounded size. PM-PAR-15 states the bound as a requirement (proposal: 2 ms) and PM24 measures it. The stimulus is harmless in the model (it falls at the start of the Chamber's refractory period), and a hardware inhibit, which is what closes the window in a real device, is not expressible with the PPI channels this design has without also letting noise inhibit pacing.
+
+### Build-time and run-time structure
+
+The Application follows the P1 demo's layout (DD-11):
+
+```
+apps/pacemaker/
+  decl/        the App_Declaration (rsk::app!), one variant per Target
+  therapy/     Partition crate: Tasks pace, sense_a, sense_v, control; the Hw layer
+  comms/       Partition crate: Task link
+  diag/        Partition crate: Task history
+  system/      the generated system crate
+  bin/         the binary crate
+  gen/         Generated_Config, Task_Model, linker script (per variant)
+crates/pm-core/        the step function, parameters, validation: no_std, no rsk, no hardware
+apps/heart-sim/        the Heart_Simulator, an rsk Application for board B
+tools/dcm-stub/        the DCM_Stub, a host program
+```
+
+`pm-core` is the only crate with therapy knowledge. It is used by `therapy` (the step and the validation function), by `comms` (frame encoding only), by the DCM_Stub (the same parameter types and validation, to predict the PG's answer), and by host tests.
+
+## Components and Interfaces
+
+### Partitions, Tasks and Resources
+
+**Table 1 — Partitions**
+
+| Partition | Level | Peripherals | Responses (fault, overrun, deadline miss) | Holds |
+|---|---|---|---|---|
+| `therapy` | A | GPIOTE, P0, TIMER1, TIMER2, TIMER3 | RESTART_PARTITION ×3 (PM23.3) | Pacing, sensing, the State machine, parameters in force |
+| `comms` | C | SPIM1 | RESTART_PARTITION, END_JOB, RECORD_ONLY | The DCM link |
+| `diag` | D | none | RESTART_PARTITION, END_JOB, RECORD_ONLY | Histograms, trends, implant data, Marker stream |
+
+`therapy` uses five peripheral windows, the most a Partition's MPU layout holds (DD-07). P0 covers both GPIO ports and has one owner (PR-29), so `therapy` configures every pin at Init, the link's SPI pins included; `comms` only names them in SPIM1's pin-select registers. This cross-Partition dependency is recorded as a finding (PM31.2).
+
+**Table 2 — Tasks** (Priorities are fixed; periods, MITs, deadlines and Budgets are proposals until the WCET_Records exist)
+
+| Task | Partition | Kind | Release | Period or MIT | Deadline | Priority | Work |
+|---|---|---|---|---|---|---|---|
+| `pace` | therapy | sporadic | TIMER3 compare 4 or 5 (the end of a pulse) | MIT 20 ms | 2 ms | 7 | Record the Pace, run the step, arm the Chamber that paced from the state |
+| `sense_v` | therapy | sporadic | TIMER2 compare | MIT 50 ms | 2 ms | 6 | Service of "Sense intake", run the step, arm or disarm |
+| `sense_a` | therapy | sporadic | TIMER1 compare | MIT 50 ms | 2 ms | 5 | The same for the atrium |
+| `control` | therapy | periodic | — | 20 ms | 20 ms | 4 | Init; commands and parameters from the Endpoint; State changes; magnet pin; battery and activity values; rate adaptation; ATR timing; link loss; drain the event ring to `diag` |
+| `link` | comms | periodic | — | 50 ms | 50 ms | 2 | One SPI frame each way; forward commands, return status and records |
+| `history` | diag | periodic | — | 100 ms | 100 ms | 1 | Histograms, trends, the Marker buffer; answer record requests |
+
+Six Tasks of the seven the Target allows (PM32.1); the seventh is kept for Stage E5 (electrogram sampling) or as margin.
+
+`MIT_PACE` of 20 ms is below the shortest time between the ends of two pulses: an atrial and a ventricular Pace are at least the smallest AV delay apart (30 ms, Table 19-5), so their ends are at least 30 ms less the largest difference of two widths (1.85 ms) apart, 28.15 ms; two Paces of one Chamber are at least 150 ms apart. Only compares 4 and 5 raise TIMER3's interrupt; 0 and 1 (pulse starts) and the captures do not (PM27.5).
+
+**Resources.** `timing` (in `therapy`): the step function's state, the parameters in force, the State, and the event ring. Its accessors are all four `therapy` Tasks, so its Ceiling is 7. Every Critical_Section on it is one step and the register writes that follow: no loop but the constant ones of "Arming" and "Sense intake". Because the Ceiling is the top Task Priority, no Task preempts a Critical_Section on `timing`; only Kernel entries do, which is what `LEAD` covers.
+
+### Endpoints
+
+| Endpoint | Roles | Payload | Validation | Release |
+|---|---|---|---|---|
+| `program` | `comms.link` → `therapy.control` | A command code and a parameter set, as words | `therapy`'s validation function (R42.4: from level C to level A) accepts exactly Table 19-1 and Table 19-5 and the command codes (PM19.3, PM22.3) | none: `control` polls it every period |
+| `status` | `therapy.control` → `comms.link` | State, Mode in force, battery level, the answer to the last command | none needed (downward) | none |
+| `events` | `therapy.control` → `diag.history` | A batch of up to 8 event records | none needed (downward) | none |
+| `records` | `diag.history` → `comms.link` | One histogram, trend or Marker frame | `comms`'s validation function (from level D to level C): frame kind and length in range | none |
+| `request` | `comms.link` → `diag.history` | A record request or a reset | none needed (downward) | none |
+
+No Endpoint releases a Task: every receiver is periodic, so a flood from a lower Partition costs the receiver nothing beyond its own Budget (PM22.5). A full `events` buffer makes `control` keep the batch in the ring and count a drop when the ring overflows; `pace` and the sense Tasks never touch an Endpoint (PM22.4).
+
+Payload types are words and arrays of words, valid for every bit pattern (R42.1); the meaning is checked by the validation functions, not by the type.
+
+### The hardware layer `Hw` (PD-10)
+
+```rust
+/// What the therapy Tasks need of the board. Implemented for the nRF52840
+/// (TIMER3, TIMER1, TIMER2, GPIOTE through `rsk::mmio`) and for QEMU.
+pub trait Hw {
+    /// Init: pins, GPIOTE channels, timers started, the clock offset measured.
+    fn configure(&mut self) -> Result<(), HwFault>;
+    /// The present, in therapy microseconds.
+    fn now(&self) -> Micros;
+    /// Arm a Pace of `chamber`: high at `start`, low `width` later (PD-02).
+    fn arm(&mut self, chamber: Chamber, start: Micros, width: Micros) -> Armed;
+    /// Withdraw the armed Pace of `chamber`, if its start has not passed.
+    fn disarm(&mut self, chamber: Chamber) -> Disarmed;
+    /// Which Paces fired since the last call, with their instants (`pace`).
+    fn fired(&mut self) -> Fired;
+    /// The edges of `chamber` since the last call and the latest one's instant.
+    fn sensed(&mut self, chamber: Chamber) -> Option<Sensed>;
+    /// The magnet pin.
+    fn magnet(&self) -> bool;
+}
+```
+
+`arm` and `disarm` are the sequence of "Arming and the lead". `disarm` is its steps 1 to 3: it moves the start compare only, never the end, and `Disarmed::TooLate` (the start's event flag is set) is the case of PD-04. `arm` returns `Armed::TooLate` in the same case and writes nothing; the `pace` Job then arms from the state.
+
+The QEMU implementation uses the Target's Partition-ownable dual timer as the pacing compare (start only; the pulse's end is the Job's) and takes Senses from a table that `control` plays. It is for the logic and the Analyzer's inputs, not for timing claims.
+
+### `pm-core`: the step function (PD-05)
+
+```rust
+pub struct Params { /* Table 19-1, intervals already in microseconds */ }
+pub struct State  { /* below */ }
+
+pub enum Event {
+    Sense { chamber: Chamber, at: Micros, edges: u32 },
+    Paced { chamber: Chamber, at: Micros },
+    Tick  { now: Micros, activity: u8, magnet: bool, battery: Battery, link_up: bool },
+    Command(Command),          // already validated
+}
+
+pub struct Arming {
+    pub atrial: Option<Pace>,       // None: leave as armed; Some(Pace::None): disarm
+    pub ventricular: Option<Pace>,
+    pub markers: Markers,           // at most one atrial, one ventricular, one augmentation
+}
+
+pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming);
+pub fn validate(words: &[u32]) -> Option<Params>;
+```
+
+`step` is total, has no side effect, allocates nothing, loops over nothing unbounded, and uses integer arithmetic only (the rate-adaptive map of PM15.4 included: no FPU in the Therapy_Partition).
+
+**State.** The State (Permanent, Temporary, Pace-Now, Magnet, POR) and the Mode in force with its parameters; per Chamber: the instant of the last event, whether it was a Pace, the end of the refractory period in force, the instant of the pending Pace if any, the noise tracking of the cycle; the last cardiac cycle interval (for dynamic AV delay and rate smoothing); the hysteresis flag; the PVARP-extension flag and the cycle parity that limits it (PM12.5); the ATR counter and phase; the sensor rate and its slew state.
+
+**A Mode by its letters.** The step does not branch on 19 Modes. It reads four properties of the Mode in force: which Chambers it paces, which it senses, the response (none, triggered, inhibited, tracked), and whether the rate is sensor-driven; and the allocation of Table 19-3 as amended by Table 19-4 decides which parameters it reads.
+
+**The timing cycle (PD-06).** With E the escape interval in force (the LRL interval; the sensor interval if shorter in a rate-adaptive Mode; the HRL interval after a Sense when hysteresis is on; each limited by rate smoothing):
+
+| Event (non-refractory) | Modes that pace the ventricle | Atrial Modes (AXX) |
+|---|---|---|
+| Ventricular event at v | Ventricular Pace pending at v + E. If the Mode paces the atrium: atrial Pace pending at v + E − AV. VRP and PVARP start; blanking does not | — |
+| Atrial Pace at a | Ventricular Pace pending at a + PAV (not earlier than the last ventricular event + URL interval). Ventricular Blanking starts | Atrial Pace pending at a + E. ARP starts |
+| Atrial Sense at a, response D | Atrial Pace withdrawn; ventricular Pace pending at max(a + SAV, last ventricular event + URL interval) (PM10.2) | — |
+| Atrial Sense at a, response I | Atrial Pace withdrawn (DDI: the ventricular Pace stays at v + E) | Atrial Pace pending at a + E (or HRL interval). ARP starts |
+| Sense, response T | A Pace of that Chamber at present + `LEAD`, then as for a Pace | The same |
+| Sense in a refractory or blanking period | Nothing armed or withdrawn; a Refractory-sense Marker, or none in blanking | The same |
+
+A ventricular Sense with no atrial event since the last ventricular event is a PVC (PM-glossary) and, with PVARP Extension on, lengthens the PVARP that follows, at most every second cycle.
+
+**Later stages, in outline.** *States (E3):* `Command` and `Tick` change the State at the next ventricular event (atrial in AXX), except Pace-Now, which arms a ventricular Pace no later than 923 ms from its arrival (PM6.6); the Magnet State reads the battery level for its rate. *Rate adaptation (E4):* `Tick` moves the sensor rate toward the target of PM15.4 by a step per `control` period sized so that LRL to MSR takes the Reaction Time, and MSR to LRL the Recovery Time. *ATR (E4):* the counter of PM14.1 on each atrial interval; Duration counts ventricular events; Fallback lowers the rate linearly over the Fallback Time; switches at a ventricular event. *Battery (E3):* the Mode mapping of PM17.7 at a ventricular event. These are designed in detail at the start of their stages.
+
+### The Tasks' bodies
+
+All three sporadic Tasks have the same shape:
+
+```rust
+pub fn sense_v(cx: rsk_ctx::SenseV) {
+    cx.timing.lock(|t| {
+        if let Some(s) = t.hw.sensed(Chamber::V) {
+            let (state, arming) = pm_core::step(&t.params, &t.state, Event::Sense { chamber: Chamber::V, at: s.at, edges: s.edges });
+            t.apply(state, arming);      // arm, disarm, push Markers to the ring
+        }
+    });
+}
+```
+
+`pace` calls `fired()`, which reads and clears the start flags, gives the step one `Paced` event per Chamber that fired, the earlier first, and arms each of those Chambers from the pending instant in the state. `control` gives it `Command` events from the `program` Endpoint (after validation) and one `Tick`, then drains the ring into the `events` Endpoint outside the Critical_Section.
+
+### Heart_Simulator and DCM_Stub
+
+**Heart_Simulator** (`apps/heart-sim`, board B): an rsk Application of one Partition. A Periodic_Task of 1 ms plays a scenario table: for each Chamber, an intrinsic interval, a conduction delay, and per-beat overrides (dropped beats, premature beats, bursts for noise and for atrial tachycardia). In the responsive scenarios it reads the PG's pace lines and restarts the Chamber's intrinsic timer on a Pace, as a heart that captures. Its sense pulses are mirrored to the logic analyzer in the same register write, as `apps/hil-stimulus` does. Its 1 ms resolution is the resolution of the stimulus, not of the measurement: the analyzer measures what was actually sent.
+
+**DCM_Stub** (`tools/dcm-stub`, host): sends command frames through the bridge board, decodes status and record frames, and holds `pm-core`'s validation so that a test can assert the PG accepted or rejected a set as predicted. It also sets the simulated battery level and activity value (PD-09).
+
+**Rig wiring (proposal; to be measured and recorded in `hil-rig.toml`, PM29.5).** The four board-to-board lines carry the two sense lines (B to A) and the two pace lines (A to B). The analyzer needs the pace lines, which today it cannot see on the board-to-board wires: the pace pins are taken from the pins of A that already reach the analyzer, and jumpered on to B. The bridge board C connects to A's SPIM1 pins.
+
+## Data Models
+
+### Parameters and frames
+
+`Params` holds every interval in microseconds, converted once by `validate`: an interval of a rate r ppm is 60,000,000 / r µs, rounded down (the rate is then not below r; the error is under 1 µs). The wire form of a parameter set is one word per parameter of Table 19-1 as its programmed value (ppm, ms, tenths of a volt, an index for enumerations), so that the validation function checks membership in the table and nothing is trusted about units.
+
+A link frame is 32 bytes each way: a sequence number, a kind, a length, up to 24 bytes of payload, a CRC-16. A parameter set does not fit one frame and is sent as numbered parts; `link` assembles them and offers the set to `program` only when complete, and `therapy` validates the whole set (PM19.3).
+
+### Event record
+
+Twelve bytes: the instant (TIMER3 microseconds), the Chamber, the Marker with its modifiers, the interval since the previous non-refractory event of the Chamber, and the augmentation Marker if any. The ring in `timing` holds 32 records; `control` drains up to 8 per period. At 175 ppm in both Chambers with a Refractory sense per beat, 20 ms produces under one record on average; the ring's overflow count is reported, never silent (PM18.8).
+
+### Generated additions (rsk)
+
+Generated_Config gains the PPI channel table: per channel, the event register address, the task register address, and the fork task register address or zero (PM33.4). The Task_Model records the channels so that the Config_Checker can recompute them.
+
+## Therapy State Machine
+
+```
+              program accepted                 temp start (link up, level BOL/ERN)
+   ┌─────┐ ───────────────────► ┌───────────┐ ───────────────────────────► ┌───────────┐
+   │ POR │                      │ Permanent │ ◄─────────────────────────── │ Temporary │
+   └─────┘ ◄─── restart ─────── └───────────┘   temp end, link lost         └───────────┘
+      │  ▲                        │   ▲   │                                      │
+      │  └────── (reset) ─────────┘   │   │ magnet on (response enabled)         │ Pace-Now
+      │                               │   ▼                                      ▼
+      │  Pace-Now                     │ ┌────────┐                          ┌──────────┐
+      └───────────────────────────────┼►│ Magnet │                          │ Pace-Now │
+                                      │ └────────┘                          └──────────┘
+                                      │   magnet off: back to the State before    │
+                                      └───────────── mode programmed ─────────────┘
+```
+
+Exactly one State holds (PM6.1): it is one field of `State`. Transitions other than into Pace-Now take effect at the next ventricular event (atrial in AXX). The Magnet State remembers the State it interrupted and returns to it (PM8.3). A restart of the Therapy_Partition enters POR from any State (PD-08).
+
+## Correctness Properties
+
+Each property is stated for the step function unless it names hardware. "*For any*" properties are checked by the App_Prover as contracts where the column says so, and by property-based host tests over generated parameter sets and event sequences in every case.
+
+| # | Property | Requirements | Checked by |
+|---|---|---|---|
+| P1 | *For any* state and event, a ventricular Pace the step arms is no earlier than the last ventricular event plus the URL interval, except a triggered Pace and the Pace-Now and Magnet rates | PM10.1 | Contract; tests |
+| P2 | *For any* reachable state in a Mode that paces a Chamber, a Pace of that Chamber is pending, at an instant no later than the Chamber's last starting event plus the escape interval in force (LRL, sensor, or HRL), unless the State or battery level disables pacing | PM9.1, PM16.1 | Invariant preserved by `step` (PM25.4); tests |
+| P3 | *For any* Sense inside a refractory or blanking period of its Chamber, the step returns the same pending Paces it was given | PM4.4, PM4.5, PM12 | Contract |
+| P4 | *For any* state, exactly one State holds, and the step changes it only by the transitions of the State machine | PM6.1 | By construction (one field); contract on transitions |
+| P5 | `validate` returns a parameter set exactly for the word sequences that Table 19-1 and Table 19-5 admit | PM19.1, PM19.3, PM22.3 | Contract; exhaustive test per parameter |
+| P6 | Whenever a Chamber's start compare is armed, its end compare is the start plus the programmed width; an end compare is written only while the start is disarmed and the start's event flag is clear, and both are written in one Critical_Section | PM3.3, PM28.2, PM28.4 | Contract on `Hw::arm` and `Hw::disarm` over a register model; rig |
+| P7 | After `Hw::arm` returns `Armed::Ok`, the start compare is ahead of the counter; the loop ends within three rounds | PM27, PD-02 | Contract over the register model with a bounded-advance clock; rig count of late arms |
+| P8 | The PVARP is extended in at most one of any two successive cycles | PM12.5 | Contract |
+| P9 | *For any* event, the step produces at most one atrial, one ventricular and one augmentation Marker | PM18.6 | By the type of `Arming` |
+| P10 | No Task of `therapy` panics, overflows or indexes out of bounds | PM25.2 | App_Prover |
+| P11 | The Therapy_Partition's Tasks meet their deadlines whatever `comms` and `diag` do | PM22.5, PM24 | Analyzer (PASS with their Budgets enforced); rig with a misbehaving `link` |
+| P12 | Every pace interval, AV delay, refractory period and pulse width on the pins is within its tolerance | PM24.3 | Rig, logic analyzer |
+
+P2 is the central one and is the reason the pending instants are part of the state: "a Pace within the escape interval" is then an invariant one step preserves, not a statement about a sequence.
+
+## Timing Design
+
+The Analyzer's inputs are Table 2. What has to hold for each tolerance:
+
+| Requirement | Chain | Must hold | Margin (with the proposals) |
+|---|---|---|---|
+| AV delay, the tightest arming (PM11) | atrial event → its Job arms the ventricular Pace | After an atrial Pace: the pulse width (1.9 ms at most), R of `pace` and `LEAD`; after an atrial Sense: R of `sense_a` and `LEAD`; each under the smallest AV delay, 30 ms | 1.9 + 2 + 0.5 ms against 30 ms |
+| LRL, URL, refractory (PM9, PM10, PM12) | event → Job arms or decides | The same Jobs; the next instant is at least 150 ms away | Larger |
+| Triggered Pace (PM5.4) | Sense → sense Job → Pace at present + `LEAD` | R_sense + `LEAD` ≤ 8 ms | 2 ms + 0.5 ms |
+| Inhibition window (PD-04) | Sense → sense Job disarms | R_sense ≤ PM-PAR-15 | 2 ms |
+| Pace-Now (PM6.6) | frame → `link` → `program` → `control` → armed | One `link` period, one `control` period, then at most 923 ms | 50 + 20 + 923 ms against two cycles plus 500 ms |
+| Link loss (PM20.2) | three missed polls → `status`/`Tick` | 3 × 50 ms + one `control` period | 170 ms |
+| Magnet, battery, State changes | pin or frame → `control` | One `control` period, then the next ventricular event | 20 ms + one cycle |
+
+The sporadic Tasks' deadlines of 2 ms are what the Analyzer must confirm. With rsk's measured overheads the three of them and `control` are the whole high-Priority load; `MIT_SENSE` of 50 ms and `MIT_PACE` of 20 ms bound their rates in the analysis whatever the heart does. An MIT of 1 ms for the sense Tasks, which would shrink the masked time, was rejected: rsk charges each Job several Kernel entries, and on the P1 demo's parameters one sporadic Job costs the order of half a millisecond of Kernel time, so a 1 ms MIT would by itself fill the processor in the analysis.
+
+## Error Handling
+
+| Condition | Detected by | Outcome |
+|---|---|---|
+| A parameter set outside Table 19-1 or Table 19-5, or an unknown command | The validation function on `program` | The message is not delivered; the Kernel reports it against `comms` (R42.4); `status` carries the refusal; parameters in force unchanged |
+| The link lost | `control`: no frame for three `link` periods, or the peer-state error of an Endpoint to `comms` (PM23.4) | Temporary State and any test end; pacing as before |
+| `comms` or `diag` faults, overruns, floods | The Kernel | Their own responses; `therapy` unaffected (P11) |
+| A fault, an Overrun or a deadline miss in `therapy` | The Kernel | RESTART_PARTITION: statics zeroed, `control`'s first Job configures the hardware, POR State, VVI at 65 ppm. An armed pulse end still fires, so no pin stays high. The pause in pacing is measured (PM23.6) |
+| A late arm that reached step 5 of "Arming" | `Hw::arm` | The Pace is delivered by the Job; a late-arm event is recorded and counted |
+| A disarm too late | `Hw::disarm` | Fusion: both events recorded (PD-04) |
+| An arming asked for while a Pace of the Chamber is unaccounted | `Hw::arm` (`TooLate`) | Nothing written; the `pace` Job at the pulse's end arms from the state |
+| The clock offset not measurable at Init | `Hw::configure` | A fault of `therapy`: restart and retry |
+| Event ring full | `control` | Oldest records kept, new ones dropped and counted; pacing unaffected |
+| The Kernel's safe state | — | No pacing (PM23.5); pins low after any armed end |
+
+## Testing Strategy
+
+- **Host, `pm-core`.** Unit tests per Mode against hand-worked timing diagrams; property-based tests of P1 to P5, P8 and P9 over generated parameters and event sequences; `validate` exhaustively per parameter and for each limit of Table 19-5; the DCM_Stub's prediction against the same function.
+- **App_Prover (Creusot).** P10 for the four `therapy` Tasks and the validation function; the contracts of P1 to P8 on `step`, `validate` and the register model of `Hw`.
+- **QEMU.** The whole Application with scripted Senses in the verification job: the State machine, the Endpoints, the validation refusal, restart into POR, and the Analyzer's PASS on the QEMU variant.
+- **Rig.** For each stage, scenarios played by the Heart_Simulator with the logic analyzer on both pace lines and both sense mirrors: every interval and width judged against its tolerance (P12); the inhibition window measured by sweeping a Sense toward a Pace; a sense storm (the Partition must not restart, pacing must be asynchronous); a restart of `therapy` (the pause); a misbehaving `link` (P11); late-arm and fusion counts reported. A timing run is at least PAR-05 long.
+- **rsk's own checks.** The Generator, Profile_Lint, Link_Checker and Config_Checker accept the Application; the Analyzer reports PASS on the Application's own measured records.
+
+## Stages
+
+A hardware spike precedes E1, as the P1 spike preceded rsk's design: one Partition that arms TIMER3 compares, with the PPI channels written by a debug build, to confirm on the analyzer the register behaviour this design assumes (six compares on TIMER3, a compare in the past not firing, an event flag set without its interrupt enabled, counter mode with a moving compare, forks, GPIOTE overriding the pin direction) and to measure `LEAD`'s need. The audit of PM32.2 is done with it.
+
+| Stage | Built |
+|---|---|
+| Spike | The register behaviour above; the audit of PM32.2 |
+| rsk | Fixed PPI channels with forks; TIMER3 in the Target table (Requirement 33) |
+| E1 | `pm-core` for AOO, VOO, AAI, VVI; `Hw` for both Targets; `therapy` with `pace`, the sense Tasks and a minimal `control`; the Heart_Simulator; the rig's judgement of intervals and widths |
+| E2 | Dual-chamber and triggered Modes in `pm-core`; the contracts of P1 to P3 and P8 |
+| E3 | `comms`, the DCM_Stub and the bridge; States; validation; restart measurement |
+| E4 | Rate adaptation, hysteresis, smoothing, ATR, noise |
+| E5 | `diag`, Markers on the link, histograms and trends, measured-data stand-ins |
+
+## Requirements Impact
+
+The design changed the requirements in these places; `requirements.md` is Draft 0.4 with them applied.
+
+| Requirement | Change | Reason |
+|---|---|---|
+| PM27.2 | One therapy timer (TIMER3) for both Chambers' Paces, where the text had one timer per Chamber (TIMER1, TIMER2) | Paces of both Chambers and Sense instants have to be on one clock; TIMER1 and TIMER2 have four compare registers and TIMER3 six |
+| PM28.3 | The Therapy_Partition owns GPIOTE, P0, TIMER1, TIMER2 and TIMER3 | PD-01, PD-03 |
+| PM29.1 | Each sense line is the Release_Source of its Task through a timer in counter mode, not through GPIOTE's interrupt | PD-03: GPIOTE has one interrupt line, and rsk masks a line for an MIT after each event |
+| PM29.2, PM29.3 | The battery level and the activity value come from the DCM_Stub over the link | PD-09: no further wires, and the Heart_Simulator stays a source of edges only |
+| PM33.1 | A fixed PPI channel may name a second task (the fork) | A sense edge both captures its instant and clocks its counter |
+| PM33.6, new PM33.7 | rsk's Target table gains TIMER3; the two together are the only rsk changes | PD-01 |
+| PM27.5 | The compare that ends a pulse raises the timer's interrupt, and the compare that starts it does not; the text had the reverse | PD-01, PD-02: a Job released by the start could rewrite the end compare while the pin was high |
+| New PM-PAR-15, PM5.5 | A Sense within PM-PAR-15 before a pending Pace need not inhibit it | PD-04 |
+| PM22.6 | The point left to be shown is answered on paper: a masked line's edges are latched, not MIT_Violations; the rig's storm scenario is the demonstration | "Sense intake, MIT and noise" |
+
+**A finding about rsk.** P0 is one peripheral with one owner, so a Partition that needs one pin configured depends on the Partition that owns the port. A per-pin ownership, or pin configuration in Generated_Config written by the Kernel at Init, would remove the dependency. Not needed for this experiment; recorded for rsk.
+
+## Open Points of the Design
+
+| ID | Point | When |
+|---|---|---|
+| PD-O1 | The register behaviour the design assumes, and the value of `LEAD` | Spike |
+| PD-O2 | Whether five peripheral windows for `therapy` are accepted by the Generator's layout with the Partition's code and RAM regions | Spike (a declaration is enough) |
+| PD-O3 | The Analyzer's verdict on Table 2 with measured records; the sporadic Tasks' 2 ms deadlines | E1 |
+| PD-O4 | The rig's wiring for two sense lines, two pace lines visible to the analyzer, and the bridge. Measured 2026-11-22 (tasks 4.1): the pace pins reach the analyzer and the sense lines reach board A. Still open: the pace pulses to the Heart_Simulator (proposal: a fork of each pace channel onto P1.03 and P1.04, which adds four forks and two GPIOTE channels to "Hardware signal flow"), the magnet pin and the bridge | Before E1; magnet and bridge before E3 |
+| PD-O5 | The proof route for P7 (a register model with a clock that advances by a bounded amount between two statements) in Creusot | E2 |
+| PD-O6 | The frame protocol's details and the bridge board's firmware | E3 |
+| PD-O7 | **Closed in Draft 0.2.** `pace` is released by the end of its pulse, and an end compare is written only with the start disarmed and no Pace unaccounted ("Arming and the lead") | — |

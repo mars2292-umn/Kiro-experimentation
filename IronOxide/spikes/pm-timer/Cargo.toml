@@ -1,0 +1,19 @@
+# The hardware spike of the PACEMAKER experiment (docs/pacemaker/tasks.md,
+# task 1). Its own workspace, outside rsk's: a privileged bare-metal program
+# with raw register access, so none of rsk's unsafe-code gates apply to it
+# and nothing of it is carried into the Application.
+[workspace]
+
+[package]
+name = "pm-timer-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+
+[profile.release]
+panic = "abort"
+opt-level = 2
+debug = 2
+lto = false

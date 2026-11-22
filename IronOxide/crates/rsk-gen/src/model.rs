@@ -219,7 +219,7 @@ pub fn task_model(g: &Generated) -> Value {
                 .with("unit", c.unit)
         })
         .collect();
-    Value::obj()
+    let model = Value::obj()
         .with("schema", SCHEMA)
         .with("profile", Value::obj().with("version", PROFILE_VERSION).with("variant", g.variant.as_str()))
         .with("generator", GENERATOR_VERSION)
@@ -285,5 +285,25 @@ pub fn task_model(g: &Generated) -> Value {
                 })
                 .collect::<Vec<_>>(),
         )
-        .with("conversions", conversions)
+        .with("conversions", conversions);
+    // docs/pacemaker PM33.1: present only when channels are declared, so
+    // that the Task_Model of every other Application is unchanged.
+    if g.ppi.is_empty() {
+        return model;
+    }
+    let reg = |r: &crate::derive::GenPpiReg| Value::obj().with("peripheral", r.peripheral.as_str()).with("offset", r.offset).with("address", format!("0x{:08x}", r.address));
+    model.with(
+        "ppi",
+        g.ppi
+            .iter()
+            .map(|c| {
+                let v = Value::obj().with("id", c.name.as_str()).with("channel", c.channel).with("event", reg(&c.event)).with("task", reg(&c.task));
+                let v = match &c.fork {
+                    Some(f) => v.with("fork", reg(f)),
+                    None => v,
+                };
+                v.with("derived", vec!["channel".to_string(), "address".to_string()])
+            })
+            .collect::<Vec<_>>(),
+    )
 }

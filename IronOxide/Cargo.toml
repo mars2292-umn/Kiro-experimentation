@@ -30,6 +30,7 @@ members = [
     "crates/rsk-hil",
     "crates/rsk-digest",
     "crates/rsk-elf",
+    "crates/pm-core",
     "apps/p1-demo/decl",
     "apps/p1-demo/system",
     "apps/p1-demo/part0",
@@ -46,7 +47,8 @@ members = [
 # xtask/fixtures: fixture workspaces of the Build_System tests; proofs/creusot:
 # the App_Prover's proof workspace, which compiles the Partition sources under
 # Creusot with its own lock file (task 17.1).
-exclude = ["xtask/fixtures", "proofs/creusot", "proofs/aeneas"]
+# spikes: hardware spikes, each its own workspace (bare-metal, raw registers).
+exclude = ["xtask/fixtures", "proofs/creusot", "proofs/aeneas", "spikes"]
 
 [workspace.package]
 version = "0.0.0"
@@ -74,6 +76,7 @@ rsk-protocol = { path = "crates/rsk-protocol" }
 rsk-macros = { path = "crates/rsk-macros" }
 rsk-digest = { path = "crates/rsk-digest" }
 rsk-elf = { path = "crates/rsk-elf" }
+pm-core = { path = "crates/pm-core" }
 # Third-party crates: exact versions only, vendored in vendor/ (R58.1).
 # Used by the Build_System (xtask) only; none is in the Flight_Build graph.
 proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
@@ -141,6 +144,10 @@ rsk-hil = { targets = ["host"] }
 # Shared host libraries: hashing and ELF reading for the Build_System and the checkers.
 rsk-digest = { targets = ["host"] }
 rsk-elf = { targets = ["host"] }
+# The PACEMAKER experiment (docs/pacemaker): the therapy logic, shared by the
+# Application's Partitions, the DCM_Stub and host tests. Not a Flight_Build
+# root until the Application exists (docs/pacemaker/tasks.md, task 8.1).
+pm-core = { targets = ["host", "thumbv7em-none-eabihf"] }
 # The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
 # binds, two Partition crates, and the Flight_Build binary (Target only).
 p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_timing", "nrf52840_timing_short", "nrf52840_response", "nrf52840_stress", "nrf52840_stress_short", "nrf52840_isolation", "nrf52840_cycles", "nrf52840_cycles_fpu", "nrf52840_measure", "nrf52840_coverage", "qemu_flood"] }
