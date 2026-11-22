@@ -4,13 +4,13 @@ Verdict: **pass**
 
 Operating duration 180 s on the target 1366:1060:001050217737 with the stimulus board 1366:1061:001050279833; analyzer fx2lafw at 100000 Hz; J_rel bound 12500 cycles.
 
-Target binary: sha256:7707d9071c3586a1a6df0dd363962316efb399aa84c4d2491693ef2674a2e099
+Target binary: sha256:52d63091eef88683dfb736e2621c639dc5103ded53a5985833b140933bb38350
 
 ## Steps
 
 | Step | Result | Detail |
 |---|---|---|
-| stimulus running | pass | flashed in 5.4 s and reset |
+| stimulus running | pass | flashed in 5.5 s and reset |
 | EasyDMA traffic (R17.4) | pass | SPIM0 of part2 chaining 64-byte transfers on both channels at 8 Mbps: a transfer ended before 1799 of 1800 sampler Jobs; transfers still running after the Kernel's stop at a restart: 0; ENABLE 7, SHORTS 0x20000, RXD.MAXCNT 64, TXD.MAXCNT 64, END 1, STOPPED 1 at the end |
 | EasyDMA footprint (HW-15) at 8 Mbps | pass | the transfers of 100 ms wrote the 64-byte receive buffer and neither of the 8-byte guards below and above it; the buffer was read only after its transfer was taken back and the peripheral reported STOPPED |
 | EasyDMA footprint (HW-15) at 1 Mbps | pass | the transfers of 100 ms wrote the 64-byte receive buffer and neither of the 8-byte guards below and above it; the buffer was read only after its transfer was taken back and the peripheral reported STOPPED |
@@ -18,26 +18,28 @@ Target binary: sha256:7707d9071c3586a1a6df0dd363962316efb399aa84c4d2491693ef2674
 | EasyDMA footprint (HW-15) at 8 Mbps on SPIM1 | pass | the transfers of 100 ms wrote the 64-byte receive buffer and neither of the 8-byte guards below and above it; the buffer was read only after its transfer was taken back and the peripheral reported STOPPED |
 | loop iterations (R34.9, R35.4) | pass | 8 Application loops in the export, 7 observed: 0 reached the bound, 0 exceeded, 2 below the bound with the justification recorded, 0 below without one, 5 never completed in this configuration, 1 not observed |
 | target run | pass | RSK-OK after 196 s (operating duration 180 s) |
-| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 7886 cycles (123.2 µs) against J_rel 12500 cycles |
+| compare arms (HW-12, ASM-19) | pass | 288769 compares left to the hardware, the closest 1 ticks ahead of the counter captured after the write (6 below 4 ticks, 91 below 8, 104 below 16); 6183 pended by software, the instant reached |
+| release timing (R9.10) | pass | 40495 periodic Releases recorded over 5 Tasks; every nominal instant O + k*T: yes; lag max 7526 cycles (117.6 µs) against J_rel 12500 cycles |
 | Kernel events | pass | 3 events mirrored (3 held, 0 of them the post-detach reboot's): operating_end of Task none: 1, safe_state of Task none: 1, debugger of Task none: 1; the trace never froze during the run |
 | counter wraps | pass | the 32-bit time base wraps every 268 s: 0 wraps in the run; the trace's last tick carries high word 0 (instants ordered across the wrap, R9.5) |
 | Kernel trace | pass | 512 entries; no interrupt re-entered without a dispatch |
 | dispatch deferrals (5.8a) | pass | 0 entry-window occurrence(s) handled (a dispatch vector deferred, or an unwind owed to the stub, 0x1xxxx); 0 actions recorded (0 held, 0 of them deferrals) |
-| masked span (L_kernel) | pass | the longest stretch without a Kernel-level interrupt taken: 16081 cycles (251.3 µs) over 4627514 spans, closed by a dispatch entry; against the record's L_kernel 35000 cycles |
-| loopback over the run | pass | 10000 stimulus pulses answered (target counted 10000; 10884 rises and 10001 response edges in the capture); latency 100 to 5190 µs, median 110 µs, 0 later than 15 ms; Δ_stamp observed 5628 cycles (87.9 µs) against the exported bound 8000 cycles; 0 unanswered inside the run |
-| dispatch timeline | pass | Tasks executing 39.5 % of the run, the Kernel 31.0 % over 1747051 entries; runs per Task [18034, 6000, 20997, 5220, 10271, 7201, 1802] |
-| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 28642 cycles (0.448 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 27520 cycles (0.430 ms at 100000 samples/s; 18034 runs for 18000 Jobs) |
+| masked span (entries back to back) | pass | the longest run of Kernel entries with no return to a Job between them: 16064 cycles (251.0 µs) over 3889291 spans, closed by a dispatch entry (not L_kernel since 2026-11-21: each entry is taken at an exception return) |
+| hold (L_kernel) | pass | the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler and its unwind: 5579 cycles (87.2 µs) over 3966105 holds, closed by a timer entry; against the record's L_kernel 11000 cycles |
+| loopback over the run | pass | 9999 stimulus pulses answered (target counted 9999; 10910 rises and 10001 response edges in the capture); latency 100 to 5530 µs, median 110 µs, 0 later than 15 ms; Δ_stamp observed 3576 cycles (55.9 µs) against the exported bound 8000 cycles; 0 unanswered inside the run |
+| dispatch timeline | pass | Tasks executing 39.9 % of the run, the Kernel 33.1 % over 1775018 entries; runs per Task [18038, 6000, 20995, 5373, 10136, 7202, 1802] |
+| agent against the trace (task 19.1) | pass | Task 0: the Budget accounting's largest Job execution 30550 cycles (0.477 ms, cycle-counter read cost 1 cycles) against the trace pin's longest run 29440 cycles (0.460 ms at 100000 samples/s; 18038 runs for 18000 Jobs) |
 
 ## Loop iterations (R34.9, R35.4)
 
 | Loop | File:line | Bound | Observed | Verdict |
 |---|---|---|---|---|
 | `loop:part0:spin_ms:spin` | apps/p1-demo/part0/src/lib.rs:38 | 100_000_000 | 0 | not run |
-| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:390 | 10_000_000 | 362 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
-| `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:428 | 50_000_000 | 0 | not run |
+| `loop:part0:sensor:hold` | apps/p1-demo/part0/src/lib.rs:405 | 10_000_000 | 299 | unreachable: the Critical_Section's 6 or 12 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part0:sensor:late` | apps/p1-demo/part0/src/lib.rs:443 | 50_000_000 | 0 | not run |
 | `loop:part1:spin_ms:spin` | apps/p1-demo/part1/src/lib.rs:33 | 100_000_000 | 0 | not run |
 | `loop:part1:log:drain` | apps/p1-demo/part1/src/lib.rs:216 | 4 | - | not observed |
-| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:424 | 10_000_000 | 221 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
+| `loop:part1:log:busy` | apps/p1-demo/part1/src/lib.rs:424 | 10_000_000 | 182 | unreachable: 3 ms by the time base; the 10,000,000-iteration guard is the PR-16 backstop |
 | `loop:part2:spin_ms:spin` | apps/p1-demo/part2/src/lib.rs:38 | 100_000_000 | 0 | not run |
 | `loop:part2:filter:hold` | apps/p1-demo/part2/src/lib.rs:534 | 10_000_000 | 0 | not run |
 
@@ -45,98 +47,121 @@ Target binary: sha256:7707d9071c3586a1a6df0dd363962316efb399aa84c4d2491693ef2674
 
 | Task | Releases | Lag max (cycles / µs) | Lag mean (cycles) | Histogram (log2 buckets, first non-empty..last) |
 |---|---|---|---|---|
-| 0 | 17999 | 7886 / 123.2 | 3658 | 2^12:16772 2^13:1227 |
-| 2 | 8999 | 6234 / 97.4 | 3261 | 2^12:8911 2^13:88 |
-| 3 | 4499 | 7886 / 123.2 | 3630 | 2^12:4358 2^13:141 |
-| 5 | 7199 | 7886 / 123.2 | 3670 | 2^12:6298 2^13:901 |
-| 6 | 1799 | 7886 / 123.2 | 3938 | 2^12:1737 2^13:62 |
+| 0 | 17999 | 7526 / 117.6 | 3510 | 2^12:16922 2^13:1077 |
+| 2 | 8999 | 5267 / 82.3 | 3090 | 2^12:8977 2^13:22 |
+| 3 | 4499 | 7526 / 117.6 | 3441 | 2^12:4396 2^13:103 |
+| 5 | 7199 | 7526 / 117.6 | 3503 | 2^12:6264 2^13:935 |
+| 6 | 1799 | 7526 / 117.6 | 3731 | 2^12:1753 2^13:46 |
 
 Releases recorded: 40495; nominal instants not `O + k*T`: 0.
 
 | Task | Jobs completed | Response max (ms) | Intake runs | Intake max (cycles) | Intake mean (cycles) |
 |---|---|---|---|---|---|
-| 0 | 18000 | 0.865 | 0 | 0 | 0 |
-| 1 | 5999 | 0.260 | 0 | 0 | 0 |
-| 2 | 8999 | 5.969 | 0 | 0 | 0 |
-| 3 | 4500 | 4.468 | 0 | 0 | 0 |
-| 4 | 10000 | 5.214 | 10000 | 2252 | 2009 |
-| 5 | 7200 | 6.343 | 0 | 0 | 0 |
-| 6 | 1800 | 4.857 | 0 | 0 | 0 |
+| 0 | 18000 | 0.895 | 0 | 0 | 0 |
+| 1 | 5999 | 0.268 | 0 | 0 | 0 |
+| 2 | 8999 | 5.996 | 0 | 0 | 0 |
+| 3 | 4500 | 4.537 | 0 | 0 | 0 |
+| 4 | 9999 | 5.542 | 10000 | 2194 | 1976 |
+| 5 | 7200 | 6.484 | 0 | 0 | 0 |
+| 6 | 1800 | 4.966 | 0 | 0 | 0 |
 
 Execution from the Budget accounting (task 19.1; cycle-counter read cost 1 cycles, R34.3):
 
 | Item | Runs | Execution max (cycles / ms) | Completions above the Budget; histogram (log2 buckets) |
 |---|---|---|---|
-| Task 0 entry | 18000 | 28642 / 0.448 (min 17870, mean 20379) | 0 above the Budget; 2^15:18000 |
-| Task 1 entry | 5999 | 7287 / 0.114 (min 3659, mean 3786) | 0 above the Budget; 2^12:5998 2^13:1 |
-| Task 2 entry | 8999 | 344638 / 5.385 (min 336662, mean 338350) | 0 above the Budget; 2^15:8999 |
-| Task 3 entry | 4500 | 225852 / 3.529 (min 205324, mean 214240) | 0 above the Budget; 2^15:4500 |
-| Task 4 entry | 10000 | 13675 / 0.214 (min 3788, mean 4322) | 0 above the Budget; 2^12:8851 2^13:1013 2^14:136 |
-| Task 5 entry | 7200 | 27691 / 0.433 (min 10315, mean 14301) | 0 above the Budget; 2^14:4903 2^15:2297 |
-| Task 6 entry | 1800 | 25855 / 0.404 (min 8531, mean 11618) | 0 above the Budget; 2^14:1794 2^15:6 |
-| Task 0 on Resource 0 | 18000 | 7795 / 0.122 | |
-| Task 0 on Resource 1 | 18000 | 4256 / 0.067 | |
-| Task 2 on Resource 0 | 8999 | 325776 / 5.090 | |
-| Task 2 on Resource 1 | 17998 | 4194 / 0.066 | |
-| Task 5 on Resource 2 | 7200 | 4242 / 0.066 | |
-| Task 6 on Resource 2 | 1800 | 7839 / 0.122 | |
+| Task 0 entry | 18000 | 30550 / 0.477 (min 19054, mean 21528) | 0 above the Budget; 2^15:18000 |
+| Task 1 entry | 5999 | 7518 / 0.117 (min 3634, mean 3755) | 0 above the Budget; 2^12:5996 2^13:3 |
+| Task 2 entry | 8999 | 345680 / 5.401 (min 337900, mean 339906) | 0 above the Budget; 2^15:8999 |
+| Task 3 entry | 4500 | 225252 / 3.520 (min 206640, mean 215481) | 0 above the Budget; 2^15:4500 |
+| Task 4 entry | 9999 | 15583 / 0.243 (min 3792, mean 4298) | 0 above the Budget; 2^12:8845 2^13:1016 2^14:138 |
+| Task 5 entry | 7200 | 28792 / 0.450 (min 10996, mean 14987) | 0 above the Budget; 2^14:4892 2^15:2308 |
+| Task 6 entry | 1800 | 30758 / 0.481 (min 9062, mean 12079) | 0 above the Budget; 2^14:1794 2^15:6 |
+| Task 0 on Resource 0 | 18000 | 4396 / 0.069 | |
+| Task 0 on Resource 1 | 18000 | 4280 / 0.067 | |
+| Task 2 on Resource 0 | 8999 | 325956 / 5.093 | |
+| Task 2 on Resource 1 | 17998 | 4393 / 0.069 | |
+| Task 5 on Resource 2 | 7200 | 4515 / 0.071 | |
+| Task 6 on Resource 2 | 1800 | 4401 / 0.069 | |
 
 Kernel entries by kind (task 19.3, Table 13-1; the Rust half's cycles, the stub's outside are the interrupted Job's):
 
 | Entry | Runs | Max (cycles / µs) | Mean (cycles) |
 |---|---|---|---|
-| dispatch | 56498 | 3302 / 51.59 | 3084 |
-| timer | 49486 | 3939 / 61.55 | 2973 |
-| intake | 10000 | 2377 / 37.14 | 2147 |
-| lock | 71997 | 464 / 7.25 | 463 |
-| unlock | 71997 | 1881 / 29.39 | 1638 |
-| job_end | 56498 | 2038 / 31.84 | 1712 |
-| now | 4245480 | 230 / 3.59 | 228 |
-| raise | 6000 | 2049 / 32.02 | 1965 |
-| dma | 1855 | 850 / 13.28 | 550 |
-| epilogue | 56498 | 1249 / 19.52 | 604 |
-| view | 69489 | 308 / 4.81 | 278 |
-| send | 44552 | 2326 / 36.34 | 2164 |
-| recv | 90671 | 946 / 14.78 | 849 |
+| dispatch | 56497 | 3076 / 48.06 | 2869 |
+| timer | 49408 | 3752 / 58.62 | 2771 |
+| intake | 10000 | 2318 / 36.22 | 2111 |
+| lock | 71997 | 488 / 7.62 | 486 |
+| unlock | 71997 | 1808 / 28.25 | 1560 |
+| job_end | 56497 | 2030 / 31.72 | 1670 |
+| now | 3506632 | 239 / 3.73 | 239 |
+| raise | 6000 | 2043 / 31.92 | 1933 |
+| dma | 1855 | 829 / 12.95 | 562 |
+| epilogue | 56497 | 1255 / 19.61 | 614 |
+| view | 69505 | 311 / 4.86 | 282 |
+| send | 44552 | 2242 / 35.03 | 2090 |
+| recv | 90671 | 946 / 14.78 | 852 |
 
-Entries that interrupted an executing Job: Task 0: 3075, Task 1: 1, Task 2: 27822, Task 3: 2836, Task 4: 1409, Task 5: 1090, Task 6: 1493
+Entries that interrupted an executing Job: Task 0: 2769, Task 1: 3, Task 2: 28148, Task 3: 2978, Task 4: 1308, Task 5: 856, Task 6: 1505
 
-Entries that interrupted each Task's longest Job (their Rust halves' cycles are in that Job's execution, charged in full when the entry switched nothing): Task 0: 2 (timer), 5768 cycles; Task 1: 1 (timer), 2840 cycles; Task 2: 5 (dispatch, timer, intake), 14620 cycles; Task 3: 5 (dispatch, timer, intake), 13832 cycles; Task 4: 3 (dispatch, timer), 10438 cycles; Task 5: 2 (timer), 5980 cycles; Task 6: 1 (timer), 2868 cycles
+Entries that interrupted each Task's longest Job (their Rust halves' cycles are in that Job's execution, charged in full when the entry switched nothing): Task 0: 2 (timer), 5080 cycles; Task 1: 1 (timer), 2762 cycles; Task 2: 4 (dispatch, timer), 11016 cycles; Task 3: 4 (dispatch, timer, intake), 10486 cycles; Task 4: 3 (dispatch, timer), 9698 cycles; Task 5: 2 (timer), 5628 cycles; Task 6: 2 (timer), 5360 cycles
 
 The last recorded Releases (Task, nominal instant, lag):
 
-- Task 0 at 179930.000 ms, 3394 cycles
-- Task 0 at 179940.000 ms, 3186 cycles
-- Task 2 at 179945.000 ms, 3242 cycles
-- Task 0 at 179950.000 ms, 3762 cycles
-- Task 5 at 179950.000 ms, 3762 cycles
-- Task 0 at 179960.000 ms, 3422 cycles
-- Task 3 at 179960.000 ms, 3422 cycles
-- Task 2 at 179965.000 ms, 3242 cycles
-- Task 0 at 179970.000 ms, 3482 cycles
-- Task 5 at 179975.000 ms, 3194 cycles
-- Task 0 at 179980.000 ms, 3186 cycles
-- Task 0 at 179990.000 ms, 3114 cycles
+- Task 0 at 179930.000 ms, 3518 cycles
+- Task 0 at 179940.000 ms, 3019 cycles
+- Task 2 at 179945.000 ms, 3019 cycles
+- Task 0 at 179950.000 ms, 4106 cycles
+- Task 5 at 179950.000 ms, 4106 cycles
+- Task 0 at 179960.000 ms, 3335 cycles
+- Task 3 at 179960.000 ms, 3335 cycles
+- Task 2 at 179965.000 ms, 3019 cycles
+- Task 0 at 179970.000 ms, 3834 cycles
+- Task 5 at 179975.000 ms, 3019 cycles
+- Task 0 at 179980.000 ms, 3015 cycles
+- Task 0 at 179990.000 ms, 2967 cycles
 
 ## The Kernel's masked spans (11.13)
 
-Every stretch without a Kernel-level interrupt taken, 4627514 of them, the longest 16081 cycles (251.3 µs), closed by a dispatch entry:
+Every run of Kernel entries with no return to a Job between them (a pending Kernel-level interrupt is taken at each entry's return), 3889291 of them, the longest 16064 cycles (251.0 µs), closed by a dispatch entry:
 
 | Span (cycles) | Spans |
 |---|---|
-| 256 to 511 (4.0 to 8.0 µs) | 4234697 |
-| 512 to 1023 (8.0 to 16.0 µs) | 119139 |
-| 1024 to 2047 (16.0 to 32.0 µs) | 103092 |
-| 2048 to 4095 (32.0 to 64.0 µs) | 101817 |
-| 4096 to 8191 (64.0 to 128.0 µs) | 62354 |
-| 8192 to 16383 (128.0 to 256.0 µs) | 6415 |
+| 512 to 1023 (8.0 to 16.0 µs) | 3568879 |
+| 1024 to 2047 (16.0 to 32.0 µs) | 149685 |
+| 2048 to 4095 (32.0 to 64.0 µs) | 100562 |
+| 4096 to 8191 (64.0 to 128.0 µs) | 62916 |
+| 8192 to 16383 (128.0 to 256.0 µs) | 7249 |
 
 | Closing entry | Spans | Longest (cycles / µs) |
 |---|---|---|
-| dispatch | 53399 | 16081 / 251.3 |
-| timer | 31262 | 12161 / 190.0 |
-| job_end | 4509376 | 4416 / 69.0 |
-| epilogue | 33477 | 7505 / 117.3 |
+| dispatch | 53630 | 16064 / 251.0 |
+| timer | 31243 | 14003 / 218.8 |
+| job_end | 3771213 | 4590 / 71.7 |
+| epilogue | 33205 | 7826 / 122.3 |
+
+The longest one's 4 entries, in order (cycles from its start; the gap is the time since the entry before ended: stubs, unwinding, exception entry):
+
+| # | Entry | Begins | Ends | Rust half (cycles / µs) | Gap before (cycles / µs) |
+|---|---|---|---|---|---|
+| 1 | intake, exception 40 pending | 0 | 2607 | 2607 / 40.7 | 0 / 0.0 |
+| 2 | dispatch, started a Job, exception 24 pending | 2894 | 6276 | 3382 / 52.8 | 287 / 4.5 |
+| 3 | timer, exception 36 pending | 6552 | 12131 | 5579 / 87.2 | 276 / 4.3 |
+| 4 | dispatch, started a Job | 12424 | 16064 | 3640 / 56.9 | 293 / 4.6 |
+
+Rust halves 15208 cycles (237.6 µs), between them 856 cycles (13.4 µs).
+
+## The Kernel's holds (L_kernel)
+
+Every stretch in which a pending Kernel-level interrupt could not be taken (one handler from its Rust half's beginning to its end, with the unwind it runs before it returns), 3966105 of them, the longest 5579 cycles (87.2 µs), closed by a timer entry:
+
+The longest was one entry: timer, exception 36 pending.
+
+| Closing entry | Longest (cycles / µs) |
+|---|---|
+| dispatch | 3671 / 57.4 |
+| timer | 5579 / 87.2 |
+| job_end | 2558 / 40.0 |
+| epilogue | 4384 / 68.5 |
 
 ## The Kernel's events
 
@@ -146,14 +171,14 @@ Every stretch without a Kernel-level interrupt taken, 4627514 of them, the longe
 
 | Task | Executing (samples) | Runs | Longest run (ms) |
 |---|---|---|---|
-| 0 | 541035 | 18034 | 0.430 |
-| 1 | 24955 | 6000 | 0.100 |
-| 2 | 4809326 | 20997 | 5.310 |
-| 3 | 1501507 | 5220 | 3.460 |
-| 4 | 50306 | 10271 | 0.160 |
-| 5 | 146740 | 7201 | 0.420 |
-| 6 | 29121 | 1802 | 0.390 |
-| none | 10895096 | 43503 | 9.440 |
+| 0 | 577646 | 18038 | 0.460 |
+| 1 | 26153 | 6000 | 0.110 |
+| 2 | 4832515 | 20995 | 5.260 |
+| 3 | 1511774 | 5373 | 3.470 |
+| 4 | 51030 | 10136 | 0.160 |
+| 5 | 156015 | 7202 | 0.440 |
+| 6 | 30824 | 1802 | 0.470 |
+| none | 10810327 | 43482 | 9.410 |
 
 ## Commands
 
@@ -170,7 +195,7 @@ RSK-SAFE-STATE
 control=18000
 sensor=8999
 log=4500
-pulse=10000
+pulse=9999
 echo=5999
 blocked_releases=8999
 filter=7200
@@ -195,10 +220,10 @@ triangle_fwd=3600
 triangle_acks=3600
 triangle_rounds=3600
 loop:part0:spin_ms:spin=0
-loop:part0:sensor:hold=362
+loop:part0:sensor:hold=299
 loop:part0:sensor:late=0
 loop:part1:spin_ms:spin=0
-loop:part1:log:busy=221
+loop:part1:log:busy=182
 loop:part2:filter:hold=0
 loop:part2:spin_ms:spin=0
 dma_end=1799
@@ -236,7 +261,7 @@ event=18
   prs_hi=0
 RSK-OK
 Firmware exited successfully
-     Finished in 11.20s
+     Finished in 11.58s
 ```
 
 ## Branch coverage of the measurement inputs (R34.4)
@@ -451,7 +476,7 @@ branch coverage of the measurement inputs against the 50 % threshold (R34.4): pa
 | `p1_demo_part0::echo::{closure}` | 0 | 0 |  |
 | `p1_demo_part0::sensor` | 0 | 0 |  |
 | `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
-| `p1_demo_part0::sensor::{closure}` | 4 | 3 | 390:80 false |
+| `p1_demo_part0::sensor::{closure}` | 4 | 3 | 405:80 false |
 | `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
 | `p1_demo_part0::sensor::{closure}` | 0 | 0 |  |
 | `p1_demo_part0::sensor::{closure}::{closure}` | 2 | 2 |  |

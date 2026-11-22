@@ -1,7 +1,7 @@
 {
   "schema": "rsk-branch-coverage/1",
   "configuration": "nrf52840_response",
-  "binary_hash": "sha256:6b1c3baf44305a07752e4a7da3ddee1ced2f126b540cd992bdd1ef5b6b48eea8",
+  "binary_hash": "sha256:a1322076b359e1dbb148ff15ccedaba12f1c61d961d56c94eca25f7e2e7dbed6",
   "threshold_percent": 50,
   "items": [
     {
@@ -189,7 +189,7 @@
       "percent": 83,
       "uncovered": [
         "p1_demo_part0::inject::spin_ms: 38:84 false",
-        "p1_demo_part0::sensor::{closure}: 390:80 false"
+        "p1_demo_part0::sensor::{closure}: 405:80 false"
       ]
     },
     {
@@ -225,7 +225,7 @@
       "percent": 83,
       "uncovered": [
         "p1_demo_part0::inject::spin_ms: 38:84 false",
-        "p1_demo_part0::sensor::{closure}: 390:80 false"
+        "p1_demo_part0::sensor::{closure}: 405:80 false"
       ]
     },
     {
@@ -261,7 +261,7 @@
       "percent": 83,
       "uncovered": [
         "p1_demo_part0::inject::spin_ms: 38:84 false",
-        "p1_demo_part0::sensor::{closure}: 390:80 false"
+        "p1_demo_part0::sensor::{closure}: 405:80 false"
       ]
     },
     {
@@ -359,7 +359,7 @@
       "uncovered": [
         "p1_demo_part2::plain_request::{closure}: 74:16 false",
         "p1_demo_part2::Stats::record: 423:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:22 false"
+        "p1_demo_part2::inject::spin_ms: 38:84 false"
       ]
     },
     {
@@ -389,7 +389,7 @@
       "uncovered": [
         "p1_demo_part2::plain_request::{closure}: 74:16 false",
         "p1_demo_part2::Stats::record: 423:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:22 false"
+        "p1_demo_part2::inject::spin_ms: 38:84 false"
       ]
     },
     {
@@ -418,7 +418,7 @@
       "uncovered": [
         "p1_demo_part2::plain_request::{closure}: 74:16 false",
         "p1_demo_part2::Stats::record: 423:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:22 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false",
         "p1_demo_part2::sampler: 728:8 false"
       ]
     },
@@ -448,7 +448,7 @@
       "uncovered": [
         "p1_demo_part2::plain_request::{closure}: 74:16 false",
         "p1_demo_part2::Stats::record: 423:12 false",
-        "p1_demo_part2::inject::spin_ms: 38:22 false",
+        "p1_demo_part2::inject::spin_ms: 38:84 false",
         "p1_demo_part2::sampler: 728:8 false"
       ]
     }
@@ -555,7 +555,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "38:22 false"
+        "38:84 false"
       ]
     },
     {
@@ -955,7 +955,7 @@
       "branches": 4,
       "covered": 3,
       "uncovered": [
-        "390:80 false"
+        "405:80 false"
       ]
     },
     {

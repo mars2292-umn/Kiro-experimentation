@@ -3,10 +3,10 @@
   "records": [
     {
       "item": "part0.control",
-      "wcet_cycles": 27439,
+      "wcet_cycles": 29655,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -14,13 +14,14 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (timer), 9149 cycles"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (timer, intake), 7642 cycles",
+        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 21951,
+        "max_observed": 23724,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 100,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -31,10 +32,10 @@
     },
     {
       "item": "part0.echo",
-      "wcet_cycles": 9402,
+      "wcet_cycles": 19408,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -43,13 +44,14 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "5999 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 3111 cycles"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (dispatch, timer), 9730 cycles",
+        "branch coverage 100 % of the inputs (0 of 0 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 5999,
-        "max_observed": 7521,
+        "max_observed": 15526,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 100,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -60,10 +62,10 @@
     },
     {
       "item": "part0.sensor",
-      "wcet_cycles": 3681805,
+      "wcet_cycles": 3673328,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -72,13 +74,14 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "8992 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 31 (dispatch, timer, intake), 95631 cycles"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 35 (dispatch, timer, intake), 98698 cycles",
+        "branch coverage 81 % of the inputs (13 of 16 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 8992,
-        "max_observed": 2945444,
+        "max_observed": 2938662,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 81,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -89,10 +92,10 @@
     },
     {
       "item": "part1.log",
-      "wcet_cycles": 252519,
+      "wcet_cycles": 251302,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -101,13 +104,14 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "4500 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (dispatch, timer, intake), 8634 cycles"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 1 (timer), 2674 cycles",
+        "branch coverage 92 % of the inputs (13 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 4500,
-        "max_observed": 202015,
+        "max_observed": 201041,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 92,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -118,10 +122,10 @@
     },
     {
       "item": "part1.pulse",
-      "wcet_cycles": 14820,
+      "wcet_cycles": 17718,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -129,14 +133,14 @@
         "the Task entry: one Job's execution from the Budget accounting (R18.1)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "9999 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 2 (dispatch, timer), 7296 cycles"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 3 (dispatch, timer), 9994 cycles",
+        "branch coverage 100 % of the inputs (6 of 6 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
-        "runs": 9999,
-        "max_observed": 11856,
+        "runs": 10000,
+        "max_observed": 14174,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 100,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -147,10 +151,10 @@
     },
     {
       "item": "part2.filter",
-      "wcet_cycles": 18222,
+      "wcet_cycles": 15977,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -159,13 +163,14 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "7200 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 2 (timer), 5930 cycles"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 2 (dispatch, intake), 5256 cycles",
+        "branch coverage 50 % of the inputs (7 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 7200,
-        "max_observed": 14577,
+        "max_observed": 12781,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 50,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -176,10 +181,10 @@
     },
     {
       "item": "part2.sampler",
-      "wcet_cycles": 21049,
+      "wcet_cycles": 29674,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -188,13 +193,14 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
         "1800 executions, below PAR-02's 10000",
-        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: none"
+        "Kernel entries that interrupted the longest Job, their Rust halves inside its execution: 5 (dispatch, timer), 15242 cycles",
+        "branch coverage 50 % of the inputs (8 of 16 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 1800,
-        "max_observed": 16839,
+        "max_observed": 23739,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 50,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -208,20 +214,21 @@
       "wcet_cycles": 5448,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 18000,
         "max_observed": 4358,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 100,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -232,23 +239,24 @@
     },
     {
       "item": "part0.control#cs:in_cs",
-      "wcet_cycles": 5454,
+      "wcet_cycles": 5474,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "branch coverage 100 % of the inputs (4 of 4 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 18000,
-        "max_observed": 4363,
+        "max_observed": 4379,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 100,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -259,10 +267,10 @@
     },
     {
       "item": "part0.sensor#cs:state",
-      "wcet_cycles": 966818,
+      "wcet_cycles": 967444,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -270,13 +278,14 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "8992 executions, below PAR-02's 10000"
+        "8992 executions, below PAR-02's 10000",
+        "branch coverage 81 % of the inputs (13 of 16 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 8992,
-        "max_observed": 773454,
+        "max_observed": 773955,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 81,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -287,23 +296,24 @@
     },
     {
       "item": "part0.sensor#cs:in_cs",
-      "wcet_cycles": 5289,
+      "wcet_cycles": 5428,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
       "conditions": [
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
-        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)"
+        "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
+        "branch coverage 81 % of the inputs (13 of 16 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 17984,
-        "max_observed": 4231,
+        "max_observed": 4342,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 81,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -314,10 +324,10 @@
     },
     {
       "item": "part2.filter#cs:stats",
-      "wcet_cycles": 6918,
+      "wcet_cycles": 7549,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -325,13 +335,14 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "7200 executions, below PAR-02's 10000"
+        "7200 executions, below PAR-02's 10000",
+        "branch coverage 50 % of the inputs (7 of 14 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 7200,
-        "max_observed": 5534,
+        "max_observed": 6039,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 50,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
@@ -342,10 +353,10 @@
     },
     {
       "item": "part2.sampler#cs:stats",
-      "wcet_cycles": 8930,
+      "wcet_cycles": 5213,
       "method": "measured",
       "tool": "rsk-hil Budget-accounting record",
-      "binary_hash": "sha256:970e7b7a8a16f4b95381bfdcd600a6287c4a437cc9d9bbd9d22190b0ecdba398",
+      "binary_hash": "sha256:09a44a4f79210034d7734410b399d4c381d22c33ed361a388a1adc9a857593e9",
       "target": "nrf52840/r0p1",
       "clock_hz": 64000000,
       "icache": "off",
@@ -353,13 +364,14 @@
         "the Critical_Section: execution from the lock's return to the unlock's entry, from the Budget accounting",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included (R34.7)",
         "cycle-counter read cost 1 cycles calibrated at instant 0 (R34.3)",
-        "1800 executions, below PAR-02's 10000"
+        "1800 executions, below PAR-02's 10000",
+        "branch coverage 50 % of the inputs (8 of 16 branch outcomes of the body and its crate's helpers) from the coverage build sha256:81f7cd859416005eab390f134f3b764d8a87353ecaa1ff6d4ce679886a792a32 of this configuration (R34.4; docs/hil/coverage_nrf52840_timing_short.json)"
       ],
       "measured": {
         "runs": 1800,
-        "max_observed": 7144,
+        "max_observed": 4170,
         "margin_percent": 25,
-        "coverage_branch_percent": 0,
+        "coverage_branch_percent": 50,
         "scenarios": [
           "nrf52840_timing_short (180 s)",
           "worst-case concurrent EasyDMA traffic (R17.4): SPIM0, the Application's only EasyDMA-capable peripheral (part2), chaining 64-byte transfers on both channels at 8 Mbps for the whole run through the END_START shortcut (1799 transfer-ended observations, 0 still running after a stop)",
