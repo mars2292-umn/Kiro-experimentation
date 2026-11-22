@@ -50,40 +50,39 @@ pub struct RoleState {
 }
 
 /// The states of a role from the verified flattening (task 21.7 follow-up,
-/// 2026-11-09; A-P1): `tbl` is the role's state table (`theory::flatten_two`
-/// or `multiparty::flatten_n`, whose entries are head-normal local types,
-/// entry 0 the head of the projection) and `trans` the automaton's
-/// transitions, each a branch of its entry leading to the entry equal to
-/// the head of its continuation (`flattens`, `flattens_n`). The states,
-/// their permitted operations, and the state after each are therefore the
-/// projection's by the theorem; this function only renders them: a label
-/// index to its name and payload, a role index to its name. A state is a
-/// recursion head when a transition from a later (or the same) state
-/// returns to it.
-pub fn states_from_tables(tbl: &[rsk_protocol::RoleEntry], trans: &[rsk_protocol::progress::Trans], ri: usize, role_names: &[String], labels: &[String], payload_of: &dyn Fn(&str) -> Option<String>) -> Vec<RoleState> {
-    use rsk_protocol::RoleEntry;
-    let branches_of = |ls: &[u32], i: usize| -> Vec<(String, Option<String>, usize)> {
-        ls.iter()
-            .map(|label| {
-                let name = labels.get(*label as usize).cloned().unwrap_or_else(|| format!("L{label}"));
-                let next = trans.iter().find(|t| t.role == ri && t.from == i && t.label == *label).map(|t| t.to).unwrap_or(0);
-                (name.clone(), payload_of(&name), next)
+/// 2026-11-09; A-P1; R38.4, 2026-11-21): `api` is what each state of the
+/// role's table offers, as `rsk_protocol::api::role_ops` derives it and
+/// proves it (`role_api`: the kind, the peer, the labels in the
+/// projection's order and the state after each are those of the state's
+/// local type, entry 0 the head of the projection). This function only
+/// renders them: a label index to its name and payload, a role index to
+/// its name. It searches nothing and has no default: the state after an
+/// operation is the proven one. A state is a recursion head when a
+/// transition from a later (or the same) state returns to it.
+pub fn states_from_api(api: &[rsk_protocol::api::StateOps], role_names: &[String], labels: &[String], payload_of: &dyn Fn(&str) -> Option<String>) -> Vec<RoleState> {
+    use rsk_protocol::api::{KIND_RECV, KIND_SEND};
+    let branches_of = |ops: &[rsk_protocol::api::Op]| -> Vec<(String, Option<String>, usize)> {
+        ops.iter()
+            .map(|op| {
+                let name = labels.get(op.label as usize).cloned().unwrap_or_else(|| format!("L{}", op.label));
+                (name.clone(), payload_of(&name), op.to)
             })
             .collect()
     };
     let role_name = |r: usize| role_names.get(r).cloned().unwrap_or_else(|| format!("r{r}"));
-    let mut out: Vec<RoleState> = tbl
+    let mut out: Vec<RoleState> = api
         .iter()
-        .enumerate()
-        .map(|(i, e)| match e {
-            RoleEntry::End => RoleState { kind: Kind::End, rec_head: false },
-            RoleEntry::Send { to, labels: ls } => RoleState { kind: Kind::Send { to: role_name(*to), branches: branches_of(ls, i) }, rec_head: false },
-            RoleEntry::Recv { from, labels: ls } => RoleState { kind: Kind::Recv { from: role_name(*from), branches: branches_of(ls, i) }, rec_head: false },
+        .map(|st| match st.kind {
+            KIND_SEND => RoleState { kind: Kind::Send { to: role_name(st.peer), branches: branches_of(&st.ops) }, rec_head: false },
+            KIND_RECV => RoleState { kind: Kind::Recv { from: role_name(st.peer), branches: branches_of(&st.ops) }, rec_head: false },
+            _ => RoleState { kind: Kind::End, rec_head: false },
         })
         .collect();
-    for t in trans.iter().filter(|t| t.role == ri) {
-        if t.to <= t.from && t.to < out.len() {
-            out[t.to].rec_head = true;
+    for (from, st) in api.iter().enumerate() {
+        for op in &st.ops {
+            if op.to <= from && op.to < out.len() {
+                out[op.to].rec_head = true;
+            }
         }
     }
     out
@@ -114,7 +113,7 @@ pub fn states_for(checked: &rsk_protocol::Checked, role: &str) -> Vec<RoleState>
         Some(ri) if ri < checked.tables.len() => {
             let role_names: Vec<String> = checked.locals.iter().map(|(r, _)| r.clone()).collect();
             let g = &checked.global;
-            states_from_tables(&checked.tables[ri], &checked.trans, ri, &role_names, &checked.labels, &|l| payload_of(g, l))
+            states_from_api(&checked.tables[ri], &role_names, &checked.labels, &|l| payload_of(g, l))
         }
         // A role the checker produced no table for (none since 2026-11-09:
         // every accepted Protocol has two to four roles and the verified
@@ -155,6 +154,10 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     // by `send_words`' contract; proven here because `w[0]` is the label).
     let sent_ensures = |s: &mut String, to: &str, label: &str| {
         let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result {{ Ok(_) => ::rsk::channel::sent(ID, ROLE, PEER_{}, LABEL_{}), Err(_) => true }}))]", to.to_uppercase(), label.to_uppercase());
+        // A-P6's Task half (2026-11-21): the role comes back in its
+        // initial state (`NotSent::PeerChanged` holds an `S0`) exactly when
+        // the Kernel reported the peer-state change.
+        let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result {{ Err(NotSent::PeerChanged(_)) => ::rsk::channel::peer_told(ID, ROLE), _ => ::rsk::channel::not_told(ID, ROLE) }}))]");
     };
     let gate_requires = |s: &mut String| {
         for x in &gates {
@@ -289,6 +292,8 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
                 // Kernel delivered as the message's first word.
                 let arms: String = branches.iter().map(|(label, _, _)| format!("Ok(RecvS{i}::{label}(..)) => ::rsk::channel::received(ID, PEER_{}, ROLE, LABEL_{}), ", from.to_uppercase(), label.to_uppercase())).collect();
                 let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result {{ {arms}Err(_) => true }}))]");
+                // A-P6's Task half (2026-11-21), as for a send.
+                let _ = writeln!(s, "            #[cfg_attr(creusot, ::rsk::creusot_std::macros::ensures(match result {{ Err(NotReceived::PeerChanged(_)) => ::rsk::channel::peer_told(ID, ROLE), _ => ::rsk::channel::not_told(ID, ROLE) }}))]");
                 let _ = writeln!(s, "            pub fn try_recv(self{gate_params}) -> Result<RecvS{i}, NotReceived<S{i}>> {{");
                 let _ = writeln!(s, "                match raw().recv_words(PEER_{}) {{", from.to_uppercase());
                 let _ = writeln!(s, "                    Ok(None) | Err(::rsk::RecvError::Rejected) => Err(NotReceived::Empty(self)),");
@@ -349,5 +354,213 @@ pub fn module(g: &Generated, e: &GenEndpoint, role: &str) -> String {
     }
     let _ = writeln!(s, "    }}");
     let _ = g;
+    s
+}
+
+/// A starter Task body for one role of a Protocol-governed Endpoint.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Skeleton {
+    pub endpoint: String,
+    pub role: String,
+    /// The Task bound to the role, and its Partition.
+    pub task: String,
+    pub partition: String,
+    pub source: String,
+}
+
+impl Skeleton {
+    /// The file under the output directory: `skeletons/<endpoint>_<role>.rs`.
+    pub fn file_name(&self) -> String {
+        format!("{}/{}_{}.rs", crate::SKELETON_DIR, self.endpoint, self.role)
+    }
+}
+
+/// The skeletons of every role of every Protocol-governed Endpoint, in
+/// declaration order. They are written next to the configuration summary
+/// for the user to copy into the Partition crate; no build reads them, so
+/// the Generator rewriting them never touches the user's code.
+pub fn skeletons(g: &Generated) -> Vec<Skeleton> {
+    let mut out = Vec::new();
+    for e in g.endpoints.iter().filter(|e| e.protocol.is_some()) {
+        for (role, ti) in &e.roles {
+            let Some(task) = g.tasks.get(*ti) else { continue };
+            let partition = g.partitions.get(task.partition).map(|p| p.name.clone()).unwrap_or_default();
+            out.push(Skeleton { endpoint: e.name.clone(), role: role.clone(), task: task.name.clone(), partition, source: skeleton(g, e, role) });
+        }
+    }
+    out
+}
+
+/// The skeleton of role `role` of Endpoint `e`, in the shape the tutorial
+/// teaches: take the role's state from its slot, match on every state,
+/// store the result back. Every state has its arm, every receive its
+/// variants, and every failed operation an arm that hands its state back;
+/// `todo!()` stands where the Task's own logic goes. A role declared `after`
+/// an Endpoint returns while that gate is closed, and the Task's receive on
+/// the gating Endpoint opens it (R41.3, A-P8). The function compiles as
+/// written in the Partition crate of the role's Task.
+pub fn skeleton(g: &Generated, e: &GenEndpoint, role: &str) -> String {
+    let mut s = String::new();
+    let sts = e.verified_states.iter().find(|(r, _)| r == role).map(|(_, sts)| sts.clone()).unwrap_or_default();
+    let ri = e.roles.iter().position(|(r, _)| r == role).unwrap_or(0);
+    let task = e.roles.get(ri).and_then(|(_, ti)| g.tasks.get(*ti));
+    let task_name = task.map(|t| t.name.clone()).unwrap_or_default();
+    let partition = task.and_then(|t| g.partitions.get(t.partition)).map(|p| p.name.clone()).unwrap_or_default();
+    let projection = e.projections.iter().find(|(r, _)| r == role).map(|(_, l)| l.clone()).unwrap_or_default();
+    let protocol = e.protocol.clone().unwrap_or_default();
+    let gates: Vec<String> = e.after.get(ri).cloned().unwrap_or_default();
+    let gate_args: Vec<String> = gates.iter().map(|x| format!("&cx.{x}_gate")).collect();
+    // Whether a role of the same Task is declared `after` this Endpoint:
+    // then a completed receive here opens the Task's gate of that name.
+    let opens = e.roles.get(ri).is_some_and(|(_, ti)| crate::emit::gating_endpoints(g, *ti).contains(&e.name));
+    let name = &e.name;
+    let fname = format!("{name}_{role}");
+
+    let _ = writeln!(s, "// Skeleton for role `{role}` of Endpoint `{name}` under Protocol `{protocol}`,");
+    let _ = writeln!(s, "// played by Task `{task_name}` of Partition `{partition}`.");
+    let _ = writeln!(s, "//");
+    let _ = writeln!(s, "// A starting point written by rsk-gen. No build reads this file and rsk-gen");
+    let _ = writeln!(s, "// rewrites it on every run: copy the function into the `{partition}` crate, edit");
+    let _ = writeln!(s, "// the copy, and call it from the body of `{task_name}` as `{fname}(&mut cx);`.");
+    let _ = writeln!(s, "//");
+    let _ = writeln!(s, "// The role's projection: {projection}");
+    let _ = writeln!(s, "// Each Job performs one step: it takes the state from the slot, does what the");
+    let _ = writeln!(s, "// state permits, and stores the state that results. A failed operation hands");
+    let _ = writeln!(s, "// the state back, so the next Job tries again; after `PeerChanged` (the other");
+    let _ = writeln!(s, "// Partition stopped or restarted) the role is back in its initial state S0.");
+    if !gates.is_empty() {
+        let _ = writeln!(s, "//");
+        let named = gates.iter().map(|x| format!("`{x}`")).collect::<Vec<_>>().join(", ");
+        let _ = writeln!(s, "// The role is declared `after = {}`: its operations take the gate of each", gates.join(", "));
+        let _ = writeln!(s, "// Endpoint named, and the App_Prover requires it open. Call this after the");
+        let _ = writeln!(s, "// Job's receive on {named}; a Job whose receive delivered");
+        let _ = writeln!(s, "// nothing leaves the gate closed, and the function then returns at once.");
+    }
+    let _ = writeln!(s, "//");
+    let _ = writeln!(s, "// Replace every `todo!()`; then delete the `allow` attribute below.");
+
+    // The imports the body uses, and no others.
+    let mut imports: Vec<String> = Vec::new();
+    if sts.iter().any(|st| matches!(st.kind, Kind::Recv { .. })) {
+        imports.push("NotReceived".to_string());
+    }
+    if sts.iter().any(|st| matches!(st.kind, Kind::Send { .. })) {
+        imports.push("NotSent".to_string());
+    }
+    for (i, st) in sts.iter().enumerate() {
+        if matches!(st.kind, Kind::Recv { .. }) {
+            imports.push(format!("RecvS{i}"));
+        }
+    }
+    imports.push("State".to_string());
+
+    let _ = writeln!(s, "#[allow(unreachable_code, unused_variables, clippy::diverging_sub_expression)]");
+    let _ = writeln!(s, "pub fn {fname}(cx: &mut rsk_ctx::{}) {{", crate::emit::ctx_name(&task_name));
+    let _ = writeln!(s, "    use rsk_roles::{fname}::{{{}}};", imports.join(", "));
+    if !gates.is_empty() {
+        let closed: Vec<String> = gates.iter().map(|x| format!("!cx.{x}_gate.is_open()")).collect();
+        let _ = writeln!(s, "    // Nothing was received on {} in this Job: the role stays as it is.", gates.iter().map(|x| format!("`{x}`")).collect::<Vec<_>>().join(" or "));
+        let _ = writeln!(s, "    if {} {{", closed.join(" || "));
+        let _ = writeln!(s, "        return;");
+        let _ = writeln!(s, "    }}");
+    }
+    let _ = writeln!(s, "    let next = match cx.{name}.take(State::Empty) {{");
+    for (i, st) in sts.iter().enumerate() {
+        match &st.kind {
+            Kind::End => {
+                let _ = writeln!(s, "        // S{i}: the Protocol has ended for this role.");
+                let _ = writeln!(s, "        State::S{i}(role) => role.finish(),");
+            }
+            Kind::Send { to, branches } => {
+                let labels: Vec<&str> = branches.iter().map(|(l, _, _)| l.as_str()).collect();
+                let _ = writeln!(s, "        // S{i}: send {} to `{to}`.", labels.join(" or "));
+                // One send: `open` is what precedes the `match`, `pad` the
+                // indentation of the match's closing brace.
+                let send = |s: &mut String, open: &str, pad: &str, close: &str, label: &str, payload: &Option<String>, next: usize| {
+                    let mut args: Vec<String> = Vec::new();
+                    if let Some(p) = payload {
+                        args.push(format!("todo!(\"the {label} payload: {p}\")"));
+                    }
+                    args.extend(gate_args.iter().cloned());
+                    let _ = writeln!(s, "{open}match role.send_{}({}) {{", label.to_lowercase(), args.join(", "));
+                    let _ = writeln!(s, "{pad}    Ok(s{next}) => State::S{next}(s{next}),");
+                    let _ = writeln!(s, "{pad}    // The channel is full (a reported violation of the Protocol's bound): try again.");
+                    let _ = writeln!(s, "{pad}    Err(NotSent::Full(s{i})) => State::S{i}(s{i}),");
+                    let _ = writeln!(s, "{pad}    // The Kernel refused the send: try again.");
+                    let _ = writeln!(s, "{pad}    Err(NotSent::Refused(s{i})) => State::S{i}(s{i}),");
+                    let _ = writeln!(s, "{pad}    // The peer's Partition stopped or restarted: both roles start over.");
+                    let _ = writeln!(s, "{pad}    Err(NotSent::PeerChanged(s0)) => State::S0(s0),");
+                    let _ = writeln!(s, "{pad}}}{close}");
+                };
+                match branches.as_slice() {
+                    [(label, payload, next)] => send(&mut s, &format!("        State::S{i}(role) => "), "        ", ",", label, payload, *next),
+                    _ => {
+                        // A choice of this role: one `if` per alternative, the last the `else`.
+                        let _ = writeln!(s, "        State::S{i}(role) => {{");
+                        let last = branches.len().saturating_sub(1);
+                        for (b, (label, payload, next)) in branches.iter().enumerate() {
+                            let open = if b == 0 {
+                                format!("            if todo!(\"whether to send {label}\") {{")
+                            } else if b < last {
+                                format!("            }} else if todo!(\"whether to send {label}\") {{")
+                            } else {
+                                "            } else {".to_string()
+                            };
+                            let _ = writeln!(s, "{open}");
+                            send(&mut s, "                ", "                ", "", label, payload, *next);
+                        }
+                        let _ = writeln!(s, "            }}");
+                        let _ = writeln!(s, "        }}");
+                    }
+                }
+            }
+            Kind::Recv { from, branches } => {
+                let labels: Vec<&str> = branches.iter().map(|(l, _, _)| l.as_str()).collect();
+                let _ = writeln!(s, "        // S{i}: receive {} from `{from}`.", labels.join(" or "));
+                let _ = writeln!(s, "        State::S{i}(role) => match role.try_recv({}) {{", gate_args.join(", "));
+                // The arms of the messages: of the `Result` itself, or, where
+                // the receive opens a gate, of the outcome once it has.
+                let (pad, wrap) = if opens { ("                    ", ("", "")) } else { ("            ", ("Ok(", ")")) };
+                if opens {
+                    let _ = writeln!(s, "            Ok(received) => {{");
+                    let _ = writeln!(s, "                // The completed receive opens the gate of this Job's operations declared `after = {name}`.");
+                    let _ = writeln!(s, "                cx.{name}_gate.open(&received);");
+                    let _ = writeln!(s, "                match received {{");
+                }
+                for (label, payload, next) in branches {
+                    match payload {
+                        Some(p) => {
+                            let _ = writeln!(s, "{pad}{}RecvS{i}::{label}(m, s{next}){} => {{", wrap.0, wrap.1);
+                            let _ = writeln!(s, "{pad}    todo!(\"use the {label} payload `m`: {p}\");");
+                        }
+                        None => {
+                            let _ = writeln!(s, "{pad}{}RecvS{i}::{label}(s{next}){} => {{", wrap.0, wrap.1);
+                            let _ = writeln!(s, "{pad}    todo!(\"react to {label}\");");
+                        }
+                    }
+                    let _ = writeln!(s, "{pad}    State::S{next}(s{next})");
+                    let _ = writeln!(s, "{pad}}}");
+                }
+                if opens {
+                    let _ = writeln!(s, "                }}");
+                    let _ = writeln!(s, "            }}");
+                }
+                let _ = writeln!(s, "            // Nothing has arrived yet: look again in the next Job.");
+                let _ = writeln!(s, "            Err(NotReceived::Empty(s{i})) => State::S{i}(s{i}),");
+                let _ = writeln!(s, "            // A label this state does not expect (a reported Protocol violation).");
+                let _ = writeln!(s, "            Err(NotReceived::Unexpected(s{i})) => State::S{i}(s{i}),");
+                let _ = writeln!(s, "            // The role's validation function rejected the payload (the sender's reported fault).");
+                let _ = writeln!(s, "            Err(NotReceived::Rejected(s{i})) => State::S{i}(s{i}),");
+                let _ = writeln!(s, "            // The peer's Partition stopped or restarted: both roles start over.");
+                let _ = writeln!(s, "            Err(NotReceived::PeerChanged(s0)) => State::S0(s0),");
+                let _ = writeln!(s, "        }},");
+            }
+        }
+    }
+    let _ = writeln!(s, "        // Only while a Job holds the state; a Job never finds its own slot empty.");
+    let _ = writeln!(s, "        State::Empty => State::Empty,");
+    let _ = writeln!(s, "    }};");
+    let _ = writeln!(s, "    cx.{name}.store(next);");
+    let _ = writeln!(s, "}}");
     s
 }

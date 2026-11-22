@@ -300,7 +300,7 @@ RSK-OK
 | `system/` | The system crate | `rsk_system!()` plus the safe-state function |
 | `part<N>/` (or `part/`) | One crate per Partition | `rsk_partition_<name>!()` plus the Task bodies |
 | `bin/` | The Flight_Build binary | `use rsk_entry as _;` and a 30-line `build.rs` |
-| `gen/` | Generated | Nothing: `cargo xtask gen` writes task_model.json, link.x, memory.x, the manifests and a summary |
+| `gen/` | Generated | Nothing: `cargo xtask gen` writes task_model.json, link.x, memory.x, the manifests, a summary, and starter Task bodies to copy under `skeletons/` |
 
 Why four crates and not one? The memory layout of Section 4.6 is arranged at link time by placing each crate's compiled sections into its Partition's region, which needs one crate per Partition. The declaration is separate because both the system crate and every Partition crate depend on it. The binary is separate because exactly one application may be bound to the Kernel's entry crate at a time.
 
@@ -369,6 +369,7 @@ The responses are `END_JOB`, `RESTART_PARTITION`, `STOP_PARTITION`, `SAFE_STATE`
 
 Create `apps/tutorial/` with the four crates. The declaration crate holds nothing but the block:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex1-decl -->
 ```rust
 // apps/tutorial/decl/src/lib.rs
 #![no_std]
@@ -398,6 +399,7 @@ Line by line:
 
 The Partition crate pulls in its generated manifest and defines one function per Task, named as the Task is, taking the generated context type:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex1-part -->
 ```rust
 // apps/tutorial/part/src/lib.rs
 #![no_std]
@@ -415,6 +417,7 @@ The manifest macro expands to the generated modules (Step 2 lists them). `rsk_ct
 
 The system crate pulls in the other manifest and supplies the safe state the header named. On QEMU the safe state reports over semihosting and exits with 0 when the run went as expected, which is what `cargo xtask qemu` turns into its exit status:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex1-system -->
 ```rust
 // apps/tutorial/system/src/lib.rs
 #![no_std]
@@ -452,7 +455,7 @@ Five edits, all of which the existing applications show:
 4. In `crates/rsk-entry/Cargo.toml` add an optional dependency on the system crate and a feature `app-tutorial = ["dep:tutorial-system"]`; in its `lib.rs` add the `use tutorial_system::Sys;` and `trace_expect` lines under `#[cfg(feature = "app-tutorial")]`, beside the P1 demo's. This is the one edit outside `apps/`.
 5. The bin depends on `rsk-entry` with `default-features = false, features = ["app-tutorial"]`.
 
-Note that this wiring is described from the patterns of `apps/hil-stimulus/` and `apps/p1-demo/`; the `apps/tutorial/` crates are not in the repository, so expect to adjust a path or a feature name on first build.
+Note that this wiring is described from the patterns of `apps/hil-stimulus/` and `apps/p1-demo/`; the `apps/tutorial/` crates are not in the repository, so expect to adjust a path or a feature name on first build. The code blocks themselves are compiled: `xtask/tests/tutorial.rs` builds the declaration, Partition and system crates of each step from the blocks of this document, so what you copy from here compiles against the tree you have.
 
 ### Generate and run
 
@@ -495,7 +498,9 @@ There is no sleep, no wait, no timer you can set, and no way to read a wall cloc
 
 Every loop must have a bound the Profile Lint can see (rule PR-16), because an unbounded loop has no WCET and a Task with no WCET cannot be analysed. A wait on the time base therefore always carries an iteration limit as well:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex2-tick -->
 ```rust
+#[allow(unused_labels)]
 pub fn tick(mut cx: rsk_ctx::Tick) {
     // Busy for 3 ms by the time base, and at most 10,000,000 iterations.
     let start = rsk::now();
@@ -508,7 +513,7 @@ pub fn tick(mut cx: rsk_ctx::Tick) {
 }
 ```
 
-The label `'busy` is optional; it names the loop in the lint's export and the measurement build's loop report. Where the bound is not visible in the guard, annotate the function with `#[rsk::bounds('scan = 8)]` as `xtask/fixtures/api-misuse/ok/src/lib.rs` does.
+The label `'busy` is optional; it names the loop in the lint's export and the measurement build's loop report. The compiler does not know that and warns about a label no `break` uses, hence the `allow`. Where the bound is not visible in the guard, annotate the function with `#[rsk::bounds('scan = 8)]` as `xtask/fixtures/api-misuse/ok/src/lib.rs` does.
 
 The declared Budget of 1 ms is now smaller than the 3 ms the body takes. On QEMU nothing happens, because Budgets are not enforced there. On the nRF52840 the Kernel would end the Job after 1 ms of execution and log an overrun, and `count` would never increment. Raise the Budget to `4.ms()`; the Analyzer would otherwise refuse the configuration once the rig had measured the body.
 
@@ -546,6 +551,7 @@ QEMU does not count cycles, so Budgets are not enforced there and a Job that run
 
 Add a second Task to the Partition of Step 1 with a period that is not a multiple of the first, and an offset that places one release inside the other's work:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex3-decl -->
 ```rust
 state tick.count: u32 = 0;
 state slow.count: u32 = 0;
@@ -563,24 +569,29 @@ Change `slow`'s budget to `2.ms()` and leave its loop at 3 ms. The run is still 
 
 The Kernel keeps `log_capacity` events, each with a kind, a Task and a Partition. The safe state walks them through the kernel handle and decides the exit code. The P1 demo's `report_and_exit` is the full version; the core of it is:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex3-halt -->
 ```rust
 use rsk_kernel::arch::{KernelOps, System};
 use rsk_kernel::logic::log::{EV_DEADLINE_MISS, EV_OPERATING_END, EV_OVERRUN, EV_SAFE_STATE};
 
+#[allow(unused_labels)]
 pub fn halt() -> ! {
     let k = Sys::kernel().get();
     let len = k.log_len();
+    let mut late = 0u32;
     let mut unexpected = 0u32;
     let mut i = 0;
     'events: while i < len {
+        // `k.log_task(i)` and `k.log_partition(i)` say whose event it is.
         let kind = k.log_kind(i);
-        let task = k.log_task(i);
-        if kind != EV_OPERATING_END && kind != EV_SAFE_STATE {
+        if kind == EV_DEADLINE_MISS || kind == EV_OVERRUN {
+            late += 1;
+        } else if kind != EV_OPERATING_END && kind != EV_SAFE_STATE {
             unexpected += 1;
         }
         i += 1;
     }
-    hw::semihosting_exit(if unexpected == 0 { 0 } else { 1 });
+    hw::semihosting_exit(if late == 0 && unexpected == 0 { 0 } else { 1 });
 }
 ```
 
@@ -600,6 +611,7 @@ Tasks of one Partition share state only through a declared `resource`, and only 
 
 `xtask/fixtures/api-misuse/decl/src/lib.rs` is the smallest complete example of all three constructs. Two Resources, a Signal, two periodic Tasks and one sporadic Task released by the Signal:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex4-decl -->
 ```rust
 partition part0 (level = A, crate = api_ok, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
                  fault = RESTART_PARTITION, overrun = RECORD_AND_CONTINUE, deadline_miss = RECORD_ONLY,
@@ -619,6 +631,7 @@ partition part0 (level = A, crate = api_ok, code = 32.KiB(), ram = 32.KiB(), sta
 
 `state` has Ceiling 7 (alpha and beta access it), `other` has Ceiling 7 (alpha alone). The summary lists both. The bodies, from the `ok` member of the same fixture:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex4-bodies -->
 ```rust
 use rsk::Mutex;
 
@@ -672,6 +685,7 @@ A sporadic Task bound to a peripheral with `binds = <name>` is released by that 
 
 The demo's `part1` does this with the dual timer. The declaration:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex5a-decl -->
 ```rust
 partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 32.KiB(), stack = 4.KiB(),
                  fault = STOP_PARTITION, overrun = END_JOB, deadline_miss = RECORD_ONLY,
@@ -687,6 +701,7 @@ partition part1 (level = C, crate = p1_demo_part1, code = 32.KiB(), ram = 32.KiB
 
 The periodic `log` starts the timer in its first Job, and every `pulse` Job clears the interrupt. From `apps/p1-demo/part1/src/lib.rs`:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex5a-bodies -->
 ```rust
 mod pulse_source {
     const DUALTIMER: u32 = 0x4000_2000;
@@ -731,14 +746,16 @@ A second Partition is just another `partition` block with its own crate, a secon
 
 ### Example 5b: a plain Endpoint
 
-An Endpoint is a bounded channel in Kernel-owned storage between two Tasks of any Partitions, over a `Plain` message type: `u32`, arrays and `#[repr(C)]` structs of `Plain` fields with `#[derive(rsk::Plain)]`. From the demo:
+An Endpoint is a bounded channel in Kernel-owned storage between two Tasks of any Partitions, over a `Plain` message type: `u32`, arrays and `#[repr(C)]` structs of `Plain` fields with `#[derive(rsk::Plain)]`. The demo's, without the validation function described below:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex5b-decl -->
 ```rust
 endpoint telemetry: u32 { ctl => part0.control, sink => part1.log ops = 4 } capacity = 4, payload = 4;
 ```
 
 `ops` is how many operations a Job may perform per release (the Analyzer charges each), `capacity` the queue length in each direction, `payload` the bytes per message. The sender and the receiver never wait:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex5b-bodies -->
 ```rust
 // in control
 match cx.telemetry.send(&cx.count.get()) {
@@ -765,6 +782,7 @@ When a message crosses from a lower criticality level to a higher one, the recei
 
 A `protocol` block gives the Endpoint a global session type (Section 4.7), and the generator emits a typestate API per role so that a body can only send and receive what the Protocol allows in its current state. The fixture's `Ping` is the smallest useful one:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex5c-decl -->
 ```rust
 protocol Ping {
     rec L {
@@ -785,8 +803,9 @@ The summary prints the projection onto each role: for `a`, `rec L.b!{Req(u32).b?
 
 Each role's state lives in a slot in the Task's context. A Job takes it out, performs one step, and stores the result back; every method consumes the state and returns the next one, so a wrong sequence is a type error. The `a` role, from the fixture's `ok` member:
 
+<!-- compiled by xtask/tests/tutorial.rs: ex5c-alpha -->
 ```rust
-pub fn alpha(mut cx: rsk_ctx::Alpha) {
+pub fn alpha(cx: rsk_ctx::Alpha) {
     use rsk_roles::ping_a::{NotReceived, NotSent, RecvS1, State};
     let next = match cx.ping.take(State::Empty) {
         State::S0(a) => match a.send_req(1) {
@@ -807,6 +826,102 @@ pub fn alpha(mut cx: rsk_ctx::Alpha) {
 Follow the types. `State::S0(a)` holds a value of the generated type for state 0, which has `send_req` and `send_stop`. On success `send_req` returns the state-1 value, which has only `try_recv`. On failure it hands the state-0 value back inside the error so that nothing is lost and the Job can try again next time. `try_recv` on state 1 either delivers `Rep` with the state-0 value, or an error that returns the state-1 value, or `PeerChanged`, after which the conversation restarts from state 0. Every arm ends in a `State` that is stored back. Try writing `a.try_recv()` in the `S0` arm: the method does not exist on that type.
 
 The `b` role mirrors it: `try_recv` in S0 yields `RecvS0::Req(v, b1)` or `RecvS0::Stop(e)`, and `b1.send_rep(v)` returns to S0. A Job that forgets to `store` the state is a Protocol violation the Kernel logs as event 12. The `protocol_state` and `protocol_reuse` fixture members show the two misuses that fail to compile.
+
+### Starting from a skeleton
+
+You do not have to write that `match` from nothing. For every role of a Protocol-governed Endpoint, `cargo xtask gen` also writes a starter function to `gen/skeletons/<endpoint>_<role>.rs`. It has the shape above with nothing left out: an arm for every state, an arm for every message a receive may deliver, and an arm for every way a send or a receive can fail, each handing its state back. `todo!()` stands wherever the decision is yours. For the `a` role, `gen/skeletons/ping_a.rs` holds this, under a comment that names the Task and prints the projection:
+
+<!-- compiled by xtask/tests/tutorial.rs: skeleton -->
+```rust
+#[allow(unreachable_code, unused_variables, clippy::diverging_sub_expression)]
+pub fn ping_a(cx: &mut rsk_ctx::Alpha) {
+    use rsk_roles::ping_a::{NotReceived, NotSent, RecvS1, State};
+    let next = match cx.ping.take(State::Empty) {
+        // S0: send Req or Stop to `b`.
+        State::S0(role) => {
+            if todo!("whether to send Req") {
+                match role.send_req(todo!("the Req payload: u32")) {
+                    Ok(s1) => State::S1(s1),
+                    // The channel is full (a reported violation of the Protocol's bound): try again.
+                    Err(NotSent::Full(s0)) => State::S0(s0),
+                    // The Kernel refused the send: try again.
+                    Err(NotSent::Refused(s0)) => State::S0(s0),
+                    // The peer's Partition stopped or restarted: both roles start over.
+                    Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                }
+            } else {
+                match role.send_stop() {
+                    Ok(s2) => State::S2(s2),
+                    // The channel is full (a reported violation of the Protocol's bound): try again.
+                    Err(NotSent::Full(s0)) => State::S0(s0),
+                    // The Kernel refused the send: try again.
+                    Err(NotSent::Refused(s0)) => State::S0(s0),
+                    // The peer's Partition stopped or restarted: both roles start over.
+                    Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+                }
+            }
+        }
+        // S1: receive Rep from `b`.
+        State::S1(role) => match role.try_recv() {
+            Ok(RecvS1::Rep(m, s0)) => {
+                todo!("use the Rep payload `m`: u32");
+                State::S0(s0)
+            }
+            // Nothing has arrived yet: look again in the next Job.
+            Err(NotReceived::Empty(s1)) => State::S1(s1),
+            // A label this state does not expect (a reported Protocol violation).
+            Err(NotReceived::Unexpected(s1)) => State::S1(s1),
+            // The role's validation function rejected the payload (the sender's reported fault).
+            Err(NotReceived::Rejected(s1)) => State::S1(s1),
+            // The peer's Partition stopped or restarted: both roles start over.
+            Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
+        },
+        // S2: the Protocol has ended for this role.
+        State::S2(role) => role.finish(),
+        // Only while a Job holds the state; a Job never finds its own slot empty.
+        State::Empty => State::Empty,
+    };
+    cx.ping.store(next);
+}
+```
+
+Copy the function into the Partition crate and call it from the Task body as `ping_a(&mut cx);`. It compiles as it stands, so you can fill it in one `todo!()` at a time; a Job that reaches one panics, so none may remain. The same body filled in, for a Task that sends a request in every round and keeps each reply in its Resource `state`:
+
+<!-- compiled by xtask/tests/tutorial.rs: skeleton-filled -->
+```rust
+pub fn ping_a(cx: &mut rsk_ctx::Alpha) {
+    use rsk_roles::ping_a::{NotReceived, NotSent, RecvS1, State};
+    let next = match cx.ping.take(State::Empty) {
+        // S0: send Req to `b`. This Task never ends the conversation, so
+        // the Stop alternative is gone.
+        State::S0(role) => match role.send_req(1) {
+            Ok(s1) => State::S1(s1),
+            Err(NotSent::Full(s0)) => State::S0(s0),
+            Err(NotSent::Refused(s0)) => State::S0(s0),
+            Err(NotSent::PeerChanged(s0)) => State::S0(s0),
+        },
+        // S1: receive Rep from `b`.
+        State::S1(role) => match role.try_recv() {
+            Ok(RecvS1::Rep(m, s0)) => {
+                cx.state.lock(|v| *v = m);
+                State::S0(s0)
+            }
+            Err(NotReceived::Empty(s1)) => State::S1(s1),
+            Err(NotReceived::Unexpected(s1)) => State::S1(s1),
+            Err(NotReceived::Rejected(s1)) => State::S1(s1),
+            Err(NotReceived::PeerChanged(s0)) => State::S0(s0),
+        },
+        // S2: not reached without a Stop, but the match must cover it.
+        State::S2(role) => role.finish(),
+        State::Empty => State::Empty,
+    };
+    cx.ping.store(next);
+}
+```
+
+Three things changed: the choice in S0 became the one send this Task makes, the payload and the use of the reply were written, and the `allow` attribute was deleted with the last `todo!()`. Every error arm stayed as the skeleton wrote it. No build reads `gen/skeletons/`, and `cargo xtask gen` rewrites the files there whenever the declaration changes, which is why you edit a copy: your code is never overwritten, and after a change to the Protocol the fresh skeleton shows the states your copy must now cover.
+
+For a role declared `after = <endpoint>`, the skeleton does two more things. The gated role's function first tests the gate and returns while it is closed, then hands the gate to each operation; and the skeleton of the same Task's role on the gating Endpoint opens the gate on every completed receive. Call the gating role's function first and the gated one after it in the same Job, as the demo's `log` does with `pingpong` and `relay`.
 
 Three-party Protocols (`triangle` in the demo, where `ctl` chooses, `mid` learns the choice from the label it receives and `sink` sees the merge of both branches), end-to-end `chain` deadlines, and `after = <endpoint>` gating of one role on another's receive are the same machinery with more roles; the demo declaration carries a worked and commented example of each.
 

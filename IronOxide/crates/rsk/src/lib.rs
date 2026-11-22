@@ -392,6 +392,25 @@ pub mod channel {
     pub fn received(id: u8, from: u8, role: u8, w0: u32) -> bool {
         dead
     }
+
+    /// The Kernel answered an operation of `role` on Endpoint `id` with
+    /// the peer-state report (A-P6, R42.3; 2026-11-21): the role's flag
+    /// was set and is cleared, and nothing was sent or received
+    /// (`endpoint_send_core`'s and `endpoint_recv_core`'s contracts).
+    #[logic(opaque)]
+    pub fn peer_told(id: u8, role: u8) -> bool {
+        dead
+    }
+
+    /// The Kernel answered an operation of `role` on Endpoint `id` with
+    /// anything but the peer-state report. A fact of its own and not the
+    /// negation of `peer_told`: both are established by the word-level
+    /// operations below, one per answer, so a role operation can prove
+    /// the one that matches the answer it was given and no other.
+    #[logic(opaque)]
+    pub fn not_told(id: u8, role: u8) -> bool {
+        dead
+    }
 }
 
 impl<const W: usize, V: Validate<[u32; W]>> Endpoint<[u32; W], W, V> {
@@ -402,6 +421,9 @@ impl<const W: usize, V: Validate<[u32; W]>> Endpoint<[u32; W], W, V> {
     /// Kernel's `copy_in` records as the slot's label.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(match result { Ok(()) => channel::sent((*self)@.0, (*self)@.1, peer, (*w)@[0]), Err(_) => true }))]
+    // A-P6 (2026-11-21): the peer-state error is the Kernel's report, and
+    // only that.
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(match result { Err(SendError::PeerChanged) => channel::peer_told((*self)@.0, (*self)@.1), _ => channel::not_told((*self)@.0, (*self)@.1) }))]
     pub fn send_words(&self, peer: u8, w: &[u32; W]) -> Result<(), SendError> {
         self.send_to(peer, w)
     }
@@ -412,6 +434,7 @@ impl<const W: usize, V: Validate<[u32; W]>> Endpoint<[u32; W], W, V> {
     /// held as its oldest label.
     #[cfg_attr(feature = "creusot", creusot_std::macros::trusted)]
     #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(match result { Ok(Some(w)) => channel::received((*self)@.0, peer, (*self)@.1, w@[0]), _ => true }))]
+    #[cfg_attr(feature = "creusot", creusot_std::macros::ensures(match result { Err(RecvError::PeerChanged) => channel::peer_told((*self)@.0, (*self)@.1), _ => channel::not_told((*self)@.0, (*self)@.1) }))]
     pub fn recv_words(&self, peer: u8) -> Result<Option<[u32; W]>, RecvError> {
         self.recv_from(peer)
     }
@@ -1307,5 +1330,124 @@ mod dma_kani {
             assert!(buf.is_lent() == outstanding);
             step += 1;
         }
+    }
+
+    /// R17.5 for sequences of any length (2026-11-21), by induction on the
+    /// operations where the harness above checks every sequence of four.
+    /// The invariant: the buffer's lent flag is set exactly while an
+    /// accepted transfer of it is outstanding (the definition of
+    /// `outstanding` below). The step: from any state of the buffer (any
+    /// flag byte, any bytes), with any transfer value at all in hand (any
+    /// channel, window, buffer address and stop flag: more than Task code
+    /// can construct, the fields being private) and any values of that
+    /// transfer's ENABLE register and STOPPED event, each operation of the
+    /// library
+    ///
+    /// - hands out the bytes exactly when no transfer is outstanding
+    ///   (`bytes`),
+    /// - starts a transfer exactly when none is outstanding, and names this
+    ///   buffer and the channel's peripheral in the value it returns
+    ///   (`lend`),
+    /// - ends "outstanding" only in `reclaim`, only for a transfer value
+    ///   that names this buffer, and only when the peripheral that value
+    ///   names is not enabled or reports STOPPED; any other `reclaim` hands
+    ///   the value back with the buffer still lent,
+    /// - and otherwise leaves the flag alone (keeping a transfer in a
+    ///   `DmaHeld` and taking it out again, which returns the same value
+    ///   once; ending or dropping a transfer without its buffer).
+    ///
+    /// With `a_new_buffer_is_not_lent` as the base case, the invariant holds
+    /// after any number of operations. What stays as in the harness above:
+    /// the supervisor calls and registers are the host doubles (a request
+    /// is always accepted; the refused request returns before the flag is
+    /// written), the wait for STOPPED is two reads, and that a peripheral
+    /// reporting STOPPED has stopped is the vendor's.
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn any_operation_from_any_state_keeps_the_bytes_out_of_reach() {
+        let channel = DmaChannel::generated(kani::any(), WINDOW);
+        let mut buf: DmaBuf<2> = DmaBuf { lent: kani::any(), bytes: kani::any() };
+        let addr = buf.address();
+        let lent0 = buf.lent;
+        // The invariant, as the definition of the ghost.
+        let outstanding = buf.lent != 0;
+        // Any transfer value. Its window stays clear of the two cells the
+        // supervisor-call doubles record their arguments in.
+        let tw: u32 = kani::any();
+        kani::assume(tw <= 0xF000_0000);
+        let (tc, tb, ts): (u8, u32, bool) = (kani::any(), kani::any(), kani::any());
+        let token = DmaTransfer { channel: tc, window: tw, buffer: tb, stop_requested: ts };
+        let enable: u32 = kani::any();
+        let event: u32 = kani::any();
+        mmio::write(tw + spim::ENABLE, enable);
+        mmio::write(tw + spim::EVENTS_STOPPED, event);
+        let at_rest = enable != spim::ENABLED || event != 0;
+        let op: u8 = kani::any();
+        kani::assume(op < 5);
+        if op == 0 {
+            assert!(buf.bytes().is_some() == !outstanding);
+            assert!(buf.lent == lent0);
+        } else if op == 1 {
+            let t = buf.lend(channel);
+            assert!(t.is_some() == !outstanding);
+            match &t {
+                Some(t) => {
+                    assert!(buf.lent != 0);
+                    assert!(t.buffer == addr && t.window == WINDOW && t.channel == channel.index && !t.stop_requested);
+                }
+                None => assert!(buf.lent == lent0),
+            }
+        } else if op == 2 {
+            match buf.reclaim(token) {
+                Ok(()) => {
+                    assert!(outstanding && tb == addr && at_rest);
+                    assert!(buf.lent == 0);
+                }
+                Err(DmaReclaimError::NotStopped(t)) => {
+                    assert!(outstanding && tb == addr && !at_rest);
+                    assert!(buf.lent == lent0);
+                    assert!(t.channel == tc && t.window == tw && t.buffer == tb && t.stop_requested);
+                }
+                Err(DmaReclaimError::NotThisBuffer(t)) => {
+                    assert!(!outstanding || tb != addr);
+                    assert!(buf.lent == lent0);
+                    assert!(t.channel == tc && t.window == tw && t.buffer == tb && t.stop_requested == ts);
+                }
+            }
+            return;
+        } else if op == 3 {
+            // Any holder, holding something or not.
+            let mut held = DmaHeld { present: kani::any(), channel: kani::any(), stop_requested: kani::any(), _unused: 0, window: kani::any(), buffer: kani::any() };
+            held.put(Some(token));
+            assert!(held.is_some());
+            match held.take() {
+                Some(t) => assert!(t.channel == tc && t.window == tw && t.buffer == tb && t.stop_requested == ts),
+                None => assert!(false),
+            }
+            assert!(!held.is_some() && held.take().is_none());
+            assert!(buf.lent == lent0);
+            return;
+        } else {
+            if kani::any() {
+                let _ = token.end();
+            } else {
+                drop(token);
+            }
+            assert!(buf.lent == lent0);
+            return;
+        }
+        drop(token);
+        assert!(buf.lent != 0 || buf.bytes().is_some());
+    }
+
+    /// The base case of the induction above: a new buffer is not lent, its
+    /// bytes are at hand, and a new holder holds nothing.
+    #[kani::proof]
+    fn a_new_buffer_is_not_lent() {
+        let mut buf: DmaBuf<2> = DmaBuf::new();
+        assert!(!buf.is_lent() && buf.lent == 0);
+        assert!(buf.bytes().is_some());
+        let mut held = DmaHeld::none();
+        assert!(!held.is_some() && held.take().is_none());
     }
 }

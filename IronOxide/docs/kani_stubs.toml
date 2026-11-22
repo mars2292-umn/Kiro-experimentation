@@ -88,12 +88,12 @@ validation = "The real assembly is exercised by the QEMU spike and reviewed (UJ-
 [[stub]]
 id = "KS-08"
 name = "sim::ram_read / sim::ram_write"
-replaces = "the raw word leaves of the Endpoint message copy (hw::copy_words, UJ-056; task 21.2)"
+replaces = "the raw word leaves of the Endpoint message copy (hw::ram_word and hw::set_ram_word, UJ-056; task 21.2; since 2026-11-21 the loop over them is Cm4Hw::copy_words, proven by Verus for every length, and hw::copy_words calls it)"
 behaviour = "A table of RAM words: the stub asserts the SRAM-range precondition on every access and keeps the words written."
 hardware_rule = "None (plain RAM)."
 harnesses = ["copy_words_is_total_and_in_bounds"]
 validated = "n/a"
-validation = "The copy runs on the Target in every QEMU and HIL run of the demo's Endpoints; the wrappers copy_in_words and copy_out_words have no harness of their own (the same finding)."
+validation = "The copy runs on the Target in every QEMU and HIL run of the demo's Endpoints. The wrappers copy_in_words and copy_out_words are gone since 2026-11-21: Cm4Hw::copy_in and copy_out are verified bodies over the proven loop and one word read each."
 
 [[stub]]
 id = "KS-09"

@@ -254,7 +254,60 @@ pub fn check_stack_bounds(m: &Model, bounds: &serde_json::Value, out: &mut Outco
 
 /// The `LAYOUT` image extracted from the binary against the Task_Model's
 /// MPU values (R26.2 MPU permissions, R16.7) and its checksums.
+/// The `LAYOUT` image the Task_Model calls for (R16.7, R26.4): every
+/// interval, every window slot (an unused one is `(0, 5)`, not read-only)
+/// and each Partition's stack size, from the model's MPU values.
+pub fn expected_layout(m: &Model) -> Result<LayoutImg, String> {
+    let interval = |r: &Region, what: &str| -> Result<image::IntervalImg, String> {
+        Ok(image::IntervalImg { base: u32::try_from(r.base).map_err(|_| format!("{what}: base 0x{:x} beyond 32 bits", r.base))?, size_log2: r.size_log2, srd: r.srd })
+    };
+    let count = |n: usize, max: usize, what: &str| -> Result<u8, String> {
+        if n > max { Err(format!("{what}: {n} windows, the table has {max} slots")) } else { Ok(n as u8) }
+    };
+    let base = |w: &crate::model::Window, what: &str| u32::try_from(w.region.base).map_err(|_| format!("{what}: a window base beyond 32 bits"));
+    let mut kernel_windows = Vec::new();
+    for k in 0..image::MAX_KERNEL_WINDOWS {
+        kernel_windows.push(match m.kernel_windows.get(k) {
+            Some(w) => (base(w, "the Kernel")?, w.region.size_log2),
+            None => (0, 5),
+        });
+    }
+    let mut partitions = Vec::new();
+    for part in &m.partitions {
+        let mut windows = Vec::new();
+        for w in 0..image::MAX_WINDOWS {
+            windows.push(match part.windows.get(w) {
+                Some(win) => (base(win, &part.id)?, win.region.size_log2, win.read_only),
+                None => (0, 5, false),
+            });
+        }
+        partitions.push(image::PartitionLayoutImg {
+            code: interval(&part.code, &part.id)?,
+            ram: interval(&part.ram, &part.id)?,
+            stack_size: u32::try_from(part.stack).map_err(|_| format!("{}: stack size beyond 32 bits", part.id))?,
+            window_count: count(part.windows.len(), image::MAX_WINDOWS, &part.id)?,
+            windows,
+        });
+    }
+    Ok(LayoutImg {
+        kernel_flash: interval(&m.kernel_flash, "kernel_flash")?,
+        shared_code: interval(&m.shared_code, "shared_code")?,
+        kernel_ram: interval(&m.kernel_ram, "kernel_ram")?,
+        kernel_window_count: count(m.kernel_windows.len(), image::MAX_KERNEL_WINDOWS, "the Kernel")?,
+        kernel_windows,
+        partitions,
+    })
+}
+
 pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outcome) {
+    // The verdict (2026-11-21): the image is, byte for byte, the encoding of
+    // the layout the Task_Model calls for (`image_v::layout_image_is`,
+    // proven). The items after it name the fields for the reader.
+    let whole = "LAYOUT image as a whole (R16.7, R26.4)";
+    match expected_layout(m) {
+        Ok(expected) => out.require(whole, crate::image_v::layout_image_is(&img.bytes, &expected), "the encoding of the layout the Task_Model calls for", "another image (the items that follow name the fields)"),
+        Err(why) => out.require(whole, false, "a layout that the Task_Model's values fit", why),
+    }
     let computed = image::crc32(&img.bytes);
     out.mismatch("RSK_LAYOUT_CHECKSUM (CRC-32 of the extracted image)", format!("0x{computed:08x}"), format!("0x{:08x}", img.stored_checksum));
     out.mismatch("task_model.layout_checksum", format!("0x{computed:08x}"), format!("0x{:08x}", m.layout_checksum));
@@ -288,9 +341,70 @@ pub fn check_layout_binary(m: &Model, img: &Image, l: &LayoutImg, out: &mut Outc
     }
 }
 
+/// The `CONFIG` tables the Task_Model calls for (R26.4): every field of
+/// every entry from the declared values, the Ceilings recomputed from the
+/// accessors' Priorities, the slot count from the Task count. `Err` names
+/// the first value that has no place in the Kernel's table.
+pub fn expected_tables(m: &Model) -> Result<Tables, String> {
+    fn narrow<T: TryFrom<u64>>(v: u64, what: &str) -> Result<T, String> {
+        T::try_from(v).map_err(|_| format!("{what} = {v} does not fit the table's field"))
+    }
+    let partition_of = |id: &str, what: &str| m.partition_index(id).and_then(|p| u8::try_from(p).ok()).ok_or_else(|| format!("{what}: no Partition `{id}`"));
+    let mut tasks = Vec::new();
+    let mut access = Vec::new();
+    let (mut slot_release, mut slot_deadline, mut slot_budget) = (Vec::new(), Vec::new(), Vec::new());
+    for task in &m.tasks {
+        tasks.push(image::TaskCfg {
+            priority: narrow(task.priority, "priority")?,
+            partition: partition_of(&task.partition, &task.id)?,
+            kind: if task.sporadic { image::KIND_SPORADIC } else { image::KIND_PERIODIC },
+            offset: task.offset_ticks,
+            period: task.period_ticks,
+            deadline: task.deadline_ticks,
+            budget: narrow(task.budget_cycles, "budget")?,
+            mit_policy: match task.mit_policy.as_deref() {
+                Some("discard") => image::MIT_DISCARD,
+                _ => image::MIT_DEFER,
+            },
+            fpu: task.fpu,
+        });
+        access.push(m.resources.iter().map(|res| res.accessors.contains(&task.id)).collect());
+        slot_release.push(narrow(task.slot_release, "slot_release")?);
+        slot_deadline.push(narrow(task.slot_deadline, "slot_deadline")?);
+        slot_budget.push(narrow(task.slot_budget, "slot_budget")?);
+    }
+    let mut resources = Vec::new();
+    for res in &m.resources {
+        let ceiling = res.accessors.iter().filter_map(|a| m.task_index(a)).map(|i| m.tasks[i].priority).max().unwrap_or(0);
+        resources.push(image::ResourceCfg { ceiling: narrow(ceiling, "ceiling")?, partition: partition_of(&res.partition, &res.id)? });
+    }
+    let mut partitions = Vec::new();
+    for part in &m.partitions {
+        let response = |name: &str| image::response_code(name).ok_or_else(|| format!("Partition `{}`: no response `{name}`", part.id));
+        partitions.push(image::PartitionCfg {
+            level: image::level_code(&part.level).ok_or_else(|| format!("Partition `{}`: no level `{}`", part.id, part.level))?,
+            fault_response: response(&part.fault)?,
+            overrun_response: response(&part.overrun)?,
+            deadline_response: response(&part.deadline_miss)?,
+            mit_threshold: narrow(part.mit_threshold, "mit_threshold")?,
+        });
+    }
+    let slot_count = narrow(3 * m.tasks.len() as u64 + 2, "slot_count")?;
+    Ok(Tables { tasks, resources, access, partitions, operating_duration: m.operating_duration_ticks, slot_release, slot_deadline, slot_budget, slot_count })
+}
+
 /// The tables extracted from the binary against the declared values
 /// (R26.4), and the checksums (R25.2).
 pub fn check_binary(m: &Model, img: &Image, t: &Tables, out: &mut Outcome) {
+    // The verdict (2026-11-21): the image is, byte for byte, the encoding of
+    // the tables the Task_Model calls for (`image_v::image_is`, proven:
+    // every byte read in order, none left over, every field of every entry
+    // compared). The items after it name the fields for the reader.
+    let item = "CONFIG image as a whole (R26.4)";
+    match expected_tables(m) {
+        Ok(expected) => out.require(item, crate::image_v::image_is(&img.bytes, &expected), "the encoding of the tables the Task_Model calls for", "another image (the items that follow name the fields)"),
+        Err(why) => out.require(item, false, "tables that the Task_Model's values fit", why),
+    }
     let computed = image::crc32(&img.bytes);
     out.mismatch("RSK_CONFIG_CHECKSUM (CRC-32 of the extracted image)", format!("0x{computed:08x}"), format!("0x{:08x}", img.stored_checksum));
     out.mismatch("task_model.config_checksum", format!("0x{computed:08x}"), format!("0x{:08x}", m.config_checksum));
@@ -350,7 +464,55 @@ pub fn check_binary(m: &Model, img: &Image, t: &Tables, out: &mut Outcome) {
 /// payload as declared, the role Tasks and their Partitions by the model's
 /// indices, the arrival-release flags from the Tasks' sources, and the
 /// storage offsets as the running sum of `2 * capacity * payload`.
+/// The Endpoint table the Task_Model calls for (task 21.2, R26.4), with
+/// the storage size: recomputed as `check_endpoints` describes.
+pub fn expected_endpoints(m: &Model) -> Result<(Vec<image::EndpointCfg>, u32), String> {
+    let mut out = Vec::new();
+    let mut offset: u64 = 0;
+    for e in &m.endpoints {
+        if !(2..=image::MAX_ROLES).contains(&e.roles.len()) {
+            return Err(format!("Endpoint `{}`: {} roles", e.id, e.roles.len()));
+        }
+        let part_of = |r: usize| e.roles.get(r).and_then(|(task, _)| m.task_index(task)).and_then(|t| m.partition_index(&m.tasks[t].partition));
+        let (mut tasks, mut partitions, mut release, mut validates) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for r in 0..image::MAX_ROLES {
+            let ti = e.roles.get(r).and_then(|(task, _)| m.task_index(task));
+            tasks.push(ti.map_or(255, |t| t as u8));
+            partitions.push(part_of(r).map_or(255, |p| p as u8));
+            release.push(e.roles.get(r).is_some_and(|(_, release)| *release));
+            let mut row = Vec::new();
+            for f in 0..image::MAX_ROLES {
+                row.push(match (part_of(r), part_of(f)) {
+                    (Some(pr), Some(pf)) => e.validating.get(r).copied().unwrap_or(false) && pr != pf && m.partitions[pr].level < m.partitions[pf].level,
+                    _ => false,
+                });
+            }
+            validates.push(row);
+        }
+        out.push(image::EndpointCfg {
+            capacity: u8::try_from(e.capacity).map_err(|_| format!("Endpoint `{}`: capacity {}", e.id, e.capacity))?,
+            payload: u16::try_from(e.payload_bytes).map_err(|_| format!("Endpoint `{}`: payload {}", e.id, e.payload_bytes))?,
+            roles: e.roles.len() as u8,
+            tasks,
+            partitions,
+            release,
+            storage: u32::try_from(offset).map_err(|_| format!("Endpoint `{}`: storage offset {offset}", e.id))?,
+            validates,
+        });
+        offset += (e.roles.len() * e.roles.len()) as u64 * e.capacity * e.payload_bytes;
+    }
+    Ok((out, u32::try_from(offset).map_err(|_| format!("Endpoint storage of {offset} bytes"))?))
+}
+
 pub fn check_endpoints(m: &Model, img: &Image, table: &[image::EndpointCfg], storage_bytes: u32, out: &mut Outcome) {
+    // The verdict (2026-11-21): the image is, byte for byte, the encoding of
+    // the table the Task_Model calls for (`image_v::endpoint_image_is`,
+    // proven). The items after it name the fields for the reader.
+    let whole = "ENDPOINT image as a whole (R26.4)";
+    match expected_endpoints(m) {
+        Ok((expected, bytes)) => out.require(whole, crate::image_v::endpoint_image_is(&img.bytes, &expected, bytes), "the encoding of the Endpoint table the Task_Model calls for", "another image (the items that follow name the fields)"),
+        Err(why) => out.require(whole, false, "an Endpoint table that the Task_Model's values fit", why),
+    }
     let computed = image::crc32(&img.bytes);
     out.mismatch("RSK_ENDPOINT_CHECKSUM (CRC-32 of the extracted image)", format!("0x{computed:08x}"), format!("0x{:08x}", img.stored_checksum));
     out.mismatch("ENDPOINTS.count", m.endpoints.len(), table.len());

@@ -1,7 +1,8 @@
 //! `rsk-gen` CLI (task 10.6): runs the Generator on a declaration crate's
 //! source and writes the Task_Model JSON (R25), the linker script and
 //! memory map, the MPU layout report, the configuration summary (R24.3),
-//! and, for review, the manifests the `rsk::app!` macro expands to. Output
+//! for review, the manifests the `rsk::app!` macro expands to, and a starter
+//! Task body per Protocol role under `skeletons/` (to copy, never compiled). Output
 //! is byte-identical for identical inputs (R24.4); `--check` compares the
 //! files on disk with what the Generator produces and fails on any
 //! difference (the Build_System's drift check).
@@ -86,8 +87,18 @@ fn main() -> ExitCode {
     for (name, src) in &outputs.partition_sources {
         files.push((format!("partition_{name}.rs"), src.clone()));
     }
+    // The starter Task bodies, for the user to copy: no build reads them.
+    for sk in &outputs.skeletons {
+        files.push((sk.file_name(), sk.source.clone()));
+    }
+    let names: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
+    let stale = rsk_gen::stale_skeletons(&out, &names);
     if check {
         let mut drift = 0;
+        for path in &stale {
+            eprintln!("rsk-gen: {} is not among the Generator's outputs (run rsk-gen without --check, which removes it)", path.display());
+            drift += 1;
+        }
         for (name, content) in &files {
             let path = out.join(name);
             match std::fs::read_to_string(&path) {
@@ -113,10 +124,24 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     }
     for (name, content) in &files {
+        if let Some(dir) = out.join(name).parent() {
+            if let Err(e) = std::fs::create_dir_all(dir) {
+                eprintln!("rsk-gen: cannot create {}: {e}", dir.display());
+                return ExitCode::from(2);
+            }
+        }
         if let Err(e) = write_if_changed(&out.join(name), content) {
             eprintln!("rsk-gen: {e}");
             return ExitCode::from(2);
         }
+    }
+    // The skeleton of a role or an Endpoint the declaration no longer has.
+    for path in &stale {
+        if let Err(e) = std::fs::remove_file(path) {
+            eprintln!("rsk-gen: cannot remove {}: {e}", path.display());
+            return ExitCode::from(2);
+        }
+        println!("rsk-gen: removed {} (no longer generated)", path.display());
     }
     println!("rsk-gen: wrote {} files to {}", files.len(), out.display());
     ExitCode::SUCCESS

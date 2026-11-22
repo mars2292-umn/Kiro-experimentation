@@ -47,11 +47,6 @@ pub fn level_code(name: &str) -> Option<u8> {
     })
 }
 
-/// `MAX_WINDOWS` of the Kernel's `PartitionLayout`.
-pub const MAX_WINDOWS: usize = 5;
-/// `MAX_KERNEL_WINDOWS` of the Kernel's `Layout` (R16.2).
-pub const MAX_KERNEL_WINDOWS: usize = 8;
-
 /// An image as found in the binary.
 pub struct Image {
     pub address: u32,
@@ -103,51 +98,11 @@ pub fn extract_endpoints(elf_bytes: &[u8]) -> Result<Option<Image>, String> {
     }
 }
 
-/// One Endpoint of the Kernel's table (task 21.2), as `rsk_gen::derive::endpoint_bytes` encodes it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EndpointCfg {
-    pub capacity: u8,
-    pub payload: u16,
-    /// Task 21.7: the role count; the arrays carry `MAX_ROLES` = 4 slots.
-    pub roles: u8,
-    pub tasks: [u8; 4],
-    pub partitions: [u8; 4],
-    pub release: [bool; 4],
-    pub storage: u32,
-    /// R42.4 (audit finding 2): `validates[r][f]`, the edges on which the
-    /// Kernel accepts a rejection report of role `r` against role `f`.
-    pub validates: [[bool; 4]; 4],
-}
-
-/// Decodes the Endpoint image: the count, the entries, the storage bytes.
+/// Decodes the Endpoint image: the count, the entries, the storage bytes
+/// (`image_v::decode_endpoint_image`, proven to accept exactly the
+/// encoding of what it returns).
 pub fn decode_endpoints(bytes: &[u8]) -> Result<(Vec<EndpointCfg>, u32), String> {
-    let mut r = Reader { bytes, pos: 0 };
-    let n = r.u32()? as usize;
-    if n > 8 {
-        return Err(format!("endpoint image: implausible count {n}"));
-    }
-    let mut out = Vec::with_capacity(n);
-    for _ in 0..n {
-        let capacity = r.u8()?;
-        let payload = u16::from_le_bytes([r.u8()?, r.u8()?]);
-        let roles = r.u8()?;
-        let tasks = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
-        let partitions = [r.u8()?, r.u8()?, r.u8()?, r.u8()?];
-        let release = [r.u8()? != 0, r.u8()? != 0, r.u8()? != 0, r.u8()? != 0];
-        let storage = r.u32()?;
-        let mut validates = [[false; 4]; 4];
-        for row in validates.iter_mut() {
-            for cell in row.iter_mut() {
-                *cell = r.u8()? != 0;
-            }
-        }
-        out.push(EndpointCfg { capacity, payload, roles, tasks, partitions, release, storage, validates });
-    }
-    let storage_bytes = r.u32()?;
-    if r.pos != bytes.len() {
-        return Err(format!("endpoint image: {} trailing bytes after the table", bytes.len() - r.pos));
-    }
-    Ok((out, storage_bytes))
+    crate::image_v::decode_endpoint_image(bytes).map_err(|e| refusal("endpoint image", e))
 }
 
 /// Locates and reads `RSK_LAYOUT_IMAGE` and `RSK_LAYOUT_CHECKSUM`.
@@ -155,75 +110,21 @@ pub fn extract_layout(elf_bytes: &[u8]) -> Result<Image, String> {
     extract_named(elf_bytes, "RSK_LAYOUT_IMAGE", "RSK_LAYOUT_CHECKSUM")
 }
 
-/// An interval of the `LAYOUT` image.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IntervalImg {
-    pub base: u32,
-    pub size_log2: u8,
-    pub srd: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PartitionLayoutImg {
-    pub code: IntervalImg,
-    pub ram: IntervalImg,
-    pub stack_size: u32,
-    pub window_count: u8,
-    /// `MAX_WINDOWS` slots, (base, size_log2); unused slots are (0, 5).
-    /// `MAX_WINDOWS` slots, (base, size_log2, read-only); unused slots are (0, 5, false).
-    pub windows: Vec<(u32, u8, bool)>,
-}
-
-/// The decoded `LAYOUT` image.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LayoutImg {
-    pub kernel_flash: IntervalImg,
-    pub shared_code: IntervalImg,
-    pub kernel_ram: IntervalImg,
-    pub kernel_window_count: u8,
-    /// `MAX_KERNEL_WINDOWS` slots, (base, size_log2); unused slots are (0, 5).
-    pub kernel_windows: Vec<(u32, u8)>,
-    pub partitions: Vec<PartitionLayoutImg>,
-}
-
-/// Decodes the `LAYOUT` image (`rsk_kernel::arch::layout_crc` order).
+/// Decodes the `LAYOUT` image (`rsk_kernel::arch::layout_crc` order;
+/// `image_v::decode_layout_image`, proven to accept exactly the encoding
+/// of what it returns).
 pub fn decode_layout(bytes: &[u8]) -> Result<LayoutImg, String> {
-    let mut r = Reader { bytes, pos: 0 };
-    let interval = |r: &mut Reader| -> Result<IntervalImg, String> {
-        Ok(IntervalImg { base: r.u32()?, size_log2: r.u8()?, srd: r.u8()? })
-    };
-    let kernel_flash = interval(&mut r)?;
-    let shared_code = interval(&mut r)?;
-    let kernel_ram = interval(&mut r)?;
-    let kernel_window_count = r.u8()?;
-    let mut kernel_windows = Vec::with_capacity(MAX_KERNEL_WINDOWS);
-    for _ in 0..MAX_KERNEL_WINDOWS {
-        kernel_windows.push((r.u32()?, r.u8()?));
+    crate::image_v::decode_layout_image(bytes).map_err(|e| refusal("layout image", e))
+}
+
+/// A decoder's refusal, in words.
+fn refusal(image: &str, e: DecodeError) -> String {
+    match e {
+        DecodeError::TooShort => "image too short".to_string(),
+        DecodeError::Counts => format!("{image}: implausible table sizes"),
+        DecodeError::Flag(at) => format!("{image}: the flag byte at offset {at} is neither 0 nor 1"),
+        DecodeError::Trailing(n) => format!("{image}: {n} trailing bytes after the tables"),
     }
-    let np = r.u32()? as usize;
-    if np > 255 {
-        return Err(format!("layout image: implausible NP={np}"));
-    }
-    let mut partitions = Vec::with_capacity(np);
-    for _ in 0..np {
-        let code = interval(&mut r)?;
-        let ram = interval(&mut r)?;
-        let stack_size = r.u32()?;
-        let window_count = r.u8()?;
-        let mut windows = Vec::with_capacity(MAX_WINDOWS);
-        for _ in 0..MAX_WINDOWS {
-            let (base, size_log2, ro) = (r.u32()?, r.u8()?, r.u8()?);
-            if ro > 1 {
-                return Err(format!("layout image: a window's read-only byte is {ro}"));
-            }
-            windows.push((base, size_log2, ro == 1));
-        }
-        partitions.push(PartitionLayoutImg { code, ram, stack_size, window_count, windows });
-    }
-    if r.pos != bytes.len() {
-        return Err(format!("layout image: {} trailing bytes", bytes.len() - r.pos));
-    }
-    Ok(LayoutImg { kernel_flash, shared_code, kernel_ram, kernel_window_count, kernel_windows, partitions })
 }
 
 /// CRC-32 (IEEE 802.3, reflected, init and final XOR all ones) over `bytes`.
@@ -239,138 +140,19 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TaskCfg {
-    pub priority: u8,
-    pub partition: u8,
-    pub kind: u8,
-    pub offset: u64,
-    pub period: u64,
-    pub deadline: u64,
-    pub budget: u32,
-    pub mit_policy: u8,
-    pub fpu: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResourceCfg {
-    pub ceiling: u8,
-    pub partition: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PartitionCfg {
-    pub level: u8,
-    pub fault_response: u8,
-    pub overrun_response: u8,
-    pub deadline_response: u8,
-    pub mit_threshold: u32,
-}
-
-/// The decoded `CONFIG` tables.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Tables {
-    pub tasks: Vec<TaskCfg>,
-    pub resources: Vec<ResourceCfg>,
-    /// `access[t][r]`
-    pub access: Vec<Vec<bool>>,
-    pub partitions: Vec<PartitionCfg>,
-    pub operating_duration: u64,
-    pub slot_release: Vec<u8>,
-    pub slot_deadline: Vec<u8>,
-    pub slot_budget: Vec<u8>,
-    pub slot_count: u8,
-}
-
-struct Reader<'a> {
-    bytes: &'a [u8],
-    pos: usize,
-}
-
-impl Reader<'_> {
-    fn u8(&mut self) -> Result<u8, String> {
-        let b = *self.bytes.get(self.pos).ok_or("image too short")?;
-        self.pos += 1;
-        Ok(b)
-    }
-    fn u32(&mut self) -> Result<u32, String> {
-        Ok(u32::from_le_bytes([self.u8()?, self.u8()?, self.u8()?, self.u8()?]))
-    }
-    fn u64(&mut self) -> Result<u64, String> {
-        let lo = self.u32()? as u64;
-        let hi = self.u32()? as u64;
-        Ok(lo | (hi << 32))
-    }
-}
+pub use crate::image_v::{DecodeError, EndpointCfg, IntervalImg, LayoutImg, PartitionCfg, PartitionLayoutImg, ResourceCfg, Tables, TaskCfg, MAX_KERNEL_WINDOWS, MAX_ROLES, MAX_WINDOWS};
 
 /// Decodes the image in the Kernel's byte order (`config_crc`): NT, NR, NP
 /// as u32; per Task priority, partition, kind, offset, period, deadline
 /// (u64), budget (u32), mit_policy, fpu; per Resource ceiling, partition;
 /// the access matrix Task-major; per Partition level, fault, overrun,
 /// deadline responses, mit_threshold (u32); operating_duration (u64); the
-/// three slot tables; slot_count.
+/// three slot tables; slot_count. The decoding is `image_v::decode_tables`,
+/// proven to accept exactly the encoding of the tables it returns (since
+/// 2026-11-21 a flag byte other than 0 or 1 is refused); this function
+/// words its refusals.
 pub fn decode(bytes: &[u8]) -> Result<Tables, String> {
-    let mut r = Reader { bytes, pos: 0 };
-    let nt = r.u32()? as usize;
-    let nr = r.u32()? as usize;
-    let np = r.u32()? as usize;
-    if nt > 255 || nr > 255 || np > 255 {
-        return Err(format!("image: implausible table sizes NT={nt} NR={nr} NP={np}"));
-    }
-    let mut tasks = Vec::with_capacity(nt);
-    for _ in 0..nt {
-        tasks.push(TaskCfg {
-            priority: r.u8()?,
-            partition: r.u8()?,
-            kind: r.u8()?,
-            offset: r.u64()?,
-            period: r.u64()?,
-            deadline: r.u64()?,
-            budget: r.u32()?,
-            mit_policy: r.u8()?,
-            fpu: r.u8()? != 0,
-        });
-    }
-    let mut resources = Vec::with_capacity(nr);
-    for _ in 0..nr {
-        resources.push(ResourceCfg { ceiling: r.u8()?, partition: r.u8()? });
-    }
-    let mut access = Vec::with_capacity(nt);
-    for _ in 0..nt {
-        let mut row = Vec::with_capacity(nr);
-        for _ in 0..nr {
-            row.push(r.u8()? != 0);
-        }
-        access.push(row);
-    }
-    let mut partitions = Vec::with_capacity(np);
-    for _ in 0..np {
-        partitions.push(PartitionCfg {
-            level: r.u8()?,
-            fault_response: r.u8()?,
-            overrun_response: r.u8()?,
-            deadline_response: r.u8()?,
-            mit_threshold: r.u32()?,
-        });
-    }
-    let operating_duration = r.u64()?;
-    let mut slot_release = Vec::with_capacity(nt);
-    for _ in 0..nt {
-        slot_release.push(r.u8()?);
-    }
-    let mut slot_deadline = Vec::with_capacity(nt);
-    for _ in 0..nt {
-        slot_deadline.push(r.u8()?);
-    }
-    let mut slot_budget = Vec::with_capacity(nt);
-    for _ in 0..nt {
-        slot_budget.push(r.u8()?);
-    }
-    let slot_count = r.u8()?;
-    if r.pos != bytes.len() {
-        return Err(format!("image: {} trailing bytes after the tables", bytes.len() - r.pos));
-    }
-    Ok(Tables { tasks, resources, access, partitions, operating_duration, slot_release, slot_deadline, slot_budget, slot_count })
+    crate::image_v::decode_tables(bytes).map_err(|e| refusal("image", e))
 }
 
 #[cfg(test)]
@@ -409,7 +191,62 @@ mod tests {
         assert!(t.access[0][0]);
         assert_eq!(t.partitions[0].mit_threshold, 10);
         assert_eq!(t.slot_count, 5);
+        // R26.4 (2026-11-21): the image is the encoding of the decoded
+        // tables and of no others: with any one byte changed it is not.
+        assert!(crate::image_v::image_is(&img, &t));
+        for at in 0..img.len() {
+            let mut other = img.clone();
+            other[at] ^= 1;
+            assert!(!crate::image_v::image_is(&other, &t), "byte {at} does not matter to the comparison");
+        }
+        // A flag byte is 0 or 1 (the Task's floating-point flag, byte 44).
+        let mut flag = img.clone();
+        flag[44] = 2;
+        assert!(decode(&flag).unwrap_err().contains("flag byte at offset 44"));
         img.push(0);
         assert!(decode(&img).unwrap_err().contains("trailing"));
+    }
+
+    /// R16.7, R26.4: a `LAYOUT` image and an Endpoint image are the
+    /// encodings of what they decode to and of nothing else: every byte
+    /// matters to the whole-image comparison.
+    #[test]
+    fn every_byte_of_a_layout_and_an_endpoint_image_matters() {
+        // Three Kernel intervals, the window count, eight window slots, one
+        // Partition: two intervals, the stack size, the window count, five
+        // window slots (the last byte of each a flag).
+        let mut layout: Vec<u8> = (0..18u8).collect();
+        layout.push(2);
+        layout.extend((0..40u8).map(|b| b.wrapping_mul(7)));
+        layout.extend_from_slice(&1u32.to_le_bytes());
+        layout.extend((0..17u8).map(|b| b.wrapping_mul(3)));
+        for w in 0..5u8 {
+            layout.extend_from_slice(&[w, 1, 2, 3, 5, w % 2]);
+        }
+        let l = decode_layout(&layout).unwrap();
+        assert_eq!((l.kernel_windows.len(), l.partitions[0].windows.len()), (MAX_KERNEL_WINDOWS, MAX_WINDOWS));
+        assert!(crate::image_v::layout_image_is(&layout, &l));
+        for at in 0..layout.len() {
+            let mut other = layout.clone();
+            other[at] ^= 1;
+            assert!(!crate::image_v::layout_image_is(&other, &l), "layout byte {at} does not matter");
+        }
+
+        // One Endpoint: capacity, payload, roles, four Tasks, four
+        // Partitions, four release flags, the storage offset, sixteen
+        // validation flags; then the storage bytes.
+        let mut ep = 1u32.to_le_bytes().to_vec();
+        ep.extend_from_slice(&[2, 8, 0, 2, 0, 1, 255, 255, 0, 1, 255, 255, 1, 0, 0, 0]);
+        ep.extend_from_slice(&0u32.to_le_bytes());
+        ep.extend((0..16u8).map(|b| b % 2));
+        ep.extend_from_slice(&64u32.to_le_bytes());
+        let (table, storage) = decode_endpoints(&ep).unwrap();
+        assert_eq!((table[0].payload, table[0].validates[0][1], storage), (8, true, 64));
+        assert!(crate::image_v::endpoint_image_is(&ep, &table, storage));
+        for at in 0..ep.len() {
+            let mut other = ep.clone();
+            other[at] ^= 1;
+            assert!(!crate::image_v::endpoint_image_is(&other, &table, storage), "endpoint byte {at} does not matter");
+        }
     }
 }

@@ -399,7 +399,7 @@ reviewed_on = "2026-11-07"
 
 [[justification]]
 id = "UJ-056"
-summary = "copy_words's RAM word leaves: the Endpoint message copy (task 21.2)"
+summary = "The RAM word leaves of the Endpoint message copy (task 21.2; behind hw::ram_word and hw::set_ram_word since 2026-11-21, the loop over them proven by Verus as Cm4Hw::copy_words)"
 kind = "kani"
 link = "copy_words_is_total_and_in_bounds"
 

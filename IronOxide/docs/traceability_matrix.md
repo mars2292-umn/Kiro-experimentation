@@ -132,7 +132,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R9.3 | P-07 | Ceiling-Protocol State Machine; Property 7 | ✓4.5 | crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs | proof-kernel-verus |
 | R9.4 | P-09 | Generated_Config; Kernel logic and Kernel_Arch (Component B); Property 11 | ✓4.5 | crates/rsk-analyzer/src/terms.rs; crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/lib.rs; +8 | proof-kernel-verus |
 | R9.5 | P-07 | Property 7 | ✓4.5 | crates/rsk-gen/src/validate.rs; crates/rsk-hil/src/release_timing.rs; crates/rsk-kernel/src/arch/cm4/entry.rs; +4 | proof-kernel-verus |
-| R9.6 | — | Requirements Impact | ✓4.5 | crates/rsk-hil/src/release_timing.rs; crates/rsk-hil/src/response.rs; crates/rsk-logic/src/logic/kani_harness.rs; +3 | proof-kernel-kani; test-workspace-tests |
+| R9.6 | — | Requirements Impact | ✓4.5 | crates/rsk-hil/src/release_timing.rs; crates/rsk-hil/src/response.rs; crates/rsk-kernel/src/arch/bound.rs; +4 | proof-kernel-kani; test-workspace-tests |
 | R9.7 | P-08 | Priority and privilege model (DD-01, DD-02); Property 8; Reuse and Deviation Record | ✓4.5 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +7 | proof-kernel-kani; proof-kernel-verus |
 | R9.8 | P-08 | Ceiling-Protocol State Machine; Property 8 | ✓4.5 | apps/p1-demo/decl/src/nrf52840_timing.rs; apps/p1-demo/decl/src/nrf52840_timing_short.rs; apps/p1-demo/part0/src/lib.rs; +5 | proof-kernel-verus |
 | R9.9 | — | Generated_Config; Interrupt intake and MIT enforcement (DD-06) | ✓4.5 | apps/p1-demo/system/src/lib.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; +3 | proof-kernel-kani; proof-kernel-verus |
@@ -142,11 +142,11 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R10.1 | P-08 | Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.14; ✓4.6 | crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; +3 | proof-kernel-kani; proof-kernel-verus |
-| R10.2 | P-08 | Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.14; ✓4.6 | crates/rsk-analyzer/src/lib.rs; crates/rsk-gen/src/syntax.rs; crates/rsk-logic/src/logic/history.rs; +7 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
-| R10.3 | P-08 | Ceiling-Protocol State Machine; Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.6 | crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; crates/rsk-logic/src/logic/time.rs; +4 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
+| R10.1 | P-08 | Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.14; ✓4.6 | crates/rsk-kernel/src/arch/bound.rs; crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kani_harness.rs; +4 | proof-kernel-kani; proof-kernel-verus |
+| R10.2 | P-08 | Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.14; ✓4.6 | crates/rsk-analyzer/src/lib.rs; crates/rsk-gen/src/syntax.rs; crates/rsk-kernel/src/arch/bound.rs; +8 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
+| R10.3 | P-08 | Ceiling-Protocol State Machine; Interrupt intake and MIT enforcement (DD-06); Property 8 | ✓4.6 | crates/rsk-kernel/src/arch/bound.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs; +5 | proof-kernel-kani; proof-kernel-verus; test-workspace-tests |
 | R10.4 | P-08 | Open Research Question Dispositions; Property 8 | ✓4.6 | crates/rsk-logic/src/logic/history.rs; crates/rsk-logic/src/logic/kani_harness.rs; crates/rsk-logic/src/logic/kernel.rs | proof-kernel-kani; proof-kernel-verus |
-| R10.5 | — | Application API (`rsk`); Reuse and Deviation Record | ✓4.6 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840_coverage/partition_part0.rs; +21 | — |
+| R10.5 | — | Application API (`rsk`); Reuse and Deviation Record | ✓4.6 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; apps/p1-demo/gen-nrf52840_coverage/partition_part0.rs; +22 | — |
 | R10.6 | — | — | ✓4.6 | xtask/src/rig_records.rs; xtask/src/verify.rs | measure-kernel-timing-nrf52840_measure (inconclusive); measure-kernel-timing-nrf52840_stress; measure-kernel-timing-nrf52840_stress_short; measure-kernel-timing-nrf52840_timing; measure-kernel-timing-nrf52840_timing_short (inconclusive) |
 | R10.7 | P-08 | Application API (`rsk`); Endpoint_Library and Protocol_Checker (Component F); Property 8 | ✓4.6 | crates/rsk-kernel/src/arch/cm4/entry.rs; crates/rsk-kernel/src/arch/cm4/plan.rs; crates/rsk-kernel/unsafe_justifications.toml; +4 | proof-kernel-kani; proof-kernel-verus |
 | R10.8 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | crates/rsk-analyzer/src/lib.rs; crates/rsk-kernel/src/arch/cm4/entry.rs | — |
@@ -225,7 +225,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R16.4 | P-16 | — | ✓5.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-hil/src/isolation.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; +3 | hil-mpu-matrix; hil-spike-p1-demo; hil-spike-step |
 | R16.5 | P-16; P-21 | Closed response sets (DD-10, R14.5); Memory and MPU layout (DD-07, DD-11); Property 12 | ✓4.9 | apps/hil-stimulus/gen/link.x; apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/gen-nrf52840/link.x; +72 | hil-mpu-matrix; proof-kernel-verus |
 | R16.6 | P-16 | Property 12 | ✓4.9 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +17 | proof-kernel-verus; test-workspace-tests |
-| R16.7 | — | Trust-Base Analysis | ✓13.1 | crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; +3 | check-config-p1-demo; proof-kernel-verus |
+| R16.7 | — | Trust-Base Analysis | ✓13.1 | crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/image.rs; crates/rsk-confcheck/src/image_v.rs; +5 | check-config-p1-demo; proof-kernel-verus |
 | R16.8 | P-16 | Profile_Conformance_Suite and HIL_Rig; Property 12 | ✓7.4 | apps/hil-stimulus/gen/partition_stim.rs; apps/p1-demo/decl/src/nrf52840_isolation.rs; apps/p1-demo/gen-nrf52840/partition_part0.rs; +51 | hil-isolation-step; hil-mpu-matrix |
 | R16.9 | — | — | ✓3.1 | xtask/src/verify.rs | test-qemu-spike-p1-demo; test-qemu-spike-step |
 | R16.10 | — | Reuse and Deviation Record | ✓12.3 | apps/p1-demo/part0/src/lib.rs; crates/rsk-entry/clippy.toml; crates/rsk-hil/src/dt.rs; +6 | analysis-stack-p1-demo; test-workspace-tests |
@@ -336,10 +336,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R26.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Module boundaries; Reuse and Deviation Record | ✓13.1 | crates/rsk-confcheck/Cargo.toml; crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/image.rs; +6 | check-config-p1-demo |
+| R26.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Module boundaries; Reuse and Deviation Record | ✓13.1 | crates/rsk-confcheck/Cargo.toml; crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/image.rs; +7 | check-config-p1-demo |
 | R26.2 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; App_Declaration and generation pipeline (Component C); Property 19 | ✓13.1 | crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; +3 | check-config-p1-demo; test-workspace-tests |
 | R26.3 | — | Error Handling; Property 19 | ✓13.1 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/main.rs; crates/rsk-confcheck/src/recompute.rs; +2 | check-config-p1-demo; test-config-mutations-p1-demo; test-workspace-tests |
-| R26.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓13.1 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +21 | check-config-p1-demo; check-config-step; test-workspace-tests |
+| R26.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓13.1 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +22 | check-config-p1-demo; check-config-step; test-workspace-tests |
 | R26.5 | — | — | ✓13.1 | xtask/src/verify.rs | check-config-p1-demo; check-config-step |
 | R26.6 | — | — | ✓13.2 | xtask/src/verify.rs | test-config-mutations-p1-demo |
 | R26.7 | — | Module boundaries; Property 19; Trust-Base Analysis | ✓13.2 | xtask/src/confcheck_mutations.rs; xtask/src/main.rs; xtask/src/verify.rs | test-config-mutations-p1-demo; test-workspace-tests |
@@ -477,7 +477,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 | R38.1 | — | — | ✓21.3; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; +18 | — |
 | R38.2 | — | — | ✓21.1; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +5 | — |
 | R38.3 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20 | ✓21.1; ✓21.7 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +23 | — |
-| R38.4 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20; What the type system gives, and what it does not | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +11 | test-workspace-tests |
+| R38.4 | — | Endpoint_Library and Protocol_Checker (Component F); Property 20; What the type system gives, and what it does not | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +13 | test-workspace-tests |
 | R38.5 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-protocol/Cargo.toml; +6 | test-workspace-tests |
 | R38.6 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.1; ✓21.7 | crates/rsk-protocol/src/lib.rs | — |
 | R38.7 | — | Endpoint_Library and Protocol_Checker (Component F); Reuse and Deviation Record | ✓21.3 | apps/p1-demo/gen-nrf52840_measure/partition_part0.rs; apps/p1-demo/gen-nrf52840_measure/partition_part1.rs; apps/p1-demo/gen-nrf52840_measure/partition_part2.rs; +12 | — |

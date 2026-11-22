@@ -31,6 +31,7 @@ use serde_json::Value;
 
 pub mod derive_v;
 pub mod image;
+pub mod image_v;
 pub mod model;
 pub mod recompute;
 

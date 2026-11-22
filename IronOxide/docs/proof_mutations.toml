@@ -2297,3 +2297,275 @@ file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
 find = "                info.partition == sg.partition && (sg.task as usize) < k.task_count()\n"
 replace = "                (sg.task as usize) < k.task_count()\n"
 expect = ["entry.rs", "assertion failed"]
+
+[[mutation]]
+id = "raise-releases-the-raising-task"
+kills = "raise_core's effect (R10.5; 2026-11-21): an accepted Release_Signal raise is the Release_Source event of the signal's bound Task, not of another"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        k.intake(sg.task, sg.partition, now, offender);\n"
+replace = "        k.intake(offender, sg.partition, now, offender);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "raise-threshold-response-for-the-bound-task"
+kills = "raise_core's effect (R10.5, DD-10; 2026-11-21): a threshold response of an accepted raise is for the raising Job"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        k.intake(sg.task, sg.partition, now, offender);\n"
+replace = "        k.intake(sg.task, sg.partition, now, sg.task);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "intake-attributed-to-partition-zero"
+kills = "KernelOps::intake's outcome on the bound Kernel (R10.5, R10.7; 2026-11-21): the event's violation is attributed to the source Partition the caller named"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "            self.kernel.intake(&self.cfg, t, source_partition, now, offender);\n"
+replace = "            self.kernel.intake(&self.cfg, t, 0, now, offender);\n"
+expect = ["bound.rs", "postcondition not satisfied"]
+
+[[mutation]]
+id = "message-copy-writes-zero"
+kills = "Cm4Hw::copy_words (R39.4, R42.2; 2026-11-21): for disjoint aligned ranges every word of the destination is the source's word, for every length"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            self.ram_write(dst + i, w);\n"
+replace = "            self.ram_write(dst + i, 0);\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "message-copy-skips-every-other-word"
+kills = "Cm4Hw::copy_words (2026-11-21): the loop copies every word of the range, not a part of it"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "            i += 4;\n        }\n    }\n}\n"
+replace = "            if i < len - 4 { i += 8; } else { i += 4; }\n        }\n    }\n}\n"
+expect = ["entry.rs"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "copy-out-reads-the-label-after-the-copy"
+kills = "Cm4Hw::copy_out (2026-11-21): the word returned is the slot's first word as it stood before the copy"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        let first = self.read_label(src);\n        self.copy_words(dst, src, len);\n"
+replace = "        self.copy_words(dst, src, len);\n        let first = self.read_label(src);\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "kernel-send-messages-stale-slot"
+kills = "lemma_send_messages (R39.4; 2026-11-21): the slot a send writes is none of the occupied ones, so the messages already in the channel keep every word"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    lemma_next_slot_fresh(before, cfg.capacity as int);\n"
+replace = "    // the freshness of the next slot dropped\n"
+expect = ["entry.rs"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "receive-without-the-message-lemma"
+kills = "endpoint_recv_core's recv_message_ok (R39.4, R40.4; 2026-11-21): the buffer holds the oldest message's words and the other messages stay"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "                    lemma_recv_messages(base, cfg, d as int, before, fifo_after, old(hw).hw().mem, hw.hw().mem, ptr as int);\n"
+replace = "                    // the message lemma dropped\n"
+expect = ["entry.rs", "assertion failed"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "send-reports-the-peer-flag-without-clearing-it"
+kills = "endpoint_send_core's peer-state clause (A-P6, R42.3; 2026-11-21): the report clears the role's flag, so it is made once"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        state.peer_changed[rs] = false;\n        return ENDPOINT_PEER;\n"
+replace = "        return ENDPOINT_PEER;\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "receive-ignores-the-peer-flag"
+kills = "endpoint_recv_core's peer-state clause (A-P6, R42.3; 2026-11-21): a receive that goes ahead found the role's flag clear"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    if state.peer_changed[rs] {\n        state.peer_changed[rs] = false;\n        return (ENDPOINT_PEER, ghost_int(0));\n    }\n"
+replace = ""
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "roles-peer-change-keeps-the-state"
+kills = "the generated send_<label>'s peer-state contract (A-P6's Task half, R42.3; 2026-11-21): the role comes back as `NotSent::PeerChanged`, which holds the initial state, exactly when the Kernel reported the peer-state change; mapped to `Refused` with the state kept, the App_Prover cannot establish `not_told` from `send_words`' contract"
+file = "crates/rsk-gen/src/roles.rs"
+find = "                    let _ = writeln!(s, \"                    Err(::rsk::SendError::PeerChanged) => Err(NotSent::PeerChanged(self.advance::<S0>())),\");\n"
+replace = "                    let _ = writeln!(s, \"                    Err(::rsk::SendError::PeerChanged) => Err(NotSent::Refused(self)),\");\n"
+expect = ["proof failed", "vc_send_"]
+package = "p1-demo-part0-proof"
+prover = "creusot"
+
+# The lending library's inductive harness (R17.5; 2026-11-21).
+
+[[mutation]]
+id = "kani-dma-bytes-handed-out-while-lent"
+kills = "any_operation_from_any_state_keeps_the_bytes_out_of_reach (R17.5; 2026-11-21): `bytes` hands out the buffer only while no transfer of it is outstanding"
+file = "crates/rsk/src/lib.rs"
+find = "        if self.lent != 0 {\n            None\n        } else {\n            Some(&mut self.bytes)\n        }\n"
+replace = "        Some(&mut self.bytes)\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk"
+prover = "kani"
+harness = "any_operation_from_any_state_keeps_the_bytes_out_of_reach"
+
+[[mutation]]
+id = "kani-dma-reclaim-without-the-stop"
+kills = "any_operation_from_any_state_keeps_the_bytes_out_of_reach (R17.5; 2026-11-21): `reclaim` releases the buffer only when the transfer's peripheral is not enabled or reports STOPPED"
+file = "crates/rsk/src/lib.rs"
+find = "        if transfer.stopped() {\n            self.lent = 0;\n"
+replace = "        if transfer.stopped() || true {\n            self.lent = 0;\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk"
+prover = "kani"
+harness = "any_operation_from_any_state_keeps_the_bytes_out_of_reach"
+
+[[mutation]]
+id = "kani-dma-reclaim-with-another-buffers-transfer"
+kills = "any_operation_from_any_state_keeps_the_bytes_out_of_reach (R17.5; 2026-11-21): `reclaim` releases the buffer only for a transfer value that names this buffer"
+file = "crates/rsk/src/lib.rs"
+find = "        if self.lent == 0 || transfer.buffer != self.address() {\n"
+replace = "        if self.lent == 0 {\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk"
+prover = "kani"
+harness = "any_operation_from_any_state_keeps_the_bytes_out_of_reach"
+
+[[mutation]]
+id = "kani-dma-lend-while-lent"
+kills = "any_operation_from_any_state_keeps_the_bytes_out_of_reach (R17.5; 2026-11-21): `lend` requests nothing while a transfer of the buffer is outstanding"
+file = "crates/rsk/src/lib.rs"
+find = "        if self.lent != 0 {\n            return None;\n        }\n        let buffer = self.address();\n"
+replace = "        let buffer = self.address();\n"
+expect = ["VERIFICATION:- FAILED"]
+package = "rsk"
+prover = "kani"
+harness = "any_operation_from_any_state_keeps_the_bytes_out_of_reach"
+
+# R38.4 (2026-11-21): the operations of a role's states, derived from the
+# verified flattening by `rsk_protocol::api::role_ops` and proven to be
+# exactly the local type's (`role_api`). The Generator's role modules are
+# rendered from them.
+[[mutation]]
+id = "role-ops-next-state-of-another-label"
+kills = "next_state's contract (R38.4): the state an operation leads to is that of a transition with the operation's own label; taking the first transition of the state whatever its label, `role_ops` would send every branch of a choice to the first branch's continuation"
+file = "crates/rsk-protocol/src/api.rs"
+find = "        if trans[k].role == r && trans[k].from == i && trans[k].label == label {\n"
+replace = "        if trans[k].role == r && trans[k].from == i {\n"
+expect = ["api.rs", "postcondition not satisfied"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "role-ops-leaves-out-a-branch"
+kills = "state_ops' loop invariant (R38.4, `offers`): the operations are the local type's branches label for label, none left out; a state that keeps only its first branch offers less than the projection allows"
+file = "crates/rsk-protocol/src/api.rs"
+find = "        ops.push(Op { label: *label, to });\n"
+replace = "        if ops.len() == 0 {\n            ops.push(Op { label: *label, to });\n        }\n"
+expect = ["api.rs", "assertion failed"]
+package = "rsk-protocol"
+
+[[mutation]]
+id = "role-ops-send-offered-as-receive"
+kills = "state_ops' postcondition (R38.4, `offers`): a state whose local type sends is a send state; rendered as a receive state the role module would offer `try_recv` where the projection has a send"
+file = "crates/rsk-protocol/src/api.rs"
+find = "        LE::Send { to, ls } => (KIND_SEND, *to, &**ls),\n"
+replace = "        LE::Send { to, ls } => (KIND_RECV, *to, &**ls),\n"
+expect = ["api.rs", "postcondition not satisfied"]
+package = "rsk-protocol"
+
+# R26.4 (2026-11-21): the decoding of the three images of the binary and
+# the comparison of the decoded tables (crates/rsk-confcheck/src/image_v.rs):
+# what a decoder accepts is exactly the encoding of what it returns, and
+# the comparison is `true` only for tables equal in every field.
+[[mutation]]
+id = "confcheck-decoded-field-not-the-bytes"
+kills = "rd_task's contract (R26.4): the bytes read are the encoding of the entry returned; an entry whose MIT policy is not the byte read is not what the image says"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    let t = TaskCfg { priority, partition, kind, offset, period, deadline, budget, mit_policy, fpu };\n"
+replace = "    let t = TaskCfg { priority, partition, kind, offset, period, deadline, budget, mit_policy: 0, fpu };\n"
+expect = ["image_v.rs", "assertion failed"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-accepts-trailing-bytes"
+kills = "decode_tables' contract (R26.4): the input is exactly the image of the tables returned, no byte left over"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    if pos != bytes.len() {\n        return Err(DecodeError::Trailing(bytes.len() - pos));\n    }\n    let t = Tables {"
+replace = "    let t = Tables {"
+expect = ["image_v.rs", "assertion failed"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-flag-byte-any-value"
+kills = "rd_flag's contract (R26.4): a flag byte is 0 or 1; taken as `true` for any other value, two different images decode to the same tables"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "        Some(_) => Err(DecodeError::Flag(at)),\n"
+replace = "        Some(_) => Ok(true),\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-u64-halves-swapped"
+kills = "rd_u64's contract (R26.4): a 64-bit value is its low half then its high half"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "    let v = (lo as u64) | ((hi as u64) << 32);\n    proof {\n        lemma_le64(lo, hi);\n        assert(read"
+replace = "    let v = (hi as u64) | ((lo as u64) << 32);\n    proof {\n        lemma_le64(lo, hi);\n        assert(read"
+expect = ["image_v.rs", "assertion failed"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-comparison-forgets-the-budget"
+kills = "task_agrees' contract (R26.4): two entries agree only when every field does; with the Budget left out, a binary whose Budget differs from the Task_Model's passes the whole-image check"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "a.deadline == b.deadline && a.budget == b.budget\n"
+replace = "a.deadline == b.deadline\n"
+expect = ["image_v.rs", "postcondition not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-layout-read-only-not-compared"
+kills = "windows_agree's contract (R16.7, R26.4, DD-08): a window slot agrees only when its read-only flag does"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "        if a[i].0 != b[i].0 || a[i].1 != b[i].1 || a[i].2 != b[i].2 {\n"
+replace = "        if a[i].0 != b[i].0 || a[i].1 != b[i].1 {\n"
+expect = ["image_v.rs", "invariant not satisfied"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "confcheck-endpoint-validation-edges-not-compared"
+kills = "endpoint_agrees' contract (R26.4, R42.4): two Endpoint entries agree only when their validation edges do"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "        if !flags_agree(&a.validates[i], &b.validates[i]) {\n"
+replace = "        if false {\n"
+expect = ["image_v.rs", "invariant not satisfied"]
+package = "rsk-confcheck"
+
+# A1, R7 (2026-11-21): every entry core ends with BASEPRI the value the
+# Kernel's state calls for (`basepri_matches`), stated since this date for
+# the SVC services, the intake, the unbound vector, a vector that does not
+# dispatch, and the SVC stack check, as it was for the others.
+[[mutation]]
+id = "clock-service-clears-basepri"
+kills = "svc_core's A1 clause (R7): BASEPRI stays the value the Kernel's state calls for across a service that changes nothing; the clock service writing 0 would let every Task's vector preempt a Job inside its Critical Section"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        frame[1] = (now >> 32) as u32;\n        (0, false)\n"
+replace = "        frame[1] = (now >> 32) as u32;\n        hw.apply(Action::SetBasepri(0));\n        (0, false)\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "intake-leaves-basepri-of-the-state-before"
+kills = "intake_core's A1 clause (R7): the entry ends with BASEPRI rewritten from the state after the intake and its responses; with the value read before them written last, a Job ended by a response leaves its level's mask in force"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "    k.intake(task, partition, now, task);\n    let safe = apply_core(k, hw, tables, state);\n"
+replace = "    let stale = k.basepri_now();\n    k.intake(task, partition, now, task);\n    let safe = apply_core(k, hw, tables, state);\n    hw.apply(Action::SetBasepri(stale));\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "refused-receive-returns-without-applying"
+kills = "svc_service_core's A1 clause (R7) among others: a refused receive applied the Partition's fault response, so the hardware-facing state is applied before the return; skipped, BASEPRI and the plan are those of the state before the response"
+file = "crates/rsk-kernel/src/arch/cm4/entry.rs"
+find = "        if number == SVC_RECV && code != ENDPOINT_REFUSED {\n"
+replace = "        if number == SVC_RECV {\n"
+expect = ["entry.rs", "postcondition not satisfied"]
+package = "rsk-kernel"

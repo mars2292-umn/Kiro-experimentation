@@ -457,48 +457,40 @@ pub fn wait_for_interrupt() {
 /// so a number above the arrays would have reached the SCB).
 pub use crate::arch::cm4::drivers::irq_of;
 
+/// One word of the SRAM read for the Endpoint message copy: `raw`'s leaf
+/// (UJ-056), the one access behind `Cm4Hw::ram_read`, whose contract is the
+/// word of the memory model at that address (2026-11-21).
+#[cfg_attr(feature = "coverage", coverage(off))]
+#[inline(always)]
+pub fn ram_word(a: u32) -> u32 {
+    raw::read_ram_word(a)
+}
+
+/// One word of the SRAM written for the Endpoint message copy: `raw`'s
+/// leaf (UJ-056a), the one access behind `Cm4Hw::ram_write`.
+#[cfg_attr(feature = "coverage", coverage(off))]
+#[inline(always)]
+pub fn set_ram_word(a: u32, v: u32) {
+    raw::write_ram_word(a, v)
+}
+
 /// The Endpoint message copy (task 21.2; DD-09, R42.2): `len` bytes from
-/// `src` to `dst` by words. Total for every argument: nothing is copied
-/// unless both ranges are word-aligned, `len` is a multiple of 4, and
-/// neither range wraps the address space; the cores pass ranges they have
-/// checked against the Partition's RAM interval and the Endpoint storage.
-/// Every access goes through `raw` (UJ-001's leaf) and no `unsafe` of its
-/// own; the Kani harness `copy_words_is_total_and_in_bounds` runs it
-/// against the simulator (R45.2).
+/// `src` to `dst` by words. Since 2026-11-21 the loop is `Cm4Hw::copy_words`
+/// (`entry.rs`), proven by Verus for every length over the two word leaves
+/// above: total for every argument, nothing copied unless both ranges are
+/// word-aligned, `len` is a multiple of 4 and neither range wraps the
+/// address space, and with disjoint ranges the destination holds the
+/// source's words. This name is kept for the Kani harness
+/// `copy_words_is_total_and_in_bounds`, which runs the same function
+/// against the simulator (R45.2), and for `Action::Copy`.
 #[cfg_attr(feature = "coverage", coverage(off))]
 pub fn copy_words(dst: u32, src: u32, len: u32) {
-    if len % 4 != 0 || dst % 4 != 0 || src % 4 != 0 {
-        return;
-    }
-    let (Some(_), Some(_)) = (dst.checked_add(len), src.checked_add(len)) else { return };
-    let mut i: u32 = 0;
-    // The bound (PR-16): a message is at most `MAX_MESSAGE_BYTES` (the
-    // Generator's payload limit), so at most that many bytes are copied.
-    while i < len && i < MAX_MESSAGE_BYTES {
-        raw::write_ram_word(dst + i, raw::read_ram_word(src + i));
-        i += 4;
-    }
-}
-
-/// The copy into the Endpoint storage, returning the first word now at
-/// `dst` (the label the role API put first, Verification_Plan 5.15, A-P2):
-/// `copy_words`, then one `raw` read of a word the cores have checked.
-#[cfg_attr(feature = "coverage", coverage(off))]
-pub fn copy_in_words(dst: u32, src: u32, len: u32) -> u32 {
-    copy_words(dst, src, len);
-    raw::read_ram_word(dst)
-}
-
-/// The copy out of the Endpoint storage, returning the first word at
-/// `src` (the stored label, A-P2).
-#[cfg_attr(feature = "coverage", coverage(off))]
-pub fn copy_out_words(dst: u32, src: u32, len: u32) -> u32 {
-    copy_words(dst, src, len);
-    raw::read_ram_word(src)
+    let mut hw = crate::arch::cm4::entry::Cm4Hw::new();
+    hw.copy_words(dst, src, len);
 }
 
 /// The largest Endpoint payload the Generator accepts (PR-14, task 21.2).
-pub const MAX_MESSAGE_BYTES: u32 = 65_532;
+pub use crate::arch::cm4::entry::MAX_MESSAGE_BYTES;
 
 /// The Kernel-owned storage of every Endpoint channel (task 21.2; R39.2,
 /// R40.1): one static of the generated system crate, sized by the

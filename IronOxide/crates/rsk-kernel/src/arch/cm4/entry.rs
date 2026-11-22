@@ -298,6 +298,11 @@ pub struct HwModel {
     /// (A-P2, Verification_Plan 5.15): word address to word. The storage is
     /// Kernel-owned (R16.1), so `copy_in` is its only writer.
     pub store: Map<int, int>,
+    /// The words of the SRAM the Endpoint message copy reads and writes
+    /// (2026-11-21): word address to word, as the two word leaves of
+    /// `Cm4Hw` (`ram_read`, `ram_write`) see it during one Kernel entry.
+    /// No action changes it; the copy is its only writer in the Kernel.
+    pub mem: Map<int, int>,
     /// Every EasyDMA transfer the Kernel has programmed, in order (R17.2;
     /// 2026-11-16): the pointer register, the buffer, the count register
     /// and the length of each `Action::DmaProgram`. No other action adds
@@ -380,16 +385,24 @@ pub trait KernelArch: Sized {
     /// The copy of a message into the Endpoint storage (`len` bytes from the
     /// Partition's `src` to the slot `dst`), returning the first word now
     /// at `dst`: the model records it as the slot's label (A-P2).
+    /// Since 2026-11-21 the model also says what the copy does to the
+    /// memory (`copied`): nothing outside the destination range, and, for
+    /// word-aligned disjoint ranges that do not wrap (`copy_ok`), every
+    /// word of the destination is the source's word.
     fn copy_in(&mut self, dst: u32, src: u32, len: u32) -> (first: u32)
-        ensures final(self).hw() == (HwModel { store: old(self).hw().store.insert(dst as int, first as int), ..old(self).hw() });
+        ensures final(self).hw() == (HwModel { store: old(self).hw().store.insert(dst as int, first as int), mem: final(self).hw().mem, ..old(self).hw() }),
+            first as int == final(self).hw().mem[dst as int],
+            copied(old(self).hw().mem, final(self).hw().mem, dst as int, src as int, len as int);
     /// The copy of a message out of the Endpoint storage (`len` bytes from
     /// the slot `src` to the Partition's `dst`), returning the first word at
     /// `src`, which is the recorded label: the storage is written by
     /// `copy_in` alone (R16.1, Kernel-owned).
     fn copy_out(&mut self, dst: u32, src: u32, len: u32) -> (first: u32)
         ensures
-            final(self).hw() == old(self).hw(),
-            old(self).hw().store.contains_key(src as int) ==> first as int == old(self).hw().store[src as int];
+            final(self).hw() == (HwModel { mem: final(self).hw().mem, ..old(self).hw() }),
+            old(self).hw().store.contains_key(src as int) ==> first as int == old(self).hw().store[src as int],
+            first as int == old(self).hw().mem[src as int],
+            copied(old(self).hw().mem, final(self).hw().mem, dst as int, src as int, len as int);
     /// The 64-bit time base (DD-05, HW-12).
     fn now(&self) -> u64;
     /// DWT CYCCNT (HW-13).
@@ -633,16 +646,24 @@ impl KernelArch for Cm4Hw {
         }
     }
 
-    /// Trusted as `apply` (UJ-056): the copy and one read of the word written.
-    #[verifier::external_body]
+    /// Proven since 2026-11-21 (it was trusted whole): the copy
+    /// (`Cm4Hw::copy_words`), one read of the word now at `dst`, and the
+    /// label record.
     fn copy_in(&mut self, dst: u32, src: u32, len: u32) -> (first: u32) {
-        super::unsafe_module::hw::copy_in_words(dst, src, len)
+        self.copy_words(dst, src, len);
+        let first = self.ram_read(dst);
+        proof {
+            self.model@ = HwModel { store: self.model@.store.insert(dst as int, first as int), ..self.model@ };
+        }
+        first
     }
 
-    /// Trusted as `apply` (UJ-056): the copy and one read of the stored word.
-    #[verifier::external_body]
+    /// Proven since 2026-11-21 (it was trusted whole): one read of the
+    /// stored word, the recorded label (`read_label`), then the copy.
     fn copy_out(&mut self, dst: u32, src: u32, len: u32) -> (first: u32) {
-        super::unsafe_module::hw::copy_out_words(dst, src, len)
+        let first = self.read_label(src);
+        self.copy_words(dst, src, len);
+        first
     }
 
     /// Trusted: the extended TIMER counter (DD-05).
@@ -1488,9 +1509,12 @@ fn raise_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, tab
         // when a Job executes, the signal is one of the table, it is
         // declared by the executing Job's Partition, and it is bound to a
         // Task of the configuration (`raise_accepts`). The event is then
-        // `KernelOps::intake` for that one Task, charged to that Partition:
-        // the call below, which this contract does not state.
+        // `KernelOps::intake` for that one Task, charged to that Partition,
+        // a threshold response being for the raising Job (DD-10), and
+        // nothing else is done to the Kernel's state.
         ok == raise_accepts(old(k), tables, i as int),
+        ok ==> exists|now: u64| #[trigger] final(k).spec_intake_of(old(k), spec_signal_of(tables, i as int).task as int,
+            spec_signal_of(tables, i as int).partition as int, crate::arch::bound::top_task(old(k)), now),
 {
     let accepted = if i < tables.signal_count() {
         let sg = tables.signal(i);
@@ -1607,6 +1631,10 @@ fn partition_in(cfg: &EndpointCfg, p: u8) -> (r: bool)
 }
 
 /// Empties every channel of Endpoint `e`.
+// A solver of its own since 2026-11-21: the proof went through or not
+// with what else the file declared (twice that day), though nothing it
+// uses had changed. The statement and the proof text are as they were.
+#[verifier::spinoff_prover]
 fn clear_channels(state: &mut ArchState, e: usize)
     requires e < MAX_ENDPOINTS,
     ensures super::plan::arch_frame(*final(state), *old(state)),
@@ -1645,6 +1673,11 @@ fn clear_channels(state: &mut ArchState, e: usize)
 /// One round of `endpoint_reinit`: from the state `s_e` before Endpoint `e`
 /// was considered to the state `s` after it. The round touched the channels
 /// and the flags of Endpoint `e` only, and set flags without clearing any.
+// A solver of its own since 2026-11-21, and three steps spelled out in
+// one branch: the proof went through or not with what else the file
+// declared (twice that day), though nothing it uses had changed. The
+// statement is as it was.
+#[verifier::spinoff_prover]
 proof fn lemma_reinit_round<T: Tables>(tables: &T, before: ArchState, s_e: ArchState, s: ArchState, e: int, p: int)
     requires
         0 <= e < 8,
@@ -1688,6 +1721,12 @@ proof fn lemma_reinit_round<T: Tables>(tables: &T, before: ArchState, s_e: ArchS
                 assert forall|i: int| f * 16 <= i < f * 16 + 16
                     implies (#[trigger] s.fifos[i]) == before.fifos[i] && s.delivered[i] == before.delivered[i] by {
                     assert(s_e.fifos[i] == before.fifos[i]);
+                    // Steps spelled out (2026-11-21), each already a premise
+                    // or shown above: the round left this channel alone, and
+                    // the rounds before it had.
+                    assert(s.fifos[i] == s_e.fifos[i]);
+                    assert(s.delivered[i] == s_e.delivered[i]);
+                    assert(s_e.delivered[i] == before.delivered[i]);
                 }
             }
         } else if !spec_partition_in(cf, p) {
@@ -2076,7 +2115,9 @@ fn copy_in_checked<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, ta
         k.inv(), 0 <= p < k.partition_count_spec(), src % 4 == 0,
         k.message_permitted_spec(p, src as int, len as int),
         storage_permitted(tables, dst as int, len as int),
-    ensures final(hw).hw() == (HwModel { store: old(hw).hw().store.insert(dst as int, first as int), ..old(hw).hw() }),
+    ensures final(hw).hw() == (HwModel { store: old(hw).hw().store.insert(dst as int, first as int), mem: final(hw).hw().mem, ..old(hw).hw() }),
+        first as int == final(hw).hw().mem[dst as int],
+        copied(old(hw).hw().mem, final(hw).hw().mem, dst as int, src as int, len as int),
 {
     hw.copy_in(dst, src, len)
 }
@@ -2090,8 +2131,10 @@ fn copy_out_checked<K: KernelOps, A: KernelArch, T: Tables>(k: &K, hw: &mut A, t
         k.message_permitted_spec(p, dst as int, len as int),
         storage_permitted(tables, src as int, len as int),
     ensures
-        final(hw).hw() == old(hw).hw(),
+        final(hw).hw() == (HwModel { mem: final(hw).hw().mem, ..old(hw).hw() }),
         old(hw).hw().store.contains_key(src as int) ==> first as int == old(hw).hw().store[src as int],
+        first as int == old(hw).hw().mem[src as int],
+        copied(old(hw).hw().mem, final(hw).hw().mem, dst as int, src as int, len as int),
 {
     hw.copy_out(dst, src, len)
 }
@@ -2136,6 +2179,8 @@ fn endpoint_slot<T: Tables>(tables: &T, cfg: &EndpointCfg, d: usize, slot: u8) -
     ensures a is Some ==> a.unwrap() as int == slot_addr(spec_storage_base_of(tables), *cfg, d as int, slot as int),
         // Audit finding 13: the slot's bytes lie inside the Endpoint storage.
         a is Some ==> storage_permitted(tables, a.unwrap() as int, cfg.payload as int),
+        // 2026-11-21: and end inside the address space.
+        a is Some ==> a.unwrap() as int + cfg.payload as int <= 0xFFFF_FFFF,
 {
     let (base, total) = tables.endpoint_storage();
     let payload = cfg.payload as u64;
@@ -2207,7 +2252,10 @@ pub open spec fn recv_labels_ok<T: Tables>(tables: &T, s0: ArchState, s1: ArchSt
     let cap = cfg.capacity as int;
     let before = channel_before(s0.fifos[ch], cap);
     &&& (before.count as int) > 0
-    &&& h1 == h0
+    // Everything of the model but the memory is as it was (until
+    // 2026-11-21 `h1 == h0`: the model had no memory, and a receive
+    // writes the message into the Partition's).
+    &&& h1 == (HwModel { mem: h1.mem, ..h0 })
     &&& s1.fifos[ch].view(cap) == before.view(cap).drop_first()
     &&& channel_labels(h1, base, cfg, d, s1.fifos[ch]) == channel_labels(h0, base, cfg, d, before).drop_first()
     &&& (h0.store.contains_key(slot_addr(base, cfg, d, before.view(cap)[0])) ==> delivered == channel_labels(h0, base, cfg, d, before)[0])
@@ -2219,7 +2267,7 @@ proof fn lemma_send_labels(base: int, cfg: EndpointCfg, d: int, before: crate::l
         cfg.payload >= 1, before.wf(cfg.capacity as int), (before.count as int) < cfg.capacity as int,
         after.view(cfg.capacity as int) == before.view(cfg.capacity as int).push(slot),
         slot == (before.head as int + before.count as int) % cfg.capacity as int,
-        h1 == (HwModel { store: h0.store.insert(slot_addr(base, cfg, d, slot), first), ..h0 }),
+        h1.store == h0.store.insert(slot_addr(base, cfg, d, slot), first),
     ensures
         channel_labels(h1, base, cfg, d, after) == channel_labels(h0, base, cfg, d, before).push(h1.store[slot_addr(base, cfg, d, slot)]),
         h1.store == h0.store.insert(slot_addr(base, cfg, d, slot), h1.store[slot_addr(base, cfg, d, slot)]),
@@ -2271,6 +2319,23 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
             == (EV_ENDPOINT_FULL as int, crate::arch::bound::top_task(old(k)), old(k).spec_part()[crate::arch::bound::top_task(old(k))]),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
+        // R39.4, R40.3 (2026-11-21): an accepted send appends the whole
+        // message, every word of it as it stood in the sender's memory,
+        // to the channel's messages (`send_message_ok`, under its premise).
+        code == ENDPOINT_OK ==> send_message_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, ptr as int),
+        // A-P6, R42.3 (2026-11-21): the peer-state flag of the role. An
+        // operation that reports it found it set, clears that one flag and
+        // changes nothing else: no channel, no stored word, nothing of the
+        // Kernel. An operation that goes ahead (any result but the report
+        // and a refusal) found the flag clear, so no message is sent or
+        // received by a role that has not been told. And the flags stay as
+        // they are until reported.
+        code == ENDPOINT_PEER ==> old(state).peer_changed[spec_role_slot(arg)] && !final(state).peer_changed[spec_role_slot(arg)]
+            && (forall|i: int| 0 <= i < MAX_ROLE_SLOTS && i != spec_role_slot(arg) ==> #[trigger] final(state).peer_changed[i] == old(state).peer_changed[i])
+            && final(state).fifos == old(state).fifos && final(state).delivered == old(state).delivered
+            && *final(k) == *old(k) && final(hw).hw() == old(hw).hw(),
+        code != ENDPOINT_PEER && code != ENDPOINT_REFUSED ==> 0 <= spec_role_slot(arg) < MAX_ROLE_SLOTS && !old(state).peer_changed[spec_role_slot(arg)],
+        code != ENDPOINT_PEER ==> final(state).peer_changed == old(state).peer_changed,
 {
     let (e, role, peer, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
@@ -2322,6 +2387,21 @@ fn endpoint_send_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
                 assert(0 <= sl0 && sl0 < cap) by (nonlinear_arith)
                     requires sl0 == (before.head as int + before.count as int) % cap, cap >= 1;
                 assert(spec_channel_index(e as int, role as int, peer as int) == ch as int);
+                if message_premise(tables, e as int, d as int, ptr as int, cfg.payload as int) {
+                    lemma_slot_in_channel(base, cfg, d as int, sl0);
+                    lemma_send_messages(base, cfg, d as int, before, fifo_after, sl0, old(hw).hw().mem, hw.hw().mem, ptr as int);
+                    assert(hw.hw().store[slot_addr(base, cfg, d as int, sl0)] == mem_word(old(hw).hw().mem, ptr as int, 0)) by {
+                        assert(mem_word(hw.hw().mem, dst as int, 0) == mem_word(old(hw).hw().mem, ptr as int, 0));
+                    }
+                }
+                assert(send_message_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg, ptr as int)) by {
+                    let sl = slot as int;
+                    assert(message_premise(tables, e as int, d as int, ptr as int, cfg.payload as int) ==>
+                        0 <= sl && sl < cap
+                        && state.fifos[ch as int].view(cap) == before.view(cap).push(sl)
+                        && channel_messages(hw.hw().mem, base, cfg, d as int, state.fifos[ch as int]) == channel_messages(old(hw).hw().mem, base, cfg, d as int, before).push(message_at(old(hw).hw().mem, ptr as int, cfg.payload as int))
+                        && hw.hw().store[slot_addr(base, cfg, d as int, sl)] == mem_word(old(hw).hw().mem, ptr as int, 0));
+                }
                 assert(send_labels_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg)) by {
                     let sl = slot as int;
                     assert(0 <= sl && sl < cap
@@ -2366,6 +2446,23 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
         r.0 == ENDPOINT_OK ==> recv_labels_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, r.1@),
         // HW-13 (2026-11-15): the charge point of the executing Job's cycle segment is not moved.
         final(state).last_switch == old(state).last_switch,
+        // R39.4, R40.4 (2026-11-21): an accepted receive delivers the
+        // whole of the channel's oldest message into the receiver's memory
+        // and leaves the others as they were (`recv_message_ok`).
+        r.0 == ENDPOINT_OK ==> recv_message_ok(tables, *old(state), *final(state), old(hw).hw(), final(hw).hw(), arg, ptr as int),
+        // A-P6, R42.3 (2026-11-21): the peer-state flag of the role. An
+        // operation that reports it found it set, clears that one flag and
+        // changes nothing else: no channel, no stored word, nothing of the
+        // Kernel. An operation that goes ahead (any result but the report
+        // and a refusal) found the flag clear, so no message is sent or
+        // received by a role that has not been told. And the flags stay as
+        // they are until reported.
+        r.0 == ENDPOINT_PEER ==> old(state).peer_changed[spec_role_slot(arg)] && !final(state).peer_changed[spec_role_slot(arg)]
+            && (forall|i: int| 0 <= i < MAX_ROLE_SLOTS && i != spec_role_slot(arg) ==> #[trigger] final(state).peer_changed[i] == old(state).peer_changed[i])
+            && final(state).fifos == old(state).fifos && final(state).delivered == old(state).delivered
+            && *final(k) == *old(k) && final(hw).hw() == old(hw).hw(),
+        r.0 != ENDPOINT_PEER && r.0 != ENDPOINT_REFUSED ==> 0 <= spec_role_slot(arg) < MAX_ROLE_SLOTS && !old(state).peer_changed[spec_role_slot(arg)],
+        r.0 != ENDPOINT_PEER ==> final(state).peer_changed == old(state).peer_changed,
 {
     let (e, role, from, cfg) = match endpoint_args(k, tables, arg, ptr, len) {
         Some(a) => a,
@@ -2403,6 +2500,11 @@ fn endpoint_recv_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mu
                 lemma_recv_labels(base, cfg, d as int, before, fifo_after, slot as int, hw.hw(), first as int);
                 assert(spec_channel_index(e as int, from as int, role as int) == ch as int);
                 assert(recv_labels_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg, first as int));
+                if message_premise(tables, e as int, d as int, ptr as int, cfg.payload as int) {
+                    lemma_slot_in_channel(base, cfg, d as int, slot as int);
+                    lemma_recv_messages(base, cfg, d as int, before, fifo_after, old(hw).hw().mem, hw.hw().mem, ptr as int);
+                }
+                assert(recv_message_ok(tables, *old(state), *state, old(hw).hw(), hw.hw(), arg, ptr as int));
             }
             (ENDPOINT_OK, ghost_int(first))
         }
@@ -2511,6 +2613,9 @@ pub fn svc_check_core<K: KernelOps, A: KernelArch, T: Tables>(
             && final(hw).hw().view == old(hw).hw().view
             && final(hw).stacking_discarded(),
         r is Some && r.unwrap().1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): a reported stack violation ends with BASEPRI
+        // rewritten from the Kernel's state after the response.
+        r is Some && !r.unwrap().1 ==> basepri_matches(final(k), final(hw)),
 {
     if exc_return & 4 == 0 || state.current_partition == 0xFF || psp_in_stack(tables, state, psp) {
         return None;
@@ -3091,6 +3196,10 @@ fn dispatch_job_core<K: KernelOps, A: KernelArch, T: Tables>(
         // one that is.
         r.0.psp != 0 ==> final(hw).hw().fpu_access == old(k).spec_fpu()[t as int],
         r.1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): with or without a dispatch, the entry ends with
+        // BASEPRI rewritten from the Kernel's state (a refusal is a Kernel
+        // fault, applied before the return).
+        !r.1 ==> basepri_matches(final(k), final(hw)),
         r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
             && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
                 && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
@@ -3247,6 +3356,10 @@ fn dispatch_vector_core<K: KernelOps, A: KernelArch, T: Tables>(
             && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
             && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw))
             && dispatched(*old(state), *final(state), exc_return as int),
+        // A1 (R7, 2026-11-21): a vector that does not dispatch (owed an unwind,
+        // deferred, stale) changes neither BASEPRI nor the Kernel's state; one
+        // that reports a stack violation rewrites it after the response.
+        !r.1 && basepri_matches(old(k), old(hw)) ==> basepri_matches(final(k), final(hw)),
         r.0.psp != 0 ==> final(k).spec_depth() == old(k).spec_depth() + 1
             && exists|l: int| 0 <= l < 8 && #[trigger] final(state).levels[l].active
                 && final(state).levels[l].task as int == crate::arch::bound::top_task(final(k))
@@ -3370,6 +3483,9 @@ fn intake_core<K: KernelOps, A: KernelArch, T: Tables>(
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): the entry ends with BASEPRI rewritten from the
+        // Kernel's state after its transition.
+        !r.1 ==> basepri_matches(final(k), final(hw)),
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         final(state).pending_unwind == old(state).pending_unwind,
         // The MPU view is left as it was (A6).
@@ -3412,6 +3528,9 @@ fn unbound_core<K: KernelOps, A: KernelArch, T: Tables>(k: &mut K, hw: &mut A, t
         // 2026-11-15: no Budget event is left armed with a dispatch pending.
         final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): the entry ends with BASEPRI rewritten from the
+        // Kernel's state after its transition.
+        !r.1 ==> basepri_matches(final(k), final(hw)),
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         final(state).pending_unwind == old(state).pending_unwind,
         final(hw).hw().view == old(hw).hw().view,
@@ -3464,6 +3583,11 @@ pub fn irq_entry_core<K: KernelOps, A: KernelArch, T: Tables>(
             && r.0.psp % 8 == 0 && r.0.hop == 0 && !r.1
             && final(hw).hw().view.is_some() && basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): whatever the vector, BASEPRI stays the value
+        // the Kernel's state calls for: a dispatch, an intake, the timer and
+        // an unbound vector rewrite it after their transition; a Kernel
+        // vector other than the timer changes neither.
+        !r.1 && basepri_matches(old(k), old(hw)) ==> basepri_matches(final(k), final(hw)),
         // A dispatch puts its Job on the Kernel's stack and writes that Job's
         // level record, active and naming the Job it preempted (the review of
         // the audit fixes, 2026-11-13: the link the unwind's chain follows).
@@ -3629,6 +3753,11 @@ fn svc_service_core<K: KernelOps, A: KernelArch, T: Tables>(
         // 2026-11-15: no Budget event is left armed with a dispatch pending (kept by an entry that changes nothing).
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): BASEPRI stays the value the Kernel's state calls
+        // for. Every service that changes the state rewrites it (`apply_core`);
+        // the ones that leave it (an accepted EasyDMA request, a receive that is
+        // not refused, the clock, a stale request) leave the state too.
+        !r.1 && basepri_matches(old(k), old(hw)) ==> basepri_matches(final(k), final(hw)),
         crate::arch::bound::stack_prefix(final(k), old(k)),
         super::plan::arch_frame(*final(state), *old(state)),
         ended_plan(final(k), old(k), *final(state), r.0 as int),
@@ -3751,6 +3880,11 @@ pub fn svc_core<K: KernelOps, A: KernelArch, T: Tables>(
         old(k).spec_dispatch_guard() ==> final(k).spec_dispatch_guard(),
         number == SVC_LOCK || number == SVC_UNLOCK ==> !r.1 ==> basepri_matches(final(k), final(hw)),
         r.1 ==> final(hw).hw().basepri == 0,
+        // A1 (R7, 2026-11-21): BASEPRI stays the value the Kernel's state calls
+        // for. Every service that changes the state rewrites it (`apply_core`);
+        // the ones that leave it (an accepted EasyDMA request, a receive that is
+        // not refused, the clock, a stale request) leave the state too.
+        !r.1 && basepri_matches(old(k), old(hw)) ==> basepri_matches(final(k), final(hw)),
         kentry_rel(final(k), *old(state), *final(state), r.0 as int),
         // The MPU view is left as it was (A6).
         final(hw).hw().view == old(hw).hw().view,
@@ -4079,6 +4213,296 @@ pub proof fn lemma_watchdog_timeout_within_a_counter_period()
     ensures
         (HOUSEKEEPING_PERIOD as int) * (WATCHDOG_HOUSEKEEPING_PERIODS as int) * 500 < super::plan::counter_period(),
 {
+}
+
+/// The largest Endpoint payload the Generator accepts (PR-14, task 21.2).
+pub const MAX_MESSAGE_BYTES: u32 = 65_532;
+
+/// Word `j` of the words that start at address `a` of a memory.
+pub open spec fn mem_word(m: Map<int, int>, a: int, j: int) -> int {
+    m[a + 4 * j]
+}
+
+/// When the Endpoint message copy copies `len` bytes from `src` to `dst`
+/// in full (2026-11-21): both ranges word-aligned, a whole number of words
+/// of at most `MAX_MESSAGE_BYTES`, neither range past the end of the
+/// address space, and the two ranges disjoint.
+pub open spec fn copy_ok(dst: int, src: int, len: int) -> bool {
+    &&& len % 4 == 0 && dst % 4 == 0 && src % 4 == 0
+    &&& dst + len <= 0xFFFF_FFFF && src + len <= 0xFFFF_FFFF
+    &&& len <= MAX_MESSAGE_BYTES
+    &&& (dst + len <= src || src + len <= dst)
+}
+
+/// What the Endpoint message copy does to the memory, `m0` before and
+/// `m1` after: no word outside the destination range changes, and under
+/// `copy_ok` every word of the destination is the source's word before.
+pub open spec fn copied(m0: Map<int, int>, m1: Map<int, int>, dst: int, src: int, len: int) -> bool {
+    &&& copy_ok(dst, src, len) ==> forall|j: int| 0 <= j < len / 4 ==> #[trigger] mem_word(m1, dst, j) == mem_word(m0, src, j)
+    &&& forall|a: int| !(dst <= a < dst + len) ==> #[trigger] m1[a] == m0[a]
+}
+
+/// The peer-state flag an Endpoint operation's argument names: the
+/// Endpoint's index and the role performing the operation (`role_slot`).
+pub open spec fn spec_role_slot(arg: u32) -> int {
+    (arg & 0xFF) as int * MAX_ROLES as int + ((arg >> 8) & 0xF) as int
+}
+
+/// The `len / 4` words of a message at `ptr` in a memory.
+pub open spec fn message_at(m: Map<int, int>, ptr: int, len: int) -> Seq<int> {
+    Seq::new((len / 4) as nat, |j: int| mem_word(m, ptr, j))
+}
+
+/// The messages in transit on a channel: every word of each occupied
+/// slot, oldest first (R39.4; 2026-11-21). `channel_labels` is the first
+/// word of each.
+pub open spec fn channel_messages(m: Map<int, int>, base: int, cfg: EndpointCfg, d: int, f: crate::logic::endpoint::Fifo) -> Seq<Seq<int>> {
+    f.view(cfg.capacity as int).map(|i: int, slot: int| message_at(m, slot_addr(base, cfg, d, slot), cfg.payload as int))
+}
+
+/// What the message statements take as given of the generated
+/// configuration and the caller's buffer (2026-11-21): the Endpoint
+/// storage and the Endpoint's offset in it are word-aligned, the buffer
+/// ends inside the address space, and the buffer lies outside the slots of
+/// the channel. The storage is a static of words in the Kernel's RAM and a
+/// Partition's buffer lies in that Partition's RAM (`message_permitted`),
+/// which R16.1 keeps apart; no executable check in the cores states it.
+pub open spec fn message_premise<T: Tables>(tables: &T, e: int, d: int, ptr: int, len: int) -> bool {
+    let cfg = spec_endpoint_of(tables, e);
+    let base = spec_storage_base_of(tables);
+    &&& base % 4 == 0 && cfg.storage as int % 4 == 0
+    &&& ptr + len <= 0xFFFF_FFFF
+    &&& (ptr + len <= slot_addr(base, cfg, d, 0) || slot_addr(base, cfg, d, cfg.capacity as int) <= ptr)
+}
+
+/// An accepted send's effect on its channel's messages (R39.4, R40.3):
+/// the channel gains, as its newest message, every word of the message as
+/// it stood at `ptr` before the operation, the messages before it are as
+/// they were, and the label recorded for the slot is that message's first
+/// word.
+pub open spec fn send_message_ok<T: Tables>(tables: &T, s0: ArchState, s1: ArchState, h0: HwModel, h1: HwModel, arg: u32, ptr: int) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let peer = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    let base = spec_storage_base_of(tables);
+    let ch = spec_channel_index(e, role, peer);
+    let d = role * cfg.roles as int + peer;
+    let cap = cfg.capacity as int;
+    let before = channel_before(s0.fifos[ch], cap);
+    message_premise(tables, e, d, ptr, cfg.payload as int) ==>
+        exists|slot: int| #![auto] 0 <= slot < cap
+            && s1.fifos[ch].view(cap) == before.view(cap).push(slot)
+            && channel_messages(h1.mem, base, cfg, d, s1.fifos[ch]) == channel_messages(h0.mem, base, cfg, d, before).push(message_at(h0.mem, ptr, cfg.payload as int))
+            && h1.store[slot_addr(base, cfg, d, slot)] == mem_word(h0.mem, ptr, 0)
+}
+
+/// An accepted receive's effect on its channel's messages (R39.4, R40.4):
+/// no word outside the receiver's buffer changes, the buffer then holds
+/// every word of the channel's oldest message, and the channel's other
+/// messages are as they were, in order.
+pub open spec fn recv_message_ok<T: Tables>(tables: &T, s0: ArchState, s1: ArchState, h0: HwModel, h1: HwModel, arg: u32, ptr: int) -> bool {
+    let e = (arg & 0xFF) as int;
+    let role = ((arg >> 8) & 0xF) as int;
+    let from = ((arg >> 12) & 0xF) as int;
+    let cfg = spec_endpoint_of(tables, e);
+    let base = spec_storage_base_of(tables);
+    let ch = spec_channel_index(e, from, role);
+    let d = from * cfg.roles as int + role;
+    let cap = cfg.capacity as int;
+    let before = channel_before(s0.fifos[ch], cap);
+    &&& forall|a: int| !(ptr <= a < ptr + cfg.payload as int) ==> #[trigger] h1.mem[a] == h0.mem[a]
+    &&& message_premise(tables, e, d, ptr, cfg.payload as int) ==> {
+        &&& message_at(h1.mem, ptr, cfg.payload as int) == channel_messages(h0.mem, base, cfg, d, before)[0]
+        &&& channel_messages(h1.mem, base, cfg, d, s1.fifos[ch]) == channel_messages(h0.mem, base, cfg, d, before).drop_first()
+    }
+}
+
+/// A slot of a channel lies inside the channel's slots, and its address
+/// is word-aligned when the storage and the payload are.
+proof fn lemma_slot_in_channel(base: int, cfg: EndpointCfg, d: int, slot: int)
+    requires 0 <= slot < cfg.capacity as int, cfg.payload >= 4, cfg.payload % 4 == 0,
+    ensures
+        slot_addr(base, cfg, d, 0) <= slot_addr(base, cfg, d, slot),
+        slot_addr(base, cfg, d, slot) + cfg.payload as int <= slot_addr(base, cfg, d, cfg.capacity as int),
+        base % 4 == 0 && cfg.storage as int % 4 == 0 ==> slot_addr(base, cfg, d, slot) % 4 == 0,
+{
+    let pl = cfg.payload as int;
+    let cap = cfg.capacity as int;
+    let q = pl / 4;
+    assert((d * cap + slot) * pl == (d * cap) * pl + slot * pl) by (nonlinear_arith);
+    assert((d * cap + cap) * pl == (d * cap) * pl + cap * pl) by (nonlinear_arith);
+    assert((d * cap + 0) * pl == (d * cap) * pl) by (nonlinear_arith);
+    assert(0 <= slot * pl && slot * pl + pl <= cap * pl) by (nonlinear_arith)
+        requires 0 <= slot < cap, pl >= 4;
+    assert((d * cap + slot) * pl == 4 * ((d * cap + slot) * q)) by (nonlinear_arith)
+        requires pl == 4 * q;
+}
+
+/// Two distinct slots of a channel do not share a byte.
+proof fn lemma_slot_ranges_apart(base: int, cfg: EndpointCfg, d: int, s1: int, s2: int)
+    requires cfg.payload >= 1, s1 != s2,
+    ensures slot_addr(base, cfg, d, s1) + cfg.payload as int <= slot_addr(base, cfg, d, s2)
+        || slot_addr(base, cfg, d, s2) + cfg.payload as int <= slot_addr(base, cfg, d, s1),
+{
+    let pl = cfg.payload as int;
+    let x = d * cfg.capacity as int;
+    assert((x + s1) * pl + pl <= (x + s2) * pl || (x + s2) * pl + pl <= (x + s1) * pl) by (nonlinear_arith)
+        requires pl >= 1, s1 != s2;
+}
+
+/// The messages after a push: the old messages, then the copied one.
+proof fn lemma_send_messages(base: int, cfg: EndpointCfg, d: int, before: crate::logic::endpoint::Fifo, after: crate::logic::endpoint::Fifo, slot: int, m0: Map<int, int>, m1: Map<int, int>, ptr: int)
+    requires
+        cfg.payload >= 4, cfg.payload % 4 == 0, before.wf(cfg.capacity as int), (before.count as int) < cfg.capacity as int,
+        after.view(cfg.capacity as int) == before.view(cfg.capacity as int).push(slot),
+        slot == (before.head as int + before.count as int) % cfg.capacity as int,
+        copy_ok(slot_addr(base, cfg, d, slot), ptr, cfg.payload as int),
+        copied(m0, m1, slot_addr(base, cfg, d, slot), ptr, cfg.payload as int),
+    ensures
+        channel_messages(m1, base, cfg, d, after) == channel_messages(m0, base, cfg, d, before).push(message_at(m0, ptr, cfg.payload as int)),
+{
+    let cap = cfg.capacity as int;
+    let pl = cfg.payload as int;
+    let dst = slot_addr(base, cfg, d, slot);
+    lemma_next_slot_fresh(before, cfg.capacity as int);
+    let ma = channel_messages(m1, base, cfg, d, after);
+    let mb = channel_messages(m0, base, cfg, d, before);
+    assert forall|i: int| 0 <= i < before.count implies ma[i] == mb[i] by {
+        let s = before.view(cap)[i];
+        lemma_slot_ranges_apart(base, cfg, d, s, slot);
+        let a = slot_addr(base, cfg, d, s);
+        assert forall|j: int| 0 <= j < pl / 4 implies mem_word(m1, a, j) == mem_word(m0, a, j) by {
+            assert(!(dst <= a + 4 * j < dst + pl));
+            assert(m1[a + 4 * j] == m0[a + 4 * j]);
+        }
+        assert(message_at(m1, a, pl) =~= message_at(m0, a, pl));
+    }
+    assert(message_at(m1, dst, pl) =~= message_at(m0, ptr, pl));
+    assert(ma =~= mb.push(message_at(m0, ptr, pl)));
+}
+
+/// The messages after a pop: the oldest is the one copied out, the rest
+/// are as they were.
+proof fn lemma_recv_messages(base: int, cfg: EndpointCfg, d: int, before: crate::logic::endpoint::Fifo, after: crate::logic::endpoint::Fifo, m0: Map<int, int>, m1: Map<int, int>, ptr: int)
+    requires
+        cfg.payload >= 4, cfg.payload % 4 == 0, before.wf(cfg.capacity as int), (before.count as int) > 0,
+        after.view(cfg.capacity as int) == before.view(cfg.capacity as int).drop_first(),
+        copy_ok(ptr, slot_addr(base, cfg, d, before.view(cfg.capacity as int)[0]), cfg.payload as int),
+        copied(m0, m1, ptr, slot_addr(base, cfg, d, before.view(cfg.capacity as int)[0]), cfg.payload as int),
+        ptr + cfg.payload as int <= slot_addr(base, cfg, d, 0) || slot_addr(base, cfg, d, cfg.capacity as int) <= ptr,
+    ensures
+        message_at(m1, ptr, cfg.payload as int) == channel_messages(m0, base, cfg, d, before)[0],
+        channel_messages(m1, base, cfg, d, after) == channel_messages(m0, base, cfg, d, before).drop_first(),
+{
+    let cap = cfg.capacity as int;
+    let pl = cfg.payload as int;
+    let src = slot_addr(base, cfg, d, before.view(cap)[0]);
+    let ma = channel_messages(m1, base, cfg, d, after);
+    let mb = channel_messages(m0, base, cfg, d, before);
+    assert(message_at(m1, ptr, pl) =~= message_at(m0, src, pl));
+    assert forall|i: int| 0 <= i < before.count - 1 implies ma[i] == mb[i + 1] by {
+        let s = before.view(cap)[i + 1];
+        assert(s == (before.head as int + (i + 1)) % cap);
+        assert(0 <= s < cap);
+        lemma_slot_in_channel(base, cfg, d, s);
+        let a = slot_addr(base, cfg, d, s);
+        assert(after.view(cap)[i] == s);
+        assert forall|j: int| 0 <= j < pl / 4 implies mem_word(m1, a, j) == mem_word(m0, a, j) by {
+            assert(!(ptr <= a + 4 * j < ptr + pl));
+            assert(m1[a + 4 * j] == m0[a + 4 * j]);
+        }
+        assert(message_at(m1, a, pl) =~= message_at(m0, a, pl));
+    }
+    assert(ma =~= mb.drop_first());
+}
+
+impl Cm4Hw {
+    /// Trusted (UJ-056; docs/proof_assumptions.toml): one volatile read of
+    /// a word of the SRAM, which is the memory model's word at `a`.
+    #[verifier::external_body]
+    #[inline(always)]
+    fn ram_read(&self, a: u32) -> (w: u32)
+        ensures w as int == self.model@.mem[a as int],
+    {
+        super::unsafe_module::hw::ram_word(a)
+    }
+
+    /// Trusted (UJ-056a): one volatile write of a word of the SRAM.
+    #[verifier::external_body]
+    #[inline(always)]
+    fn ram_write(&mut self, a: u32, w: u32)
+        ensures final(self).model@ == (HwModel { mem: old(self).model@.mem.insert(a as int, w as int), ..old(self).model@ }),
+            final(self).dropped == old(self).dropped, final(self).discarded == old(self).discarded,
+    {
+        super::unsafe_module::hw::set_ram_word(a, w)
+    }
+
+    /// Trusted (UJ-056, A-P2): `ram_read` of a word of the Endpoint
+    /// storage, with what the label record says of it: the storage is
+    /// Kernel-owned (R16.1) and `copy_in` its only writer, so a recorded
+    /// word is the word read.
+    #[verifier::external_body]
+    #[inline(always)]
+    fn read_label(&self, a: u32) -> (w: u32)
+        ensures w as int == self.model@.mem[a as int],
+            self.model@.store.contains_key(a as int) ==> w as int == self.model@.store[a as int],
+    {
+        super::unsafe_module::hw::ram_word(a)
+    }
+
+    /// The Endpoint message copy (task 21.2; DD-09, R42.2): `len` bytes
+    /// from `src` to `dst` by words, proven for every length (2026-11-21;
+    /// before, a bounded Kani check of an unverified loop). Total for
+    /// every argument: nothing is copied unless both ranges are
+    /// word-aligned, `len` is a multiple of 4, and neither range wraps the
+    /// address space. Nothing outside the destination range is written,
+    /// and for disjoint ranges of at most `MAX_MESSAGE_BYTES` the
+    /// destination then holds the source's words (`copied`).
+    pub fn copy_words(&mut self, dst: u32, src: u32, len: u32)
+        ensures final(self).model@ == (HwModel { mem: final(self).model@.mem, ..old(self).model@ }),
+            copied(old(self).model@.mem, final(self).model@.mem, dst as int, src as int, len as int),
+            final(self).dropped == old(self).dropped, final(self).discarded == old(self).discarded,
+    {
+        if len % 4 != 0 || dst % 4 != 0 || src % 4 != 0 {
+            return;
+        }
+        if len > u32::MAX - dst || len > u32::MAX - src {
+            return;
+        }
+        let ghost m0 = self.model@.mem;
+        let mut i: u32 = 0;
+        // The bound (PR-16): a message is at most `MAX_MESSAGE_BYTES` (the
+        // Generator's payload limit), so at most that many bytes are copied.
+        while i < len && i < MAX_MESSAGE_BYTES
+            invariant
+                i % 4 == 0, i <= len, len % 4 == 0,
+                dst as int + len as int <= u32::MAX as int, src as int + len as int <= u32::MAX as int,
+                self.model@ == (HwModel { mem: self.model@.mem, ..old(self).model@ }),
+                m0 == old(self).model@.mem,
+                self.dropped == old(self).dropped, self.discarded == old(self).discarded,
+                forall|a: int| !(dst as int <= a < dst as int + i as int) ==> #[trigger] self.model@.mem[a] == m0[a],
+                (dst as int + len as int <= src as int || src as int + len as int <= dst as int)
+                    ==> forall|j: int| 0 <= j < i as int / 4 ==> #[trigger] mem_word(self.model@.mem, dst as int, j) == mem_word(m0, src as int, j),
+            decreases len - i,
+        {
+            let ghost m1 = self.model@.mem;
+            let w = self.ram_read(src + i);
+            self.ram_write(dst + i, w);
+            proof {
+                let m2 = self.model@.mem;
+                if dst as int + len as int <= src as int || src as int + len as int <= dst as int {
+                    assert(m1[src as int + i as int] == m0[src as int + i as int]);
+                    assert forall|j: int| 0 <= j < (i as int + 4) / 4 implies #[trigger] mem_word(m2, dst as int, j) == mem_word(m0, src as int, j) by {
+                        if j < i as int / 4 {
+                            assert(mem_word(m1, dst as int, j) == mem_word(m0, src as int, j));
+                        }
+                    }
+                }
+            }
+            i += 4;
+        }
+    }
 }
 
 } // verus!

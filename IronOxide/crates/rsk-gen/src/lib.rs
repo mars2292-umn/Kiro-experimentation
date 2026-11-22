@@ -43,6 +43,28 @@ pub struct Outputs {
     pub link_x: String,
     pub summary: String,
     pub task_model_json: String,
+    /// A starter Task body per role of every Protocol-governed Endpoint
+    /// (`skeletons/<endpoint>_<role>.rs`): for the user to copy, read by no build.
+    pub skeletons: Vec<roles::Skeleton>,
+}
+
+/// The directory of the skeletons under an output directory. The Generator
+/// owns it whole: every file in it is one of its outputs or is stale.
+pub const SKELETON_DIR: &str = "skeletons";
+
+/// The files under `out_dir/skeletons` that are not among `files` (the
+/// names of the Generator's outputs, relative to `out_dir`): the skeleton
+/// of a role or an Endpoint the declaration no longer has. Sorted; empty
+/// when the directory does not exist.
+pub fn stale_skeletons(out_dir: &std::path::Path, files: &[String]) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(out_dir.join(SKELETON_DIR)) else { return Vec::new() };
+    let mut stale: Vec<std::path::PathBuf> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| !files.iter().any(|f| *f == format!("{SKELETON_DIR}/{}", e.file_name().to_string_lossy())))
+        .map(|e| e.path())
+        .collect();
+    stale.sort();
+    stale
 }
 
 /// Validates and derives; the first error list is returned as a whole so
@@ -90,6 +112,7 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
         link_x: emit::link_x(&generated, system_crate),
         summary: emit::summary(&generated),
         task_model_json: model::task_model(&generated).render(),
+        skeletons: roles::skeletons(&generated),
         generated,
     })
 }
@@ -366,6 +389,116 @@ pub(crate) mod tests {
             if let Err(errs) = generate(&with(policy, Source::Signal("tick".into()))) {
                 panic!("a Release_Signal offers both policies: {errs:?}");
             }
+        }
+    }
+
+    /// The skeletons: one per role of every Protocol-governed Endpoint,
+    /// with an arm for every state of the role, a variant arm for every
+    /// message a receive may deliver, and an arm handing the state back for
+    /// every way a send or a receive fails.
+    #[test]
+    fn a_skeleton_writes_out_every_state_and_outcome() {
+        use crate::decl::{EndpointDecl, ProtocolDecl, RoleDecl};
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }".into() });
+        let role = |role: &str, partition: &str, task: &str| RoleDecl { role: role.into(), partition: partition.into(), task: task.into(), validate: vec![], ops: 1, after: vec![] };
+        d.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: vec![RoleDecl { validate: vec![(Some("Rep".into()), "crate::ok".into())], ..role("ctl", "part0", "control") }, role("sink", "part1", "log")], capacity: 1, payload: 8 });
+        let g = generate(&d).expect("accepted");
+        let skeletons = roles::skeletons(&g);
+        assert_eq!(skeletons.iter().map(|s| (s.file_name(), s.task.clone(), s.partition.clone())).collect::<Vec<_>>(), vec![("skeletons/ping_ctl.rs".to_string(), "control".to_string(), "part0".to_string()), ("skeletons/ping_sink.rs".to_string(), "log".to_string(), "part1".to_string())]);
+        for sk in &skeletons {
+            let e = g.endpoints.iter().find(|e| e.name == sk.endpoint).expect("the Endpoint");
+            let states = &e.verified_states.iter().find(|(r, _)| *r == sk.role).expect("the role").1;
+            let s = &sk.source;
+            assert!(s.contains(&format!("cx.{}.take(State::Empty)", sk.endpoint)) && s.contains(&format!("cx.{}.store(next);", sk.endpoint)), "{s}");
+            assert!(s.contains("State::Empty => State::Empty,"), "{s}");
+            for (i, st) in states.iter().enumerate() {
+                assert!(s.contains(&format!("State::S{i}(role) =>")), "no arm for S{i}:\n{s}");
+                match &st.kind {
+                    roles::Kind::End => assert!(s.contains("role.finish()"), "{s}"),
+                    roles::Kind::Send { branches, .. } => {
+                        for (label, payload, _) in branches {
+                            assert!(s.contains(&format!("role.send_{}(", label.to_lowercase())), "no send of {label}:\n{s}");
+                            assert_eq!(payload.is_some(), s.contains(&format!("todo!(\"the {label} payload")), "{s}");
+                        }
+                        for reason in ["Full", "Refused"] {
+                            assert!(s.contains(&format!("Err(NotSent::{reason}(s{i})) => State::S{i}(s{i}),")), "{s}");
+                        }
+                        assert!(s.contains("Err(NotSent::PeerChanged(s0)) => State::S0(s0),"), "{s}");
+                    }
+                    roles::Kind::Recv { branches, .. } => {
+                        for (label, _, next) in branches {
+                            assert!(s.contains(&format!("Ok(RecvS{i}::{label}(")) && s.contains(&format!("State::S{next}(s{next})")), "no arm for {label}:\n{s}");
+                        }
+                        // No role is declared `after` this Endpoint: no gate to open.
+                        assert!(!s.contains("_gate"), "{s}");
+                        for reason in ["Empty", "Unexpected", "Rejected"] {
+                            assert!(s.contains(&format!("Err(NotReceived::{reason}(s{i})) => State::S{i}(s{i}),")), "{s}");
+                        }
+                        assert!(s.contains("Err(NotReceived::PeerChanged(s0)) => State::S0(s0),"), "{s}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// A file under `skeletons/` that the Generator did not write is
+    /// stale, whatever its name; the outputs themselves and the files
+    /// beside the directory are not.
+    #[test]
+    fn a_skeleton_the_declaration_no_longer_has_is_stale() {
+        let out = std::env::temp_dir().join(format!("rsk-gen-stale-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&out);
+        let dir = out.join(SKELETON_DIR);
+        assert_eq!(stale_skeletons(&out, &[]), Vec::<std::path::PathBuf>::new(), "no directory, nothing stale");
+        std::fs::create_dir_all(&dir).expect("the directory");
+        for name in ["ping_ctl.rs", "ping_sink.rs", "old_ctl.rs", "notes.txt"] {
+            std::fs::write(dir.join(name), "").expect("a file");
+        }
+        std::fs::write(out.join("summary.txt"), "").expect("a file beside the directory");
+        let files = vec!["summary.txt".to_string(), "skeletons/ping_ctl.rs".to_string(), "skeletons/ping_sink.rs".to_string()];
+        assert_eq!(stale_skeletons(&out, &files), vec![dir.join("notes.txt"), dir.join("old_ctl.rs")]);
+        // A name that is an output elsewhere is still stale here.
+        assert_eq!(stale_skeletons(&out, &["ping_ctl.rs".to_string()]).len(), 4);
+        let _ = std::fs::remove_dir_all(&out);
+    }
+
+    /// A role declared `after` an Endpoint (R41.3, A-P8): its skeleton
+    /// returns before taking the state while the gate is closed and hands
+    /// the gate to every operation, and the skeleton of the Task's role on
+    /// the gating Endpoint opens the gate on every completed receive.
+    #[test]
+    fn a_gated_skeleton_tests_its_gate_and_the_gating_receive_opens_it() {
+        use crate::decl::{EndpointDecl, ProtocolDecl, RoleDecl};
+        let mut d = demo();
+        d.protocols.push(ProtocolDecl { name: "PingPong".into(), text: "rec L { choice at ctl { Req(u32): ctl -> sink; Rep(u32): sink -> ctl; continue L; } or { Stop(): ctl -> sink; end; } }".into() });
+        let role = |role: &str, partition: &str, task: &str, after: &[&str]| RoleDecl { role: role.into(), partition: partition.into(), task: task.into(), validate: vec![], ops: 2, after: after.iter().map(|x| x.to_string()).collect() };
+        d.endpoints.push(EndpointDecl { name: "ping".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: vec![RoleDecl { validate: vec![(Some("Rep".into()), "crate::ok".into())], ..role("ctl", "part0", "control", &[]) }, role("sink", "part1", "log", &[])], capacity: 1, payload: 8 });
+        d.endpoints.push(EndpointDecl { name: "relay".into(), ty: String::new(), protocol: Some("PingPong".into()), roles: vec![role("ctl", "part1", "log", &["ping"]), RoleDecl { validate: vec![(Some("Req".into()), "crate::ok".into())], ..role("sink", "part0", "control", &[]) }], capacity: 1, payload: 8 });
+        let g = generate(&d).expect("accepted");
+        let skeletons = roles::skeletons(&g);
+        let of = |name: &str| skeletons.iter().find(|s| s.file_name() == format!("skeletons/{name}.rs")).map(|s| s.source.clone()).expect("the skeleton");
+
+        // The gated role: the test of the gate precedes the take, and every operation takes the gate.
+        let gated = of("relay_ctl");
+        let (guard, take) = (gated.find("if !cx.ping_gate.is_open() {\n        return;\n    }").expect("the guard"), gated.find("cx.relay.take(").expect("the take"));
+        assert!(guard < take, "{gated}");
+        for op in ["role.send_req(todo!(\"the Req payload: u32\"), &cx.ping_gate)", "role.send_stop(&cx.ping_gate)", "role.try_recv(&cx.ping_gate)"] {
+            assert!(gated.contains(op), "no `{op}`:\n{gated}");
+        }
+        assert!(!gated.contains(".open("), "{gated}");
+
+        // The gating receive, by the same Task: opened on the outcome, before the outcome is taken apart.
+        let gating = of("ping_sink");
+        let (open, arms) = (gating.find("Ok(received) => {").expect("the outcome"), gating.find("match received {").expect("the arms"));
+        let opened = gating.find("cx.ping_gate.open(&received);").expect("the gate opened");
+        assert!(open < opened && opened < arms, "{gating}");
+        assert!(gating.contains("RecvS0::Req(m, s1) => {") && gating.contains("RecvS0::Stop(s2) => {"), "{gating}");
+        assert!(!gating.contains("is_open"), "{gating}");
+
+        // The other Task's roles on the same Endpoints have no gate.
+        for name in ["ping_ctl", "relay_sink"] {
+            assert!(!of(name).contains("_gate"), "{}", of(name));
         }
     }
 

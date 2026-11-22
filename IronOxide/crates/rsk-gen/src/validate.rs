@@ -768,11 +768,11 @@ pub fn release_endpoint_of(decl: &Declaration, partition: &str, task: &str) -> O
 fn received_messages(checked: &rsk_protocol::Checked, ri: usize, roles: &[&str], out: &mut Vec<(String, String)>) {
     let Some(table) = checked.tables.get(ri) else { return };
     for e in table {
-        if let rsk_protocol::RoleEntry::Recv { from, labels } = e {
-            for l in labels {
-                let Some(name) = checked.labels.get(*l as usize) else { continue };
+        if e.kind == rsk_protocol::api::KIND_RECV {
+            for op in &e.ops {
+                let Some(name) = checked.labels.get(op.label as usize) else { continue };
                 if crate::roles::payload_of(&checked.global, name).is_some() {
-                    if let Some(sender) = roles.get(*from) {
+                    if let Some(sender) = roles.get(e.peer) {
                         out.push((name.clone(), (*sender).to_string()));
                     }
                 }

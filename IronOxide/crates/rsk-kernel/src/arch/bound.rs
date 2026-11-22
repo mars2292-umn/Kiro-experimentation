@@ -465,7 +465,17 @@ pub trait KernelOps: Sized {
     fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8)
         requires old(self).inv(),
         ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
-            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i));
+            && (forall|i: int| 0 <= i < final(self).spec_depth() ==> final(self).spec_stack(i) == old(self).spec_stack(i)),
+            // R10.5, R10.1 to R10.3 (2026-11-21): the state left is the
+            // outcome of that one Release_Source event.
+            final(self).spec_intake_of(old(self), t as int, source_partition as int, offender as int, now);
+    /// `self` is `old` after the Release_Source event of Task `t` at `now`,
+    /// attributed to `source_partition`, a threshold response being for
+    /// `offender`: for a Sporadic_Task of the configuration within the
+    /// Operating_Duration, the outcome the Kernel logic proves of its
+    /// intake (an overdue deadline of `t` served first, R9.6, then the MIT
+    /// decision of R10.1 to R10.3 for `t` alone); otherwise `old` unchanged.
+    spec fn spec_intake_of(&self, old: &Self, t: int, source_partition: int, offender: int, now: u64) -> bool;
     fn timer_event(&mut self, now: u64, running_cycles: u32)
         requires old(self).inv(),
         ensures final(self).inv(), final(self).spec_prio() == old(self).spec_prio() && final(self).spec_part() == old(self).spec_part() && final(self).task_count_spec() == old(self).task_count_spec(), final(self).spec_depth() <= old(self).spec_depth()
@@ -890,6 +900,17 @@ impl<const NT: usize, const NR: usize, const NP: usize, const NL: usize, const N
 
     fn settle(&mut self) -> (r: (Option<u8>, bool)) {
         self.kernel.settle(&self.cfg)
+    }
+
+    open spec fn spec_intake_of(&self, old: &Self, t: int, source_partition: int, offender: int, now: u64) -> bool {
+        if 0 <= t < NT && 0 <= source_partition < NP && old.cfg.tasks[t].kind == KIND_SPORADIC && now <= old.cfg.operating_duration {
+            let off = if 0 <= offender < NT { offender } else { t };
+            &&& self.cfg == old.cfg
+            &&& exists|m: Kernel<NT, NR, NP, NL, NS, NE>| #[trigger] m.overdue_deadline_served(&old.kernel, &old.cfg, t, now)
+                    && self.kernel.intake_outcome(&m, &old.cfg, t, source_partition, off, now)
+        } else {
+            *self == *old
+        }
     }
 
     fn intake(&mut self, t: u8, source_partition: u8, now: u64, offender: u8) {

@@ -698,7 +698,7 @@ fn protocol_roles(g: &Generated, t: usize) -> Vec<(&crate::derive::GenEndpoint, 
 
 /// The Endpoints that gate a role of Task `t` (`after`; task 21.6, A-P8),
 /// each once, in declaration order.
-fn gating_endpoints(g: &Generated, t: usize) -> Vec<String> {
+pub(crate) fn gating_endpoints(g: &Generated, t: usize) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for (e, role) in protocol_roles(g, t) {
         let ri = e.roles.iter().position(|(r, _)| *r == role).unwrap_or(0);

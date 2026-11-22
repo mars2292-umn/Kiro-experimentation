@@ -93,6 +93,10 @@ fn generate_one(ws: &Workspace, name: &str, variant: Option<String>, decl_source
     for (pname, src) in outputs.partition_sources {
         files.push((format!("partition_{pname}.rs"), src));
     }
+    // The starter Task bodies of the Protocol roles, for the user to copy.
+    for sk in outputs.skeletons {
+        files.push((sk.file_name(), sk.source));
+    }
     report.note(format!(
         "Generator: `{label}` accepted ({} Tasks, {} Resources, {} Partitions; Target {}; Generated_Config checksum 0x{:08x})",
         outputs.generated.tasks.len(),
@@ -130,8 +134,9 @@ pub fn run(root: &Path, check: bool, report: &mut Report) -> bool {
                     }
                 }
             } else {
-                if let Err(e) = std::fs::create_dir_all(&app.out_dir) {
-                    report.error(Rule::Step, Some(ws.rel(&app.out_dir)), format!("cannot create: {e}"));
+                let dir = path.parent().unwrap_or(&app.out_dir);
+                if let Err(e) = std::fs::create_dir_all(dir) {
+                    report.error(Rule::Step, Some(ws.rel(dir)), format!("cannot create: {e}"));
                     ok = false;
                     continue;
                 }
@@ -144,6 +149,20 @@ pub fn run(root: &Path, check: bool, report: &mut Report) -> bool {
                         report.note(format!("wrote {}", ws.rel(&path)));
                     }
                 }
+            }
+        }
+        // The skeleton of a role or an Endpoint the declaration no longer
+        // has: reported by the check, removed by a run.
+        let names: Vec<String> = app.files.iter().map(|(name, _)| name.clone()).collect();
+        for stale in rsk_gen::stale_skeletons(&app.out_dir, &names) {
+            if check {
+                report.error(Rule::Generator, Some(ws.rel(&stale)), format!("not among the Generator's outputs for `{}`; run `cargo xtask gen`, which removes it (R24.4)", app.decl_crate));
+                ok = false;
+            } else if let Err(e) = std::fs::remove_file(&stale) {
+                report.error(Rule::Step, Some(ws.rel(&stale)), format!("cannot remove: {e}"));
+                ok = false;
+            } else {
+                report.note(format!("removed {} (no longer generated)", ws.rel(&stale)));
             }
         }
     }
