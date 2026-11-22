@@ -234,6 +234,14 @@ theorem kstep_nomrel {cfg : logic.Config NT NR NP} {P : Params}
   | bserved t i k' hs => exact NomRel.of_eq (budget_event_tk hs).2
   | opend i k1 k' hcode h1 hs => exact serve_slot_nomrel hcode
   | settle r k' hs => exact NomRel.of_eq (settle_tk hs).2
+  | charged t rc b hs => exact NomRel.of_eq rfl
+  | acked_reinit p k' hs =>
+    obtain ⟨a, rfl⟩ := ack_reinit_upd hs
+    exact NomRel.of_eq rfl
+  | acked_stop p k' hs =>
+    obtain ⟨a, rfl⟩ := ack_stop_dma_upd hs
+    exact NomRel.of_eq rfl
+  | logged kind task partition prs detail k' hs => exact NomRel.of_eq (push_event_tk hs).2
   | observed now k' hs => exact NomRel.of_eq (observe_nom hs)
   | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
     have := NomRel.of_eq (cfg := cfg) (deferred_release_tk hs).2

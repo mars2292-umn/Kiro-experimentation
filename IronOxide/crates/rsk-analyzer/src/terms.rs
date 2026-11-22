@@ -1324,4 +1324,164 @@ pub fn analyse_all(tasks: &Vec<TaskIn>, sites: &Vec<Site>, p: Params, any_fpu: b
     Some((derived, verdicts, all_terms, quiet))
 }
 
+/// What the statements of `analyse_all`, and Property 18 over them
+/// (`proofs/aeneas/lean/Sched/KRun.lean`: `hsok`, `hwl`, `hbud`, `hprio`,
+/// `hDT`), ask of the resolved inputs: every site names a Task, every Task
+/// has a window, a positive Budget and a Priority above the idle level, and
+/// no deadline is later than its period or MIT (2026-11-22).
+pub open spec fn inputs_admissible(tasks: Seq<TaskIn>, sites: Seq<Site>, windows: Seq<Window>) -> bool {
+    &&& sites_ok(tasks, sites)
+    &&& windows.len() == tasks.len()
+    &&& forall|i: int| 0 <= i < tasks.len() ==> task_admissible(#[trigger] tasks[i])
+    &&& forall|i: int| 0 <= i < windows.len() ==> window_admissible(#[trigger] windows[i])
+}
+
+pub open spec fn task_admissible(t: TaskIn) -> bool {
+    t.budget > 0 && t.priority > 0
+}
+
+pub open spec fn window_admissible(w: Window) -> bool {
+    w.deadline <= w.period
+}
+
+/// The first input that is not admissible: `(1, k)` site `k` names no
+/// Task, `(2, 0)` the windows are not one per Task, `(3, i)` Task `i` has
+/// no Budget or no Priority, `(4, i)` the deadline of Task `i` is later
+/// than its period or MIT. `None` exactly when the inputs are admissible:
+/// the Analyzer refuses anything else before the analysis runs.
+pub fn check_inputs(tasks: &Vec<TaskIn>, sites: &Vec<Site>, windows: &Vec<Window>) -> (r: Option<(u8, usize)>)
+    ensures
+        r.is_none() == inputs_admissible(tasks@, sites@, windows@),
+        r matches Some(f) ==> match f.0 {
+            1 => f.1 < sites.len() && sites@[f.1 as int].task >= tasks.len(),
+            2 => windows.len() != tasks.len(),
+            3 => f.1 < tasks.len() && !task_admissible(tasks@[f.1 as int]),
+            4 => f.1 < windows.len() && !window_admissible(windows@[f.1 as int]),
+            _ => false,
+        },
+{
+    let mut k: usize = 0;
+    while k < sites.len()
+        invariant k <= sites.len(), forall|m: int| 0 <= m < k ==> (#[trigger] sites@[m]).task < tasks.len(),
+        decreases sites.len() - k,
+    {
+        if sites[k].task >= tasks.len() {
+            return Some((1, k));
+        }
+        k = k + 1;
+    }
+    if windows.len() != tasks.len() {
+        return Some((2, 0));
+    }
+    let mut i: usize = 0;
+    while i < tasks.len()
+        invariant i <= tasks.len(), forall|m: int| 0 <= m < i ==> task_admissible(#[trigger] tasks@[m]),
+        decreases tasks.len() - i,
+    {
+        if tasks[i].budget == 0 || tasks[i].priority == 0 {
+            return Some((3, i));
+        }
+        i = i + 1;
+    }
+    let mut j: usize = 0;
+    while j < windows.len()
+        invariant j <= windows.len(), forall|m: int| 0 <= m < j ==> window_admissible(#[trigger] windows@[m]),
+        decreases windows.len() - j,
+    {
+        if windows[j].deadline > windows[j].period {
+            return Some((4, j));
+        }
+        j = j + 1;
+    }
+    None
+}
+
+/// R40.2: an Endpoint operation of Task `task` as a Critical_Section site.
+/// The Kernel executes it inside the SVC, so its Ceiling is above every
+/// Priority, and it is marked as an Endpoint site (no lock entry and exit
+/// of its own).
+pub open spec fn endpoint_site(task: usize, wcet: u64) -> Site {
+    Site { task, ceiling: u8::MAX, wcet, endpoint: true }
+}
+
+/// The two sites of one Endpoint role of Task `task`: a send of Δ_send and
+/// a receive of Δ_recv.
+pub fn endpoint_sites(task: usize, p: Params) -> (r: (Site, Site))
+    ensures r.0 == endpoint_site(task, p.send), r.1 == endpoint_site(task, p.recv),
+{
+    (Site { task, ceiling: u8::MAX, wcet: p.send, endpoint: true }, Site { task, ceiling: u8::MAX, wcet: p.recv, endpoint: true })
+}
+
+/// **R40.2, the blocking term.** An Endpoint site blocks every Task of a
+/// higher Priority than its holder: it is a candidate of that Task's B_i
+/// whatever the Priorities are.
+pub proof fn lemma_endpoint_site_blocks(tasks: Seq<TaskIn>, sites: Seq<Site>, i: int, k: int)
+    requires
+        0 <= k < sites.len(),
+        sites[k] == endpoint_site(sites[k].task, sites[k].wcet),
+        tasks[sites[k].task as int].priority < tasks[i].priority,
+    ensures blocks(tasks, sites, i, k),
+{
+}
+
+/// The larger of Δ_send and Δ_recv: what one declared Endpoint operation
+/// of a Job costs at most.
+pub open spec fn endpoint_op(p: Params) -> int {
+    if p.send >= p.recv { p.send as int } else { p.recv as int }
+}
+
+/// **R40.2, the execution-time bound.** The Endpoint cost of a Task after
+/// one more role with `ops` declared operations per Job: `acc` plus `ops`
+/// times the larger of Δ_send and Δ_recv. `None` exactly when that does
+/// not fit 64 bits (R29.6). The sum over a Task's roles is its
+/// `endpoint_cost`, a summand of O_i (`spec_o`).
+pub fn endpoint_cost_add(acc: u64, ops: u64, p: Params) -> (r: Option<u64>)
+    ensures
+        r.is_some() <==> acc as int + ops as int * endpoint_op(p) <= u64_max(),
+        r matches Some(v) ==> v as int == acc as int + ops as int * endpoint_op(p),
+{
+    let op = if p.send >= p.recv { p.send } else { p.recv };
+    assert((ops as int) * (op as int) >= 0) by (nonlinear_arith) requires ops >= 0, op >= 0;
+    match mul(ops, op) {
+        Some(c) => add(acc, c),
+        None => None,
+    }
+}
+
 } // verus!
+
+#[cfg(test)]
+mod admissible_tests {
+    use super::*;
+
+    fn task() -> TaskIn {
+        TaskIn { priority: 2, partition: 0, budget: 100, stops_overruns: true, periodic: true, defer: false, endpoint_cost: 0 }
+    }
+
+    #[test]
+    fn the_input_check_refuses_each_inadmissible_input_and_names_it() {
+        let tasks = vec![task(), task()];
+        let sites = vec![Site { task: 1, ceiling: 3, wcet: 10, endpoint: false }];
+        let windows = vec![Window { period: 1000, deadline: 1000 }, Window { period: 1000, deadline: 500 }];
+        assert_eq!(check_inputs(&tasks, &sites, &windows), None);
+        assert_eq!(check_inputs(&tasks, &vec![Site { task: 2, ..sites[0] }], &windows), Some((1, 0)));
+        assert_eq!(check_inputs(&tasks, &sites, &windows[..1].to_vec()), Some((2, 0)));
+        assert_eq!(check_inputs(&vec![task(), TaskIn { budget: 0, ..task() }], &sites, &windows), Some((3, 1)));
+        assert_eq!(check_inputs(&vec![TaskIn { priority: 0, ..task() }, task()], &sites, &windows), Some((3, 0)));
+        assert_eq!(check_inputs(&tasks, &sites, &vec![windows[0], Window { period: 1000, deadline: 1001 }]), Some((4, 1)));
+    }
+
+    #[test]
+    fn r40_2_an_endpoint_role_is_two_kernel_level_sites_and_its_operations_cost_the_larger_one() {
+        let p = Params {
+            release: 0, dispatch: 0, complete: 0, wake: 0, timer: 0, fp_save: 0, fp_restore: 0, lock_in: 0, lock_out: 0, detect: 0,
+            enforce: 0, hm: 0, irq: 0, stamp: 0, entry: 0, l_kernel: 0, j_rel: 0, restart: 0, stop: 0, send: 700, recv: 900, hk_period: 1,
+        };
+        let (s, r) = endpoint_sites(3, p);
+        assert_eq!(s, Site { task: 3, ceiling: u8::MAX, wcet: 700, endpoint: true });
+        assert_eq!(r, Site { task: 3, ceiling: u8::MAX, wcet: 900, endpoint: true });
+        assert_eq!(endpoint_cost_add(50, 4, p), Some(50 + 4 * 900));
+        assert_eq!(endpoint_cost_add(u64::MAX, 1, p), None);
+        assert_eq!(endpoint_cost_add(0, u64::MAX, p), None);
+    }
+}

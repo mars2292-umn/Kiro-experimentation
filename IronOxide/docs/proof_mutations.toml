@@ -2872,3 +2872,97 @@ find = "    kernel_ram.base <= base && base as u64 + total as u64 <= end\n"
 replace = "    base as u64 + total as u64 <= end\n"
 expect = ["image_v.rs", "postcondition not satisfied"]
 package = "rsk-confcheck"
+
+# The fifth round (2026-11-22): the run cut into the Kernel's entries
+# (proofs/aeneas/lean/Sched/Entries.lean), the Analyzer's input check and
+# Endpoint terms, the Generator's acceptance check, CRC-32 as a function.
+
+[[mutation]]
+id = "lean-entry-prefix-may-rearm-the-slots"
+kills = "EPre.reach (Sched/Entries.lean, 2026-11-22): the transitions before an entry's first keep a quieted Kernel quieted only because they leave the slots as well as the scheduler state; without the premise the Budget-event transitions of the cut run would not have their quieted state"
+file = "proofs/aeneas/lean/Sched/Entries.lean"
+find = "      (hsc : z.k.sched = y.k.sched) (hsl : z.k.slots = y.k.slots) : EPre cfg P x z"
+replace = "      (hsc : z.k.sched = y.k.sched) (hsl : True) : EPre cfg P x z"
+expect = ["Sched/Entries.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "lean-entry-with-another-configuration-after"
+kills = "entryof_quieted (Sched/Entries.lean, 2026-11-22): the Kernel an entry core returns is quieted for the run's configuration only when the linked Kernel's configuration after the entry is the run's"
+file = "proofs/aeneas/lean/Sched/Entries.lean"
+find = "    b.cfg = cfg ∧ b.kernel = k ∧ b'.cfg = cfg ∧ b'.kernel = k' ∧ CoreRet ki ai ti b b'"
+replace = "    b.cfg = cfg ∧ b.kernel = k ∧ True ∧ b'.kernel = k' ∧ CoreRet ki ai ti b b'"
+expect = ["Sched/Entries.lean"]
+prover = "lean"
+
+[[mutation]]
+id = "analyzer-input-check-skips-the-deadlines"
+kills = "check_inputs (2026-11-22): `None` exactly when the inputs are admissible, which includes that no deadline is later than its period or MIT (Property 18's `hDT`)"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "        if windows[j].deadline > windows[j].period {\n"
+replace = "        if false { // (mutant) deadlines not compared with periods\n"
+expect = ["terms.rs", "invariant not satisfied"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "analyzer-endpoint-cost-counts-only-sends"
+kills = "endpoint_cost_add (R40.2; 2026-11-22): each declared Endpoint operation costs the larger of Δ_send and Δ_recv, not Δ_send"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    let op = if p.send >= p.recv { p.send } else { p.recv };\n"
+replace = "    let op = p.send; // (mutant)\n"
+expect = ["terms.rs", "postcondition not satisfied"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "analyzer-endpoint-site-below-the-kernel-level"
+kills = "lemma_endpoint_site_blocks (R40.2; 2026-11-22): an Endpoint site blocks every Task above its holder only because its Ceiling is above every Priority"
+file = "crates/rsk-analyzer/src/terms.rs"
+find = "    Site { task, ceiling: u8::MAX, wcet, endpoint: true }\n}"
+replace = "    Site { task, ceiling: 0, wcet, endpoint: true }\n}"
+expect = ["terms.rs", "postcondition not satisfied"]
+package = "rsk-analyzer"
+
+[[mutation]]
+id = "gen-acceptance-takes-a-report-on-any-edge"
+kills = "accept (R42.4; 2026-11-22): the Kernel accepts a rejected-message report only on an edge from another Partition of lower Criticality_Level; the acceptance check decides `accepted` exactly"
+file = "crates/rsk-gen/src/accept_v.rs"
+find = "            if (v && !up) || (e.plain && r != f && up && !v) {\n"
+replace = "            if e.plain && r != f && up && !v { // (mutant)\n"
+expect = ["accept_v.rs", "invariant not satisfied"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "gen-acceptance-skips-the-deadline"
+kills = "accept (R22.1; 2026-11-22): a Task's deadline is at least one tick and not later than its period or MIT"
+file = "crates/rsk-gen/src/accept_v.rs"
+find = "t.period >= 1 && 1 <= t.deadline && t.deadline <= t.period && t.budget >= 1) {"
+replace = "t.period >= 1 && 1 <= t.deadline && t.budget >= 1) {"
+expect = ["accept_v.rs", "invariant not satisfied"]
+package = "rsk-gen"
+
+[[mutation]]
+id = "confcheck-crc-with-another-polynomial"
+kills = "image_v::crc32 (R26.4; 2026-11-22): the Config_Checker's checksum is CRC-32 of the image's bytes, with the reflected IEEE polynomial"
+file = "crates/rsk-confcheck/src/image_v.rs"
+find = "            let next: u32 = (c >> 1) ^ (0xEDB8_8320u32 & mask);\n"
+replace = "            let next: u32 = (c >> 1) ^ (0xEDB8_8321u32 & mask);\n"
+expect = ["image_v.rs"]
+package = "rsk-confcheck"
+
+[[mutation]]
+id = "kernel-crc-with-seven-rounds"
+kills = "Crc32::byte (R12.3; 2026-11-22): the Kernel's checksum step is eight rounds of CRC-32 on the register with the byte added, the function the Config_Checker's is proven against"
+file = "crates/rsk-kernel/src/arch/bound.rs"
+find = "        while i < 8\n            invariant i <= 8, crc_rounds(crc, (8 - i) as nat) == crc_rounds(start, 8),\n            decreases 8 - i,"
+replace = "        while i < 7\n            invariant i <= 8, crc_rounds(crc, (8 - i) as nat) == crc_rounds(start, 8),\n            decreases 8 - i,"
+expect = ["bound.rs", "postcondition not satisfied"]
+package = "rsk-kernel"
+
+[[mutation]]
+id = "lean-hold-without-the-job-ending-entries"
+kills = "holdOf_ge, reach_hold (Sched/Hold.lean, 2026-11-22): the Kernel section in progress is within the hold only when the hold counts the entries that end a Job and unwind it (the Job end and the entry that ends an overrunning Job)"
+file = "proofs/aeneas/lean/Sched/Hold.lean"
+find = "def endHold (P : Params) : Nat := max P.Kc P.Kov"
+replace = "def endHold (P : Params) : Nat := 0"
+expect = ["Sched/Hold.lean"]
+prover = "lean"

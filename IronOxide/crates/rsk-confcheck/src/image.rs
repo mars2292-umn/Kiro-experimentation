@@ -142,17 +142,10 @@ fn refusal(image: &str, e: DecodeError) -> String {
     }
 }
 
-/// CRC-32 (IEEE 802.3, reflected, init and final XOR all ones) over `bytes`.
+/// CRC-32 (IEEE 802.3, reflected, init and final XOR all ones) over `bytes`:
+/// `image_v::crc32`, proven to compute `image_v::crc32_of` (2026-11-22).
 pub fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc: u32 = 0xFFFF_FFFF;
-    for &b in bytes {
-        crc ^= b as u32;
-        for _ in 0..8 {
-            let mask = (crc & 1).wrapping_neg();
-            crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
-        }
-    }
-    !crc
+    crate::image_v::crc32(bytes)
 }
 
 pub use crate::image_v::{DecodeError, EndpointCfg, IntervalImg, LayoutImg, PartitionCfg, PartitionLayoutImg, ResourceCfg, Tables, TaskCfg, MAX_KERNEL_WINDOWS, MAX_ROLES, MAX_WINDOWS};

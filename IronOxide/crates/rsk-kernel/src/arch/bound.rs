@@ -76,6 +76,29 @@ pub fn basepri_for(top: u8, ceiling: u8) -> (b: u8)
 
 // ------------------------------------------------------------------- CRC-32
 
+// The three definitions below are restated in the Config_Checker
+// (`rsk-confcheck/src/image_v.rs`), which is proven against them as well
+// and shares no code with the Kernel (R26.1).
+
+/// One round of CRC-32 (IEEE 802.3, reflected): the register shifted right
+/// by one bit and, when the bit shifted out is 1, the reflected polynomial
+/// added.
+pub open spec fn crc_round(crc: u32) -> u32 {
+    if crc & 1 == 1 { (crc >> 1) ^ 0xEDB8_8320u32 } else { crc >> 1 }
+}
+
+pub open spec fn crc_rounds(crc: u32, n: nat) -> u32
+    decreases n,
+{
+    if n == 0 { crc } else { crc_rounds(crc_round(crc), (n - 1) as nat) }
+}
+
+/// The register after one more byte: the byte added to the low bits, then
+/// eight rounds.
+pub open spec fn crc_byte(crc: u32, b: u8) -> u32 {
+    crc_rounds(crc ^ (b as u32), 8)
+}
+
 /// CRC-32 (IEEE 802.3) of a byte stream, fed one byte at a time.
 pub struct Crc32(pub u32);
 
@@ -84,16 +107,28 @@ impl Crc32 {
         Crc32(0xFFFF_FFFF)
     }
 
-    pub fn byte(self, b: u8) -> Crc32 {
+    pub fn byte(self, b: u8) -> (r: Crc32)
+        ensures r.0 == crc_byte(self.0, b),
+    {
+        let ghost start: u32 = self.0 ^ (b as u32);
         let mut crc: u32 = self.0 ^ (b as u32);
         let mut i: usize = 0;
         while i < 8
-            invariant i <= 8,
+            invariant i <= 8, crc_rounds(crc, (8 - i) as nat) == crc_rounds(start, 8),
             decreases 8 - i,
         {
             let mask: u32 = if (crc & 1) == 1 { 0xFFFF_FFFF } else { 0 };
+            let ghost before = crc;
             crc = (crc >> 1) ^ (0xEDB8_8320u32 & mask);
+            proof {
+                assert(crc == (if before & 1 == 1 { (before >> 1) ^ 0xEDB8_8320u32 } else { before >> 1 })) by (bit_vector)
+                    requires crc == (before >> 1) ^ (0xEDB8_8320u32 & mask), mask == (if (before & 1) == 1 { 0xFFFF_FFFFu32 } else { 0u32 });
+                assert(crc_rounds(before, (8 - i) as nat) == crc_rounds(crc_round(before), (8 - i - 1) as nat));
+            }
             i += 1;
+        }
+        proof {
+            assert(crc_rounds(crc, 0) == crc);
         }
         Crc32(crc)
     }

@@ -263,6 +263,15 @@ theorem kstep_sprel {cfg : logic.Config NT NR NP} {P : Params}
   | opend i k1 k' hcode h1 hs => exact serve_slot_sprel hcode
   | settle r k' hs =>
     exact SpRel.of_releq (settle_sp hs) (fun u => by rw [settle_sched hs])
+  | charged t rc b hs => exact SpRel.refl
+  | acked_reinit p k' hs =>
+    obtain ⟨a, rfl⟩ := ack_reinit_upd hs
+    exact SpRel.refl
+  | acked_stop p k' hs =>
+    obtain ⟨a, rfl⟩ := ack_stop_dma_upd hs
+    exact SpRel.refl
+  | logged kind task partition prs detail k' hs =>
+    exact SpRel.of_releq (push_event_sp hs) (fun u => by rw [push_event_sched hs])
   | observed now k' hs =>
     have e := observe_timing hs
     have e2 := observe_sched hs

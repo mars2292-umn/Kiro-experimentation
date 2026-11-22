@@ -1393,4 +1393,74 @@ pub fn storage_placed_ok(layout: &LayoutImg, endpoints: &Vec<EndpointCfg>, base:
     true
 }
 
+// ------------------------------------------------------------------ CRC-32
+//
+// The checksum the Config_Checker recomputes over an image (R26.4), stated
+// as a function of the bytes and proven of the code (2026-11-22). The
+// Kernel's `Crc32::byte` (`rsk-kernel/src/arch/bound.rs`) is proven against
+// the same three definitions, restated there: the two share no code (R26.1).
+
+/// One round of CRC-32 (IEEE 802.3, reflected): the register shifted right
+/// by one bit and, when the bit shifted out is 1, the reflected polynomial
+/// added.
+pub open spec fn crc_round(crc: u32) -> u32 {
+    if crc & 1 == 1 { (crc >> 1) ^ 0xEDB8_8320u32 } else { crc >> 1 }
+}
+
+pub open spec fn crc_rounds(crc: u32, n: nat) -> u32
+    decreases n,
+{
+    if n == 0 { crc } else { crc_rounds(crc_round(crc), (n - 1) as nat) }
+}
+
+/// The register after one more byte: the byte added to the low bits, then
+/// eight rounds.
+pub open spec fn crc_byte(crc: u32, b: u8) -> u32 {
+    crc_rounds(crc ^ (b as u32), 8)
+}
+
+/// The register after the first `n` bytes, from all ones.
+pub open spec fn crc_state(bytes: Seq<u8>, n: int) -> u32
+    decreases n,
+{
+    if n <= 0 { 0xFFFF_FFFFu32 } else { crc_byte(crc_state(bytes, n - 1), bytes[n - 1]) }
+}
+
+/// CRC-32 of a byte sequence: the register after every byte, complemented.
+pub open spec fn crc32_of(bytes: Seq<u8>) -> u32 {
+    !crc_state(bytes, bytes.len() as int)
+}
+
+/// **The Config_Checker's checksum is CRC-32 of the image's bytes.**
+pub fn crc32(bytes: &[u8]) -> (r: u32)
+    ensures r == crc32_of(bytes@),
+{
+    let mut crc: u32 = 0xFFFF_FFFF;
+    let mut i: usize = 0;
+    while i < bytes.len()
+        invariant i <= bytes.len(), crc == crc_state(bytes@, i as int),
+        decreases bytes.len() - i,
+    {
+        let start: u32 = crc ^ (bytes[i] as u32);
+        let mut c: u32 = start;
+        let mut k: usize = 0;
+        while k < 8
+            invariant k <= 8, crc_rounds(c, (8 - k) as nat) == crc_rounds(start, 8),
+            decreases 8 - k,
+        {
+            let mask: u32 = if (c & 1) == 1 { 0xFFFF_FFFF } else { 0 };
+            let next: u32 = (c >> 1) ^ (0xEDB8_8320u32 & mask);
+            assert(next == (if c & 1 == 1 { (c >> 1) ^ 0xEDB8_8320u32 } else { c >> 1 })) by (bit_vector)
+                requires next == (c >> 1) ^ (0xEDB8_8320u32 & mask), mask == (if (c & 1) == 1 { 0xFFFF_FFFFu32 } else { 0u32 });
+            assert(crc_rounds(c, (8 - k) as nat) == crc_rounds(crc_round(c), (8 - k - 1) as nat));
+            c = next;
+            k = k + 1;
+        }
+        assert(crc_rounds(c, 0) == c);
+        crc = c;
+        i = i + 1;
+    }
+    !crc
+}
+
 } // verus!

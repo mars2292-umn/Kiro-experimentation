@@ -32,9 +32,9 @@ extracted code:
 
 So the premise `Quieted` of the run's four Budget-event transitions holds
 of the state every entry leaves, by induction over the entries from the
-boot. What this does not do: the run (`KStep`, `Sched/KRun.lean`) has no
-entry boundaries, so its transitions still carry the premise; these
-theorems are what discharges it for a run cut into the Kernel's entries. -/
+boot. The run of `Sched/KRun.lean` (`KStep`) has no entry boundaries and
+its transitions carry the premise; `Sched/Entries.lean` (2026-11-22) cuts
+the run into the Kernel's entries and discharges it with these theorems. -/
 
 namespace P18
 open rsk_kernel rsk_kernel.rsk_logic

@@ -11,6 +11,7 @@
 //! give byte-identical outputs (R24.4, R23.6).
 #![forbid(unsafe_code)]
 
+pub mod accept_v;
 pub mod convert;
 pub mod decl;
 pub mod derive;
@@ -71,7 +72,20 @@ pub fn stale_skeletons(out_dir: &std::path::Path, files: &[String]) -> Vec<std::
 /// that the front end can report every violation at once (R21.4).
 pub fn generate(decl: &Declaration) -> Result<Generated, Vec<Diagnostic>> {
     let target = validate::validate(decl)?;
-    derive::derive(decl, target)
+    let g = derive::derive(decl, target)?;
+    // The acceptance conditions on numbers, decided by a proven function on
+    // what was derived (`accept_v::accept`, 2026-11-22): nothing is
+    // generated for a declaration outside `accept_v::accepted`, whatever
+    // the validation above let through.
+    let (tasks, levels, endpoints) = accept_v::image(&g);
+    if !accept_v::accept(&tasks, &levels, &endpoints) {
+        return Err(vec![Diagnostic::new(
+            "R22.1",
+            decl::ItemRef::Declaration,
+            "the declaration passed validation but not the proven acceptance check (`accept_v::accepted`: Priorities, periods, deadlines, Budgets, Endpoint roles and R42.4 edges); this is a defect of the Generator's validation",
+        )]);
+    }
+    Ok(g)
 }
 
 /// Generates every output; `system_crate` is the name of the crate that

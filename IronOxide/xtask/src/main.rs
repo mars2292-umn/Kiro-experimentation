@@ -69,6 +69,10 @@ commands:
       board with semihosting; the exit status is the binary's semihosting
       exit code (0 = the demo's safe-state report found every expectation
       met). Output is printed and saved under target/qemu/.
+  stubs <binary>...
+      Compare the entry stubs of each linked binary, as llvm-objdump
+      disassembles them, with the assembly source the stub model is tied
+      to: the same instructions in the same order (a Flight_Build).
   reqdoc [--check | --hashes] [--evidence-dir <dir>]
       Write docs/requirements_evidence.md, the plain-English companion of the
       matrix: one row per requirement, the sentences from
@@ -104,6 +108,7 @@ fn main() -> ExitCode {
         "conformance" => conformance_command(rest),
         "trace" => trace_command(rest),
         "reqdoc" => reqdoc_command(rest),
+        "stubs" => stubs_command(rest),
         "gen" => gen_command(rest),
         "uppaal-corpus" => uppaal_corpus_command(rest),
         "qemu" => qemu_command(rest),
@@ -324,6 +329,34 @@ fn trace_command(args: &[String]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// `cargo xtask stubs <binary>...`: the entry stubs of each linked binary
+/// against the assembly source (`checks::stub_binary`).
+fn stubs_command(args: &[String]) -> ExitCode {
+    if args.is_empty() {
+        return usage_error("stubs takes the path of at least one linked binary");
+    }
+    let root = xtask::repository_root();
+    let mut failed = false;
+    for a in args {
+        let path = PathBuf::from(a);
+        match xtask::checks::stub_binary::check_binary(&root, &path) {
+            Ok((compared, absent)) => {
+                println!("{}: the entry stubs are the assembly source, instruction for instruction: {}", path.display(), compared.join(", "));
+                if !absent.is_empty() {
+                    println!("{}: not linked in this binary: {}", path.display(), absent.join(", "));
+                }
+            }
+            Err(diffs) => {
+                failed = true;
+                for d in diffs {
+                    eprintln!("{}: {d}", path.display());
+                }
+            }
+        }
+    }
+    if failed { ExitCode::FAILURE } else { ExitCode::SUCCESS }
 }
 
 fn reqdoc_command(args: &[String]) -> ExitCode {

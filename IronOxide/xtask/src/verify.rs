@@ -884,6 +884,20 @@ fn link_check(ws: &Workspace, target_dir: &Path, sandbox: &Sandbox, store: &mut 
         } else {
             report.error(Rule::Step, None, format!("Link_Checker: `{}`: {summary} (see {log_name})", binary.target_name));
         }
+        // The entry stubs of this binary against the assembly source the
+        // stub model is tied to (`checks::stub_binary`, 2026-11-22). A
+        // difference fails the step; a missing disassembler is a warning.
+        match crate::checks::stub_binary::check_binary(&ws.root, &elf) {
+            Ok((compared, _)) => report.note(format!("R44.6: `{}`: the entry stubs are the assembly source, instruction for instruction ({})", binary.target_name, compared.join(", "))),
+            Err(diffs) => {
+                for d in diffs {
+                    match d.strip_prefix(crate::checks::stub_binary::TOOL) {
+                        Some(t) => report.warn(format!("entry stubs of `{}` not compared with the assembly source: {t}", binary.target_name)),
+                        None => report.error(Rule::Step, None, format!("entry stubs of `{}`: {d}", binary.target_name)),
+                    }
+                }
+            }
+        }
         let mut item = Item::new(
             &format!("analysis-stack-{}", binary.target_name),
             Kind::Analysis,

@@ -906,6 +906,14 @@ theorem kstep_di {cfg : logic.Config NT NR NP} {P : Params}
   | bserved t i k' hs => exact budget_event_dx hs hb
   | opend i k1 k' hcode h1 hs => exact serve_slot_dx hcode hb
   | settle r k' hs => exact settle_dx hs hb
+  | charged t rc b hs => exact hb
+  | acked_reinit p k' hs =>
+    obtain ⟨a, rfl⟩ := ack_reinit_upd hs
+    exact hb
+  | acked_stop p k' hs =>
+    obtain ⟨a, rfl⟩ := ack_stop_dma_upd hs
+    exact hb
+  | logged kind task partition prs detail k' hs => exact push_event_dx hs hb
   | observed now k' hs => exact observe_dx hs hb
   | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
     have := deferred_release_dx hs hb

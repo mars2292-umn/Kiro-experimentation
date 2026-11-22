@@ -383,13 +383,14 @@ pub fn prepare(
             let (ename, rname) = er.split_once('.').unwrap_or((er.as_str(), ""));
             let role = model.endpoints.iter().find(|e| e.id == ename).and_then(|e| e.roles.iter().find(|r| r.role == rname));
             let ops = role.map_or(1, |r| r.ops as u64);
-            for (what, wcet) in [("send", params.send), ("recv", params.recv)] {
-                sites_in.push(terms::Site { task: index, ceiling: u8::MAX, wcet, endpoint: true });
+            // The two sites and the cost are `terms`' (proven, 2026-11-22):
+            // `endpoint_sites`, `endpoint_cost_add`.
+            let (send_site, recv_site) = terms::endpoint_sites(index, params);
+            for (what, site) in [("send", send_site), ("recv", recv_site)] {
+                sites_in.push(site);
                 site_names.push(format!("{}:endpoint:{er}:{what} (Δ_{what}, R40.2)", t.id));
             }
-            endpoint_cost = ops
-                .checked_mul(params.send.max(params.recv))
-                .and_then(|c| endpoint_cost.checked_add(c))
+            endpoint_cost = terms::endpoint_cost_add(endpoint_cost, ops, params)
                 .ok_or_else(|| vec![reject("R29.6", format!("the Endpoint operation cost of `{}` exceeds u64", t.id))])?;
         }
         let period_cycles = terms::ticks_to_cycles_down(t.window_ticks(), tick_hz, cpu_hz).ok_or_else(|| vec![reject("R29.6", format!("period overflow for `{}`", t.id))])?;
@@ -413,6 +414,18 @@ pub fn prepare(
     // through this function's own arithmetic between the terms and the
     // verdicts.
     let windows: Vec<terms::Window> = per_task.iter().map(|x| terms::Window { period: x.0, deadline: x.1 }).collect();
+    // What the analysis's statements ask of these inputs is checked by a
+    // proven function before it runs (`terms::check_inputs`, 2026-11-22):
+    // the Analyzer analyses nothing else.
+    if let Some((rule, at)) = terms::check_inputs(&task_in, &sites_in, &windows) {
+        let name = |i: usize| model.tasks.get(i).map_or("?", |t| t.id.as_str());
+        return Err(vec![match rule {
+            1 => reject("R28.1", format!("Critical_Section site `{}` names no Task of the model", site_names.get(at).map_or("?", |s| s.as_str()))),
+            2 => reject("R28.1", "the Tasks and their periods and deadlines do not correspond one to one"),
+            3 => reject("R28.1", format!("Task `{}` has no Budget or no Priority above the idle level (R22.1)", name(at))),
+            _ => reject("R28.1", format!("the relative deadline of Task `{}` is later than its period or MIT (R22.1)", name(at))),
+        }]);
+    }
     let (derived, verdicts, own_terms, quiet) = terms::analyse_all(&task_in, &sites_in, params, any_fpu, &windows)
         .ok_or_else(|| vec![reject("R29.6", "a term of the response-time analysis exceeds u64 (overflow)")])?;
     let restart_work = params.restart.max(params.stop);

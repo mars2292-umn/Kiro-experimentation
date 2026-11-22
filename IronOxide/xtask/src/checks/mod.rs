@@ -6,6 +6,7 @@ pub mod deps;
 pub mod features;
 pub mod justifications;
 pub mod kani_bounds;
+pub mod stub_binary;
 pub mod stub_model;
 pub mod kernel_size;
 pub mod kernel_std;

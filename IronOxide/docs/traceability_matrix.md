@@ -291,7 +291,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R22.1 | — | — | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; crates/rsk-logic/src/logic/mod.rs; +1 | test-workspace-tests |
+| R22.1 | — | — | ✓10.2 | crates/rsk-analyzer/src/inputs.rs; crates/rsk-gen/src/accept_v.rs; crates/rsk-gen/src/lib.rs; +3 | test-workspace-tests |
 | R22.2 | — | Design decisions; Priority and privilege model (DD-01, DD-02) | ✓10.2 | crates/rsk-gen/src/lib.rs; crates/rsk-gen/src/validate.rs; profile/profile.toml | test-workspace-tests |
 | R22.3 | — | — | ✓10.2 | crates/rsk-gen/src/validate.rs; profile/profile.toml | conf-PR-12-mc |
 | R22.4 | — | — | ✓10.2 | crates/rsk-gen/src/syntax.rs; profile/profile.toml | conf-PR-11-mc |
@@ -336,7 +336,7 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R26.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Module boundaries; Reuse and Deviation Record | ✓13.1 | crates/rsk-confcheck/Cargo.toml; crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/image.rs; +7 | check-config-p1-demo |
+| R26.1 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; Module boundaries; Reuse and Deviation Record | ✓13.1 | crates/rsk-confcheck/Cargo.toml; crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/image.rs; +8 | check-config-p1-demo |
 | R26.2 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness; App_Declaration and generation pipeline (Component C); Property 19 | ✓13.1 | crates/rsk-confcheck/src/derive_v.rs; crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/recompute.rs; +3 | check-config-p1-demo; test-workspace-tests |
 | R26.3 | — | Error Handling; Property 19 | ✓13.1 | crates/rsk-confcheck/src/lib.rs; crates/rsk-confcheck/src/main.rs; crates/rsk-confcheck/src/recompute.rs; +2 | check-config-p1-demo; test-config-mutations-p1-demo; test-workspace-tests |
 | R26.4 | — | Analyzer, Profile_Lint, Link_Checker, Config_Checker, WCET_Harness | ✓13.1 | apps/hil-stimulus/gen/system_manifest.rs; apps/p1-demo/gen-nrf52840/system_manifest.rs; apps/p1-demo/gen-nrf52840_coverage/system_manifest.rs; +22 | check-config-p1-demo; check-config-step; test-workspace-tests |
@@ -515,10 +515,10 @@ One row per criterion: the Phase of its requirement; the rows of the property al
 
 | Criterion | Allocation | Design | Tasks | Code | Evidence_Items |
 |---|---|---|---|---|---|
-| R42.1 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.4 | crates/rsk-gen/src/emit.rs; crates/rsk-gen/src/validate.rs; crates/rsk-kernel/src/arch/cm4/unsafe_module/hw.rs; +4 | test-workspace-tests |
+| R42.1 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.4 | crates/rsk-gen/src/accept_v.rs; crates/rsk-gen/src/emit.rs; crates/rsk-gen/src/validate.rs; +5 | test-workspace-tests |
 | R42.2 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.2 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/qemu_flood.rs; crates/rsk-kernel/src/arch/bound.rs; +4 | — |
 | R42.3 | — | Closed response sets (DD-10, R14.5); Endpoint_Library and Protocol_Checker (Component F) | ✓21.4 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_response.rs; apps/p1-demo/decl/src/qemu_flood.rs; +20 | — |
-| R42.4 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.4 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +34 | — |
+| R42.4 | — | Endpoint_Library and Protocol_Checker (Component F) | ✓21.4 | apps/p1-demo/decl/src/lib.rs; apps/p1-demo/decl/src/nrf52840_measure.rs; apps/p1-demo/decl/src/qemu_flood.rs; +35 | — |
 
 ### Requirement 43: Property allocation (Phase P1)
 

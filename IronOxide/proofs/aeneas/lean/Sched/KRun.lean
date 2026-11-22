@@ -143,6 +143,17 @@ Kernel's state to a hypothesis any more; what stays stated beside the
 code's result is what that call did to the scheduler state, read from the
 code in `Sched/Timer.lean`.
 
+**The Kernel's writes outside the scheduler state** (2026-11-22), so
+that the Kernel state of a run can be the code's through a whole entry and
+not only through the calls above: `charged` (`Budget::charge`, with which
+a timer entry charges the Job on top the execution it measured),
+`acked_reinit` and `acked_stop` (`Kernel::ack_reinit`, `ack_stop_dma`: the
+acknowledgements with which `apply_core` ends an entry after a Partition's
+restart or stop) and `logged` (`Kernel::push_event`: the event a refused
+lock or unlock records). Each leaves the scheduler state, the slots and
+the timing fields, has no Kernel section of its own and changes no
+account. `Sched/Entries.lean` cuts the run into the Kernel's entries.
+
 **Instants and time** as in `Step`: `jarrive`, `earrive`, `ktick`, `idle`,
 `exec`. A Job executes, locks, unlocks and calls an Endpoint operation only when
 `Sched::select` returns no Task. A Budget event has a timer entry of its
@@ -292,6 +303,21 @@ inductive KStep (cfg : logic.Config NT NR NP) (P : Params) :
   | observed (x : KSt NT NR NP NL NS NE) (now : U64)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
       (hs : logic.kernel.Kernel.observe x.k cfg now = ok k') :
+      KStep cfg P x { x with k := k' }
+  | charged (x : KSt NT NR NP NL NS NE) (t : U8) (rc : U32) (b : logic.budget.Budget NT)
+      (hs : logic.budget.Budget.charge x.k.budget t rc = ok b) :
+      KStep cfg P x { x with k := { x.k with budget := b } }
+  | acked_reinit (x : KSt NT NR NP NL NS NE) (p : U8)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.ack_reinit x.k cfg p = ok k') :
+      KStep cfg P x { x with k := k' }
+  | acked_stop (x : KSt NT NR NP NL NS NE) (p : U8)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.ack_stop_dma x.k cfg p = ok k') :
+      KStep cfg P x { x with k := k' }
+  | logged (x : KSt NT NR NP NL NS NE) (kind task partition : U8) (prs : U64) (detail : U32)
+      (k' : logic.kernel.Kernel NT NR NP NL NS NE)
+      (hs : logic.kernel.Kernel.push_event x.k cfg kind task partition prs detail = ok k') :
       KStep cfg P x { x with k := k' }
   | deferred (x : KSt NT NR NP NL NS NE) (q : Nat) (t : U8) (i : Usize) (d c : Nat)
       (k' : logic.kernel.Kernel NT NR NP NL NS NE)
@@ -566,6 +592,24 @@ theorem new_eff {cfg : logic.Config NT NR NP} {k0 : logic.kernel.Kernel NT NR NP
   unfold logic.sched.Sched.new
   rfl
 
+/-- `Kernel::ack_reinit` writes the re-initialization requests only. -/
+theorem ack_reinit_upd {cfg : logic.Config NT NR NP}
+    {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {p : U8}
+    (h : logic.kernel.Kernel.ack_reinit k cfg p = ok k') :
+    ∃ a, k' = { k with reinit_partition := a } := by
+  unfold logic.kernel.Kernel.ack_reinit at h
+  peel h
+  exact ⟨_, rfl⟩
+
+/-- `Kernel::ack_stop_dma` writes the stop requests only. -/
+theorem ack_stop_dma_upd {cfg : logic.Config NT NR NP}
+    {k k' : logic.kernel.Kernel NT NR NP NL NS NE} {p : U8}
+    (h : logic.kernel.Kernel.ack_stop_dma k cfg p = ok k') :
+    ∃ a, k' = { k with stop_dma := a } := by
+  unfold logic.kernel.Kernel.ack_stop_dma at h
+  peel h
+  exact ⟨_, rfl⟩
+
 /-- Every state a run over the Kernel's functions reaches is, read through
 its scheduler state and accounts, a state of a run of `Sched/Run.lean`. -/
 theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
@@ -651,6 +695,18 @@ theorem ksim {cfg : logic.Config NT NR NP} {P : Params} (hNT : NT.val ≤ 256)
       have := ih
       dsimp only [KSt.st] at this ⊢
       rw [observe_sched hs]
+      exact this
+    | charged t rc b hs => exact ih
+    | acked_reinit p k' hs =>
+      obtain ⟨a, rfl⟩ := ack_reinit_upd hs
+      exact ih
+    | acked_stop p k' hs =>
+      obtain ⟨a, rfl⟩ := ack_stop_dma_upd hs
+      exact ih
+    | logged kind task partition prs detail k' hs =>
+      have := ih
+      dsimp only [KSt.st] at this ⊢
+      rw [push_event_sched hs]
       exact this
     | deferred q t i d c k' hq hk hw hrel hnd hc hs hmade =>
       rcases deferred_release_eff hs with ⟨hr0, hmp⟩ | hrs
