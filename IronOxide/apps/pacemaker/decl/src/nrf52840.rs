@@ -18,12 +18,12 @@ rsk::app! {
         state control.sweep: [u32; 56] = [0; 56];
         // Released by the end of a pulse: compares 4 and 5 of TIMER3 (PM27.5).
         task pace (sporadic, binds = TIMER3, mit = 20.ms(), mit_policy = defer, deadline = 2.ms(),
-                   budget = 400.us(), priority = 7, resources = [timing]);
+                   budget = 350.us(), priority = 7, resources = [timing]);
         // Released by the Chamber's edge counter reaching its compare.
         task sense_v (sporadic, binds = TIMER2, mit = 50.ms(), mit_policy = defer, deadline = 3.ms(),
-                      budget = 400.us(), priority = 6, resources = [timing]);
+                      budget = 350.us(), priority = 6, resources = [timing]);
         task sense_a (sporadic, binds = TIMER1, mit = 50.ms(), mit_policy = defer, deadline = 4.ms(),
-                      budget = 400.us(), priority = 5, resources = [timing]);
+                      budget = 350.us(), priority = 5, resources = [timing]);
         task control (periodic, period = 20.ms(), deadline = 20.ms(), budget = 5.ms(), priority = 4,
                       resources = [timing]);
     }

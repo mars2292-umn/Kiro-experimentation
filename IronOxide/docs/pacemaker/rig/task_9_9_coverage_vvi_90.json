@@ -1,5 +1,6 @@
 {
-  "binary_hash": "sha256:a3c4adb40d72cf7d7461cf82bec967f06990fe94691bea0743ef7ede3e70fc38",
+  "binary_hash": "sha256:6d63cd1dca50079585c76afc5ea07dc487dd104b5fc3e5a986bc876e2901b706",
+  "features": "nrf52840,debug-port,quiet,trace-ram,measure,coverage,set-vvi-90",
   "functions": [
     {
       "branch_outcomes": 0,
@@ -18,32 +19,36 @@
       "taken": 0
     },
     {
-      "branch_outcomes": 20,
+      "branch_outcomes": 24,
       "file": "/Users/mars2292/repos/Kiro-experimentation/IronOxide/apps/pacemaker/therapy/src/sets.rs",
       "function": "pacemaker_therapy::sets::from_text",
       "not_taken": [
-        "49:18 true",
-        "49:18 false",
-        "49:33 true",
-        "49:33 false",
-        "51:12 true",
-        "51:12 false",
-        "51:25 true",
-        "51:25 false",
-        "53:16 true",
-        "53:16 false",
-        "58:19 true",
-        "58:19 false",
-        "61:12 true",
-        "61:12 false",
-        "61:25 true",
-        "61:25 false",
-        "62:16 true",
-        "62:16 false",
-        "62:28 true",
-        "62:28 false"
+        "52:18 true",
+        "52:18 false",
+        "52:33 true",
+        "52:33 false",
+        "54:12 true",
+        "54:12 false",
+        "54:25 true",
+        "54:25 false",
+        "58:16 true",
+        "58:16 false",
+        "59:20 true",
+        "59:20 false",
+        "62:23 true",
+        "62:23 false",
+        "65:19 true",
+        "65:19 false",
+        "68:12 true",
+        "68:12 false",
+        "68:25 true",
+        "68:25 false",
+        "69:16 true",
+        "69:16 false",
+        "69:28 true",
+        "69:28 false"
       ],
-      "symbol": "_ZN17pacemaker_therapy4sets9from_text17h91fc0f6ec139c205E",
+      "symbol": "_ZN17pacemaker_therapy4sets9from_text17h01e0b71334af7f7eE",
       "taken": 0
     },
     {
@@ -460,10 +465,11 @@
         "138:16 false",
         "138:35 true",
         "138:35 false",
+        "153:16 false",
         "162:16 false"
       ],
       "symbol": "_ZN7pm_core4step4step17h9ee470543163484dE",
-      "taken": 10
+      "taken": 9
     },
     {
       "branch_outcomes": 6,
@@ -771,6 +777,24 @@
       "not_taken": [],
       "symbol": "_ZN68_$LT$pacemaker_therapy..Timing$u20$as$u20$core..default..Default$GT$7default17h3ba701ab5a002ba1E",
       "taken": 0
+    }
+  ],
+  "jobs": [
+    {
+      "jobs": 374,
+      "task": "therapy.pace"
+    },
+    {
+      "jobs": 374,
+      "task": "therapy.sense_v"
+    },
+    {
+      "jobs": 374,
+      "task": "therapy.sense_a"
+    },
+    {
+      "jobs": 14969,
+      "task": "therapy.control"
     }
   ],
   "scenario": "nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)",

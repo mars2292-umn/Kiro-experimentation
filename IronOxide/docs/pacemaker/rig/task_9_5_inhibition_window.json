@@ -43,14 +43,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:6017233b7a6bae6514cdee5ca9a301edc9ce1ff5bbfd7bc596747ebb5f94137a"
+      "sha256": "sha256:90c23c1485717d7c4551080f57578ad5387269f5be3d29ed0e06c381c6917cf5"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:97f9db9dce6fac4dfbbbdc20ba67c6baaa6bf44a6a5a1ebaebdf51572f12a534"
+     "sha256": "sha256:b566600e5ababa2ec9bd53771ba2f1342d376aa25b55744c2e8da389fa45f8ed"
     },
     "escape_interval_us": 845070.0,
     "mode": "VVI",
@@ -94,8 +94,8 @@
      "fusions": 17,
      "pace_intervals": {
       "count": 17,
-      "max_us": 845068.0,
-      "min_us": 845067.0
+      "max_us": 845067.0,
+      "min_us": 845065.0
      },
      "paces": 18,
      "pulse_widths": {
@@ -114,11 +114,6 @@
    "ventricular_paces_within_8_ms_after_a_sense_us": [
     72.0,
     72.0,
-    72.0,
-    72.0,
-    72.0,
-    72.0,
-    72.0,
     73.0,
     73.0,
     72.0,
@@ -126,10 +121,15 @@
     72.0,
     72.0,
     72.0,
+    71.0,
     72.0,
     72.0,
     72.0,
-    72.0
+    72.0,
+    72.0,
+    72.0,
+    71.0,
+    71.0
    ],
    "ventricular_senses": 35,
    "ventricular_paces": 18,
@@ -144,11 +144,11 @@
    "counts": {
     "started": 1,
     "hw_fault": 0,
-    "records": 56,
-    "too_late": 3,
+    "records": 53,
+    "too_late": 0,
     "moved": 0,
     "forced": 0,
-    "dropped": 24,
+    "dropped": 21,
     "late_arms": 0,
     "untimed": 0
    },
@@ -177,14 +177,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:b3d68df9618639db9b391b05dd68966ce1e786362cf5a91babff8e3b856001ec"
+      "sha256": "sha256:b232c941b2fd904565826f6e40b21f0012b3f1a82b142a191b9b9f8270c9d6ac"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:adeeda93fad21a7865f77ac310b16eceb906b360d14997f503e22ae4a57af4f2"
+     "sha256": "sha256:e4dc70d2a8415cfaa61faa9dec0f2373f6d7c09830c3febcd5da7b4855bd672f"
     },
     "escape_interval_us": 857142.0,
     "mode": "VVI",
@@ -225,32 +225,25 @@
      "pulse_width": 200.0
     },
     "ventricular": {
-     "fusions": 2,
+     "fusions": 0,
      "pace_intervals": {
-      "count": 2,
-      "max_us": 857139.0,
-      "min_us": 857139.0
+      "count": 0
      },
-     "paces": 2,
+     "paces": 0,
      "pulse_widths": {
-      "count": 2,
-      "max_us": 400.0,
-      "min_us": 400.0
+      "count": 0
      },
-     "senses": 36,
+     "senses": 35,
      "senses_at_the_refractory_boundary": 1,
-     "senses_effective": 35,
+     "senses_effective": 34,
      "senses_refractory": 0
     },
     "verdict": "PASS",
     "violations": []
    },
-   "ventricular_paces_within_8_ms_after_a_sense_us": [
-    144.0,
-    144.0
-   ],
-   "ventricular_senses": 36,
-   "ventricular_paces": 2,
+   "ventricular_paces_within_8_ms_after_a_sense_us": [],
+   "ventricular_senses": 35,
+   "ventricular_paces": 0,
    "nominal_distance_us": 142
   },
   {
@@ -295,14 +288,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:c24816d17ec96e4e10c65e462d8459cd1af2ac04bb37e1cd65a5692577951aef"
+      "sha256": "sha256:6e12136aa9af2517c41932217447714a552485f4bbdaec260a3850de2c57a95b"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:dacd4451e616b84f315fd6995e68888ccd75ad89ef8141d793bd7b962e10daa8"
+     "sha256": "sha256:3a6cdbbcf71a789c047738566df214dc280f5cf8aff795604f2f53f5708dd9e5"
     },
     "escape_interval_us": 779220.0,
     "mode": "VVI",
@@ -406,14 +399,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:263283ee65962868637a3ec8acfce71bae52628fd1d84dec409220e3bc6d15a1"
+      "sha256": "sha256:a097c8e5b2b78bb7c7be1e261565eeebfff268fa1b77b2cddcf6831ab3991bfe"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:ae5aafaacfa4e13d7afeabe9c0db3610af4157a3c2fdeeb8396d3ddf2be4bd15"
+     "sha256": "sha256:b9dadfe7b727ed983f1aaa8c9c6acd20a1a80bba710ec502449a41faaf9b62a9"
     },
     "escape_interval_us": 714285.0,
     "mode": "VVI",
@@ -517,14 +510,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:9d4cfc529cb1d03fac704c5b846ac359ac6df3b773cd878510e42b6e46eb52d8"
+      "sha256": "sha256:dfed76e37090d3c5606332f3cbb54963e9dffb32f856b677ddfa2eadf7e6c66e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:c692a6c6f67ba19fac041f220ee2c0b9a2193d22c273cd7d9060d1fa7a7e44a3"
+     "sha256": "sha256:ea6fb76a924860a98be1377c3c7a4696e34a84cf9bcd05001ab75db5c3b7b1cb"
     },
     "escape_interval_us": 833333.0,
     "mode": "VVI",
@@ -628,14 +621,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:47eb4667c37293b7f20352ed5d87a6e23565ffd1c97e44c532001f96828afa26"
+      "sha256": "sha256:2182d6d37bfa79680de571657fb13e73a3caaeef3caac9f31c78d0e3e4875c92"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:59ca7799b311db2430579f1dfb59e1854fbd270794c4c6607ce645c16e5fe0ad"
+     "sha256": "sha256:609d836143cb8ffd34031662954e07330ad8efb23154f7dfba80c8f3d728f10b"
     },
     "escape_interval_us": 952380.0,
     "mode": "VVI",
@@ -739,14 +732,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:9ec72ee0fac06eeac5900efc09ae9419c28708c8c94d0b5e9eeae00df2e95320"
+      "sha256": "sha256:8b5ed4a87c1edc615d1d0c9abfbf1d5d9de4ca473f1c1615b6e9bb4d0767c088"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:fdc1cb80afcac0ca6e99a7de151979c2a4c60b117a812a571ed007f20a528850"
+     "sha256": "sha256:d2cc2d8dc0e2dcb48ab01893562134f87b3dc4167a732d33238531c871dc143b"
     },
     "escape_interval_us": 1071428.0,
     "mode": "VVI",
@@ -850,14 +843,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:502dd8651fada9989e8b0807e9ff7c0c559a85edebbc2ecb528452165985d603"
+      "sha256": "sha256:518631d2a7688d56ea175ba5da6ceb79d7c7a93b83cf4c419445fb87e0352eeb"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:ce6a295ed065544d58e8e9fbc37470e3bcbdbe60a8e13f75794e9eee000b179e"
+     "sha256": "sha256:38d53d6f81f4ac2c0e753c2530ebe3870faedba06fbb4d89a524ac2de0b0a785"
     },
     "escape_interval_us": 789473.0,
     "mode": "VVI",
@@ -961,14 +954,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:fc97d3cfa02730d09ed97abebd88661d489c689776064b02b4d25c9e08a49db8"
+      "sha256": "sha256:6f5f0a6f96e515e5ee877c96e7ce4e0bbd7470357c6fc9b098085549ad775a67"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:29b55a735a5da72ec4ce6ddfc813f09d61f6a87f55bd5ee4318dd6dbbcdf2c59"
+     "sha256": "sha256:92bffd31665d790fb24f90712e979dce952a02da5fe5d341fb153199d0f88254"
     },
     "escape_interval_us": 895522.0,
     "mode": "VVI",
@@ -1072,14 +1065,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:53e9c9f26ba2c52f10ffa556ce84a08728179c1e0eca61975bb4d962d1155594"
+      "sha256": "sha256:ee627f9d0fcd5009db646796136ed6d5fe60ee7e035a88e4307f3b4b05bd40fb"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:78ad32a2331d67fa717442723e98f52b18aa9e14ab1dc89467f4946dde0f4e77"
+     "sha256": "sha256:72bfb1e5a2e4140456e214f34b0bb3074f6a46b65d7248316dddefb7a54ef4dd"
     },
     "escape_interval_us": 869565.0,
     "mode": "VVI",
@@ -1183,14 +1176,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:122bdbe7bb412a2232f3c5bb9638a0b21a0d16d04909002159e11f373946159a"
+      "sha256": "sha256:88dfe64e5562e36f3796581a12d03693a5c8deaa53fae07d3cc53c6ea7355de6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:3023ff0b7058cd914425467defaf964d9ebf17115e6cd90e4f62758b6b060a2b"
+     "sha256": "sha256:4d4784c1d202171fc64ef2ef174b545a393a7618a73daaf6b080da8e9b288d30"
     },
     "escape_interval_us": 983606.0,
     "mode": "VVI",
@@ -1294,14 +1287,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:a8a14f47d675f0300fc69f3c937ac028df6f4392104482735626b1af6f60c0a0"
+      "sha256": "sha256:1f31e8a72089588b7ee8408da72e00a0f830c21a8a29216991e88fd0ea6d9ba6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:3a51718de082809a8298a7c8b759ac0bba605432ffeed6d4c7731394cf316c9f"
+     "sha256": "sha256:53c0a9f7211433634d81ddb9567d93b58cf5d30e8abb7416c2e21e274af7567a"
     },
     "escape_interval_us": 689655.0,
     "mode": "VVI",
@@ -1405,14 +1398,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:b833e5d4a12a497c17ca52ef4dcaee28573d7deeb3e75d1a35919a2d2322eb9c"
+      "sha256": "sha256:e4c9f4294c7beec1c511956ca2aa93616e42dbcca9685c387a3fe6e4faf48d10"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:41c46092545cd1f079b94326db0e6ffb6a443cabf3149594b922037a666c3b48"
+     "sha256": "sha256:707d96134bd9ac5c45cfb7ce818cc47945a3b242f554bcccded869f9108fdab8"
     },
     "escape_interval_us": 731707.0,
     "mode": "VVI",
@@ -1516,14 +1509,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:79d431ac026f3f673c726706ad8380ac0d610847eacb9844d3231090030c82de"
+      "sha256": "sha256:578d4bc7d340204fd297eea9f316e0b6cb4a5acdef00c646fd8aceb265817c3c"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:cea1b71f4ae201309415922ae1f1bf4c4849fe0f9957652abef613fbbb32c109"
+     "sha256": "sha256:61dea0842aadb101fcd558ac5a1b5b344d4105c46bdeef2a035f99ca35fe4774"
     },
     "escape_interval_us": 740740.0,
     "mode": "VVI",
@@ -1627,14 +1620,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:60ae2300db0eed9f27a3be082ffebcbc7b94e5632edb7af59719c0165470d5f4"
+      "sha256": "sha256:474f8382dd8b43517ea7356329b3eebb40a80b4d97ce7321596c25eb180715ae"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:25ba76c8e30e54c42c1c58fe1a19229f9ca32c4d08346f1f1a2d98fe64db4e87"
+     "sha256": "sha256:b0083bff8178c5869ace8678650e8fa9cfbd010dd2db0dc7328de4419b0e5ccf"
     },
     "escape_interval_us": 810810.0,
     "mode": "VVI",
@@ -1738,14 +1731,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:0e17c4eaf4c61a614ba883bdbd2be7a3c6517d226d8b4e832280941247b6d5b0"
+      "sha256": "sha256:d4f5aafbd63a6cface3dde6c5cc11f3d0cb795c32165305d59c226fa52e05fa9"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:f5a7d0ebad96f52bc4554e22179621c50ef07aaa50c478a070f5a0f930c01a00"
+     "sha256": "sha256:8bdbd22738889e471069fe11420c0d0d6535ff0a794553f71d30ba5eeee8bd5a"
     },
     "escape_interval_us": 722891.0,
     "mode": "VVI",
@@ -1849,14 +1842,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:5c9e52eb76eaac5c072c7eadcd40a7d299167cc6422fb5faaf7af62a91f154f2"
+      "sha256": "sha256:a19492d44fcb26ae3258ac0d668c3787553a6710580a286fa797b16a9af0e8a5"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:c5efebbdb85039a7ad0d811d991c992f56e23cf806817d48869e1da526454a8a"
+     "sha256": "sha256:18e55e81904baa71ebd31f09a274a352598d66e133975f177f52913313776b4d"
     },
     "escape_interval_us": 1016949.0,
     "mode": "VVI",
@@ -1960,14 +1953,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:b3d68df9618639db9b391b05dd68966ce1e786362cf5a91babff8e3b856001ec"
+      "sha256": "sha256:b232c941b2fd904565826f6e40b21f0012b3f1a82b142a191b9b9f8270c9d6ac"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:50dcb9ee71d5fc4fc6533d17feb72d09e8525976d9086c1ab88f87fe2189c515"
+     "sha256": "sha256:08fae7ab35634fa5db10849059c7c243dad20c4247b5e9391d746e0729b7f2d4"
     },
     "escape_interval_us": 857142.0,
     "mode": "VVI",
@@ -2071,14 +2064,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:9d4cfc529cb1d03fac704c5b846ac359ac6df3b773cd878510e42b6e46eb52d8"
+      "sha256": "sha256:dfed76e37090d3c5606332f3cbb54963e9dffb32f856b677ddfa2eadf7e6c66e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:a17f8e37c04b373d1d28f99853ec5a399dc6db7dd8f7017747c895f38d4b8ada"
+     "sha256": "sha256:b87113fdce43880f6649452bfae16b84d807c528c8b02b98e2eca5f98eb9f3d0"
     },
     "escape_interval_us": 833333.0,
     "mode": "VVI",
@@ -2182,14 +2175,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:d08014192456296e98fe4fbb2b314d6fa009384178ab2a3f7faa4b683a458a38"
+      "sha256": "sha256:5d9672a858ed300ff20df6c65d01a68124bbe9a36fa85727e367f695c6781184"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:f957c201e145b82da687c0954dbea62c3eeb66f198d4e187934a801fae977b89"
+     "sha256": "sha256:a37e7e4da0e8b93ba2c81b8870dcc136dcc25e00eeb6c78f923572811dd7c933"
     },
     "escape_interval_us": 937500.0,
     "mode": "VVI",
@@ -2293,14 +2286,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+      "sha256": "sha256:d7ace7dd3f3fbf67f6f16fcbb00b793193fb1c66ad3bb575551ca375a5236a6e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:ac57a422ec8e902c9021b224c735ecea05d745a192bc5d9b3dfa7fe06b2b6c91"
+     "sha256": "sha256:d6c3fca49b51d2c583f9de1c583980b6c2cb34076b7a53a277fa88eccd7008b6"
     },
     "escape_interval_us": 750000.0,
     "mode": "VVI",
@@ -2404,14 +2397,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+      "sha256": "sha256:d7ace7dd3f3fbf67f6f16fcbb00b793193fb1c66ad3bb575551ca375a5236a6e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:0c448030f5c07a0b228de9bd79212c55459b4bb4254a9f190281fbd8b83c7f84"
+     "sha256": "sha256:6932a86678e1350a3dd4ccb480b41c8bc163b9fcf3f521f9ec4d004e73fdbe37"
     },
     "escape_interval_us": 750000.0,
     "mode": "VVI",
@@ -2515,14 +2508,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+      "sha256": "sha256:d7ace7dd3f3fbf67f6f16fcbb00b793193fb1c66ad3bb575551ca375a5236a6e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:0cb8e3940ee9f8d0b699b32ff3a0530f8aec486a5c84d187643739b9940063b1"
+     "sha256": "sha256:8ec1020707acbde0ec8ff74068451efd9ef3a9e3ad4f023c5e636b10ba341ee6"
     },
     "escape_interval_us": 750000.0,
     "mode": "VVI",
@@ -2626,14 +2619,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:27f8f952dfdfa54ab4ce546d2b51c1b4b2bf1cecf3636d4f047e36c9c720aea0"
+      "sha256": "sha256:d7ace7dd3f3fbf67f6f16fcbb00b793193fb1c66ad3bb575551ca375a5236a6e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:a32d7e2219b597fd661379d4f72fef722c056fa2edbbecdd67113d9690aa89dc"
+     "sha256": "sha256:e09e7cbee9887de5d7a48f33652bc5b172a64704542d16462f35359dfcdfc2e5"
     },
     "escape_interval_us": 750000.0,
     "mode": "VVI",

@@ -1,13 +1,13 @@
 {
   "schema": "rsk-kernel-timing/1",
-  "binary_hash": "sha256:76f08043cd40f215cb9981138c8dceea572d8f2ac5cf6723c4ddd9f09957252d",
+  "binary_hash": "sha256:a508f969a7239f3338e45a63209351554049bafd81399446dbd394d94e0d4614",
   "target": "nrf52840/r0p1",
   "clock_hz": 64000000,
   "icache": "off",
   "parameters": [
     {
       "symbol": "j_rel",
-      "cycles": 5595,
+      "cycles": 6760,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -16,7 +16,7 @@
       ],
       "measured": {
         "runs": 14999,
-        "max_observed": 4476,
+        "max_observed": 5408,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -83,16 +83,16 @@
     },
     {
       "symbol": "l_kernel",
-      "cycles": 4450,
+      "cycles": 4587,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
-        "the longest hold of the run: the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler from its Rust half's beginning to its end with the unwind it runs before it returns (3560 cycles over 1 entries, closed by a timer entry; the longest single Rust half 2804; the longest run of entries back to back, each taken at an exception return and charged by the Analyzer as its own event's interference, 0 cycles) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
+        "the longest hold of the run: the longest stretch in which a pending Kernel-level interrupt could not be taken, one handler from its Rust half's beginning to its end with the unwind it runs before it returns (3669 cycles over 1 entries, closed by a timer entry; the longest single Rust half 2844; the longest run of entries back to back, each taken at an exception return and charged by the Analyzer as its own event's interference, 0 cycles) (task 19.3, 11.13; a static cycle bound needs a timing model the loop-bound report of PR-16 does not give)",
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 115269,
-        "max_observed": 3560,
+        "runs": 115247,
+        "max_observed": 3669,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -102,7 +102,7 @@
     },
     {
       "symbol": "delta_dispatch",
-      "cycles": 3435,
+      "cycles": 3445,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -111,7 +111,7 @@
       ],
       "measured": {
         "runs": 16124,
-        "max_observed": 2748,
+        "max_observed": 2756,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -121,7 +121,7 @@
     },
     {
       "symbol": "delta_timer",
-      "cycles": 3505,
+      "cycles": 3555,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -129,8 +129,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 18522,
-        "max_observed": 2804,
+        "runs": 18500,
+        "max_observed": 2844,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -140,7 +140,7 @@
     },
     {
       "symbol": "delta_detect",
-      "cycles": 3505,
+      "cycles": 3555,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -148,8 +148,8 @@
         "HIL build (trace-ram, trace-pins): the instrumentation's cost is included"
       ],
       "measured": {
-        "runs": 18522,
-        "max_observed": 2804,
+        "runs": 18500,
+        "max_observed": 2844,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [
@@ -197,7 +197,7 @@
     },
     {
       "symbol": "delta_complete",
-      "cycles": 2737,
+      "cycles": 2738,
       "method": "measured",
       "tool": "xtask pm-measure: the Kernel's release-timing and entry record",
       "conditions": [
@@ -206,7 +206,7 @@
       ],
       "measured": {
         "runs": 16124,
-        "max_observed": 2189,
+        "max_observed": 2190,
         "margin_percent": 25,
         "coverage_branch_percent": 0,
         "scenarios": [

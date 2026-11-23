@@ -45,14 +45,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:145b39b03fb80a20d2b2980d64e4010b417f614de68318f47251ff82e6cbe854"
+      "sha256": "sha256:e169ec52acd8272cc118cbebeb3a85203115065efd42eb4b4043b191143dd23b"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:74faea2c97d57c55f5fa28963985ff482f420c46af6d8ef2788bd8befe322f46"
+     "sha256": "sha256:fa2f850696a4c72ef49d44b463822478e7f0349327de78d2533bbbbc07f8848e"
     },
     "escape_interval_us": 2000000.0,
     "mode": "VOO",
@@ -90,8 +90,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -101,7 +101,7 @@
      },
      "mismatches": [],
      "name": "fixed",
-     "ventricular_beats": 38
+     "ventricular_beats": 37
     },
     "tolerances_us": {
      "inhibition_window": 4000.0,
@@ -112,8 +112,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 14,
-      "max_us": 1999994.0,
-      "min_us": 1999993.0
+      "max_us": 1999992.0,
+      "min_us": 1999991.0
      },
      "paces": 15,
      "pulse_widths": {
@@ -121,7 +121,7 @@
       "max_us": 400.0,
       "min_us": 400.0
      },
-     "senses": 38,
+     "senses": 37,
      "senses_at_the_refractory_boundary": 0,
      "senses_effective": 0,
      "senses_refractory": 0
@@ -174,14 +174,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:8de9ea4d477c6cf91b40b0dde505c6d6e6c637cde17dc92ae47e2a2b6cbdfa1f"
+      "sha256": "sha256:fd27cd1c546e89611e540ad01ce000412ae3843161a3513325ff0a1088fbfad3"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:1fc2632bd7088363da20cc7b592626bd0bcf648f2c621721d0ff1b055727d5a7"
+     "sha256": "sha256:2df3f72dd207aecd6bcdde096d979b6c72edca4fa7c5c5c8e77f5677da87934e"
     },
     "escape_interval_us": 1000000.0,
     "mode": "VOO",
@@ -219,8 +219,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -241,8 +241,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 29,
-      "max_us": 999997.0,
-      "min_us": 999996.0
+      "max_us": 999996.0,
+      "min_us": 999995.0
      },
      "paces": 30,
      "pulse_widths": {
@@ -294,7 +294,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 100778.0
+     "min_us": 107194.0
     },
     "binaries": {
      "heart-sim": {
@@ -303,14 +303,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:f1c55d449fda1b619b29301c1702a75b8d9e3845c7ad9645a7a24ef9f3438fba"
+      "sha256": "sha256:1bb71b27fdbfeeb430e7f4e3782f6017273241e28941ae7fb8ce74314e799578"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:a46b6d412696df56e9b6102665611771f82d08d0b905f066d7b63ee82d639419"
+     "sha256": "sha256:e7617247e8cf433b05d940760fb024c033a737349903e0b68e5096135affc578"
     },
     "escape_interval_us": 342857.0,
     "mode": "VOO",
@@ -348,8 +348,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -410,8 +410,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 14,
-      "max_us": 1999994.0,
-      "min_us": 1999993.0
+      "max_us": 1999992.0,
+      "min_us": 1999991.0
      },
      "paces": 15,
      "pulse_widths": {
@@ -436,14 +436,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:d0436f009ef2fa3362484aa4595d11c4c2e2d161021376d84bc76b57a751726a"
+      "sha256": "sha256:d4ab25b7a3bd53e17fbe935401a96780c7e91c5b88d1389b11a6d7e183b852a6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:30f7c42c10573e5a01745b7008c1eaed645a563d9486f2013b3f905723946a03"
+     "sha256": "sha256:ff6948dd219c89cddfd61f359cea3e029a779a4ff3def29a27d33071ce96fefd"
     },
     "escape_interval_us": 2000000.0,
     "mode": "AOO",
@@ -481,8 +481,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -539,8 +539,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 29,
-      "max_us": 999997.0,
-      "min_us": 999996.0
+      "max_us": 999996.0,
+      "min_us": 999995.0
      },
      "paces": 30,
      "pulse_widths": {
@@ -565,14 +565,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:b033c6904c59788aaa7f044ff1d30f394a30ffae02dd9d95b02421aa8a8a1e78"
+      "sha256": "sha256:d7a6157710cef7b52b1744c9b2b63f90c8a319ae3d486ff65d0fc799ca663138"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:36ca43326cc11caf577f961dcb8a2354d19af2209604b1488de75720dd17fa43"
+     "sha256": "sha256:8b6811cd547b9e7c3e4b950b2505cb1ad2cb1a514aa49bd37062d6d3cb58dffc"
     },
     "escape_interval_us": 1000000.0,
     "mode": "AOO",
@@ -610,8 +610,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -685,7 +685,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 72816.0
+     "min_us": 54142.0
     },
     "binaries": {
      "heart-sim": {
@@ -694,14 +694,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:601a062bb3c5cc1e97a2f89ba1dc0d8e1ac77948e3a4e96ffdd192a718ab05ea"
+      "sha256": "sha256:5333b9e73b4fed489afb4717501823310a847caca610c6be3d745a5e31296a26"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:6ac2bc07e01fc5ead2ab6504d711e37fe9ba4b0fd9785932fdf9646f3f3a7983"
+     "sha256": "sha256:73c6b1189099152356f9d78f60d0e21107c909b95a15a24ca72228fa26403be6"
     },
     "escape_interval_us": 342857.0,
     "mode": "AOO",
@@ -739,8 +739,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -819,14 +819,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:04ff204ca5f4b127b3dec05f229504ecdeb4d108729b229802479b8a083dd706"
+      "sha256": "sha256:bf3bce9bd5b9a664a6c093f774d52bc076daf75d06fa60ccb65c24c383179c55"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:25a629b12fc275482e2445efb734dd86e3bc3015f5b21471f73291757e2f2687"
+     "sha256": "sha256:0a281b3a479eab963865f2b21fd5ca7b3541480cf2fa5ba2f8581f615bfc3731"
     },
     "escape_interval_us": 1000000.0,
     "mode": "VVI",
@@ -864,8 +864,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -944,14 +944,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:7aca16b0f3d05ebc2b5c1eb601cc5f083c732879a027ae3f895cc82540a74453"
+      "sha256": "sha256:d188e3ff0ce4ff8f30af09f322b519e0d7c11c841b7b13ff2abdfd33cf6eb948"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:1d840758e03a2421fd995ea922ec9965fd793ae6a7c483fa54a2afbbbb6a1bfa"
+     "sha256": "sha256:8f5c62b3ea74f0257b3143a6d22dfbda06830da3b42ea7964be07738aad92d08"
     },
     "escape_interval_us": 666666.0,
     "mode": "VVI",
@@ -989,8 +989,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -1012,7 +1012,7 @@
      "pace_intervals": {
       "count": 36,
       "max_us": 666664.0,
-      "min_us": 666664.0
+      "min_us": 666663.0
      },
      "paces": 37,
      "pulse_widths": {
@@ -1071,14 +1071,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:04ff204ca5f4b127b3dec05f229504ecdeb4d108729b229802479b8a083dd706"
+      "sha256": "sha256:bf3bce9bd5b9a664a6c093f774d52bc076daf75d06fa60ccb65c24c383179c55"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:0fdb5beae9885119a5678772d7b4b29f37457456639a52b693dc4e4893ca4c97"
+     "sha256": "sha256:2a5cd607d4ce748a699f2fc45a5924f941ea0871c7b4f37b74febe694a36c2a8"
     },
     "escape_interval_us": 1000000.0,
     "mode": "VVI",
@@ -1134,8 +1134,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 29,
-      "max_us": 999997.0,
-      "min_us": 999996.0
+      "max_us": 999996.0,
+      "min_us": 999995.0
      },
      "paces": 30,
      "pulse_widths": {
@@ -1196,14 +1196,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:7aca16b0f3d05ebc2b5c1eb601cc5f083c732879a027ae3f895cc82540a74453"
+      "sha256": "sha256:d188e3ff0ce4ff8f30af09f322b519e0d7c11c841b7b13ff2abdfd33cf6eb948"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:ff458897af326829675f40a41373c4c34ae3a28ba1e1f4991463df8bfb8cc3b6"
+     "sha256": "sha256:0c7252f40dc322adae5edcc86a1380f3a2b3e50b6e3531c8f30fa322d5fc338f"
     },
     "escape_interval_us": 666666.0,
     "mode": "VVI",
@@ -1241,7 +1241,7 @@
      "atrial_beats": 60,
      "atrial_intervals": {
       "count": 59,
-      "max_us": 499998.0,
+      "max_us": 499997.0,
       "min_us": 299998.0
      },
      "checked_against_its_table": true,
@@ -1263,8 +1263,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 1,
-      "max_us": 666664.0,
-      "min_us": 666664.0
+      "max_us": 666663.0,
+      "min_us": 666663.0
      },
      "paces": 1,
      "pulse_widths": {
@@ -1325,14 +1325,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:f5443841c33ef2a416281a932806bc9eea2ea10423b194e1b1e82fbdad5210ca"
+      "sha256": "sha256:57bb6fa7dbaaee98b67539ef3f8bf249b04c1b627b0271f4d44e06976a8fefb6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:ed6bcfab492308f01e1f718e328c26976ef6f6076c4a20792689f722f92859ab"
+     "sha256": "sha256:4adc7f2d007533693429ff1b1f16d98770bfd56b2d39e734d39f8057f5290223"
     },
     "escape_interval_us": 1000000.0,
     "mode": "AAI",
@@ -1370,8 +1370,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -1428,8 +1428,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 36,
-      "max_us": 666665.0,
-      "min_us": 666663.0
+      "max_us": 666664.0,
+      "min_us": 666662.0
      },
      "paces": 37,
      "pulse_widths": {
@@ -1454,14 +1454,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:c3fc5f70df1a63238659086e674cea11939e59fb686b84ffa76860d28be14a37"
+      "sha256": "sha256:4dbbb6eb790734da7175b6caab4766e1086f34ec96902f80cd7c32e6aca8586a"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:3d42e259be49aaeaab7bcb4c7d18561a5e33e86bb6f0cc9315a1740f996d1085"
+     "sha256": "sha256:e702327f69fe0b0c1d5f293dd6e9b2da94a7947b883b524ab13e83f3c1ecaf9f"
     },
     "escape_interval_us": 666666.0,
     "mode": "AAI",
@@ -1499,8 +1499,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -1557,8 +1557,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 29,
-      "max_us": 999997.0,
-      "min_us": 999996.0
+      "max_us": 999996.0,
+      "min_us": 999995.0
      },
      "paces": 30,
      "pulse_widths": {
@@ -1581,14 +1581,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:f5443841c33ef2a416281a932806bc9eea2ea10423b194e1b1e82fbdad5210ca"
+      "sha256": "sha256:57bb6fa7dbaaee98b67539ef3f8bf249b04c1b627b0271f4d44e06976a8fefb6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:dc3c58af4c71fe16f58c8a5fe76e807648f3c648bc790ecf9e32dbd20ea4eec7"
+     "sha256": "sha256:2bf30464305ec1205f772105ccf2a0dd472772a5377f3ad475d1df9b1d13282c"
     },
     "escape_interval_us": 1000000.0,
     "mode": "AAI",
@@ -1693,7 +1693,7 @@
     "av_delays_measured_not_judged": {
      "count": 60,
      "max_us": 149998.0,
-     "min_us": 149997.0
+     "min_us": 149996.0
     },
     "binaries": {
      "heart-sim": {
@@ -1702,14 +1702,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:c3fc5f70df1a63238659086e674cea11939e59fb686b84ffa76860d28be14a37"
+      "sha256": "sha256:4dbbb6eb790734da7175b6caab4766e1086f34ec96902f80cd7c32e6aca8586a"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:1ce67b808196e16bc93174be91eacc23c0b51da6ac4d5782d9e13c0f28279565"
+     "sha256": "sha256:80b813d4c70e44b8c1a87718069b70082cce2bbf85b8d5517f0da51bbe7362ae"
     },
     "escape_interval_us": 666666.0,
     "mode": "AAI",
@@ -1747,14 +1747,14 @@
      "atrial_beats": 60,
      "atrial_intervals": {
       "count": 59,
-      "max_us": 499998.0,
-      "min_us": 299998.0
+      "max_us": 499997.0,
+      "min_us": 299997.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 60,
       "max_us": 149998.0,
-      "min_us": 149997.0
+      "min_us": 149996.0
      },
      "mismatches": [],
      "name": "fast",
@@ -1818,7 +1818,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 94189.0
+     "min_us": 71195.0
     },
     "binaries": {
      "heart-sim": {
@@ -1827,14 +1827,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:5c54bb5c2ec61b14a30d70cfbe34c09150cfc1c9cd4391f3401e66fab9d8bce0"
+      "sha256": "sha256:11194be14e16bdb530e389af9dcd8dda3e4e95148a94c89e3f568138d07e2b3c"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:1a6bb8357992ab078455d5436dfd5a0b69be29ddc3c51fb94c14045b665e01bc"
+     "sha256": "sha256:fc232e93a6fce7e14a0d630e427309966805d058443ba71bc59994cc704ec534"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -1873,13 +1873,13 @@
      "atrial_intervals": {
       "count": 36,
       "max_us": 799996.0,
-      "min_us": 799995.0
+      "min_us": 799993.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159996.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -1894,8 +1894,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -1947,7 +1947,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 94368.0
+     "min_us": 71088.0
     },
     "binaries": {
      "heart-sim": {
@@ -1956,14 +1956,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:decfda6073dab7c33035a0b501ff981de800a04aad3dfca9d8ba2a67d814fd7e"
+      "sha256": "sha256:196d3b372ea658d87c110cdc882bd42f74e7c55a0f0e828a21932a9fabe9e35b"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:2107ada7c21c4b24154a1a7cdf86bcd13c39e3972b18746772b0bb30aca4990e"
+     "sha256": "sha256:3bc1406f6201ac6b9ecbaa5f72651bbd96f1cb4a5a7d544b59947fb3f6593a9c"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2002,13 +2002,13 @@
      "atrial_intervals": {
       "count": 36,
       "max_us": 799996.0,
-      "min_us": 799995.0
+      "min_us": 799993.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159996.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -2023,8 +2023,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2076,7 +2076,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 88908.0
+     "min_us": 70220.0
     },
     "binaries": {
      "heart-sim": {
@@ -2085,14 +2085,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:74836cc5c0c4066ca81d83e529fb68b3319536ad82f2ce57cf293020cb1bbb4d"
+      "sha256": "sha256:6679c411b05602dc1ec2234fb0547e8aeace64276c133e3b82b72116c3d071ed"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:aaa1bfd751d0aefae73af402abe949fa9a721fc9733c9c2d79531cba53c81681"
+     "sha256": "sha256:cc833dc3b0e676c8ad5b707ca4da9e119d6b70289fa2ec5c53b5f8b0a9f245f1"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2131,13 +2131,13 @@
      "atrial_intervals": {
       "count": 36,
       "max_us": 799996.0,
-      "min_us": 799995.0
+      "min_us": 799993.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159996.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -2152,8 +2152,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2205,7 +2205,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 90902.0
+     "min_us": 94174.0
     },
     "binaries": {
      "heart-sim": {
@@ -2214,14 +2214,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:5f075317c810e2d260aa05ea69918218b809a2e1e6a0a25aaf628b7008014445"
+      "sha256": "sha256:8b8d745d241657853f86f7fc3a3375d9812a9b8ff2c7b9a6e468c6718f961854"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:21e6c9350e7ff33d0362d0bc4149cc5a92f24f716dec914816912aa7acc6841a"
+     "sha256": "sha256:04f60c6b6e1e23ebc351623a358cfcc7bdc7f293843c18e7832a3bfd9a17c03e"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2259,8 +2259,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -2281,8 +2281,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2334,7 +2334,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 88748.0
+     "min_us": 91560.0
     },
     "binaries": {
      "heart-sim": {
@@ -2343,14 +2343,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:86be0a6f34a3b337d600dc6739e313a0e0726d32e63463810c0f9d948e180c4c"
+      "sha256": "sha256:c1da479e861f12c00fc78540733fa062a0c0e253333dc15d776099e733edfc8a"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:c4d7522c966515405e1f3ad6a02e04359014af9b0db7a9d0fb6602b758077eb8"
+     "sha256": "sha256:e3c3ba5c4279a04dfdcaea7783866fb970a40676159769d187e1638c6d779fb3"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2388,8 +2388,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -2410,8 +2410,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2463,7 +2463,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 74604.0
+     "min_us": 92588.0
     },
     "binaries": {
      "heart-sim": {
@@ -2472,14 +2472,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:e2495ba7b9fe01c4cde07f7c61a08867d51317fa69614084ff383f0d48e47d4c"
+      "sha256": "sha256:4455b4cf76aec7510c8660c21b3ac9b5299dd0fca1ae0d2dc1c37213471020d6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:d1d7b764583bdea8233f484d6ad5359124e54b6675a7c7f6a5da6e1eec28ea40"
+     "sha256": "sha256:da67fff30f33f553c324121f8c1a45dc03f3f430b6ec3acddae645f6891e015e"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2517,14 +2517,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799997.0,
+      "max_us": 799995.0,
       "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159996.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -2539,8 +2539,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2592,7 +2592,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 70707.0
+     "min_us": 89281.0
     },
     "binaries": {
      "heart-sim": {
@@ -2601,14 +2601,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:105ea42714a18e8d24081b34591b45d1484a72efcea1efde45769ae08fdb32c8"
+      "sha256": "sha256:0ed7590dd10942690dbfc9180163ff23bccd141c62a61d7d56707180f3743bdb"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:e378fc5317fcd65fb3a4303ec0d66719feaa2672e410dbfed77dd63475512f4e"
+     "sha256": "sha256:a88918b0aaec0bc5fca8adfbc4065d6643cb30fe6de82becb82e3ede0992ac1d"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2646,14 +2646,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799997.0,
+      "max_us": 799995.0,
       "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159996.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -2668,14 +2668,14 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
       "count": 60,
       "max_us": 600.0,
-      "min_us": 600.0
+      "min_us": 599.0
      },
      "senses": 38,
      "senses_at_the_refractory_boundary": 0,
@@ -2721,7 +2721,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 70718.0
+     "min_us": 92984.0
     },
     "binaries": {
      "heart-sim": {
@@ -2730,14 +2730,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:09861e2bca5b969cb56baa69216496acf6ca12a4f7867790508026002e395d58"
+      "sha256": "sha256:06db7e8e586902f6c7fd64dc01d5977cec5b20b6f5d87766c9eade015216064b"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:486843346d8033a9a17f64c4cd3938875bf71fcba665402577578dfd6044d714"
+     "sha256": "sha256:926f3addcd63331471809a0920cf6b585692f0a7b62d2f7713221a7e898c7490"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2775,14 +2775,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799997.0,
+      "max_us": 799995.0,
       "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159996.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -2797,8 +2797,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2850,7 +2850,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 92332.0
+     "min_us": 92266.0
     },
     "binaries": {
      "heart-sim": {
@@ -2859,14 +2859,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:4443049345bed034064571099ff2cf3e166c4011ab2a9d90740ba9d71e064449"
+      "sha256": "sha256:dffd6ebb29baa5ba2ac23a58f7f8cb46a04513625c992a624aacfb3aa8a4e7cd"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:85ee1a6d62f2a1c9beaeef49f4c7df8812e4a9f7e9139da9332b956823866061"
+     "sha256": "sha256:bba61cc20eefa16bdd54a15bb5c8d0de8c70a5c436b261c29033d9756aee3b06"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -2904,8 +2904,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -2926,8 +2926,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -2979,7 +2979,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 93373.0
+     "min_us": 91960.0
     },
     "binaries": {
      "heart-sim": {
@@ -2988,14 +2988,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:d5bf1cc54ec64925dc464159acf0159ee81b03bf0982434e4d9b12bc2efae65e"
+      "sha256": "sha256:7b0a33c26505f86d7cd5cc177fc31c525e72c3852c1e222bdba7746d10035aef"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:0c15af050cf2c76e70b0b238b37febaa9f6a28827296ba280667753660d69a2d"
+     "sha256": "sha256:066710d76624ed4ee1d60f88525e91b1b843c0b2bcecae3e9799e9a18c24cd9d"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3033,8 +3033,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -3055,8 +3055,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -3108,7 +3108,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 92533.0
+     "min_us": 92020.0
     },
     "binaries": {
      "heart-sim": {
@@ -3117,14 +3117,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:99ffde2df16835dcf1fc3f8d0337cad4f89c28f8df482a50ca9fb153171c80b4"
+      "sha256": "sha256:018c8c8059bdf3ed6dc3d549e846922aaf8f14929576fb7644b004cf37a35c28"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:bd5d6cde9c591dd91b37f71496a4d9c2c74b43742bfadb6ddd389c675b2bc3cf"
+     "sha256": "sha256:6c2a291bf7c5a0664c839dedb41d273906b4fb707b1ad4b5f95fc343aea893f5"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3162,8 +3162,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -3184,8 +3184,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -3237,7 +3237,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 83431.0
+     "min_us": 92470.0
     },
     "binaries": {
      "heart-sim": {
@@ -3246,14 +3246,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:73df410ebacd92bfe1b8911f46c9fd2203f62466eb0e24ce1f4a95f0a1e3c2cb"
+      "sha256": "sha256:c406dc3ec37d8417a79abdc278e3460a6fb6288549440879eff7f6758526c5f6"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:792e625f6c00887e66785699686d4cc7cb1cc2f1b479a8602b839839d42852da"
+     "sha256": "sha256:399dc90e6319fc429fa9f02dd5222451f1ba2a44f10d3583ac4409a84760265f"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3291,8 +3291,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -3313,8 +3313,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -3366,7 +3366,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 93575.0
+     "min_us": 94496.0
     },
     "binaries": {
      "heart-sim": {
@@ -3375,14 +3375,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:a91c02fbaba7c92cf74d867694662d71296322df9b8431ce7b754e3edc0701a4"
+      "sha256": "sha256:f17845566dff32757ab6d3867e6f916064a09958a1eb01f15549b85a58564544"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:01747b91e53df74d036e190b6e4efeaa3589fe0be5bdf1eb8db72c9c34e37616"
+     "sha256": "sha256:335b898b467a8e7ab6f0c1c2b73ccd717858795b97195c605cc64aca777537af"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3420,14 +3420,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159998.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -3442,8 +3442,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -3495,7 +3495,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 93711.0
+     "min_us": 92971.0
     },
     "binaries": {
      "heart-sim": {
@@ -3504,14 +3504,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:5d4750777351f06ec2b35c60490363ad6ecdbd04740393eae5cc04447c386307"
+      "sha256": "sha256:949862d180514735f0c6c1eea59f03c8ac5870b5c0da1e12d22d7ea293119e4d"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:db8e346a5dd49dcf5aab11d228a7124416f5de235ac3def120fa3bf7785504d3"
+     "sha256": "sha256:6da6cbc9d8f23c0fa7a65da034c35956c26959f0e681268e3984294f35d083b6"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3549,8 +3549,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -3571,8 +3571,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -3624,7 +3624,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 93788.0
+     "min_us": 93211.0
     },
     "binaries": {
      "heart-sim": {
@@ -3633,14 +3633,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:f610484034d7b266fc984e96fd47205e499bcca9c2b29e4742ceab7cc530416f"
+      "sha256": "sha256:815b64ab51f674eaf29caf6de6d4c87b9669331d6b68ec770a8bb99b82099acd"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:842d884b6c74efa31023986ef028da054380dbbc74dbaf684e4f34aa265d8d09"
+     "sha256": "sha256:069119e3470c3703b7e5f2e6b3a4b48f752cf668d1890aaeba13faf9c4cd8506"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3678,14 +3678,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159998.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -3700,8 +3700,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -3753,7 +3753,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 92160.0
+     "min_us": 74641.0
     },
     "binaries": {
      "heart-sim": {
@@ -3762,14 +3762,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:fc4cadcf9cbf379fb1bd87ad8cedffee07d86dae9f93ec90fa2cb2741529c9e0"
+      "sha256": "sha256:8dca1dde1c6166bda3362015a1ab571178be6de9167b183f71229e2acb1b7a6f"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:29ef1d023c9585162622b12ed645324bd9746ba72a7ed6ae0cfddcfb796d0ec3"
+     "sha256": "sha256:7121efec0083946d4ed47e4d5af250c9f974ecdd34217dc61d1d78fd4ad4f33a"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3808,13 +3808,13 @@
      "atrial_intervals": {
       "count": 36,
       "max_us": 799996.0,
-      "min_us": 799995.0
+      "min_us": 799993.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159996.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -3829,14 +3829,14 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
       "count": 60,
       "max_us": 1500.0,
-      "min_us": 1500.0
+      "min_us": 1499.0
      },
      "senses": 38,
      "senses_at_the_refractory_boundary": 0,
@@ -3882,7 +3882,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 90753.0
+     "min_us": 70522.0
     },
     "binaries": {
      "heart-sim": {
@@ -3891,14 +3891,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:23a79979bdbd930b8ba0e3854dbbb8297b10db389204a425e5f594e4e9a143af"
+      "sha256": "sha256:e61bfa639eda585138f4ccccc0e303118059e2514b93cbe709a29cb9aeaa55e4"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:bc4e99c8758457024ab10db95b196bff483ce87f15cec2364effbd7946f8a0a3"
+     "sha256": "sha256:ccc40d732550c872a55038da427893fddcc8fe3a3015d17f19935b0026b1fb8e"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -3937,13 +3937,13 @@
      "atrial_intervals": {
       "count": 36,
       "max_us": 799996.0,
-      "min_us": 799995.0
+      "min_us": 799993.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159996.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -3958,14 +3958,14 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
       "count": 60,
       "max_us": 1600.0,
-      "min_us": 1599.0
+      "min_us": 1600.0
      },
      "senses": 38,
      "senses_at_the_refractory_boundary": 0,
@@ -4011,7 +4011,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 91801.0
+     "min_us": 72974.0
     },
     "binaries": {
      "heart-sim": {
@@ -4020,14 +4020,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:8f7986c71a4611633fb68f3860470ced00514721355d765f9a409900d16c63ee"
+      "sha256": "sha256:041a52b92a5a7b614a3bfbfab98db0d2dc41577b41142af82adbb9c988963a8c"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:ba36633f70cae2461d541535ec0fb228edf59b8882f2841a211eb1b1e9bd756f"
+     "sha256": "sha256:1a2186495ee44a84a70dcaa14db798f3e0ae5ef391764987c280e5e22e723751"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -4066,13 +4066,13 @@
      "atrial_intervals": {
       "count": 36,
       "max_us": 799996.0,
-      "min_us": 799995.0
+      "min_us": 799993.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159997.0
+      "min_us": 159996.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -4087,8 +4087,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -4140,7 +4140,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 93516.0
+     "min_us": 93134.0
     },
     "binaries": {
      "heart-sim": {
@@ -4149,14 +4149,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:16925606c47cd2e508b394ee952c70124365d8540891a3f9f866c2c7d1e427f8"
+      "sha256": "sha256:ae800aec77c754ac68a5640a7b11cf80ce9339c2a4197332d9b0266cbb22582e"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:0e4fdf7f2f65089f4701d46dbe271edff870d3a5c32c0b770f5eef563de13b83"
+     "sha256": "sha256:38fd4c53eb6eead36ebf46be46e9f8d7c8e59d0933948cc3b42dda6046f28949"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -4194,8 +4194,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -4216,8 +4216,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -4269,7 +4269,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 92945.0
+     "min_us": 86768.0
     },
     "binaries": {
      "heart-sim": {
@@ -4278,14 +4278,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:75eee57be67fa640bb32e52131ef7bff540b0c51df7e8a49c943ecb107070655"
+      "sha256": "sha256:d95666d2b4cb498dddc5f2281e7d24c7493941247ce1c82110e7483c66f51af8"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:5a8ef7a1e803f978ce0299a907aaacca8698ab74abcae69f14ab47c885db2be9"
+     "sha256": "sha256:8ee957645ac5850ffe9a93ed079a942d002afbbd278a62216a0bf5446ef85ff8"
     },
     "escape_interval_us": 500000.0,
     "mode": "VOO",
@@ -4323,8 +4323,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -4345,8 +4345,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -4385,8 +4385,8 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
@@ -4402,7 +4402,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 65912.0
+     "min_us": 67497.0
     },
     "binaries": {
      "heart-sim": {
@@ -4411,14 +4411,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:7cb9674acf166241e5f380d7bbb65897a54485ada7efb1baccf184894e32d764"
+      "sha256": "sha256:4e3d38a4a44407e49bc33582429c895be0fb62e6cb1bdccc5302643dc7106a27"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:5b089384f915922702646245ba83f235594c8e7c60811e83b2864721781e79df"
+     "sha256": "sha256:2b9a0c81636a702d863ded6ced6c34bb2899c9cd582da97dc10ea4a25ac3d075"
     },
     "escape_interval_us": 500000.0,
     "mode": "AOO",
@@ -4456,8 +4456,8 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799996.0,
-      "min_us": 799995.0
+      "max_us": 799995.0,
+      "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
@@ -4514,13 +4514,13 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
       "count": 60,
-      "max_us": 401.0,
+      "max_us": 400.0,
       "min_us": 400.0
      },
      "senses": 37,
@@ -4531,7 +4531,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 84719.0
+     "min_us": 75035.0
     },
     "binaries": {
      "heart-sim": {
@@ -4540,14 +4540,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:38f152a4f2101b3c284eb5bea4287f16c89334b9f5868cca1a52debcdaac8c10"
+      "sha256": "sha256:e0e086b8a682fb76670a0f5c30be2e0b7a3829d127236b8163c6085df38282fd"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:c0adcec5fba45d80bea98533b02e8a01702e5ce603228b9e15aed094398d0fcf"
+     "sha256": "sha256:c0daf096acc482c703548c199821dbb63501098a5a49a4768cda34fa0240b6e2"
     },
     "escape_interval_us": 500000.0,
     "mode": "AOO",
@@ -4585,14 +4585,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799997.0,
+      "max_us": 799995.0,
       "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159996.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",
@@ -4643,14 +4643,14 @@
      "fusions": 0,
      "pace_intervals": {
       "count": 59,
-      "max_us": 499999.0,
-      "min_us": 499998.0
+      "max_us": 499998.0,
+      "min_us": 499997.0
      },
      "paces": 60,
      "pulse_widths": {
       "count": 60,
       "max_us": 1900.0,
-      "min_us": 1900.0
+      "min_us": 1899.0
      },
      "senses": 37,
      "senses_at_the_refractory_boundary": 0,
@@ -4660,7 +4660,7 @@
     "av_delays_measured_not_judged": {
      "count": 37,
      "max_us": 159998.0,
-     "min_us": 89800.0
+     "min_us": 67290.0
     },
     "binaries": {
      "heart-sim": {
@@ -4669,14 +4669,14 @@
      },
      "pacemaker": {
       "path": "target/pacemaker-rig/thumbv7em-none-eabihf/release/pacemaker",
-      "sha256": "sha256:a6bbe0b9b5c7a56d6dee05029c32a7f2e310db4960104a8deb6b3acbce5eef50"
+      "sha256": "sha256:b93126381c4689246cd062830d25dd08768a923b3b81920070a4f9b64a083372"
      }
     },
     "capture": {
      "file": "capture.bin",
      "length_us": 30000000.0,
      "rate_hz": 1000000,
-     "sha256": "sha256:91b1c739a770c2d2db7d1438b41c6eac26abada1e9068c66d23fc7f9d6e1d49b"
+     "sha256": "sha256:56ad9352d142928974e17f86b079c6875de586a304b62b9107d2f4adeb068f9e"
     },
     "escape_interval_us": 500000.0,
     "mode": "AOO",
@@ -4714,14 +4714,14 @@
      "atrial_beats": 37,
      "atrial_intervals": {
       "count": 36,
-      "max_us": 799997.0,
+      "max_us": 799995.0,
       "min_us": 799994.0
      },
      "checked_against_its_table": true,
      "conduction": {
       "count": 37,
       "max_us": 159998.0,
-      "min_us": 159996.0
+      "min_us": 159997.0
      },
      "mismatches": [],
      "name": "fixed",

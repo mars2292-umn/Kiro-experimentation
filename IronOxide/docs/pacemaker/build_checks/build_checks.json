@@ -1,6 +1,6 @@
 {
   "qemu": {
-    "binary_sha256": "f3f3b26615a6c334371b18475d8c8399080d65daecd0e1184bc9e653121783bd",
+    "binary_sha256": "c6865eaf97158f25174f73db6f6e92d267b5396f80c2347500768a51562a7f92",
     "task_model": "apps/pacemaker/gen/task_model.json",
     "link_checker": {
       "passed": true,
@@ -16,7 +16,7 @@
     }
   },
   "nrf52840": {
-    "binary_sha256": "9fd07321069b45d549c01b1ee4ae71d9222a629b16aa38ee677f1a021d554e1e",
+    "binary_sha256": "82c07ec15d7198063493e2840669192f07e1723bdb48c95ea2dec3e940da51e5",
     "task_model": "apps/pacemaker/gen-nrf52840/task_model.json",
     "link_checker": {
       "passed": true,

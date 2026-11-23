@@ -2,17 +2,17 @@
 
 Coverage builds (nightly-2026-09-17), each run 300 s under its records' scenario:
 
-- set vvi-90: sha256:a3c4adb40d72cf7d7461cf82bec967f06990fe94691bea0743ef7ede3e70fc38; nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)
-- set aai-90: sha256:1cfb98d446f0f003bceb4ffb7b3095238beb9a6ef9d61842c4c7c8021228871e; nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)
+- set vvi-90: sha256:6d63cd1dca50079585c76afc5ea07dc487dd104b5fc3e5a986bc876e2901b706; nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s)
+- set aai-90: sha256:a93abaec73b9cec5b9470656b235e4c842fb95b7f62cb3996c3e6e2c71bb7303; nrf52840_measure, set aai-90, Heart_Simulator `fixed` (300 s)
 
 A branch outcome is taken when a run of either set took it. Threshold: 50 % (`hil-rig.toml`, R34.4).
 
 | Task entry | Branch outcomes | Taken | Percent | Of its own functions | Of the shared functions |
 |---|---|---|---|---|---|
-| `therapy.pace` | 92 | 60 | 65 | 8 of 10 | 52 of 82 |
-| `therapy.sense_v` | 88 | 55 | 62 | 3 of 6 | 52 of 82 |
-| `therapy.sense_a` | 88 | 55 | 62 | 3 of 6 | 52 of 82 |
-| `therapy.control` | 194 | 109 | 56 | 57 of 112 | 52 of 82 |
+| `therapy.pace` | 92 | 59 | 64 | 8 of 10 | 51 of 82 |
+| `therapy.sense_v` | 88 | 54 | 61 | 3 of 6 | 51 of 82 |
+| `therapy.sense_a` | 88 | 54 | 61 | 3 of 6 | 51 of 82 |
+| `therapy.control` | 194 | 108 | 55 | 57 of 112 | 51 of 82 |
 
 Branch outcomes no run took (`line:column outcome`):
 
@@ -27,12 +27,12 @@ Branch outcomes no run took (`line:column outcome`):
 - `pacemaker_therapy::Timing::on_pace` (apps/pacemaker/therapy/src/lib.rs; pace): 2 of 10: 241:49 true, 242:24 true
 - `pacemaker_therapy::Timing::on_sense` (apps/pacemaker/therapy/src/lib.rs; sense_v, sense_a): 3 of 6: 257:12 true, 257:25 true, 261:16 false
 - `pacemaker_therapy::event` (apps/pacemaker/therapy/src/lib.rs; shared): 1 of 6: 209:24 true
-- `pacemaker_therapy::sets::from_text` (apps/pacemaker/therapy/src/sets.rs; not counted: evaluated by the compiler only): 20 of 20: 49:18 true, 49:18 false, 49:33 true, 49:33 false, 51:12 true, 51:12 false, 51:25 true, 51:25 false, 53:16 true, 53:16 false, 58:19 true, 58:19 false, 61:12 true, 61:12 false, 61:25 true, 61:25 false, 62:16 true, 62:16 false, 62:28 true, 62:28 false
+- `pacemaker_therapy::sets::from_text` (apps/pacemaker/therapy/src/sets.rs; not counted: evaluated by the compiler only): 24 of 24: 52:18 true, 52:18 false, 52:33 true, 52:33 false, 54:12 true, 54:12 false, 54:25 true, 54:25 false, 58:16 true, 58:16 false, 59:20 true, 59:20 false, 62:23 true, 62:23 false, 65:19 true, 65:19 false, 68:12 true, 68:12 false, 68:25 true, 68:25 false, 69:16 true, 69:16 false, 69:28 true, 69:28 false
 - `pm_core::state::State::params` (crates/pm-core/src/state.rs; shared): 1 of 2: 201:35 false
 - `pm_core::step::account` (crates/pm-core/src/step.rs; shared): 1 of 4: 56:25 true
 - `pm_core::step::apply_pace` (crates/pm-core/src/step.rs; shared): 1 of 2: 47:21 false
 - `pm_core::step::arm_from` (crates/pm-core/src/step.rs; shared): 1 of 2: 94:8 false
-- `pm_core::step::step` (crates/pm-core/src/step.rs; shared): 6 of 16: 134:28 true, 134:47 false, 138:16 false, 138:35 true, 138:35 false, 162:16 false
+- `pm_core::step::step` (crates/pm-core/src/step.rs; shared): 7 of 16: 134:28 true, 134:47 false, 138:16 false, 138:35 true, 138:35 false, 153:16 false, 162:16 false
 - `pm_core::step::tick` (crates/pm-core/src/step.rs; shared): 1 of 6: 111:15 true
 - `pm_core::validate::delivered_in_e1` (crates/pm-core/src/validate.rs; control): 1 of 2: 170:5 false
 - `pm_core::validate::is_amplitude` (crates/pm-core/src/validate.rs; control): 2 of 4: 116:5 true, 116:20 true

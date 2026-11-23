@@ -1,20 +1,20 @@
 # Task 9.2: measurement run, set vvi-90
 
-Binary `pacemaker` (nrf52840,debug-port,quiet,trace-ram,measure,set-vvi-90): sha256:962cc2bb335802e269f16ab2e0f08d5218306160e3dccf9e922598b24a571ad1, Generated_Config checksum 0xec5fe19d.
+Binary `pacemaker` (nrf52840,debug-port,quiet,trace-ram,measure,set-vvi-90): sha256:c2a3cc1ff0eb5b90d471af3d047a28853bc20d6a1a6c0dcd6cf048597ae84370, Generated_Config checksum 0x2d3eb664.
 Scenario: nrf52840_measure, set vvi-90, Heart_Simulator `fixed` (300 s).
 
 | Task | Jobs | Execution max (cycles / µs) | Budget (µs) | Above Budget | Response max (ms) | Deadline (ms) | Intakes | Intake max (cycles) | Release lag max (cycles) |
 |---|---|---|---|---|---|---|---|---|---|
-| `therapy.pace` | 375 | 14562 / 227.5 | 400 | 0 | 0.296 | 2.000 | 375 | 2052 | 0 |
-| `therapy.sense_v` | 375 | 14943 / 233.5 | 400 | 0 | 0.305 | 3.000 | 375 | 2067 | 0 |
-| `therapy.sense_a` | 375 | 12919 / 201.9 | 400 | 0 | 0.274 | 4.000 | 375 | 2066 | 0 |
-| `therapy.control` | 15000 | 15298 / 239.0 | 5000 | 0 | 0.767 | 20.000 | 0 | 0 | 4992 |
+| `therapy.pace` | 375 | 14470 / 226.1 | 350 | 0 | 0.295 | 2.000 | 375 | 2052 | 0 |
+| `therapy.sense_v` | 375 | 14939 / 233.4 | 350 | 0 | 0.305 | 3.000 | 375 | 2067 | 0 |
+| `therapy.sense_a` | 375 | 13007 / 203.2 | 350 | 0 | 0.275 | 4.000 | 375 | 2066 | 0 |
+| `therapy.control` | 15000 | 15298 / 239.0 | 5000 | 0 | 0.767 | 20.000 | 0 | 0 | 5448 |
 
 Kernel entries (Rust halves):
 
 | Entry | Runs | Max (cycles / µs) |
 |---|---|---|
-| dispatch | 16125 | 2752 / 43.0 |
+| dispatch | 16125 | 2748 / 42.9 |
 | timer | 18522 | 2804 / 43.8 |
 | intake | 1125 | 2208 / 34.5 |
 | lock | 16125 | 438 / 6.8 |

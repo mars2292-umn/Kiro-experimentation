@@ -18,14 +18,16 @@
 //!   it plays a table of Senses (design, "The hardware layer"). It is for
 //!   the logic, not for timing claims.
 //!
-//! The deadlines and the board's Budgets are those task 9.2 settled on the
-//! measured records (design.md, Table 2 and "Timing Design"): 400 µs for
-//! each sporadic Task (the longest Job measured took 226 µs) and deadlines
-//! of 2, 3 and 4 ms for `pace`, `sense_v` and `sense_a`, the response-time
-//! bounds the Analyzer computes being 1.67, 2.50 and 3.34 ms. The three
-//! responses of the Partition are RESTART_PARTITION (PM23.3), so a Budget
-//! set too low restarts pacing. The QEMU variant keeps Budgets of 1 ms: its
-//! execution times are the emulator's and are not measured.
+//! The deadlines and the board's Budgets are those tasks 9.2 and 9.8 settled
+//! on the measured records (design.md, Table 2 and "Timing Design"): 350 µs
+//! for each sporadic Task (the longest Job measured took 234 µs) and
+//! deadlines of 2, 3 and 4 ms for `pace`, `sense_v` and `sense_a`. With
+//! Budgets of 400 µs the Analyzer's bound for `sense_a` was 36 µs over its
+//! 4 ms once the Kernel's fault entry and stubs were measured; 350 µs was
+//! the user's decision of 2026-11-23. The three responses of the Partition
+//! are RESTART_PARTITION (PM23.3), so a Budget set too low restarts pacing.
+//! The QEMU variant keeps Budgets of 1 ms: its execution times are the
+//! emulator's and are not measured.
 #![no_std]
 #![forbid(unsafe_code)]
 
