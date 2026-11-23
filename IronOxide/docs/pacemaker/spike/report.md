@@ -47,6 +47,53 @@ It also settles how the pace pulses reach the Heart_Simulator (the open point of
 
 **What it does not show.** That the task and the fork act at the same instant: both pins were read through registers, hundreds of milliseconds after the event, and the analyzer does not see P1.03. The write order of "Arming and the lead" under interference and the value of `LEAD` (task 1.3). The first run of the script reported compare 2 as refuted; the cause was the script, which read the counter through capture register 2 and so overwrote the compare under test. It was corrected to read through another register and the whole set was run again; the record is of the second run.
 
+## Task 1.3: the write order under an interrupt, and the lead (2026-11-22)
+
+**What ran.** The spike built with its feature `lead` (binary SHA-256 `4bd777f772550540cfeac97e301b9278c0ba9003f858f98c13b8b49919031cc7`). The sequence under test is the Application's own code: `pm_hw::Driver` (`crates/pm-hw`), given the nRF52840's registers by role, with the present read exactly from TIMER3 through a capture register. For each configuration the instant was swept a tick (1 µs) at a time:
+
+- **arm**: a Pace asked for from 1.5 ms ahead of the present to 0.1 ms behind it, nothing pending (1,601 instants);
+- **move** and **withdraw**: a Pace pending from 1.2 ms ahead to 0.6 ms behind (its pulse over), then moved 5 ms on or withdrawn (1,801 instants).
+
+TIMER4's interrupt stood in for a Kernel entry: it spins for the hold and is taken again 150 to 900 µs after it ends, at pseudo-random spacings, so it falls between any two register accesses of the sequence. The holds are rsk's measured ones: 140 µs for the longest hold (138 µs in the hour-long stress record) and 410 µs for the longest run of entries back to back (406 µs). The chip checked every outcome itself: a Pace reported armed must be reported fired at that instant after its pulse, a Pace reported withdrawn must not fire. The analyzer recorded the ventricular pace pin for the whole run at 1 MHz (170 s). `spikes/pm-timer/lead_check.py` read the counts through the debug probe and checked the capture; the record is `task_1_3_lead.json`.
+
+**Result.**
+
+| Operation | `LEAD` µs | `GUARD` µs | Hold µs | Instants | Armed or withdrawn | Of those, moved later | Pace had fired (`TooLate`) | Forced by software | Armed, did not fire | Other wrong | Interrupts taken |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| arm | 50 | 64 | 140 | 1,601 | 1,434 | 0 | 1 | 166 | 0 | 0 | 4,391 |
+| arm | 100 | 64 | 140 | 1,601 | 1,600 | 165 | 1 | 0 | 0 | 0 | 4,133 |
+| arm | 150 | 64 | 140 | 1,601 | 1,600 | 166 | 1 | 0 | 0 | 0 | 4,168 |
+| arm | 200 | 64 | 140 | 1,601 | 1,599 | 166 | 2 | 0 | 0 | 0 | 4,183 |
+| arm | 300 | 64 | 140 | 1,601 | 1,600 | 166 | 1 | 0 | 0 | 0 | 4,191 |
+| arm | 500 | 64 | 140 | 1,601 | 1,600 | 165 | 1 | 0 | 0 | 0 | 4,275 |
+| arm | 500 | 0 | 0 | 1,601 | 1,601 | 102 | 0 | 0 | 1 | 0 | 0 |
+| arm | 500 | 1 | 0 | 1,601 | 1,600 | 103 | 1 | 0 | 0 | 0 | 0 |
+| arm | 500 | 2 | 0 | 1,601 | 1,600 | 103 | 1 | 0 | 0 | 0 | 0 |
+| arm | 500 | 4 | 0 | 1,601 | 1,600 | 105 | 1 | 0 | 0 | 0 | 0 |
+| arm | 500 | 8 | 0 | 1,601 | 1,600 | 109 | 1 | 0 | 0 | 0 | 0 |
+| arm | 500 | 0 | 140 | 1,601 | 1,601 | 103 | 0 | 0 | 1 | 0 | 4,224 |
+| arm | 500 | 2 | 140 | 1,601 | 1,600 | 104 | 1 | 0 | 0 | 0 | 4,196 |
+| arm | 500 | 8 | 140 | 1,601 | 1,601 | 113 | 0 | 0 | 0 | 0 | 4,231 |
+| move | 500 | 64 | 140 | 1,801 | 1,184 | 0 | 617 | 0 | 0 | 0 | 14,621 |
+| withdraw | 500 | 64 | 140 | 1,801 | 1,187 | 0 | 614 | 0 | 0 | 0 | 6,807 |
+| arm | 300 | 64 | 410 | 1,601 | 1,600 | 165 | 1 | 0 | 0 | 0 | 3,116 |
+| arm | 500 | 64 | 410 | 1,601 | 1,600 | 167 | 1 | 0 | 0 | 0 | 3,182 |
+| arm | 800 | 64 | 410 | 1,601 | 1,600 | 165 | 1 | 0 | 0 | 0 | 3,200 |
+| move | 500 | 64 | 410 | 1,801 | 1,100 | 0 | 701 | 0 | 0 | 0 | 10,208 |
+| withdraw | 500 | 64 | 410 | 1,801 | 1,103 | 0 | 698 | 0 | 0 | 0 | 5,018 |
+| move | 500 | 64 | 0 | 1,801 | 1,198 | 0 | 603 | 0 | 0 | 0 | 0 |
+
+On the pin: 33,930 pulses, which is the number the driver reported (33,930). 33,764 were 400 µs to the analyzer's sample; the other 166 were 448 or 449 µs, which is the number of pulses forced by software (166), all in the configuration with a `LEAD` of 50 µs. The longest pulse was 449 µs. No pulse appeared on the atrial pin.
+
+**What this shows.**
+
+- **The write order holds under interruption.** With `GUARD` at 64 µs no Pace reported armed failed to fire, and no Pace reported withdrawn or moved fired at its old instant, in any configuration; every Pace that had already fired was reported as such (`TooLate`) and was delivered whole. No pulse was longer than its width except the forced ones.
+- **The smallest `LEAD` that never needed a forced pulse was 100 µs**, the smallest tried above `GUARD`. At 50 µs, below `GUARD`, a moved Pace can never pass the check and all 166 were forced, with pulses of `LEAD` + width less a tick or two. The three rounds are what make the lead small: one interrupt can spoil one round, and the next is over before the next interrupt.
+- **`GUARD` is needed, and the timer itself needs 1 µs of it.** With `GUARD` at 0, one Pace in 1,601 was reported armed and never fired, with and without the interrupt: a start written at the counter's present value does not fire. At 1 µs and above there was none.
+- **A moved Pace is late by at most about `LEAD` past the instant asked for** when the instant is in the past by up to 0.1 ms: 602 µs at a `LEAD` of 500 µs under the 140 µs hold, 893 µs under the 410 µs one.
+
+**What it does not show.** The present was read exactly here; in the Application it comes from the Kernel's time base through a measured offset, whose error is what `GUARD`'s 64 µs is for, and that path was not exercised. Each configuration is one sweep, so "none" is none in 1,601 or 1,801 instants. The interrupt is one handler of fixed length, not the Kernel. One read through the debug probe was made about 20 s into the run to confirm it had started. The decision on the values is task 1.4.
+
 ## A bench finding: the debug port
 
 The first build of the spike locked board A's debug port. This silicon protects the port at every reset, and a program has to reopen it by writing APPROTECT.DISABLE first thing, as rsk's HIL builds do (Verification_Plan, "Access port protection"). The spike did not, so the next probe command after its reset found the core locked.

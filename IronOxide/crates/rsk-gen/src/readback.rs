@@ -106,6 +106,52 @@ pub fn check(text: &str, g: &Generated) -> Result<(), String> {
     Ok(())
 }
 
+/// docs/pacemaker PM33.4: compares the emitted channel table with the
+/// derived channels. A configuration without channels has no table, no
+/// tables-only checksum and no channel constants; one with channels has the
+/// table row by row, the boot core's checksum bound to the tables alone,
+/// and the Kernel's channel constants bound to the table and to the
+/// configuration checksum.
+pub fn check_ppi(text: &str, g: &Generated) -> Result<(), String> {
+    let line = text.lines().find(|l| l.trim_start().starts_with("pub static RSK_PPI:"));
+    let has = |needle: &str| text.lines().any(|l| l.trim() == needle);
+    let boot_core_sum = text.lines().find(|l| l.trim_start().starts_with("const CONFIG_CHECKSUM: u32 =")).map(|l| l.trim()).ok_or("no `const CONFIG_CHECKSUM` in the `SystemTables` impl")?;
+    if g.ppi.is_empty() {
+        if line.is_some() || text.contains("TABLES_CHECKSUM") || text.contains("const PPI") {
+            return Err("the emitted source has PPI items, the derivation no channel".into());
+        }
+        if boot_core_sum != "const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;" {
+            return Err(format!("without channels the boot core's checksum is the configuration checksum; the emitted source says `{boot_core_sum}`"));
+        }
+        return Ok(());
+    }
+    let line = line.ok_or("the derivation has PPI channels, the emitted source no `RSK_PPI`")?;
+    let head = format!("pub static RSK_PPI: [[u32; 3]; {}] = [", g.ppi.len());
+    let body = line.trim().strip_prefix(&head).and_then(|r| r.strip_suffix("];")).ok_or_else(|| format!("`RSK_PPI` is not a table of {} channels", g.ppi.len()))?;
+    let mut words = Vec::new();
+    for w in body.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()) {
+        words.push(u32::from_str_radix(w.strip_prefix("0x").ok_or_else(|| format!("`{w}` in `RSK_PPI` is not a hexadecimal word"))?, 16).map_err(|_| format!("`{w}` in `RSK_PPI` is not a hexadecimal word"))?);
+    }
+    if words.len() != 3 * g.ppi.len() {
+        return Err(format!("`RSK_PPI` has {} words for {} channels", words.len(), g.ppi.len()));
+    }
+    for (i, c) in g.ppi.iter().enumerate() {
+        if c.channel as usize != i {
+            return Err(format!("ppi channel `{}` has number {} at position {i}", c.name, c.channel));
+        }
+        same(&format!("ppi {}: event", c.name), words[3 * i] as u64, c.event.address as u64)?;
+        same(&format!("ppi {}: task", c.name), words[3 * i + 1] as u64, c.task.address as u64)?;
+        same(&format!("ppi {}: fork", c.name), words[3 * i + 2] as u64, c.fork.as_ref().map_or(0, |f| f.address) as u64)?;
+    }
+    let tables = format!("pub const TABLES_CHECKSUM: u32 = 0x{:08x};", crate::derive::tables_checksum(g));
+    for needle in [tables.as_str(), "const CONFIG_CHECKSUM: u32 = TABLES_CHECKSUM;", "const PPI: &'static [[u32; 3]] = &RSK_PPI;", "const PPI_CHECKSUM: u32 = CONFIG_CHECKSUM;"] {
+        if !has(needle) {
+            return Err(format!("the emitted source lacks `{needle}`"));
+        }
+    }
+    Ok(())
+}
+
 /// The text of the `LAYOUT` table: from its declaration to its closing line.
 fn layout_table(text: &str) -> Result<&str, String> {
     let start = text.find("pub const LAYOUT:").ok_or("no `LAYOUT` table in the emitted source")?;

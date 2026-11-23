@@ -99,6 +99,34 @@ pub struct Model {
     pub tasks: Vec<Task>,
     pub resources: Vec<Resource>,
     pub endpoints: Vec<Endpoint>,
+    /// The fixed PPI channels (docs/pacemaker PM33.1), in the model's order.
+    pub ppi: Vec<PpiChannel>,
+}
+
+/// One register of a fixed PPI channel as the Task_Model states it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PpiRegister {
+    pub peripheral: String,
+    pub offset: u64,
+    pub address: u64,
+}
+
+/// A fixed PPI channel as the Task_Model states it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PpiChannel {
+    pub id: String,
+    pub channel: u64,
+    pub event: PpiRegister,
+    pub task: PpiRegister,
+    pub fork: Option<PpiRegister>,
+}
+
+fn ppi_register(v: &Value, name: &str, at: &str) -> Result<PpiRegister, String> {
+    let r = field(v, name, at)?;
+    let rat = format!("{at}.{name}");
+    let text = str_of(r, "address", &rat)?;
+    let address = u64::from_str_radix(text.trim_start_matches("0x"), 16).map_err(|_| format!("{rat}: address `{text}` is not a hexadecimal word"))?;
+    Ok(PpiRegister { peripheral: str_of(r, "peripheral", &rat)?, offset: u64_of(r, "offset", &rat)?, address })
 }
 
 fn field<'a>(v: &'a Value, name: &str, at: &str) -> Result<&'a Value, String> {
@@ -189,6 +217,20 @@ impl Model {
             });
         }
         // Endpoints (task 21.2): absent from older models, an empty list then.
+        let mut ppi = Vec::new();
+        for (i, c) in json.get("ppi").and_then(|e| e.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
+            let cat = format!("ppi[{i}]");
+            ppi.push(PpiChannel {
+                id: str_of(c, "id", &cat)?,
+                channel: u64_of(c, "channel", &cat)?,
+                event: ppi_register(c, "event", &cat)?,
+                task: ppi_register(c, "task", &cat)?,
+                fork: match c.get("fork") {
+                    Some(_) => Some(ppi_register(c, "fork", &cat)?),
+                    None => None,
+                },
+            });
+        }
         let mut endpoints = Vec::new();
         for (i, e) in json.get("endpoints").and_then(|e| e.as_array()).map(|a| a.as_slice()).unwrap_or(&[]).iter().enumerate() {
             let eat = format!("endpoints[{i}]");
@@ -276,6 +318,7 @@ impl Model {
             tasks,
             resources,
             endpoints,
+            ppi,
         })
     }
 

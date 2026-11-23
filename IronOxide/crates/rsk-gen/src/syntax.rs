@@ -923,16 +923,78 @@ mod tests {
         assert!(!bad("ppi c (event = TIMER1[0x140], task = GPIOTE);").is_empty());
     }
 
-    /// Until the Kernel writes the channels (docs/pacemaker tasks 3.2 and
-    /// 3.3), nothing is emitted for a declaration that has one.
+    /// PM33.3, PM33.4 (docs/pacemaker): the Kernel writes the channels at
+    /// boot, so a declaration with channels generates every output. The
+    /// emitted configuration binds the boot core's checksum to the tables
+    /// alone and hands the Kernel the channel table with the configuration
+    /// checksum over both; the read-back check accepts it and refuses each
+    /// alteration. (Until 2026-11-22 nothing was emitted for a declaration
+    /// with channels, and a test here held that.)
     #[test]
-    fn pm33_3_no_output_for_channels_the_kernel_does_not_write_yet() {
-        let src = ppi_demo("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030]);");
+    fn pm33_3_the_outputs_carry_the_channels_and_read_back() {
+        let src = ppi_demo("ppi a (event = TIMER1[0x140], task = GPIOTE[0x030]); ppi b (event = GPIOTE[0x100], task = TIMER1[0x040], fork = TIMER1[0x008]);");
         let parsed = parse_app(src.parse().unwrap()).unwrap();
-        assert!(crate::generate(&parsed.decl).is_ok());
-        let Err(errs) = crate::outputs(&parsed.decl, "sys") else { panic!("outputs were emitted") };
-        assert_eq!(errs.iter().map(|e| (e.rule.as_str(), e.item.to_string())).collect::<Vec<_>>(), vec![("PM33.3", "ppi c".to_string())]);
-        assert!(!crate::PPI_KERNEL_SUPPORT, "when the Kernel writes the channels, this test goes and `outputs` emits them");
+        let g = crate::generate(&parsed.decl).unwrap();
+        let out = match crate::outputs(&parsed.decl, "sys") {
+            Ok(out) => out,
+            Err(errs) => panic!("{}", errs.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n")),
+        };
+        let text = &out.system_source;
+        let tables = crate::derive::tables_checksum(&g);
+        assert_ne!(tables, g.checksum);
+        for needle in [
+            format!("pub const CONFIG_CHECKSUM: u32 = 0x{:08x};", g.checksum),
+            format!("pub const TABLES_CHECKSUM: u32 = 0x{tables:08x};"),
+            "    const CONFIG_CHECKSUM: u32 = TABLES_CHECKSUM;".to_string(),
+            "    const PPI: &'static [[u32; 3]] = &RSK_PPI;".to_string(),
+            "    const PPI_CHECKSUM: u32 = CONFIG_CHECKSUM;".to_string(),
+            "pub static RSK_CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;".to_string(),
+        ] {
+            assert!(text.lines().any(|l| l == needle), "no line `{needle}`");
+        }
+        assert_eq!(crate::readback::check_ppi(text, &g), Ok(()));
+        // Each alteration of the emitted text is refused.
+        for (from, to) in [
+            ("0x40009140, 0x40006030, 0x00000000", "0x40009144, 0x40006030, 0x00000000"),
+            ("0x40006100, 0x40009040, 0x40009008", "0x40006100, 0x40009040, 0x00000000"),
+            ("[[u32; 3]; 2] = [[0x40009140, 0x40006030, 0x00000000], ", "[[u32; 3]; 1] = ["),
+            ("    const CONFIG_CHECKSUM: u32 = TABLES_CHECKSUM;", "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;"),
+            ("    const PPI_CHECKSUM: u32 = CONFIG_CHECKSUM;", "    const PPI_CHECKSUM: u32 = TABLES_CHECKSUM;"),
+            ("    const PPI: &'static [[u32; 3]] = &RSK_PPI;\n", ""),
+            (&format!("TABLES_CHECKSUM: u32 = 0x{tables:08x};"), &format!("TABLES_CHECKSUM: u32 = 0x{:08x};", g.checksum)),
+        ] {
+            let altered = text.replace(from, to);
+            assert_ne!(&altered, text, "`{from}` is not in the emitted source");
+            assert!(crate::readback::check_ppi(&altered, &g).is_err(), "`{from}` -> `{to}` was accepted");
+        }
+        // A configuration without channels: no PPI item, and one added is refused.
+        let plain = parse_app(ppi_demo("").parse().unwrap()).unwrap();
+        let gp = crate::generate(&plain.decl).unwrap();
+        let plain_text = crate::outputs(&plain.decl, "sys").unwrap().system_source;
+        assert!(!plain_text.contains("RSK_PPI") && !plain_text.contains("const PPI") && !plain_text.contains("TABLES_CHECKSUM"));
+        assert_eq!(crate::derive::tables_checksum(&gp), gp.checksum);
+        assert!(crate::readback::check_ppi(text, &gp).is_err());
+        assert!(crate::readback::check_ppi(&plain_text, &g).is_err());
+    }
+
+    /// PM33.4: the Kernel continues the tables' checksum over the same
+    /// bytes. The number is the one rsk-kernel's test
+    /// `the_ppi_checksum_continues_the_configuration_checksum` holds for
+    /// the bytes `rsk` followed by this declaration's channel image.
+    #[test]
+    fn pm33_4_the_kernel_continues_the_same_checksum() {
+        let src = ppi_demo("ppi a (event = TIMER1[0x140], task = GPIOTE[0x030]); ppi b (event = GPIOTE[0x100], task = TIMER1[0x040], fork = TIMER1[0x008]);");
+        let g = crate::generate(&parse_app(src.parse().unwrap()).unwrap().decl).unwrap();
+        let mut bytes = b"rsk".to_vec();
+        bytes.extend_from_slice(&crate::derive::ppi_bytes(&g));
+        assert_eq!(crate::derive::crc32(&bytes), 0x32BA_FDD8);
+        // The Task_Model of this declaration is the Config_Checker's fixture
+        // (`the_ppi_channels_recompute_and_altered_ones_are_reported`).
+        assert_eq!(crate::model::task_model(&g).render(), include_str!("../../rsk-confcheck/fixtures/pm33_4_ppi_task_model.json"), "regenerate the Config_Checker's fixture");
+        // And the configuration checksum is the tables' bytes followed by the image.
+        let mut whole = crate::derive::tables_bytes(&g);
+        whole.extend_from_slice(&crate::derive::ppi_bytes(&g));
+        assert_eq!(crate::derive::crc32(&whole), g.checksum);
     }
 
     /// PM33.2 (docs/pacemaker): a channel's peripherals are all owned by

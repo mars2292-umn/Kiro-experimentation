@@ -1243,6 +1243,40 @@ fn same_lines(a: &Kept, b: &Kept, skip: usize) -> bool {
     ok
 }
 
+/// docs/pacemaker PM33.3, the raw write of the declared PPI channels
+/// (`ppi::ppi_write` on the memory-mapped register file, as `hw::ppi_boot`
+/// applies it): for any table of up to two channels and any state the
+/// hardware keeps, each channel's event, task and fork end-point registers
+/// hold the table's row, CHENSET holds the enable bits of exactly those
+/// channels, exactly three writes per channel and one more are made, every
+/// address written is a Kernel register (KS-01 asserts it), and the NVIC's
+/// lines, the time base's interrupt enable, BASEPRI and PRIMASK are as they
+/// were. The contract for every table of up to twenty channels is proven
+/// in `ppi.rs` against the register file's specification.
+#[kani::proof]
+#[kani::unwind(48)]
+fn ppi_write_sets_exactly_the_declared_channels() {
+    sim::reset();
+    let before = any_kept();
+    let rows: [[u32; 3]; 2] = kani::any();
+    let n: usize = kani::any();
+    kani::assume(n <= 2);
+    let writes = sim::write_count();
+    crate::arch::cm4::ppi::ppi_write(&mut crate::arch::cm4::drivers::Mmio::new(), &rows[..n]);
+    let after = kept();
+    assert!(sim::write_count() == writes + 3 * n as u32 + 1);
+    let mut i = 0;
+    while i < n {
+        assert!(sim::read(0x4001_F510 + 8 * i as u32) == rows[i][0]);
+        assert!(sim::read(0x4001_F514 + 8 * i as u32) == rows[i][1]);
+        assert!(sim::read(0x4001_F910 + 4 * i as u32) == rows[i][2]);
+        i += 1;
+    }
+    assert!(sim::read(0x4001_F504) == (1u32 << n) - 1);
+    assert!(same_lines(&before, &after, usize::MAX));
+    assert!(before.inten == after.inten && before.basepri == after.basepri && before.primask == after.primask);
+}
+
 /// `Action::Enable`, `Disable`, `Pend`, `ClearPending` (HW-05; the step's
 /// `enabled.insert`, `enabled.remove`, `pending.insert`, `pending.remove`):
 /// from any state and for any exception number, the line's bit is set or

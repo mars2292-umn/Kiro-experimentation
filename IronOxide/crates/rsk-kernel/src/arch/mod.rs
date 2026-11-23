@@ -158,4 +158,13 @@ pub trait System: SystemTables {
     /// The declared system safe state (R14.4): applied by Kernel_Arch and
     /// never returned from.
     fn safe_state() -> !;
+    /// The fixed PPI channels (docs/pacemaker PM33.1): per channel, in
+    /// channel order, the addresses of its event, task and fork end-point
+    /// registers (0: no fork). Empty unless the App_Declaration declares
+    /// channels; the Kernel writes them once at boot (`cm4::ppi`).
+    const PPI: &'static [[u32; 3]] = &[];
+    /// The configuration checksum of a configuration with channels: the
+    /// CRC-32 over the tables continued over the channel table (PM33.4).
+    /// Read only when `PPI` is not empty.
+    const PPI_CHECKSUM: u32 = 0;
 }

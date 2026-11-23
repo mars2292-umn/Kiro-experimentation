@@ -1114,6 +1114,21 @@ pub fn ppi_disable_all() {
     mmio_write(addr::NRF_PPI_CHENCLR, 0xFFFF_FFFF);
 }
 
+/// The declared PPI channels (docs/pacemaker PM33.3, PM33.4): the verified
+/// `ppi::ppi_boot` on the memory-mapped registers. Called once, by the
+/// boot shell.
+#[cfg(not(feature = "board-qemu-mps2"))]
+pub fn ppi_boot(table: &[[u32; 3]], tables_sum: u32, recorded: u32) -> bool {
+    crate::arch::cm4::ppi::ppi_boot(&mut Mmio::new(), table, tables_sum, recorded)
+}
+
+/// The QEMU board has no PPI: a configuration with channels does not boot
+/// (the Generator declares none for this Target).
+#[cfg(feature = "board-qemu-mps2")]
+pub fn ppi_boot(table: &[[u32; 3]], _tables_sum: u32, _recorded: u32) -> bool {
+    table.is_empty()
+}
+
 // ------------------------------------------- Partition peripheral access
 
 /// A Partition's read of one of its peripheral registers (through the

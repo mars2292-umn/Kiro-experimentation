@@ -1,0 +1,10 @@
+[package]
+name = "pm-hw"
+description = "PACEMAKER experiment: the hardware layer Hw (docs/pacemaker/design.md PD-10): arming, withdrawing, the pace report and the sense service as sequences over a register interface, so that the same code runs on the nRF52840's registers and on the host's register model; no_std, no rsk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+pm-core.workspace = true

@@ -148,8 +148,17 @@ pub fn check(model_text: &str, elf: Option<&[u8]>) -> Result<Outcome, String> {
                 img.address,
                 img.stored_checksum
             ));
-            let tables = image::decode(&img.bytes)?;
-            recompute::check_binary(&model, &img, &tables, &mut out);
+            // docs/pacemaker PM33.4: the image's tail is the PPI channels'
+            // image and `RSK_PPI` the table the Kernel writes from, both
+            // against the table recomputed from the Task_Model; the tables
+            // are decoded from what precedes the tail. Without channels the
+            // tail is empty and the image is the tables, as before.
+            let mut ppi_rules = Outcome::default();
+            let ppi = recompute::expected_ppi(&model, &mut ppi_rules);
+            let ppi_symbol = image::ppi_symbol(bytes)?;
+            let tables_len = recompute::check_ppi_binary(&ppi, &img.bytes, ppi_symbol.as_deref(), &mut out).unwrap_or(img.bytes.len());
+            let tables = image::decode(&img.bytes[..tables_len])?;
+            recompute::check_binary(&model, &img, tables_len, &tables, &mut out);
             // R6.7: the Kernel linked is the one the model was generated
             // for, of the model's Profile version and Profile_Variant.
             for (symbol, field, value) in [

@@ -605,10 +605,28 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     !crc
 }
 
-/// The canonical byte image of the Generated_Config tables the Kernel
-/// holds (R24.1): the same field order that `rsk_kernel::arch::config_bytes`
-/// hashes at boot (R12.3) and that the Config_Checker recomputes (R26.4).
+/// The canonical byte image of Generated_Config (R24.1): the tables the
+/// Kernel holds (`tables_bytes`) and then the fixed PPI channels
+/// (`ppi_bytes`, empty when none is declared). Its CRC-32 is the
+/// configuration checksum the boot check covers (R12.3) and the
+/// Config_Checker recomputes (R26.4).
 pub fn config_bytes(g: &Generated) -> Vec<u8> {
+    let mut out = tables_bytes(g);
+    out.extend_from_slice(&ppi_bytes(g));
+    out
+}
+
+/// The CRC-32 of the Kernel's tables alone: what `boot_core` compares with
+/// the CRC-32 of the tables in memory. For a configuration without
+/// channels it is the configuration checksum; with channels the Kernel
+/// continues it over the channel table (`rsk_kernel::arch::cm4::ppi`).
+pub fn tables_checksum(g: &Generated) -> u32 {
+    crc32(&tables_bytes(g))
+}
+
+/// The canonical byte image of the tables the Kernel holds: the same field
+/// order that `rsk_kernel::arch::bound::config_crc` hashes at boot.
+pub fn tables_bytes(g: &Generated) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&(g.tasks.len() as u32).to_le_bytes());
     out.extend_from_slice(&(g.resources.len() as u32).to_le_bytes());
@@ -654,7 +672,6 @@ pub fn config_bytes(g: &Generated) -> Vec<u8> {
         out.push(t.slot_budget);
     }
     out.push(g.slot_count as u8);
-    out.extend_from_slice(&ppi_bytes(g));
     out
 }
 
@@ -664,7 +681,9 @@ pub fn config_bytes(g: &Generated) -> Vec<u8> {
 /// as u8, then per channel its number u8 and the addresses of its event,
 /// task and fork registers as u32 (0 for no fork). It is the tail of
 /// `config_bytes`: the lengths of everything before it follow from the
-/// counts at the head, so the tail cannot be read as part of them.
+/// counts at the head, so the tail cannot be read as part of them. The
+/// Kernel hashes the same bytes from its copy of the table
+/// (`rsk_kernel::arch::cm4::ppi::ppi_checksum`).
 pub fn ppi_bytes(g: &Generated) -> Vec<u8> {
     let mut out = Vec::new();
     if g.ppi.is_empty() {

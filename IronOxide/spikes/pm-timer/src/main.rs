@@ -16,10 +16,16 @@
 //! With the feature `idle` (task 1.2) the program only reopens the debug
 //! port and starts the crystal oscillator, then spins: the host script
 //! `probe_1_2.py` runs one probe per register behaviour through the port.
+//!
+//! With the feature `lead` (task 1.3) it runs `lead.rs`: the Application's
+//! own arming sequence swept toward the present under an injected interrupt.
 #![no_std]
 #![no_main]
 
 use core::ptr::{read_volatile, write_volatile};
+
+#[cfg(feature = "lead")]
+mod lead;
 
 const CLOCK: u32 = 0x4000_0000;
 const GPIOTE: u32 = 0x4000_6000;
@@ -121,7 +127,11 @@ extern "C" fn reset() -> ! {
         }
     }
 
+    #[cfg(feature = "lead")]
+    lead::run();
+
     // The pace pins as GPIOTE task pins, low.
+    #[allow(unreachable_code)]
     w(gpiote_config(0), task_pin_port1(10));
     w(gpiote_config(1), task_pin_port1(11));
 
@@ -169,12 +179,34 @@ extern "C" fn fault() -> ! {
     loop {}
 }
 
+/// A vector: a handler that returns, one that does not, or nothing.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union Vector {
+    diverges: extern "C" fn() -> !,
+    handler: extern "C" fn(),
+    reserved: usize,
+}
+
+// SAFETY: a table of code addresses, never written.
+unsafe impl Sync for Vector {}
+
+#[cfg(feature = "lead")]
+const TIMER4_VECTOR: Vector = Vector { handler: lead::timer4 };
+#[cfg(not(feature = "lead"))]
+const TIMER4_VECTOR: Vector = Vector { diverges: fault };
+
 /// The exception vectors after the initial stack pointer (which link.x
-/// places): reset, then every core exception to `fault`.
+/// places): reset, then every core exception to `fault`, then the 48
+/// interrupt lines, of which only TIMER4's (27) is ever enabled.
 #[link_section = ".vectors"]
 #[no_mangle]
-pub static VECTORS: [extern "C" fn() -> !; 15] =
-    [reset, fault, fault, fault, fault, fault, fault, fault, fault, fault, fault, fault, fault, fault, fault];
+pub static VECTORS: [Vector; 15 + 48] = {
+    let mut v = [Vector { diverges: fault }; 15 + 48];
+    v[0] = Vector { diverges: reset };
+    v[15 + 27] = TIMER4_VECTOR;
+    v
+};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {

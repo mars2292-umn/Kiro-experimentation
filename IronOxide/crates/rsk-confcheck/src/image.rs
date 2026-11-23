@@ -88,6 +88,16 @@ pub fn extract(elf_bytes: &[u8]) -> Result<Image, String> {
     extract_named(elf_bytes, "RSK_CONFIG_IMAGE", "RSK_CONFIG_CHECKSUM")
 }
 
+/// The content of `RSK_PPI` (docs/pacemaker PM33.4): the channel table the
+/// Kernel writes from, three words per channel; `None` when the binary has
+/// no such symbol.
+pub fn ppi_symbol(elf_bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
+    let elf = rsk_elf::Elf::parse(elf_bytes.to_vec()).map_err(|e| format!("binary: {e}"))?;
+    let symbols = elf.symbols().map_err(|e| format!("binary: {e}"))?;
+    let Some(sym) = symbols.iter().find(|s| s.name == "RSK_PPI" && s.is_object()) else { return Ok(None) };
+    elf.read_at(sym.address(), sym.size as usize).map(Some).map_err(|e| format!("binary: RSK_PPI: {e}"))
+}
+
 /// Locates and reads `RSK_ENDPOINT_IMAGE` and `RSK_ENDPOINT_CHECKSUM`
 /// (task 21.2), absent from binaries built before Endpoints existed.
 pub fn extract_endpoints(elf_bytes: &[u8]) -> Result<Option<Image>, String> {

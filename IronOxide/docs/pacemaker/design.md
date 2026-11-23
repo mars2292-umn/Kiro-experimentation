@@ -2,7 +2,7 @@
 
 **PACEMAKER on rsk: an experimental Application**
 
-Status: Draft 0.3 (0.2 closed PD-O7: `pace` is released by the end of a pulse, and a Chamber's compares have one write order; 0.3, 2026-11-22: the register behaviour of "Hardware signal flow" is confirmed on the board by the spike, each pace channel gains a fork that carries the pulse to the Heart_Simulator, and the step function's interface is the one implemented for stage E1). Implements `requirements.md` Draft 0.4 of this folder. Requirement references `PMn.m`, `PM-PAR-nn`, `PM-NG-nn`, `PM-ASM-nn`, `PM-ORQ-nn` point into that document; `Rn.m`, `PR-nn`, `DD-nn` into the rsk requirements and design; design decisions of this document are numbered `PD-nn`.
+Status: Draft 0.4 (0.4, 2026-11-22: "Arming and the lead" and "Sense intake" corrected to what was implemented in `pm-hw` and run on the board: two constants `GUARD` and `LEAD`, the far side kept by a refresh, a Pace reported only after its pulse, the sense flag cleared before the compare is written; and the Kernel's write of the PPI channels placed after the boot checks. 0.2 closed PD-O7: `pace` is released by the end of a pulse, and a Chamber's compares have one write order; 0.3, 2026-11-22: the register behaviour of "Hardware signal flow" is confirmed on the board by the spike, each pace channel gains a fork that carries the pulse to the Heart_Simulator, and the step function's interface is the one implemented for stage E1). Implements `requirements.md` Draft 0.4 of this folder. Requirement references `PMn.m`, `PM-PAR-nn`, `PM-NG-nn`, `PM-ASM-nn`, `PM-ORQ-nn` point into that document; `Rn.m`, `PR-nn`, `DD-nn` into the rsk requirements and design; design decisions of this document are numbered `PD-nn`.
 
 Every number in this document that is not quoted from the source or from an rsk record is a **proposal** to be replaced by a measurement (PM21.3, PM31.3). The nRF52840 register facts it relies on (TIMER3's six compare registers and interrupt line, counter mode, PPI forks, GPIOTE tasks) were confirmed on board A by the spike on 2026-11-22, one probe per behaviour (`spike/report.md`, task 1.2).
 
@@ -56,6 +56,8 @@ The design found three places where the requirements as written could not be kep
 
 Six PPI channels, each with a fork, and six GPIOTE channels. All connect peripherals of one Partition (PM33.2). The Kernel writes them at Init from Generated_Config and never again (PM33.3).
 
+**How the Kernel writes them (rsk, tasks 3.2 to 3.4).** The configuration checksum of a configuration with channels is the CRC-32 of the Kernel's tables continued over the channel table. The boot core is unchanged: it compares the tables' part, disables every channel and reads the enable register back as zero. After it has passed, and before any Task is released, the boot shell calls one function (`rsk_kernel::arch::cm4::ppi::ppi_boot`) that recomputes the checksum over the tables and the channel table in memory and, only if it is the recorded one, writes each channel's event, task and fork end-point registers and then the enable bits of exactly those channels; otherwise it writes nothing and the boot fails into the safe state (PM33.4). Its contract is proven against the Kernel's register-file specification. A configuration without channels is generated, checked and booted exactly as before. The Config_Checker recomputes the table from the Task_Model, with the ownership rule, and compares it with the image's tail and with the table in the binary. The HIL build's timestamp probe uses channel 15, so an Application measured on the rig has channels 0 to 14.
+
 **The pace copies.** On the rig the pace pins the analyzer sees do not reach board B, and the board-to-board lines are not on the analyzer (`hil-rig.toml`). Each pace compare therefore drives two pins from the one event: the pace pin, which is measured, and a copy on a board-to-board line, which the Heart_Simulator reads. The spike showed one compare event moving both pins and board B reading the copy; that the two edges coincide is the PPI's property and was not measured, and nothing is judged on the copy. The copies exist for the rig: a PG whose pace pins reached the heart would not have them (a finding for PM31.2).
 
 What each requirement gets from this:
@@ -71,23 +73,27 @@ Two hazards decide how a Chamber's compares are written. A compare register writ
 
 The rule against the second: **a Chamber's end compare is written only while its start compare is disarmed and no Pace of the Chamber is unaccounted.** A Pace is unaccounted from the instant its start compare fires until the `pace` Job that its pulse's end releases has cleared the start's event flag; the pulse lies inside that span.
 
-The sequence for one Chamber, inside the Critical_Section on the Resource `timing`, used for arming, moving and withdrawing alike:
+The sequence for one Chamber, inside the Critical_Section on the Resource `timing`, used for arming, moving and withdrawing alike (as implemented in `crates/pm-hw` and run on the board by the spike, Draft 0.4):
 
-1. write the start compare to the far side of the counter (present − 1): nothing of this Chamber can fire now;
+1. write the start compare to the far side of the counter (present − `FAR`, 2^30 µs): nothing of this Chamber can fire now;
 2. read the start's event flag. If it is set, a Pace fired, before this Job or as it began: write nothing more and return `TooLate`. The end compare in force is that pulse's own, the pending instant stays in the step's state, and the `pace` Job arms from it when the pulse has ended;
 3. if the Pace is withdrawn, done;
-4. write the end compare (start + width), then the start compare;
-5. read the present (`rsk::now()` converted by the offset of "The two clocks"); if start − present, as a signed 32-bit difference, is at least `LEAD`, done;
-6. otherwise repeat from 1 with start set to present + `LEAD`, at most twice more. If step 2 then finds the flag set, the Pace was delivered at the instant asked for, with its own end in force, and the sequence ends;
-7. if the third check fails, write the end compare to present + `LEAD` + width, write the GPIOTE set task directly, and record a late-arm event; if the end compare is no longer ahead of the present after that, write the clear task as well and record the pulse as not timed.
+4. clear the end's event flag (no pulse is in progress, so a set one is stale), write the end compare (start + width), then the start compare;
+5. read the present; if start − present, as a signed 32-bit difference, is at least `GUARD`, done: the write came before the instant, so the compare will fire;
+6. otherwise repeat from 1 with start set to present + `LEAD`, at most twice more. If step 2 then finds the flag set, the Pace of the round before was delivered at its instant, with its own end in force, and the sequence ends;
+7. if the third check fails, disarm and check once more (steps 1 and 2), write the end compare to present + `LEAD` + width, write the GPIOTE set task directly, and record a late-arm event; if the end compare is no longer ahead of the present after that, write the clear task as well and record the pulse as not timed. Until that pulse's end is seen, the Chamber's compares are not written again.
 
 Because the end is written before the start and only with the start disarmed, a start that fires always has its own end in force. Because of step 2, no Job writes an end compare under a pulse.
 
-`LEAD` (proposal: 500 µs) has to exceed what can interrupt the Job between the check of step 5 and the compare being in force: one Kernel hold (rsk's L_kernel, 8,805 cycles or 138 µs in the hour-long stress record) plus, for a sense Job, the response of `pace`. Step 7 should be unreachable; it is there because the alternative is a missed Pace. A Pace moved by step 6 is late by at most `LEAD`, far inside PM-PAR-01; whether it ever happens is a rig result.
+**Two constants, not one.** Draft 0.2 compared step 5's difference with `LEAD` and retried at present + `LEAD`, which a retry can never pass: the present has moved on by the time it is read again. The check needs only `GUARD` (proposal: 64 µs): the error of the present's reading (half the spread of "The two clocks") and the timer's own latency. `LEAD` (proposal: 500 µs) is how far ahead a retry is placed, and has to cover what can delay the Job between its reading of the present and its write of the start: a Kernel hold (rsk's L_kernel, 138 µs in the hour-long stress record) and entries that follow it. A Pace moved by step 6 is late by at most `LEAD` past the present, far inside PM-PAR-01.
+
+**Measured on the board (task 1.3, `spike/report.md`).** With the present read exactly and an interrupt of 140 µs taken at spacings of 150 to 900 µs beyond its hold: no forced pulse (step 7) at any `LEAD` from 100 µs up, in 1,601 instants per value swept a tick at a time from 1.5 ms ahead to 0.1 ms behind; the same at 300, 500 and 800 µs under an interrupt of 410 µs. At a `LEAD` of 50 µs, below `GUARD`, every moved Pace was forced, as it must be. With `GUARD` at 0 one Pace in 1,601 was reported armed and did not fire; at 1 µs and above none. No Pace reported armed failed to fire with `GUARD` at 64 µs, and every pulse not forced was 400 µs to the analyzer's sample. The values of `LEAD` and `GUARD` are decided in task 1.4.
+
+**The far side has to be kept.** A start compare left behind the counter is reached again when the counter comes round: `FAR` behind the present, that is 2^32 − 2^30 µs (53.7 minutes) later. A Chamber that paces is rewritten every escape interval; a Chamber the Mode does not pace, or one whose Pace was withdrawn, is not. `control` therefore refreshes every Chamber that has no Pace armed in each period (`Hw::refresh`: the start compare to the far side again). Draft 0.2 put the far side one tick behind the present, where an error of the present's reading could place it ahead.
 
 The loop has a constant bound of three (PR-16).
 
-**`pace` runs after the pulse.** The end compares (4 and 5) raise TIMER3's interrupt and the start compares do not, so the `pace` Job of a Pace is released when the pin has gone low. It finds which Chambers paced by their start flags (an event flag is set whether or not its interrupt is enabled), clears them, gives the step a `Paced` event for each, and arms each from the pending instant in the state. It runs up to one pulse width (1.9 ms at most) later than a Job released by the start would; the tightest chain it is in has 30 ms ("Timing Design").
+**`pace` runs after the pulse.** The end compares (4 and 5) raise TIMER3's interrupt and the start compares do not, so the `pace` Job of a Pace is released when the pin has gone low. It finds which Chambers paced by their start flags (an event flag is set whether or not its interrupt is enabled), and for a Chamber whose end flag is set it clears both, gives the step a `Paced` event, and arms from the pending instant in the state. A Chamber whose start flag is set and whose end flag is not is in its pulse: it is left alone, flag and all, so that step 2 keeps every Job from its compares, and its own end releases `pace` again. An end flag without a start flag is the end compare of a withdrawn Pace coming past: it is cleared and nothing is reported. It runs up to one pulse width (1.9 ms at most) later than a Job released by the start would; the tightest chain it is in has 30 ms ("Timing Design").
 
 **Events in the order they happened.** A sense Job can run between a Pace and that Pace's `pace` Job. The step therefore accounts for a pending Pace itself: given an event at or after the instant of a pending Pace that was not withdrawn, it first applies that Pace (its refractory and blanking periods, the next pending instants), then the event. The armed compare fires without software, so the Pace is a fact once its instant has passed. The `Paced` event that arrives later is then a confirmation and changes nothing but the arming of step 4.
 
@@ -105,12 +111,14 @@ rsk's intake (DD-06) masks an interrupt line in the NVIC from an event until the
 - **The MIT can be long without hurting therapy.** A Sense that follows another Sense of its Chamber within `MIT_SENSE` (proposal: 50 ms) is handled up to 50 ms late. Every Mode that acts on a Sense has a refractory period of at least 150 ms after an event of that Chamber (Table 19-1), so such a Sense is a Refractory sense and changes no Pace. Its instant is still exact (the capture), and the count says how many edges came.
 - **A storm cannot restart the Partition.** While the line is masked, edges are latched and counted, not delivered: each costs nothing, and the next delivery is one intake at the unmask. No MIT_Violation is recorded for them (R10.2 and R10.3 concern events that reach the Kernel), so the Partition's `mit_threshold` is not approached and no Health_Monitor response follows. This answers the point PM22.6 left to be shown, on paper; the rig's storm scenario is the demonstration.
 
-The sense Job's service, for its Chamber, inside the Critical_Section on `timing`:
+The sense Job's service, for its Chamber, inside the Critical_Section on `timing` (as implemented, Draft 0.4):
 
-1. capture the counter (`n` edges since the last service) and read the Chamber's TIMER3 capture (the instant of the latest edge);
-2. set the counter's compare to `n + 1`, so the next edge raises the interrupt; capture again, and if the count has already reached it, take that edge now (once: a constant bound);
-3. clear the compare event;
-4. give the step function `Sense { chamber, at, edges }`.
+1. capture the counter (`n` edges so far);
+2. clear the compare event, then set the counter's compare to `n + 1`, so the next edge raises the interrupt. The flag is cleared before the compare is written: the compare still in force is at or behind the count and cannot fire, so no edge is lost between the clear and the write. (Draft 0.2 cleared it last, which loses an edge that arrives between the two.)
+3. capture again: if the count has moved, an edge came between the capture and the write and the compare is already passed, so repeat from 2 with the new count, at most three times; if every round lost its race, which only edges faster than a register access can do, set the compare 16 edges ahead and stop;
+4. read the Chamber's TIMER3 capture (the instant of the latest edge), and give the step function `Sense { chamber, at, edges }` with the edges since the last service, if there are any.
+
+The first Job of `control` makes one service per Chamber, which arms each counter for its first edge.
 
 The counter is never cleared, so no edge between a read and a clear is lost. It is 32 bits and counts heartbeats: it does not wrap in any run.
 
@@ -210,7 +218,7 @@ pub trait Hw {
 }
 ```
 
-`arm` and `disarm` are the sequence of "Arming and the lead". `disarm` is its steps 1 to 3: it moves the start compare only, never the end, and `Disarmed::TooLate` (the start's event flag is set) is the case of PD-04. `arm` returns `Armed::TooLate` in the same case and writes nothing; the `pace` Job then arms from the state.
+`arm` and `disarm` are the sequence of "Arming and the lead". `disarm` is its steps 1 to 3: it moves the start compare only, never the end, and `Disarmed::TooLate` (the start's event flag is set) is the case of PD-04. `arm` returns `Armed::TooLate` in the same case and writes nothing; the `pace` Job then arms from the state. The trait as implemented (`crates/pm-hw`) has one more method, `refresh`, and its sequences are written over a `Board` that names each register by its role, so that the same code runs on the nRF52840's registers and on the host's register model.
 
 The QEMU implementation uses the Target's Partition-ownable dual timer as the pacing compare (start only; the pulse's end is the Job's) and takes Senses from a table that `control` plays. It is for the logic and the Analyzer's inputs, not for timing claims.
 

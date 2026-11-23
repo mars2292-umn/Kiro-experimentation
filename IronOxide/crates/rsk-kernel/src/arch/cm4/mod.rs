@@ -63,6 +63,7 @@ pub mod drivers;
 pub mod entry;
 pub mod ghostv;
 pub mod plan;
+pub mod ppi;
 #[cfg(verus_keep_ghost)]
 pub mod stub_model;
 pub mod unsafe_module;
@@ -330,7 +331,17 @@ pub fn boot<S: System>() -> bool {
     unsafe_module::dt::early();
     #[cfg(feature = "boot-mutation")]
     boot_mutation::<S>(k);
-    let ok = entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    let mut ok = entry::boot_core(k, &mut hw, &SysTables::<S>(PhantomData), unsafe_module::arch_state());
+    // docs/pacemaker PM33.3, PM33.4: the declared PPI channels, written once
+    // here, after the boot checks (which read the enable register as zero)
+    // and before any Task is released, and only if the configuration
+    // checksum over the tables and the channel table in memory is the
+    // recorded one. Without channels nothing is read or written.
+    if ok && !unsafe_module::hw::ppi_boot(S::PPI, k.config_checksum(), S::PPI_CHECKSUM) {
+        hw.apply(Action::Trace(entry::TR_BOOTFAIL, entry::BOOT_FAIL_CHECKSUM));
+        k.boot_failed(entry::BOOT_FAIL_CHECKSUM);
+        ok = false;
+    }
     mirror_events(k);
     ok
 }
@@ -980,6 +991,94 @@ mod tests {
         sim::write(hw::addr::NRF_ICACHECNF, 0);
         sim::write(hw::addr::NRF_PPI_CHEN, 0);
         sim::write(hw::addr::MVFR0, 0x1011_0021);
+    }
+
+    /// A CRC-32 of a byte string, one bit at a time: independent of `Crc32`.
+    fn reference_crc(bytes: &[u8]) -> u32 {
+        let mut crc = 0xFFFF_FFFFu32;
+        for b in bytes {
+            crc ^= *b as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            }
+        }
+        !crc
+    }
+
+    /// Two channels: a compare of TIMER1 to a GPIOTE task, and a GPIOTE
+    /// event to a capture of TIMER1 with a fork (the declaration of
+    /// rsk-gen's test `pm33_4_the_channels_are_under_the_configuration_checksum`).
+    const PPI_TABLE: [[u32; 3]; 2] = [[0x4000_9140, 0x4000_6030, 0], [0x4000_6100, 0x4000_9040, 0x4000_9008]];
+    /// The image `rsk_gen::derive::ppi_bytes` gives for that declaration.
+    #[rustfmt::skip]
+    const PPI_IMAGE: [u8; 27] = [
+        2,
+        0, 0x40, 0x91, 0x00, 0x40, 0x30, 0x60, 0x00, 0x40, 0, 0, 0, 0,
+        1, 0x00, 0x61, 0x00, 0x40, 0x40, 0x90, 0x00, 0x40, 0x08, 0x90, 0x00, 0x40,
+    ];
+    /// The checksum of the bytes `rsk` followed by that image; rsk-gen's
+    /// test `pm33_4_the_kernel_continues_the_same_checksum` holds the same
+    /// number, computed by the Generator's own CRC-32.
+    const PPI_CHECKSUM_OF_RSK_AND_IMAGE: u32 = 0x32BA_FDD8;
+
+    /// docs/pacemaker PM33.4: the checksum the Kernel computes over a
+    /// finished CRC-32 of the tables and the channel table is the CRC-32 of
+    /// the tables' bytes followed by the Generator's channel image.
+    #[test]
+    fn the_ppi_checksum_continues_the_configuration_checksum() {
+        for tables in [&b""[..], b"rsk", &[0u8; 61], &[0xFF; 7]] {
+            let mut all = [0u8; 128];
+            all[..tables.len()].copy_from_slice(tables);
+            all[tables.len()..tables.len() + PPI_IMAGE.len()].copy_from_slice(&PPI_IMAGE);
+            let whole = reference_crc(&all[..tables.len() + PPI_IMAGE.len()]);
+            assert_eq!(ppi::ppi_checksum(reference_crc(tables), &PPI_TABLE), whole);
+        }
+        assert_eq!(ppi::ppi_checksum(reference_crc(b"rsk"), &PPI_TABLE), PPI_CHECKSUM_OF_RSK_AND_IMAGE);
+        // A changed register, a changed order and a dropped channel each change it.
+        let sum = |t: &[[u32; 3]]| ppi::ppi_checksum(reference_crc(b"rsk"), t);
+        assert_ne!(sum(&[[0x4000_9144, 0x4000_6030, 0], PPI_TABLE[1]]), sum(&PPI_TABLE));
+        assert_ne!(sum(&[PPI_TABLE[1], PPI_TABLE[0]]), sum(&PPI_TABLE));
+        assert_ne!(sum(&PPI_TABLE[..1]), sum(&PPI_TABLE));
+    }
+
+    /// docs/pacemaker PM33.3, PM33.4: the Init write on the register file.
+    /// With the recorded checksum the channels' end-point registers and
+    /// the enable bits of exactly those channels are written; with another
+    /// checksum, or more rows than the PPI has channels, nothing is; with
+    /// no channel nothing is read or written.
+    #[test]
+    #[cfg(not(feature = "board-qemu-mps2"))]
+    fn ppi_boot_writes_the_channels_only_under_the_recorded_checksum() {
+        let _sim = sim_lock();
+        let tables = reference_crc(b"rsk");
+        let recorded = ppi::ppi_checksum(tables, &PPI_TABLE);
+        const CHENSET: u32 = 0x4001_F504;
+        let registers = [0x4001_F510u32, 0x4001_F514, 0x4001_F910, 0x4001_F518, 0x4001_F51C, 0x4001_F914];
+
+        simulate_expected_board();
+        let before = sim::write_count();
+        assert!(hw::ppi_boot(&[], tables, 0xDEAD_BEEF));
+        assert_eq!(sim::write_count(), before, "no channel: no write");
+
+        assert!(!hw::ppi_boot(&PPI_TABLE, tables, recorded ^ 1));
+        assert!(!hw::ppi_boot(&PPI_TABLE, tables ^ 1, recorded));
+        assert!(!hw::ppi_boot(&[[0x4000_9140, 0x4000_6030, 0]; 21], tables, ppi::ppi_checksum(tables, &[[0x4000_9140, 0x4000_6030, 0]; 20])));
+        assert_eq!(sim::write_count(), before, "a wrong checksum or too many rows: no write");
+
+        assert!(hw::ppi_boot(&PPI_TABLE, tables, recorded));
+        assert_eq!(sim::write_count(), before + 7, "three registers per channel and the enable register");
+        assert_eq!(registers.map(sim::read), [0x4000_9140, 0x4000_6030, 0, 0x4000_6100, 0x4000_9040, 0x4000_9008]);
+        assert_eq!(sim::read(CHENSET), 0b11);
+        // The disable-all register and the read-back register were not written.
+        assert_eq!(sim::read(hw::addr::NRF_PPI_CHEN), 0);
+
+        // All twenty channels: every enable bit of CH[0] to CH[19] and no other.
+        simulate_expected_board();
+        let full = [[0x4000_9140, 0x4000_6030, 0x4000_9008]; 20];
+        assert!(hw::ppi_boot(&full, tables, ppi::ppi_checksum(tables, &full)));
+        assert_eq!(sim::read(CHENSET), 0x000F_FFFF);
+        assert_eq!(sim::read(0x4001_F510 + 8 * 19), 0x4000_9140);
+        assert_eq!(sim::read(0x4001_F910 + 4 * 19), 0x4000_9008);
     }
 
     /// R12.1, task 5.2: every boot check passes on the expected board and

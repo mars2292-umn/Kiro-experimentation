@@ -507,6 +507,13 @@ name = "pm-core"
 version = "0.0.0"
 
 [[package]]
+name = "pm-hw"
+version = "0.0.0"
+dependencies = [
+ "pm-core",
+]
+
+[[package]]
 name = "pm-judge"
 version = "0.0.0"
 dependencies = [

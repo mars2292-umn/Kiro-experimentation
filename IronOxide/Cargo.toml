@@ -31,6 +31,7 @@ members = [
     "crates/rsk-digest",
     "crates/rsk-elf",
     "crates/pm-core",
+    "crates/pm-hw",
     "crates/pm-judge",
     "apps/p1-demo/decl",
     "apps/p1-demo/system",
@@ -82,6 +83,7 @@ rsk-macros = { path = "crates/rsk-macros" }
 rsk-digest = { path = "crates/rsk-digest" }
 rsk-elf = { path = "crates/rsk-elf" }
 pm-core = { path = "crates/pm-core" }
+pm-hw = { path = "crates/pm-hw" }
 # Third-party crates: exact versions only, vendored in vendor/ (R58.1).
 # Used by the Build_System (xtask) only; none is in the Flight_Build graph.
 proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
@@ -153,6 +155,7 @@ rsk-elf = { targets = ["host"] }
 # Application's Partitions, the DCM_Stub and host tests. Not a Flight_Build
 # root until the Application exists (docs/pacemaker/tasks.md, task 8.1).
 pm-core = { targets = ["host", "thumbv7em-none-eabihf"] }
+pm-hw = { targets = ["host", "thumbv7em-none-eabihf"] }
 pm-judge = { targets = ["host"] }
 # The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
 # binds, two Partition crates, and the Flight_Build binary (Target only).

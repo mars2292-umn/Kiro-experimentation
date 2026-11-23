@@ -45,6 +45,14 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "pub const TICK_HZ: u64 = {};", g.target.tick_hz);
     let _ = writeln!(s, "pub const CPU_HZ: u64 = {};", g.target.cpu_hz);
     let _ = writeln!(s, "pub const CONFIG_CHECKSUM: u32 = 0x{:08x};", g.checksum);
+    if !g.ppi.is_empty() {
+        // docs/pacemaker PM33.4: with fixed PPI channels the configuration
+        // checksum covers the tables and the channels; the boot core
+        // compares the tables' part, and the Kernel continues it over the
+        // channel table before it writes a channel.
+        let _ = writeln!(s, "/// The checksum of the tables alone (the boot core's comparison; `CONFIG_CHECKSUM` continues it over `RSK_PPI`).");
+        let _ = writeln!(s, "pub const TABLES_CHECKSUM: u32 = 0x{:08x};", crate::derive::tables_checksum(g));
+    }
     // The canonical table image and the checksum as link-level symbols, for
     // the Config_Checker's extraction from the binary (R26.4). `#[used]`
     // keeps them through section garbage collection; `no_mangle` is not an
@@ -307,7 +315,7 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "    const ENDPOINT_COUNT: usize = NEP;");
     let _ = writeln!(s, "    fn endpoint(i: usize) -> ::rsk_kernel::arch::EndpointCfg {{ if i < NEP {{ ENDPOINTS[i] }} else {{ NO_ENDPOINT }} }}");
     let _ = writeln!(s, "    fn endpoint_storage() -> (u32, u32) {{ (ENDPOINT_STORAGE.base(), ENDPOINT_STORAGE.len()) }}");
-    let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = CONFIG_CHECKSUM;");
+    let _ = writeln!(s, "    const CONFIG_CHECKSUM: u32 = {};", if g.ppi.is_empty() { "CONFIG_CHECKSUM" } else { "TABLES_CHECKSUM" });
     let _ = writeln!(s, "    const LAYOUT_CHECKSUM: u32 = LAYOUT_CHECKSUM;");
     let _ = writeln!(s, "    fn binding(n: u16) -> ::rsk_kernel::arch::Binding {{");
     let _ = writeln!(s, "        if n == Self::TIMER_VECTOR {{ return ::rsk_kernel::arch::Binding::Kernel; }}");
@@ -342,6 +350,10 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "        }}");
     let _ = writeln!(s, "    }}");
     let _ = writeln!(s, "    fn safe_state() -> ! {{ {}() }}", g.safe_state);
+    if !g.ppi.is_empty() {
+        let _ = writeln!(s, "    const PPI: &'static [[u32; 3]] = &RSK_PPI;");
+        let _ = writeln!(s, "    const PPI_CHECKSUM: u32 = CONFIG_CHECKSUM;");
+    }
     let _ = writeln!(s, "}}");
     s
 }

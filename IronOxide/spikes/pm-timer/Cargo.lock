@@ -3,5 +3,20 @@
 version = 4
 
 [[package]]
+name = "pm-core"
+version = "0.0.0"
+
+[[package]]
+name = "pm-hw"
+version = "0.0.0"
+dependencies = [
+ "pm-core",
+]
+
+[[package]]
 name = "pm-timer-spike"
 version = "0.0.0"
+dependencies = [
+ "pm-core",
+ "pm-hw",
+]

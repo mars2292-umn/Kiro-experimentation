@@ -68,11 +68,6 @@ pub fn stale_skeletons(out_dir: &std::path::Path, files: &[String]) -> Vec<std::
     stale
 }
 
-/// Whether the Kernel writes declared PPI channels at Init (docs/pacemaker
-/// PM33.3). False until task 3.3; `outputs` refuses a declaration with
-/// channels meanwhile.
-pub const PPI_KERNEL_SUPPORT: bool = false;
-
 /// Validates and derives; the first error list is returned as a whole so
 /// that the front end can report every violation at once (R21.4).
 pub fn generate(decl: &Declaration) -> Result<Generated, Vec<Diagnostic>> {
@@ -97,17 +92,6 @@ pub fn generate(decl: &Declaration) -> Result<Generated, Vec<Diagnostic>> {
 /// expands the system manifest (for the linker script's archive pattern).
 pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Diagnostic>> {
     let generated = generate(decl)?;
-    // docs/pacemaker, tasks 3.1 to 3.3: the declaration and the Task_Model
-    // carry fixed PPI channels, and the Kernel does not write them yet. No
-    // configuration is emitted for an Application that declares one, so
-    // that none is built with channels that silently stay unconnected.
-    if !PPI_KERNEL_SUPPORT && !generated.ppi.is_empty() {
-        return Err(generated
-            .ppi
-            .iter()
-            .map(|c| Diagnostic::new("PM33.3", decl::ItemRef::Ppi(c.name.clone()), "fixed PPI channels are declared and checked, but the Kernel does not write them yet (docs/pacemaker/tasks.md, tasks 3.2 and 3.3): nothing is generated"))
-            .collect());
-    }
     let partition_sources = generated
         .partitions
         .iter()
@@ -118,6 +102,10 @@ pub fn outputs(decl: &Declaration, system_crate: &str) -> Result<Outputs, Vec<Di
     // with the derived values before anything is handed out.
     if let Err(difference) = readback::check(&system_source, &generated) {
         return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted configuration does not match the derived values: {difference}"))]);
+    }
+    // The same for the fixed PPI channels (docs/pacemaker PM33.4).
+    if let Err(difference) = readback::check_ppi(&system_source, &generated) {
+        return Err(vec![Diagnostic::new("R24.1", decl::ItemRef::Declaration, format!("the emitted PPI channels do not match the derived ones: {difference}"))]);
     }
     // The same for the memory layout (2026-11-17): the build-time
     // validation accepts any well-formed layout, this the derived one only.

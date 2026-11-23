@@ -34,6 +34,111 @@ pub fn kernel_windows(target: &str) -> Vec<(&'static str, u64, u8)> {
     out
 }
 
+/// The programmable PPI channels of each Target (docs/pacemaker PM33.1).
+/// The checker's own table.
+pub fn ppi_channels(target: &str) -> usize {
+    match target {
+        "nrf52840" | "nrf52840_coverage" => 20,
+        _ => 0,
+    }
+}
+
+/// docs/pacemaker PM33.4: the channel table recomputed from the Task_Model,
+/// per channel the addresses of its event, task and fork registers (0: no
+/// fork), with every rule of PM33.1 and PM33.2 checked on the way: the
+/// channel number is the position, there are no more channels than the
+/// Target has, each register is a word at an event or a task offset of a
+/// peripheral, its address is that offset from the base of the window
+/// through which a Partition owns the peripheral (the layout's, which this
+/// checker recomputes), and one Partition owns every peripheral of the
+/// channel. A register that fails a rule is reported and recomputed as 0.
+pub fn expected_ppi(m: &Model, out: &mut Outcome) -> Vec<[u32; 3]> {
+    let limit = ppi_channels(&m.target);
+    out.require("ppi (PM33.1): channels", m.ppi.len() <= limit, format!("at most {limit} on Target `{}`", m.target), m.ppi.len());
+    // (owning Partition, window base) of a peripheral.
+    let owner = |per: &str| {
+        m.partitions.iter().find_map(|p| p.windows.iter().find(|w| w.peripherals.iter().any(|x| x == per)).filter(|_| p.peripherals.iter().any(|x| x == per)).map(|w| (p.id.as_str(), w.region.base)))
+    };
+    let mut table = Vec::new();
+    for (i, c) in m.ppi.iter().enumerate() {
+        out.mismatch(format!("ppi {}.channel", c.id), i, c.channel);
+        let mut owners: Vec<&str> = Vec::new();
+        let mut register = |what: &str, r: &crate::model::PpiRegister, lo: u64, hi: u64| -> u32 {
+            let item = format!("ppi {}.{what}", c.id);
+            let placed = r.offset % 4 == 0 && r.offset >= lo && r.offset < hi;
+            out.require(format!("{item}.offset"), placed, format!("a multiple of 4 from 0x{lo:03x} to 0x{:03x}", hi - 4), format!("0x{:03x}", r.offset));
+            match owner(&r.peripheral) {
+                Some((partition, base)) => {
+                    owners.push(partition);
+                    let expected = base + r.offset;
+                    out.mismatch(format!("{item}.address"), format!("0x{expected:08x}"), format!("0x{:08x}", r.address));
+                    if placed {
+                        u32::try_from(expected).unwrap_or(0)
+                    } else {
+                        0
+                    }
+                }
+                None => {
+                    out.require(format!("{item}.peripheral ({})", r.peripheral), false, "a peripheral owned by a Partition (PM33.2)", "owned by none");
+                    0
+                }
+            }
+        };
+        let event = register("event", &c.event, 0x100, 0x200);
+        let task = register("task", &c.task, 0, 0x100);
+        let fork = match &c.fork {
+            Some(f) => register("fork", f, 0, 0x100),
+            None => 0,
+        };
+        out.require(format!("ppi {} (PM33.2): owner", c.id), owners.windows(2).all(|w| w[0] == w[1]), "one Partition owns every peripheral of the channel", format!("{owners:?}"));
+        table.push([event, task, fork]);
+    }
+    table
+}
+
+/// The channel table's image: the tail of the configuration image
+/// (`rsk_gen::derive::ppi_bytes`, `rsk_kernel::arch::cm4::ppi`). Empty
+/// when there is no channel.
+pub fn ppi_image(table: &[[u32; 3]]) -> Vec<u8> {
+    let mut out = Vec::new();
+    if table.is_empty() {
+        return out;
+    }
+    out.push(table.len() as u8);
+    for (i, row) in table.iter().enumerate() {
+        out.push(i as u8);
+        for word in row {
+            out.extend_from_slice(&word.to_le_bytes());
+        }
+    }
+    out
+}
+
+/// docs/pacemaker PM33.4: the binary's channels against the recomputed
+/// table. `image` is the whole configuration image, whose tail must be the
+/// table's image; `symbol` is the content of `RSK_PPI`, the table the
+/// Kernel writes from, absent exactly when there is no channel. Returns the
+/// length of the tables' part of the image, when the image is long enough.
+pub fn check_ppi_binary(table: &[[u32; 3]], image: &[u8], symbol: Option<&[u8]>, out: &mut Outcome) -> Option<usize> {
+    let tail = ppi_image(table);
+    let words: Vec<u8> = table.iter().flatten().flat_map(|w| w.to_le_bytes()).collect();
+    match symbol {
+        None => out.require("RSK_PPI", table.is_empty(), "present when the Task_Model declares PPI channels", "absent from the binary"),
+        Some(found) => {
+            out.require("RSK_PPI", !table.is_empty(), "absent when the Task_Model declares no PPI channel", "present in the binary");
+            out.require("RSK_PPI (PM33.4): the table the Kernel writes", found == words.as_slice(), format!("{} channels: {table:08x?}", table.len()), format!("{} bytes: {found:02x?}", found.len()));
+        }
+    }
+    let Some(head) = image.len().checked_sub(tail.len()) else {
+        out.require("CONFIG image: PPI channels (PM33.4)", false, format!("{} bytes of channels at its end", tail.len()), format!("an image of {} bytes", image.len()));
+        return None;
+    };
+    if !tail.is_empty() {
+        out.require("CONFIG image: PPI channels (PM33.4)", image[head..] == tail[..], format!("{tail:02x?}"), format!("{:02x?}", &image[head..]));
+    }
+    Some(head)
+}
+
 /// The EasyDMA-capable peripherals of each Target (DD-08): their windows
 /// are read-only to the owning Partition.
 pub fn easy_dma(target: &str) -> &'static [&'static str] {
@@ -75,6 +180,9 @@ fn aligned(r: &Region) -> bool {
 
 /// The recomputed values against the Task_Model's derived values.
 pub fn check_model(m: &Model, out: &mut Outcome) {
+    // docs/pacemaker PM33: the fixed PPI channels (every rule is reported
+    // by the recomputation itself).
+    let _ = expected_ppi(m, out);
     // Ceilings (R8.7, R23): the maximum Priority of the accessors.
     for res in &m.resources {
         let mut priorities: Vec<u64> = Vec::new();
@@ -395,14 +503,17 @@ pub fn expected_tables(m: &Model) -> Result<Tables, String> {
 
 /// The tables extracted from the binary against the declared values
 /// (R26.4), and the checksums (R25.2).
-pub fn check_binary(m: &Model, img: &Image, t: &Tables, out: &mut Outcome) {
+/// `tables_len`: the length of the tables' part of the image; what follows
+/// it is the PPI channels' image, checked by `check_ppi_binary` (the whole
+/// image when there is no channel). The checksum covers the whole image.
+pub fn check_binary(m: &Model, img: &Image, tables_len: usize, t: &Tables, out: &mut Outcome) {
     // The verdict (2026-11-21): the image is, byte for byte, the encoding of
     // the tables the Task_Model calls for (`image_v::image_is`, proven:
     // every byte read in order, none left over, every field of every entry
     // compared). The items after it name the fields for the reader.
     let item = "CONFIG image as a whole (R26.4)";
     match expected_tables(m) {
-        Ok(expected) => out.require(item, crate::image_v::image_is(&img.bytes, &expected), "the encoding of the tables the Task_Model calls for", "another image (the items that follow name the fields)"),
+        Ok(expected) => out.require(item, crate::image_v::image_is(&img.bytes[..tables_len.min(img.bytes.len())], &expected), "the encoding of the tables the Task_Model calls for", "another image (the items that follow name the fields)"),
         Err(why) => out.require(item, false, "tables that the Task_Model's values fit", why),
     }
     let computed = image::crc32(&img.bytes);
@@ -664,6 +775,144 @@ mod tests {
         let mut out = Outcome::default();
         check_model(&m, &mut out);
         assert!(!out.discrepancies.is_empty());
+    }
+
+    const PPI: &str = include_str!("../fixtures/pm33_4_ppi_task_model.json");
+
+    fn ppi_model(text: &str) -> Model {
+        Model::parse(&serde_json::from_str(text).unwrap()).unwrap()
+    }
+
+    fn items(out: &Outcome) -> Vec<&str> {
+        out.discrepancies.iter().map(|d| d.item.as_str()).collect()
+    }
+
+    /// docs/pacemaker PM33.4: the channel table is recomputed from the
+    /// Task_Model (the fixture is the Generator's output for two channels,
+    /// kept equal by rsk-gen's test `pm33_4_the_kernel_continues_the_same_checksum`),
+    /// and a Task_Model altered in one channel is reported with the item.
+    #[test]
+    fn the_ppi_channels_recompute_and_altered_ones_are_reported() {
+        let m = ppi_model(PPI);
+        assert_eq!(m.ppi.len(), 2);
+        let mut out = Outcome::default();
+        check_model(&m, &mut out);
+        assert!(out.discrepancies.is_empty(), "{:?}", out.discrepancies);
+        let mut out = Outcome::default();
+        let table = expected_ppi(&m, &mut out);
+        assert_eq!(table, [[0x4000_9140, 0x4000_6030, 0], [0x4000_6100, 0x4000_9040, 0x4000_9008]]);
+        assert!(out.discrepancies.is_empty() && out.checked >= 14);
+
+        let altered = |from: &str, to: &str| {
+            let text = PPI.replace(from, to);
+            assert_ne!(text, PPI, "`{from}` is not in the fixture");
+            let mut out = Outcome::default();
+            check_model(&ppi_model(&text), &mut out);
+            out
+        };
+        // An address that is not the peripheral's window base plus the offset.
+        assert_eq!(items(&altered("\"address\": \"0x40009140\"", "\"address\": \"0x40009144\"")), ["ppi a.event.address"]);
+        assert_eq!(items(&altered("\"address\": \"0x40009008\"", "\"address\": \"0x4000a008\"")), ["ppi b.fork.address"]);
+        // An offset outside the event registers, and its address with it.
+        assert_eq!(items(&altered("\"offset\": 320,\n        \"address\": \"0x40009140\"", "\"offset\": 64,\n        \"address\": \"0x40009040\"")), ["ppi a.event.offset"]);
+        // A task in the event range; an offset that is not a word.
+        assert_eq!(items(&altered("\"offset\": 48,\n        \"address\": \"0x40006030\"", "\"offset\": 256,\n        \"address\": \"0x40006100\"")), ["ppi a.task.offset"]);
+        assert_eq!(items(&altered("\"offset\": 8,\n        \"address\": \"0x40009008\"", "\"offset\": 9,\n        \"address\": \"0x40009009\"")), ["ppi b.fork.offset"]);
+        // A channel number that is not the position (a number used twice).
+        assert_eq!(items(&altered("\"channel\": 1", "\"channel\": 0")), ["ppi b.channel"]);
+        // A peripheral no Partition owns; the Kernel's own.
+        assert_eq!(items(&altered("\"peripheral\": \"GPIOTE\",\n        \"offset\": 48", "\"peripheral\": \"TIMER2\",\n        \"offset\": 48")), ["ppi a.task.peripheral (TIMER2)"]);
+        assert_eq!(items(&altered("\"peripheral\": \"GPIOTE\",\n        \"offset\": 48", "\"peripheral\": \"PPI\",\n        \"offset\": 48")), ["ppi a.task.peripheral (PPI)"]);
+    }
+
+    /// PM33.2, recomputed: a channel whose peripherals two Partitions own.
+    /// The fixture's second Partition is given TIMER1 with its window.
+    #[test]
+    fn a_channel_across_two_partitions_is_reported() {
+        let mut m = ppi_model(PPI);
+        let p0 = m.partitions[0].clone();
+        let i = p0.peripherals.iter().position(|p| p == "TIMER1").unwrap();
+        let w = p0.windows.iter().position(|w| w.peripherals.iter().any(|p| p == "TIMER1")).unwrap();
+        let moved = m.partitions[0].windows.remove(w);
+        m.partitions[0].peripherals.remove(i);
+        m.partitions[1].peripherals.push("TIMER1".into());
+        m.partitions[1].windows.push(moved);
+        let mut out = Outcome::default();
+        let table = expected_ppi(&m, &mut out);
+        assert_eq!(items(&out), ["ppi a (PM33.2): owner", "ppi b (PM33.2): owner"]);
+        // The addresses are the same: only the owners differ.
+        assert_eq!(table[0], [0x4000_9140, 0x4000_6030, 0]);
+    }
+
+    /// PM33.1: no channel on a Target without a PPI, and no more than it has.
+    #[test]
+    fn the_channel_count_is_the_targets() {
+        let mut m = ppi_model(PPI);
+        m.target = "qemu-mps2-an386".into();
+        let mut out = Outcome::default();
+        expected_ppi(&m, &mut out);
+        assert!(items(&out).contains(&"ppi (PM33.1): channels"));
+        let mut m = ppi_model(PPI);
+        let mut out = Outcome::default();
+        while m.ppi.len() < 21 {
+            let mut c = m.ppi[0].clone();
+            c.channel = m.ppi.len() as u64;
+            m.ppi.push(c);
+        }
+        expected_ppi(&m, &mut out);
+        assert_eq!(items(&out), ["ppi (PM33.1): channels"]);
+    }
+
+    /// PM33.4, the binary's side, on images built here: the configuration
+    /// image ends in the channels' image and `RSK_PPI` is the table. Each
+    /// alteration of one channel in either is reported (the configuration
+    /// mutation of docs/pacemaker task 3.4; the register's mutations run on
+    /// the P1 demo's binary, which has no channel).
+    #[test]
+    fn the_binarys_channels_are_compared_and_one_altered_channel_is_reported() {
+        let table = [[0x4000_9140u32, 0x4000_6030, 0], [0x4000_6100, 0x4000_9040, 0x4000_9008]];
+        #[rustfmt::skip]
+        let tail = [
+            2u8,
+            0, 0x40, 0x91, 0x00, 0x40, 0x30, 0x60, 0x00, 0x40, 0, 0, 0, 0,
+            1, 0x00, 0x61, 0x00, 0x40, 0x40, 0x90, 0x00, 0x40, 0x08, 0x90, 0x00, 0x40,
+        ];
+        assert_eq!(ppi_image(&table), tail);
+        assert!(ppi_image(&[]).is_empty());
+        let tables_part = [0xAAu8; 40];
+        let image: Vec<u8> = tables_part.iter().chain(&tail).copied().collect();
+        let symbol: Vec<u8> = table.iter().flatten().flat_map(|w| w.to_le_bytes()).collect();
+        let run = |image: &[u8], symbol: Option<&[u8]>, table: &[[u32; 3]]| {
+            let mut out = Outcome::default();
+            let head = check_ppi_binary(table, image, symbol, &mut out);
+            (head, out)
+        };
+        let (head, out) = run(&image, Some(&symbol), &table);
+        assert_eq!(head, Some(40));
+        assert!(out.discrepancies.is_empty(), "{:?}", out.discrepancies);
+        // No channel: the whole image is the tables, and there is no symbol.
+        let (head, out) = run(&tables_part, None, &[]);
+        assert_eq!(head, Some(40));
+        assert!(out.discrepancies.is_empty());
+
+        // One byte of one channel changed in the image; in the table.
+        for at in [41, 42, 45, 49, 53, 54, 66] {
+            let mut bad = image.clone();
+            bad[at] ^= 0x04;
+            assert_eq!(items(&run(&bad, Some(&symbol), &table).1), ["CONFIG image: PPI channels (PM33.4)"], "byte {at}");
+        }
+        for at in 0..symbol.len() {
+            let mut bad = symbol.clone();
+            bad[at] ^= 0x04;
+            assert_eq!(items(&run(&image, Some(&bad), &table).1), ["RSK_PPI (PM33.4): the table the Kernel writes"], "byte {at}");
+        }
+        // The table missing, short, or present without channels; the image without its tail.
+        assert_eq!(items(&run(&image, None, &table).1), ["RSK_PPI"]);
+        assert_eq!(items(&run(&image, Some(&symbol[..12]), &table).1), ["RSK_PPI (PM33.4): the table the Kernel writes"]);
+        assert_eq!(items(&run(&tables_part, Some(&symbol), &[]).1), ["RSK_PPI", "RSK_PPI (PM33.4): the table the Kernel writes"]);
+        assert_eq!(items(&run(&tables_part, Some(&symbol), &table).1), ["CONFIG image: PPI channels (PM33.4)"]);
+        let (head, out) = run(&tail[..10], Some(&symbol), &table);
+        assert_eq!((head, items(&out)), (None, vec!["CONFIG image: PPI channels (PM33.4)"]));
     }
 
     /// R27.2: a Task on a core other than 0, a Resource marked global, or
