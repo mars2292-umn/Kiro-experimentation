@@ -12,6 +12,11 @@ publish = false
 
 [dependencies]
 
+[features]
+# Task 1.2: after the start-up writes the program idles, and the host script
+# `probe_1_2.py` drives every register through the debug probe.
+idle = []
+
 [profile.release]
 panic = "abort"
 opt-level = 2

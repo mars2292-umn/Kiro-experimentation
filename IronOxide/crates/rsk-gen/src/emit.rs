@@ -276,6 +276,18 @@ pub fn system_source(g: &Generated) -> String {
     let _ = writeln!(s, "#[used]");
     let _ = writeln!(s, "#[no_mangle]");
     let _ = writeln!(s, "pub static RSK_ENDPOINT_CHECKSUM: u32 = 0x{:08x};", crate::derive::crc32(&eimage));
+    // docs/pacemaker PM33.4: the fixed PPI channels, when any is declared
+    // (a configuration without channels is emitted as it always was). Each
+    // row is the event register, the task register and the fork register
+    // (0: none) of the channel whose number is the row's index. The bytes
+    // are part of `RSK_CONFIG_IMAGE` and so under `CONFIG_CHECKSUM`.
+    if !g.ppi.is_empty() {
+        let rows: Vec<String> = g.ppi.iter().map(|c| format!("[0x{:08x}, 0x{:08x}, 0x{:08x}]", c.event.address, c.task.address, c.fork.as_ref().map_or(0, |f| f.address))).collect();
+        let _ = writeln!(s, "/// The fixed PPI channels (PM33.1): per channel the addresses of its event, task and fork registers.");
+        let _ = writeln!(s, "#[used]");
+        let _ = writeln!(s, "#[no_mangle]");
+        let _ = writeln!(s, "pub static RSK_PPI: [[u32; 3]; {}] = [{}];", rows.len(), rows.join(", "));
+    }
     let _ = writeln!(s, "pub struct Sys;");
     // Two impl blocks since 2026-11-20: the tables (`SystemTables`) and
     // what holds the Kernel static and the Task entry functions (`System`).

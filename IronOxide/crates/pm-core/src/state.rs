@@ -61,6 +61,10 @@ pub struct ChamberState {
     pub blanking_until: Micros,
     /// The pending Pace of this Chamber.
     pub pending: Pending,
+    /// Whether the last event is a Pace the step applied because a later
+    /// event arrived first, and whose `Paced` event has not arrived yet
+    /// (design, "Events in the order they happened").
+    pub unconfirmed: bool,
     /// Noise tracking of the cycle (PM13.1): whether every service since the
     /// end of the refractory period reported edges closer than PM-PAR-12.
     pub noisy: bool,
@@ -168,6 +172,7 @@ const ZERO_CHAMBER: ChamberState = ChamberState {
     blanked: false,
     blanking_until: Micros(0),
     pending: Pending::NONE,
+    unconfirmed: false,
     noisy: false,
     serviced: false,
     last_service: Micros(0),
@@ -262,11 +267,12 @@ mod tests {
                 blanked,
                 blanking_until,
                 pending,
+                unconfirmed,
                 noisy,
                 serviced,
                 last_service,
             } = c;
-            assert!(!seen && !last_paced && !blanked && !noisy && !serviced && !pending.armed);
+            assert!(!seen && !last_paced && !blanked && !noisy && !serviced && !pending.armed && !unconfirmed);
             assert_eq!((last, refractory_until, blanking_until, pending.at, last_service), (Micros(0), Micros(0), Micros(0), Micros(0), Micros(0)));
         }
         for p in [permanent, temporary] {

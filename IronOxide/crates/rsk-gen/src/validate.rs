@@ -668,7 +668,9 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
     // Fixed PPI channels (docs/pacemaker PM33.1): unique names, no more
     // than the Target has, and every register a 4-byte-aligned event or
     // task register inside the window of a peripheral of the Target table.
-    // Which Partition owns the peripherals is the rule of PM33.2.
+    // PM33.2: every peripheral a channel names is owned by one and the same
+    // Partition, so a channel never connects two Partitions, nor a Partition
+    // to the Kernel's peripherals.
     let mut ppi_names = BTreeSet::new();
     if decl.ppi.len() > target.ppi_channels as usize {
         d.push(Diagnostic::new(
@@ -686,9 +688,20 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
         if !ppi_names.insert(c.name.as_str()) {
             d.push(Diagnostic::new("PR-28", cref(), format!("ppi channel `{}` is declared twice", c.name)));
         }
-        let mut reg = |what: &str, r: &crate::decl::PpiRef, range: std::ops::Range<u32>| match target.peripheral(&r.peripheral) {
+        let mut owners: Vec<(&str, &str)> = Vec::new();
+        let mut reg = |what: &str, r: &'_ crate::decl::PpiRef, range: std::ops::Range<u32>| match target.peripheral(&r.peripheral) {
             None => d.push(Diagnostic::new("R21.5", cref(), format!("the Target `{}` has no peripheral `{}` ({what} of ppi channel `{}`)", target.name, r.peripheral, c.name))),
             Some(p) => {
+                if target.ppi_channels != 0 {
+                    if p.kernel_owned {
+                        d.push(Diagnostic::new("PR-29", cref(), format!("peripheral `{}` is owned by the Kernel: ppi channel `{}` cannot name it (PM33.2)", r.peripheral, c.name)));
+                    } else {
+                        match peripheral_owner.get(r.peripheral.as_str()) {
+                            Some(owner) => owners.push((p.name, owner)),
+                            None => d.push(Diagnostic::new("PM33.2", cref(), format!("peripheral `{}` is owned by no Partition: every peripheral ppi channel `{}` names must be listed in the `peripherals` of one Partition", r.peripheral, c.name))),
+                        }
+                    }
+                }
                 if r.offset % 4 != 0 || r.offset >= p.window_size || !range.contains(&r.offset) {
                     d.push(Diagnostic::new(
                         "PM33.1",
@@ -708,6 +721,15 @@ pub fn validate(decl: &Declaration) -> Result<&'static Target, Vec<Diagnostic>> 
         reg("a task", &c.task, PPI_TASK_OFFSETS);
         if let Some(f) = &c.fork {
             reg("a task", f, PPI_TASK_OFFSETS);
+        }
+        if let Some((first_per, first)) = owners.first().copied() {
+            if let Some((per, other)) = owners.iter().copied().find(|(_, o)| *o != first) {
+                d.push(Diagnostic::new(
+                    "PM33.2",
+                    cref(),
+                    format!("ppi channel `{}` connects `{first_per}` of Partition `{first}` and `{per}` of Partition `{other}`: a channel's peripherals are all owned by one Partition", c.name),
+                ));
+            }
         }
     }
     // Chains (task 21.5; R41.4): unique names, at least two Tasks, each a

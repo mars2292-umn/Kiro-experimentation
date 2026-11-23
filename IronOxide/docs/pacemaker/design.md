@@ -2,9 +2,9 @@
 
 **PACEMAKER on rsk: an experimental Application**
 
-Status: Draft 0.2 (design phase; nothing implemented, nothing measured; 0.2 closes PD-O7: `pace` is released by the end of a pulse, and a Chamber's compares have one write order). Implements `requirements.md` Draft 0.4 of this folder. Requirement references `PMn.m`, `PM-PAR-nn`, `PM-NG-nn`, `PM-ASM-nn`, `PM-ORQ-nn` point into that document; `Rn.m`, `PR-nn`, `DD-nn` into the rsk requirements and design; design decisions of this document are numbered `PD-nn`.
+Status: Draft 0.3 (0.2 closed PD-O7: `pace` is released by the end of a pulse, and a Chamber's compares have one write order; 0.3, 2026-11-22: the register behaviour of "Hardware signal flow" is confirmed on the board by the spike, each pace channel gains a fork that carries the pulse to the Heart_Simulator, and the step function's interface is the one implemented for stage E1). Implements `requirements.md` Draft 0.4 of this folder. Requirement references `PMn.m`, `PM-PAR-nn`, `PM-NG-nn`, `PM-ASM-nn`, `PM-ORQ-nn` point into that document; `Rn.m`, `PR-nn`, `DD-nn` into the rsk requirements and design; design decisions of this document are numbered `PD-nn`.
 
-Every number in this document that is not quoted from the source or from an rsk record is a **proposal** to be replaced by a measurement (PM21.3, PM31.3). The nRF52840 register facts it relies on (TIMER3's six compare registers and interrupt line, counter mode, PPI forks, GPIOTE tasks) are from the product specification as the author recalls it and are the first thing the spike of "Stages" checks.
+Every number in this document that is not quoted from the source or from an rsk record is a **proposal** to be replaced by a measurement (PM21.3, PM31.3). The nRF52840 register facts it relies on (TIMER3's six compare registers and interrupt line, counter mode, PPI forks, GPIOTE tasks) were confirmed on board A by the spike on 2026-11-22, one probe per behaviour (`spike/report.md`, task 1.2).
 
 ## Overview
 
@@ -45,15 +45,18 @@ The design found three places where the requirements as written could not be kep
                                           └─fork─► TIMER2.COUNT ─► COMPARE[0] irq ─► Task sense_v
 
    TIMER3 (1 MHz, free-running, 32 bit)
-     COMPARE[0] ──PPI──► GPIOTE SET[2]  (A pace pin high)
-     COMPARE[1] ──PPI──► GPIOTE SET[3]  (V pace pin high)
-     COMPARE[4] ──PPI──► GPIOTE CLR[2]  (A pace pin low)    ┐ irq ─► Task pace
-     COMPARE[5] ──PPI──► GPIOTE CLR[3]  (V pace pin low)    ┘
+     COMPARE[0] ──PPI──► GPIOTE SET[2]  (A pace pin high)   ─fork─► GPIOTE SET[4]  (A pace copy high)
+     COMPARE[1] ──PPI──► GPIOTE SET[3]  (V pace pin high)   ─fork─► GPIOTE SET[5]  (V pace copy high)
+     COMPARE[4] ──PPI──► GPIOTE CLR[2]  (A pace pin low)    ─fork─► GPIOTE CLR[4]   ┐ irq ─► Task pace
+     COMPARE[5] ──PPI──► GPIOTE CLR[3]  (V pace pin low)    ─fork─► GPIOTE CLR[5]   ┘
 
-   A pace pin, V pace pin ─► Heart_Simulator inputs and the logic analyzer
+   A pace pin, V pace pin   ─► the logic analyzer
+   A pace copy, V pace copy ─► Heart_Simulator inputs (the board-to-board lines)
 ```
 
-Six PPI channels, two of them with a fork. All six connect peripherals of one Partition (PM33.2). The Kernel writes them at Init from Generated_Config and never again (PM33.3).
+Six PPI channels, each with a fork, and six GPIOTE channels. All connect peripherals of one Partition (PM33.2). The Kernel writes them at Init from Generated_Config and never again (PM33.3).
+
+**The pace copies.** On the rig the pace pins the analyzer sees do not reach board B, and the board-to-board lines are not on the analyzer (`hil-rig.toml`). Each pace compare therefore drives two pins from the one event: the pace pin, which is measured, and a copy on a board-to-board line, which the Heart_Simulator reads. The spike showed one compare event moving both pins and board B reading the copy; that the two edges coincide is the PPI's property and was not measured, and nothing is judged on the copy. The copies exist for the rig: a PG whose pace pins reached the heart would not have them (a finding for PM31.2).
 
 What each requirement gets from this:
 
@@ -224,15 +227,20 @@ pub enum Event {
     Command(Command),          // already validated
 }
 
+pub enum Pace { Keep, Withdraw, At { at: Micros, width: u32 } }
+
 pub struct Arming {
-    pub atrial: Option<Pace>,       // None: leave as armed; Some(Pace::None): disarm
-    pub ventricular: Option<Pace>,
+    pub atrial: Pace,               // Keep: leave as armed; Withdraw: disarm
+    pub ventricular: Pace,
     pub markers: Markers,           // at most one atrial, one ventricular, one augmentation
 }
 
 pub fn step(p: &Params, s: &State, e: Event) -> (State, Arming);
+pub fn accounted(p: &Params, s: &State, instant: Micros) -> State;
 pub fn validate(words: &[u32]) -> Option<Params>;
 ```
+
+`accounted` is the state with every pending Pace due by `instant` applied ("Events in the order they happened"); the step applies every event to it. A parameter set travels as 28 words, one per row of Table 19-1 in the table's units (`pm_core::word`).
 
 `step` is total, has no side effect, allocates nothing, loops over nothing unbounded, and uses integer arithmetic only (the rate-adaptive map of PM15.4 included: no FPU in the Therapy_Partition).
 
@@ -323,7 +331,7 @@ Each property is stated for the step function unless it names hardware. "*For an
 |---|---|---|---|
 | P1 | *For any* state and event, a ventricular Pace the step arms is no earlier than the last ventricular event plus the URL interval, except a triggered Pace and the Pace-Now and Magnet rates | PM10.1 | Contract; tests |
 | P2 | *For any* reachable state in a Mode that paces a Chamber, a Pace of that Chamber is pending, at an instant no later than the Chamber's last starting event plus the escape interval in force (LRL, sensor, or HRL), unless the State or battery level disables pacing | PM9.1, PM16.1 | Invariant preserved by `step` (PM25.4); tests |
-| P3 | *For any* Sense inside a refractory or blanking period of its Chamber, the step returns the same pending Paces it was given | PM4.4, PM4.5, PM12 | Contract |
+| P3 | *For any* Sense inside a refractory or blanking period of its Chamber, the step arms and withdraws nothing, and the state it returns is `accounted` of the state it was given: the pending Paces are unchanged but for a Pace that had already fired | PM4.4, PM4.5, PM12 | Contract |
 | P4 | *For any* state, exactly one State holds, and the step changes it only by the transitions of the State machine | PM6.1 | By construction (one field); contract on transitions |
 | P5 | `validate` returns a parameter set exactly for the word sequences that Table 19-1 and Table 19-5 admit | PM19.1, PM19.3, PM22.3 | Contract; exhaustive test per parameter |
 | P6 | Whenever a Chamber's start compare is armed, its end compare is the start plus the programmed width; an end compare is written only while the start is disarmed and the start's event flag is clear, and both are written in one Critical_Section | PM3.3, PM28.2, PM28.4 | Contract on `Hw::arm` and `Hw::disarm` over a register model; rig |
@@ -411,10 +419,10 @@ The design changed the requirements in these places; `requirements.md` is Draft 
 
 | ID | Point | When |
 |---|---|---|
-| PD-O1 | The register behaviour the design assumes, and the value of `LEAD` | Spike |
+| PD-O1 | The register behaviour the design assumes, and the value of `LEAD`. The six behaviours are confirmed (task 1.2, 2026-11-22); `LEAD` and the write order under interference are task 1.3 | Spike |
 | PD-O2 | Whether five peripheral windows for `therapy` are accepted by the Generator's layout with the Partition's code and RAM regions | Spike (a declaration is enough) |
 | PD-O3 | The Analyzer's verdict on Table 2 with measured records; the sporadic Tasks' 2 ms deadlines | E1 |
-| PD-O4 | The rig's wiring for two sense lines, two pace lines visible to the analyzer, and the bridge. Measured 2026-11-22 (tasks 4.1): the pace pins reach the analyzer and the sense lines reach board A. Still open: the pace pulses to the Heart_Simulator (proposal: a fork of each pace channel onto P1.03 and P1.04, which adds four forks and two GPIOTE channels to "Hardware signal flow"), the magnet pin and the bridge | Before E1; magnet and bridge before E3 |
+| PD-O4 | The rig's wiring for two sense lines, two pace lines visible to the analyzer, and the bridge. Measured 2026-11-22 (tasks 4.1): the pace pins reach the analyzer and the sense lines reach board A. The pace pulses reach the Heart_Simulator by a fork of each pace channel onto P1.03 and P1.04 ("Hardware signal flow"; the fork confirmed by the spike), and the magnet line is wired and measured (B P1.07 to A P1.07). Still open: the bridge | Bridge before E3 |
 | PD-O5 | The proof route for P7 (a register model with a clock that advances by a bounded amount between two statements) in Creusot | E2 |
 | PD-O6 | The frame protocol's details and the bridge board's firmware | E3 |
 | PD-O7 | **Closed in Draft 0.2.** `pace` is released by the end of its pulse, and an end compare is written only with the start disarmed and no Pace unaccounted ("Arming and the lead") | — |

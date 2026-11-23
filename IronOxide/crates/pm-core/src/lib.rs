@@ -15,7 +15,8 @@
 //!   next. Its all-zero value is the Power-On Reset State (PM30.4);
 //! - [`Event`], [`Arming`]: what the step function is given and returns.
 //!
-//! `validate` and `step` are tasks 6.2 and 6.3.
+//! Tasks 6.2 and 6.3 add [`validate`] and [`step`] for the single-chamber
+//! Modes of stage E1 (Off, AOO, VOO, AAI, VVI).
 #![no_std]
 #![forbid(unsafe_code)]
 
@@ -23,10 +24,14 @@ mod event;
 mod mode;
 mod params;
 mod state;
+mod step;
 mod time;
+mod validate;
 
 pub use event::{Arming, Battery, Command, Event, Marker, Markers, Pace};
 pub use mode::{Chamber, Chambers, Mode, Response};
 pub use params::{interval_of_ppm, ActivityThreshold, Params};
 pub use state::{Atr, AtrPhase, ChamberState, Pending, State, Therapy};
+pub use step::{accounted, step};
 pub use time::{Micros, HALF_RANGE};
+pub use validate::{delivered_in_e1, validate, word, NOMINAL_WORDS, WORDS};

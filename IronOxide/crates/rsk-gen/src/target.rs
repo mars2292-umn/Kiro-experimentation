@@ -114,6 +114,8 @@ const NRF52840_PERIPHERALS: &[Peripheral] = &[
     Peripheral { name: "RTC0", window_base: 0x4000_B000, window_size: 0x1000, irq: Some(11), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "WDT", window_base: 0x4001_0000, window_size: 0x1000, irq: Some(16), kernel_owned: true, easy_dma: false, dma: None },
     Peripheral { name: "RTC1", window_base: 0x4001_1000, window_size: 0x1000, irq: Some(17), kernel_owned: false, easy_dma: false, dma: None },
+    // docs/pacemaker PM33.6: six compare registers, one interrupt line (26).
+    Peripheral { name: "TIMER3", window_base: 0x4001_A000, window_size: 0x1000, irq: Some(26), kernel_owned: false, easy_dma: false, dma: None },
     Peripheral { name: "PWM0", window_base: 0x4001_C000, window_size: 0x1000, irq: Some(28), kernel_owned: false, easy_dma: true, dma: None },
     Peripheral { name: "PPI", window_base: 0x4001_F000, window_size: 0x1000, irq: None, kernel_owned: true, easy_dma: false, dma: None },
     Peripheral { name: "P0", window_base: 0x5000_0000, window_size: 0x1000, irq: None, kernel_owned: false, easy_dma: false, dma: None },

@@ -15,7 +15,12 @@
 //! from role `r` about role `f` only where `f` is of another Partition of
 //! lower Criticality_Level, and in the plain form (two roles, each
 //! receiving the payload from the other) every such edge has a validation
-//! function.
+//! function. For every fixed PPI channel (docs/pacemaker PM33.1, PM33.2;
+//! added 2026-11-22): no more channels than the Target has, the channel
+//! number equal to the position (so no number is used twice), an event
+//! register and task registers at the offsets a peripheral has them, and
+//! every peripheral the channel names owned by one and the same Partition
+//! that exists (a Kernel-owned or unowned peripheral has no owner).
 //!
 //! Not covered: the rules about names and paths, the Target's peripherals
 //! and interrupts, the Protocol form's per-label validation functions (the
@@ -44,6 +49,40 @@ pub struct EndpointA {
     pub capacity: u32,
     pub roles: Vec<usize>,
     pub validates: Vec<Vec<bool>>,
+}
+
+/// A fixed PPI channel: its number, the offset of each register in its
+/// peripheral, and the Partition that owns each peripheral (a value that is
+/// no Partition's index when none does).
+pub struct PpiA {
+    pub channel: u8,
+    pub event_offset: u32,
+    pub event_owner: usize,
+    pub task_offset: u32,
+    pub task_owner: usize,
+    pub fork: bool,
+    pub fork_offset: u32,
+    pub fork_owner: usize,
+}
+
+/// An event register of a peripheral: a word from 0x100 to 0x1FC.
+pub open spec fn event_reg(o: u32) -> bool {
+    0x100 <= o < 0x200 && o % 4 == 0
+}
+
+/// A task register of a peripheral: a word from 0x000 to 0x0FC.
+pub open spec fn task_reg(o: u32) -> bool {
+    o < 0x100 && o % 4 == 0
+}
+
+/// PM33.1 and PM33.2 on the channel at position `i`.
+pub open spec fn ppi_ok(c: PpiA, i: int, partitions: int) -> bool {
+    &&& c.channel as int == i
+    &&& event_reg(c.event_offset)
+    &&& task_reg(c.task_offset)
+    &&& c.event_owner < partitions
+    &&& c.task_owner == c.event_owner
+    &&& c.fork ==> task_reg(c.fork_offset) && c.fork_owner == c.event_owner
 }
 
 pub open spec fn task_ok(t: TaskA, partitions: int) -> bool {
@@ -82,10 +121,12 @@ pub open spec fn endpoint_ok(tasks: Seq<TaskA>, levels: Seq<u8>, e: EndpointA) -
 }
 
 /// **The acceptance conditions.**
-pub open spec fn accepted(tasks: Seq<TaskA>, levels: Seq<u8>, endpoints: Seq<EndpointA>) -> bool {
+pub open spec fn accepted(tasks: Seq<TaskA>, levels: Seq<u8>, endpoints: Seq<EndpointA>, ppi: Seq<PpiA>, ppi_limit: int) -> bool {
     &&& levels.len() >= 1
     &&& forall|i: int| 0 <= i < tasks.len() ==> task_ok(#[trigger] tasks[i], levels.len() as int)
     &&& forall|i: int| 0 <= i < endpoints.len() ==> endpoint_ok(tasks, levels, #[trigger] endpoints[i])
+    &&& ppi.len() <= ppi_limit
+    &&& forall|i: int| 0 <= i < ppi.len() ==> ppi_ok(#[trigger] ppi[i], i, levels.len() as int)
 }
 
 fn endpoint_accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, e: &EndpointA) -> (ok: bool)
@@ -147,8 +188,8 @@ fn endpoint_accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, e: &EndpointA) -> (ok: 
 }
 
 /// Decides `accepted`.
-pub fn accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, endpoints: &Vec<EndpointA>) -> (ok: bool)
-    ensures ok == accepted(tasks@, levels@, endpoints@),
+pub fn accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, endpoints: &Vec<EndpointA>, ppi: &Vec<PpiA>, ppi_limit: usize) -> (ok: bool)
+    ensures ok == accepted(tasks@, levels@, endpoints@, ppi@, ppi_limit as int),
 {
     if levels.len() < 1 {
         return false;
@@ -179,13 +220,32 @@ pub fn accept(tasks: &Vec<TaskA>, levels: &Vec<u8>, endpoints: &Vec<EndpointA>) 
         }
         j = j + 1;
     }
+    if ppi.len() > ppi_limit {
+        return false;
+    }
+    let mut k: usize = 0;
+    while k < ppi.len()
+        invariant
+            k <= ppi.len(),
+            forall|m: int| 0 <= m < k ==> ppi_ok(#[trigger] ppi@[m], m, levels.len() as int),
+        decreases ppi.len() - k,
+    {
+        let c = &ppi[k];
+        let registers = 0x100 <= c.event_offset && c.event_offset < 0x200 && c.event_offset % 4 == 0 && c.task_offset < 0x100 && c.task_offset % 4 == 0;
+        let fork = !c.fork || (c.fork_offset < 0x100 && c.fork_offset % 4 == 0 && c.fork_owner == c.event_owner);
+        if !(c.channel as usize == k && registers && c.event_owner < levels.len() && c.task_owner == c.event_owner && fork) {
+            assert(!ppi_ok(ppi@[k as int], k as int, levels.len() as int));
+            return false;
+        }
+        k = k + 1;
+    }
     true
 }
 
 } // verus!
 
 /// The image of what `derive` produced that `accept` decides on.
-pub fn image(g: &crate::derive::Generated) -> (Vec<TaskA>, Vec<u8>, Vec<EndpointA>) {
+pub fn image(g: &crate::derive::Generated) -> (Vec<TaskA>, Vec<u8>, Vec<EndpointA>, Vec<PpiA>, usize) {
     let tasks = g.tasks.iter().map(|t| TaskA { priority: t.priority, partition: t.partition, period: t.period_ticks, deadline: t.deadline_ticks, budget: t.budget_cycles }).collect();
     let levels = g.partitions.iter().map(|p| p.level.code()).collect();
     let endpoints = g
@@ -193,7 +253,23 @@ pub fn image(g: &crate::derive::Generated) -> (Vec<TaskA>, Vec<u8>, Vec<Endpoint
         .iter()
         .map(|e| EndpointA { plain: e.protocol.is_none(), capacity: e.capacity, roles: e.roles.iter().map(|(_, t)| *t).collect(), validates: e.validates.clone() })
         .collect();
-    (tasks, levels, endpoints)
+    // A peripheral no Partition owns has no Partition's index.
+    let owner = |r: &crate::derive::GenPpiReg| r.owner.unwrap_or(usize::MAX);
+    let ppi = g
+        .ppi
+        .iter()
+        .map(|c| PpiA {
+            channel: c.channel,
+            event_offset: c.event.offset,
+            event_owner: owner(&c.event),
+            task_offset: c.task.offset,
+            task_owner: owner(&c.task),
+            fork: c.fork.is_some(),
+            fork_offset: c.fork.as_ref().map_or(0, |f| f.offset),
+            fork_owner: c.fork.as_ref().map_or(0, owner),
+        })
+        .collect();
+    (tasks, levels, endpoints, ppi, g.target.ppi_channels as usize)
 }
 
 #[cfg(test)]
@@ -218,11 +294,11 @@ mod tests {
     #[test]
     fn the_acceptance_check_accepts_the_base_and_refuses_each_altered_condition() {
         let (t, l, e) = base();
-        assert!(accept(&t, &l, &e));
+        assert!(accept(&t, &l, &e, &vec![], 0));
         let alter = |f: &dyn Fn(&mut Vec<TaskA>, &mut Vec<u8>, &mut Vec<EndpointA>)| {
             let (mut t, mut l, mut e) = base();
             f(&mut t, &mut l, &mut e);
-            accept(&t, &l, &e)
+            accept(&t, &l, &e, &vec![], 0)
         };
         // R22.1: a deadline later than the period, no deadline, no period, no Budget.
         assert!(!alter(&|t, _, _| t[0].deadline = 11));
@@ -258,5 +334,57 @@ mod tests {
             t[1].partition = 0;
             e[0].validates[0][1] = false;
         }));
+    }
+
+    /// PM33.1, PM33.2: the conditions on fixed PPI channels, each altered in turn.
+    #[test]
+    fn the_acceptance_check_refuses_each_altered_ppi_condition() {
+        let (t, l, e) = base();
+        let channel = |n: u8| PpiA { channel: n, event_offset: 0x140, event_owner: 1, task_offset: 0x030, task_owner: 1, fork: true, fork_offset: 0x008, fork_owner: 1 };
+        let two = || vec![channel(0), channel(1)];
+        assert!(accept(&t, &l, &e, &two(), 20));
+        assert!(accept(&t, &l, &e, &two(), 2));
+        let alter = |f: &dyn Fn(&mut Vec<PpiA>), limit: usize| {
+            let mut p = two();
+            f(&mut p);
+            accept(&t, &l, &e, &p, limit)
+        };
+        // More channels than the Target has; a Target without a PPI.
+        assert!(!alter(&|_| {}, 1));
+        assert!(!alter(&|_| {}, 0));
+        // A channel number used twice, or not the position.
+        assert!(!alter(&|p| p[1].channel = 0, 20));
+        assert!(!alter(&|p| p[0].channel = 1, 20));
+        assert!(!alter(&|p| p[1].channel = 2, 20));
+        // A channel across two Partitions: by its task, by its fork.
+        assert!(!alter(&|p| p[0].task_owner = 0, 20));
+        assert!(!alter(&|p| p[1].fork_owner = 0, 20));
+        // A peripheral no Partition owns (the Kernel's, or unassigned).
+        assert!(!alter(&|p| p[0].event_owner = usize::MAX, 20));
+        assert!(!alter(
+            &|p| {
+                p[0].event_owner = 2;
+                p[0].task_owner = 2;
+                p[0].fork_owner = 2;
+            },
+            20
+        ));
+        // Registers: an event offset in the task range, past the event
+        // range, unaligned; a task and a fork offset in the event range.
+        assert!(!alter(&|p| p[0].event_offset = 0x040, 20));
+        assert!(!alter(&|p| p[0].event_offset = 0x200, 20));
+        assert!(!alter(&|p| p[0].event_offset = 0x142, 20));
+        assert!(!alter(&|p| p[0].task_offset = 0x100, 20));
+        assert!(!alter(&|p| p[0].task_offset = 0x031, 20));
+        assert!(!alter(&|p| p[1].fork_offset = 0x100, 20));
+        // Without a fork, its fields are not read.
+        assert!(alter(
+            &|p| {
+                p[0].fork = false;
+                p[0].fork_offset = 0x999;
+                p[0].fork_owner = 0;
+            },
+            20
+        ));
     }
 }

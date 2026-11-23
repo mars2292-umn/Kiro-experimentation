@@ -276,6 +276,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
+name = "heart-sim"
+version = "0.0.0"
+dependencies = [
+ "rsk-entry",
+]
+
+[[package]]
+name = "heart-sim-decl"
+version = "0.0.0"
+dependencies = [
+ "rsk",
+]
+
+[[package]]
+name = "heart-sim-part"
+version = "0.0.0"
+dependencies = [
+ "heart-sim-decl",
+ "rsk",
+]
+
+[[package]]
+name = "heart-sim-system"
+version = "0.0.0"
+dependencies = [
+ "heart-sim-decl",
+ "heart-sim-part",
+ "rsk",
+ "rsk-kernel",
+]
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -475,6 +507,16 @@ name = "pm-core"
 version = "0.0.0"
 
 [[package]]
+name = "pm-judge"
+version = "0.0.0"
+dependencies = [
+ "heart-sim-part",
+ "pm-core",
+ "rsk-digest",
+ "serde_json",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,6 +707,7 @@ version = "0.0.0"
 name = "rsk-entry"
 version = "0.0.0"
 dependencies = [
+ "heart-sim-system",
  "hil-stimulus-system",
  "rsk-kernel",
  "rsk-system",

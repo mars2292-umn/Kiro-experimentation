@@ -12,6 +12,10 @@
 //! The program delivers groups of pulses, one group per width of `WIDTHS`,
 //! `PER_GROUP` pulses on each pin, and repeats for ever. The host script
 //! `measure.py` reads an analyzer capture and reports every width.
+//!
+//! With the feature `idle` (task 1.2) the program only reopens the debug
+//! port and starts the crystal oscillator, then spins: the host script
+//! `probe_1_2.py` runs one probe per register behaviour through the port.
 #![no_std]
 #![no_main]
 
@@ -108,6 +112,14 @@ extern "C" fn reset() -> ! {
     w(EVENTS_HFCLKSTARTED, 0);
     w(TASKS_HFCLKSTART, 1);
     while r(EVENTS_HFCLKSTARTED) == 0 {}
+
+    // Task 1.2: nothing more is configured here; `probe_1_2.py` writes the
+    // registers of each probe through the debug port while this loop spins.
+    if cfg!(feature = "idle") {
+        loop {
+            core::hint::spin_loop();
+        }
+    }
 
     // The pace pins as GPIOTE task pins, low.
     w(gpiote_config(0), task_pin_port1(10));

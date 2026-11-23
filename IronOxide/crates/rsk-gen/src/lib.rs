@@ -82,12 +82,12 @@ pub fn generate(decl: &Declaration) -> Result<Generated, Vec<Diagnostic>> {
     // what was derived (`accept_v::accept`, 2026-11-22): nothing is
     // generated for a declaration outside `accept_v::accepted`, whatever
     // the validation above let through.
-    let (tasks, levels, endpoints) = accept_v::image(&g);
-    if !accept_v::accept(&tasks, &levels, &endpoints) {
+    let (tasks, levels, endpoints, ppi, ppi_limit) = accept_v::image(&g);
+    if !accept_v::accept(&tasks, &levels, &endpoints, &ppi, ppi_limit) {
         return Err(vec![Diagnostic::new(
             "R22.1",
             decl::ItemRef::Declaration,
-            "the declaration passed validation but not the proven acceptance check (`accept_v::accepted`: Priorities, periods, deadlines, Budgets, Endpoint roles and R42.4 edges); this is a defect of the Generator's validation",
+            "the declaration passed validation but not the proven acceptance check (`accept_v::accepted`: Priorities, periods, deadlines, Budgets, Endpoint roles, R42.4 edges and fixed PPI channels); this is a defect of the Generator's validation",
         )]);
     }
     Ok(g)

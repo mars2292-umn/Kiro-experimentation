@@ -1,0 +1,260 @@
+{
+  "task": "1.2",
+  "probes": [
+    {
+      "probe": "six_compares_one_line",
+      "behaviour": "TIMER3 has six compare registers and one interrupt line",
+      "verdict": "confirmed",
+      "reads": {
+        "timer3_cc_read_back": [
+          "0x10000111",
+          "0x10000222",
+          "0x10000333",
+          "0x10000444",
+          "0x10000555",
+          "0x10000666"
+        ],
+        "timer3_intenset_read_back": "0x003f0000",
+        "timer1_cc_read_back_for_contrast": [
+          "0x10000111",
+          "0x10000222",
+          "0x10000333",
+          "0x10000444",
+          "0x00000000",
+          "0x00000000"
+        ],
+        "timer1_intenset_read_back_for_contrast": "0x000f0000",
+        "nvic_enabled_lines": "0x00000000",
+        "per_compare": [
+          {
+            "compare": 0,
+            "pending_before": "0x00000000",
+            "pending_while_armed": "0x00000000",
+            "pending_after": "0x04000000",
+            "event": 1
+          },
+          {
+            "compare": 1,
+            "pending_before": "0x00000000",
+            "pending_while_armed": "0x00000000",
+            "pending_after": "0x04000000",
+            "event": 1
+          },
+          {
+            "compare": 2,
+            "pending_before": "0x00000000",
+            "pending_while_armed": "0x00000000",
+            "pending_after": "0x04000000",
+            "event": 1
+          },
+          {
+            "compare": 3,
+            "pending_before": "0x00000000",
+            "pending_while_armed": "0x00000000",
+            "pending_after": "0x04000000",
+            "event": 1
+          },
+          {
+            "compare": 4,
+            "pending_before": "0x00000000",
+            "pending_while_armed": "0x00000000",
+            "pending_after": "0x04000000",
+            "event": 1
+          },
+          {
+            "compare": 5,
+            "pending_before": "0x00000000",
+            "pending_while_armed": "0x00000000",
+            "pending_after": "0x04000000",
+            "event": 1
+          }
+        ]
+      },
+      "note": "Each of the six compares, with its interrupt enabled, set the pending bit of line 26 (0x04000000) and no other."
+    },
+    {
+      "probe": "compare_behind_the_counter",
+      "behaviour": "A compare written behind the counter does not fire before the wrap",
+      "verdict": "confirmed",
+      "reads": {
+        "counter_when_written": "0x01590cb3",
+        "compare_written": "0x015908cb",
+        "counter_at_the_check": "0x0182ea63",
+        "event_after_waiting": "0x00000000",
+        "compare_then_written_ahead": "0x01a2552a",
+        "event_while_ahead": "0x00000000",
+        "event_once_passed": "0x00000001"
+      },
+      "note": "The counter ran on for over 1.9 s past the value with no event; the same register written ahead fired."
+    },
+    {
+      "probe": "event_flag_without_interrupt",
+      "behaviour": "An event flag is set when its interrupt is not enabled",
+      "verdict": "confirmed",
+      "reads": {
+        "intenset": "0x00000000",
+        "event_before": "0x00000000",
+        "event_after": "0x00000001",
+        "nvic_pending_with_interrupt_disabled": "0x00000000",
+        "nvic_pending_once_enabled": "0x04000000"
+      },
+      "note": "With every TIMER3 interrupt disabled the compare set its event flag and left line 26 not pending; enabling the interrupt with the flag still set made the line pending."
+    },
+    {
+      "probe": "gpiote_holds_the_pin",
+      "behaviour": "A GPIOTE task channel holds the pin whatever the port's direction register says",
+      "verdict": "confirmed",
+      "reads": {
+        "pin": "P1.10",
+        "steps": [
+          {
+            "step": "channel configured, initial low; port: input",
+            "dir_bit": 0,
+            "pin": 0
+          },
+          {
+            "step": "SET task; port: input, OUT low",
+            "dir_bit": 0,
+            "pin": 1
+          },
+          {
+            "step": "pull-down enabled against the high",
+            "dir_bit": 0,
+            "pin": 1
+          },
+          {
+            "step": "CLR task; port: input",
+            "dir_bit": 0,
+            "pin": 0
+          },
+          {
+            "step": "port: output, OUT high, against the channel's low",
+            "dir_bit": 1,
+            "pin": 0
+          },
+          {
+            "step": "port: PIN_CNF input with pull-up, against the channel's low",
+            "dir_bit": 0,
+            "pin": 0
+          },
+          {
+            "step": "SET task; port: output, OUT low",
+            "dir_bit": 1,
+            "pin": 1
+          }
+        ]
+      },
+      "note": "The pin followed the channel's SET and CLR tasks with the port set to input, and was not moved by the port's OUT and DIR written against it, nor by a pull against it."
+    },
+    {
+      "probe": "ppi_fork",
+      "behaviour": "A PPI fork triggers a second task from one event",
+      "verdict": "confirmed",
+      "reads": {
+        "channels": "CH0: TIMER3 COMPARE[0] -> GPIOTE SET[0] (P1.10), fork SET[2] (P1.03); CH1: TIMER3 COMPARE[4] -> GPIOTE CLR[0], fork CLR[2]",
+        "steps": [
+          {
+            "step": "both channels enabled, nothing fired",
+            "a_p1_10": 0,
+            "a_p1_03": 0,
+            "b_p1_03": 0
+          },
+          {
+            "step": "compare 0 fired: SET by the task, SET by the fork",
+            "a_p1_10": 1,
+            "a_p1_03": 1,
+            "b_p1_03": 1
+          },
+          {
+            "step": "compare 4 fired: CLR by the task, CLR by the fork",
+            "a_p1_10": 0,
+            "a_p1_03": 0,
+            "b_p1_03": 0
+          },
+          {
+            "step": "compare 0 fired with the task end-point cleared: the fork alone",
+            "a_p1_10": 0,
+            "a_p1_03": 1,
+            "b_p1_03": 1
+          }
+        ]
+      },
+      "note": "One compare event moved both pins, and board B read the forked pin on the board-to-board line. Read through registers: that the two edges are simultaneous is not measured here."
+    },
+    {
+      "probe": "counter_mode",
+      "behaviour": "A timer in counter mode counts fork edges and raises its interrupt at a compare that is moved while it counts, with the counter never cleared",
+      "verdict": "confirmed",
+      "reads": {
+        "channel": "CH2: GPIOTE IN[3] (P1.01 rising) -> TIMER3 CAPTURE[3], fork TIMER1 COUNT",
+        "steps": [
+          {
+            "step": "compare at 3, no edge yet",
+            "count": 0,
+            "compare": 3,
+            "event": 0,
+            "line_9_pending": 0,
+            "timer3_capture": 13547310
+          },
+          {
+            "step": "edge 1",
+            "count": 1,
+            "compare": 3,
+            "event": 0,
+            "line_9_pending": 0,
+            "timer3_capture": 53865879
+          },
+          {
+            "step": "edge 2",
+            "count": 2,
+            "compare": 3,
+            "event": 0,
+            "line_9_pending": 0,
+            "timer3_capture": 55236423
+          },
+          {
+            "step": "edge 3",
+            "count": 3,
+            "compare": 3,
+            "event": 1,
+            "line_9_pending": 1,
+            "timer3_capture": 56620543
+          },
+          {
+            "step": "compare moved to 5, event cleared",
+            "count": 3,
+            "compare": 5,
+            "event": 0,
+            "line_9_pending": 0,
+            "timer3_capture": 56620543
+          },
+          {
+            "step": "edge 4",
+            "count": 4,
+            "compare": 5,
+            "event": 0,
+            "line_9_pending": 0,
+            "timer3_capture": 59770835
+          },
+          {
+            "step": "edge 5",
+            "count": 5,
+            "compare": 5,
+            "event": 1,
+            "line_9_pending": 1,
+            "timer3_capture": 61253525
+          },
+          {
+            "step": "edge 6",
+            "count": 6,
+            "compare": 5,
+            "event": 1,
+            "line_9_pending": 1,
+            "timer3_capture": 62743660
+          }
+        ]
+      },
+      "note": "TIMER1 counted one per edge, raised line 9 at the edge that reached the compare, and after the compare was moved from 3 to 5 with the count left at 3, raised it again at the fifth edge and not the fourth. TIMER3's capture register took a new, later instant at every edge."
+    }
+  ]
+}

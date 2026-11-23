@@ -31,6 +31,7 @@ members = [
     "crates/rsk-digest",
     "crates/rsk-elf",
     "crates/pm-core",
+    "crates/pm-judge",
     "apps/p1-demo/decl",
     "apps/p1-demo/system",
     "apps/p1-demo/part0",
@@ -41,6 +42,10 @@ members = [
     "apps/hil-stimulus/system",
     "apps/hil-stimulus/part",
     "apps/hil-stimulus/bin",
+    "apps/heart-sim/decl",
+    "apps/heart-sim/system",
+    "apps/heart-sim/part",
+    "apps/heart-sim/bin",
     "xtask",
 ]
 # Fixture workspaces carry their own [workspace] tables and lock files.
@@ -148,6 +153,7 @@ rsk-elf = { targets = ["host"] }
 # Application's Partitions, the DCM_Stub and host tests. Not a Flight_Build
 # root until the Application exists (docs/pacemaker/tasks.md, task 8.1).
 pm-core = { targets = ["host", "thumbv7em-none-eabihf"] }
+pm-judge = { targets = ["host"] }
 # The P1 demo Application (task 3.1 spike): the system crate that rsk-entry
 # binds, two Partition crates, and the Flight_Build binary (Target only).
 p1-demo-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true, variants = ["nrf52840", "nrf52840_timing", "nrf52840_timing_short", "nrf52840_response", "nrf52840_stress", "nrf52840_stress_short", "nrf52840_isolation", "nrf52840_cycles", "nrf52840_cycles_fpu", "nrf52840_measure", "nrf52840_coverage", "qemu_flood"] }
@@ -164,4 +170,11 @@ hil-stimulus-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration =
 hil-stimulus-system = { targets = ["host", "thumbv7em-none-eabihf"] }
 hil-stimulus-part = { targets = ["host", "thumbv7em-none-eabihf"] }
 hil-stimulus = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
+# The PACEMAKER experiment's Heart_Simulator (docs/pacemaker task 4.2): rsk
+# on the stimulus board, built like the stimulus Application (its own cargo
+# invocation; which binary the rig flashes is `hil-rig.toml`'s choice).
+heart-sim-decl = { targets = ["host", "thumbv7em-none-eabihf"], declaration = true }
+heart-sim-system = { targets = ["host", "thumbv7em-none-eabihf"] }
+heart-sim-part = { targets = ["host", "thumbv7em-none-eabihf"] }
+heart-sim = { targets = ["thumbv7em-none-eabihf"], hil-stimulus = true }
 xtask = { targets = ["host"] }

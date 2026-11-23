@@ -935,6 +935,142 @@ mod tests {
         assert!(!crate::PPI_KERNEL_SUPPORT, "when the Kernel writes the channels, this test goes and `outputs` emits them");
     }
 
+    /// PM33.2 (docs/pacemaker): a channel's peripherals are all owned by
+    /// one Partition. Negative fixtures: a channel across two Partitions
+    /// (by its task, and by its fork), a Kernel-owned peripheral, and a
+    /// peripheral no Partition owns.
+    #[test]
+    fn pm33_2_a_channel_stays_inside_one_partition() {
+        let item = |n: &str| format!("ppi {n}");
+        // part0 owns TIMER1 and part1 owns GPIOTE.
+        let split = |channels: &str| {
+            let src = DEMO
+                .replace("target = qemu_mps2_an386", "target = nrf52840")
+                .replace("peripherals = [];", "peripherals = [TIMER1];")
+                .replace("task log (periodic", "peripherals = [GPIOTE];\n            task log (periodic");
+            assert_eq!(src.matches("peripherals =").count(), 2);
+            format!("{src}\n{channels}")
+        };
+        assert_eq!(rules(&split("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030]);")), vec![("PM33.2".to_string(), item("c"))]);
+        assert_eq!(rules(&split("ppi c (event = TIMER1[0x140], task = TIMER1[0x040], fork = GPIOTE[0x030]);")), vec![("PM33.2".to_string(), item("c"))]);
+        // Inside either Partition the same registers are accepted.
+        assert_eq!(rules(&split("ppi c (event = TIMER1[0x140], task = TIMER1[0x040]); ppi d (event = GPIOTE[0x100], task = GPIOTE[0x030]);")), vec![]);
+        // A Kernel-owned peripheral: the time base, and the PPI itself.
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER0[0x140], task = GPIOTE[0x030]);")), vec![("PR-29".to_string(), item("c"))]);
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER1[0x140], task = PPI[0x000]);")), vec![("PR-29".to_string(), item("c"))]);
+        // A peripheral of the Target that no Partition lists.
+        assert_eq!(rules(&ppi_demo("ppi c (event = TIMER2[0x140], task = GPIOTE[0x030]);")), vec![("PM33.2".to_string(), item("c"))]);
+        // The message names both Partitions.
+        let parsed = parse_app(split("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030]);").parse().unwrap()).unwrap();
+        let text = crate::generate(&parsed.decl).unwrap_err()[0].to_string();
+        assert!(text.contains("`TIMER1` of Partition `part0`") && text.contains("`GPIOTE` of Partition `part1`"), "{text}");
+    }
+
+    /// PM33.2: the derived channel records the owner of each peripheral,
+    /// which is what the proven acceptance check decides on.
+    #[test]
+    fn pm33_2_the_owner_of_each_register_is_derived() {
+        let parsed = parse_app(ppi_demo("ppi c (event = TIMER1[0x140], task = GPIOTE[0x030], fork = TIMER1[0x008]);").parse().unwrap()).unwrap();
+        let g = crate::generate(&parsed.decl).unwrap();
+        assert_eq!((g.ppi[0].event.owner, g.ppi[0].task.owner, g.ppi[0].fork.as_ref().unwrap().owner), (Some(0), Some(0), Some(0)));
+        let (.., ppi, limit) = crate::accept_v::image(&g);
+        assert_eq!(limit, 20);
+        assert_eq!((ppi[0].channel, ppi[0].event_offset, ppi[0].task_offset, ppi[0].fork, ppi[0].fork_offset), (0, 0x140, 0x030, true, 0x008));
+        assert_eq!((ppi[0].event_owner, ppi[0].task_owner, ppi[0].fork_owner), (0, 0, 0));
+    }
+
+    /// PM33.4: the channels are under the configuration checksum. Without
+    /// channels the image is what it was; with channels it ends in their
+    /// table, and a change of any register, of the fork, or of the order
+    /// changes the checksum.
+    #[test]
+    fn pm33_4_the_channels_are_under_the_configuration_checksum() {
+        let generate = |channels: &str| crate::generate(&parse_app(ppi_demo(channels).parse().unwrap()).unwrap().decl).unwrap();
+        let none = generate("");
+        assert!(crate::derive::ppi_bytes(&none).is_empty());
+        let a = "ppi a (event = TIMER1[0x140], task = GPIOTE[0x030]);";
+        let b = "ppi b (event = GPIOTE[0x100], task = TIMER1[0x040], fork = TIMER1[0x008]);";
+        let both = generate(&format!("{a} {b}"));
+        let image = crate::derive::config_bytes(&both);
+        let base = crate::derive::config_bytes(&none);
+        #[rustfmt::skip]
+        let table = [
+            2,
+            0, 0x40, 0x91, 0x00, 0x40, 0x30, 0x60, 0x00, 0x40, 0, 0, 0, 0,
+            1, 0x00, 0x61, 0x00, 0x40, 0x40, 0x90, 0x00, 0x40, 0x08, 0x90, 0x00, 0x40,
+        ];
+        assert_eq!(image[..base.len()], base[..]);
+        assert_eq!(image[base.len()..], table);
+        assert_eq!(both.checksum, crate::derive::crc32(&image));
+        let mut sums = vec![none.checksum, both.checksum];
+        for other in [
+            a.to_string(),
+            format!("{b} {a}"),
+            format!("{a} {}", b.replace("0x008", "0x00c")),
+            format!("{a} {}", b.replace(", fork = TIMER1[0x008]", "")),
+            format!("{} {b}", a.replace("0x140", "0x144")),
+            format!("{} {b}", a.replace("0x030", "0x034")),
+        ] {
+            sums.push(generate(&other).checksum);
+        }
+        let distinct: std::collections::BTreeSet<u32> = sums.iter().copied().collect();
+        assert_eq!(distinct.len(), sums.len(), "{sums:08x?}");
+    }
+
+    /// PM33.4: the emitted configuration carries the channel table, and a
+    /// configuration without channels has no such item.
+    #[test]
+    fn pm33_4_the_channel_table_is_emitted() {
+        let generate = |channels: &str| crate::generate(&parse_app(ppi_demo(channels).parse().unwrap()).unwrap().decl).unwrap();
+        let g = generate("ppi a (event = TIMER1[0x140], task = GPIOTE[0x030]); ppi b (event = GPIOTE[0x100], task = TIMER1[0x040], fork = TIMER1[0x008]);");
+        let source = crate::emit::system_source(&g);
+        assert!(
+            source.contains("pub static RSK_PPI: [[u32; 3]; 2] = [[0x40009140, 0x40006030, 0x00000000], [0x40006100, 0x40009040, 0x40009008]];"),
+            "{}",
+            source.lines().filter(|l| l.contains("PPI")).collect::<Vec<_>>().join("\n")
+        );
+        assert!(source.contains(&format!("pub const CONFIG_CHECKSUM: u32 = 0x{:08x};", g.checksum)));
+        assert!(!crate::emit::system_source(&generate("")).contains("RSK_PPI"));
+    }
+
+    /// PM33.6 (docs/pacemaker): TIMER3 of the nRF52840 is a peripheral a
+    /// Partition may own and a Task may bind: its window is the Partition's,
+    /// its interrupt line 26 releases the Task, and channels may name it.
+    #[test]
+    fn pm33_6_timer3_can_be_owned_bound_and_connected() {
+        let src = DEMO
+            .replace("target = qemu_mps2_an386", "target = nrf52840")
+            .replace("peripherals = [];", "peripherals = [TIMER3, GPIOTE];")
+            .replace(
+                "task sensor (periodic, period = 20.ms(), deadline = 20.ms(), budget = 19.ms(), priority = 5, resources = [state]);",
+                "task sensor (sporadic, binds = TIMER3, mit = 20.ms(), mit_policy = defer, deadline = 20.ms(), budget = 9.ms(), priority = 5, resources = [state]);",
+            );
+        assert!(src.contains("binds = TIMER3"));
+        let src = format!("{src}\nppi pulse_end (event = TIMER3[0x150], task = GPIOTE[0x060]);");
+        let parsed = parse_app(src.parse().unwrap()).unwrap();
+        let g = match crate::generate(&parsed.decl) {
+            Ok(g) => g,
+            Err(errs) => panic!("{}", errs.iter().map(ToString::to_string).collect::<Vec<_>>().join("\n")),
+        };
+        let per = g.target.peripheral("TIMER3").unwrap();
+        assert_eq!((per.window_base, per.window_size, per.irq, per.kernel_owned, per.easy_dma), (0x4001_A000, 0x1000, Some(26), false, false));
+        assert_eq!(g.ppi[0].event.address, 0x4001_A150);
+        let model = crate::model::task_model(&g).render();
+        let compact: String = model.chars().filter(|c| !c.is_whitespace()).collect();
+        assert!(compact.contains("\"TIMER3\""), "{model}");
+        assert!(compact.contains("\"irq\":26"), "{model}");
+        // The Task_Model of the declaration without the channel is the
+        // Config_Checker's fixture: its test recomputes every derived value
+        // of it (`the_timer3_task_model_recomputes_without_discrepancy`).
+        let plain = src.replace("ppi pulse_end (event = TIMER3[0x150], task = GPIOTE[0x060]);", "");
+        let fixture = crate::model::task_model(&crate::generate(&parse_app(plain.parse().unwrap()).unwrap().decl).unwrap()).render();
+        assert_eq!(fixture, include_str!("../../rsk-confcheck/fixtures/pm33_6_timer3_task_model.json"), "regenerate the Config_Checker's fixture");
+        // Two Partitions cannot both own it, and the QEMU Target has none.
+        let twice = src.replace("task log (periodic", "peripherals = [TIMER3];\n            task log (periodic");
+        assert!(rules(&twice).iter().any(|(r, i)| r == "PR-28" && i.contains("TIMER3")), "{:?}", rules(&twice));
+        assert!(rules(&DEMO.replace("peripherals = [];", "peripherals = [TIMER3];")).iter().any(|(r, _)| r == "R21.5"));
+    }
+
     /// R3.1, R21.4: a Generator diagnostic is reported at the source span of
     /// the offending item, with the rule it violates: a Priority beyond the
     /// hardware levels at the Task's `priority` field, a response outside its

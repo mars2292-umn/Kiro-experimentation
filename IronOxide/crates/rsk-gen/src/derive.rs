@@ -223,6 +223,8 @@ pub struct GenPpiReg {
     /// The register's address: what the Kernel writes to the channel's
     /// end-point register.
     pub address: u32,
+    /// The Partition that owns the peripheral (PM33.2), or none.
+    pub owner: Option<usize>,
 }
 
 /// A fixed PPI channel (docs/pacemaker PM33.1).
@@ -519,6 +521,7 @@ pub fn derive(decl: &Declaration, target: &'static Target) -> Result<Generated, 
         peripheral: r.peripheral.clone(),
         offset: r.offset,
         address: target.peripheral(&r.peripheral).expect("validated").window_base + r.offset,
+        owner: decl.partitions.iter().position(|p| p.peripherals.iter().any(|x| *x == r.peripheral)),
     };
     let ppi: Vec<GenPpi> = decl
         .ppi
@@ -651,6 +654,29 @@ pub fn config_bytes(g: &Generated) -> Vec<u8> {
         out.push(t.slot_budget);
     }
     out.push(g.slot_count as u8);
+    out.extend_from_slice(&ppi_bytes(g));
+    out
+}
+
+/// The canonical image of the fixed PPI channels (docs/pacemaker PM33.4):
+/// nothing when none is declared, so that the image and the checksum of a
+/// configuration without channels are what they were; otherwise the count
+/// as u8, then per channel its number u8 and the addresses of its event,
+/// task and fork registers as u32 (0 for no fork). It is the tail of
+/// `config_bytes`: the lengths of everything before it follow from the
+/// counts at the head, so the tail cannot be read as part of them.
+pub fn ppi_bytes(g: &Generated) -> Vec<u8> {
+    let mut out = Vec::new();
+    if g.ppi.is_empty() {
+        return out;
+    }
+    out.push(g.ppi.len() as u8);
+    for c in &g.ppi {
+        out.push(c.channel);
+        out.extend_from_slice(&c.event.address.to_le_bytes());
+        out.extend_from_slice(&c.task.address.to_le_bytes());
+        out.extend_from_slice(&c.fork.as_ref().map_or(0, |f| f.address).to_le_bytes());
+    }
     out
 }
 

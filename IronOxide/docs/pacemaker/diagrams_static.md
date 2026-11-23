@@ -114,6 +114,8 @@ flowchart LR
     subgraph GO["GPIOTE outputs"]
         S2["set, clear: A pace pin"]
         S3["set, clear: V pace pin"]
+        S4["set, clear: A pace copy<br/>to the Heart_Simulator"]
+        S5["set, clear: V pace copy<br/>to the Heart_Simulator"]
     end
 
     SA --> I0
@@ -126,6 +128,10 @@ flowchart LR
     C4 -- "PPI: clear" --> S2
     C1 -- "PPI: set" --> S3
     C5 -- "PPI: clear" --> S3
+    C0 -- "fork: set" --> S4
+    C4 -- "fork: clear" --> S4
+    C1 -- "fork: set" --> S5
+    C5 -- "fork: clear" --> S5
 
     T1 -. "interrupt" .-> JA["Task sense_a"]
     T2 -. "interrupt" .-> JV["Task sense_v"]
@@ -133,7 +139,7 @@ flowchart LR
     C5 -. "interrupt" .-> JP
 ```
 
-Six PPI channels, two with a fork. The Kernel writes them once at Init from the generated configuration.
+Six PPI channels, each with a fork. The Kernel writes them once at Init from the generated configuration. The forks of the four pace channels drive a copy of each pace pin on a board-to-board line, because on the rig the analyzer sees the pace pins and the Heart_Simulator sees only the copies (design, "The pace copies").
 
 | What must be exact | What makes it so |
 |---|---|

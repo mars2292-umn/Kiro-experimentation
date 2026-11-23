@@ -1,0 +1,342 @@
+{
+  "schema": "rsk-task-model/1",
+  "profile": {
+    "version": "0.6",
+    "variant": "Ravenscar"
+  },
+  "generator": "0.0.0",
+  "kernel": "0.0.0",
+  "target": "nrf52840",
+  "core_revision": "r0p1",
+  "clock": {
+    "cpu_hz": 64000000,
+    "tick_hz": 16000000
+  },
+  "config_checksum": "0x84926195",
+  "layout_checksum": "0x34357452",
+  "operating_duration_ticks": 3200000,
+  "safe_state": "crate::report_and_exit",
+  "fp_flush_to_zero": false,
+  "kernel_levels": [
+    0
+  ],
+  "priority_map": [
+    {
+      "level": 2,
+      "nvic": 192
+    },
+    {
+      "level": 5,
+      "nvic": 96
+    },
+    {
+      "level": 7,
+      "nvic": 32
+    }
+  ],
+  "derived": [
+    "kernel_levels",
+    "priority_map"
+  ],
+  "capacities": {
+    "lock_stack": 2,
+    "timer_slots": 11,
+    "event_log": 32,
+    "derived": true
+  },
+  "layout": {
+    "kernel_flash": {
+      "base": 0,
+      "size_log2": 17,
+      "srd": 0,
+      "usable_bytes": 131072
+    },
+    "shared_code": {
+      "base": 131072,
+      "size_log2": 16,
+      "srd": 0,
+      "usable_bytes": 65536
+    },
+    "kernel_ram": {
+      "base": 536870912,
+      "size_log2": 15,
+      "srd": 0,
+      "usable_bytes": 32768
+    },
+    "kernel_windows": [
+      {
+        "base": 3758096384,
+        "size_log2": 20,
+        "srd": 0,
+        "peripherals": [
+          "PPB"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073741824,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "CLOCK"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073774592,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "TIMER0"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073807360,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "WDT"
+        ],
+        "read_only": false
+      },
+      {
+        "base": 1073868800,
+        "size_log2": 12,
+        "srd": 0,
+        "peripherals": [
+          "PPI"
+        ],
+        "read_only": false
+      }
+    ],
+    "derived": true
+  },
+  "partitions": [
+    {
+      "id": "part0",
+      "crate": "p1_demo_part0",
+      "level": "A",
+      "fault": "RESTART_PARTITION",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [
+        "TIMER3",
+        "GPIOTE"
+      ],
+      "mpu": {
+        "code": {
+          "base": 196608,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536903680,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [
+          {
+            "base": 1073766400,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "GPIOTE"
+            ],
+            "read_only": false
+          },
+          {
+            "base": 1073848320,
+            "size_log2": 12,
+            "srd": 0,
+            "peripherals": [
+              "TIMER3"
+            ],
+            "read_only": false
+          }
+        ],
+        "derived": true
+      },
+      "tasks": [
+        "part0.control",
+        "part0.sensor"
+      ],
+      "resources": [
+        "part0.state"
+      ],
+      "signals": []
+    },
+    {
+      "id": "part1",
+      "crate": "p1_demo_part1",
+      "level": "C",
+      "fault": "RESTART_PARTITION",
+      "overrun": "END_JOB",
+      "deadline_miss": "RECORD_ONLY",
+      "mit_threshold": 10,
+      "regions": {
+        "code": 32768,
+        "ram": 32768,
+        "stack": 4096,
+        "init_arena": 0
+      },
+      "peripherals": [],
+      "mpu": {
+        "code": {
+          "base": 229376,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "ram": {
+          "base": 536936448,
+          "size_log2": 15,
+          "srd": 0,
+          "usable_bytes": 32768
+        },
+        "windows": [],
+        "derived": true
+      },
+      "tasks": [
+        "part1.log"
+      ],
+      "resources": [],
+      "signals": []
+    }
+  ],
+  "tasks": [
+    {
+      "id": "part0.control",
+      "core": 0,
+      "partition": "part0",
+      "priority": 7,
+      "vector": 36,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 160000,
+      "source": null,
+      "deadline_ticks": 160000,
+      "budget_cycles": 576000,
+      "fpu": false,
+      "resources": [
+        "part0.state"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 0,
+        "deadline": 1,
+        "budget": 2
+      },
+      "cs_sites": [
+        "part0.control#cs:state"
+      ],
+      "entry": "::p1_demo_part0::rsk_jobs::control",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "part0.sensor",
+      "core": 0,
+      "partition": "part0",
+      "priority": 5,
+      "vector": 37,
+      "kind": "sporadic",
+      "mit_ticks": 320000,
+      "mit_policy": "defer",
+      "source": {
+        "interrupt": "TIMER3",
+        "irq": 26
+      },
+      "deadline_ticks": 320000,
+      "budget_cycles": 576000,
+      "fpu": false,
+      "resources": [
+        "part0.state"
+      ],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 1,
+      "slots": {
+        "release": 3,
+        "deadline": 4,
+        "budget": 5
+      },
+      "cs_sites": [
+        "part0.sensor#cs:state"
+      ],
+      "entry": "::p1_demo_part0::rsk_jobs::sensor",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    },
+    {
+      "id": "part1.log",
+      "core": 0,
+      "partition": "part1",
+      "priority": 2,
+      "vector": 38,
+      "kind": "periodic",
+      "offset_ticks": 0,
+      "period_ticks": 640000,
+      "source": null,
+      "deadline_ticks": 640000,
+      "budget_cycles": 2496000,
+      "fpu": false,
+      "resources": [],
+      "raises": [],
+      "endpoint_roles": [],
+      "nesting_depth": 0,
+      "slots": {
+        "release": 6,
+        "deadline": 7,
+        "budget": 8
+      },
+      "cs_sites": [],
+      "entry": "::p1_demo_part1::rsk_jobs::log",
+      "derived": [
+        "vector",
+        "nesting_depth",
+        "slots",
+        "cs_sites"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "id": "part0.state",
+      "core": 0,
+      "partition": "part0",
+      "ceiling": 7,
+      "accessors": [
+        "part0.control",
+        "part0.sensor"
+      ],
+      "type": "u32",
+      "derived": [
+        "ceiling"
+      ]
+    }
+  ],
+  "signals": [],
+  "endpoints": [],
+  "chains": [],
+  "conversions": []
+}

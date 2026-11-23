@@ -1,0 +1,19 @@
+[package]
+name = "pm-judge"
+description = "PACEMAKER experiment: the rig's judgement of a logic-analyzer capture (docs/pacemaker task 4.3): Paces and Senses decoded, every pace interval, refractory period and pulse width judged against its tolerance; host only"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "pm-judge"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+pm-core.workspace = true
+heart-sim-part = { path = "../../apps/heart-sim/part" }
+rsk-digest.workspace = true
+serde_json.workspace = true

@@ -7,7 +7,8 @@
 //! `System` type (`Sys`, a path dependency on the generated system crate
 //! of the Application, selected by exactly one `app-*` cargo feature: the
 //! P1 demo's `rsk_system` by default, the HIL_Rig's stimulus Application
-//! with `app-hil-stimulus`, task 7.1). The Application never defines a
+//! with `app-hil-stimulus`, task 7.1, the PACEMAKER experiment's
+//! Heart_Simulator with `app-heart-sim`). The Application never defines a
 //! link-level symbol (R24.2).
 //!
 //! The linker script provides the memory initialization tables
@@ -22,10 +23,16 @@ use rsk_kernel::arch::{System, SystemTables};
 use rsk_system::Sys;
 #[cfg(feature = "app-hil-stimulus")]
 use hil_stimulus_system::Sys;
-#[cfg(all(feature = "app-p1-demo", feature = "app-hil-stimulus"))]
-compile_error!("rsk-entry binds exactly one Application: enable one of `app-p1-demo` and `app-hil-stimulus`");
-#[cfg(not(any(feature = "app-p1-demo", feature = "app-hil-stimulus")))]
-compile_error!("rsk-entry binds exactly one Application: enable `app-p1-demo` (the default) or `app-hil-stimulus`");
+#[cfg(feature = "app-heart-sim")]
+use heart_sim_system::Sys;
+#[cfg(any(
+    all(feature = "app-p1-demo", feature = "app-hil-stimulus"),
+    all(feature = "app-p1-demo", feature = "app-heart-sim"),
+    all(feature = "app-hil-stimulus", feature = "app-heart-sim")
+))]
+compile_error!("rsk-entry binds exactly one Application: enable one of `app-p1-demo`, `app-hil-stimulus` and `app-heart-sim`");
+#[cfg(not(any(feature = "app-p1-demo", feature = "app-hil-stimulus", feature = "app-heart-sim")))]
+compile_error!("rsk-entry binds exactly one Application: enable `app-p1-demo` (the default), `app-hil-stimulus` or `app-heart-sim`");
 
 /// A vector-table entry: a handler or a reserved word.
 #[repr(C)]
@@ -138,6 +145,8 @@ pub unsafe extern "C" fn Reset() -> ! {
     arch::trace_expect(rsk_system::TRACE_EXPECT.0, rsk_system::TRACE_EXPECT.1, rsk_system::TRACE_EXPECT.2);
     #[cfg(feature = "app-hil-stimulus")]
     arch::trace_expect(hil_stimulus_system::TRACE_EXPECT.0, hil_stimulus_system::TRACE_EXPECT.1, hil_stimulus_system::TRACE_EXPECT.2);
+    #[cfg(feature = "app-heart-sim")]
+    arch::trace_expect(heart_sim_system::TRACE_EXPECT.0, heart_sim_system::TRACE_EXPECT.1, heart_sim_system::TRACE_EXPECT.2);
     if !arch::boot::<Sys>() {
         Sys::safe_state();
     }

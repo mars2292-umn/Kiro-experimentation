@@ -1,0 +1,22 @@
+[package]
+name = "heart-sim-part"
+description = "PACEMAKER experiment, Heart_Simulator: the Partition with the beat Task and the scenario tables"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+nrf52840 = ["heart-sim-decl/nrf52840"]
+# The scenario the build plays (src/scenario.rs); without one, `fixed`.
+scenario-silent = []
+scenario-fast = []
+scenario-responsive = []
+
+[dependencies]
+heart-sim-decl = { path = "../decl" }
+rsk = { path = "../../../crates/rsk" }
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(creusot)"]

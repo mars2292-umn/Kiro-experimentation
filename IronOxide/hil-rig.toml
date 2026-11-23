@@ -61,13 +61,21 @@ pacemaker_pace_atrial = "target P1.10 (D8) -> analyzer D0"
 pacemaker_pace_ventricular = "target P1.11 (D9) -> analyzer D1"
 pacemaker_sense_atrial = "P1.01 (D0): stimulus -> target"
 pacemaker_sense_ventricular = "P1.02 (D1): stimulus -> target"
-# Proposal, not yet exercised: the pace pulses reach the Heart_Simulator on
-# the two remaining board-to-board lines, driven by a second GPIOTE channel
-# per Chamber from the same compare events (a fork of each pace channel),
-# since the analyzer cannot see the board-to-board wires and the pace pins
-# the analyzer sees do not reach the stimulus board.
-pacemaker_pace_atrial_to_simulator = "P1.03 (D2): target -> stimulus (line measured; the fork is a proposal)"
-pacemaker_pace_ventricular_to_simulator = "P1.04 (D3): target -> stimulus (line measured; the fork is a proposal)"
+# The pace pulses reach the Heart_Simulator on the two remaining
+# board-to-board lines, driven by a second GPIOTE channel per Chamber from
+# the same compare events (a fork of each pace channel): the analyzer cannot
+# see the board-to-board wires, and the pace pins the analyzer sees do not
+# reach the stimulus board. Confirmed 2026-11-22 by the spike's fork probe
+# (docs/pacemaker/spike/task_1_2_probes.json): one TIMER3 compare event set,
+# and one cleared, target P1.10 and P1.03 together, and the stimulus board
+# read P1.03.
+pacemaker_pace_atrial_to_simulator = "P1.03 (D2): target -> stimulus, a fork of the atrial pace channel"
+pacemaker_pace_ventricular_to_simulator = "P1.04 (D3): target -> stimulus, a fork of the ventricular pace channel"
+# The Heart_Simulator (apps/heart-sim) drives each sense line and its mirror
+# in one register write. Measured 2026-11-22: the `fixed` scenario's beats on
+# D6 and D7 (docs/pacemaker/rig/task_4_2_heart_fixed.json).
+pacemaker_sense_atrial_mirror = "stimulus P1.05 (D4) -> analyzer D6"
+pacemaker_sense_ventricular_mirror = "stimulus P1.06 (D5) -> analyzer D7"
 # Needed from stage E3.
 # Measured 2026-11-22 after the wire was added: P1.07 driven high and low
 # from each board through its debug probe while the other board read its

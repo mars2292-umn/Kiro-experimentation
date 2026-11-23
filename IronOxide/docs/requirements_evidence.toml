@@ -1648,8 +1648,8 @@ reviewed = "b7495d17014a467b"
 file = "crates/rsk-gen/src/accept_v.rs"
 name = "accept"
 tool = "verus"
-says = "The function answers yes exactly when the derived configuration is accepted: every Task has a Priority of 1 to 7, a Partition that exists, a period of at least one tick, a deadline of at least one tick and not later than the period, and a Budget of at least one cycle; there is a Partition; and every Endpoint has two to four roles bound to Tasks that exist, a capacity of at least one message, reports of rejected messages only on edges from another Partition of lower Criticality_Level, and in the plain form a validation function on every such edge."
-reviewed = "4a0d08e4691d1139"
+says = "The function answers yes exactly when the derived configuration is accepted: every Task has a Priority of 1 to 7, a Partition that exists, a period of at least one tick, a deadline of at least one tick and not later than the period, and a Budget of at least one cycle; there is a Partition; and every Endpoint has two to four roles bound to Tasks that exist, a capacity of at least one message, reports of rejected messages only on edges from another Partition of lower Criticality_Level, and in the plain form a validation function on every such edge; and, since 2026-11-22, there are no more fixed PPI channels than the Target has, each is numbered by its position, its event register and its task registers lie at the offsets a peripheral has them, and every peripheral it names is owned by one and the same Partition."
+reviewed = "33f9a4489a3caa14"
 
 [[row.other]]
 kind = "checked"

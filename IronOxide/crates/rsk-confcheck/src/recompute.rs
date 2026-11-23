@@ -638,6 +638,34 @@ mod tests {
         assert!(out.checked > 40);
     }
 
+    /// docs/pacemaker PM33.6: the Task_Model of a declaration whose
+    /// Partition owns TIMER3 and whose Sporadic_Task binds it (the fixture
+    /// is the Generator's output, kept equal by rsk-gen's test
+    /// `pm33_6_timer3_can_be_owned_bound_and_connected`) recomputes without
+    /// discrepancy: the window, the interrupt line and the layout.
+    #[test]
+    fn the_timer3_task_model_recomputes_without_discrepancy() {
+        const TIMER3: &str = include_str!("../fixtures/pm33_6_timer3_task_model.json");
+        assert!(TIMER3.contains("\"TIMER3\""));
+        let m = Model::parse(&serde_json::from_str(TIMER3).unwrap()).unwrap();
+        let mut out = Outcome::default();
+        check_model(&m, &mut out);
+        assert!(out.discrepancies.is_empty(), "{:?}", out.discrepancies);
+        assert!(out.checked > 40);
+        expected_layout(&m).unwrap();
+        expected_tables(&m).unwrap();
+        // The window (0x4001_A000) placed on the Kernel's PPI window
+        // (0x4001_F000) is a discrepancy (R16.2). The checker has no table
+        // of the Partition-assignable peripherals' addresses, so a window
+        // moved to another free address is not a discrepancy of this check.
+        let moved = TIMER3.replace("\"base\": 1073848320", "\"base\": 1073868800");
+        assert!(moved != TIMER3);
+        let m = Model::parse(&serde_json::from_str(&moved).unwrap()).unwrap();
+        let mut out = Outcome::default();
+        check_model(&m, &mut out);
+        assert!(!out.discrepancies.is_empty());
+    }
+
     /// R27.2: a Task on a core other than 0, a Resource marked global, or
     /// an Endpoint spanning another core is rejected by the Config_Checker
     /// as unusable input, naming the item and citing NG-01.
